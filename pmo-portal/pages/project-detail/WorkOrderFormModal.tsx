@@ -16,7 +16,7 @@ import {
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseMoneyInputAtScale } from '@/src/lib/format';
-import { parseTaxFacts } from '@/src/lib/taxTreatment';
+import { validateWorkOrderAmount } from './workOrderAmountValidation';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import type { WorkOrderRow, WorkOrderInput, WorkOrderPatch } from '@/src/lib/db/workOrders';
 
@@ -62,30 +62,26 @@ const validate = (
   }
   if (isEdit) return errors;
 
-  const value = parseMoneyInputAtScale(v.orderValue, 2);
-  if (value === null || value < 0) {
+  const issues = validateWorkOrderAmount(v.orderValue, v.taxTreatment, v.taxAmount);
+  if (issues.value) {
     errors.orderValue = t(
       'projectDetail.workOrderForm.errors.value',
       'Enter the order value as a non-negative amount with no more than 2 decimal places',
     );
   }
-  const tax = parseTaxFacts(v.taxTreatment, v.taxAmount);
-  if (!v.taxTreatment.trim()) {
+  if (issues.taxTreatment) {
     errors.taxTreatment = t(
       'projectDetail.workOrderForm.errors.treatmentRequired',
       'Choose whether the order value already includes tax',
     );
   }
-  if (tax === null && v.taxTreatment.trim()) {
+  if (issues.taxAmount === 'taxAmount') {
     errors.taxAmount = t(
       'projectDetail.workOrderForm.errors.taxAmount',
-      'Enter the tax amount — 0 if there is no tax',
+      'Enter the tax amount (0 if there is no tax)',
     );
   }
-  // Mirrors `work_orders_inclusive_tax_within_value` (0197 §6): tax carved OUT of a figure cannot
-  // exceed it, or the net value goes negative and the ceiling inverts. Caught here so the user
-  // reads the rule rather than a constraint name.
-  if (tax !== null && value !== null && tax.taxTreatment === 'inclusive' && tax.taxAmount > value) {
+  if (issues.taxAmount === 'inclusiveTaxTooLarge') {
     errors.taxAmount = t(
       'projectDetail.workOrderForm.errors.inclusiveTaxTooLarge',
       'An inclusive order value already contains its tax, so the tax cannot be larger than the value itself',
@@ -94,7 +90,7 @@ const validate = (
   return errors;
 };
 
-export interface WorkOrderFormModalProps {
+interface WorkOrderFormModalProps {
   /** null = create a Draft; a row = edit that Draft's body. */
   workOrder: WorkOrderRow | null;
   currencySymbolPrefix: string;
@@ -110,7 +106,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
   onCreate,
   onUpdate,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const isEdit = !!workOrder;
 
   const validateWithT = useCallback((v: FormValues) => validate(v, t, isEdit), [t, isEdit]);

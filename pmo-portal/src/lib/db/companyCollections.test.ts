@@ -111,9 +111,14 @@ describe('company customer reference reads', () => {
 
     expect(refs).toHaveLength(1001);
     expect(h.queries).toHaveLength(3);
-    expect(h.queries.map((query) => query.memberships[0]![1].length)).toEqual([100, 100, 1]);
-    expect(h.queries.map((query) => query.order)).toEqual(Array.from({ length: 3 }, () => [['id', { ascending: true }]]));
-    expect(h.queries[1]!.gt).toEqual([['id', 'ref-0999']]);
+    // DAL01-006: chunks fetch concurrently, so query ISSUANCE order is no longer the serial
+    // chunk order — the same three queries issue, keyed by their membership size (the 1-id
+    // chunk may interleave between the big chunk's two keyset pages).
+    expect(h.queries.map((query) => query.memberships[0]![1].length).sort((a, b) => a - b)).toEqual([1, 100, 100]);
+    expect(h.queries.every((query) => JSON.stringify(query.order) === JSON.stringify([['id', { ascending: true }]]))).toBe(true);
+    // The 1001 refs on company-000 still keyset-page: a 100-membership query resumes after ref-0999.
+    const continuation = h.queries.find((query) => query.memberships[0]![1].length === 100 && query.gt.length > 0);
+    expect(continuation!.gt).toEqual([['id', 'ref-0999']]);
     expect(h.queries.every((query) => query.limit === 1000)).toBe(true);
   });
 
@@ -122,4 +127,16 @@ describe('company customer reference reads', () => {
 
     await expect(listCompanyCustomerRefs(['company-a'])).rejects.toMatchObject({ message: 'read denied', code: '42501' });
   });
+});
+
+it('resolves mapped customer and supplier companies for contact creation', async () => {
+  h.setRows([
+    { id: 'a', domain: 'companies', external_tier: 'erpnext', pmo_record_id: 'a', external_record_id: 'Customer:A' },
+    { id: 'b', domain: 'companies', external_tier: 'erpnext', pmo_record_id: 'b', external_record_id: 'Supplier:B' },
+    { id: 'c', domain: 'companies', external_tier: 'erpnext', pmo_record_id: 'c', external_record_id: 'Supplier:' },
+  ]);
+  const module = await import('./companyCollections');
+  expect(module).toHaveProperty('listCompanyPartyRefs');
+  const list = (module as unknown as { listCompanyPartyRefs: (ids: string[]) => Promise<string[]> }).listCompanyPartyRefs;
+  expect(await list(['a', 'b', 'c'])).toEqual(['a', 'b']);
 });

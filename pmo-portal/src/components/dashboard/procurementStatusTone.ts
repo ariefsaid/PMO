@@ -24,14 +24,14 @@ export function procurementStatusTone(status: ProcurementStatus): SeriesColor {
       return chartTheme.series.success;
     // in-flight — not-yet-started + committed / progressing through the order.
     // C1 de-rainbow: Draft moved here (was the categorical violet). Draft is
-    // "not-yet-started", not a category — blue is the in-flight default; the
+    // "not-yet-started", not a category — neutral grey is the in-flight default (Freed-Blue rule); the
     // categorical violet is reserved for non-status use, and a 5th hue on a
     // status chart is the rainbow. Net: at most 4 status-meaning hues.
     case 'Draft':
     case 'Approved':
     case 'Quote Selected':
     case 'Ordered':
-      return chartTheme.series.primary;
+      return chartTheme.series.neutral;
     // awaiting / caution — needs an action or payment
     case 'Requested':
     case 'Vendor Quoted':

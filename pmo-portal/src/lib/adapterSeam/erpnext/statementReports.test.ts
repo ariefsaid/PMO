@@ -132,7 +132,8 @@ async function fetchPl(
 }
 
 describe('erpnext/statementReports', () => {
-  it('issues only the fixed GET with canonical standard filters and the prepared-report method argument', async () => {
+  it('AC-003 #1325: project statements use the mapped ERP identity, never a PMO display alias', async () => {
+    const shortAlias = 'North Terminal';
     const selected = selection({ project: { projectId: 'pmo-project-1', erpProjectName: 'Mapped Project' } });
     const { requests, fetched } = await fetchPl({ summary: summary('19.0', '0.0', '19.0') }, selected);
     expect(requests).toHaveLength(1);
@@ -152,6 +153,8 @@ describe('erpnext/statementReports', () => {
     });
     expect(url.searchParams.get('company')).toBeNull();
     expect(url.searchParams.get('project')).toBeNull();
+    expect(filters.project).toEqual(['Mapped Project']);
+    expect(filters.project).not.toContain(shortAlias);
     expect(filters).not.toHaveProperty('ignore_prepared_report');
     expect(request.credentials).toBe('omit');
     expect(request.redirect).toBe('manual');

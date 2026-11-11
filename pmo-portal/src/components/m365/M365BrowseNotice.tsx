@@ -11,11 +11,13 @@ const RECONNECT_CODES = new Set(['CONNECTION_STALE', 'CONNECTION_REVOKED', 'SCOP
 /** Codes the shared taxonomy words precisely (entitlement/membership/approval); no retry or reconnect loop. */
 const TAXONOMY_CODES = new Set(['NOT_ENTITLED', 'ORG_APPROVAL_REQUIRED', 'DISABLED_MEMBER', 'BANNED_MEMBER', 'FORBIDDEN', 'UNAUTHORIZED']);
 
-function messageFor(t: TFunction, code: string | undefined): string {
+function messageFor(t: TFunction, tf: TFunction, code: string | undefined, linkedFolder: boolean): string {
   switch (code) {
     case 'CONNECTION_STALE':
     case 'CONNECTION_REVOKED':
-      return t('m365Documents.notice.expired', 'The Microsoft 365 connection expired. Reconnect to link more documents.');
+      return linkedFolder
+        ? tf('notice.expiredFolder', 'The Microsoft 365 connection expired. Reconnect to see this folder’s files.')
+        : t('m365Documents.notice.expired', 'The Microsoft 365 connection expired. Reconnect to link more documents.');
     case 'SCOPE_INSUFFICIENT':
       return t('m365Documents.notice.scope', 'The connection needs additional permissions. Reconnect to grant them.');
     case 'NOT_CONNECTED':
@@ -37,10 +39,10 @@ export interface M365BrowseNoticeProps {
   /** A stable M365 error code. Unknown/absent codes render the reviewed generic sentence, never the raw body. */
   code?: string;
   onRetry?: () => void;
-  /** Overrides the default reconnect (existing `initiateM365Connect` + redirect to its returned authorize URL only). */
-  onReconnect?: () => void;
   /** The caller's connection, when known: a reconnect keeps a folder permission it already holds (RF-8). */
   connection?: Pick<ConnectionStatus, 'scopes'>;
+  /** Select copy for an already-linked folder, where reconnect restores its file list. */
+  linkedFolder?: boolean;
 }
 
 /**
@@ -48,15 +50,15 @@ export interface M365BrowseNoticeProps {
  * Maps stable codes only; raw bodies, identifiers and scope strings never reach the DOM.
  * Reconnect is offered only where a connection is the remedy, never as a licence/access fix.
  */
-export function M365BrowseNotice({ code, onRetry, onReconnect, connection }: M365BrowseNoticeProps) {
+export function M365BrowseNotice({ code, onRetry, connection, linkedFolder = false }: M365BrowseNoticeProps) {
   const { t } = useTranslation();
+  const { t: tf } = useTranslation('recordFolders');
   const [reconnecting, setReconnecting] = useState(false);
   const [reconnectFailed, setReconnectFailed] = useState(false);
   const canReconnect = !!code && RECONNECT_CODES.has(code);
   const canRetry = !!onRetry && code !== 'NOT_CONNECTED' && !(code && RECONNECT_CODES.has(code)) && !(code && TAXONOMY_CODES.has(code));
 
   async function reconnect() {
-    if (onReconnect) { onReconnect(); return; }
     setReconnecting(true); setReconnectFailed(false);
     try {
       const { authorizeUrl } = await initiateM365Connect(keepsFolderPermission(connection) ? { folders: true } : {});
@@ -70,7 +72,7 @@ export function M365BrowseNotice({ code, onRetry, onReconnect, connection }: M36
 
   return (
     <div className="min-w-0 space-y-2">
-      <GateNotice variant="blocked">{messageFor(t, code)}</GateNotice>
+      <GateNotice variant="blocked">{messageFor(t, tf, code, linkedFolder)}</GateNotice>
       {reconnectFailed && <p role="alert" className="text-[12.5px] text-destructive-text">{t('m365Documents.notice.reconnectFailed', 'Could not start the Microsoft 365 reconnect. Try again.')}</p>}
       <div className="flex flex-wrap gap-2">
         {code === 'NOT_CONNECTED' && (

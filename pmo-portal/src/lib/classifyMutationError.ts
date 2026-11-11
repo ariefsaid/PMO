@@ -136,6 +136,9 @@ function boundOperation(operation: ClassifyOperation | undefined): ClassifyOpera
 const KNOWN_REASON_CODES = new Set([
   // Postgres/PostgREST codes already classified in classifyCode() below.
   'P0001', '42501', '23505', '23503', '23514', 'REQUEST_TIMEOUT',
+  // Plan limits (migration 0535, plans lane S5): seats and active projects raise their own SQLSTATE
+  // so the FE can localise exactly these two refusals without hijacking P0001's many other meanings.
+  'PL001', 'PL002',
   // Custom application-level codes (AppError/InviteError), reviewed 2026-07-27.
   'BAD_REQUEST', 'DUPLICATE_EMAIL', 'INVITE_UNAUTHORIZED', 'INVALID_ROLE', 'UNKNOWN_ORG',
   'BINDING_NOT_FOUND', 'REF_NOT_FOUND', 'INTERNAL_ERROR',
@@ -146,6 +149,7 @@ const KNOWN_REASON_CODES = new Set([
   'snapshot-replaced-mid-read',
   // #784 (reviewed 2026-10-07): the PMO-native revenue repository refusals.
   'native-invoice-needs-project', 'native-receipt-needs-invoice', 'native-revenue-read-only',
+  'payment-in-flight-for-bill',
   // #784 (reviewed 2026-10-07): migration 0275's refusal details, mapped to the code by `src/lib/db/revenueNative.ts`.
   'erp-owns-revenue', 'not-pmo-native', 'pmo-native',
   'payment-date-missing', 'payment-date-future', 'payment-date-before-invoice', 'receipt-amount-invalid',
@@ -153,6 +157,12 @@ const KNOWN_REASON_CODES = new Set([
   'invoice-lines-count', 'invoice-line-invalid', 'invoice-total-invalid', 'vat-rate-missing',
   'invoice-not-receivable', 'invoice-has-receipts', 'receipt-already-cancelled', 'illegal-transition',
   'sod-self-approval', 'sod-author-missing', 'native-drafts-open',
+  // #1817 (reviewed 2026-11-06): migration 0704's refusal details.
+  'claim-already-invoiced', 'no-client', 'claim-total-mismatch',
+  // #1415 (migration 0731): payment-allocation refusals, mapped by `src/lib/db/revenueNative.ts`.
+  'allocation-exceeds-unapplied', 'allocation-exceeds-balance', 'allocation-amount-invalid', 'allocation-duplicate-invoice',
+  'allocation-client-mismatch', 'allocation-currency-mismatch', 'allocation-already-reversed', 'receipt-not-applicable',
+  'request-id-reused',
 ]);
 
 /** A genuine Postgres SQLSTATE is exactly 5 alphanumeric characters — too short to hold a name. */
@@ -176,6 +186,13 @@ function boundReasonCode(code: string | undefined): string {
  * Only the constraint families whose text is MACHINE-generated are listed — see the module
  * docstring for why app-authored messages are deliberately absent.
  */
+/** The four org purchase rules (0360 `procurement_gate_message`). Their refusal text is server-authored product copy. */
+const PURCHASE_RULE_DETAILS: ReadonlySet<string> = new Set([
+  'gate_request_before_order', 'gate_approval_before_order', 'gate_receipt_before_invoice', 'gate_approval_before_payment',
+  // #1935 (migration 0699): moving a purchase that has attached journal lines; the message names who can detach.
+  'purchase-move-has-journal-lines',
+]);
+
 const POSTGRES_GENERATED_DETAIL: Record<string, string> = {
   '23514': 'This change conflicts with the current document state. Refresh and try again.',
   '42501': 'Your role does not allow this change. Ask an administrator if you think it should.',
@@ -271,8 +288,11 @@ export function classifyMutationError(
   const databaseDetails = typeof (err as { details?: unknown } | null)?.details === 'string'
     ? (err as { details: string }).details
     : undefined;
+  const isPurchaseRule = code === '23514' && databaseDetails !== undefined && PURCHASE_RULE_DETAILS.has(databaseDetails);
   const safeCheckDetail = code === '23514'
-    ? databaseDetails === 'm365-source-collision'
+    ? isPurchaseRule
+      ? rawDetail
+      : databaseDetails === 'm365-source-collision'
       ? 'This entry already has a file or link; refresh and clear it before relinking.'
       : POSTGRES_GENERATED_DETAIL['23514']
     : undefined;
@@ -302,6 +322,18 @@ export function classifyMutationError(
 
   if (code && overrides && Object.prototype.hasOwnProperty.call(overrides, code)) {
     return { headline: overrides[code], detail, rawDetail, classification };
+  }
+
+  if (isPurchaseRule) return { headline: 'A purchase rule applies', detail, rawDetail, classification };
+
+  // 22023 is also raised by other app paths with their own copy; only the rejection rule is mapped here.
+  if (code === '22023' && /rejection comment required/i.test(rawDetail)) {
+    return { headline: 'Add a rejection comment', detail: 'Tell the requester why this purchase is rejected, then try again.', rawDetail, classification };
+  }
+
+  // #1607: 0749 refuses a PMO-only order on an ERP-owned purchase; a permission headline would misdescribe it.
+  if (code === '42501' && rawDetail.includes('Record the purchase order to place the order there')) {
+    return { headline: 'Record the purchase order instead', detail, rawDetail, classification };
   }
 
   switch (code) {

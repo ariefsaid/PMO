@@ -39,7 +39,6 @@ const mockBinding: IntegrationBinding = {
   org_id: 'org-1',
   external_tier: 'clickup',
   site_url: 'https://api.clickup.com',
-  secret_ref: 'clickup_token_org_1',
   status: 'active',
   connected_by: 'u1',
   connected_at: '2026-01-01T00:00:00Z',
@@ -133,6 +132,19 @@ describe('useIntegrations', () => {
     // Shared prefix contract: disconnect refreshes the whole org-wide health family (AC-IRUX-009).
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'health', 'org-1'] });
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['integrations', 'health', 'org-1', 'clickup'] });
+  });
+
+  it('connect, disconnect and setCompany also refresh the single-tier binding cache (useErpnextBinding)', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    await act(async () => { await result.current.connect.mutateAsync({ tier: 'clickup', credential: { token: 't' } }); });
+    await act(async () => { await result.current.disconnect.mutateAsync('clickup'); });
+    await act(async () => { await result.current.setCompany.mutateAsync('Acme Corp'); });
+
+    expect(invalidate.mock.calls.filter(([f]) => JSON.stringify(f) === JSON.stringify({ queryKey: ['integrations', 'binding', 'org-1'] }))).toHaveLength(3);
   });
 
   it('getBinding returns binding for a specific tier from cached list', async () => {

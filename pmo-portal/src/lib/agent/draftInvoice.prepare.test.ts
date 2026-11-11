@@ -19,16 +19,67 @@ describe('prepareDraftInvoice — gate (#787)', () => {
     expect(calls).toHaveLength(0);
     expect(invoke).not.toHaveBeenCalled();
   });
-  it('Revenue off → refused', async () => {
-    const { client } = fakeSupabase(world({ org_features: () => ({ enabled: false }) }), oneItem);
-    expect(await prepareDraftInvoice({ workOrder: 'x' }, ctx('Finance', client), newId))
+  it('AC-PLN-006 Revenue off (resolved) → refused; an unresolved snapshot is not "off" for the read-side gate', async () => {
+    const { client, calls } = fakeSupabase(world(), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'x' }, ctx('Finance', client, { revenue: false }), newId))
       .toEqual({ ok: false, error: { error: 'Invoicing is not turned on for this organisation.' } });
+    // No revenue override row exists for this org — the resolver says revenue is on, so the proposal is
+    // built (the old raw-row read treated an absent row as off).
+    expect(calls.some((c) => c.table === 'org_features')).toBe(false);
+    const on = await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId);
+    expect(on.ok).toBe(true);
   });
-  it('revenue not on ERPNext → refused (#784 not shipped)', async () => {
-    const { client, calls } = fakeSupabase(world({ external_domain_ownership: () => [] }), oneItem);
+  it('AC-AIN-NAT-003 an ERPNext org stays on the ERP path, and ownership is read once', async () => {
+    const { client, calls } = fakeSupabase(world(), oneItem);
+    const out = await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Admin', client), newId);
+    expect(out.ok && out.value.path).toBeUndefined();
+    expect(opsOf(calls, 'external_domain_ownership')[0]).toEqual([['eq', 'domain', 'revenue']]);
+    expect(opsOf(calls, 'external_domain_ownership')).toHaveLength(1);
+  });
+  it('another system owns revenue → refused (neither the ERPNext nor the PMO path)', async () => {
+    const { client, calls, invoke } = fakeSupabase(world({ external_domain_ownership: () => [{ external_tier: 'odoo' }] }), oneItem);
     const out = await prepareDraftInvoice({ workOrder: 'x' }, ctx('Admin', client), newId);
-    expect(out).toMatchObject({ ok: false, error: { error: expect.stringMatching(/not connected revenue to ERPNext/) } });
-    expect(opsOf(calls, 'external_domain_ownership')[0]).toEqual([['eq', 'domain', 'revenue'], ['eq', 'external_tier', 'erpnext'], ['limit', 1]]);
+    expect(out).toMatchObject({ ok: false, error: { error: expect.stringMatching(/raised in the connected system/) } });
+    expect(invoke).not.toHaveBeenCalled();
+    expect(opsOf(calls, 'external_domain_ownership')).toHaveLength(1);
+  });
+});
+
+describe('prepareDraftInvoice — no ERP owns revenue (#1595)', () => {
+  const noErp = () => world({ external_domain_ownership: () => [] });
+  it.each(['Finance', 'Admin'])('AC-AIN-NAT-001 %s gets a native proposal for a work order, with no ERP lookups', async (role) => {
+    const { client, calls, invoke } = fakeSupabase(noErp(), oneItem);
+    const out = await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx(role, client), newId);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.value).toMatchObject({
+      kind: 'prepared-draft-invoice', path: 'native', customerId: C1, projectId: P1, workOrderId: WO.id, reference_number: 'PO-778',
+      items: [{ item_code: '', qty: 1, rate: 1_000_000, description: 'WO-20261001-001 — Phase 2 survey' }],
+    });
+    expect(out.summary).toMatch(/^Save as Draft: invoice PT Client .* excl\. tax for WO-20261001-001\. Not submitted\.$/);
+    expect(invoke).not.toHaveBeenCalled(); // no ERPNext item catalogue
+    expect(calls.some((c) => c.table === 'external_refs')).toBe(false); // no ERPNext customer link needed
+  });
+  it('AC-AIN-NAT-001 Revenue off or a non-Finance/Admin role is still refused', async () => {
+    const off = fakeSupabase(noErp(), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'x' }, ctx('Finance', off.client, { revenue: false }), newId))
+      .toEqual({ ok: false, error: { error: 'Invoicing is not turned on for this organisation.' } });
+    const pm = fakeSupabase(noErp(), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'x' }, ctx('Project Manager', pm.client), newId))
+      .toEqual({ ok: false, error: { error: 'Only Finance or Admin can raise an invoice.' } });
+  });
+  it('a milestone with a stated amount is proposed natively; without one it still asks', async () => {
+    const { client } = fakeSupabase(noErp(), oneItem);
+    const out = await prepareDraftInvoice({ milestone: '2', project: P1, amount: 5_000_000 }, ctx('Finance', client), newId);
+    expect(out.ok && out.value).toMatchObject({ path: 'native', items: [{ item_code: '', rate: 5_000_000, description: 'Harbor Tower — Foundation' }] });
+    expect(await prepareDraftInvoice({ milestone: '2', project: P1 }, ctx('Finance', client), newId)).toMatchObject({ ok: false, error: { needs: 'amount' } });
+  });
+  it('a client with no ERP link is fine; no client is still refused', async () => {
+    const unlinked = fakeSupabase(world({ external_domain_ownership: () => [], external_refs: () => [] }), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', unlinked.client), newId)).toMatchObject({ ok: true });
+    const noClient = fakeSupabase(world({ external_domain_ownership: () => [], projects: () => ({ ...PROJECT, client_id: null }) }), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', noClient.client), newId))
+      .toEqual({ ok: false, error: { error: 'Harbor Tower has no client, so there is no one to invoice.' } });
   });
 });
 
@@ -96,11 +147,23 @@ describe('resolveMilestone (#787)', () => {
   });
   it('a position with no project → asks which project', async () => {
     const { client } = fakeSupabase(world());
-    expect(await resolveMilestone(asLoose(client), '2', null)).toEqual({ ok: false, error: { error: 'Which project is the milestone on?', needs: 'choice' } });
+    expect(await resolveMilestone(asLoose(client), '2', null)).toEqual({ ok: false, error: { error: 'Which project is the phase on?', needs: 'choice' } });
   });
   it('a position past the end → plain refusal', async () => {
     const { client } = fakeSupabase(world());
-    expect(await resolveMilestone(asLoose(client), 'M5', PROJECT)).toEqual({ ok: false, error: { error: 'Harbor Tower has 2 milestones; there is no milestone 5.' } });
+    expect(await resolveMilestone(asLoose(client), 'M5', PROJECT)).toEqual({ ok: false, error: { error: 'Harbor Tower has 2 phases; there is no phase 5.' } });
+  });
+  it('XD1-007/DD-VOCAB-1 the user-facing word "phase" resolves the same position as "milestone"', async () => {
+    const { client, calls } = fakeSupabase(world());
+    expect(await resolveMilestone(asLoose(client), 'phase 2', PROJECT)).toMatchObject({ ok: true, value: { id: 'm-2' } });
+    expect(opsOf(calls, 'project_milestones')[0]).toEqual(expect.arrayContaining([['eq', 'project_id', P1]]));
+  });
+  it('XD1-007 a bare name that merely starts with P ("P2") stays a NAME lookup, never a position', async () => {
+    const { client, calls } = fakeSupabase(world());
+    const out = await resolveMilestone(asLoose(client), 'P2', PROJECT);
+    // Routed to the name path (ilike), NOT the position path — "P2" must never resolve as phase #2.
+    expect(opsOf(calls, 'project_milestones')[0]).toEqual(expect.arrayContaining([['ilike', 'name', '%P2%']]));
+    expect(out).not.toMatchObject({ ok: true, value: { id: 'm-2' } });
   });
   it('a name matches by ilike; two matches → choice', async () => {
     const one = fakeSupabase(world({ project_milestones: () => [{ id: 'm-2', name: 'Foundation', project_id: P1, sort_order: 2 }] }));
@@ -125,7 +188,7 @@ describe('resolveMilestone — same name on two projects (#787)', () => {
   it('FR-AIN-023 candidates are distinct (id = milestone uuid, label names the project) and the chosen id resolves in one round', async () => {
     const { client } = fakeSupabase(world(responders()));
     const first = await resolveMilestone(asLoose(client), 'Foundation', null);
-    expect(first).toEqual({ ok: false, error: { error: 'Which milestone?', needs: 'choice', candidates: [
+    expect(first).toEqual({ ok: false, error: { error: 'Which phase?', needs: 'choice', candidates: [
       { id: M1, label: 'Harbor Tower — Foundation' }, { id: M2, label: 'Harbor Annex — Foundation' }] } });
     const second = await resolveMilestone(asLoose(client), M2, null);
     expect(second).toMatchObject({ ok: true, value: { id: M2, project_id: P2 } });

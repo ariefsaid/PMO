@@ -6,13 +6,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 /** SalesInvoices page — ?q= deep link (#787, AC-AIN-015). */
 
 // Mock hooks to provide stable test data
 const hoisted = vi.hoisted(() => ({
-  projectOptions: [{ value: 'project-1', label: 'Northwind Build', sub: 'NW-1', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, customerContractRef: 'CLIENT-PO-1' }],
+  received: vi.fn(async () => {}),
+  revenueMode: 'native' as 'native' | 'erp',
+  ownership: [] as unknown[],
+  odooUnreachable: false,
+  odooCommands: [] as unknown[],
+  incomingPaymentsArgs: undefined as unknown[] | undefined,
+  getInvoice: vi.fn(),
+  projectOptions: [{ value: 'project-1', label: 'Northwind Build', contractualName: 'Northwind Build', sub: 'NW-1', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, customerContractRef: 'CLIENT-PO-1' }],
   incomingPaymentsState: {
     data: [{
       id: 'receipt-1', org_id: 'org-1', customer_id: 'cust-1', customer_name: 'Acme Energy',
@@ -20,7 +27,7 @@ const hoisted = vi.hoisted(() => ({
       date: '2026-10-08', amount: 250, currency: 'USD', status: 'Paid', erp_docstatus: 1,
       erp_modified: null, erp_amended_from: null, erp_cancelled_at: null, created_at: '2026-10-08T00:00:00Z',
       allocation_details: [{ invoice_id: 'inv-1', invoice_number: 'ACC-SINV-2026-00001', amount: '250.00', currency: 'USD' }],
-    }], isPending: false, isError: false,
+    }] as IncomingPaymentRow[], isPending: false, isError: false,
   },
   invoiceEvidenceState: {
     data: {
@@ -94,8 +101,10 @@ const salesInvoicesState = hoisted.salesInvoicesState;
 const invoiceEvidenceState = hoisted.invoiceEvidenceState;
 const incomingPaymentsState = hoisted.incomingPaymentsState;
 const SEED_INVOICES = structuredClone(salesInvoicesState.data);
+const SEED_PAYMENTS = structuredClone(incomingPaymentsState.data);
 
 beforeEach(() => {
+  hoisted.received.mockReset().mockResolvedValue(undefined);
   salesInvoicesState.data = structuredClone(SEED_INVOICES);
   salesInvoicesState.isPending = false;
   salesInvoicesState.isError = false;
@@ -103,17 +112,25 @@ beforeEach(() => {
   invoiceEvidenceState.isError = false;
   incomingPaymentsState.isPending = false;
   incomingPaymentsState.isError = false;
-  incomingPaymentsState.data = structuredClone(hoisted.incomingPaymentsState.data);
+  incomingPaymentsState.data = structuredClone(SEED_PAYMENTS);
+  hoisted.revenueMode = 'native';
+  hoisted.ownership = [];
+  hoisted.odooUnreachable = false;
+  hoisted.odooCommands = [];
+  hoisted.incomingPaymentsArgs = undefined;
 });
 
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoiceEvidence: () => invoiceEvidenceState,
   useInvoiceEvidence: () => invoiceEvidenceState,
-  useIncomingPayments: () => incomingPaymentsState,
+  useIncomingPayments: (...args: unknown[]) => {
+    hoisted.incomingPaymentsArgs = args;
+    return incomingPaymentsState;
+  },
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => salesInvoicesState,
   useRevenueMutations: () => ({
-    setReceivedDate: { mutateAsync: vi.fn(), isPending: false },
+    setReceivedDate: { mutateAsync: hoisted.received, isPending: false },
     setEfaktur: { mutateAsync: vi.fn(), isPending: false },
     create: { mutateAsync: vi.fn(), isPending: false },
     submitInvoice: { mutateAsync: vi.fn(), isPending: false },
@@ -126,16 +143,24 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-pm', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
+vi.mock('@/src/lib/repositories', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
+  return { ...actual, repositories: { ...actual.repositories, revenue: { ...actual.repositories.revenue, getInvoice: hoisted.getInvoice } } };
+});
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   routeDomainWrite: vi.fn(() => 'pmo'),
 }));
-vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: hoisted.ownership, isError: false }) }));
+vi.mock('@/src/hooks/useOdooPurchase', async (orig) => ({ ...(await orig<Record<string, unknown>>()), useOdooUnreachable: (enabled = true) => ({ unreachable: enabled && hoisted.odooUnreachable, lastOkAt: null }) }));
+vi.mock('@/src/hooks/useOdooRevenue', async (orig) => ({ ...(await orig<Record<string, unknown>>()), useOdooRevenueCommandsForInvoices: () => ({ data: hoisted.odooCommands }) }));
+vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => hoisted.revenueMode }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-16', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useInvoiceProjectOptions: () => ({ data: hoisted.projectOptions }),
   useClientCompanyOptions: () => ({ data: [] }),
 }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [], isPending: false }) }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalRow', () => ({
   SalesInvoiceApprovalPreview: ({ inv }: { inv: SalesInvoiceRow }) => <div>Invoice preview {inv.si_number}</div>,
 }));
@@ -167,6 +192,7 @@ const renderAt = (url: string) =>
             <Location />
             <Routes>
               <Route path="/sales-invoices" element={<SalesInvoices />} />
+              <Route path="/finance/receivables" element={<SalesInvoices embedded />} />
               <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices />} />
             </Routes>
           </ToastProvider>
@@ -175,7 +201,39 @@ const renderAt = (url: string) =>
     </QueryClientProvider>,
   );
 
+describe('SalesInvoices — a paired PMO copy by direct link (ECA-5 M10)', () => {
+  it('opens a paired copy the list leaves out and says it counts once with its ERP invoice', async () => {
+    hoisted.getInvoice.mockResolvedValue({ ...SEED_INVOICES[0], id: 'inv-paired', pmo_number: 'PMO-P1', paired_erp_invoice_id: 'inv-2', paired_erp_number: 'SI-9' });
+    renderAt('/sales-invoices/inv-paired');
+    expect(await screen.findByText('Counted once with the ERP invoice SI-9.')).toBeInTheDocument();
+    expect(hoisted.getInvoice).toHaveBeenCalledWith('inv-paired');
+  });
+  it('a failed by-id read is an error, never "not found"', async () => {
+    hoisted.getInvoice.mockRejectedValue(new Error('network'));
+    renderAt('/sales-invoices/inv-paired');
+    expect(await screen.findByText("Couldn't load sales invoices")).toBeInTheDocument();
+    expect(screen.queryByText('Invoice not found')).not.toBeInTheDocument();
+  });
+  it('does not fetch when the list already holds the invoice', () => {
+    hoisted.getInvoice.mockClear();
+    renderAt('/sales-invoices/inv-2');
+    expect(hoisted.getInvoice).not.toHaveBeenCalled();
+  });
+});
+
 describe('SalesInvoices — deep link (#787)', () => {
+  it('loads incoming receipts for the standalone ERP invoice list so pending receipt status is visible', () => {
+    hoisted.revenueMode = 'erp';
+    salesInvoicesState.data[0] = { ...salesInvoicesState.data[0], pmo_native: false, status: 'Unpaid', erp_modified: '2026-11-02T09:00:00.000Z' };
+    incomingPaymentsState.data[0] = {
+      ...incomingPaymentsState.data[0], sales_invoice_id: 'inv-1', push_command_state: 'confirmed',
+      push_command_created_at: '2026-11-02T09:00:30.000Z', push_command_updated_at: '2026-11-02T09:01:00.000Z',
+    };
+    renderAt('/sales-invoices');
+    expect(hoisted.incomingPaymentsArgs).toEqual([undefined, true]);
+    expect(screen.getByText('ACC-SINV-2026-00001').closest('tr')).toHaveTextContent('Receipt sent, awaiting Odoo');
+  });
+
   it('AC-AIN-015 ?q= seeds the search and filters the list to that invoice', () => {
     renderAt('/sales-invoices?q=ACC-SINV-2026-00002');
     expect(screen.getByDisplayValue('ACC-SINV-2026-00002')).toBeInTheDocument();
@@ -185,12 +243,12 @@ describe('SalesInvoices — deep link (#787)', () => {
   });
   it('filters to overdue unpaid invoices and shows age against the organization day', async () => {
     const user = userEvent.setup();
-    renderAt('/sales-invoices');
+    renderAt('/finance/receivables');
     await user.click(screen.getByRole('button', { name: 'Overdue only' }));
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('ACC-SINV-2026-00001');
     expect(table).not.toContain('ACC-SINV-2026-00002');
-    expect(table).toContain('77 days overdue');
+    expect(table).toContain('Partly paid · 77 days late');
   });
 
   it('FIN-S1 search finds an invoice by its project label', async () => {
@@ -244,7 +302,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     renderAt('/sales-invoices');
     const row = screen.getByText('ACC-SINV-2026-00001').closest('tr');
     expect(row).toHaveTextContent('Partly paid');
-    expect(row).toHaveTextContent('$1.00');
+    expect(row).toHaveTextContent('$1');
   });
 
   it('invoice identity is a direct record link that retains the list query', () => {
@@ -287,6 +345,18 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.queryByText('inv-1')).not.toBeInTheDocument();
   });
 
+  it('uses the native PMO number for a paid invoice record without an ERP number', () => {
+    salesInvoicesState.data[0] = {
+      ...SEED_INVOICES[0],
+      si_number: null,
+      pmo_number: 'INV-TEST-PAID-001',
+      status: 'Paid',
+      pmo_native: true,
+    };
+    renderAt('/sales-invoices/inv-1');
+    expect(screen.getByRole('heading', { name: /^Invoice INV-TEST-PAID-001$/ })).toBeInTheDocument();
+  });
+
   it('RF-024 shows invoice dates, status, overdue age, outstanding and customer context on the detail record', () => {
     salesInvoicesState.data[0] = {
       ...SEED_INVOICES[0], status: 'Unpaid', pmo_native: false,
@@ -301,10 +371,27 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByText('77 days overdue')).toBeInTheDocument();
     expect(screen.getByText('Partly paid')).toBeInTheDocument();
     expect(screen.getByText('Acme Energy')).toBeInTheDocument();
-    expect(screen.getByText('$5,000.00')).toBeInTheDocument();
+    expect(screen.getByText('$5,000')).toBeInTheDocument();
     const appliedReceiptsHeading = screen.getByRole('heading', { name: 'Applied receipts' });
     expect(appliedReceiptsHeading.parentElement).toHaveTextContent('SYNTHETIC-RECEIPT-1');
     expect(appliedReceiptsHeading.parentElement).toHaveTextContent('$250.00');
+  });
+
+  it('AC-OCI-054 keeps the invoice in awaiting-Odoo status until its ERP read advances past the sent receipt', () => {
+    salesInvoicesState.data[0] = {
+      ...SEED_INVOICES[0], status: 'Unpaid', pmo_native: false,
+      erp_modified: '2026-11-02T09:00:00.000Z', erp_outstanding_amount: 5000,
+    };
+    incomingPaymentsState.data = ([{
+      ...incomingPaymentsState.data[0], sales_invoice_id: 'inv-1', allocation_details: null,
+      push_command_state: 'confirmed', push_command_created_at: '2026-11-02T09:00:30.000Z',
+      push_command_updated_at: '2026-11-02T09:01:00.000Z',
+    }] as unknown) as typeof incomingPaymentsState.data;
+
+    renderAt('/sales-invoices/inv-1');
+
+    expect(screen.getByText('Receipt sent, awaiting Odoo')).toBeInTheDocument();
+    expect(screen.queryByText('Partly paid')).not.toBeInTheDocument();
   });
 
   it('shows only this invoice’s settled receipts for PMO-native detail and ignores scheduled, cancelled, and unrelated unknown rows', () => {
@@ -346,7 +433,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByText('Ready to send')).toBeInTheDocument();
     expect(screen.getByText('Download the PDF and send it to your client yourself.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download approved PDF' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Record received date' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mark received' })).toBeInTheDocument();
     expect(screen.queryByText('Sent')).not.toBeInTheDocument();
   });
 
@@ -367,7 +454,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     salesInvoicesState.data[0] = { ...SEED_INVOICES[0], pmo_native: false, status: 'Unpaid' };
     invoiceEvidenceState.isError = true;
     renderAt('/sales-invoices/inv-1');
-    expect(screen.getByText('Bill evidence is temporarily unavailable.')).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load the invoice lines from the accounting system.")).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Retry invoice evidence' }));
     expect(invoiceEvidenceState.refetch).toHaveBeenCalled();
   });
@@ -396,9 +483,10 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByDisplayValue('ACC-SINV-2026-00002')).toBeInTheDocument();
   });
 
-  it('UXS-014 an unknown invoice id reads as not found', () => {
+  it('UXS-014 an unknown invoice id reads as not found', async () => {
+    hoisted.getInvoice.mockResolvedValue(null); // the list has no such id; the by-id read finds none either
     renderAt('/sales-invoices/inv-missing');
-    expect(screen.getByText('Invoice not found')).toBeInTheDocument();
+    expect(await screen.findByText('Invoice not found')).toBeInTheDocument();
   });
 
   it('UXS-014 a failed load on a record link is an error with retry, never "not found"', async () => {
@@ -415,3 +503,58 @@ describe('SalesInvoices — deep link (#787)', () => {
     }
   });
 });
+
+it('shows native invoice lines when accounting evidence is disabled', () => {
+  salesInvoicesState.data[0] = { ...SEED_INVOICES[0], pmo_native: true, native_lines: [{ item_code: 'NATIVE', description: 'Native service', qty: 2, rate: 125, amount: 250 }] };
+  invoiceEvidenceState.isPending = true;
+  renderAt('/sales-invoices/inv-1');
+  expect(screen.getByText('Native service')).toBeInTheDocument();
+  expect(screen.queryByText('Loading invoice evidence…')).not.toBeInTheDocument();
+});
+
+it('explains unavailable invoice line evidence for an unposted invoice', () => {
+  salesInvoicesState.data[0] = { ...SEED_INVOICES[0], pmo_native: false, erp_docstatus: null };
+  invoiceEvidenceState.isPending = true;
+  renderAt('/sales-invoices/inv-1');
+  expect(screen.getByText('Line details are not available.')).toBeInTheDocument();
+  expect(screen.queryByText('Loading invoice evidence…')).not.toBeInTheDocument();
+});
+
+it('records the selected invoice receipt from detail', async () => {
+  salesInvoicesState.data[0] = { ...SEED_INVOICES[0], status: 'Submitted', pmo_native: false, erp_docstatus: 1, received_date: null };
+  hoisted.received.mockRejectedValueOnce(new Error('Save failed'));
+  renderAt('/sales-invoices/inv-1');
+  await userEvent.click(screen.getByRole('button', { name: 'Mark received' }));
+  const dialog = screen.getByRole('dialog');
+  await userEvent.type(within(dialog).getByLabelText('Received'), '2026-10-12');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+  expect(await within(dialog).findByTestId('entity-modal-save-error')).toBeInTheDocument();
+  expect(within(dialog).getByLabelText('Received')).toHaveValue('2026-10-12');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+  expect(hoisted.received).toHaveBeenCalledWith({ siId: 'inv-1', receivedDate: '2026-10-12' });
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+describe('AC-OCI-090 review: the invoice list with Odoo', () => {
+  const odooOrg = () => {
+    hoisted.revenueMode = 'erp';
+    hoisted.ownership = [{ domain: 'revenue', externalTier: 'odoo' }];
+    salesInvoicesState.data = SEED_INVOICES.map((inv) => ({ ...inv, pmo_native: false, odoo_state: 'posted', odoo_read_at: '2026-11-03T10:00:00Z' })) as SalesInvoiceRow[];
+  };
+
+  it('keeps each invoice own status instead of replacing it with "In Odoo"', () => {
+    odooOrg();
+    renderAt('/finance/receivables');
+    expect(screen.getByText('ACC-SINV-2026-00002').closest('tr')).toHaveTextContent('Paid');
+    expect(screen.queryByText('In Odoo')).toBeNull();
+  });
+
+  it('says once, above the list, that Odoo is unreachable', () => {
+    odooOrg();
+    hoisted.odooUnreachable = true;
+    hoisted.odooCommands = [{ id: 'c', recordId: 'inv-1', kind: 'sales-invoice', state: 'pending', lastError: null, updatedAt: '2026-11-03T10:00:00Z', actorUserId: null }];
+    renderAt('/finance/receivables');
+    expect(screen.getAllByText(/Odoo (cannot be reached|is unavailable)/)).toHaveLength(1);
+  });
+});
+

@@ -9,6 +9,11 @@ import { Breadcrumb } from '../Breadcrumb';
 import { BackBar } from '../BackBar';
 
 describe('Breadcrumb', () => {
+  it('DS-SPACING: uses the shared compact group gap', () => {
+    render(<Breadcrumb parts={[{ label: 'Projects' }, { label: 'Alpha' }]} />);
+    expect(screen.getByRole('navigation', { name: /breadcrumb/i }).className.split(/\s+/)).toContain('gap-2');
+  });
+
   it('renders parts; the last is current (not a link), others navigate', async () => {
     const onNavigate = vi.fn();
     render(
@@ -82,6 +87,16 @@ describe('Breadcrumb', () => {
     const click = createEvent.click(link, { button: 0 });
     fireEvent(link, click);
     expect(click.defaultPrevented).toBe(false);
+  });
+
+  it('AC-002 #1325: breadcrumb links and current short-name crumbs expose the contractual title', () => {
+    render(<Breadcrumb parts={[
+      { label: 'Project site', href: '/projects', title: 'Contractual project title' },
+      { label: 'Site North', title: 'Contractual project title' },
+    ]} />);
+    expect(screen.getByRole('link', { name: 'Project site' })).toHaveAttribute('title', 'Contractual project title');
+    expect(screen.getByText('Site North')).toHaveAttribute('title', 'Contractual project title');
+    expect(screen.getByText('Site North')).toHaveAttribute('aria-current', 'page');
   });
 
   it('current part is not a button', () => {

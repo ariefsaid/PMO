@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +11,7 @@ import {
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useMeetingMutations } from '@/src/hooks/useMeetings';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { useListReturn } from '@/src/hooks/useListReturn';
@@ -20,26 +21,27 @@ import { instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/
 import { useEntityForm } from '@/src/components/ui';
 import type { NoteBlock } from '@/src/lib/meetingNotes';
 import type { MinutesEditorHandle } from '@/src/components/meetings/MinutesEditor';
+import { MinutesEditor } from '@/src/components/meetings/minutesEditorChunk';
 
-const MinutesEditor = React.lazy(() => import('@/src/components/meetings/MinutesEditor'));
 interface Values { title: string; occurredAt: string; location: string; projectId: string }
 const makeValidate = (t: TFunction) => (values: Values): Partial<Record<keyof Values, string>> => {
   const errors: Partial<Record<keyof Values, string>> = {};
   if (!values.title.trim()) errors.title = t('meetingDetail.form.errors.titleRequired', 'Meeting title is required.');
-  if (!zonedDatetimeLocalToInstant(values.occurredAt)) errors.occurredAt = t('meetingDetail.form.errors.whenInvalid', 'Enter a valid date and time.');
+  if (!zonedDatetimeLocalToInstant(values.occurredAt)) errors.occurredAt = t('meetingDetail.form.errors.whenInvalid', 'Choose a valid date and a local time that exists.');
   return errors;
 };
 
 const MeetingCreate: React.FC = () => {
   const { t } = useTranslation();
   const { t: tCreate } = useTranslation('meetingCreate');
+  const { t: tMeetings } = useTranslation('meetings');
   const may = usePermission();
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const { returnToList } = useListReturn({ list: 'meetings' });
-  const { data: projects } = useProjects();
+  const { data: projects } = useProjectPickerOptions();
   const { create, update, addAttendee } = useMeetingMutations();
   const [members, setMembers] = useState<ComboboxOption[]>([]);
   const [guests, setGuests] = useState<string[]>([]);
@@ -61,7 +63,7 @@ const MeetingCreate: React.FC = () => {
   const project = form.fieldProps('projectId');
   const dirty = form.isDirty || guestName.trim().length > 0 || guests.length > 0 || members.length > 0 || minutesPending;
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
-  const guardLeave = useUnsavedChangesGuard({ dirty, onBlocked: (leave) => setPendingLeave(() => leave) });
+  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: (leave) => setPendingLeave(() => leave) });
   const onEditorReady = useCallback((blocks: NoteBlock[]) => { initialMinutesRef.current = structuredClone(blocks); setMinutes(blocks); }, []);
   const notifyError = (error: unknown, part: string) => {
     const { headline, detail } = classifyMutationError(error);
@@ -94,11 +96,15 @@ const MeetingCreate: React.FC = () => {
       const failedMembers: ComboboxOption[] = [];
       const failedGuests: string[] = [];
       let failedMinutes = false;
+      const pendingGuest = guestName.trim();
+      const submittedGuests = pendingGuest && !guests.includes(pendingGuest)
+        ? [...guests, pendingGuest]
+        : guests;
       for (const member of members) {
         try { await addAttendee.mutateAsync({ meetingId, identity: { profile_id: member.value } }); }
         catch { failedMembers.push(member); }
       }
-      for (const name of guests) {
+      for (const name of submittedGuests) {
         try { await addAttendee.mutateAsync({ meetingId, identity: { display_name: name } }); }
         catch { failedGuests.push(name); }
       }
@@ -113,6 +119,7 @@ const MeetingCreate: React.FC = () => {
       }
       setMembers(failedMembers);
       setGuests(failedGuests);
+      if (pendingGuest) setGuestName('');
       if (failedMembers.length || failedGuests.length || failedMinutes) {
         setSaveError(true);
         return;
@@ -132,7 +139,7 @@ const MeetingCreate: React.FC = () => {
         <TextField id={title.id} label={t('meetings.form.title.label', 'Title')} required placeholder={t('meetings.form.title.placeholder', 'e.g. Weekly site coordination')} value={title.value} onChange={title.onChange} onBlur={title.onBlur} error={title.error} fullWidth disabled={Boolean(savedMeetingId) || form.isSubmitting} />
         <TextField id={when.id} label={t('meetings.form.when.label', 'When')} type="datetime-local" value={when.value} onChange={when.onChange} onBlur={when.onBlur} error={when.error} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
         <TextField id={location.id} label={t('meetings.form.location.label', 'Location')} placeholder={t('meetings.form.location.placeholder', 'e.g. Site office, Teams call')} value={location.value} onChange={location.onChange} onBlur={location.onBlur} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
-        <SelectField id={project.id} label={t('meetings.form.project.label', 'Project')} value={project.value} onChange={project.onChange} options={[{ value: '', label: t('meetings.form.project.none', 'No project') }, ...(projects ?? []).map((item) => ({ value: item.id, label: item.name }))]} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
+        <SelectField id={project.id} label={t('meetings.form.project.label', 'Project')} value={project.value} onChange={project.onChange} options={[{ value: '', label: t('meetings.form.project.none', 'No project') }, ...(projects ?? []).map((item) => ({ value: item.id, label: projectDisplayName(item) }))]} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
       </FormGrid>
     </section>
     <Card variant="bare" className="mb-4"><CardHead>{t('meetingDetail.minutes.title', 'Minutes')}</CardHead><CardPad><Suspense fallback={<ListState variant="loading" rows={3} />}><MinutesEditor ref={editorRef} initialBlocks={[]} editable={!form.isSubmitting} tasksExternal={false} onReady={onEditorReady} onChange={(blocks) => { setMinutes(blocks); setMinutesPending(true); }} onRequestAction={() => undefined} /></Suspense></CardPad></Card>
@@ -150,7 +157,7 @@ const MeetingCreate: React.FC = () => {
     </CardPad></Card>
     {saveError && <p role="alert" className="mb-4 text-sm text-destructive-text">{tCreate('partialSaveFailed', 'Meeting saved, but some details were not saved. Save again to retry.')}</p>}
     <div className="flex justify-end pb-6"><Button type="submit" variant="primary" disabled={form.isSubmitting || create.isPending}>{tCreate('save', 'Save meeting')}</Button></div>
-    <ConfirmDialog open={pendingLeave !== null} tone="default" title={t('meetingDetail.confirm.unsavedMinutes.title', 'Unsaved minutes')} description={t('meetingDetail.confirm.unsavedMinutes.description', 'Your meeting minutes have unsaved changes. Leave this page and discard them?')} confirmLabel={t('meetingDetail.confirm.unsavedMinutes.leave', 'Leave')} cancelLabel={t('meetingDetail.confirm.unsavedMinutes.stay', 'Stay')} onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }} onCancel={() => setPendingLeave(null)} />
+    <ConfirmDialog open={pendingLeave !== null} tone="default" title={tMeetings('confirm.unsavedChanges.title', 'Unsaved meeting changes')} description={tMeetings('confirm.unsavedChanges.description', 'Your meeting header or minutes have unsaved changes. Leave this page and discard them?')} confirmLabel={tMeetings('confirm.unsavedChanges.leave', 'Leave')} cancelLabel={tMeetings('confirm.unsavedChanges.stay', 'Stay')} onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }} onCancel={() => setPendingLeave(null)} />
   </form>;
 };
 

@@ -1,13 +1,14 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, useToast, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectChoices } from './expenses/useProjectChoices';
 import { useExpenseClaims, useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import {
   EXPENSE_LIST_LIMIT, type BudgetCategory, type ExpenseClaimFilters, type ExpenseClaimStatus,
@@ -27,7 +28,23 @@ const ExpenseClaims: React.FC = () => {
   const navigate = useNavigate();
   const may = usePermission();
   const { toast } = useToast();
-  const [status, setStatus] = useState('');
+  // #1461: the dashboard 'Expense claims returned' figure counts Rejected claims and drills with
+  // `?status=Rejected`, so the list opens exactly that set. The select keeps the URL shareable.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const VALID_STATUSES = Constants.public.Enums.expense_claim_status;
+  const requestedStatus = searchParams.get('status');
+  const [status, setStatusState] = useState(
+    requestedStatus && (VALID_STATUSES as readonly string[]).includes(requestedStatus) ? requestedStatus : '',
+  );
+  const setStatus = (next: string) => {
+    setStatusState(next);
+    setSearchParams((current) => {
+      const nextParams = new URLSearchParams(current);
+      if (next) nextParams.set('status', next);
+      else nextParams.delete('status');
+      return nextParams;
+    }, { replace: true });
+  };
   const [kind, setKind] = useState('');
   const [category, setCategory] = useState('');
   const filters = useMemo<ExpenseClaimFilters>(
@@ -39,13 +56,12 @@ const ExpenseClaims: React.FC = () => {
     [status, kind, category],
   );
   const { data, isPending, isError, refetch } = useExpenseClaims(filters);
-  const { data: projects } = useProjects();
+  const projectChoices = useProjectChoices();
   const { create } = useExpenseClaimMutations();
-  const advanceOptions = useOwnAdvanceOptions();
+  const ownAdvances = useOwnAdvanceOptions();
   const [formKind, setFormKind] = useState<ExpenseKind | null>(null);
   const canCreate = may('create', 'expenseClaim');
   const rows = data?.rows;
-  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: p.name })), [projects]);
 
   const statusOptions = [
     { value: '', label: t('expenses.filters.allStatuses', 'All statuses') },
@@ -71,11 +87,11 @@ const ExpenseClaims: React.FC = () => {
     { key: 'claimant', header: t('expenses.columns.claimant', 'Claimant'),
       cell: (r) => r.claimant?.full_name ?? '—', exportValue: (r) => r.claimant?.full_name ?? '' },
     { key: 'project', header: t('expenses.columns.project', 'Project'),
-      cell: (r) => r.project?.name ?? t('expenses.overhead', 'Overhead'), exportValue: (r) => r.project?.name ?? '' },
+      cell: (r) => r.project ? <span title={r.project.name}>{projectDisplayName(r.project)}</span> : t('expenses.overhead', 'Overhead'), exportValue: (r) => r.project?.name ?? '' },
     { key: 'budget_category', header: t('expenses.columns.category', 'Budget category'),
       cell: (r) => (r.budget_category ? budgetCategoryLabel(r.budget_category, t) : '—'), exportValue: (r) => r.budget_category ?? '' },
     { key: 'amount', header: t('expenses.columns.amount', 'Amount'), align: 'num',
-      cell: (r) => <span className="tabular-nums">{formatCurrencyCents(Number(r.amount), r.currency)}</span>,
+      cell: (r) => <span className="tabular-nums">{formatCurrency(Number(r.amount), r.currency)}</span>,
       exportValue: (r) => Number(r.amount) },
     { key: 'status', header: t('expenses.columns.status', 'Status'),
       cell: (r) => <StatusPill variant={workflowVariant(r.status)}>{expenseStatusLabel(r.status, t)}</StatusPill>,
@@ -85,6 +101,7 @@ const ExpenseClaims: React.FC = () => {
   return (
     <ListPage
       title={t('expenses.title', 'Expenses')}
+      count={rows ? rows.length : undefined}
       description={t('expenses.description', 'Expense claims and cash advances. You see your own; approvers see the whole team.')}
       primaryAction={
         canCreate && (
@@ -98,15 +115,15 @@ const ExpenseClaims: React.FC = () => {
         )
       }
       filters={
-        <span className="flex flex-wrap gap-2">
-          <SelectField label={t('expenses.filters.status', 'Status')} hideLabel value={status} onChange={setStatus} options={statusOptions} />
-          <SelectField label={t('expenses.filters.kind', 'Type')} hideLabel value={kind} onChange={setKind} options={kindOptions} />
-          <SelectField label={t('expenses.filters.category', 'Budget category')} hideLabel value={category} onChange={setCategory} options={categoryOptions} />
-        </span>
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <SelectField label={t('expenses.filters.status', 'Status')} hideLabel value={status} onChange={setStatus} options={statusOptions} fullWidth wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
+          <SelectField label={t('expenses.filters.kind', 'Type')} hideLabel value={kind} onChange={setKind} options={kindOptions} fullWidth wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
+          <SelectField label={t('expenses.filters.category', 'Budget category')} hideLabel value={category} onChange={setCategory} options={categoryOptions} fullWidth wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
+        </div>
       }
     >
       <AdvanceAgingCard />
-      {isPending && <ListState variant="loading" rows={6} />}
+      {isPending && <ListState variant="loading" shape="table" columns={6} rows={6} />}
       {!isPending && (isError || !data) && (
         <ListState
           variant="error"
@@ -137,8 +154,10 @@ const ExpenseClaims: React.FC = () => {
       {formKind && (
         <ExpenseClaimFormModal
           kind={formKind}
-          projectOptions={projectOptions}
-          advanceOptions={advanceOptions}
+          projectOptions={projectChoices.options}
+          projectLoad={projectChoices}
+          advanceOptions={ownAdvances.options}
+          advanceLoad={ownAdvances}
           onClose={() => setFormKind(null)}
           onSubmit={async (input) => {
             const claimId = (await create.mutateAsync(input)).id;

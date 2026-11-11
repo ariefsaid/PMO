@@ -17,6 +17,8 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole: 'Admin', effectiveRole: 'Admin' }),
 }));
@@ -24,11 +26,11 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));
 
-const { company } = vi.hoisted(() => ({ company: { list: vi.fn(), create: vi.fn() } }));
+const { company } = vi.hoisted(() => ({ company: { list: vi.fn(), create: vi.fn(), listPage: vi.fn(), count: vi.fn(), listOptions: vi.fn(), listAll: vi.fn() } }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { company } }));
 
 import Companies from './Companies';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -46,7 +48,12 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   company.list.mockResolvedValue([]);
-  setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  // #1989: the directory reads one server page + head count; the export read is click-time.
+  company.listPage.mockResolvedValue({ rows: [], total: 0 });
+  company.count.mockResolvedValue(0);
+  company.listOptions.mockResolvedValue([]);
+  company.listAll.mockResolvedValue([]);
+  setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
 });
 afterEach(() => clearOwnershipCache());
 

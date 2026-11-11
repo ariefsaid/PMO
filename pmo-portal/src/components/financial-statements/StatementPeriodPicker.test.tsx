@@ -289,9 +289,6 @@ describe('StatementPeriodPicker', () => {
 
     expect(layout).toHaveClass('min-w-0', 'grid', 'grid-cols-1', 'gap-4', 'md:grid-cols-2');
     expect(container.querySelectorAll('select')).toHaveLength(2);
-    for (const select of [kindSelect, periodSelect]) {
-      expect(select).toHaveClass('h-8', 'rounded-md', 'border-input');
-    }
 
     await user.tab();
     expect(document.activeElement).toBe(kindSelect);

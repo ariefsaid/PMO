@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AdapterError } from '../contract';
 import { BudgetCategoryUnmappedError, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap';
-import { planBudgetAccountIntents, resolveV16BudgetAccounts } from './budgetAccountPlan';
+import { planBudgetAccountIntents, planRangeAccountIntents, resolveV16BudgetAccounts } from './budgetAccountPlan';
 
 const map: CategoryAccountMapRow[] = [
   { category: 'Labor', erp_account: 'Salary' },
@@ -45,6 +45,35 @@ describe('resolveV16BudgetAccounts', () => {
   });
 });
 
+describe('resolveV16BudgetAccounts — #1326 Travel & accommodation and Vehicle', () => {
+  // The reader passes only PUSH rows (#768): TEST-TRAVEL is an actuals-only Travel account and never reaches here.
+  const pushMap: CategoryAccountMapRow[] = [
+    { category: 'Special expenses', erp_account: 'Travel expenses' },
+    { category: 'Travel & accommodation', erp_account: 'TEST-HOTEL - Project hotel' },
+    { category: 'Vehicle', erp_account: 'TEST-VEHICLE - Project vehicle rental' },
+  ];
+
+  it('AC-TVC-002 pushes each new category to its own mapped account, summed per category in exact cents', () => {
+    expect(resolveV16BudgetAccounts([
+      { category: 'Travel & accommodation', budgeted_amount: '100.10' },
+      { category: 'Vehicle', budgeted_amount: '50.20' },
+      { category: 'Travel & accommodation', budgeted_amount: '0.20' },
+      { category: 'Vehicle', budgeted_amount: '30.30' },
+      { category: 'Special expenses', budgeted_amount: '40.40' },
+    ], pushMap)).toEqual([
+      { account: 'TEST-HOTEL - Project hotel', budget_amount: '100.30' },
+      { account: 'TEST-VEHICLE - Project vehicle rental', budget_amount: '80.50' },
+      { account: 'Travel expenses', budget_amount: '40.40' },
+    ]);
+  });
+
+  it('AC-TVC-002 refuses a non-zero new category with no push account, naming it', () => {
+    expect(() => resolveV16BudgetAccounts([
+      { category: 'Vehicle', budgeted_amount: '1.00' },
+    ], pushMap.filter((row) => row.category !== 'Vehicle'))).toThrow('budget categories have no ERP account mapping: Vehicle');
+  });
+});
+
 describe('planBudgetAccountIntents', () => {
   const desired = [
     { account: 'Salary', budget_amount: '60000.00' },
@@ -80,5 +109,39 @@ describe('planBudgetAccountIntents', () => {
     expect(() => planBudgetAccountIntents('2026', [], [
       prior[2], { ...prior[2], erpBudgetName: 'B-TRAVEL-2' },
     ])).toThrow(/conflicting live predecessor.*Travel/i);
+  });
+});
+
+describe('planRangeAccountIntents', () => {
+  const range = { fromFiscalYear: 'FY-A/2027', toFiscalYear: 'FY-C:2029' };
+
+  it('AC-010 ensures every desired range account and removes only witnessed live omissions in that exact range', () => {
+    const desired = [
+      { account: 'Salary', budget_amount: '150.00' },
+      { account: 'COGS', budget_amount: '0.10' },
+    ];
+    const prior = [
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Salary', erpBudgetName: 'R-SAL', cancelledAt: null, pmoWitnessed: true, docstatus: 1, erpModified: '2026-10-01 00:00:00' },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Travel', erpBudgetName: 'R-TRAVEL', cancelledAt: null, pmoWitnessed: true, docstatus: 1, erpModified: '2026-10-02 00:00:00' },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: 'FY-B/2028', erpAccount: 'Old Range', erpBudgetName: 'OLD-RANGE', cancelledAt: null, pmoWitnessed: true, docstatus: 1 },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Desk', erpBudgetName: 'DESK-DOC', cancelledAt: null, pmoWitnessed: false, docstatus: 1 },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Cancelled', erpBudgetName: 'CANCELLED', cancelledAt: '2026-10-01T00:00:00Z', pmoWitnessed: true, docstatus: 2 },
+    ];
+
+    expect(planRangeAccountIntents(range, desired, prior)).toEqual([
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Salary', intent: 'ensure', amount: '150.00', predecessor: 'R-SAL', predecessorModified: '2026-10-01 00:00:00' },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'COGS', intent: 'ensure', amount: '0.10', predecessor: null, predecessorModified: null },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Travel', intent: 'remove', amount: null, predecessor: 'R-TRAVEL', predecessorModified: '2026-10-02 00:00:00' },
+    ]);
+  });
+
+  it('AC-010 refuses conflicting live PMO witnesses for one account and validates range names', () => {
+    const duplicateWitnesses = [
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Salary', erpBudgetName: 'R-SAL-1', cancelledAt: null, pmoWitnessed: true, docstatus: 1 },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Salary', erpBudgetName: 'R-SAL-2', cancelledAt: null, pmoWitnessed: true, docstatus: 1 },
+    ];
+    expect(() => planRangeAccountIntents(range, [], duplicateWitnesses)).toThrow(/conflicting live predecessor.*Salary/i);
+    expect(() => planRangeAccountIntents({ fromFiscalYear: '', toFiscalYear: range.toFiscalYear }, [], [])).toThrow();
+    expect(() => planRangeAccountIntents({ fromFiscalYear: range.fromFiscalYear, toFiscalYear: '' }, [], [])).toThrow();
   });
 });

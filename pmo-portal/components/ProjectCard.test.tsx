@@ -55,12 +55,28 @@ describe('ProjectCard', () => {
     expect(screen.getByText('Example')).toBeInTheDocument();
     expect(screen.queryByText('Example Legal Company')).not.toBeInTheDocument();
   });
+  it('AC-002 #1325: delivery card shows the project alias and keeps contractual name as hover title', () => {
+    render(<ProjectCard project={{ ...base, short_name: 'Harbor Operations' }} onOpen={vi.fn()} />);
+    const title = screen.getByRole('button', { name: /Harbor Operations/ });
+    expect(title).toHaveAttribute('title', 'Innovate Corp HQ Fit-Out');
+    expect(title).toBeVisible();
+  });
+
   it('renders the project name, customer, contract value and PM (AC-401 strings)', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
     expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
     expect(screen.getByText('Alice Manager')).toBeInTheDocument();
     expect(screen.getByText('$5,000,000')).toBeInTheDocument();
+  });
+
+  it('keeps the tax basis on the contract amount line on narrow cards', () => {
+    render(<ProjectCard project={base} onOpen={vi.fn()} />);
+    const contract = screen.getByTestId('project-card-contract');
+    const basis = within(contract).getByTestId('tax-basis');
+    expect(basis.parentElement).toHaveClass('inline-flex', 'whitespace-nowrap');
+    expect(basis.parentElement).toHaveTextContent('$5,000,000');
+    expect(basis.parentElement).toHaveTextContent('excl. PPN');
   });
 
   it('renders a StatusPill (dot + text), not a legacy badge', () => {
@@ -124,7 +140,10 @@ describe('ProjectCard', () => {
 
   it('AC-S02: an unresolved collection read does not claim that no Active budget exists', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
-    expect(screen.getAllByText('Unavailable')).toHaveLength(2);
+    expect(screen.getByTestId('project-card-money-unavailable')).toHaveTextContent('Some project financial figures are still being confirmed.');
+    expect(screen.getByTestId('project-card-active-budget')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('project-card-actual')).toBeEmptyDOMElement();
+    expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
     expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
     expect(screen.queryByText('$4,700,000')).not.toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
@@ -150,7 +169,7 @@ describe('ProjectCard', () => {
     // Budget used bar is based on mapped Actual / Active budget, not committed spend.
     const budgetBar = screen.getByLabelText(/25% of Active budget/i);
     expect(budgetBar).toBeInTheDocument();
-    expect(screen.getByText('$125,000.00')).toBeInTheDocument();
+    expect(screen.getByText('$125,000')).toBeInTheDocument();
     expect(screen.getByText('$500,000')).toBeInTheDocument();
     // PL-B: no freshness line and no "x of y" caption on the card.
     expect(screen.queryByText(/Updated|of .* Active budget/)).not.toBeInTheDocument();
@@ -161,7 +180,7 @@ describe('ProjectCard', () => {
   it('AC-S02: the compact Actual summary uses Actual currency, not project currency', () => {
     const project = { ...base, currency: 'IDR' } as ProjectWithRefs;
     render(<ProjectCard project={project} onOpen={vi.fn()} deliverySummary={{ deliveryPct: 50, committedSpend: 0, budget: 0 }} projectMoney={{ ledgerBasis: 'erp', actuals: { currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
-    expect(screen.getByText('$125,000.00')).toBeInTheDocument();
+    expect(screen.getByText('$125,000')).toBeInTheDocument();
     // Not comparable: no Budget used bar (and no repeated explanation on the card).
     expect(screen.queryByRole('progressbar', { name: /Active budget/ })).not.toBeInTheDocument();
     expect(screen.queryByText('Budget currency differs from Actual')).not.toBeInTheDocument();
@@ -171,7 +190,8 @@ describe('ProjectCard', () => {
     setActiveLocale({ locale: 'en', numberLocale: 'id-ID', timezone: 'UTC' });
     try {
       render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={{ ledgerBasis: 'erp', actuals: { currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
-      expect(screen.getByText(/US\$\s?125\.000,00/)).toBeInTheDocument();
+      expect(screen.getByTestId('project-card-actual')).toHaveTextContent(/125\.000$/);
+      expect(screen.getByTestId('project-card-actual')).not.toHaveTextContent(/,\d{2}/);
     } finally {
       resetActiveLocale();
     }
@@ -187,14 +207,15 @@ describe('ProjectCard', () => {
     expect(screen.queryByText('At risk')).not.toBeInTheDocument();
   });
 
-  it('AC-S02: partial or restricted Actual shows Unavailable and never drives budget usage', () => {
+  it('AC-S02: partial or restricted Actual leaves the figure blank and never drives budget usage', () => {
     for (const actuals of [
       { currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '450.00' }, { category: 'Materials', mapped: false, amount: null }] },
       { currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: true, categories: [{ category: 'Labor', mapped: true, amount: '450.00' }] },
     ]) {
       const { unmount } = render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={{ ledgerBasis: 'erp', actuals, activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
-      expect(screen.queryByText('$450.00')).not.toBeInTheDocument();
-      expect(screen.getAllByText('Unavailable')).toHaveLength(1);
+      expect(screen.getByTestId('project-card-actual')).toBeEmptyDOMElement();
+      expect(screen.getByTestId('project-card-money-unavailable')).toHaveTextContent('Some project financial figures are still being confirmed.');
+      expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
       expect(screen.queryByRole('progressbar', { name: /Active budget/i })).not.toBeInTheDocument();
       expect(screen.queryByText(/Restricted rows excluded|Incomplete source coverage/)).not.toBeInTheDocument();
       unmount();
@@ -208,7 +229,7 @@ describe('ProjectCard', () => {
       activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
     };
     render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} />);
-    expect(screen.getByText('$125.00')).toBeInTheDocument();
+    expect(screen.getByText('$125')).toBeInTheDocument();
     expect(screen.queryByText(/Update time unavailable|Updated/)).not.toBeInTheDocument();
   });
 
@@ -219,7 +240,8 @@ describe('ProjectCard', () => {
       activeBudgetAmount: '0.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
     };
     render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} />);
-    expect(screen.getByText('$0')).toBeInTheDocument();
+    expect(screen.getByTestId('project-card-active-budget')).toHaveTextContent('$0');
+    expect(screen.getByTestId('project-card-actual')).toHaveTextContent('$0');
     expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
@@ -246,10 +268,24 @@ describe('ProjectCard', () => {
       hasActiveBudget: false,
     };
     render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} />);
-    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+    expect(screen.getByTestId('project-card-actual')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('project-card-money-unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
     expect(screen.getAllByText('No active budget')).toHaveLength(1);
     expect(screen.queryByLabelText(/Actual spend: 0%/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Budget used 0%/)).not.toBeInTheDocument();
+  });
+
+  it('leaves an unentered contract figure blank instead of displaying zero', () => {
+    const projectMoney: ProjectMoneyRead = {
+      ledgerBasis: 'erp',
+      actuals: { currency: 'USD', total: '125.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125.00' }] },
+      activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+    };
+    render(<ProjectCard project={{ ...base, contract_value: null } as unknown as ProjectWithRefs} onOpen={vi.fn()} projectMoney={projectMoney} />);
+    expect(screen.getByTestId('project-card-contract')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('project-card-money-unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('$0')).not.toBeInTheDocument();
   });
 });
 

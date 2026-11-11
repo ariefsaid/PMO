@@ -41,6 +41,8 @@ const { detailState, activitiesState, mutations, companiesState } = vi.hoisted((
   },
 }));
 
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
 vi.mock('@/src/hooks/useContacts', () => ({
   useContact: () => detailState,
   useContactActivities: () => activitiesState,

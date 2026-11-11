@@ -34,6 +34,8 @@ export interface FinancialStatementsSectionProps {
     refreshing: string;
   };
   onRetry: () => void;
+  /** "Refresh now": shown with a complete read; the page decides eligibility and what the result says. */
+  refreshNow?: { label: string; pending: boolean; note?: string; onClick: () => void };
   children?: ReactNode;
 }
 
@@ -43,6 +45,7 @@ export function FinancialStatementsSection({
   state,
   labels,
   onRetry,
+  refreshNow,
   children,
 }: FinancialStatementsSectionProps) {
   const headingId = useId();
@@ -58,7 +61,7 @@ export function FinancialStatementsSection({
 
   let content: ReactNode;
   if (state.kind === 'loading') {
-    content = <ListState variant="loading" />;
+    content = <ListState variant="loading" shape="table" rows={5} />;
   } else if (state.kind === 'error') {
     content = errorState;
   } else if (state.kind === 'unavailable') {
@@ -93,6 +96,14 @@ export function FinancialStatementsSection({
             <Button variant="outline" size="sm" loading={isRefreshing} onClick={onRetry}>
               {labels.retry}
             </Button>
+          )}
+          {refreshNow && (
+            <>
+              <Button variant="outline" size="sm" loading={refreshNow.pending} onClick={refreshNow.onClick}>
+                {refreshNow.label}
+              </Button>
+              {refreshNow.note && <span role="status" className="text-xs text-muted-foreground">{refreshNow.note}</span>}
+            </>
           )}
         </div>
         {state.hasActivity ? (

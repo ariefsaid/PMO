@@ -70,7 +70,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({
         }
       }}
       className={cn(
-        'touch-target inline-grid size-4 shrink-0 cursor-pointer place-items-center rounded-[4px] border-[1.5px] transition-colors [&_svg]:size-3',
+        'touch-target inline-grid size-4 shrink-0 cursor-pointer place-items-center rounded-sm border-[1.5px] transition-colors [&_svg]:size-3',
         isOn || isMixed
           ? 'border-primary bg-primary text-primary-foreground'
           : 'border-input bg-background',

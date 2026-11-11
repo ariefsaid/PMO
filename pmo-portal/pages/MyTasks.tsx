@@ -1,34 +1,51 @@
 import React from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, SearchMini, StatusPill, SelectField, useToast, ViewToggle } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDateOnly, formatCalendarDayInTimeZone } from '@/src/lib/format';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskStatus } from '@/src/lib/db/tasks';
 
-/** AC-IFW-TASKS-01: Today's ISO date string (YYYY-MM-DD) for overdue comparison. */
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+/** AC-IFW-TASKS-01 / PGA03-008: Today's calendar date string (YYYY-MM-DD) in user's timezone. */
+function todayIso(timezone = getActiveLocale().timezone): string {
+  return formatCalendarDayInTimeZone(new Date(), timezone);
 }
 
 /** AC-IFW-TASKS-01: True when a task is overdue (past due date, not Done/Blocked-complete). */
-function isOverdueTask(task: { end_date: string | null; status: string }): boolean {
-  return Boolean(task.end_date && task.end_date < todayIso() && task.status !== 'Done');
+function isOverdueTask(
+  task: { end_date: string | null; status: string },
+  today = todayIso(),
+): boolean {
+  return Boolean(task.end_date && task.end_date < today && task.status !== 'Done');
+}
+
+/** AC-IFW-TASKS-01: Overdue open tasks precede the remaining tasks in each queue. */
+function urgencyKey(
+  task: { end_date: string | null; status: string },
+  today = todayIso(),
+): number {
+  if (isOverdueTask(task, today)) return 0;
+  return 1;
+}
+
+/** Sunday of the week `day` (ISO YYYY-MM-DD) belongs to — the figure's due-by bound (Mon-based week). */
+function weekEndDate(day: string): string {
+  const [year, month, date] = day.split('-').map(Number);
+  const local = new Date(year, month - 1, date);
+  const weekday = local.getDay();
+  local.setDate(local.getDate() + (weekday === 0 ? 0 : 7 - weekday));
+  return `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`;
 }
 
 /**
- * AC-IFW-TASKS-01: Sort key for urgency within a project group.
- *   0 = overdue open  (highest urgency)
- *   1 = non-overdue open
- *   2 = Done
+ * PGA03-008: Reactive today date in the user's timezone that automatically
+ * updates when midnight rolls over without requiring a page refresh.
  */
-function urgencyKey(task: { end_date: string | null; status: string }): number {
-  if (task.status === 'Done') return 2;
-  if (isOverdueTask(task)) return 0;
-  return 1;
-}
+const useZonedToday = useOrgToday;
 
 /**
  * B-1 — "My Tasks" IC landing (AC-W2-IXD-001/002, OUTSTANDING D1 · Blocker).
@@ -48,12 +65,21 @@ function urgencyKey(task: { end_date: string | null; status: string }): number {
 // Must match the `task_status` Postgres enum — see TasksTab.tsx for the same list.
 const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
 
-/** Map key for the project-less group. A sentinel, never a value that reaches a URL — the defect
- *  this replaces was keying on `t.project_id` directly and rendering `/projects/null/tasks`. */
-const NO_PROJECT = '\u0000no-project';
-
 const MyTasks: React.FC = () => {
   const { t } = useTranslation();
+  // #1461: the drill-window chip lives in the tasks feature namespace.
+  const { t: tasksT } = useTranslation('tasks');
+  const today = useZonedToday();
+  // #1461: the dashboard 'Tasks due' figure counts open tasks due by the end of this week, and its
+  // drill carries `due=week`, so the list can show exactly that set (shareable URL, clearable chip).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dueThisWeekOnly = searchParams.get('due') === 'week';
+  const dueBy = dueThisWeekOnly && today ? weekEndDate(today) : null;
+  const clearDueFilter = () => setSearchParams((current) => {
+    const next = new URLSearchParams(current);
+    next.delete('due');
+    return next;
+  }, { replace: true });
   const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string } | null>(null);
   const [queue, setQueue] = React.useState<'open' | 'completed'>('open');
   const [search, setSearch] = React.useState('');
@@ -77,25 +103,26 @@ const MyTasks: React.FC = () => {
     return tasks.filter((task) => {
       const isCompleted = task.status === 'Done';
       if (isCompleted !== (queue === 'completed')) return false;
+      // #1461 due=week: open tasks due by the end of this week (the figure's counted set).
+      if (dueBy && !isCompleted && !(task.end_date !== null && task.end_date <= dueBy)) return false;
       if (!normalizedSearch) return true;
-      return `${task.name} ${task.project_name ?? ''}`.toLocaleLowerCase().includes(normalizedSearch);
+      return `${task.name} ${task.project_name ?? ''} ${task.project_contractual_name ?? ''}`.toLocaleLowerCase().includes(normalizedSearch);
     });
-  }, [tasks, queue, search]);
+  }, [tasks, queue, search, dueBy]);
 
   // Keep project grouping/context and urgency ordering after search/status filtering.
   // AC-IFW-TASKS-01: overdue open tasks precede other open work; dates sort soonest first.
   const grouped = React.useMemo(() => {
     if (!tasks) return [];
-    // #525 FR-FCT-041: a project-less task groups under its own heading. `NO_PROJECT` is a Map key
-    // only — it never reaches a URL, which is the bug it exists to prevent: the old code keyed on
-    // `task.project_id` directly and rendered `/projects/null/tasks` for a NULL one.
-    const map = new Map<string, { projectId: string | null; projectName: string; items: typeof tasks }>();
+    // #525 FR-FCT-041: null is a stable key for the single project-less task group.
+    const map = new Map<string | null, { projectId: string | null; projectName: string; legalName?: string | null; items: typeof tasks }>();
     for (const task of visibleTasks) {
-      const key = task.project_id ?? NO_PROJECT;
+      const key = task.project_id;
       if (!map.has(key)) {
         map.set(key, {
           projectId: task.project_id,
           projectName: task.project_name ?? t('myTasks.noProjectGroup', 'No project'),
+          legalName: task.project_contractual_name,
           items: [],
         });
       }
@@ -105,8 +132,8 @@ const MyTasks: React.FC = () => {
     // Sort within each group
     for (const g of groups) {
       g.items.sort((a, b) => {
-        const ka = urgencyKey(a);
-        const kb = urgencyKey(b);
+        const ka = urgencyKey(a, today);
+        const kb = urgencyKey(b, today);
         if (ka !== kb) return ka - kb;
         // Secondary: end_date asc, nulls last
         if (a.end_date === b.end_date) return 0;
@@ -116,7 +143,7 @@ const MyTasks: React.FC = () => {
       });
     }
     return groups;
-  }, [tasks, visibleTasks, t]);
+  }, [tasks, visibleTasks, t, today]);
 
   return (
     <div>
@@ -142,6 +169,15 @@ const MyTasks: React.FC = () => {
             ]}
           />
           <div className="flex w-full items-center gap-2 min-[640px]:max-w-md">
+            {/* #1461: a due=week drill names the active window and can clear it. */}
+            {dueBy && (
+              <StatusPill variant="warn" className="shrink-0">
+                <button type="button" onClick={clearDueFilter} className="inline-flex items-center gap-1" aria-label={tasksT('clearDueWeek', 'Clear the due-this-week filter')}>
+                  {tasksT('dueThisWeek', 'Due this week')}
+                  <span aria-hidden="true">✕</span>
+                </button>
+              </StatusPill>
+            )}
             {/* Shared list search (Companies/Projects pattern): DESIGN search shell + the
                 `search_used` analytics contract; `flex-1` fills the toolbar row, and below `sm`
                 the variant classes drop the base `min-w-[190px]` clip (clsx cannot merge). */}
@@ -212,6 +248,7 @@ const MyTasks: React.FC = () => {
                 {group.projectId ? (
                   <Link
                     to={`/projects/${group.projectId}/tasks`}
+                    title={group.legalName && group.legalName !== group.projectName ? group.legalName : undefined}
                     className="rounded hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {group.projectName}
@@ -252,7 +289,7 @@ const MyTasks: React.FC = () => {
                           </span>
                         )}
                         {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA). */}
-                        {isOverdueTask(task) && (
+                        {isOverdueTask(task, today) && (
                           <StatusPill variant="warn">{t('myTasks.overdue', 'Overdue')}</StatusPill>
                         )}
                       </div>

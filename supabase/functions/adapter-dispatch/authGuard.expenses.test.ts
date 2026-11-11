@@ -12,7 +12,7 @@ const client = (role: string, active: boolean, owned = true) => ({
     return { data: null, error: { message: `unexpected rpc ${fn}` } };
   },
 });
-const cmd = { domain: 'expenses', operation: 'create', record: { id: 'claim-1:approval', erp_doc_kind: 'expense-journal' } };
+const cmd = { domain: 'expenses', record: { erp_doc_kind: 'expense-journal' } };
 
 Deno.test('AC-EXP-125 an active Project Manager approver passes the role half (delegated to the DB gate)', async () => {
   assertEquals((await checkErpnextCommandAuthorization(client('Project Manager', true), 'org-1', 'u-1', cmd)).ok, true);
@@ -26,6 +26,6 @@ Deno.test('AC-EXP-125 an org that does not own expenses on the erpnext tier is r
   assertEquals([r.ok, r.status], [false, 403]);
 });
 Deno.test('AC-EXP-125 a kind of another domain is refused', async () => {
-  const r = await checkErpnextCommandAuthorization(client('Finance', true), 'org-1', 'u-1', { ...cmd, record: { id: 'x', erp_doc_kind: 'payment' } });
+  const r = await checkErpnextCommandAuthorization(client('Finance', true), 'org-1', 'u-1', { ...cmd, record: { erp_doc_kind: 'payment' } });
   assertEquals([r.ok, r.status], [false, 422]);
 });

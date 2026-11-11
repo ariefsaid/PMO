@@ -22,11 +22,17 @@ vi.mock('@/src/lib/adapterSeam/dispatchClient', () => ({
 }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   clearOwnershipCache: vi.fn(),
-  setDomainOwnership: vi.fn(),
+  setTaskOwnership: vi.fn(),
   routeDomainWrite: vi.fn(),
 }));
 vi.mock('@/src/lib/db/timesheetPush', () => ({
   approvedTimesheetForPush: vi.fn(),
+  // P3b/P3c added push-attention/link/state reads to the DAL and threaded them through the
+  // repository; this suite's full-module mock must name every import `repositories/index.ts` pulls
+  // from that module even though the push seam under test never calls them.
+  listPushesNeedingAttention: vi.fn(),
+  confirmEmployeeLink: vi.fn(),
+  getPushState: vi.fn(),
 }));
 
 import * as dispatchClient from '@/src/lib/adapterSeam/dispatchClient';

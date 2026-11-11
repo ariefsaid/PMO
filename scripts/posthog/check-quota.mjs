@@ -3,8 +3,10 @@
  * check-quota — alerts when any PostHog free allowance passes 80% (FR-PHG-030/031).
  * Env: POSTHOG_API_KEY (personal, project:read), POSTHOG_PROJECT_ID, optional POSTHOG_HOST,
  * optional QUOTA_THRESHOLD (default 0.8). Feed the key via op-get.sh; never write it to disk.
+ * `--dump`: print only { resource: { limited, usage, limit } } (numbers/booleans) and exit 0, to capture a
+ * live test fixture (docs/runbooks/posthog-operations.md, slice Q). No key, host or project id is printed.
  */
-import { evaluateQuota, validateQuotaEnv, validateThreshold } from './quota.mjs';
+import { dumpQuota, evaluateQuota, validateQuotaEnv, validateThreshold } from './quota.mjs';
 
 const HOST = (process.env.POSTHOG_HOST || 'https://us.i.posthog.com').replace(/\/$/, '');
 const KEY = process.env.POSTHOG_API_KEY;
@@ -42,6 +44,11 @@ try {
   // this process's env. Name the class only.
   console.error(`quota_limits request failed (${err?.name ?? 'Error'}) — the check did not run.`);
   process.exit(2);
+}
+
+if (process.argv.includes('--dump')) {
+  console.log(JSON.stringify(dumpQuota(payload), null, 2));
+  process.exit(0);
 }
 
 const { exitCode, lines, evaluated } = evaluateQuota(payload, Number(RAW_THRESHOLD));

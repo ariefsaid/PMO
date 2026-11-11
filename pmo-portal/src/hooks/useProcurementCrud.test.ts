@@ -1,19 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 // Mock the repository seam (ADR-0017) — the hooks consume `repositories.procurement`.
 const repo = vi.hoisted(() => ({
   create: vi.fn(),
+  createWithItems: vi.fn(),
   updateHeader: vi.fn(),
   createItem: vi.fn(),
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
   selectQuote: vi.fn(),
-  listDocuments: vi.fn(),
-  createDocument: vi.fn(),
-  deleteDocument: vi.fn(),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement: repo } }));
 vi.mock('@/src/auth/useAuth', () => ({
@@ -22,8 +20,8 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import {
   useCreateProcurement,
+  useCreateProcurementWithItems,
   useProcurementCrudMutations,
-  useProcurementDocuments,
 } from './useProcurementCrud';
 
 function makeWrapper() {
@@ -41,24 +39,6 @@ beforeEach(() => {
   repo.updateItem.mockResolvedValue(undefined);
   repo.deleteItem.mockResolvedValue(undefined);
   repo.selectQuote.mockResolvedValue(undefined);
-  repo.listDocuments.mockResolvedValue([{ id: 'd1', type: 'PO', status: 'Draft' }]);
-  repo.createDocument.mockResolvedValue({ id: 'd1' });
-  repo.deleteDocument.mockResolvedValue(undefined);
-});
-
-describe('AC-PROC-005 useProcurementDocuments (register query)', () => {
-  it('AC-PROC-005: loads the document register for a PR and is disabled when id is empty', async () => {
-    const { Wrapper } = makeWrapper();
-    const { result } = renderHook(() => useProcurementDocuments('pr1'), { wrapper: Wrapper });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(repo.listDocuments).toHaveBeenCalledWith('pr1');
-    expect(result.current.data?.[0].id).toBe('d1');
-
-    const { result: idle } = renderHook(() => useProcurementDocuments(undefined), {
-      wrapper: makeWrapper().Wrapper,
-    });
-    expect(idle.current.fetchStatus).toBe('idle');
-  });
 });
 
 describe('AC-PROC-001 useCreateProcurement', () => {
@@ -77,6 +57,19 @@ describe('AC-PROC-001 useCreateProcurement', () => {
     expect(created?.id).toBe('pr-new');
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(calls.some((c) => c.includes('"procurements"'))).toBe(true);
+  });
+});
+
+describe('atomic procurement creation hook', () => {
+  it('returns the saved draft and invalidates the list', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    const input = { id: 'pr', header: { title: 'T', projectId: null, vendorId: null }, lines: [] };
+    repo.createWithItems.mockResolvedValue({ id: 'pr' });
+    const { result } = renderHook(() => useCreateProcurementWithItems(), { wrapper: Wrapper });
+    await act(async () => { await expect(result.current.mutateAsync(input)).resolves.toEqual({ id: 'pr' }); });
+    expect(repo.createWithItems).toHaveBeenCalledWith(input);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['procurements'] });
   });
 });
 
@@ -133,30 +126,36 @@ describe('AC-PROC-002..005 useProcurementCrudMutations (detail-scoped, invalidat
     expect(calls.some((c) => c.includes('"pr1"'))).toBe(true);
   });
 
-  it('AC-PROC-005: createDocument / deleteDocument delegate + invalidate the detail key', async () => {
+  // OE13R02-002: the former createDocument/deleteDocument hook mutations are removed — no UI ever
+  // invoked them. The AC-PROC-005 document-metadata behavior keeps its owning layer
+  // (src/lib/db/procurementCrud.test.ts over the shipped DAL operations) and the repository
+  // methods stay available for a future wired surface.
+});
+
+describe('T-11 detail mutations refresh list and spend', () => {
+  it('updateHeader with a project change refreshes old and new project spend and the list family', async () => {
     const { qc, Wrapper } = makeWrapper();
-    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    qc.setQueryData(['procurement', 'org-1', 'pr1', 'u1', 'r'], { project_id: 'pOld' });
+    const spy = vi.spyOn(qc, 'invalidateQueries');
     const { result } = renderHook(() => useProcurementCrudMutations('pr1'), { wrapper: Wrapper });
-
     await act(async () => {
-      await result.current.createDocument.mutateAsync({
-        type: 'PO',
-        referenceNumber: 'PO-1',
-        status: 'Draft',
-      });
+      await result.current.updateHeader.mutateAsync({ title: 'T', projectId: 'pNew', vendorId: null });
     });
-    expect(repo.createDocument).toHaveBeenCalledWith('pr1', {
-      type: 'PO',
-      referenceNumber: 'PO-1',
-      status: 'Draft',
-    });
+    const keys = spy.mock.calls.map((c) => c[0]?.queryKey);
+    expect(keys).toContainEqual(['procurements', 'org-1']);
+    for (const p of ['pOld', 'pNew']) {
+      expect(keys).toContainEqual(['project-committed-spend', 'org-1', p]);
+      expect(keys).toContainEqual(['project-reserved-spend', 'org-1', p]);
+    }
+  });
 
+  it('selectQuote refreshes the list family', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const spy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useProcurementCrudMutations('pr1'), { wrapper: Wrapper });
     await act(async () => {
-      await result.current.deleteDocument.mutateAsync('d1');
+      await result.current.selectQuote.mutateAsync('q1');
     });
-    expect(repo.deleteDocument).toHaveBeenCalledWith('d1');
-
-    const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
-    expect(calls.some((c) => c.includes('"pr1"'))).toBe(true);
+    expect(spy.mock.calls.map((c) => c[0]?.queryKey)).toContainEqual(['procurements', 'org-1']);
   });
 });

@@ -24,8 +24,14 @@ insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, 
 insert into erp_gl_entry_mirror (org_id, erp_name, account, project, voucher_type, voucher_no, debit, credit, is_cancelled, erp_modified) values
   ('03350000-0000-0000-0000-00000000000a','GLE-1','5100 - Expense','ERP-A','Purchase Invoice','PINV-2',100,0,false,'2026-01-01'),
   ('03350000-0000-0000-0000-00000000000a','GLE-2','5100 - Expense','ERP-B','Purchase Invoice','PINV-2',100,0,true,'2026-01-01');
+-- AMENDED BY 0378: a document is recorded by PMO only while its procurement reference points at a live PMO record of
+-- its kind, so the PMO-pushed fixture is a real vendor bill (it pointed at nothing before).
+insert into procurements (id, org_id, title, requested_by_id, currency, total_value, status) values
+  ('03350000-0000-0000-0000-0000000000f8','03350000-0000-0000-0000-00000000000a','PMO pushed','03350000-0000-0000-0000-0000000000a1','IDR',0,'Draft');
+insert into procurement_invoices (id, procurement_id, org_id, status, amount, currency, tax_treatment, tax_amount) values
+  ('03350000-0000-0000-0000-0000000000f9','03350000-0000-0000-0000-0000000000f8','03350000-0000-0000-0000-00000000000a','Received',5,'IDR','exclusive',0);
 insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
-  ('03350000-0000-0000-0000-00000000000a','procurement','pmo-pi-1','erpnext','PINV-PMO');
+  ('03350000-0000-0000-0000-00000000000a','procurement','03350000-0000-0000-0000-0000000000f9','erpnext','PINV-PMO');
 
 create temp table actuals_before as
   select * from project_mapped_actuals('03350000-0000-0000-0000-0000000000d1');
@@ -96,7 +102,7 @@ select is((select count(*) from erp_purchase_documents), 0::bigint,
 reset role;
 
 delete from external_refs where org_id='03350000-0000-0000-0000-00000000000a'
- and domain='procurement' and pmo_record_id='pmo-pi-1';
+ and domain='procurement' and pmo_record_id='03350000-0000-0000-0000-0000000000f9';
 select is(upsert_erp_purchase_documents('03350000-0000-0000-0000-00000000000a','[]'),0,
  'AC-EPR-004 an ownership refresh does not insert documents');
 select ok(not (select pmo_owned from erp_purchase_documents where erp_name='PINV-PMO'),
@@ -121,9 +127,34 @@ select ok(
                except select * from project_mapped_actuals('03350000-0000-0000-0000-0000000000d1')))
   and not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                    where n.nspname = 'public' and p.prosrc ilike '%erp_purchase_documents%'
-                     and p.proname <> 'upsert_erp_purchase_documents')
-  and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'),
-  'AC-EPR-006 ERP purchases never feed actuals: project_mapped_actuals unchanged and no other function or view reads the table');
+                     and p.proname not in ('upsert_erp_purchase_documents','guard_procurement_erp_link_org',
+                       'procurement_evidenced_step','procurement_gate_violation','procurement_ledger_held',
+                       'refresh_erp_linked_purchase_total','link_erp_purchase_documents','unlink_erp_purchase_document',
+                       'guard_procurement_document_record',
+                       'procurement_payment_within_ceiling',
+                       -- AMENDED BY 0362 (FR-PFE-006): reads linked ERP documents only as step evidence for its no-op.
+                       'transition_procurement',
+                       -- AMENDED BY 0363/0364: the guard names the link/mark RPCs in its allow-lists; reads no rows
+                       'mark_erp_purchase_documents','stamp_erp_purchase_document_mark_org',
+                       'api_client_request_guard',  -- names the link/mark RPCs in its allow-lists; reads no table
+                       -- AMENDED BY 0372: the linked-documents total (0361 §4's basis, moved into one helper) — a commitment reader.
+                       'erp_linked_documents_total',
+                       -- AMENDED BY 0386: PMO + linked document basis and its refresh triggers.
+                       'procurement_document_total','refresh_procurement_recorded_total',
+                       'refresh_native_purchase_total_on_erp_document_update',
+                       -- AMENDED BY 0475 (#1513 S5): linked ERP Purchase Invoices only block payment / a PO revision push; neither feeds actuals.
+                       'subcontract_cap_exceptions','po_revision_push_refusal',
+                       -- AMENDED BY 0507 (#1505 P7): the Odoo feed's writers list orders and bills here for visibility and mark them gone; the
+                       -- recorded-by-PMO rule reads the flag. Neither feeds actuals (the page apply's linked-row update writes the mirror tables, not this one).
+                       'apply_odoo_purchase_page','mark_odoo_purchase_census_seen','finish_odoo_purchase_census','erp_document_recorded_by_pmo',
+                       -- AMENDED BY 0651: the set-based form of procurement_ledger_held (same guards, per id) — a commitment reader.
+                       'procurement_ledger_held_many',
+                       -- AMENDED BY 0765 (#1507 S6): the journal list EXCLUDES a move mirrored as a document, and the link column
+                       -- reads nothing from it. Neither feeds actuals (erp_journal_cost_lines feeds the commitment via procurement_ledger_held, listed above).
+                       'erp_journal_cost_lines','project_erp_journal_lines'))
+  and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
+                    and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans','erp_purchase_orphans_all')),
+  'AC-EPR-006 (re-baselined by AC-PFE-005) ERP purchases never feed actuals; only named link/commitment readers and refresh triggers touch the table');
 
 select * from finish();
 rollback;

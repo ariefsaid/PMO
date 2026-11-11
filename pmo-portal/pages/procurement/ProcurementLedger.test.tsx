@@ -82,6 +82,17 @@ vi.mock('@/src/lib/db/procurementFiles', () => ({
   getSignedDownloadUrl: vi.fn(async (path: string) => `https://cdn.example.com/${path}`),
 }));
 
+// The ledger consumes useVendorWithholdingCoverage directly; the tests steer the query object
+// here instead of injecting coverage props.
+const coverageQuery = vi.hoisted(() => ({
+  fn: vi.fn(),
+  current: { data: [] as unknown[], isLoading: false, isError: false, refetch: vi.fn(async () => {}) },
+}));
+vi.mock('@/src/hooks/useVendorWithholdingSlips', async (orig) => {
+  const actual = await orig<typeof import('@/src/hooks/useVendorWithholdingSlips')>();
+  return { ...actual, useVendorWithholdingCoverage: coverageQuery.fn };
+});
+
 import { ProcurementLedger } from './ProcurementLedger';
 import * as procurementFilesModule from '@/src/lib/db/procurementFiles';
 import type { LedgerRow } from '../../src/lib/db/procurementLedger';
@@ -207,6 +218,17 @@ function wrap(ui: React.ReactElement) {
   );
 }
 
+function setCoverage(next: Partial<typeof coverageQuery.current>) {
+  coverageQuery.current = { ...coverageQuery.current, ...next };
+  coverageQuery.fn.mockImplementation(() => coverageQuery.current);
+  return coverageQuery.current;
+}
+
+beforeEach(() => {
+  setCoverage({ data: [], isLoading: false, isError: false });
+  coverageQuery.current.refetch = vi.fn(async () => {});
+});
+
 const BASE_PROPS = {
   detail: makeDetail(),
   rows: SAMPLE_ROWS,
@@ -252,12 +274,13 @@ describe('AC-PR-LEDGER-010: ProcurementLedger renders DataTable', () => {
 
   it('AC-UXS-004 offers the existing vendor edit recovery instead of opening a slip form without a vendor', () => {
     const onSetVendor = vi.fn();
-    wrap(<ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status: 'Draft', vendor_id: null })} rows={[SAMPLE_ROWS[1]]} invoices={[{ id: 'vi-1', amount: 100, currency: 'USD' } as never]} withholdingCoverage={{ 'vi-1': { coverage_state: 'not-recorded', active_slip_id: null } as never }} canWriteWithholdingSlip vendorMissing onSetVendor={onSetVendor} />);
-    expect(screen.getByText('Set a vendor on the request before recording this slip.')).toBeInTheDocument();
+    setCoverage({ data: [{ invoice_id: 'vi-1', coverage_state: 'not-recorded', active_slip_id: null } as never] });
+    wrap(<ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status: 'Draft', vendor_id: null })} rows={[SAMPLE_ROWS[1]]} invoices={[{ id: 'vi-1', amount: 100, currency: 'USD' } as never]} canWriteWithholdingSlip vendorMissing onSetVendor={onSetVendor} />);
+    expect(screen.getByText('Set a supplier on this procurement case before recording this slip.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Record bukti potong' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Set vendor' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set supplier' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set supplier' }));
     expect(onSetVendor).toHaveBeenCalledTimes(1);
   });
 
@@ -327,8 +350,20 @@ describe('AC-PR-LEDGER-011: filter chips', () => {
 });
 
 describe('AC-PR-LEDGER-012: empty state', () => {
-  it('shows taught empty state when no rows exist', () => {
-    wrap(<ProcurementLedger {...BASE_PROPS} rows={[]} />);
+  // D2 review (Important 5): the empty state says what to do for THIS status, not a generic "capture below".
+  it.each([
+    ['Draft', false, 'Record the first document below.'],
+    ['Requested', true, 'Approve to start recording documents.'],
+    ['Requested', false, 'Waiting for approval.'],
+    ['Paid', false, 'Nothing was recorded for this purchase.'],
+  ] as const)('shows the %s empty state for an approver=%s viewer', (status, canApprove, sub) => {
+    wrap(<ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status })} rows={[]} canApprove={canApprove} />);
+    expect(screen.getByText('No documents yet')).toBeInTheDocument();
+    expect(screen.getByText(sub)).toBeInTheDocument();
+  });
+
+  it('keeps the generic empty state for a status with no special wording', () => {
+    wrap(<ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status: 'Ordered' })} rows={[]} />);
     expect(screen.getByText(/No records captured yet/i)).toBeInTheDocument();
   });
 
@@ -477,7 +512,7 @@ describe('AC-PR-LEDGER-018: file column — prop-driven, no fetch on mount', () 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
-// #548 / OD-TAX-1 §2 — the vendor invoice's total states its basis; nothing else claims one
+// #548 / OD-TAX-1 §2 — the supplier invoice's total states its basis; nothing else claims one
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 describe('#548 (OD-TAX-1): the ledger Amount column carries the row’s tax basis', () => {
   it('#548: the Invoice row reads "incl. PPN" — 0196 makes the marker NOT NULL, so it always exists', () => {
@@ -524,7 +559,7 @@ describe('AC-EXT-002 (#769): the ledger shows each record\'s Group ref', () => {
   });
 });
 
-describe('AC-VWH-012: a vendor invoice with tax withheld shows VAT, tax withheld and net payable (#876)', () => {
+describe('AC-VWH-012: a supplier invoice with tax withheld shows VAT, tax withheld and net payable (#876)', () => {
   const withholdingRow: LedgerRow = {
     ...SAMPLE_ROWS[1], id: 'vi-876', systemNumber: 'VI-2026-0876', recordId: 'vi-876',
     amount: 1110000, currency: 'IDR', taxAmount: 110000, withheldAmount: 20000,
@@ -541,7 +576,7 @@ describe('AC-VWH-012: a vendor invoice with tax withheld shows VAT, tax withheld
     expect(within(breakdown).getByTestId('vi-withholding-net').textContent).toBe(formatCurrency(1090000, 'IDR'));
   });
 
-  it('AC-VWH-012 a vendor invoice with nothing withheld renders no breakdown (unchanged)', () => {
+  it('AC-VWH-012 a supplier invoice with nothing withheld renders no breakdown (unchanged)', () => {
     wrap(<ProcurementLedger {...BASE_PROPS} rows={[{ ...SAMPLE_ROWS[1], taxAmount: 0, withheldAmount: 0 }]} />);
     expect(screen.queryByTestId('vi-withholding-breakdown')).toBeNull();
   });
@@ -559,7 +594,7 @@ describe('AC-VWH-026: a standalone tax-exclusive bill shows net payable = amount
 
 describe('AC-SEC-234: a role that reads no bills or payments is told so, never shown "no bill"', () => {
   const NON_MONEY_ROWS = SAMPLE_ROWS.filter((row) => row.type !== 'Invoice' && row.type !== 'Payment');
-  const NOTE = 'Vendor bills and payments are not shown for your role.';
+  const NOTE = 'Supplier invoices and payments are not shown for your role.';
 
   beforeEach(() => {
     roleState.realRole = 'Engineer';
@@ -590,6 +625,40 @@ describe('AC-SEC-234: a role that reads no bills or payments is told so, never s
       interpolation: { escapeValue: false }, initImmediate: false, react: { useSuspense: false },
     });
     render(<I18nextProvider i18n={i18n}><MemoryRouter><QueryClientProvider client={new QueryClient()}><ProcurementLedger {...BASE_PROPS} canWrite={false} detail={makeDetail({ status: 'Paid' })} rows={NON_MONEY_ROWS} /></QueryClientProvider></MemoryRouter></I18nextProvider>);
-    expect(screen.getByText('Tagihan vendor dan pembayaran tidak ditampilkan untuk peran Anda.')).toBeInTheDocument();
+    expect(screen.getByText('Tagihan pemasok dan pembayaran tidak ditampilkan untuk peran Anda.')).toBeInTheDocument();
+  });
+});
+
+describe('the ledger derives withholding coverage from the hook itself', () => {
+  const invoiceProps = { invoices: [{ id: 'vi-1', amount: 100, currency: 'USD' } as never] };
+
+  it('shows the coverage state from the query with no coverage props at all', () => {
+    setCoverage({ data: [{ invoice_id: 'vi-1', coverage_state: 'not-recorded', active_slip_id: null } as never] });
+    wrap(<ProcurementLedger {...BASE_PROPS} {...invoiceProps} rows={[SAMPLE_ROWS[1]]} />);
+    expect(coverageQuery.fn).toHaveBeenCalledWith(['vi-1']);
+    expect(screen.getByText('Not recorded')).toBeInTheDocument();
+  });
+
+  it('shows the loading state while the coverage query runs', () => {
+    setCoverage({ isLoading: true });
+    wrap(<ProcurementLedger {...BASE_PROPS} {...invoiceProps} rows={[SAMPLE_ROWS[1]]} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Loading bukti potong…');
+  });
+
+  it('offers an actual retry when the coverage query fails', async () => {
+    const refetch = vi.fn(async () => {});
+    setCoverage({ isError: true, refetch });
+    wrap(<ProcurementLedger {...BASE_PROPS} {...invoiceProps} rows={[SAMPLE_ROWS[1]]} />);
+    expect(screen.getByText('Bukti potong unavailable')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1));
+  });
+
+  it('records a bukti potong for the invoiced row when permitted', async () => {
+    const onRecordWithholdingSlip = vi.fn();
+    setCoverage({ data: [{ invoice_id: 'vi-1', coverage_state: 'not-recorded', active_slip_id: null } as never] });
+    wrap(<ProcurementLedger {...BASE_PROPS} {...invoiceProps} rows={[SAMPLE_ROWS[1]]} canWriteWithholdingSlip onRecordWithholdingSlip={onRecordWithholdingSlip} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Record bukti potong' }));
+    await waitFor(() => expect(onRecordWithholdingSlip).toHaveBeenCalledWith(expect.objectContaining({ id: 'vi-1' })));
   });
 });

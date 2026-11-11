@@ -23,8 +23,8 @@ export interface AccessDeniedProps {
  * reaches a page (via deep-link or ⌘K) it has no nav for. It is a titled landmark region
  * with a single keyboard-reachable Back action, never a wall of dead buttons.
  *
- * Strictly DESIGN.md tokens — mirrors the `ListState` empty surface (lock glyph + secondary
- * tile + muted copy + a primary action), so the three page gates read identically.
+ * Strictly DESIGN.md tokens — mirrors the `ListState` empty surface (lock glyph + muted copy +
+ * a primary action), so the three page gates read identically.
  */
 export const AccessDenied: React.FC<AccessDeniedProps> = ({
   title = "You don't have access to this page",
@@ -41,10 +41,8 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
       className,
     )}
   >
-    <span className="grid size-[52px] place-items-center rounded-[14px] bg-secondary text-muted-foreground">
-      <Icon name="lock" className="size-6" strokeWidth={1.75} />
-    </span>
-    <div className="text-[15px] font-semibold">{title}</div>
+    <Icon name="lock" aria-hidden className="size-6 text-muted-foreground" strokeWidth={1.75} />
+    <h1 className="text-[15px] font-semibold">{title}</h1>
     <div className="max-w-[44ch] text-[13px] text-muted-foreground">{sub}</div>
     <Button variant="primary" size="sm" onClick={onBack} className="mt-1">
       <Icon name="back" />

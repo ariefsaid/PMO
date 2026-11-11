@@ -5,8 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
-import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
-import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
 const h = vi.hoisted(() => ({
   binding: null as { status: string } | null,
@@ -99,17 +99,17 @@ describe('expense account readiness (AD-2, S-12)', () => {
     h.list.mockResolvedValue([{ accountKey: 'employee_payable', erpAccount: 'Employee Payable - ABC' }]);
     const first = renderMap();
     expect(await screen.findByRole('button', { name: 'Map Travel' })).toBeEnabled();
-    expect(screen.getByText('6 of 7 accounts are not mapped yet. A posting that needs an unmapped account stops until it is mapped.')).toBeInTheDocument();
-    expect(screen.getAllByText('Not mapped — expense posting stops')).toHaveLength(6);
+    expect(screen.getByText('7 of 8 accounts are not mapped yet. A posting that needs an unmapped account stops until it is mapped.')).toBeInTheDocument();
+    expect(screen.getAllByText('Not mapped: expense posting stops')).toHaveLength(7);
 
     first.unmount();
     // Full map — the incomplete line is gone, every row reads mapped and offers Change.
-    const allKeys = ['employee_payable', 'employee_advance', 'Travel', 'Accommodation', 'Meals', 'Local transport', 'Other'];
+    const allKeys = ['employee_payable', 'employee_advance', 'project_direct_cost', 'Travel', 'Accommodation', 'Meals', 'Local transport', 'Other'];
     h.list.mockResolvedValue(allKeys.map((accountKey) => ({ accountKey, erpAccount: `${accountKey} - ABC` })));
     const { unmount } = renderMap();
     await screen.findByRole('button', { name: 'Change Travel' });
     expect(screen.queryByText(/accounts are not mapped yet/)).not.toBeInTheDocument();
-    expect(screen.queryByText('Not mapped — expense posting stops')).toBeNull();
+    expect(screen.queryByText('Not mapped: expense posting stops')).toBeNull();
     unmount();
   });
 
@@ -159,5 +159,17 @@ describe('expense account readiness (AD-2, S-12)', () => {
     renderMap();
     expect(await screen.findByRole('button', { name: 'Map Travel' })).toBeEnabled();
     expect(screen.queryByText('Connect ERPNext before mapping expense accounts. Expense posting is not active.')).toBeNull();
+  });
+
+  it('AC-EXP-130 the project direct-cost account is an eighth row an Admin maps under its own key', async () => {
+    h.binding = { status: 'active' };
+    h.ownership = [{ externalTier: 'erpnext', domain: 'expenses' }];
+    const user = userEvent.setup();
+    renderMap();
+    await user.click(await screen.findByRole('button', { name: 'Map Project direct cost' }));
+    await user.type(await screen.findByRole('textbox'), '  Project Direct Cost - ABC ');
+    await user.click(screen.getByRole('button', { name: /Save account|Simpan akun/ }));
+    await vi.waitFor(() => expect(h.save).toHaveBeenCalledWith({ accountKey: 'project_direct_cost', erpAccount: 'Project Direct Cost - ABC' }));
+    expect(screen.getAllByTestId('expense-account-row')).toHaveLength(8);
   });
 });

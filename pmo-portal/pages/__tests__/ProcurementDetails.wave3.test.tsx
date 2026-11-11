@@ -4,7 +4,7 @@
  * AC-W3-N1 — VI form must NOT offer "Paid" as a status option; Mark as Paid
  *             remains the sole authority for the PR→Paid transition.
  * AC-W3-D10 — Draft PR with no line items blocks Submit Request + shows a gate.
- * AC-W3-O3  — "Mark Vendor Invoiced" opens an inline capture that performs the
+ * AC-W3-O3  — "mark supplier invoiced" opens an inline capture that performs the
  *             transition + VI-create together; cancel leaves status unchanged.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -13,10 +13,22 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // org READ is stubbed — `useTaxTreatmentPreselect` stays the shipped implementation, so the real
 // seeding behaviour runs here against a controllable org row.
 const orgDefault = vi.hoisted(() => ({ value: 'exclusive' as string | undefined }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };
 });
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: { procurement: true, procurement_full: true },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -83,12 +95,6 @@ const mockDeleteItem = vi.fn().mockResolvedValue(undefined);
 const mockSelectQuote = vi.fn().mockResolvedValue(undefined);
 const mockCreateDocument = vi.fn().mockResolvedValue({ id: 'd-new' });
 const mockDeleteDocument = vi.fn().mockResolvedValue(undefined);
-const docsState = {
-  data: [] as Record<string, unknown>[],
-  isPending: false,
-  isError: false,
-  refetch: vi.fn(),
-};
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useProcurementCrudMutations: () => ({
     updateHeader: { mutateAsync: mockUpdateHeader, isPending: false },
@@ -99,7 +105,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: mockCreateDocument, isPending: false },
     deleteDocument: { mutateAsync: mockDeleteDocument, isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
@@ -142,6 +147,9 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
+import { headerActions, recordFromMenu } from '@/pages/__tests__/helpers/procurementHeader';
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -173,9 +181,14 @@ const baseProcurement = {
   quotations: [],
   receipts: [],
   invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
-/** A Received PR ready for "Mark Vendor Invoiced" with a different user as approver (not u-finance). */
+/** A Received PR ready for "mark supplier invoiced" with a different user as approver (not u-finance). */
 const receivedProcurement = {
   ...baseProcurement,
   status: 'Received' as const,
@@ -224,14 +237,14 @@ describe('AC-W3-N1: VI form does not offer "Paid" status; Mark as Paid is the so
     toast.mockClear();
   });
 
-  it('AC-W3-N1: the VI capture (now inline on Mark Vendor Invoiced) offers Received and Scheduled but NOT Paid', async () => {
+  it('AC-W3-N1: the VI capture (now inline on mark supplier invoiced) offers Received and Scheduled but NOT Paid', async () => {
     detailState.data = { ...receivedProcurement };
     detailState.isPending = false;
     detailState.isError = false;
     renderPage();
 
     // Open the inline capture by clicking "Mark Vendor Invoiced"
-    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
 
     // The inline capture form should be visible
     const viStatusSelect = screen.getByTestId('vi-status-select');
@@ -252,14 +265,14 @@ describe('AC-W3-N1: VI form does not offer "Paid" status; Mark as Paid is the so
     detailState.isPending = false;
     detailState.isError = false;
     renderPage();
-    expect(screen.getByRole('button', { name: /mark as paid/i })).toBeInTheDocument();
+    expect(headerActions().getByRole('button', { name: 'Record payment' })).toBeInTheDocument();
   });
 });
 
 // ---------------------------------------------------------------------------
 // AC-W3-D10 — Draft with no line items blocks Submit Request
 // ---------------------------------------------------------------------------
-describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => {
+describe('AC-W3-D10: Draft PR with zero line items gates Submit for approval', () => {
   // The viewer (u-finance) is the requester: submit is the requester's act (OD-PROC-1), so the
   // line-item gate is exercised for the person who can actually submit.
   const REQUESTER = { requested_by_id: 'u-finance' };
@@ -269,14 +282,14 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
     toast.mockClear();
   });
 
-  it('AC-W3-D10: a Draft PR with NO line items shows the add-line-items gate message and no enabled Submit Request button', () => {
+  it('AC-W3-D10: a Draft PR with NO line items shows the add-line-items gate message and no enabled Submit for approval button', () => {
     detailState.data = { ...baseProcurement, ...REQUESTER, items: [], total_value: 0, currency: 'USD' };
     detailState.isPending = false;
     detailState.isError = false;
     renderPage();
 
     // No enabled "Submit Request" button
-    const submitBtn = screen.queryByRole('button', { name: /submit request/i });
+    const submitBtn = headerActions().queryByRole('button', { name: 'Submit for approval' });
     // Either not present, or present but disabled
     if (submitBtn) {
       expect(submitBtn).toBeDisabled();
@@ -286,7 +299,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
     expect(screen.getByText(/add at least one line item before submitting/i)).toBeInTheDocument();
   });
 
-  it('AC-W3-D10: a Draft PR with ≥1 line item (total > 0) shows an enabled Submit Request', () => {
+  it('AC-W3-D10: a Draft PR with ≥1 line item (total > 0) shows an enabled Submit for approval', () => {
     detailState.data = {
       ...baseProcurement,
       ...REQUESTER,
@@ -309,7 +322,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
     renderPage();
 
     // The "Submit Request" action must be enabled (not disabled)
-    const submitBtn = screen.getByRole('button', { name: /submit request/i });
+    const submitBtn = headerActions().getByRole('button', { name: 'Submit for approval' });
     expect(submitBtn).not.toBeDisabled();
 
     // Gate message must NOT appear
@@ -331,7 +344,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
     detailState.isPending = false;
     detailState.isError = false;
     renderPage();
-    expect(screen.getByRole('button', { name: /submit request/i })).not.toBeDisabled();
+    expect(headerActions().getByRole('button', { name: 'Submit for approval' })).not.toBeDisabled();
     expect(screen.queryByText(/add at least one line item before submitting/i)).toBeNull();
   });
 
@@ -354,10 +367,10 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
 });
 
 // ---------------------------------------------------------------------------
-// AC-W3-O3 — "Mark Vendor Invoiced" opens inline capture; submit fires both
+// AC-W3-O3 — "mark supplier invoiced" opens inline capture; submit fires both
 //             transition + createInvoice; cancel leaves status unchanged.
 // ---------------------------------------------------------------------------
-describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs transition + VI-create together', () => {
+describe('AC-W3-O3: mark supplier invoiced opens inline capture and performs transition + VI-create together', () => {
   beforeEach(() => {
     mockEffectiveRole = 'Finance';
     orgDefault.value = 'exclusive';
@@ -369,13 +382,13 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     toast.mockClear();
   });
 
-  it('AC-W3-O3: clicking "Mark Vendor Invoiced" opens the inline capture form (ref + date + status)', async () => {
+  it('AC-W3-O3: clicking "mark supplier invoiced" opens the inline capture form (ref + date + status)', async () => {
     detailState.data = { ...receivedProcurement };
     detailState.isPending = false;
     detailState.isError = false;
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
 
     // The inline capture should appear with invoice fields
     expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
@@ -394,7 +407,7 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     detailState.isPending = false;
     detailState.isError = false;
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
     await waitFor(() => expect((screen.getByTestId('vi-tax-treatment-select') as HTMLSelectElement).value).toBe('exclusive'));
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
 
@@ -424,7 +437,7 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     detailState.isError = false;
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
     expect(screen.getByTestId('btn-submit-vi-capture')).toBeDisabled();
     expect(screen.getByTestId('vi-tax-required-hint')).toBeInTheDocument();
@@ -444,7 +457,7 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     detailState.isError = false;
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
 
     // Select a status and set the date in the inline form
     const statusSelect = screen.getByTestId('vi-status-select');
@@ -476,7 +489,7 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     detailState.isPending = false;
     detailState.isError = false;
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
     await userEvent.type(screen.getByTestId('vi-amount-input'), '1.234');
     await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
@@ -492,7 +505,7 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     detailState.isPending = false;
     detailState.isError = false;
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
     await userEvent.type(screen.getByTestId('vi-amount-input'), '1.234');
     await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
@@ -509,7 +522,7 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     detailState.isError = false;
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
 
     expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
 
@@ -524,20 +537,21 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     expect(mockCreateInvoice).not.toHaveBeenCalled();
   });
 
-  it('AC-W3-O3: the inline capture appears where "Mark Vendor Invoiced" was (the action panel), not in a separate VI form card', async () => {
+  it('AC-W3-O3: the inline capture appears in the action panel (the decision zone), not in a separate VI form card', async () => {
     detailState.data = { ...receivedProcurement };
     detailState.isPending = false;
     detailState.isError = false;
     renderPage();
 
-    // Before clicking: "Mark Vendor Invoiced" button is in the action bar
-    const markBtn = screen.getByRole('button', { name: /mark vendor invoiced/i });
-    expect(markBtn).toBeInTheDocument();
+    // Before clicking: the header's "Record supplier invoice" action is offered
+    const recordBtn = headerActions().getByRole('button', { name: 'Record supplier invoice' });
+    expect(recordBtn).toBeInTheDocument();
+    expect(screen.queryByTestId('vi-inline-capture')).toBeNull();
 
-    // After clicking: the inline capture replaces the button in the action panel
-    await userEvent.click(markBtn);
-    expect(screen.queryByRole('button', { name: /mark vendor invoiced/i })).not.toBeInTheDocument();
-    expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
+    // After clicking: the inline capture opens in the action panel, and no separate VI form card appears
+    await userEvent.click(recordBtn);
+    expect(within(screen.getByTestId('record-action-zone')).getByTestId('vi-inline-capture')).toBeInTheDocument();
+    expect(screen.queryByTestId('form-create-vi')).toBeNull();
   });
 
   it('AC-W3-O3 (harden #2): a capture failure warns and leaves the panel OPEN for retry — the atomic RPC rolled everything back (no partial state)', async () => {
@@ -551,7 +565,7 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     toast.mockClear();
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
     await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '100');
     await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
@@ -566,16 +580,21 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     expect(toast).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'warning');
   });
 
-  it('AC-W3-O3 (review): the after-form is the RECOVERY surface — shown at Vendor Invoiced with NO invoice, hidden once one exists (no redundant second-create)', () => {
-    // No invoice yet (e.g. after a partial failure): the "Create Vendor Invoice" recovery form shows.
+  // The standalone "Create Vendor Invoice" recovery trigger became "Record another document" → Supplier invoice
+  // (#1404). Recording more than one supplier bill per case is now deliberate, so the old "hidden once an
+  // invoice exists" half has no equivalent: what still holds is that the happy path (invoice present) does
+  // not re-prompt for an invoice — the header offers the next step, Record payment.
+  it('AC-W3-O3 (review): the recovery path is offered at Vendor Invoiced with NO invoice; with one present the header moves on to payment', async () => {
+    // No invoice yet (e.g. after a partial failure): the supplier-invoice form is reachable to recover.
     detailState.data = { ...vendorInvoicedProcurement, invoices: [] };
     detailState.isPending = false;
     detailState.isError = false;
     const { unmount } = renderPage();
-    expect(screen.getByTestId('btn-create-vi')).toBeInTheDocument();
+    await recordFromMenu('Supplier invoice');
+    expect(screen.getByTestId('form-create-vi')).toBeInTheDocument();
     unmount();
 
-    // An invoice already exists (happy path): the after-form is HIDDEN — no duplicate-create path.
+    // An invoice already exists (happy path): nothing re-prompts for it; the next step is payment.
     detailState.data = {
       ...vendorInvoicedProcurement,
       invoices: [
@@ -584,10 +603,14 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
       ],
     };
     renderPage();
-    expect(screen.queryByTestId('btn-create-vi')).toBeNull();
+    expect(screen.queryByTestId('form-create-vi')).toBeNull();
+    expect(headerActions().getByRole('button', { name: 'Record payment' })).toBeInTheDocument();
   });
 });
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useErpJournalLines', () => import('@/pages/__tests__/helpers/erpJournalLinesMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

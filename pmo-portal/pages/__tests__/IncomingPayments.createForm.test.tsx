@@ -6,7 +6,7 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 /**
  * IncomingPayments — the record-a-receipt journey (read-model audit BLOCK 1).
@@ -47,11 +47,21 @@ const invoice = (over: Partial<SalesInvoiceRow>): SalesInvoiceRow =>
     ...over,
   }) as SalesInvoiceRow;
 
+const receipt = (over: Partial<IncomingPaymentRow> = {}): IncomingPaymentRow => ({
+  id: 'ip-odoo', org_id: 'org-1', customer_id: 'cust-1', customer_name: 'Acme Energy', sales_invoice_id: null,
+  ip_number: 'ODOO-PAY-001', pmo_number: null, pmo_native: false, cancelled_at: null, reference_number: null,
+  date: '2026-11-01', amount: 100, received_amount: 100, withheld_amount: 0, withholding_slip_number: null,
+  currency: 'USD', status: 'Scheduled', erp_docstatus: 1, erp_modified: null, erp_amended_from: null,
+  erp_cancelled_at: null, created_at: '2026-11-01T00:00:00Z', ...over,
+}) as IncomingPaymentRow;
+
 const hoisted = vi.hoisted(() => ({
   createPaymentMutate: vi.fn(async (_input: Record<string, unknown>) => ({ id: 'ip-new' })),
   paymentsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   invoicesState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   ownershipState: { data: [] as unknown[], isError: false },
+  odooUnreachable: false,
+  orgTimezone: 'UTC',
   navigateMock: vi.fn(),
   clientOptions: [
     { value: 'cust-1', label: 'Acme Energy', sub: 'Client' },
@@ -75,6 +85,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: hoisted.clientOptions }),
+  useInvoiceProjectOptions: () => ({ data: [] }),
 }));
 
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
@@ -82,11 +93,20 @@ vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }))
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-fin', org_id: 'org-1' }, role: 'Finance' }),
 }));
+vi.mock('@/src/hooks/useResolvedLocale', () => ({
+  useOrgBusinessTimezone: () => hoisted.orgTimezone,
+}));
 
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
 // These journeys are the ERP-path receipt (optional invoice, on-account, withholding against an ERP invoice); the PMO
 // receipt path is IncomingPayments.native.test.tsx.
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => hoisted.ownershipState }));
+vi.mock('@/src/hooks/useOdooPurchase', () => ({ useOdooUnreachable: () => ({ unreachable: hoisted.odooUnreachable, lastOkAt: null }) }));
+vi.mock('@/src/components/procurement/OdooDirectoryPickers', () => ({
+  OdooJournalSelect: ({ value, onChange, id, label = 'Pay from' }: { value: string; onChange: (value: string) => void; id: string; label?: string }) => (
+    <label htmlFor={id}>{label}<select id={id} aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}><option value="">Default journal</option><option value="9">Bank BCA</option></select></label>
+  ),
+}));
 vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router')>();
   return { ...actual, useNavigate: () => hoisted.navigateMock };
@@ -94,8 +114,8 @@ vi.mock('react-router', async (importOriginal) => {
 
 import IncomingPayments from '../IncomingPayments';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { FinanceI18nTestProvider } from './financeI18nTestProvider';
-import { financeTestI18n } from './financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
@@ -128,12 +148,50 @@ beforeEach(async () => {
   hoisted.paymentsState.data = [];
   hoisted.invoicesState.data = [];
   hoisted.ownershipState.data = [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }];
+  hoisted.odooUnreachable = false;
   setActiveLocale(EN_LOCALE);
   await financeTestI18n.changeLanguage('en');
 });
-afterEach(() => resetActiveLocale());
+afterEach(() => {
+  vi.useRealTimers();
+  hoisted.orgTimezone = 'UTC';
+  resetActiveLocale();
+});
 
 describe('IncomingPayments — a Finance user can actually record a receipt (BLOCK 1)', () => {
+  it('AC-OCI-090: while Odoo is unavailable, it blocks receipt and cancellation actions', async () => {
+    hoisted.ownershipState.data = [{ id: 'o-1', orgId: 'org-1', externalTier: 'odoo', domain: 'revenue' }];
+    hoisted.odooUnreachable = true;
+    hoisted.paymentsState.data = [receipt()];
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Receive Payment' })).toBeNull();
+    const row = screen.getByText('ODOO-PAY-001').closest('tr');
+    expect(row).not.toBeNull();
+    expect(within(row!).queryByRole('button', { name: 'Row actions' })).toBeNull();
+  });
+
+  it('AC-OCI-091 chooses a mirrored journal and confirms before sending an Odoo receipt', async () => {
+    hoisted.ownershipState.data = [{ id: 'o-1', orgId: 'org-1', externalTier: 'odoo', domain: 'revenue' }];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    const amount = screen.getByLabelText(/^Amount settled/);
+    await user.clear(amount);
+    await user.type(amount, '100');
+    expect(screen.queryByLabelText(/^Cash received/)).toBeNull();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Received into' }), '9');
+
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    const dialog = screen.getByRole('dialog', { name: 'Record this receipt in Odoo?' });
+    expect(dialog).toHaveTextContent('Record this receipt in Odoo?');
+    expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Record payment' }));
+    expect(hoisted.createPaymentMutate).toHaveBeenCalledWith(expect.objectContaining({
+      customerId: 'cust-1', paidAmount: 100, receivedAmount: 100, journalId: '9',
+    }));
+  });
+
   it('AC-S27-001: labels settlement and cash plainly, and keeps native no-withholding prefill in the existing payload', async () => {
     hoisted.ownershipState.data = [];
     hoisted.invoicesState.data = [invoice({
@@ -213,6 +271,84 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
       'customerId', 'date', 'intent', 'paidAmount', 'receivedAmount', 'salesInvoiceId',
       'withheldAmount', 'withholdingSlipNumber',
     ]);
+  });
+
+  async function enterWithholding(user: ReturnType<typeof userEvent.setup>) {
+    for (const [label, value] of [['Amount settled', '1110'], ['Cash received', '1000']] as const) {
+      const field = screen.getByLabelText(new RegExp(label));
+      await user.clear(field);
+      await user.type(field, value);
+    }
+    await user.click(screen.getByRole('button', { name: 'Tax withheld' }));
+    const withheld = screen.getByLabelText(/Withheld tax amount/);
+    await user.clear(withheld);
+    await user.type(withheld, '110');
+    await user.type(screen.getByLabelText('Withholding-slip number'), 'SYN-WHT-1275');
+  }
+
+  it('AC-WHA-006: an accountant records a receipt with PPh 4(2) withheld and the command carries the article', async () => {
+    hoisted.invoicesState.data = [invoice({ id: 'si-wha', si_number: 'SI-WHA' })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-WHA');
+    await enterWithholding(user);
+    await user.selectOptions(screen.getByLabelText('Withholding article'), 'pph4_2');
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    expect(hoisted.createPaymentMutate.mock.calls.at(-1)?.[0]).toMatchObject({
+      withheldAmount: 110, withholdingSlipNumber: 'SYN-WHT-1275', withholdingArticle: 'pph4_2',
+    });
+  });
+
+  it('AC-WHA-007: choosing an invoice pre-fills the article from its project, and the accountant can change it', async () => {
+    hoisted.invoicesState.data = [invoice({ id: 'si-wha2', si_number: 'SI-WHA2', project_receipt_withholding_article: 'pph4_2' })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-WHA2');
+    await enterWithholding(user);
+    const article = screen.getByLabelText('Withholding article');
+    expect(article).toHaveValue('pph4_2');
+    await user.selectOptions(article, 'pph23');
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    expect(hoisted.createPaymentMutate.mock.calls.at(-1)?.[0]).toMatchObject({ withholdingArticle: 'pph23' });
+  });
+
+  it('AC-WHA-007: changing the invoice keeps an article the accountant hand-picked', async () => {
+    hoisted.invoicesState.data = [
+      invoice({ id: 'si-wha4', si_number: 'SI-WHA4', project_receipt_withholding_article: 'pph4_2' }),
+      invoice({ id: 'si-wha5', si_number: 'SI-WHA5', project_receipt_withholding_article: 'pph4_2' }),
+    ];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-WHA4');
+    await enterWithholding(user);
+    const article = screen.getByLabelText('Withholding article');
+    await user.selectOptions(article, 'pph23');
+    await pick(user, /Sales Invoice/, 'SI-WHA5');
+    expect(screen.getByLabelText('Withholding article')).toHaveValue('pph23');
+  });
+
+  it('AC-WHA-006: with nothing withheld the receipt carries no article', async () => {
+    hoisted.invoicesState.data = [invoice({ id: 'si-wha3', si_number: 'SI-WHA3', project_receipt_withholding_article: 'pph4_2' })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-WHA3');
+    for (const label of ['Amount settled', 'Cash received']) {
+      const field = screen.getByLabelText(new RegExp(label));
+      await user.clear(field);
+      await user.type(field, '1000');
+    }
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    const submitted = hoisted.createPaymentMutate.mock.calls.at(-1)?.[0];
+    expect(submitted).toBeDefined();
+    expect(Object.keys(submitted ?? {})).not.toContain('withholdingArticle');
   });
 
   it('AC-S27-003: a native reconciliation error reveals the collapsed withholding evidence', async () => {
@@ -491,6 +627,42 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     expect(within(listbox).queryByRole('option', { name: /SI-BOREALIS/ })).not.toBeInTheDocument();
   });
 
+  it('clears the invoice and amounts when the customer changes', async () => {
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({ id: 'si-a', si_number: 'SI-ACME', pmo_native: true })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-ACME');
+    await user.click(screen.getByRole('button', { name: 'Tax withheld' }));
+    await user.clear(screen.getByLabelText(/Withheld tax amount/));
+    await user.type(screen.getByLabelText(/Withheld tax amount/), '20');
+    await user.type(screen.getByLabelText('Withholding-slip number'), 'SLIP-1');
+    await pick(user, 'Customer', 'Borealis Marine');
+    expect(screen.getByLabelText(/Amount settled/)).toHaveValue('0');
+    expect(screen.getByLabelText(/Cash received/)).toHaveValue('0');
+    expect(screen.getByLabelText(/Withheld tax amount/)).toHaveValue('0');
+    expect(screen.getByLabelText('Withholding-slip number')).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: /Sales Invoice/ })).not.toHaveValue('SI-ACME');
+    expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
+  });
+
+  it('checks the selected invoice customer again before creating a receipt', async () => {
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({ id: 'si-a', si_number: 'SI-ACME', pmo_native: true })];
+    const user = userEvent.setup();
+    const view = renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-ACME');
+    hoisted.invoicesState.data = [invoice({ id: 'si-a', si_number: 'SI-ACME', customer_id: 'cust-2', pmo_native: true })];
+    view.rerender(<FinanceI18nTestProvider><ImpersonationProvider realRole="Finance"><MemoryRouter><ToastProvider><IncomingPayments /></ToastProvider></MemoryRouter></ImpersonationProvider></FinanceI18nTestProvider>);
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
+    expect(screen.getAllByText(/choose the invoice this receipt settles/i).length).toBeGreaterThan(0);
+  });
+
   it('enables "Record payment" once the form is filled, and submits what the user entered', async () => {
     hoisted.invoicesState.data = [invoice({ id: 'si-a', si_number: 'SI-ACME', customer_id: 'cust-1' })];
     const user = userEvent.setup();
@@ -581,5 +753,21 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await user.click(screen.getByText('ACC-PAY-0001'));
 
     expect(hoisted.navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('PGA03-007: derives payment default and max from the organization day across a profile day boundary', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-06-13T18:00:00.000Z'));
+    hoisted.orgTimezone = 'America/Los_Angeles';
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Tokyo' });
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({ id: 'si-pga-date', si_number: 'SI-PGA-DATE', pmo_native: true })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    const dateInput = screen.getByLabelText(/Payment date/i);
+    expect(dateInput).toHaveAttribute('type', 'date');
+    expect(dateInput).toHaveValue('2026-06-13');
+    expect(dateInput).toHaveAttribute('max', '2026-06-13');
   });
 });

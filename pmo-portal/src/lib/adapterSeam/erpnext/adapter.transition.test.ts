@@ -153,6 +153,7 @@ describe('erpnext/adapter — commit() transition, verb:amend (task 6.3, FR-ENA-
     const calls: Array<{ method: string; body?: unknown }> = [];
     const fetchImpl = async (_url: string, init?: RequestInit) => {
       calls.push({ method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body as string) : undefined });
+      if (String(_url).includes('limit_page_length')) return jsonResponse(200, { data: [] }); // list query: no rows
       // cancel the old (PUT docstatus:2)
       if (init?.method === 'PUT' && init.body && JSON.parse(init.body as string).docstatus === 2) {
         return jsonResponse(200, { name: 'ACC-PINV-2026-00001', docstatus: 2 });
@@ -262,6 +263,7 @@ describe('erpnext/adapter — commit() update on a SUBMITTABLE kind (task 6.3 up
       calls.push({ method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body as string) : undefined });
       // the routeEdit probe GET
       if (init?.method === 'GET' && calls.length === 1) return jsonResponse(200, { name: 'ACC-PINV-2026-00001', docstatus: 1 });
+      if (String(_url).includes('limit_page_length')) return jsonResponse(200, { data: [] }); // list query: no rows
       if (init?.method === 'PUT' && init.body && JSON.parse(init.body as string).docstatus === 2) return jsonResponse(200, { name: 'ACC-PINV-2026-00001', docstatus: 2 });
       if (init?.method === 'POST') return jsonResponse(200, { name: 'ACC-PINV-2026-00002' });
       if (init?.method === 'PUT') return jsonResponse(200, { name: 'ACC-PINV-2026-00002', docstatus: 1 });

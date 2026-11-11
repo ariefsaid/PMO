@@ -172,6 +172,14 @@ test('probe expectations are mandatory, constrained and round-trip through regen
   const bad = structuredClone(shipped);
   bad.rpcs[0].expect_denial = [{ http: 401, sqlstate: '42501' }];
   assert.throws(() => validateDenominator(bad), /401/);
+  // P0001 (raise exception) is HTTP 400 through PostgREST; any other pairing for it is a bad expectation.
+  const idx = shipped.rpcs.findIndex(r => r.expect_denial.some(e => e.sqlstate === 'P0001'));
+  assert.deepEqual(shipped.rpcs[idx].expect_denial.find(e => e.sqlstate === 'P0001'), { http: 400, sqlstate: 'P0001' });
+  for (const http of [403, 500]) {
+    const wrong = structuredClone(shipped);
+    wrong.rpcs[idx].expect_denial = [{ http, sqlstate: 'P0001' }];
+    assert.throws(() => validateDenominator(wrong), /SQLSTATE\/HTTP/);
+  }
   const merged = preserveTableExpectations(shipped.tables.map(({ table, has_org, pk }) => ({ table, has_org, pk })), shipped.tables);
   assert.deepEqual(merged, shipped.tables);
   assert.deepEqual(JSON.parse(formatEntry('tables', shipped.tables[0])), shipped.tables[0]);
@@ -289,14 +297,18 @@ else if (args.some(a => a === 'apikey: service')) {
   const expected = entry?.expect_denial?.[0];
   if (expected) { code = expected.http; body = {code: expected.sqlstate}; }
   else body = ['org_has_member_email', 'org_reads_erp_ledger'].includes(fn) ? false : [];
+  if (fn === 'get_budget_distribution_snapshot') body = mode === 'snapshot-leak' ? {method:'by_days',rows:[]} : null;
   if ((fn === 'org_credit_balance' && mode === 'unexpected-rpc') || (fn === 'activate_budget_version' && mode === 'unexpected-verified-target')) {code = 500; body = {code:'P0002'};}
   if (fn === 'org_credit_balance' && mode === 'run-401') {code = 401; body = {code:'42501'};}
   if (fn === 'org_credit_balance' && mode === 'unexpected-empty') {code = 200; body = null;}
+  if (fn === 'get_finance_hub_figures') body = {contract_rows: 0, pack_unbilled: [], ...(mode === 'finance-hub-leak' ? {leaked: JSON.parse(fs.readFileSync(process.env.A_ROWS_JSON))[0].id} : {})};
+  if (mode === 'not-found-500' && ['record_native_on_account_receipt', 'apply_native_receipt'].includes(fn)) {code = 500; body = {code:'P0002'};}
   if (fn === 'operator_list_orgs' && mode === 'unexpected-shape-status') code = 201;
   if (fn === 'operator_list_orgs' && mode === 'subshell-leak') body = [{name:'synthetic'}];
   if (fn === 'operator_list_orgs' && mode === 'bad-shape') body = null;
   try { JSON.parse(args[args.indexOf('-d')+1]); } catch { code=400; body={code:'22023'}; }
-} else if (args.includes('PATCH') && mode === 'patch-204') {code = 204; body = '';}
+} else if (url.includes('/external_command_outbox?') && mode === 'outbox-403' && args.includes('Authorization: Bearer token')) {code = 403; body = {code:'42501'};}
+else if (args.includes('PATCH') && mode === 'patch-204') {code = 204; body = '';}
 else if (url.includes('/clickup_webhook_inbox?') && mode === 'no-org-leak' && args.includes('Authorization: Bearer token')) body = [{synthetic:true}];
 fs.writeFileSync(args[args.indexOf('-o')+1], typeof body === 'string' ? body : JSON.stringify(body));
 process.stdout.write(String(code));
@@ -348,6 +360,14 @@ test('service-read member fact is encoded as JSON, not interpolated', () => {
   const r = probeFixture('quoted-email');
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
+test('nullable tenant read accepts an invisible snapshot and flags returned foreign data', () => {
+  const hidden = probeFixture('baseline');
+  assert.equal(hidden.status, 0, hidden.stdout + hidden.stderr);
+  assert.match(hidden.stderr, /get_budget_distribution_snapshot \(invisible tenant snapshot\)/);
+  const leaked = probeFixture('snapshot-leak');
+  assert.equal(leaked.status, 1, leaked.stdout + leaked.stderr);
+  assert.match(leaked.stderr, /LEAK.*get_budget_distribution_snapshot.*cross-tenant snapshot/);
+});
 test('non-empty operator list is counted across command substitution', () => {
   const r = probeFixture('subshell-leak');
   assert.equal(r.status, 1, r.stdout + r.stderr);
@@ -367,6 +387,29 @@ test('a child row without a visible parent is reported as a cross-org leak', () 
   const r = probeFixture('blind-child-leak', {full:true, override:'matching'});
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.match(r.stdout + r.stderr, /work_order_acceptance_lines blind read returned foreign-parent rows/);
+});
+
+// #2076 — catalogue drift: three expectations were wrong, not the app.
+test('get_finance_hub_figures is an own-org read: own figures pass, another tenant id in the body is a leak', () => {
+  const entry = readDenominator(path.resolve('scripts/isolation-probe-denominator.json')).rpcs.find(r => r.name === 'get_finance_hub_figures');
+  assert.equal(entry.class, 'read');
+  assert.equal(entry.shape, 'own-org-no-foreign-ids');
+  const own = probeFixture('baseline');
+  assert.equal(own.status, 0, own.stdout + own.stderr);
+  assert.match(own.stdout + own.stderr, /PASS\s+rpc get_finance_hub_figures/);
+  const leaked = probeFixture('finance-hub-leak');
+  assert.equal(leaked.status, 1, leaked.stdout + leaked.stderr);
+  assert.match(leaked.stderr, /LEAK.*get_finance_hub_figures/);
+});
+test('a 403 on the external_command_outbox blind read is an expected denial, not a probe error', () => {
+  const r = probeFixture('outbox-403', {full:true});
+  assert.doesNotMatch(r.stdout + r.stderr, /PROBE-ERROR.*external_command_outbox/);
+  assert.match(r.stdout + r.stderr, /EXPECTED-DENIAL\s+table external_command_outbox blind read HTTP 403/);
+});
+test('P0002 not-found (HTTP 500) is an expected denial for the native receipt writes', () => {
+  const r = probeFixture('not-found-500');
+  assert.doesNotMatch(r.stdout + r.stderr, /PROBE-ERROR.*(record_native_on_account_receipt|apply_native_receipt)/);
+  for (const fn of ['record_native_on_account_receipt', 'apply_native_receipt']) assert.match(r.stderr, new RegExp(`EXPECTED-DENIAL\\s+rpc ${fn}`));
 });
 
 test('acceptance probes send a populated allocation fixture and absent by-id fixtures are explicit skips', () => {

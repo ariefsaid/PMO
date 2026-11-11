@@ -60,7 +60,7 @@ export interface ApprovalRowProps {
  * separates rows (consistent across both approval types — census violation B fix).
  *
  * The `subtitle` prop allows procurement rows to supply custom meta (code · amount
- * · age) while sharing the identical container shell (gap-3/py-[11px]/items-center
+ * · age) while sharing the identical container shell (gap-3/py-3/items-center
  * /avatar) that timesheet rows use. Switching the scope tab no longer shifts row
  * metrics (B — the owner's chevron-order complaint, root cause addressed).
  */
@@ -103,7 +103,7 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
           : undefined
       }
       className={cn(
-        'flex flex-wrap items-center gap-3 border-b border-border py-[11px] last:border-b-0',
+        'flex flex-wrap items-center gap-3 border-b border-border py-3 last:border-b-0',
         onActivate && 'cursor-pointer transition-colors hover:bg-accent/60',
         className
       )}

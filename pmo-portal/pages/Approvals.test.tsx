@@ -55,21 +55,34 @@ type ProposedLink = {
   profile_name: string | null;
   profile_email: string | null;
 };
-const attentionState: { data: AttentionRow[]; isPending: boolean; isError: boolean } = {
+const attentionState: {
+  data: AttentionRow[] | undefined;
+  isPending: boolean;
+  isError: boolean;
+  refetch: ReturnType<typeof vi.fn>;
+} = {
   data: [],
   isPending: false,
   isError: false,
+  refetch: vi.fn(),
 };
 const retryMutation: MutationState = { mutate: vi.fn(), isPending: false };
-const linksState: { data: ProposedLink[]; isPending: boolean; isError: boolean } = {
+const linksState: {
+  data: ProposedLink[] | undefined;
+  isPending: boolean;
+  isError: boolean;
+  refetch: ReturnType<typeof vi.fn>;
+} = {
   data: [],
   isPending: false,
   isError: false,
+  refetch: vi.fn(),
 };
 type CandidateProfile = { id: string; full_name: string; email: string; status: string };
 const profileOptionsState: CandidateProfile[] = [];
 const profileListAvailability = { unavailable: false };
 const confirmMutation: MutationState = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false };
+const procurementTransition = vi.hoisted(() => ({ mutateAsync: vi.fn() }));
 
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
 // #784 C-1: the customer invoices awaiting the viewer count toward "all caught up" and the All tab.
@@ -78,11 +91,13 @@ vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingVie
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
+vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => ({ data: { plans: [], replenishments: [] }, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
   useTimesheetsAwaitingApproval: () => queryState,
   useTimesheetMutations: () => ({
     approve: approveMutation,
+    settleBatch: vi.fn(),
     reject: rejectMutation,
     submit: { mutate: vi.fn(), isPending: false },
   }),
@@ -98,8 +113,16 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 // These timesheet-flow tests keep procurement empty so the timesheet section is
 // the surface under test (its behavior is unchanged, just embedded in the inbox).
 const procState = { data: [] as unknown[], isPending: false, isError: false };
+const procurementReads = vi.hoisted(() => vi.fn());
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => ({ ...procState, refetch: vi.fn() }),
+  useProcurements: (opts?: unknown) => { procurementReads(opts); return { ...procState, refetch: vi.fn() }; },
+}));
+vi.mock('@/src/hooks/useProcurementDetail', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/hooks/useProcurementDetail')>();
+  return { ...actual, useProcurementBulkTransition: () => procurementTransition };
+});
+vi.mock('./approvals/ProcurementApprovalRow', () => ({
+  ProcurementApprovalPreview: ({ row }: { row: { title: string } }) => <h2>{row.title}</h2>,
 }));
 
 // Mutable so a P3b test can flip the signed-in role to Admin/Engineer without a per-test module mock.
@@ -111,6 +134,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: authState.role, realRole: authState.role }),
+  useOptionalRealRole: () => authState.role,
 }));
 
 const submittedSheets: TimesheetAwaitingApproval[] = [
@@ -195,14 +219,17 @@ beforeEach(() => {
   procState.data = [];
   procState.isPending = false;
   procState.isError = false;
+  procurementTransition.mutateAsync = vi.fn(() => Promise.resolve());
   attentionState.data = [];
   attentionState.isPending = false;
   attentionState.isError = false;
+  attentionState.refetch = vi.fn();
   retryMutation.mutate = vi.fn();
   retryMutation.isPending = false;
   linksState.data = [];
   linksState.isPending = false;
   linksState.isError = false;
+  linksState.refetch = vi.fn();
   profileOptionsState.splice(0, profileOptionsState.length);
   profileListAvailability.unavailable = false;
   confirmMutation.mutate = vi.fn();
@@ -218,6 +245,12 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('Approvals page states', () => {
+  it('PERF-APPR-1: the queue reads only Requested procurements, not the whole org list', () => {
+    renderPage('procurement');
+    expect(procurementReads).toHaveBeenCalledWith({ status: 'Requested' });
+    expect(procurementReads).not.toHaveBeenCalledWith(undefined);
+  });
+
   it('AC-904: Approvals page renders approvals-loading skeleton while pending, approvals-empty when no submitted sheets, error + Retry that re-runs the query (NFR-TS-UI-001)', () => {
     // Loading
     queryState.isPending = true;
@@ -349,8 +382,8 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Approve 2/i }));
     await waitFor(() => expect(approveMutation.mutateAsync).toHaveBeenCalledTimes(2));
-    expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(1, { id: 'ts-1' });
-    expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(2, { id: 'ts-2' });
+    expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(1, { id: 'ts-1', batch: true });
+    expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(2, { id: 'ts-2', batch: true });
     expect(await findToastAnnouncement('status', /2 approved/i)).toBeInTheDocument();
   });
 
@@ -401,6 +434,95 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
   });
 });
 
+describe('Approvals procurement bulk approval (AC-1578)', () => {
+  it('AC-1578: selecting all from a mixed selection selects every purchase', async () => {
+    authState.role = 'Project Manager';
+    procState.data = [
+      { id: 'pr-1', title: 'Roof package', status: 'Requested', requested_by_id: 'u-requester-1', total_value: 100, currency: 'USD', created_at: '2026-06-01T00:00:00Z' },
+      { id: 'pr-2', title: 'HVAC package', status: 'Requested', requested_by_id: 'u-requester-2', total_value: 200, currency: 'USD', created_at: '2026-06-02T00:00:00Z' },
+    ];
+    renderPage('procurement');
+
+    await userEvent.click(screen.getByRole('button', { name: /select purchases/i }));
+    const roof = screen.getByRole('checkbox', { name: /select roof package/i });
+    const hvac = screen.getByRole('checkbox', { name: /select hvac package/i });
+    const selectAll = screen.getByRole('checkbox', { name: /select all purchase requests/i });
+    await userEvent.click(roof);
+    expect(roof).toBeChecked();
+    expect(hvac).not.toBeChecked();
+
+    await userEvent.click(selectAll);
+    expect(roof).toBeChecked();
+    expect(hvac).toBeChecked();
+
+    await userEvent.click(selectAll);
+    expect(roof).not.toBeChecked();
+    expect(hvac).not.toBeChecked();
+    expect(screen.getByRole('button', { name: /approve 0/i })).toBeDisabled();
+  });
+
+  it('AC-1578: approves every selected purchase and reports the all-success result', async () => {
+    authState.role = 'Project Manager';
+    procState.data = [
+      { id: 'pr-1', title: 'Roof package', status: 'Requested', requested_by_id: 'u-requester-1', total_value: 100, currency: 'USD', created_at: '2026-06-01T00:00:00Z' },
+    ];
+    renderPage('procurement');
+
+    await userEvent.click(screen.getByRole('button', { name: /select purchases/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all purchase requests/i }));
+    await userEvent.click(screen.getByRole('button', { name: /approve 1/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /approve 1/i }));
+
+    await waitFor(() => expect(procurementTransition.mutateAsync).toHaveBeenCalledExactlyOnceWith({ id: 'pr-1', to: 'Approved' }));
+    expect(await findToastAnnouncement('status', /purchases approved/i)).toBeInTheDocument();
+  });
+
+  it('AC-1578: selects purchase rows and reports per-row failures without cancelling successful approvals', async () => {
+    authState.role = 'Project Manager';
+    procState.data = [
+      { id: 'pr-1', title: 'Roof package', status: 'Requested', requested_by_id: 'u-requester-1', total_value: 100, currency: 'USD', created_at: '2026-06-01T00:00:00Z' },
+      { id: 'pr-2', title: 'HVAC package', status: 'Requested', requested_by_id: 'u-requester-2', total_value: 200, currency: 'USD', created_at: '2026-06-02T00:00:00Z' },
+    ];
+    procurementTransition.mutateAsync = vi.fn(({ id }: { id: string }) => (
+      id === 'pr-2' ? Promise.reject(new Error('not authorized for this approval route')) : Promise.resolve()
+    ));
+    renderPage('procurement');
+
+    await userEvent.click(screen.getByRole('button', { name: /select purchases/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all purchase requests/i }));
+    await userEvent.click(screen.getByRole('button', { name: /approve 2/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Roof package');
+    expect(dialog).toHaveTextContent('HVAC package');
+    await userEvent.click(within(dialog).getByRole('button', { name: /approve 2/i }));
+
+    await waitFor(() => expect(procurementTransition.mutateAsync).toHaveBeenCalledTimes(2));
+    expect(procurementTransition.mutateAsync).toHaveBeenNthCalledWith(1, { id: 'pr-1', to: 'Approved' });
+    expect(procurementTransition.mutateAsync).toHaveBeenNthCalledWith(2, { id: 'pr-2', to: 'Approved' });
+    const toast = await findToastAnnouncement('alert', /1 approved, 1 failed/i);
+    expect(toast).toHaveTextContent('HVAC package');
+  });
+
+  it('AC-1578: reports the purchase when every selected approval is refused', async () => {
+    authState.role = 'Project Manager';
+    procState.data = [
+      { id: 'pr-1', title: 'Roof package', status: 'Requested', requested_by_id: 'u-requester-1', total_value: 100, currency: 'USD', created_at: '2026-06-01T00:00:00Z' },
+    ];
+    procurementTransition.mutateAsync = vi.fn(() => Promise.reject(new Error('not authorized for this approval route')));
+    renderPage('procurement');
+
+    await userEvent.click(screen.getByRole('button', { name: /select purchases/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all purchase requests/i }));
+    await userEvent.click(screen.getByRole('button', { name: /approve 1/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /approve 1/i }));
+
+    const toast = await findToastAnnouncement('alert', /1 failed/i);
+    expect(toast).toHaveTextContent('Roof package');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // S-18 / UX-060 — ONE approval queue grammar at phone width. The old stacked branch rendered
 // procurement expand-rows AND a separate timesheet "Team approvals queue" with its own Select —
@@ -420,7 +542,7 @@ describe('S-18 UX-060: phone width renders the unified queue + preview grammar',
     // The two retired interaction systems are gone from the inbox entirely.
     expect(screen.queryByTestId('approvals-timesheets-mobile-section')).not.toBeInTheDocument();
     expect(screen.queryByText(/team approvals queue/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/purchase requests awaiting you/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/procurement awaiting you/i)).not.toBeInTheDocument();
 
     // The same preview region as desktop, with the first pending item already previewed.
     const preview = screen.getByTestId('approvals-preview-region');
@@ -460,7 +582,7 @@ it('S-18 RF-042: the caught-up empty state scopes the claim to PMO and points ER
   expect(caughtUp).toHaveTextContent(/in PMO/i);
   expect(caughtUp).toHaveTextContent(/ERPNext/i);
   // The clear-queue summary names only scopes available to this role in the inbox.
-  expect(caughtUp).toHaveTextContent(/purchase requests/i);
+  expect(caughtUp).toHaveTextContent(/procurement/i);
   expect(caughtUp).toHaveTextContent(/timesheets/i);
   expect(caughtUp).not.toHaveTextContent(/customer invoices/i);
 });
@@ -471,7 +593,7 @@ it('S-18: Finance sees only approval kinds that Finance can act on', () => {
   procState.data = [];
   renderPage('all');
   const caughtUp = screen.getByTestId('approvals-caught-up');
-  expect(caughtUp).toHaveTextContent(/purchase requests/i);
+  expect(caughtUp).toHaveTextContent(/procurement/i);
   expect(caughtUp).toHaveTextContent(/expense claims/i);
   expect(caughtUp).toHaveTextContent(/customer invoices/i);
   expect(caughtUp).not.toHaveTextContent(/timesheets/i);
@@ -719,5 +841,230 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
     linksState.data = [proposedLink];
     renderPage();
     expect(screen.getAllByRole('region', { name: /Employee links awaiting confirmation/i })).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T18 — Supplementary read errors and scoped retry (AC-T18-APP-001..003)
+// ---------------------------------------------------------------------------
+describe('Approvals page — T18 supplementary read errors and scoped retry (AC-T18-APP-001..003)', () => {
+  const sampleFailedRow: AttentionRow = {
+    timesheet_id: 'ts-attention-1',
+    push_state: 'failed',
+    push_error: 'external-unreachable',
+    ts_number: null,
+    week_start_date: '2026-01-05',
+    approved_by: 'u-mgr',
+    owner_name: 'Dave Engineer',
+  };
+
+  const sampleProposedLink: ProposedLink = {
+    id: 'emp-link-1',
+    employee_name: 'Jane Doe',
+    employee_number: 'HR-EMP-00087',
+    work_email: 'jane@co.test',
+    link_proposed_reason: 'unique work_email match',
+    profile_id: 'profile-1',
+    profile_name: 'Jane Q. Doe',
+    profile_email: 'jane.doe@pmo.test',
+  };
+
+  it('AC-T18-APP-001: Given the push list fails and employee links remain healthy, when the user sees and retries its labelled error, then only push query refetch fires, not the push mutation or employee read, and normal inbox/other section remain usable; successful nonempty data returns after refetch', async () => {
+    authState.role = 'Admin';
+    queryState.data = submittedSheets;
+    attentionState.isError = true;
+    attentionState.data = [];
+    linksState.isError = false;
+    linksState.data = [sampleProposedLink];
+    profileOptionsState.push({ id: 'profile-1', full_name: 'Jane Q. Doe', email: 'jane.doe@pmo.test', status: 'active' });
+
+    const view = renderPage('all');
+
+    // Push error region is visible and labelled
+    const pushRegion = screen.getByRole('region', { name: /ERP pushes needing attention/i });
+    expect(pushRegion).toBeInTheDocument();
+    expect(within(pushRegion).getByRole('alert')).toBeInTheDocument();
+
+    // Employee link section remains healthy and usable
+    const linkRegion = screen.getByRole('region', { name: /Employee links awaiting confirmation/i });
+    expect(linkRegion).toBeInTheDocument();
+    expect(within(linkRegion).getByText('Jane Doe')).toBeInTheDocument();
+
+    // Normal inbox / preview region remain usable
+    expect(within(screen.getByRole('region', { name: /Approvals queue/i })).getByText(/Dave Engineer/)).toBeInTheDocument();
+
+    // User retries the labelled push error
+    const retryBtn = within(pushRegion).getByRole('button', { name: /retry/i });
+    await userEvent.click(retryBtn);
+
+    // Only push refetch fires — zero write mutations and zero employee refetch
+    expect(attentionState.refetch).toHaveBeenCalledTimes(1);
+    expect(linksState.refetch).not.toHaveBeenCalled();
+    expect(queryState.refetch).not.toHaveBeenCalled();
+    expect(retryMutation.mutate).not.toHaveBeenCalled();
+    expect(confirmMutation.mutate).not.toHaveBeenCalled();
+    expect(confirmMutation.mutateAsync).not.toHaveBeenCalled();
+
+    // Model rerender to successful nonempty list after refetch
+    attentionState.isError = false;
+    attentionState.data = [sampleFailedRow];
+    view.rerender(
+      <MemoryRouter initialEntries={['/approvals?scope=all']}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ToastProvider>
+            <ApprovalsPage />
+          </ToastProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    expect(within(pushRegion).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(pushRegion).getByText('Dave Engineer')).toBeInTheDocument();
+  });
+
+  it('AC-T18-APP-002: Given the employee review fails and push remains healthy, when the user retries its labelled error, then only links.refetch fires, not link confirmation or push query, and successful links/profiles return; other inbox remains usable', async () => {
+    authState.role = 'Admin';
+    queryState.data = submittedSheets;
+    attentionState.isError = false;
+    attentionState.data = [sampleFailedRow];
+    linksState.isError = true;
+    linksState.data = [];
+    profileOptionsState.push({ id: 'profile-1', full_name: 'Jane Q. Doe', email: 'jane.doe@pmo.test', status: 'active' });
+
+    const view = renderPage('all');
+
+    // Employee link error region is visible and labelled
+    const linkRegion = screen.getByRole('region', { name: /Employee links awaiting confirmation/i });
+    expect(linkRegion).toBeInTheDocument();
+    expect(within(linkRegion).getByRole('alert')).toBeInTheDocument();
+
+    // Push attention section is healthy and usable
+    const pushRegion = screen.getByRole('region', { name: /ERP pushes needing attention/i });
+    expect(pushRegion).toBeInTheDocument();
+    expect(within(pushRegion).getByText('Dave Engineer')).toBeInTheDocument();
+
+    // Normal inbox remains usable
+    expect(within(screen.getByRole('region', { name: /Approvals queue/i })).getByText(/Dave Engineer/)).toBeInTheDocument();
+
+    // User retries the labelled employee link error
+    const retryBtn = within(linkRegion).getByRole('button', { name: /retry/i });
+    await userEvent.click(retryBtn);
+
+    // Only links.refetch fires — zero confirm mutations and zero push refetch
+    expect(linksState.refetch).toHaveBeenCalledTimes(1);
+    expect(attentionState.refetch).not.toHaveBeenCalled();
+    expect(confirmMutation.mutate).not.toHaveBeenCalled();
+    expect(confirmMutation.mutateAsync).not.toHaveBeenCalled();
+    expect(queryState.refetch).not.toHaveBeenCalled();
+    expect(retryMutation.mutate).not.toHaveBeenCalled();
+
+    // Model rerender to successful nonempty list after refetch
+    linksState.isError = false;
+    linksState.data = [sampleProposedLink];
+    view.rerender(
+      <MemoryRouter initialEntries={['/approvals?scope=all']}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ToastProvider>
+            <ApprovalsPage />
+          </ToastProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    expect(within(linkRegion).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(linkRegion).getByText('Jane Doe')).toBeInTheDocument();
+  });
+
+  it('AC-T18-APP-003: Given both fail, two individually named regions and retry controls remain separately operable; pending/success-empty/ineligible remain silent; handles stale data background errors and recovery to empty', async () => {
+    authState.role = 'Admin';
+    queryState.data = submittedSheets;
+    attentionState.isError = true;
+    attentionState.data = [sampleFailedRow]; // stale data retained from previous read
+    linksState.isError = true;
+    linksState.data = [sampleProposedLink]; // stale data retained
+    profileOptionsState.push({ id: 'profile-1', full_name: 'Jane Q. Doe', email: 'jane.doe@pmo.test', status: 'active' });
+
+    const view = renderPage('all');
+
+    // Both named regions render and show honest error even with stale data present
+    const pushRegion = screen.getByRole('region', { name: /ERP pushes needing attention/i });
+    const linkRegion = screen.getByRole('region', { name: /Employee links awaiting confirmation/i });
+    expect(pushRegion).toBeInTheDocument();
+    expect(linkRegion).toBeInTheDocument();
+    expect(within(pushRegion).getByRole('alert')).toBeInTheDocument();
+    expect(within(linkRegion).getByRole('alert')).toBeInTheDocument();
+
+    // Rest of inbox remains usable
+    expect(screen.getByRole('region', { name: /Approvals queue/i })).toBeInTheDocument();
+
+    // Separately operable retry controls: click push retry
+    const pushRetryBtn = within(pushRegion).getByRole('button', { name: /retry/i });
+    await userEvent.click(pushRetryBtn);
+    expect(attentionState.refetch).toHaveBeenCalledTimes(1);
+    expect(linksState.refetch).not.toHaveBeenCalled();
+    expect(retryMutation.mutate).not.toHaveBeenCalled();
+    expect(confirmMutation.mutate).not.toHaveBeenCalled();
+
+    // Click employee link retry
+    const linkRetryBtn = within(linkRegion).getByRole('button', { name: /retry/i });
+    await userEvent.click(linkRetryBtn);
+    expect(linksState.refetch).toHaveBeenCalledTimes(1);
+    expect(attentionState.refetch).toHaveBeenCalledTimes(1);
+    expect(retryMutation.mutate).not.toHaveBeenCalled();
+    expect(confirmMutation.mutate).not.toHaveBeenCalled();
+
+    // Recovery to empty: refetch returns empty queues (not error)
+    attentionState.isError = false;
+    attentionState.data = [];
+    linksState.isError = false;
+    linksState.data = [];
+    view.rerender(
+      <MemoryRouter initialEntries={['/approvals?scope=all']}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ToastProvider>
+            <ApprovalsPage />
+          </ToastProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    // Both sections disappear silently when empty
+    expect(screen.queryByRole('region', { name: /ERP pushes needing attention/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /Employee links awaiting confirmation/i })).not.toBeInTheDocument();
+
+    // Pending / loading state (including disabled/no-org pending): remains silent
+    attentionState.isPending = true;
+    attentionState.data = undefined;
+    linksState.isPending = true;
+    linksState.data = undefined;
+    view.rerender(
+      <MemoryRouter initialEntries={['/approvals?scope=all']}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ToastProvider>
+            <ApprovalsPage />
+          </ToastProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('region', { name: /ERP pushes needing attention/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /Employee links awaiting confirmation/i })).not.toBeInTheDocument();
+
+    // Ineligible role: sections never mount
+    authState.role = 'Finance';
+    attentionState.isPending = false;
+    attentionState.isError = true;
+    linksState.isPending = false;
+    linksState.isError = true;
+    view.rerender(
+      <MemoryRouter initialEntries={['/approvals?scope=all']}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ToastProvider>
+            <ApprovalsPage />
+          </ToastProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('region', { name: /ERP pushes needing attention/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /Employee links awaiting confirmation/i })).not.toBeInTheDocument();
   });
 });

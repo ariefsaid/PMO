@@ -10,8 +10,8 @@
  * (applying the per-row `erp_modified >=` guard against the existing mirror row). Money fields cross
  * as decimal-strings (R4) — a Frappe number is coerced, `null`/absent stays `null`.
  *
- * Filters: ONLY the scope — `company` and `modified >= since` (the sweep's per-org watermark cursor; omit
- * for a full backfill). Never a cancellation filter (#901): on cancel ERPNext keeps the original ledger rows
+ * Filters: ONLY the scope — `company` and the resume position (the sweep's per-org watermark cursor; omit
+ * for a full backfill), or `company` + one voucher (the repost reconcile reads a voucher's full current set). Never a cancellation filter (#901): on cancel ERPNext keeps the original ledger rows
  * at docstatus 1, flips their state (`GL Entry.is_cancelled`, `Payment Ledger Entry.delinked`) and bumps
  * `modified`, then adds reversal rows carrying the same flag. A fetch that filters on that state can never
  * re-read the flipped originals, so their mirror copies stay live. The state crosses as a flag instead
@@ -19,6 +19,7 @@
  */
 import { erpnextRequest, type ErpClientDeps } from './client.ts';
 import { AppError } from '../../appError.ts';
+import { scanByKeyset, type KeysetRow, type KeysetScanResult } from './keysetScan.ts';
 
 /** The mirrored GL Entry row shape — feeds erp_gl_entry_mirror. Money is decimal-string (R4). */
 export interface GlEntryRow {
@@ -39,6 +40,8 @@ export interface GlEntryRow {
   is_cancelled: boolean;
   is_opening?: 'Yes' | 'No' | null;
   finance_book?: string | null;
+  /** ERPNext GL Entry `remarks` — the vendor / invoice reference of a journal (#1919). */
+  remarks?: string | null;
   docstatus: number | null;
   /** Frappe `modified` — the per-row source-mod cursor (the slice-8 feed's `>=` guard). */
   modified: string;
@@ -56,6 +59,9 @@ export interface PaymentLedgerEntryRow {
   amount: string | null;
   posting_date: string | null;
   due_date: string | null;
+  /** The voucher that wrote this row — the key a repost replaces rows under. */
+  voucher_type: string | null;
+  voucher_no: string | null;
   docstatus: number | null;
   /** ERPNext `delinked` (cancel / unreconcile) OR docstatus 2 — never counted (ERPNext's own `delinked=0` rule). */
   delinked: boolean;
@@ -65,34 +71,43 @@ export interface PaymentLedgerEntryRow {
 export interface LedgerFetchOpts {
   /** `external_org_bindings.config.company` — the ERP Company the rows are scoped to. */
   company: string;
-  /** Frappe `modified >= since` (ISO-ish datetime string). Omit for a full backfill. */
+  /** The resume position. Either a bare Frappe `modified` string (read INCLUSIVELY from that instant — a
+   *  legacy cursor) or a composite cursor from `formatLedgerCursor` (read strictly AFTER that
+   *  `(modified, name)` row). Omit for a full backfill. */
   since?: string;
+  /** Read ONE voucher's current full row set (no modified cursor) — the repost reconcile's source. */
+  voucher?: { type: string; no: string };
   /** Page size for the list endpoint. Default 500 (a safe, commonly-allowed Frappe page length). */
   pageSize?: number;
   /** Maximum pages fetched in one tick. The small bounded default prevents a first backfill from
-   * monopolizing a sweep; the inclusive modified cursor makes the next tick safe and resumable. */
+   * monopolizing a sweep; the composite cursor makes the next tick safe and resumable. */
   maxPages?: number;
 }
 
 const DEFAULT_PAGE_SIZE = 500;
-/** 20 × 500 = at most 10,000 rows per doctype per tick; a later tick resumes at the inclusive watermark. */
+/** 20 × 500 = at most 10,000 rows per doctype per tick; a later tick resumes after the returned cursor. */
 export const DEFAULT_MAX_PAGES = 20;
 const LEDGER_ORDER_BY = 'modified asc, name asc';
 
 export interface LedgerFetchResult<T> {
   rows: T[];
-  /** False means the page budget ended on a full page; the next tick must continue from the watermark. */
+  /** False means the page budget ended on a full page; the next tick must continue from `cursor`. */
   caughtUp: boolean;
+  /** Composite resume position of the LAST row read, or null when no row was read (keep the old one).
+   *  Absent from a caller-built result: the feed then derives the position from the rows' `modified`. */
+  cursor?: string | null;
 }
+
+export { formatKeysetCursor as formatLedgerCursor } from './keysetScan.ts';
 
 const GL_FIELDS = [
   'name', 'company', 'account', 'cost_center', 'fiscal_year', 'project', 'party_type', 'party',
-  'voucher_type', 'voucher_no', 'posting_date', 'debit', 'credit', 'is_cancelled', 'is_opening', 'finance_book', 'docstatus', 'modified',
+  'voucher_type', 'voucher_no', 'posting_date', 'debit', 'credit', 'is_cancelled', 'is_opening', 'finance_book', 'docstatus', 'modified', 'remarks',
 ] as const;
 
 const PLE_FIELDS = [
   'name', 'account', 'party_type', 'party', 'against_voucher_type', 'against_voucher_no',
-  'amount', 'posting_date', 'due_date', 'docstatus', 'delinked', 'modified',
+  'amount', 'posting_date', 'due_date', 'voucher_type', 'voucher_no', 'docstatus', 'delinked', 'modified',
 ] as const;
 
 /** Coerces a Frappe money value to a decimal-string (R4). A Frappe `null`/absent → `null`. */
@@ -106,10 +121,11 @@ function docstatusOf(v: unknown): number | null {
   return typeof v === 'number' ? v : v !== null && v !== undefined ? Number(v) : null;
 }
 
-/** The two ERP-side "scope only" filters every ledger fetch sends (#901: never a cancellation filter). */
+/** The ERP-side "scope only" filters every ledger fetch sends (#901: never a cancellation filter). The
+ *  resume position is added per request by `fetchAllPages`. */
 function scopeFilters(opts: LedgerFetchOpts): unknown[] {
   const filters: unknown[] = [['company', '=', opts.company]];
-  if (opts.since !== undefined) filters.push(['modified', '>=', opts.since]);
+  if (opts.voucher) filters.push(['voucher_type', '=', opts.voucher.type], ['voucher_no', '=', opts.voucher.no]);
   return filters;
 }
 
@@ -124,13 +140,12 @@ function listPath(
   filters: unknown[],
   fields: readonly string[],
   pageSize: number,
-  limitStart: number,
 ): string {
   const encodedDoctype = encodeURIComponent(doctype);
   const f = encodeURIComponent(JSON.stringify(filters));
   const fld = encodeURIComponent(JSON.stringify(fields));
   const orderBy = encodeURIComponent(LEDGER_ORDER_BY);
-  const qs = `filters=${f}&fields=${fld}&limit_page_length=${pageSize}&limit_start=${limitStart}&order_by=${orderBy}`;
+  const qs = `filters=${f}&fields=${fld}&limit_page_length=${pageSize}&order_by=${orderBy}`;
   return `/api/resource/${encodedDoctype}?${qs}`;
 }
 
@@ -169,30 +184,30 @@ function validatePageOptions(pageSize: number, maxPages: number): void {
   }
 }
 
-/** Pages a list endpoint until a short page is returned, accumulating all rows. */
-async function fetchAllPages(
+/**
+ * Pages the ledger list through the shared composite `(modified, name)` keyset walk (`keysetScan.ts`) —
+ * never an offset, so an already-read row updated mid-walk cannot make the next row skip, and a tie
+ * group larger than a tick's budget drains across ticks. A malformed page throws before anything is
+ * returned, so a caller never advances on an incomplete scan.
+ */
+function fetchAllPages(
   client: ErpClientDeps,
   doctype: string,
-  filters: unknown[],
+  scope: unknown[],
+  since: string | undefined,
   fields: readonly string[],
   pageSize: number,
   maxPages: number,
   responseNumbers?: 'ledger_decimal_text',
-): Promise<{ rows: Record<string, unknown>[]; caughtUp: boolean }> {
+): Promise<KeysetScanResult<Record<string, unknown> & KeysetRow>> {
   validatePageOptions(pageSize, maxPages);
-  const rows: Record<string, unknown>[] = [];
-  let limitStart = 0;
-  // A full page is not proof that the source is drained. Stop after the bounded budget and let the
-  // inclusive modified watermark re-read the boundary row on the next tick.
-  for (let pageNumber = 0; pageNumber < maxPages; pageNumber += 1) {
-    const body = await erpnextRequest(client, { method: 'GET', path: listPath(doctype, filters, fields, pageSize, limitStart), responseNumbers });
-    const page = decodeLedgerPage(body, pageSize);
-    if (page.length === 0) return { rows, caughtUp: true };
-    rows.push(...page);
-    if (page.length < pageSize) return { rows, caughtUp: true };
-    limitStart += pageSize;
-  }
-  return { rows, caughtUp: false };
+  return scanByKeyset<Record<string, unknown> & KeysetRow>({
+    since,
+    pageSize,
+    maxPages,
+    read: async (extra) =>
+      decodeLedgerPage(await erpnextRequest(client, { method: 'GET', path: listPath(doctype, [...scope, ...extra], fields, pageSize), responseNumbers }), pageSize) as Array<Record<string, unknown> & KeysetRow>,
+  });
 }
 
 /** The ledger doctypes the sweep's ledger-mirror feed reads for EVERY activated org (not domain-gated) —
@@ -213,7 +228,7 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
   }
   const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
   const maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
-  const result = await fetchAllPages(client, GL_ENTRY_DOCTYPE, scopeFilters(opts), GL_FIELDS, pageSize, maxPages, 'ledger_decimal_text');
+  const result = await fetchAllPages(client, GL_ENTRY_DOCTYPE, scopeFilters(opts), opts.since, GL_FIELDS, pageSize, maxPages, 'ledger_decimal_text');
   return {
     ...result,
     rows: result.rows.map((r) => {
@@ -235,6 +250,7 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
         is_cancelled: Boolean(r.is_cancelled) || docstatus === 2,
         is_opening: r.is_opening === 'Yes' || r.is_opening === 'No' ? r.is_opening : null,
         finance_book: str(r.finance_book),
+        remarks: str(r.remarks),
         docstatus,
         modified: String(r.modified),
       };
@@ -254,7 +270,7 @@ export async function fetchPaymentLedgerEntries(client: ErpClientDeps, opts: Led
   }
   const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
   const maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
-  const result = await fetchAllPages(client, PAYMENT_LEDGER_ENTRY_DOCTYPE, scopeFilters(opts), PLE_FIELDS, pageSize, maxPages);
+  const result = await fetchAllPages(client, PAYMENT_LEDGER_ENTRY_DOCTYPE, scopeFilters(opts), opts.since, PLE_FIELDS, pageSize, maxPages);
   return {
     ...result,
     rows: result.rows.map((r) => {
@@ -269,6 +285,8 @@ export async function fetchPaymentLedgerEntries(client: ErpClientDeps, opts: Led
         amount: money(r.amount),
         posting_date: str(r.posting_date),
         due_date: str(r.due_date),
+        voucher_type: str(r.voucher_type),
+        voucher_no: str(r.voucher_no),
         docstatus,
         delinked: Boolean(r.delinked) || docstatus === 2,
         modified: String(r.modified),

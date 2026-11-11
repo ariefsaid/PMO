@@ -30,14 +30,14 @@ const IntegrationsPage: React.FC = () => {
         {t('integrations.personal.title', 'My integrations')}
       </h1>
       {/* max-width prose column (DESIGN.md content rhythm) — a single personal-connect card. */}
-      <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+      <p className="mt-1 max-w-[65ch] text-sm text-muted-foreground">
         {t(
           'integrations.personal.description',
           'Connect your personal Microsoft 365 account so PMO Portal can reach the content your account has access to. This is separate from your organization’s Administration integrations.',
         )}
       </p>
       <div className="mt-4 max-w-xl">
-        <M365ConnectionCard />
+        <M365ConnectionCard showUnavailable />
       </div>
     </div>
   );

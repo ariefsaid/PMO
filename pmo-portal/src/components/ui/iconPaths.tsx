@@ -1,7 +1,7 @@
 import React from 'react';
 
 /** Selected Lucide SVG geometry, vendored from lucide-static@0.468.0; source mapping: scripts/ui-icon-manifest.json. */
-export const ICON_NAMES = ["grid","pipe","cart","folder","clock","doc","x","plus","help","up","down","check","lock","alert","inbox","refresh","back","chev","cal","dollar","table","cols","cards","export","search","bell","admin","pencil","trash","upload","file","download","eye","eye-off","message","sun","moon","plug","info","dashboard","pipeline","projects","procurement","invoices","payments","reports","expenses","approvals","tasks","companies","contacts","views","menu","circle-check","user","clipboard-check","chart-column","funnel","cloud-upload"] as const;
+export const ICON_NAMES = ["grid","pipe","cart","folder","clock","doc","x","plus","help","up","down","check","lock","alert","inbox","refresh","back","chev","cal","dollar","table","cols","cards","export","search","bell","admin","pencil","trash","upload","file","download","eye","eye-off","message","sun","moon","plug","info","dashboard","pipeline","projects","procurement","invoices","payments","reports","expenses","approvals","tasks","companies","contacts","views","menu","circle-check","user","clipboard-check","chart-column","funnel","cloud-upload","sort"] as const;
 export type IconName = (typeof ICON_NAMES)[number];
 
 export const ICON_PATHS: Record<IconName, React.ReactNode> = {
@@ -82,6 +82,12 @@ export const ICON_PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="m7 7 10 10" />
       <path d="M17 7v10H7" />
+    </>
+  ),
+  "sort": (
+    <>
+      <path d="m7 9 5-5 5 5" />
+      <path d="m7 15 5 5 5-5" />
     </>
   ),
   "check": (

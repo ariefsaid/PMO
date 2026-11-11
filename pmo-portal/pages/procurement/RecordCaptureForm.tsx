@@ -1,5 +1,6 @@
-import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
-import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
+import { useVendorInvoiceCapture } from './useVendorInvoiceCapture';
+import { PaymentCaptureFields } from './PaymentCaptureFields';
+import { VendorInvoiceCaptureFields } from './VendorInvoiceCaptureFields';
 /**
  * RecordCaptureForm — inline per-phase capture form for the four new ERP-canonical
  * record types (PR / RFQ / PO / Payment).
@@ -17,193 +18,26 @@ import type { TFunction } from 'i18next';
 import { Button, FieldError, Icon, SelectField, useMoneyInputMask, useToast } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProcurementInvoiceRow, TaxTreatment } from '@/src/lib/db/procurementLifecycle';
-import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
-import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
 import { RECORD_AMOUNT_ERROR, parseRecordAmount } from './recordAmount';
-import {
-  TAX_TREATMENT_OPTIONS,
-  VI_TAX_REQUIRED_HINT,
-  taxIsPmoAuthored,
-  ERP_AUTHORED_TAX,
-} from './vendorInvoiceTax';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
-import { usePurchaseTaxTemplates } from '@/src/hooks/usePurchaseTaxTemplates';
-import { useVendorTaxDefault } from '@/src/hooks/useVendorTaxDefault';
-import { useErpVendorTax, useNativeVendorTax } from '@/src/hooks/useVendorBillTax';
-import { ErpTaxAmountFields, NativeWithholdingField, TaxSuggestedFrom } from './VendorBillTaxFields';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { OdooJournalSelect } from '@/src/components/procurement/OdooDirectoryPickers';
+import { OdooReceiptQuantities } from '@/src/components/procurement/OdooReceiptQuantities';
+import { parseReceiptQuantities, type ReceiptItem, type ReceiptLine } from '@/src/lib/procurement/receiptQuantities';
+import { odooOwnsProcurement } from '@/src/lib/adapterSeam/odoo/ownership';
+import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
+import { odooActionError } from '@/src/lib/procurement/odooActionError';
 import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import { useTranslation } from 'react-i18next';
 import { groupRefIsPmoAuthored } from './groupRef';
 import { formatMoneyInputValue } from '@/src/lib/format';
 import type { CommandIntent } from '@/src/lib/repositories/types';
-import { vendorInvoiceIdentityAccessibleLabel, type VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
-import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
+import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
+import { SubcontractBillLines } from './SubcontractBillLines';
+import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
 
-// ---------------------------------------------------------------------------
-// Record-type config
-// ---------------------------------------------------------------------------
-
-export type RecordKind =
-  | 'purchase_request'
-  | 'rfq'
-  | 'purchase_order'
-  | 'payment'
-  // The action-zone capture kinds, folded in (refactor: procurement-detail-dedup).
-  // GR/VI stage a confirm-before-commit (see `onStage`) rather than create directly.
-  | 'goods_receipt'
-  | 'vendor_invoice';
-
-const STATUS_OPTIONS: Record<RecordKind, string[]> = {
-  purchase_request: ['Draft', 'Requested', 'Approved', 'Rejected'],
-  rfq: ['Draft', 'Sent', 'Received', 'Closed'],
-  purchase_order: ['Draft', 'Issued', 'Acknowledged', 'Closed'],
-  payment: ['Pending', 'Processed', 'Cleared'],
-  // GR: default Complete (the field-config below sorts Partial first then Complete,
-  // but the DEFAULT-selected value is Complete to preserve the prior inline form).
-  goods_receipt: ['Partial', 'Complete'],
-  // N1 (AC-W3-N1): Paid is NOT offered here — "Mark as Paid" is the sole PR→Paid authority.
-  vendor_invoice: ['Received', 'Scheduled'],
-};
-
-// ---------------------------------------------------------------------------
-// Per-kind field/label/testid config (refactor: procurement-detail-dedup).
-//
-// The four ERP-canonical kinds (PR/RFQ/PO/Payment) keep the generic
-// `${kind}-*` / `form-capture-${kind}` ids + the "External ref" label. GR and VI
-// PRESERVE the bespoke ids the unit + e2e BDD layer keys off (`form-create-gr`,
-// `gr-ref-input`, `btn-save-gr`, `vi-*`, …) — change one and you break that layer.
-// GR shows ref+status+date (NO amount); VI shows ref+amount+status+date.
-// ---------------------------------------------------------------------------
-interface KindConfig {
-  /** Default-selected status value (the others are still offered). */
-  defaultStatus: string;
-  /** Ref field label + placeholder. */
-  refLabel: string;
-  refPlaceholder: string;
-  /** Date field label (GR: "Receipt date"; VI: "Invoice date"; else "Date"). */
-  dateLabel: string;
-  /** Whether the amount field is shown. */
-  showAmount: boolean;
-  /** Whether the predecessor-FK "Links to invoice" select is shown (payment only). */
-  showInvoiceFk: boolean;
-  /** Submit-button label (GR/VI keep the compact "Save GR"/"Save VI"). */
-  saveLabel: string;
-  /** data-testid for the <form>. */
-  formTestId: string;
-  refTestId: string;
-  statusTestId: string;
-  dateTestId: string;
-  amountTestId: string;
-  saveTestId: string;
-  cancelTestId: string;
-}
-
-/** #769: kinds that carry the parent group's number (`external_ref`). */
-const GROUP_REF_KINDS: ReadonlySet<RecordKind> = new Set<RecordKind>(['purchase_request', 'purchase_order', 'vendor_invoice']);
-
-const DEFAULT_REF_LABEL = 'External ref';
-const DEFAULT_REF_PLACEHOLDER = 'e.g. VENDOR-PO-001';
-
-const KIND_LABEL: Record<RecordKind, string> = {
-  purchase_request: 'Purchase Request',
-  rfq: 'RFQ',
-  purchase_order: 'Purchase Order',
-  payment: 'Payment',
-  goods_receipt: 'Goods Receipt',
-  vendor_invoice: 'Vendor Invoice',
-};
-
-function localizedRecordKindLabel(kind: RecordKind, t: TFunction): string {
-  switch (kind) {
-    case 'purchase_request': return t('procurementLedger.types.purchaseRequest', 'Purchase Request');
-    case 'rfq': return t('procurementLedger.types.rfq', 'RFQ');
-    case 'purchase_order': return t('procurementLedger.types.purchaseOrder', 'Purchase Order');
-    case 'payment': return t('procurementLedger.types.payment', 'Payment');
-    case 'goods_receipt': return t('procurementDetail.recordKinds.goodsReceipt', 'Goods Receipt');
-    case 'vendor_invoice': return t('procurementDetail.recordKinds.vendorInvoice', 'Vendor Invoice');
-  }
-}
-
-function statusOptionLabel(value: string, t: (key: string, fallback: string) => string): string {
-  switch (value) {
-    case 'Draft': return t('procurementDetail.statusOption.draft', 'Draft');
-    case 'Requested': return t('procurementDetail.statusOption.requested', 'Requested');
-    case 'Approved': return t('procurementDetail.statusOption.approved', 'Approved');
-    case 'Rejected': return t('procurementDetail.statusOption.rejected', 'Rejected');
-    case 'Sent': return t('procurementDetail.statusOption.sent', 'Sent');
-    case 'Received': return t('procurementDetail.statusOption.received', 'Received');
-    case 'Closed': return t('procurementDetail.statusOption.closed', 'Closed');
-    case 'Issued': return t('procurementDetail.statusOption.issued', 'Issued');
-    case 'Acknowledged': return t('procurementDetail.statusOption.acknowledged', 'Acknowledged');
-    case 'Pending': return t('procurementDetail.statusOption.pending', 'Pending');
-    case 'Processed': return t('procurementDetail.statusOption.processed', 'Processed');
-    case 'Cleared': return t('procurementDetail.statusOption.cleared', 'Cleared');
-    case 'Partial': return t('procurementDetail.statusOption.partial', 'Partial');
-    case 'Complete': return t('procurementDetail.statusOption.complete', 'Complete');
-    case 'Scheduled': return t('procurementDetail.statusOption.scheduled', 'Scheduled');
-    default: return value;
-  }
-}
-
-function kindConfig(kind: RecordKind): KindConfig {
-  if (kind === 'goods_receipt') {
-    return {
-      defaultStatus: 'Complete',
-      refLabel: 'Delivery note',
-      refPlaceholder: 'e.g. DN-44120',
-      dateLabel: 'Receipt date',
-      showAmount: false,
-      showInvoiceFk: false,
-      saveLabel: 'Save GR',
-      formTestId: 'form-create-gr',
-      refTestId: 'gr-ref-input',
-      statusTestId: 'gr-status-select',
-      dateTestId: 'gr-date-input',
-      amountTestId: 'gr-amount-input', // unused (showAmount=false) but kept for shape
-      saveTestId: 'btn-save-gr',
-      cancelTestId: 'btn-cancel-gr',
-    };
-  }
-  if (kind === 'vendor_invoice') {
-    // ⚠ KEEP IN SYNC with VIInlineCapture in ProcurementDecisionZone.tsx — the OTHER
-    // vendor-invoice capture entry point (the transition-coupled "Mark Vendor Invoiced"
-    // path). Both render the SAME four VI fields; the `vi-*` testids are single-sourced
-    // in vendorInvoiceTestIds.ts so the two paths can never silently diverge.
-    return {
-      defaultStatus: 'Received',
-      refLabel: 'Invoice #',
-      refPlaceholder: 'e.g. INV-2291',
-      dateLabel: 'Invoice date',
-      showAmount: true,
-      showInvoiceFk: false,
-      saveLabel: 'Save VI',
-      formTestId: 'form-create-vi',
-      refTestId: VI_FIELD_TEST_IDS.ref,
-      statusTestId: VI_FIELD_TEST_IDS.status,
-      dateTestId: VI_FIELD_TEST_IDS.date,
-      amountTestId: VI_FIELD_TEST_IDS.amount,
-      saveTestId: 'btn-save-vi',
-      cancelTestId: 'btn-cancel-vi',
-    };
-  }
-  // The four generic ERP-canonical kinds — unchanged ids/labels.
-  return {
-    defaultStatus: STATUS_OPTIONS[kind][0] ?? '',
-    refLabel: DEFAULT_REF_LABEL,
-    refPlaceholder: DEFAULT_REF_PLACEHOLDER,
-    dateLabel: 'procurementDetail.dateLabel',
-    showAmount: true,
-    showInvoiceFk: kind === 'payment',
-    saveLabel: `Save ${KIND_LABEL[kind]}`,
-    formTestId: `form-capture-${kind}`,
-    refTestId: `${kind}-ref-input`,
-    statusTestId: `${kind}-status-select`,
-    dateTestId: `${kind}-date-input`,
-    amountTestId: `${kind}-amount-input`,
-    saveTestId: `${kind}-save-btn`,
-    cancelTestId: `${kind}-cancel-btn`,
-  };
-}
+import { type RecordKind, STATUS_OPTIONS, GROUP_REF_KINDS, localizedRecordKindLabel, statusOptionLabel, kindConfig } from './recordCaptureConfig';
+export type { RecordKind };
 
 // ---------------------------------------------------------------------------
 // Mutation input shapes — mirrored from useProcurementRecords
@@ -267,6 +101,8 @@ export interface StagedGR {
   status: 'Partial' | 'Complete';
   receiptDate: string;
   referenceNumber: string | null;
+  /** #1505 P8: the quantities entered per line on an Odoo-owned org (absent = everything still open). */
+  receiptLines?: ReceiptLine[];
 }
 
 export interface StagedVI {
@@ -280,6 +116,8 @@ export interface StagedVI {
   /** #769: the parent group's number for this invoice. */
   externalRef?: string | null;
   amount: number | null;
+  /** Present for a subcontract purchase; the page routes these lines through the capped RPC. */
+  lines?: SubcontractBillLineInput[];
   /** #505: REQUIRED — the staged payload carries the tax facts through the confirm to the RPC.
    *  Non-optional on purpose: a staged VI that reaches the confirm dialog without them would fail
    *  at commit with P0001 after the user has already confirmed. */
@@ -295,6 +133,8 @@ export interface StagedVI {
   withheldPphType?: PphType;
   /** #876 slice 2 (DD-VWH-13/14): the VAT / PPh entered for an ERP-bound bill ("Enter the tax amounts" mode). */
   erpTaxAmounts?: ErpVendorTaxAmounts;
+  /** #1505 P8: the taxes picked from the Odoo tax directory on an Odoo-owned org (absent = the organisation default). */
+  taxIds?: string[];
 }
 
 export type StagedRecord = StagedGR | StagedVI;
@@ -327,6 +167,12 @@ export interface RecordCaptureFormProps {
   vendorId?: string | null;
   /** #876 slice 2: the case's items total before tax — the base an ERP-bound bill's tax is pre-filled on. */
   itemsNet?: number | null;
+  /** #1505 P8: the case's lines; an Odoo-owned org enters the quantity received against them (FR-OPP-030). */
+  items?: readonly ReceiptItem[];
+  /** The purchase's currency. The server records the document in it (no conversion), so the amount field names it. */
+  currency?: string | null;
+  /** Issued subcontract PO whose payable BoQ quantities cap this invoice. */
+  subcontractPoId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -343,6 +189,9 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   onStage,
   vendorId = null,
   itemsNet = null,
+  items = [],
+  currency = null,
+  subcontractPoId,
 }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -363,16 +212,12 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const [groupRef, setGroupRef] = useState('');
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
   const hasGroupRef = GROUP_REF_KINDS.has(kind) && groupRefIsPmoAuthored();
+  const today = useOrgToday();
   const [status, setStatus] = useState(cfg.defaultStatus);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(today);
   const [amountStr, setAmountStr] = useState('');
   const [amountError, setAmountError] = useState<string | undefined>(undefined);
-  // #505: vendor-invoice tax facts. '' is "not answered yet", never a value (see vendorInvoiceTax.ts).
-  // OD-TAX-1 (#548) then gave the org a PRE-SELECTION for this control — see the hook call below.
-  // Unused by every other kind.
-  const [taxTreatmentStr, setTaxTreatmentStr] = useState('');
-  const [taxAmountStr, setTaxAmountStr] = useState('');
-  const taxFields = useStandaloneTaxFields(amountStr, taxTreatmentStr, taxAmountStr, setTaxAmountStr);
+  const [subcontractBill, setSubcontractBill] = useState<{ lines: SubcontractBillLineInput[]; amount: number } | null>(null);
   // #684: both money drafts group in the viewer's number convention as the user types.
   const amountMask = useMoneyInputMask(amountStr, (next) => {
     setAmountStr(next);
@@ -388,56 +233,42 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const intent = useCommandIntent();
 
   const label = localizedRecordKindLabel(kind, t);
+  // AC-PLN-008 (#1783 item 1, D17): the quantity grid is a Full affordance. The org's RESOLVED
+  // entitlement read is the projection (the served receipt-line guard stays the authority); only a
+  // ready literal `true` counts — `useFeature`'s default-true placeholder must never open the grid.
+  const { data: orgFeatureData, isLoading: orgFeaturesLoading, isError: orgFeaturesError, refetch: refetchOrgFeatures } = useOrgFeatures();
   const statusOptions = STATUS_OPTIONS[kind].map((value) => ({ value, label: statusOptionLabel(value, t) }));
   const formId = `record-capture-${kind}`;
   const isVendorInvoice = kind === 'vendor_invoice';
-  // #505: the ONE predicate — null ⇒ incomplete tax facts ⇒ Save VI disabled AND submit refuses.
-  // Non-VI kinds have no tax fields, so they are never gated by it.
-  // ⛔ On a FLIPPED org the ERP computes the tax and owns the answer, so PMO does not ask — see
-  // `taxIsPmoAuthored`. Asking and discarding is worse than not asking, and that is what an earlier
-  // round of #505 did on this exact path.
-  const pmoAuthorsTax = isVendorInvoice && taxIsPmoAuthored();
-  const parsedTax = !isVendorInvoice
-    ? null
-    : pmoAuthorsTax
-      ? taxFields.facts
-      : ERP_AUTHORED_TAX;
-  // #520: on a flipped org the user chooses WHICH ERPNext template applies — or (#876 slice 2, DD-VWH-15) enters the
-  // tax AMOUNTS, which is '' in the template select and the default. "ERPNext default" is no longer offered.
-  const choosesErpTaxTemplate = isVendorInvoice && !pmoAuthorsTax;
-  const [taxTemplate, setTaxTemplate] = useState('');
-  const erpTaxTemplates = usePurchaseTaxTemplates(choosesErpTaxTemplate);
+  const isSubcontractInvoice = isVendorInvoice && Boolean(subcontractPoId);
+  const odooProcurement = odooOwnsProcurement();
+  const vi = useVendorInvoiceCapture({ isVendorInvoice, odooProcurement, vendorId, itemsNet, amountStr });
+  const { pmoAuthorsTax, odooBill, choosesErpTaxTemplate, taxIncomplete, vendorTax } = vi;
+  const [odooJournalId, setOdooJournalId] = useState('');
+  // A receipt on an Odoo-owned org: the quantity per line replaces the typed Partial/Complete (Odoo derives the status, FR-OPP-034).
+  const odooReceipt = kind === 'goods_receipt' && odooProcurement && items.length > 0;
+  const [receiptQty, setReceiptQty] = useState<Record<string, string>>({});
+  const [receiptInvalid, setReceiptInvalid] = useState<string | undefined>(undefined);
+  // Full is READY only when the resolved read landed with a literal true (loading/error/off are not on).
+  const receiptFullReady = !orgFeaturesLoading && !orgFeaturesError && orgFeatureData?.procurement_full === true;
+  // A typed partial draft (valid or not) is real user intent — it must never be silently discarded or
+  // silently received in full when the entitlement moves under it (AC-PLN-008).
+  const receiptHasDraft = Object.values(receiptQty).some((v) => v.trim() !== '');
+  // The grid stays visible while a draft exists even when Full is unavailable, so the user can see,
+  // retry or explicitly clear what they typed; without a draft the whole-receipt form shows instead.
+  const showsQtyGrid = odooReceipt && (receiptFullReady || receiptHasDraft);
+  // While blocked, staging and submission are refused BOTH by the disabled save and by an early
+  // return inside handleSubmit — a programmatic submit (Enter key) can never stage the lines.
+  const receiptBlockedByFeature = odooReceipt && receiptHasDraft && !receiptFullReady;
   // OQ-VWH-8: the bill amount is never sent on the ERP path (ERPNext totals the items), so it is not asked there.
-  const showsAmount = cfg.showAmount && !choosesErpTaxTemplate;
-
-  // #876 slice 2 (OD-VWH-1, DD-VWH-17): the vendor's default pre-fills the AMOUNTS; every amount stays editable and
-  // the bill records exactly what is submitted (DD-VWH-13/19).
-  const vendorTax = useVendorTaxDefault(isVendorInvoice ? vendorId : null);
-  const nativeTax = useNativeVendorTax({
-    vendor: vendorTax, enabled: pmoAuthorsTax, amountRaw: amountStr, treatmentRaw: taxTreatmentStr,
-    vatRaw: taxAmountStr, setVatRaw: setTaxAmountStr, vatIsCalculated: taxFields.hasRate,
-  });
-  const taxAmountMask = useMoneyInputMask(taxAmountStr, (next) => {
-    nativeTax.markVatTouched();
-    setTaxAmountStr(next);
-  });
-  const entersErpAmounts = choosesErpTaxTemplate && taxTemplate === '';
-  const erpTax = useErpVendorTax({ vendor: vendorTax, enabled: entersErpAmounts, itemsNet });
-  const taxIncomplete = isVendorInvoice && (
-    parsedTax === null
-    || (pmoAuthorsTax && nativeTax.value === null)
-    // The server refuses a withheld above the items total (DD-VWH-22); the form says so before the send.
-    || (entersErpAmounts && (erpTax.amounts === null || erpTax.withheldAboveItems)));
-
-  // OD-TAX-1 (#548): pre-select the org's `default_tax_treatment` — this form composes a NEW
-  // invoice row, which is the only thing that setting is for. Enabled ONLY where PMO authors the
-  // tax: on a flipped org the ERP computes it and these controls are not rendered at all, so
-  // seeding a value there would stage an answer the outbound command drops on the floor.
-  const orgTaxDefault = useOrgTaxDefault();
-  useTaxTreatmentPreselect(orgTaxDefault, taxTreatmentStr, setTaxTreatmentStr, pmoAuthorsTax);
+  const showsAmount = cfg.showAmount && !choosesErpTaxTemplate && !odooBill;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // AC-PLN-008 (#1783 item 1): a partial draft while the line-receipt entitlement is unavailable can
+    // never stage or submit — the disabled button AND this guard together cover every submit path.
+    if (receiptBlockedByFeature) return;
 
     // #684 (AC-PLC-009): ONE parse of the amount draft, used for both the verdict and the write.
     // A value the numeric(14,2) column would have to round is refused here, before any write.
@@ -447,25 +278,30 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       return;
     }
     const parsedAmount = amountParse.amount;
+    if (isSubcontractInvoice && (!subcontractBill || subcontractBill.lines.length === 0)) return;
 
     // GR/VI confirm-before-commit hand-off (refactor: procurement-detail-dedup).
     // When `onStage` is provided we stage the parsed fields for the page's
     // ConfirmDialog INSTEAD of creating directly — no toast, no `onCreate`, no
     // `onClose` (the page closes the form once the staged write commits).
-    if (onStage) {
+    if (onStage && (kind === 'goods_receipt' || kind === 'vendor_invoice')) {
       const refNum = referenceNumber.trim() || null;
       if (kind === 'goods_receipt') {
+        const parsedQty = odooReceipt ? parseReceiptQuantities(items, receiptQty) : { lines: [] as ReceiptLine[] };
+        if ('invalid' in parsedQty) { setReceiptInvalid(parsedQty.invalid); return; }
         onStage({
           kind: 'createGR',
           intent,
           status: status as 'Partial' | 'Complete',
           receiptDate: date,
           referenceNumber: refNum,
+          ...(parsedQty.lines.length ? { receiptLines: parsedQty.lines } : {}),
         });
       } else {
         // #505: refuse to stage without the tax facts. Unreachable through the UI (Save VI is
         // disabled), but staging an incomplete VI would surface P0001 AFTER the user confirmed.
-        if (!parsedTax || taxIncomplete) return;
+        const taxFacts = vi.stagedTaxFacts();
+        if (!taxFacts) return;
         // N1: status excludes Paid — the select never offers it.
         onStage({
           kind: 'createVI',
@@ -474,14 +310,9 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           invoiceDate: date,
           referenceNumber: refNum,
           ...(hasGroupRef && groupRef.trim() ? { externalRef: groupRef.trim() } : {}),
-          amount: parsedAmount,
-          taxTreatment: parsedTax.taxTreatment,
-          taxAmount: parsedTax.taxAmount,
-          ...(pmoAuthorsTax && taxFields.facts ? { taxRate: taxFields.facts.taxRate, taxBaseNumerator: taxFields.facts.taxBaseNumerator, taxBaseDenominator: taxFields.facts.taxBaseDenominator } : {}),
-          ...(choosesErpTaxTemplate && taxTemplate ? { taxTemplate } : {}),
-          ...(pmoAuthorsTax && nativeTax.value?.pphType
-            ? { withheldAmount: nativeTax.value.withheldAmount, withheldPphType: nativeTax.value.pphType } : {}),
-          ...(entersErpAmounts && erpTax.amounts ? { erpTaxAmounts: erpTax.amounts } : {}),
+          amount: isSubcontractInvoice && subcontractBill ? subcontractBill.amount : parsedAmount,
+          ...(isSubcontractInvoice && subcontractBill ? { lines: subcontractBill.lines } : {}),
+          ...taxFacts,
         });
       }
       return;
@@ -497,7 +328,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       // DD-VPAY-3: on a flipped org the payment MUST name its bill — refused here, locally, before
       // any dispatch call (the server gate is the authority; this is the form not throwing blind).
       if (paymentBillRequired && !invoiceId) {
-        setBillError(t('procurementDetail.paymentBillRequired', 'Select the vendor invoice this payment closes.'));
+        setBillError(t('procurementDetail.paymentBillRequired', 'Select the supplier invoice this payment closes.'));
         setSubmitting(false);
         return;
       }
@@ -510,6 +341,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           status: statusVal,
           date: dateVal,
           amount: parsedAmount,
+          ...(odooProcurement && odooJournalId ? { journalId: odooJournalId } : {}),
           intent,
         } satisfies CreatePaymentInput;
       } else {
@@ -527,7 +359,16 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       toast(isPayment ? t('procurementDetail.paymentRecorded', 'Payment recorded') : t('procurementDetail.captureRecorded', '{{label}} recorded', { label }), refNum ?? undefined, 'success');
       onClose();
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
+      const paymentConflict = (err as { code?: unknown } | null)?.code === 'payment-in-flight-for-bill'
+        ? {
+            headline: t('procurementRecord:errors.paymentInFlight.title', 'Payment already in progress'),
+            detail: t(
+              'procurementRecord:errors.paymentInFlight.detail',
+              'A payment for this bill is already in progress. Wait for it to finish before paying again.',
+            ),
+          }
+        : null;
+      const { headline, detail } = odooActionError(err, odooProcurement, t) ?? paymentConflict ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
     } finally {
       setSubmitting(false);
@@ -620,7 +461,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         </div>
 
         {/* Status — never rendered for a payment: DD-VPAY-8 (the options are illegal; null is sent). */}
-        {!isPayment && (
+        {!isPayment && !showsQtyGrid && (
           <div className="min-w-[140px] flex-1">
             <SelectField
               id={`${formId}-status`}
@@ -638,14 +479,64 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         )}
       </div>
 
+      {showsQtyGrid && <OdooReceiptQuantities items={items} value={receiptQty} onChange={(next) => { setReceiptQty(next); setReceiptInvalid(undefined); }} invalid={receiptInvalid} />}
+
+      {/* AC-PLN-008 (#1783 item 1): a typed draft while Full is unavailable is kept visible but blocked.
+          The status explains itself; retry re-reads the entitlement; the ONLY way out is the explicit
+          clear, which switches this submission to the whole receipt (existing confirmation retained). */}
+      {receiptBlockedByFeature && (
+        <div role="status" className="flex flex-col gap-1.5 rounded-md border border-border/60 bg-status-warning-surface p-2">
+          <p className="text-[12px] font-medium text-warning-foreground">
+            {t('procurement:odoo.receipt.fullUnavailable', 'Line quantities are kept, but they cannot be submitted while line-level receipts are unavailable. Clear them to receive everything still open.')}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => refetchOrgFeatures()}
+              disabled={orgFeaturesLoading}
+              data-testid="gr-full-retry"
+            >
+              {t('procurement:odoo.receipt.retry', 'Retry')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => { setReceiptQty({}); setReceiptInvalid(undefined); }}
+              data-testid="gr-clear-quantities"
+            >
+              {t('procurement:odoo.receipt.clearAll', 'Clear quantities and receive all open items')}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Amount — hidden for kinds without a money field (e.g. Goods Receipt) */}
+      {isSubcontractInvoice && subcontractPoId && (
+        <SubcontractBillLines
+          poId={subcontractPoId}
+          currency={currency ?? ''}
+          onChange={(lines, amount) => {
+            setSubcontractBill({ lines, amount });
+            setAmountStr(formatMoneyInputValue(amount));
+            setAmountError(undefined);
+          }}
+        />
+      )}
       {showsAmount && (
         <div className="flex flex-col gap-1">
           <label
             htmlFor={`${formId}-amount`}
             className="text-[12px] font-semibold text-muted-foreground"
           >
-            {kind === 'vendor_invoice' ? t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)') : t('procurementDetail.amountOptional', 'Amount (optional)')}
+            {isSubcontractInvoice
+              ? t('procurement:subcontract.bill.amountFromLines', 'Amount from payable lines')
+              : kind === 'vendor_invoice'
+                ? t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)')
+                : t('procurementDetail.amountOptional', 'Amount (optional)')}
+            {currency ? ` · ${currency}` : null}
           </label>
           <input
             id={`${formId}-amount`}
@@ -653,7 +544,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             inputMode="decimal"
             ref={amountMask.ref}
             value={amountStr}
-            onChange={amountMask.onChange}
+            onChange={isSubcontractInvoice ? undefined : amountMask.onChange}
+            readOnly={isSubcontractInvoice}
             aria-invalid={amountError ? true : undefined}
             aria-describedby={amountError ? `${formId}-amount-error` : undefined}
             placeholder="0.00"
@@ -664,138 +556,28 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         </div>
       )}
 
-      {/* #505: vendor-invoice tax facts — BOTH required, and the treatment has no pre-selected
-          option. `amount` above is ambiguous without a treatment marker and no later inference
-          recovers it (migration 0196). Hidden entirely on a flipped org, where the ERP owns the
-          answer (`taxIsPmoAuthored`). The copy + testids are single-sourced in vendorInvoiceTax.ts /
-          vendorInvoiceTestIds.ts, so the two entry points cannot drift. */}
-      {/* #520: flipped org — which ERPNext purchase tax template applies (validated and expanded server-side). */}
-      {choosesErpTaxTemplate && (
-        <SelectField
-          id={`${formId}-tax-template`}
-          label={t('procurementDetail.erpTaxTemplate.label', 'ERPNext tax template')}
-          value={taxTemplate}
-          onChange={setTaxTemplate}
-          disabled={!erpTaxTemplates.data}
-          helper={erpTaxTemplates.isError
-            ? t('procurementDetail.erpTaxTemplate.loadError', 'Could not load the ERPNext tax templates. Enter the tax amounts instead.')
-            : undefined}
-          options={[
-            { value: '', label: t('procurementDetail.erpTaxTemplate.enterAmounts', 'Enter the tax amounts') },
-            ...(erpTaxTemplates.data ?? []).map((tpl) => ({ value: tpl.name, label: tpl.name })),
-          ]}
-          data-testid="vi-tax-template-select"
-        />
-      )}
-      {entersErpAmounts && <ErpTaxAmountFields formId={formId} tax={erpTax} />}
-      {pmoAuthorsTax && <TaxRateFields fields={taxFields} />}
-      {pmoAuthorsTax && (
-        <div className="flex flex-wrap gap-3">
-          <div className="min-w-[180px] flex-1">
-            <SelectField
-              id={`${formId}-tax-treatment`}
-              label={t('procurementDetail.vendorInvoice.taxTreatment', 'Tax treatment')}
-              value={taxTreatmentStr}
-              onChange={setTaxTreatmentStr}
-              placeholder={t('procurementDetail.vendorInvoice.taxTreatmentPlaceholder', 'Select tax treatment')}
-              helper={t('procurementDetail.vendorInvoice.taxTreatmentHelper', 'Inclusive: VAT is already in the bill amount. Exclusive: VAT is added to it.')}
-              options={TAX_TREATMENT_OPTIONS.map((option) => ({
-                ...option,
-                label: option.value === 'inclusive'
-                  ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive — VAT included')
-                  : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive — VAT added'),
-              }))}
-              data-testid={VI_FIELD_TEST_IDS.taxTreatment}
-            />
-          </div>
-          <div className="flex min-w-[140px] flex-1 flex-col gap-1">
-            <label
-              htmlFor={`${formId}-tax-amount`}
-              className="text-[12px] font-semibold text-muted-foreground"
-            >
-              {t('procurementDetail.vendorInvoice.taxAmount', 'Tax amount')}
-            </label>
-            <input
-              id={`${formId}-tax-amount`}
-              type="text"
-              inputMode="decimal"
-              ref={taxAmountMask.ref}
-              value={taxAmountStr}
-              readOnly={taxFields.hasRate}
-              onChange={taxAmountMask.onChange}
-              placeholder="0.00"
-              data-testid={VI_FIELD_TEST_IDS.taxAmount}
-              aria-describedby={nativeTax.vatSuggestion ? `${formId}-tax-amount-basis` : undefined}
-              className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            />
-            <TaxSuggestedFrom id={`${formId}-tax-amount-basis`} suggestion={nativeTax.vatSuggestion} />
-          </div>
-        </div>
-      )}
-      {pmoAuthorsTax && <NativeWithholdingField formId={formId} tax={nativeTax} />}
-
-      {isVendorInvoice && parsedTax === null && (
-        <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-[12px] text-muted-foreground">
-          {VI_TAX_REQUIRED_HINT}
-        </p>
-      )}
+      <VendorInvoiceCaptureFields formId={formId} capture={vi} isVendorInvoice={isVendorInvoice} />
 
       {/* [PD-5]: predecessor FK for payment — required on a flipped org (DD-VPAY-3), optional otherwise */}
       {cfg.showInvoiceFk && (
-        <div className="flex flex-col gap-1">
-          <SelectField
-            id={`${formId}-invoice`}
-            label={<>{t('procurementDetail.paymentLinksToInvoice', 'Links to invoice')} {!paymentBillRequired && <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>}</>}
-            value={invoiceId}
-            onChange={(next) => {
-              setInvoiceId(next);
-              setBillError(undefined);
-              // DD-VPAY-10: the bill's mirrored ERP outstanding is the default amount — what we
-              // actually owe, net of withholding (AC-VWH-005's figures: gross 1,110,000 → 1,090,000).
-              // The user may pay less (partial); the server gate (DD-VPAY-7) remains the authority.
-              if (paymentBillRequired) {
-                const selected = invoices.find((inv) => inv.id === next);
-                const raw = selected?.erp_outstanding_amount;
-                const outstanding = typeof raw === 'string' ? Number(raw) : raw;
-                if (typeof outstanding === 'number' && Number.isFinite(outstanding)) {
-                  setAmountStr(formatMoneyInputValue(outstanding));
-                  setAmountError(undefined);
-                }
-              }
-            }}
-            data-testid="payment-invoice-select"
-            placeholder={t('procurementDetail.noInvoiceSelected', '— none —')}
-            options={invoices.map((inv) => ({
-              value: inv.id,
-              label: vendorInvoiceIdentityAccessibleLabel({
-                t,
-                referenceNumber: inv.reference_number,
-                viNumber: inv.vi_number,
-                invoiceDate: inv.invoice_date,
-                context: invoiceIdentityContext ?? { state: 'unavailable' },
-              }),
-            }))}
-          />
-          {invoiceId && (() => {
-            const selected = invoices.find((inv) => inv.id === invoiceId);
-            return selected ? (
-              <div data-testid="payment-selected-invoice-identity" className="mt-1 min-w-0 rounded-md border border-border/60 bg-muted/30 p-2">
-                <VendorInvoiceIdentity
-                  referenceNumber={selected.reference_number}
-                  viNumber={selected.vi_number}
-                  invoiceDate={selected.invoice_date}
-                  context={invoiceIdentityContext ?? { state: 'unavailable' }}
-                />
-              </div>
-            ) : null;
-          })()}
-          <FieldError id={`${formId}-invoice-error`}>{billError}</FieldError>
-        </div>
+        <PaymentCaptureFields
+          formId={formId}
+          invoices={invoices}
+          invoiceIdentityContext={invoiceIdentityContext}
+          paymentBillRequired={paymentBillRequired}
+          odooProcurement={odooProcurement}
+          invoiceId={invoiceId}
+          billError={billError}
+          onSelect={(next) => { setInvoiceId(next); setBillError(undefined); }}
+          onOutstandingAmount={(formatted) => { setAmountStr(formatted); setAmountError(undefined); }}
+        />
       )}
+
+      {isPayment && odooProcurement && <OdooJournalSelect value={odooJournalId} onChange={setOdooJournalId} id={`${formId}-journal`} />}
 
       {isVendorInvoice && pmoAuthorsTax && !amountStr && vendorTax?.pphType && taxIncomplete && (
         <p role="status" className="text-[12px] text-muted-foreground">
-          {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the vendor withholding.')}
+          {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the supplier withholding.')}
         </p>
       )}
 
@@ -807,10 +589,12 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           size="sm"
           loading={isBusy}
           // #505: a VI cannot be saved until its tax treatment + tax amount are stated.
-          disabled={taxIncomplete}
+          // AC-PLN-008 (#1783 item 1): a partial receipt draft under an unavailable entitlement cannot
+          // be saved either — the submit-time guard inside handleSubmit is the second half of this rule.
+          disabled={taxIncomplete || (isSubcontractInvoice && !subcontractBill?.lines.length) || receiptBlockedByFeature}
           data-testid={cfg.saveTestId}
         >
-          {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save VI') : cfg.saveLabel}
+          {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save supplier invoice') : cfg.saveLabel}
         </Button>
         <Button
           type="button"
@@ -845,7 +629,7 @@ export interface RecordCaptureTriggerProps {
 // keep the `trigger-capture-${kind}` id + "Add <Kind>" copy.
 function triggerConfig(kind: RecordKind, t: TFunction): { testId: string; label: string } {
   if (kind === 'goods_receipt') return { testId: 'btn-create-gr', label: t('procurementDetail.recordGoodsReceipt', 'Record goods receipt') };
-  if (kind === 'vendor_invoice') return { testId: 'btn-create-vi', label: t('procurementDetail.recordVendorInvoice', 'Record vendor invoice') };
+  if (kind === 'vendor_invoice') return { testId: 'btn-create-vi', label: t('procurementDetail.recordVendorInvoice', 'Record supplier invoice') };
   return {
     testId: `trigger-capture-${kind}`,
     label: t('procurementDetail.addRecord', 'Add {{record}}', { record: localizedRecordKindLabel(kind, t) }),

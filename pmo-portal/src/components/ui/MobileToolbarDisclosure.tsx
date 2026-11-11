@@ -37,8 +37,6 @@ export interface MobileToolbarDisclosureProps {
   open?: boolean;
   /** Fired on every open/close change (controlled + uncontrolled). */
   onOpenChange?: (open: boolean) => void;
-  /** Initial open state for uncontrolled usage. */
-  defaultOpen?: boolean;
   /** Close after a native select changes and return focus to the trigger. */
   closeOnSelectChange?: boolean;
 }
@@ -70,10 +68,9 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
   panelClassName,
   open: openProp,
   onOpenChange,
-  defaultOpen = false,
   closeOnSelectChange = false,
 }) => {
-  const [internalOpen, setInternalOpen] = useState<boolean>(() => defaultOpen);
+  const [internalOpen, setInternalOpen] = useState<boolean>(false);
   const isControlled = openProp !== undefined;
   const isOpen = isControlled ? openProp : internalOpen;
 

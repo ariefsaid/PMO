@@ -33,12 +33,13 @@ import { createErpFeedDeps, ERPNEXT_TIER, surfaceActionRequired } from '../_shar
 import { createInFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
-import { pollDiscriminatorForKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
+import { featureKeyForKind, pollDiscriminatorForKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import type { ErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookEvent.ts';
 import type { ApplyOutcome } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { readBodyBounded } from '../_shared/readBodyBounded.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 // 256 KiB body cap: reject an oversized payload so a huge body can't exhaust the isolate (mirrors
@@ -47,40 +48,6 @@ const MAX_WEBHOOK_BODY_BYTES = 262144;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-}
-
-/**
- * Read the request body with a HARD byte cap enforced on the STREAM (M-1 audit fix). The old
- * Content-Length-only check was bypassable: a chunked request (no/short/lying `Content-Length`) let
- * `req.text()` buffer an unbounded body. This reads the body stream and ABORTS once `maxBytes` is
- * exceeded, so the cap holds regardless of the declared length. Returns `null` when the cap is
- * exceeded (the caller replies 413). Falls back to `req.text()` when there is no stream body.
- */
-export async function readBodyBounded(req: Request, maxBytes: number): Promise<string | null> {
-  if (!req.body) {
-    const text = await req.text();
-    return new TextEncoder().encode(text).length > maxBytes ? null : text;
-  }
-  const reader = req.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(value);
-  }
-  const buf = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    buf.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(buf);
 }
 
 /** A candidate employing org + its resolved webhook secret (for the HMAC match). */
@@ -108,6 +75,8 @@ export interface ErpWebhookHandlerDeps {
   /** Apply one decoded event for a resolved org (the wrapper builds the feed deps + the fromDoc-mapped
    *  canonical + calls applyErpFeedEvent). Returns the apply outcome (or throws on a real failure). */
   applyEvent: (orgId: string, event: ErpFeedEvent) => Promise<ApplyOutcome>;
+  /** Effective plan switch check for the lossy hint path; false/unreadable is retryable, never ack-dropped. */
+  featureEnabled?: (orgId: string, key: string) => Promise<boolean>;
   /**
    * FIX 1 (round-9 SHOULD-FIX): the in-flight adopt guard — the SAME `createInFlightAnchorProbe` barrier
    * the sweep raises (`buildIsInFlightAdopt`). Answers "does an UNRESOLVED (in-flight, non-confirmed)
@@ -264,6 +233,22 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
     return json({ ok: true, skipped: 'in-flight-command-owns-doc' });
   }
 
+  // The sweep is the convergence authority, but a verified webhook must not be acknowledged and lost
+  // while a module is off. Return retryable 503 before applying; the untouched sweep watermark also
+  // ensures the same ERP change is discovered when the key is re-enabled.
+  if (deps.featureEnabled) {
+    const moduleKey = event.kind ? featureKeyForKind(event.kind) : undefined;
+    for (const key of ['erp_sync', moduleKey].filter((value): value is string => Boolean(value))) {
+      try {
+        if (!(await deps.featureEnabled(matchedOrg.orgId, key))) {
+          return json({ error: 'feature_off', message: 'ERP sync is paused for this organization' }, 503);
+        }
+      } catch {
+        return json({ error: 'FEATURE_SWITCH_UNAVAILABLE', message: 'ERP sync is temporarily unavailable' }, 503);
+      }
+    }
+  }
+
   // ── 3. Apply via the lineage-aware feed (lossy hint; the sweep is the convergence authority). ──
   try {
     const outcome = await deps.applyEvent(matchedOrg.orgId, event);
@@ -318,40 +303,36 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
   // contributes no HMAC key (webhook events for it are rejected until a secret is configured).
   // Merged with dev's admin-connect (Phase 1b): resolve the webhook HMAC secret Vault-first behind
   // EXTERNAL_CONNECT_ENABLED (tri-state — no-binding / resolved / vault-miss → empty → skip = fail
-  // closed for webhooks), falling back to the env resolver when the flag is off. The B4 company scoping
+  // closed for webhooks); the kill switch returned above, so the flag is always on here. The B4 company scoping
   // is preserved on top. A `.map` can't do the async Vault call, so this is an explicit loop.
   const candidates: Array<{ orgId: string; webhookSecret: string; company: string | null }> = [];
   for (const r of rows) {
     if (!r.activated_at || !r.webhook_secret_ref) continue;
     let webhookSecret = '';
-    if (connectEnabled) {
-      const result = await resolvePerOrgSecret({
-        connectEnabled,
-        orgId: r.org_id,
-        tier: 'erpnext',
-        column: 'webhook_secret_ref',
-        lookupBinding: async (orgId, tier) => {
-          const { data, error } = await serviceClient
-            .from('external_org_bindings')
-            .select('webhook_secret_ref')
-            .eq('org_id', orgId)
-            .eq('external_tier', tier)
-            .maybeSingle();
-          if (error) return null;
-          return data as { webhook_secret_ref?: string | null } | null;
-        },
-        readVaultSecret: async (ref) => {
-          const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-          if (error) {
-            console.error('read_vault_secret failed', error);
-            return null;
-          }
-          return (data as string | null) ?? null;
-        },
-      });
-      if (result.kind === 'resolved') webhookSecret = result.secret;
-      // no-binding / binding-vault-miss → webhookSecret stays empty → skipped (fail closed)
-    }
+    const result = await resolvePerOrgSecret({
+      connectEnabled,
+      orgId: r.org_id,
+      tier: 'erpnext',
+      column: 'webhook_secret_ref',
+      lookupBinding: async (orgId, tier) => {
+        const { data, error } = await serviceClient
+          .from('external_org_bindings')
+          .select('webhook_secret_ref')
+          .eq('org_id', orgId)
+          .eq('external_tier', tier)
+          .maybeSingle();
+        if (error) throw new AppError(error.message, error.code); // a failed read is retryable, not a missing secret
+        return data as { webhook_secret_ref?: string | null } | null;
+      },
+      readVaultSecret: async (ref) => {
+        const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+        if (error) throw new AppError(error.message, error.code); // the shared helper logs the code only
+        return (data as string | null) ?? null;
+      },
+    });
+    if (result.kind === 'read-failed') throw new AppError('webhook secret lookup failed', 'external-unreachable'); // → retryable 500
+    if (result.kind === 'resolved') webhookSecret = result.secret;
+    // no-binding / binding-vault-miss → webhookSecret stays empty → skipped (fail closed)
     if (webhookSecret === '') continue;
     // B4: carry the binding's ERP Company through — the per-document admission gate below scopes
     // adoption to it (a multi-company ERP site must not leak Company B's money into Company A's tenant).
@@ -432,6 +413,11 @@ serveWithErrorReporting('erpnext-webhook', async (req: Request): Promise<Respons
   return handleErpWebhook(req, {
     resolveEmployingOrgs: () => resolveEmployingOrgsLive(serviceClient),
     applyEvent: (orgId, event) => applyEventLive(serviceClient, orgId, event),
+    featureEnabled: async (orgId, key) => {
+      const { data, error } = await serviceClient.rpc('service_feature_enabled', { p_org_id: orgId, p_key: key });
+      if (error) throw new AppError('could not resolve ERP sync entitlement', 'INTERNAL');
+      return data === true;
+    },
     // FIX 1: the in-flight adopt guard is ALWAYS wired on the live path (the dep is optional only so the
     // gate/decode unit tests stay byte-for-byte).
     isInFlightAdopt: buildIsInFlightAdopt(serviceClient),

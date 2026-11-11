@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { axeViolations } from '../__tests__/axe';
 import { PushStateBadge } from './PushStateBadge';
-import { RAW_ADAPTER_TOKEN } from '@/src/lib/adapterSeam/pushErrorCopy';
+import { RAW_ADAPTER_TOKEN } from '@/src/lib/testing/rawAdapterToken';
 
 /**
  * P3b (FR-TSP-085, FR-TSP-173) — the ERP push-state operator surface. Renders one of the four

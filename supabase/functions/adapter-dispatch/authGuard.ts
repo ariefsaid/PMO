@@ -11,14 +11,13 @@
 //     IN THAT DOMAIN → public.actor_authorization_state(orgId, userId) + moneyWriteRolesForDomain(domain)
 // (c) command.domain matches KIND_DOMAIN[erp_doc_kind] → rejects cross-domain kinds (e.g. domain:'procurement' with erp_doc_kind:'incoming-payment')
 import { KIND_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
+import { EQUIPMENT_KIND_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/odoo/assets/kinds.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
+// The per-domain money-write role map itself lives in _shared/moneyWriteRoles.ts (#919) so read-only
+// functions can apply the SAME rule without loading this dispatch guard.
 import { moneyWriteRolesForDomain } from '../_shared/moneyWriteRoles.ts';
-
-// The per-domain money-write role map itself lives in _shared/moneyWriteRoles.ts (#919) so
-// read-only functions can apply the SAME rule without loading this dispatch guard. Re-exported
-// here so every existing importer (and the authGuard unit proof) keeps its import path.
-export { moneyWriteRolesForDomain };
 
 /**
  * P3b (FR-TSP-011) — the domains whose ACTOR rule is enforced by a DB gate instead of by a role list.
@@ -51,6 +50,21 @@ const ROLE_RULE_DELEGATED_TO_DB_GATE = new Set(['timesheets', 'expenses']);
  */
 const BINDING_GATED_DOMAINS = new Set(['budget']);
 
+/**
+ * DD-OPP-1 / FR-OPP-004: the tiers that can own a domain, in lookup order. The gates below are keyed on the command's PMO shape
+ * (domain, kind, role), never on a tier name, so one implementation serves every tier; this table only says which ownership rows
+ * to ask about. A domain not listed is the ERPNext tier's alone (byte for byte). One ERP per domain is enforced where it is
+ * employed (`admin_change_domain_ownership`, 0505 and 0510 for revenue), so at most one answer is true; ERPNext is asked first and wins a tie.
+ */
+const OWNING_TIERS: Readonly<Record<string, readonly string[]>> = {
+  procurement: [ERPNEXT_TIER, ODOO_TIER], revenue: [ERPNEXT_TIER, ODOO_TIER], companies: [ERPNEXT_TIER, ODOO_TIER],
+  // #1511 D5/D7: the equipment register exists under Odoo only (FR-OFM-002), so ERPNext is never asked about it.
+  equipment: [ODOO_TIER],
+};
+
+/** Every ERP document kind a command may name, and the domain it belongs to: the ERPNext feed's kinds plus the register's (#1511). */
+const KIND_DOMAINS: Readonly<Record<string, string>> = { ...KIND_DOMAIN, ...EQUIPMENT_KIND_DOMAIN };
+
 /** Structural client for the two authorization RPCs (`domain_owned_by_tier`,
  *  `actor_authorization_state` — mig 0117). Satisfied by the deputy (caller-JWT) client on the
  *  synchronous path and by the service client on the sweep's recovery path. */
@@ -62,24 +76,31 @@ export interface AuthorizationResult {
   ok: boolean;
   status: number;
   message: string;
+  /** The tier that owns the command's domain for the caller's org (set when `ok`); selects the adapter and the outbox. */
+  tier?: string;
 }
 
 /**
- * Enforce the three authorization gates for any erpnext-tier command.
- * Returns {ok:true, status:200} when all pass; otherwise {ok:false, status, message}.
+ * Enforce the three authorization gates for any external-tier command (ERPNext, or Odoo where an org employs it).
+ * Returns {ok:true, status:200, tier} when all pass; otherwise {ok:false, status, message}.
  * Does NOT throw — the caller maps the result to an HTTP response.
  */
-export async function checkErpnextCommandAuthorization(
+export async function checkCommandAuthorization(
   client: AuthorizationClient,
   orgId: string,
   userId: string,
-  command: { domain: string; operation: string; record: { erp_doc_kind?: unknown; id: string } },
+  // The authorization-relevant projection of the command: which domain it writes and what kind of
+  // ERP document it names. The guards read nothing else, so callers pass nothing else.
+  command: { domain: string; record: { erp_doc_kind?: unknown } },
+  /** Pin the answer to one tier (the ERPNext sweep's own entry points); omitted ⇒ whichever listed tier owns the domain. */
+  onlyTier?: string,
 ): Promise<AuthorizationResult> {
   // (a) Employment on the ERPNEXT tier — the org must actually employ this domain externally.
   //
   // ⚑ AC-BUD-003 / FR-BUD-010: a Posture-B domain (`budget`) asserts employment via the ACTIVE BINDING,
   // NOT a `domain_externally_owned` row (which the spec forbids it from ever creating). Every Posture-A
   // domain keeps the tier-scoped OWNERSHIP check. See `BINDING_GATED_DOMAINS`.
+  let tier: string = ERPNEXT_TIER;
   if (BINDING_GATED_DOMAINS.has(command.domain)) {
     const employed = await client.rpc('org_has_active_erpnext_binding', { p_org_id: orgId });
     if (employed.error || employed.data !== true) {
@@ -90,14 +111,17 @@ export async function checkErpnextCommandAuthorization(
     // had moved `revenue` to another external system while keeping an ERPNext binding still passed here
     // — this surface would accept + post money for a domain ERPNext no longer owns. The sweep already
     // scopes its ownership read by tier; this is the one place the tier was dropped.
-    const domainOwned = await client.rpc('domain_owned_by_tier', {
-      p_org_id: orgId,
-      p_domain: command.domain,
-      p_tier: ERPNEXT_TIER,
-    });
-    if (domainOwned.error || domainOwned.data !== true) {
-      return { ok: false, status: 403, message: `org ${orgId} does not own domain "${command.domain}" on the "${ERPNEXT_TIER}" tier` };
+    let owner: string | null = null;
+    for (const candidate of onlyTier ? [onlyTier] : OWNING_TIERS[command.domain] ?? [ERPNEXT_TIER]) {
+      const domainOwned = await client.rpc('domain_owned_by_tier', { p_org_id: orgId, p_domain: command.domain, p_tier: candidate });
+      // An unreadable answer from the first tier refuses (as before); it is never read as "ask the next tier".
+      if (domainOwned.error) break;
+      if (domainOwned.data === true) { owner = candidate; break; }
     }
+    if (!owner) {
+      return { ok: false, status: 403, message: `org ${orgId} does not own domain "${command.domain}" on the "${onlyTier ?? ERPNEXT_TIER}" tier` };
+    }
+    tier = owner;
   }
 
   // (b) Actor authorization: the actor must be an ACTIVE member of this org, and their CURRENT role
@@ -126,10 +150,10 @@ export async function checkErpnextCommandAuthorization(
 
   // (c) Domain-kind consistency: the command's domain must match the kind's canonical domain.
   const kind = command.record.erp_doc_kind;
-  if (typeof kind !== 'string' || !(kind in KIND_DOMAIN)) {
+  if (typeof kind !== 'string' || !(kind in KIND_DOMAINS)) {
     return { ok: false, status: 422, message: `missing or unknown erp_doc_kind on record: ${String(kind)}` };
   }
-  const expectedDomain = KIND_DOMAIN[kind as keyof typeof KIND_DOMAIN];
+  const expectedDomain = KIND_DOMAINS[kind];
   if (command.domain !== expectedDomain) {
     return {
       ok: false,
@@ -138,8 +162,13 @@ export async function checkErpnextCommandAuthorization(
     };
   }
 
-  return { ok: true, status: 200, message: '' };
+  return { ok: true, status: 200, message: '', tier };
 }
+
+/** The shipped name and behaviour, kept for the ERPNext sweep's callers: it answers for the ERPNext tier only. */
+export const checkErpnextCommandAuthorization = (
+  client: AuthorizationClient, orgId: string, userId: string, command: { domain: string; record: { erp_doc_kind?: unknown } },
+): Promise<AuthorizationResult> => checkCommandAuthorization(client, orgId, userId, command, ERPNEXT_TIER);
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 // Round-7 cross-family audit, B6 — RE-ASSERT authorization at recovery time.
@@ -151,7 +180,7 @@ export async function checkErpnextCommandAuthorization(
 // a user could issue a money command, be demoted / deactivated / have their org's domain ownership
 // revoked, and still have the cron post it up to 24 hours later.
 //
-// This entry point re-runs `checkErpnextCommandAuthorization` — the SAME implementation the
+// This entry point re-runs `checkErpnextCommandAuthorization` (the ERPNext tier of `checkCommandAuthorization`) — the SAME implementation the
 // synchronous path runs — against the outbox row's recorded `actor_user_id` (0108 §C) and the
 // CURRENT ownership/role/active state. The rule is not forked; only the actor's source differs
 // (verified request JWT vs the persisted verified actor).
@@ -174,6 +203,8 @@ export interface OutboxReplayCandidate {
   actorUserId: string | null;
   /** The frozen command payload (carries `erp_doc_kind`). */
   payload: Record<string, unknown> | null;
+  /** The tier stored with this command; absent keeps the existing ERPNext replay behavior. */
+  tier?: string;
 }
 
 /**
@@ -212,11 +243,10 @@ export async function checkOutboxReplayAuthorization(
   }
 
   const payload = candidate.payload ?? {};
-  const result = await checkErpnextCommandAuthorization(client, orgId, candidate.actorUserId, {
+  const result = await checkCommandAuthorization(client, orgId, candidate.actorUserId, {
     domain: candidate.domain,
-    operation: candidate.operation,
-    record: { id: candidate.pmoRecordId, erp_doc_kind: payload.erp_doc_kind },
-  });
+    record: { erp_doc_kind: payload.erp_doc_kind },
+  }, candidate.tier ?? ERPNEXT_TIER);
   if (result.ok) return result;
   return {
     ...result,

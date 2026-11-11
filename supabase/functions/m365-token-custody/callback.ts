@@ -113,6 +113,23 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     return redirectToFeError(env, 'Missing code or state');
   }
 
+  // The callback may arrive after an Operator switched the module off between initiation and the
+  // Microsoft redirect. Do not exchange or persist a fresh connection for a now-disabled module.
+  // The PKCE state was consumed, so this flow cannot replay later; the independent M365/ERP sweep
+  // paths remain responsible for existing connection work and teardown stays available.
+  const { data: featureEnabled, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
+    p_org_id: pkce.orgId,
+    p_key: 'm365_integration',
+  });
+  if (featureError || featureEnabled !== true) {
+    await recordM365Error(serviceClient, {
+      errorCode: 'CONNECTION_NOT_ALLOWED',
+      contextId: state,
+      orgId: pkce.orgId,
+    });
+    return redirectToFeError(env, 'This connection is no longer allowed. Please contact your administrator.');
+  }
+
   // M3 (Luna): re-validate the env tenant BEFORE building the token URL. The host is pinned, so a
   // bad tenant is path-confusion rather than arbitrary-host SSRF — but this POST carries the
   // confidential client_secret + the auth code, so the defense-in-depth check runs at every URL
@@ -236,9 +253,11 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   // because profiles_select intentionally hides disabled and banned callers under real RLS. It is
   // TOCTOU by nature, so the upsertError branch below remains the authoritative backstop.
   const membership = await readM365MembershipState(serviceClient, pkce.userId);
-  const { data: featRow } = await serviceClient.from('org_features').select('enabled')
-    .eq('org_id', pkce.orgId).eq('feature_key', 'm365_integration').maybeSingle();
-  const entitled = (featRow as { enabled?: boolean } | null)?.enabled === true;
+  const { data: entitledRaw, error: entitledError } = await serviceClient.rpc('service_feature_enabled', {
+    p_org_id: pkce.orgId,
+    p_key: 'm365_integration',
+  });
+  const entitled = !entitledError && entitledRaw === true;
   if (membership.state !== 'active' || membership.orgId !== pkce.orgId || !entitled) {
     await recordM365Error(serviceClient, {
       errorCode: 'CONNECTION_NOT_ALLOWED',

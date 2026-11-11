@@ -80,7 +80,7 @@ not the host shell.
   then, `DESIGN.md` still describes the LIVE app — do not overwrite early.
 
 ### 4. Execution substrate: pi + glm-5.2 (Director-orchestrated)
-The reskin build is dispatched to the **pi CLI (glm-5.2)** per `docs/pi-delegation.md`; the **Director
+The reskin build is dispatched to the **pi CLI (glm-5.2)** per `docs/archive/pi-delegation.md`; the **Director
 orchestrates + verifies every result** (token purity by grep + the pixel/taste lens by rendering — a
 text model can't self-judge visuals).
 

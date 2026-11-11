@@ -1,7 +1,7 @@
-import { act, createEvent, fireEvent, render, screen } from '@testing-library/react';
+import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { MemoryRouter, useLocation, useNavigate } from 'react-router';
+import { BrowserRouter, MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useUnsavedChangesGuard } from './useUnsavedChangesGuard';
 
@@ -62,6 +62,28 @@ const renderHarness = (props: HarnessProps) =>
       <Harness {...props} />
     </MemoryRouter>,
   );
+
+const BrowserHistoryHarness: React.FC<HarnessProps> = ({ dirty, onBlocked }) => {
+  const guard = useUnsavedChangesGuard({ dirty, onBlocked, guardHistory: true });
+  const navigate = useNavigate();
+  const location = useLocation();
+  return (
+    <div>
+      <button type="button" onClick={() => navigate('/views/new')}>Open editor</button>
+      <button type="button" onClick={() => guard(() => navigate('/views'))}>Cancel</button>
+      <span data-testid="browser-path">{location.pathname}</span>
+    </div>
+  );
+};
+
+const renderBrowserHarness = (props: HarnessProps) => {
+  window.history.replaceState({ idx: 0, key: 'root' }, '', '/views');
+  return render(
+    <BrowserRouter>
+      <BrowserHistoryHarness {...props} />
+    </BrowserRouter>,
+  );
+};
 
 // jsdom cannot perform document navigation. A window bubble-phase listener runs after every app
 // listener, so it records whether the guard (or a link handler) prevented the default, then stops
@@ -194,6 +216,46 @@ describe('useUnsavedChangesGuard', () => {
     } finally {
       orphan.remove();
     }
+  });
+
+  it('with history guarding enabled, Back restores the editor until Leave replays it', async () => {
+    const user = userEvent.setup();
+    const onBlocked = vi.fn();
+    const { rerender } = renderBrowserHarness({ dirty: false, onBlocked });
+    await user.click(screen.getByRole('button', { name: 'Open editor' }));
+    expect(screen.getByTestId('browser-path')).toHaveTextContent('/views/new');
+    rerender(
+      <BrowserRouter>
+        <BrowserHistoryHarness dirty onBlocked={onBlocked} />
+      </BrowserRouter>,
+    );
+    await act(async () => { window.history.back(); });
+    await waitFor(() => expect(onBlocked).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('browser-path')).toHaveTextContent('/views/new');
+
+    act(() => (onBlocked.mock.calls[0][0] as () => void)());
+    await waitFor(() => expect(screen.getByTestId('browser-path')).toHaveTextContent('/views'));
+  });
+
+  it('with history guarding enabled, Forward restores the prior page until Leave replays it', async () => {
+    const user = userEvent.setup();
+    const onBlocked = vi.fn();
+    const { rerender } = renderBrowserHarness({ dirty: false, onBlocked });
+    await user.click(screen.getByRole('button', { name: 'Open editor' }));
+    await act(async () => { window.history.back(); });
+    await waitFor(() => expect(screen.getByTestId('browser-path')).toHaveTextContent('/views'));
+
+    rerender(
+      <BrowserRouter>
+        <BrowserHistoryHarness dirty onBlocked={onBlocked} />
+      </BrowserRouter>,
+    );
+    await act(async () => { window.history.forward(); });
+    await waitFor(() => expect(onBlocked).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('browser-path')).toHaveTextContent('/views');
+
+    act(() => (onBlocked.mock.calls[0][0] as () => void)());
+    await waitFor(() => expect(screen.getByTestId('browser-path')).toHaveTextContent('/views/new'));
   });
 
   it('guard(): while dirty an in-page exit is held until Leave; while pristine it runs at once', async () => {

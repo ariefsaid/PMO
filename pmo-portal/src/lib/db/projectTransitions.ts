@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { toAppError } from '@/src/lib/appError';
 import type { ProjectRow } from './projects';
 
 // ---------------------------------------------------------------------------
@@ -10,7 +11,14 @@ export type ProjectStatusGroup = 'pipeline' | 'onHand' | 'lost' | 'internal';
 
 export interface PipelineStageConfig {
   status: ProjectStatus;
-  win_probability: number;
+  /** Stage default for the chance the opportunity proceeds (% Go). */
+  go_probability: number;
+}
+
+export async function getProjectWinEligibility(id: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('project_win_eligibility', { p_id: id });
+  if (error) throw error;
+  return data;
 }
 
 export interface TransitionProjectOpts {
@@ -18,19 +26,25 @@ export interface TransitionProjectOpts {
   customerContractRef?: string;
   /** ISO 'YYYY-MM-DD' */
   contractDate?: string;
+  /** Required by the server for Loss Tender / Declined (one of LOST_REASON_KEYS). */
+  lostReason?: string;
+  lostNote?: string;
 }
 
 // ---------------------------------------------------------------------------
 // Transition map — single TS source, mirrors the SQL literal inside
-// transition_project() (AC-1000, FR-PR-001/003/012)
+// transition_project() (FR-PR-001/003/012; the map's owning acceptance proof
+// is pgTAP — supabase/tests/project_transition_map.test.sql, AC-1000).
 // Note: status literals are EXACT enum spellings, including 'Won, Pending KoM' with comma.
+// The map is the DRAG/drop + inline-menu affordance seam (PipelineLens, DraggableSalesBoard);
+// the RPC remains the only enforcement authority.
 // ---------------------------------------------------------------------------
 
 export const LEGAL_PROJECT_TRANSITIONS: Record<string, string[]> = {
-  'Leads':               ['PQ Submitted', 'Loss Tender', 'Internal Project', 'Declined'],
-  'PQ Submitted':        ['Quotation Submitted', 'Leads', 'Loss Tender', 'Declined'],
-  'Quotation Submitted': ['Tender Submitted', 'PQ Submitted', 'Won, Pending KoM', 'Loss Tender', 'Declined'],
-  'Tender Submitted':    ['Negotiation', 'Quotation Submitted', 'Won, Pending KoM', 'Loss Tender', 'Declined'],
+  'Leads':               ['Quotation Submitted', 'Loss Tender', 'Internal Project', 'Declined'],
+  'Quotation Submitted': ['PQ Submitted', 'Loss Tender', 'Declined'],
+  'PQ Submitted':        ['Tender Submitted', 'Quotation Submitted', 'Leads', 'Won, Pending KoM', 'Loss Tender', 'Declined'],
+  'Tender Submitted':    ['Negotiation', 'PQ Submitted', 'Won, Pending KoM', 'Loss Tender', 'Declined'],
   'Negotiation':         ['Won, Pending KoM', 'Tender Submitted', 'Loss Tender', 'Declined'],
   'Won, Pending KoM':    ['Ongoing Project', 'On Hold', 'Close Out'],
   'Ongoing Project':     ['On Hold', 'Close Out'],
@@ -48,8 +62,8 @@ export const LEGAL_PROJECT_TRANSITIONS: Record<string, string[]> = {
 
 export const PIPELINE_STATUSES: readonly string[] = [
   'Leads',
-  'PQ Submitted',
   'Quotation Submitted',
+  'PQ Submitted',
   'Tender Submitted',
   'Negotiation',
 ];
@@ -66,18 +80,6 @@ export const ON_HAND_STATUSES: readonly string[] = [
 export const LOST_STATUSES: readonly string[] = ['Loss Tender', 'Declined'];
 
 export const INTERNAL_STATUSES: readonly string[] = ['Internal Project'];
-
-/**
- * Returns true when (from → to) is in the legal transition map (AC-1000, FR-PR-001/003).
- * Pure function; mirrors the map literal in transition_project().
- * Returns false when from === to (no-op), from is not in the map, or to is not in the allowed list.
- */
-export function isLegalProjectTransition(from: ProjectStatus, to: ProjectStatus): boolean {
-  if (from === to) return false;
-  const allowed = LEGAL_PROJECT_TRANSITIONS[from as string];
-  if (!allowed) return false;
-  return allowed.includes(to as string);
-}
 
 /**
  * Returns the OD-SP-1 group for a given project status (AC-1001, FR-PR-012).
@@ -113,8 +115,10 @@ export async function transitionProject(
     p_to: to,
     p_customer_contract_ref: opts?.customerContractRef,
     p_contract_date: opts?.contractDate,
+    p_lost_reason: opts?.lostReason,
+    p_lost_note: opts?.lostNote?.trim() || undefined,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 // ---------------------------------------------------------------------------
@@ -123,8 +127,8 @@ export async function transitionProject(
 // ---------------------------------------------------------------------------
 
 /**
- * Returns the org's (status, win_probability) rows from pipeline_stage_config.
- * win_probability is normalised to Number (Postgres returns numeric as string).
+ * Returns the org's stage defaults from pipeline_stage_config.
+ * The legacy database column is exposed as go_probability and normalized to Number.
  * org_id is NEVER sent — RLS scopes rows (FR-PR-013).
  */
 export async function listPipelineStageConfig(): Promise<PipelineStageConfig[]> {
@@ -134,6 +138,6 @@ export async function listPipelineStageConfig(): Promise<PipelineStageConfig[]> 
   if (error) throw new Error(error.message);
   return ((data ?? []) as Array<{ status: string; win_probability: string | number }>).map(r => ({
     status: r.status as ProjectStatus,
-    win_probability: Number(r.win_probability),
+    go_probability: Number(r.win_probability),
   }));
 }

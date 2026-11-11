@@ -1,4 +1,5 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { projectDisplayName, projectOptionSub } from '@/src/lib/projectDisplayName';
 import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -23,16 +24,30 @@ import type { ComboboxOption } from '@/src/components/ui';
 
 const FK_STALE_MS = 5 * 60_000; // FK reference lists change rarely; cache for 5 min.
 
-/** Vendor companies as FK options (id→value, name→label, "Vendor" sub). */
+/**
+ * Org-scoped vendor companies as FK options (id→value, name→label). The cached data is
+ * language-neutral — the only translatable part (the "Vendor" type sub for companies without a
+ * short name) is applied through `select` tied to the current translation, exactly as
+ * `useClientCompanyOptions` does (HKA-009): translating inside `queryFn` left cached subtitles in
+ * the previous language after a language switch, because the cache key omits the language and the
+ * query stays fresh for five minutes.
+ */
 export function useVendorOptions() {
+  const { t } = useTranslation();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<ComboboxOption[]>({
+  const vendorLabel = t('companies.type.vendor', 'Supplier');
+  const select = useCallback(
+    (options: ComboboxOption[]) => options.map((o) => (o.sub ? o : { ...o, sub: vendorLabel })),
+    [vendorLabel],
+  );
+  return useQuery<ComboboxOption[], Error, ComboboxOption[]>({
     queryKey: ['fk-options', 'vendor', orgId],
     queryFn: async () => {
       const rows = await repositories.company.list({ type: 'Vendor' });
-      return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), sub: c.short_name ? c.name : 'Vendor' }));
+      return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), ...(c.short_name ? { sub: c.name } : {}) }));
     },
+    select,
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
   });
@@ -48,7 +63,7 @@ export function useProjectOptions() {
       const rows = await repositories.project.list();
       return rows
         .filter((p) => p.archived_at == null)
-        .map((p) => ({ value: p.id, label: p.name, sub: p.code ?? undefined }));
+        .map((p) => ({ value: p.id, label: projectDisplayName(p), sub: projectOptionSub(p) }));
     },
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
@@ -57,6 +72,8 @@ export function useProjectOptions() {
 
 /** A project as an invoice picker option, with what the invoice form needs to know about it (#784). */
 export interface InvoiceProjectOption extends ComboboxOption {
+  /** Immutable legal/contractual title for document previews and approvals. */
+  contractualName: string;
   /** The project's client — the invoice form offers only the chosen customer's projects (M-1). */
   clientId: string | null;
   /** Native invoice entry follows the authorized project's source currency, never the org default. */
@@ -83,8 +100,9 @@ export function useInvoiceProjectOptions() {
       const rows = await repositories.project.list();
       return rows.map((p) => ({
         value: p.id,
-        label: p.name,
-        sub: p.code ?? undefined,
+        label: projectDisplayName(p),
+        sub: projectOptionSub(p),
+        contractualName: p.name,
         clientId: p.client_id,
         ...(p.currency !== undefined ? { currency: p.currency } : {}),
         ...(p.tax_base_numerator !== undefined ? { taxBaseNumerator: p.tax_base_numerator } : {}),
@@ -118,21 +136,6 @@ export function useClientCompanyOptions() {
       return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), ...(c.short_name ? { sub: c.name } : {}) }));
     },
     select,
-    enabled: Boolean(orgId),
-    staleTime: FK_STALE_MS,
-  });
-}
-
-/** Project managers as FK options (id→value, full_name→label). */
-export function useProjectManagerOptions() {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<ComboboxOption[]>({
-    queryKey: ['fk-options', 'pm', orgId],
-    queryFn: async () => {
-      const rows = await repositories.profile.listProjectManagers();
-      return rows.map((m) => ({ value: m.id, label: m.full_name }));
-    },
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
   });

@@ -86,6 +86,7 @@ import {
 } from './procurementFiles';
 import type { ProcPhase } from './procurementFiles';
 import { AppError } from '@/src/lib/appError';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
 beforeEach(() => {
   h.from.mockClear();
@@ -166,12 +167,25 @@ describe('AC-PF-009 prepareUpload (server-fetches org_id — ADR-0017 seam fix)'
     expect(h.storageCalls.createSignedUploadUrl).toHaveLength(0);
   });
 
-  it('AC-PF-009: a storage error throws an AppError (code 42501)', async () => {
+  it.each([401, '403'])('AC-PF-009: storage authorization status %s maps to 42501', async (status) => {
     h.result.value = { data: { org_id: 'org-x' }, error: null };
-    h.storageResult.value = { data: null, error: { message: 'no access', name: 'StorageError' } };
+    const original = { message: 'no access', name: 'StorageError', status };
+    h.storageResult.value = { data: null, error: original };
     await expect(prepareUpload('receipt', 'proc1', 'gr.pdf')).rejects.toMatchObject({
-      code: '42501',
+      message: 'The file service could not complete the request.', code: '42501', cause: original,
     });
+  });
+
+  it('AC-PF-009: reports a storage failure without a verified status safely', async () => {
+    h.result.value = { data: { org_id: 'org-x' }, error: null };
+    const original = { message: 'internal storage detail', name: 'StorageError' };
+    h.storageResult.value = { data: null, error: original };
+    const error = await prepareUpload('receipt', 'proc1', 'gr.pdf').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(AppError);
+    expect(error).toMatchObject({ message: 'The file service could not complete the request.', code: undefined, cause: original });
+    const classified = classifyMutationError(error, undefined, { suppressCapture: true });
+    expect(classified.headline).toBe('Update failed');
+    expect(classified.detail).not.toContain(original.message);
   });
 });
 
@@ -268,6 +282,11 @@ describe('AC-PF-006 getSignedDownloadUrl', () => {
     await getSignedDownloadUrl('org/proc/quotation/f/q.pdf', { download: true });
     const args = h.storageCalls.createSignedUrl[0] as unknown[];
     expect(args[2]).toEqual({ download: 'q.pdf' });
+  });
+
+  it('document-preview AC-005: a shorter expiry is honoured for the public Office viewer', async () => {
+    await getSignedDownloadUrl('org/proc/quotation/f/q.docx', { expiresIn: 300 });
+    expect((h.storageCalls.createSignedUrl[0] as unknown[])[1]).toBe(300);
   });
 
   it('AC-PF-006: a storage error throws', async () => {

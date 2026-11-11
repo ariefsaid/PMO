@@ -56,9 +56,13 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
     await d.getByLabel(/expected end/i).fill('2027-01-15');
   });
 
-  await page.goto(`${projectUrl}/history`);
-  await expect(page.getByRole('tab', { name: 'History', selected: true })).toBeVisible({ timeout: 15_000 });
-  const events = page.getByTestId('history-event');
+  await page.goto(projectUrl);
+  await page.getByRole('button', { name: /^Activity · \d+ comments$/ }).click();
+  const activity = page.getByRole('dialog', { name: 'Activity' });
+  await expect(activity).toBeVisible({ timeout: 15_000 });
+  await activity.getByRole('tab', { name: 'Changes', exact: true }).click();
+  await expect(activity.getByRole('tab', { name: 'Changes', selected: true })).toBeVisible({ timeout: 15_000 });
+  const events = activity.getByTestId('history-event');
   await expect(events.first()).toBeVisible({ timeout: 15_000 });
 
   // Newest first: save 2 on top — who, when, the date move as formatted dates.
@@ -75,6 +79,8 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   await expect(events.nth(1)).toContainText(/End date: \D*30\D*2026 → \D*31\D*2026/);
   await expect(events.nth(1)).toContainText('Diego Salvatierra');
 
+  await activity.getByRole('button', { name: 'Close', exact: true }).click();
+
   // Mobile: no horizontal overflow (fonts settled before measuring).
   await page.setViewportSize({ width: 390, height: 800 });
   await waitForFonts(page);
@@ -89,6 +95,7 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   await login(page, 'exec@acme.test');
   await page.goto('/sales');
   await openPipelineCard(page, name);
+  await page.locator('summary[aria-label="More actions"]').click();
   await page.getByRole('button', { name: /Archive/i }).click();
   const archiveDialog = page.getByRole('alertdialog');
   await expect(archiveDialog).toBeVisible({ timeout: 8_000 });

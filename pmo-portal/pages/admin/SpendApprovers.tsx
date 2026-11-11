@@ -21,6 +21,7 @@ import { can } from '@/src/auth/policy';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { repositories } from '@/src/lib/repositories';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
+import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 
 /**
@@ -73,6 +74,14 @@ const SpendApprovers: React.FC = () => {
 
   const orgRows = useMemo(() => (data ?? []).filter((r) => r.projectId === null), [data]);
   const projectRows = useMemo(() => (data ?? []).filter((r) => r.projectId !== null), [data]);
+  const projectGroups = useMemo(() => {
+    const groups = new Map<string, SpendApproverRow[]>();
+    for (const row of projectRows) {
+      const id = row.projectId!;
+      groups.set(id, [...(groups.get(id) ?? []), row]);
+    }
+    return [...groups.entries()];
+  }, [projectRows]);
 
   const onRemoveConfirm = async () => {
     if (!removing) return;
@@ -116,7 +125,7 @@ const SpendApprovers: React.FC = () => {
   const flatRouteNote = (scope: 'org' | 'project') => (
     <p data-testid={`spend-route-${scope}`} className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
       {t('uxs32.roleRoute', {
-        defaultValue: "Standard rules: any of {{roles}} can approve someone else's request.",
+        defaultValue: "Standard rules: any of {{roles}} can approve another person's procurement case.",
         roles,
       })}{' '}
       {holders}
@@ -124,7 +133,7 @@ const SpendApprovers: React.FC = () => {
   );
   const adminRouteNote = (scope: 'org' | 'project') => (
     <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-[13px] text-warning-foreground">
-      {t('uxs32.noEligible', 'Nobody listed can approve right now. Only an Admin can decide these requests until someone eligible is added.')}
+      {t('uxs32.noEligible', 'Nobody listed can approve right now. Only an Admin can decide these procurement cases until someone eligible is added.')}
     </p>
   );
 
@@ -143,7 +152,7 @@ const SpendApprovers: React.FC = () => {
         <p data-testid="spend-route-project" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
           {t('uxs32.projectEmpty', {
             defaultValue:
-              'No project approvers listed. Within budget, the standard rules apply — any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, requests go to the overhead approvers.',
+              'No project approvers listed. Within budget, the standard rules apply: any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, procurement cases go to the overhead approvers.',
             roles,
           })}{' '}
           {holders}
@@ -166,7 +175,7 @@ const SpendApprovers: React.FC = () => {
     if (senior === 'org') {
       return (
         <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-[13px] text-warning-foreground">
-          {t('uxs32.escalate', 'Nobody listed can approve right now. These requests go to the overhead approvers.')}
+          {t('uxs32.escalate', 'Nobody listed can approve right now. These procurement cases go to the overhead approvers.')}
         </p>
       );
     }
@@ -177,7 +186,7 @@ const SpendApprovers: React.FC = () => {
     rows.length === 0 ? (
       <>
         <p className="text-[13px] text-muted-foreground">
-          {t('admin.spendApprovers.empty', 'Nobody listed — the standard role rules apply.')}
+          {t('admin.spendApprovers.empty', 'Nobody listed. The standard role rules apply.')}
         </p>
         {renderRoute(rows, scope)}
       </>
@@ -188,7 +197,7 @@ const SpendApprovers: React.FC = () => {
             <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-[13.5px]">
               <span className="min-w-0">
                 <span className="font-medium">{r.fullName}</span>
-                {r.projectName && <span className="ml-2 text-muted-foreground">{r.projectName}</span>}
+                {scope === 'org' && r.projectName && <span className="ml-2 text-muted-foreground">{r.projectName}</span>}
               </span>
               {canManage && (
                 <Button variant="ghost" size="sm" onClick={() => setRemoving(r)}>
@@ -215,7 +224,7 @@ const SpendApprovers: React.FC = () => {
       <p className="mt-1 max-w-[68ch] text-[13px] text-muted-foreground">
         {t(
           'admin.spendApprovers.description',
-          "Who approves purchase requests. Spend charged to a project and within its budget line goes to that project's approver; overhead, and spend that would exceed the budget line, goes to the overhead approvers. Any one listed approver can approve. With nobody listed, the standard role rules apply.",
+          "Who approves procurement. Spend charged to a project and within its budget line goes to that project's approver; overhead, and spend that would exceed the budget line, goes to the overhead approvers. Any one listed approver can approve. With nobody listed, the standard role rules apply.",
         )}
       </p>
       {isError ? (
@@ -254,7 +263,17 @@ const SpendApprovers: React.FC = () => {
                 </Button>
               )}
             </div>
-            {renderRows(projectRows, 'project')}
+            {projectGroups.length === 0 ? renderRows([], 'project') : (
+              <div className="space-y-4">
+                {projectGroups.map(([id, rows]) => {
+                  const name = rows[0].projectName ?? id;
+                  return <div key={id} role="group" aria-label={name}>
+                    <h4 className="mb-2 text-[13px] font-medium">{name}</h4>
+                    {renderRows(rows, 'project')}
+                  </div>;
+                })}
+              </div>
+            )}
           </div>
           {!canManage && (
             <p className="text-[13px] text-muted-foreground">
@@ -267,6 +286,7 @@ const SpendApprovers: React.FC = () => {
       {adding && (
         <AddApproverModal
           mode={adding}
+          eligible={eligible}
           submitError={saveError}
           onClose={() => setAdding(null)}
           onSubmit={async (profileId, projectId) => {
@@ -293,7 +313,7 @@ const SpendApprovers: React.FC = () => {
         }
         description={t(
           'admin.spendApprovers.confirm.description',
-          'They will no longer approve these requests. Requests already decided are unchanged.',
+          'They will no longer approve procurement cases. Cases already decided are unchanged.',
         )}
         confirmLabel={t('admin.spendApprovers.confirm.confirm', 'Remove')}
         loading={removeMutation.isPending}
@@ -311,28 +331,22 @@ interface AddValues {
 
 interface AddApproverModalProps {
   mode: 'org' | 'project';
+  /** OE04-005: the parent's already-computed eligible profiles — the same list its route
+   * notes explain, so the picker can never disagree with the explanation. */
+  eligible: ProfileRow[];
   /** #559: owned by the parent (which owns the mutation), rendered here. */
   submitError: SubmitError | null;
   onClose: () => void;
   onSubmit: (profileId: string, projectId: string | null) => Promise<void>;
 }
 
-const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, submitError, onClose, onSubmit }) => {
+const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, eligible, submitError, onClose, onSubmit }) => {
   const { t } = useTranslation();
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  const { data: people } = useQuery({
-    queryKey: ['spend-approver-people', orgId],
-    queryFn: () => repositories.profile.listOrgProfiles(),
-    enabled: Boolean(orgId),
-  });
-  // UX mirror of the RLS rank floor (ADR-0070): the same predicate that offers the Approve button.
+  // UX mirror of the RLS rank floor (ADR-0070), mapped from the parent's eligibility — the
+  // modal does not re-query or re-filter (OE04-005).
   const personOptions = useMemo(
-    () =>
-      (people ?? [])
-        .filter((p) => p.status === 'active' && can('transition', 'procurement', { realRole: p.role as never }))
-        .map((p) => ({ value: p.id, label: p.full_name })),
-    [people],
+    () => eligible.map((p) => ({ value: p.id, label: p.full_name })),
+    [eligible],
   );
   const { data: projectOptions } = useProjectOptions();
   const loadProjects = useCallback(
@@ -370,7 +384,7 @@ const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, submitError, 
           ? t('admin.spendApprovers.form.projectTitle', 'Add a project approver')
           : t('admin.spendApprovers.form.orgTitle', 'Add an overhead approver')
       }
-      subtitle={t('admin.spendApprovers.form.subtitle', 'Any one listed approver can approve a request.')}
+      subtitle={t('admin.spendApprovers.form.subtitle', 'Any one listed approver can approve a procurement case.')}
       submitLabel={t('admin.spendApprovers.form.save', 'Add')}
       onSubmit={handleSubmit}
       submitError={submitError}

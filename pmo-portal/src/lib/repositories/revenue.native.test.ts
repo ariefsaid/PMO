@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@/src/lib/adapterSeam/dispatchClient', () => ({ dispatchDomainCommand: vi.fn() }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   clearOwnershipCache: vi.fn(),
-  setDomainOwnership: vi.fn(),
+  setTaskOwnership: vi.fn(),
   routeDomainWrite: vi.fn(),
 }));
 vi.mock('@/src/lib/db/revenue', () => ({
@@ -21,6 +21,9 @@ vi.mock('@/src/lib/db/revenueNative', () => ({
   transitionNativeSalesInvoice: vi.fn(),
   recordNativeReceipt: vi.fn(),
   cancelNativeReceipt: vi.fn(),
+  recordNativeOnAccountReceipt: vi.fn(),
+  applyNativeReceipt: vi.fn(),
+  unapplyNativeAllocation: vi.fn(),
 }));
 
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
@@ -36,6 +39,9 @@ beforeEach(() => {
   vi.mocked(native.transitionNativeSalesInvoice).mockResolvedValue(undefined);
   vi.mocked(native.recordNativeReceipt).mockResolvedValue('ip-native-1');
   vi.mocked(native.cancelNativeReceipt).mockResolvedValue(undefined);
+  vi.mocked(native.recordNativeOnAccountReceipt).mockResolvedValue('ip-onacct-1');
+  vi.mocked(native.applyNativeReceipt).mockResolvedValue(['al-1']);
+  vi.mocked(native.unapplyNativeAllocation).mockResolvedValue(undefined);
 });
 
 describe('no ERP owns revenue — writes take the PMO path and never dispatch (AC-SAR-001 goal kept)', () => {
@@ -73,10 +79,23 @@ describe('no ERP owns revenue — writes take the PMO path and never dispatch (A
     await repositories.revenue.createPayment({ customerId: 'c-1', salesInvoiceId: 'si-1', paidAmount: 610000.1, date: '2026-10-07' });
     expect(native.recordNativeReceipt).toHaveBeenCalledWith({ salesInvoiceId: 'si-1', amount: 610000.1, date: '2026-10-07' });
   });
-  it('AC-NAR-003 a PMO receipt must name its invoice', async () => {
-    await expect(repositories.revenue.createPayment({ customerId: 'c-1', salesInvoiceId: null, paidAmount: 1, receivedAmount: 1, date: '2026-10-07' }))
-      .rejects.toMatchObject({ code: 'native-receipt-needs-invoice' });
+  it('AC-NPA-001 a receipt naming no invoice is recorded ON ACCOUNT for the customer, keyed on the form session\'s id so a retry replays', async () => {
+    const intent = { id: 'rc-form-1', idempotencyKey: 'k-1' };
+    await expect(repositories.revenue.createPayment({ customerId: 'c-1', salesInvoiceId: null, paidAmount: 100, receivedAmount: 90, withheldAmount: 10, withholdingSlipNumber: 'BP-1', date: '2026-10-07' }, intent))
+      .resolves.toEqual({ id: 'ip-onacct-1', ip_number: null });
+    expect(native.recordNativeOnAccountReceipt).toHaveBeenCalledWith({
+      customerId: 'c-1', amount: 100, receivedAmount: 90, withheldAmount: 10, withholdingSlipNumber: 'BP-1', date: '2026-10-07', receiptId: 'rc-form-1',
+    });
     expect(native.recordNativeReceipt).not.toHaveBeenCalled();
+    expect(dispatchDomainCommand).not.toHaveBeenCalled();
+  });
+  it('AC-NPA-002 applyReceipt and unapplyAllocation go to the allocation RPCs and never dispatch', async () => {
+    await expect(repositories.revenue.applyReceipt({ receiptId: 'rc-1', requestId: 'rq-1', allocations: [{ invoiceId: 'si-1', amount: 5 }] }))
+      .resolves.toEqual(['al-1']);
+    expect(native.applyNativeReceipt).toHaveBeenCalledWith({ receiptId: 'rc-1', requestId: 'rq-1', allocations: [{ invoiceId: 'si-1', amount: 5 }] });
+    await repositories.revenue.unapplyAllocation('al-1');
+    expect(native.unapplyNativeAllocation).toHaveBeenCalledWith('al-1');
+    expect(dispatchDomainCommand).not.toHaveBeenCalled();
   });
   it('AC-NAR-006 cancelPayment cancels a PMO receipt and never dispatches', async () => {
     await repositories.revenue.cancelPayment('ip-1');

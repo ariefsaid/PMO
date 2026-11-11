@@ -1,12 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import {
-  buildEventProperties,
-  trackFormValidationFailed,
-  trackSaveFailed,
-  trackBulkImportFailed,
-  trackEmptyStateSeen,
-} from './events';
+import { buildEventProperties } from './events';
 import type { AuthMethod, AuthFailureReason } from './events';
+import { EVENT_PRODUCERS } from './eventCallSites';
 
 describe('analytics event sanitizer', () => {
   it('AC-PH-014: blocks forbidden property keys in dev/test', () => {
@@ -79,35 +74,8 @@ describe('analytics event sanitizer', () => {
     });
   });
 
-  it('AC-PH-013: failed-action helpers emit safe metadata only', () => {
-    expect(trackFormValidationFailed('project-form', 2, 'required', 'projects')).toMatchObject({
-      event: 'form_validation_failed',
-      properties: { form_id: 'project-form', field_count: 2, reason_code: 'required', module: 'projects' },
-    });
-    expect(trackSaveFailed('permission_denied', 'update', 'network', 'projects').event).toBe('save_failed');
-    expect(trackSaveFailed('permission_denied', 'update', 'network', 'projects').properties).toMatchObject({
-      failure_class: 'permission_denied',
-      operation: 'update',
-      reason_code: 'network',
-      module: 'projects',
-    });
-    expect(trackEmptyStateSeen('project-list-empty', 'Project Manager', 'projects').event).toBe('empty_state_seen');
-    expect(trackEmptyStateSeen('project-list-empty', 'Project Manager', 'projects').properties).toMatchObject({
-      state_id: 'project-list-empty',
-      role: 'Project Manager',
-      module: 'projects',
-    });
-  });
-
-  // 2026-07-27 code-quality review #2: `bulk_import_failed` is a DISTINCT event from `save_failed`
-  // (never a lump `failed_count` bolted onto save_failed's existing shape — that mixed two units
-  // of measurement, see classifyMutationError.ts's trackBatchSaveFailed doc comment).
-  it('AC-PH-013: trackBulkImportFailed emits a distinct event with module/failure_class/failed_count', () => {
-    expect(trackBulkImportFailed('companies', 'permission_denied', 4800)).toEqual({
-      event: 'bulk_import_failed',
-      properties: { module: 'companies', failure_class: 'permission_denied', failed_count: 4800 },
-    });
-  });
+  // The failed-action payload shapes are proven at the FACADE's actual capture
+  // (index.test.ts) — the only production path these events flow through.
 });
 
 describe('auth analytics unions (FR-AUTHF-061)', () => {
@@ -125,5 +93,16 @@ describe('auth analytics unions (FR-AUTHF-061)', () => {
       'expired_token',
     ];
     expectTypeOf(r).toEqualTypeOf<AuthFailureReason[]>();
+  });
+});
+
+describe('AC-PHO-043 business events are pre-registered with a facade producer (S5 fills the callers)', () => {
+  it.each([
+    ['budget_activated', 'trackBudgetActivated'],
+    ['invoice_issued', 'trackInvoiceIssued'],
+    ['payment_recorded', 'trackPaymentRecorded'],
+    ['purchase_approved', 'trackPurchaseApproved'],
+  ])('%s -> %s', (event, producer) => {
+    expect(EVENT_PRODUCERS[event as keyof typeof EVENT_PRODUCERS]).toEqual({ producer, kind: 'facade' });
   });
 });

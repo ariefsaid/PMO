@@ -26,3 +26,14 @@ export function useUnbilledWorkOrders(enabled = true) {
     enabled: enabled && Boolean(orgId),
   });
 }
+
+/** #1640: acceptance age per work order. Keyed under 'work-order-billing' so every billing invalidation refreshes it. */
+export function useWorkOrderAcceptanceAge(projectId: string, enabled = true) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery({
+    queryKey: ['work-order-billing', orgId, projectId, 'acceptance-age'],
+    queryFn: () => repositories.workOrder.acceptanceAge(projectId),
+    enabled: enabled && Boolean(orgId) && Boolean(projectId),
+  });
+}

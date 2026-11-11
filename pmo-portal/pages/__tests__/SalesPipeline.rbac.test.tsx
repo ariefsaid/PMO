@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+// Harness: the board now mounts DraggableSalesBoard (useQueryClient), so the page renders under a QueryClientProvider (#1637).
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -36,6 +38,7 @@ const { pipelineState, lostState } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
+  useWonDeals: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 // B-3: SalesPipeline now includes the "+ New opportunity" CTA (useProjectMutations). Stub to
 // avoid the QueryClientProvider requirement. Also mock useAuth for usePermission.

@@ -46,10 +46,37 @@ const { listState, mutations, isOperatorState, fxState, roleState } = vi.hoisted
   isOperatorState: { value: false, pending: false },
 }));
 
-vi.mock('@/src/hooks/useUsers', () => ({
-  useUsers: () => listState,
-  useUserMutations: () => mutations,
-}));
+vi.mock('@/src/hooks/useUsers', () => {
+  type MockUser = { full_name: string; email: string; org_id: string; role: string; status: string };
+  type MockState = { data?: readonly unknown[] | null; isPending?: boolean; isError?: boolean; refetch?: () => unknown };
+  const directoryPage = (state: MockState, input: { pageSize?: number; page?: number; search?: string } = {}) => {
+    const size = input.pageSize || 50;
+    const pageNo = input.page || 1;
+    const term = String(input.search || '').trim().toLowerCase();
+    const all = (state.data || []) as MockUser[];
+    const matched = term ? all.filter((u) => u.full_name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term)) : all;
+    return {
+      data: { rows: matched.slice((pageNo - 1) * size, pageNo * size), total: matched.length },
+      isPending: state.isPending, isError: state.isError, isFetching: false, refetch: state.refetch,
+    };
+  };
+  const adminCounts = (state: MockState) => {
+    const out: Record<string, number> = {};
+    for (const u of (state.data || []) as MockUser[]) {
+      if (out[u.org_id] === undefined) out[u.org_id] = 0;
+      if (u.role === 'Admin' && u.status === 'active') out[u.org_id] += 1;
+    }
+    return { data: out, isPending: false, isError: false };
+  };
+  return {
+    useUsers: () => listState,
+    useUsersPage: (input: { page?: number; pageSize?: number; search?: string }) => directoryPage(listState, input),
+    useActiveAdminCounts: () => adminCounts(listState),
+    useUserFocusPage: () => ({ data: null, isPending: false, isError: false }),
+    useManagerChoices: () => listState,
+    useUserMutations: () => mutations,
+  };
+});
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'self-admin', org_id: 'org-1', role: roleState.value }, role: roleState.value }),
 }));
@@ -80,14 +107,61 @@ vi.mock('@/src/hooks/useUsage', () => ({
     refetch: vi.fn(),
   }),
 }));
-vi.mock('@/src/hooks/useOrgFeatures', () => ({
-  // A mixed map so both enabled + disabled feature rows render.
-  useOrgFeatures: () => ({ data: { incidents: true, crm: false, procurement: true } }),
+vi.mock('@/src/hooks/useOrgFeatures', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/hooks/useOrgFeatures')>()),
+  // A resolved set with a mix of sources so every row kind renders (S3: the panel reads the
+  // database projection, and `usePlans` imports the query keys from this same module).
+  useOrgFeatures: () => ({
+    data: { incidents: true, crm: false, procurement: true },
+    states: {
+      incidents: { enabled: true, displayEnabled: true, source: 'override' },
+      crm: { enabled: false, displayEnabled: false, source: 'plan' },
+      procurement: { enabled: true, displayEnabled: true, source: 'global' },
+    },
+  }),
 }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     credits: { getOrgBalance: vi.fn().mockResolvedValue(1250), grant: vi.fn().mockResolvedValue(undefined) },
-    orgFeature: { listOwn: vi.fn().mockResolvedValue({}), toggle: vi.fn().mockResolvedValue(undefined) },
+    // The Operator console's org picker (S3).
+    usage: {
+      listOperatorOrgs: vi.fn().mockResolvedValue([{ id: 'org-1', name: 'Acme' }]),
+      getOrgUsageSummary: vi.fn().mockResolvedValue([]),
+      getOperatorUsageSummary: vi.fn().mockResolvedValue([]),
+      getOrgAgentRunStats: vi.fn().mockResolvedValue([]),
+      getOperatorAgentRunStats: vi.fn().mockResolvedValue([]),
+    },
+    orgFeature: {
+      listOwn: vi.fn().mockResolvedValue({ display: {}, states: {} }),
+      listForOrg: vi.fn().mockResolvedValue({
+        display: { incidents: true, crm: false, procurement: true },
+        states: {
+          incidents: { enabled: true, displayEnabled: true, source: 'override' },
+          crm: { enabled: false, displayEnabled: false, source: 'plan' },
+          procurement: { enabled: true, displayEnabled: true, source: 'global' },
+        },
+      }),
+      getPlanCatalogue: vi.fn().mockResolvedValue({
+        plans: [{ planId: 'starter', name: 'Starter', seatLimit: 10, projectLimit: 25, aiMonthlyMessages: 300 }],
+        defaults: { starter: { incidents: true, crm: false, procurement: true } },
+        global: { incidents: true, crm: true, procurement: true },
+      }),
+      getOrgPlan: vi.fn().mockResolvedValue('starter'),
+      listOverrides: vi.fn().mockResolvedValue([]),
+      getOwnPlan: vi.fn().mockResolvedValue({
+        planId: 'starter',
+        name: 'Starter',
+        seatLimit: 10,
+        projectLimit: 25,
+        aiMonthlyMessages: 300,
+      }),
+      toggle: vi.fn().mockResolvedValue(undefined),
+      clearOverride: vi.fn().mockResolvedValue(undefined),
+      setOrgPlan: vi.fn().mockResolvedValue(undefined),
+      setGlobal: vi.fn().mockResolvedValue(undefined),
+      setPlanFeature: vi.fn().mockResolvedValue(undefined),
+      setPlanLimits: vi.fn().mockResolvedValue(undefined),
+    },
     orgSettings: { getTaxDefault: vi.fn().mockResolvedValue('exclusive') },
     fxRates: {
       list: fxState.list,
@@ -254,9 +328,11 @@ describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
     expect(container.querySelector('[data-testid="administration-panel-usage"]')).toBeNull();
   });
 
-  it('AC-A11Y-001: the Feature toggles are real role="switch" controls (Operator)', () => {
+  it('AC-A11Y-001: the Feature toggles are real role="switch" controls (Operator)', async () => {
     isOperatorState.value = true;
     const { container } = renderComposed('/administration/features');
+    // The console reads the registry first (S3), so the switches arrive asynchronously.
+    await waitFor(() => expect(container.querySelectorAll('[role="switch"]').length).toBeGreaterThan(0));
     const switches = container.querySelectorAll('[role="switch"]');
     expect(switches.length).toBeGreaterThan(0);
     switches.forEach((s) => {
@@ -304,7 +380,7 @@ describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
     await expectNoBlockingViolations(document.body);
 
     fireEvent.change(fileInput, { target: { files: [new File(['date,rate\n2026-10-13,not-a-rate'], 'rejected.csv', { type: 'text/csv' })] } });
-    await screen.findByText(/Row 2: not-a-rate — Enter a rate/i);
+    await screen.findByText(/Row 2: not-a-rate \(Enter a rate/i);
     await expectNoBlockingViolations(document.body);
 
     fireEvent.change(fileInput, { target: { files: [new File(['date,rate\n2026-10-12,16300'], 'retry.csv', { type: 'text/csv' })] } });

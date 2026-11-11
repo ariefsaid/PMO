@@ -2,13 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import idProject from '@/public/locales/id/project.json';
 import { AppError } from '@/src/lib/appError';
 import { formatInstantDate } from '@/src/lib/format';
-import { getItem, listVersions, type GraphItem } from '@/src/lib/m365/graphClient';
+import { getItem, listChildren, listVersions, type GraphItem } from '@/src/lib/m365/graphClient';
 import type { MicrosoftReference, ReferenceOwner } from '@/src/lib/m365/reference';
 import { LinkedDocumentCell } from './LinkedDocumentCell';
 
-vi.mock('@/src/lib/m365/graphClient', () => ({ getItem: vi.fn(), listVersions: vi.fn() }));
+vi.mock('@/src/lib/m365/graphClient', () => ({ getItem: vi.fn(), listChildren: vi.fn(), listVersions: vi.fn() }));
 
 const SP_URL = 'https://tenant.sharepoint.com/sites/synthetic/Shared%20Documents/Plan.docx';
 const LIST_ID = '0f0f0f0f-1111-4222-8333-444455556666';
@@ -41,10 +44,6 @@ afterEach(() => windowOpen.mockRestore());
 
 const view = (reference: MicrosoftReference, owner: ReferenceOwner, title?: string) =>
   render(<MemoryRouter><LinkedDocumentCell reference={reference} owner={owner} title={title} /></MemoryRouter>);
-const historyUrlOf = () => {
-  const call = open.mock.calls.find(([url]) => String(url).includes('Versions.aspx'));
-  return call ? String(call[0]) : null;
-};
 
 describe('LinkedDocumentCell direct open', () => {
   it('AC-M365DOC-058 a file opens the stored URL in a new tab with noopener/noreferrer and makes no Graph call, with no permission or connection context at all', async () => {
@@ -86,7 +85,7 @@ describe('LinkedDocumentCell direct open', () => {
     expect(screen.getByText('Opens in Microsoft. Access depends on your Microsoft permissions on this folder.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Versions/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/approv|issued version|Not verified|Unchanged since|Changed since/i, { ignore: '[data-folder-reference]' })).not.toBeInTheDocument();
-    const note = 'Folder reference — contents are not issued or approved';
+    const note = 'Folder reference: contents are not issued or approved';
     if (kind === 'project') expect(screen.getByText(note)).toBeInTheDocument();
     else expect(screen.queryByText(note)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /^Open folder in SharePoint/ }));
@@ -126,11 +125,26 @@ describe('LinkedDocumentCell direct open', () => {
 });
 
 describe('LinkedDocumentCell versions and approved history', () => {
+  it('AC-M365DOC-065 the versions dialog keeps its loading status available to assistive technology', async () => {
+    const user = userEvent.setup();
+    let releaseVersions: (page: ReturnType<typeof versionsPage>) => void = () => {};
+    vi.mocked(listVersions).mockImplementationOnce(
+      () => new Promise((resolve) => { releaseVersions = resolve; }),
+    );
+    view(ref(), procurement);
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading');
+
+    releaseVersions(versionsPage(['1.0']));
+    expect(await screen.findByRole('list', { name: 'Versions' })).toBeInTheDocument();
+  });
+
   it('AC-M365DOC-065 every file target can list versions as metadata with explicit Load more, and nothing is opened or persisted', async () => {
     const user = userEvent.setup();
     vi.mocked(listVersions).mockResolvedValueOnce(versionsPage(['3.0', '2.0'], { path: '/versions-next' })).mockResolvedValueOnce(versionsPage(['1.0']));
     view(ref(), procurement, 'Quote');
-    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
     const list = await screen.findByRole('list', { name: 'Versions' });
     expect(within(list).getAllByRole('listitem')).toHaveLength(2);
     expect(listVersions).toHaveBeenCalledTimes(1);
@@ -141,37 +155,47 @@ describe('LinkedDocumentCell versions and approved history', () => {
     expect(open).not.toHaveBeenCalled();
     await user.click(screen.getByText('Close', { selector: 'button' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Versions/ })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /^Show all versions/ })).toHaveFocus();
   });
 
   it('AC-M365DOC-065 the version list marks the approved version and reports empty, loading and failure states', async () => {
     const user = userEvent.setup();
     view(ref(), projectOwner());
-    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
     const items = within(await screen.findByRole('list', { name: 'Versions' })).getAllByRole('listitem');
     expect(items[1]).toHaveTextContent('Version 2.0');
     expect(items[1]).toHaveTextContent('Approved version');
     expect(items[0]).not.toHaveTextContent('Approved version');
-    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await user.click(screen.getByText('Close', { selector: 'button' }));
 
     vi.mocked(listVersions).mockResolvedValueOnce(versionsPage([]));
-    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
     expect(await screen.findByText('No versions listed')).toBeInTheDocument();
     await user.click(screen.getByText('Close', { selector: 'button' }));
 
     vi.mocked(listVersions).mockRejectedValueOnce(new AppError('raw-synthetic-error', 'GRAPH_ERROR')).mockResolvedValueOnce(versionsPage(['9.0']));
-    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Microsoft could not load this location');
     expect(document.body.textContent).not.toMatch(/raw-synthetic-error/);
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('Version 9.0')).toBeInTheDocument();
   });
 
+  it('F15 the versions modal has one footer dismiss (Close), no Done beside it', async () => {
+    const user = userEvent.setup();
+    view(ref(), projectOwner());
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByRole('button', { name: 'Done' })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(within(dialog).getAllByText('Close', { selector: 'button' })).toHaveLength(1);
+  });
+
   it('AC-M365DOC-065 a missing connection explains itself in the version list while Open latest keeps working', async () => {
     const user = userEvent.setup();
     vi.mocked(listVersions).mockRejectedValue(new AppError('x', 'NOT_CONNECTED'));
     view(ref(), budget);
-    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+    await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Connect Microsoft 365 first to browse documents.');
     await user.click(screen.getByText('Close', { selector: 'button' }));
     await user.click(screen.getByRole('button', { name: /^Open in SharePoint/ }));
@@ -183,15 +207,69 @@ describe('LinkedDocumentCell versions and approved history', () => {
     view(ref(), projectOwner({ status }));
     expect(screen.getByText('Approved version 2.0')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Open latest in SharePoint/ })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
-    await waitFor(() => expect(historyUrlOf()).not.toBeNull());
-    const url = new URL(historyUrlOf()!);
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
+    const link = await screen.findByRole('link', { name: 'Open verified version history' });
+    expect(open).not.toHaveBeenCalled();
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    const url = new URL(link.getAttribute('href')!);
     expect(url.origin + url.pathname).toBe('https://tenant.sharepoint.com/sites/synthetic/_layouts/15/Versions.aspx');
     expect(url.searchParams.get('list')).toBe(`{${LIST_ID}}`);
     expect(url.searchParams.get('ID')).toBe('12');
-    expect(open).toHaveBeenCalledWith(String(open.mock.calls[0]![0]), '_blank', 'noopener,noreferrer');
-    expect(open).not.toHaveBeenCalledWith(SP_URL, '_blank', 'noopener,noreferrer');
-    expect(open).toHaveBeenCalledTimes(1);
+    expect(url.href).not.toBe(SP_URL);
+  });
+
+  it('AC-M365DOC-065 renders the verified history action in Indonesian', async () => {
+    const i18n = createInstance();
+    await i18n.init({ lng: 'id', fallbackLng: false, defaultNS: 'common', resources: { id: { common: {}, project: idProject } }, interpolation: { escapeValue: false } });
+    render(<I18nextProvider i18n={i18n}><MemoryRouter><LinkedDocumentCell reference={ref()} owner={projectOwner()} /></MemoryRouter></I18nextProvider>);
+    await userEvent.click(screen.getByRole('button', { name: /^Check approved version/ }));
+    expect(await screen.findByRole('link', { name: 'Buka riwayat versi yang terverifikasi' })).toBeVisible();
+  });
+
+  it('AC-M365DOC-065 discards a verified history URL when the linked reference or pinned version changes', async () => {
+    const user = userEvent.setup();
+    const refTwo = ref({
+      drive_id: 'drive-2', item_id: 'item-2',
+      web_url: 'https://tenant.sharepoint.com/sites/synthetic/Shared%20Documents/Revised.docx',
+      name: 'Revised.docx',
+    });
+    const refThree = ref({
+      drive_id: 'drive-3', item_id: 'item-3',
+      web_url: 'https://tenant.sharepoint.com/sites/synthetic/Shared%20Documents/Final.docx',
+      name: 'Final.docx',
+    });
+    let releaseFirst: (page: Awaited<ReturnType<typeof listVersions>>) => void = () => {};
+    let releaseSecond: (page: Awaited<ReturnType<typeof listVersions>>) => void = () => {};
+    vi.mocked(getItem)
+      .mockResolvedValueOnce(graphItem())
+      .mockResolvedValueOnce(graphItem({
+        drive_id: 'drive-2', item_id: 'item-2', web_url: refTwo.web_url, name: refTwo.name,
+        sharepoint_ids: { site_url: 'https://tenant.sharepoint.com/sites/synthetic', list_id: LIST_ID, list_item_id: '34' },
+      }));
+    vi.mocked(listVersions)
+      .mockImplementationOnce(() => new Promise((resolve) => { releaseFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { releaseSecond = resolve; }));
+
+    const cell = (reference: MicrosoftReference, pin: string) => (
+      <MemoryRouter><LinkedDocumentCell reference={reference} owner={projectOwner({ version_id_at_issue: pin })} /></MemoryRouter>
+    );
+    const view = render(cell(ref(), '2.0'));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
+    await waitFor(() => expect(listVersions).toHaveBeenCalledTimes(1));
+
+    view.rerender(cell(refTwo, '9.0'));
+    releaseFirst(versionsPage(['2.0']));
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Open verified version history' })).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
+    await waitFor(() => expect(listVersions).toHaveBeenCalledTimes(2));
+    releaseSecond(versionsPage(['9.0']));
+    const verified = await screen.findByRole('link', { name: 'Open verified version history' });
+    expect(new URL(verified.getAttribute('href')!).searchParams.get('ID')).toBe('34');
+
+    view.rerender(cell(refThree, '8.0'));
+    expect(screen.queryByRole('link', { name: 'Open verified version history' })).not.toBeInTheDocument();
   });
 
   it('AC-M365DOC-065 an Issued file is labelled "Issued version", makes no approval claim and offers no approved-history action', () => {
@@ -206,14 +284,14 @@ describe('LinkedDocumentCell versions and approved history', () => {
     view(ref(), projectOwner({ status: 'Draft', version_id_at_issue: null, drift_state: null, last_verified_at: null }));
     expect(screen.queryByText(/version 2\.0|Issued version|Approved version/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /history/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Versions/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Show all versions/ })).toBeInTheDocument();
   });
 
   it('AC-M365DOC-065 sharepointIds missing: history is unavailable for that stated reason and the latest link is untouched', async () => {
     const user = userEvent.setup();
     vi.mocked(getItem).mockResolvedValue(graphItem({ sharepoint_ids: null }));
     view(ref(), projectOwner());
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Version history unavailable: Microsoft did not provide SharePoint identifiers.');
     expect(open).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: /^Open latest in SharePoint/ })).toBeEnabled();
@@ -225,7 +303,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
       .mockResolvedValueOnce(versionsPage(['5.0', '4.0'], { path: '/more' }))
       .mockResolvedValueOnce(versionsPage(['3.0', '1.0'], null));
     view(ref(), projectOwner());
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     expect(await screen.findByText('Approved version not found in loaded history.')).toBeInTheDocument();
     expect(screen.queryByText(/no longer lists it/)).not.toBeInTheDocument();
     expect(open).not.toHaveBeenCalled();
@@ -241,16 +319,17 @@ describe('LinkedDocumentCell versions and approved history', () => {
       .mockResolvedValueOnce(versionsPage(['5.0'], { path: '/more' }))
       .mockResolvedValueOnce(versionsPage(['2.0'], null));
     view(ref(), projectOwner());
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     await user.click(await screen.findByRole('button', { name: 'Load more history' }));
-    await waitFor(() => expect(historyUrlOf()).not.toBeNull());
+    expect(await screen.findByRole('link', { name: 'Open verified version history' })).toHaveAttribute('href', expect.stringContaining('Versions.aspx'));
+    expect(open).not.toHaveBeenCalled();
   });
 
   it('AC-M365DOC-065 no listed versions at all reads as versioning unavailable, not as a pruned version', async () => {
     const user = userEvent.setup();
     vi.mocked(listVersions).mockResolvedValue(versionsPage([]));
     view(ref(), projectOwner());
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Approved version unavailable: Microsoft lists no versions for this file (version history may be turned off). The latest version is still available.');
   });
 
@@ -258,7 +337,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     const user = userEvent.setup();
     view(ref(), projectOwner({ version_id_at_issue: null }));
     expect(screen.queryByText(/Approved version \d/)).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Approved version unavailable: no version was recorded when this file was issued.');
     expect(getItem).not.toHaveBeenCalled();
   });
@@ -274,7 +353,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     const user = userEvent.setup();
     vi.mocked(getItem).mockRejectedValue(new AppError('raw-synthetic-error tenant', code));
     view(ref(), projectOwner());
-    await user.click(screen.getByRole('button', { name: /^View approved version history/ }));
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent(copy);
     expect(document.body.textContent).not.toMatch(/raw-synthetic-error/);
     expect(open).not.toHaveBeenCalled();
@@ -285,25 +364,33 @@ describe('LinkedDocumentCell versions and approved history', () => {
 describe('LinkedDocumentCell drift and verification state', () => {
   const verified = '2026-10-10T08:00:00Z';
 
-  it('AC-M365DOC-064 drifted shows a warn pill "Changed since approval" with the last successful check time', () => {
+  it('AC-M365DOC-064 approved file content is compared with its issue-time baseline', () => {
     view(ref(), projectOwner({ drift_state: 'drifted', last_verified_at: verified }));
-    expect(screen.getByText('Changed since approval')).toBeInTheDocument();
+    expect(screen.getByText('File content differs from its issue-time baseline.')).toBeInTheDocument();
     expect(screen.getByText(`Checked ${formatInstantDate(verified)}`)).toBeInTheDocument();
     expect(screen.queryByText(/Unchanged/)).not.toBeInTheDocument();
   });
 
-  it('AC-M365DOC-064 an Issued file that drifted says "Changed since issue", not approval', () => {
+  it('AC-M365DOC-064 an Issued file uses the same issue-time content baseline', () => {
     view(ref(), projectOwner({ status: 'Issued', drift_state: 'drifted', last_verified_at: verified }));
-    expect(screen.getByText('Changed since issue')).toBeInTheDocument();
-    expect(screen.queryByText(/approval/)).not.toBeInTheDocument();
+    expect(screen.getByText('File content differs from its issue-time baseline.')).toBeInTheDocument();
   });
 
   it('AC-M365DOC-064 clean is quiet text with its as-of time, not a pill', () => {
     view(ref(), projectOwner({ drift_state: 'clean', last_verified_at: verified }));
-    const clean = screen.getByText(`Unchanged since approval. Verified ${formatInstantDate(verified)}.`);
+    const clean = screen.getByText(
+      `File content matches its issue-time baseline. Verified ${formatInstantDate(verified)}.`,
+    );
     expect(clean).toHaveClass('text-muted-foreground');
-    expect(screen.queryByText('Changed since approval')).not.toBeInTheDocument();
+    expect(screen.queryByText('File content differs from its issue-time baseline.')).not.toBeInTheDocument();
     expect(screen.queryByText('Not verified')).not.toBeInTheDocument();
+  });
+
+  it('AC-M365DOC-064 an Issued clean file uses its issue-time baseline', () => {
+    view(ref(), projectOwner({ status: 'Issued', drift_state: 'clean', last_verified_at: verified }));
+    expect(
+      screen.getByText(`File content matches its issue-time baseline. Verified ${formatInstantDate(verified)}.`),
+    ).toBeInTheDocument();
   });
 
   it('AC-M365DOC-064 not_verified states why and since when, and never reads as clean', () => {
@@ -335,5 +422,30 @@ describe('LinkedDocumentCell drift and verification state', () => {
     unmount();
     view(ref({ last_verified_at: verified }), procurement);
     expect(screen.queryByText(/Changed since|Not verified|Unchanged/)).not.toBeInTheDocument();
+  });
+});
+
+describe('#1320 AC-2 linked folder expands to its files', () => {
+  const folder = () => ref({ item_kind: 'folder', name: 'Project folder', web_url: 'https://tenant.sharepoint.com/sites/synthetic/Shared%20Documents/Project' });
+
+  it('AC-2: reads nothing until expanded, then lists the folder files; collapsing hides them', async () => {
+    vi.mocked(listChildren).mockResolvedValue({
+      value: [graphItem({ item_id: 'f1', name: 'Plan.pdf', modified_at: '2026-05-04T10:00:00Z' })], next: null, unsupported_count: 0,
+    });
+    view(folder(), projectOwner({ status: 'Draft', drift_state: null }));
+    expect(listChildren).not.toHaveBeenCalled();
+    const toggle = screen.getByRole('button', { name: 'Show files' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(toggle);
+    expect(await screen.findByText('Plan.pdf')).toBeInTheDocument();
+    expect(listChildren).toHaveBeenCalledWith('drive-1', 'item-1');
+    expect(screen.getByRole('button', { name: 'Hide files' })).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Hide files' }));
+    expect(screen.queryByText('Plan.pdf')).not.toBeInTheDocument();
+  });
+
+  it('AC-2: a file reference and the compact register cell offer no expander', () => {
+    view(ref(), projectOwner({ status: 'Draft', drift_state: null }));
+    expect(screen.queryByRole('button', { name: 'Show files' })).not.toBeInTheDocument();
   });
 });

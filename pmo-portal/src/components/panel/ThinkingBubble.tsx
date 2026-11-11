@@ -11,14 +11,14 @@
 import React, { useEffect, useState } from 'react';
 import { friendlyActivity } from '@/src/lib/agent/activityLabel';
 
-/** Three bouncing dots — a familiar "typing…" cue. Staggered for a wave; motion-reduce safe. */
+/** Three fading dots — a familiar "typing…" cue. Staggered for a wave; motion-reduce safe. */
 const TypingDots: React.FC = () => (
   <span aria-hidden className="inline-flex items-center gap-1">
     {[0, 1, 2].map((i) => (
       <span
         key={i}
-        className="size-1.5 rounded-full bg-muted-foreground/70 motion-safe:animate-bounce"
-        style={{ animationDelay: `${i * 160}ms`, animationDuration: '1s' }}
+        className="size-1.5 rounded-full bg-muted-foreground/70 motion-safe:animate-[thinking-dot_1.2s_ease-in-out_infinite]"
+        style={{ animationDelay: `${i * 160}ms` }}
       />
     ))}
   </span>

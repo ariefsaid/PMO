@@ -54,10 +54,14 @@ import type { useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useVendorTaxDefault } from '@/src/hooks/useVendorTaxDefault';
 import { useNativeVendorTax } from '@/src/hooks/useVendorBillTax';
 import { NativeWithholdingField, TaxSuggestedFrom } from './VendorBillTaxFields';
 import { itemsNetTotal } from '@/src/lib/vendorWithholding';
+import { SubcontractBillLines } from './SubcontractBillLines';
+import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
+import { formatMoneyInputValue } from '@/src/lib/format';
 
 /**
  * What the inline VI capture hands up to the page (#505). Derived from the DAL's
@@ -65,7 +69,10 @@ import { itemsNetTotal } from '@/src/lib/vendorWithholding';
  * breaks THIS FORM at compile time instead of at the RPC. `procurementId` comes from the route and
  * `notes` from the decision zone's own notes box, so both are the page's to supply.
  */
-export type VendorInvoiceCapture = Omit<CaptureVendorInvoiceInput, 'procurementId' | 'notes'>;
+export type VendorInvoiceCapture = Omit<CaptureVendorInvoiceInput, 'procurementId' | 'notes'> & {
+  /** Present for a subcontract purchase with issued BoQ lines (#1513 S7.4): routes to the capped capture RPC. */
+  lines?: SubcontractBillLineInput[];
+};
 
 type ActionVariant = 'primary' | 'success' | 'destructive' | 'outline';
 
@@ -73,36 +80,6 @@ export interface DecisionAction {
   to: ProcurementStatus;
   label: string;
   variant: ActionVariant;
-}
-
-/**
- * Per-status SoD-aware ready copy for the GateNotice variant="ready".
- * Replaces the generic "You may move this request to its next lifecycle
- * stage below." with copy that teaches the SoD rule relevant to each stage.
- * Display-only — no enforcement logic.
- */
-function readyGateMessage(
-  status: ProcurementStatus,
-  isRequester: boolean,
-  isApprover: boolean,
-): string {
-  switch (status) {
-    case 'Draft':
-      // Author about to submit — teach that submission hands off to a different approver.
-      return isRequester
-        ? 'Submitting hands this to an approver — you can\'t approve your own request.'
-        : 'Ready to submit this request for approval.';
-    case 'Requested':
-      // Approver viewing — teach that the requester cannot self-approve.
-      return 'You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer.';
-    case 'Vendor Invoiced':
-      // Finance payer — teach SoD-b: the approver cannot also release payment.
-      return isApprover
-        ? 'Payment must be released by a different finance user — the approver can\'t also pay this request.'
-        : 'Releasing payment — the approver can\'t also pay (separation of duties). You may mark this as paid below.';
-    default:
-      return 'Ready to advance. Select an action below to move this request to its next stage.';
-  }
 }
 
 export interface ProcurementDecisionZoneProps {
@@ -168,7 +145,40 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   onActionClick,
   mutations,
 }) => {
-  // The compact SoD hint remains with the decision controls, after the request's
+  const { t: tProcurement } = useTranslation('procurement');
+  /** Per-status ready copy teaches the relevant SoD rule without changing enforcement. */
+  const readyGateMessage = (status: ProcurementStatus, requester: boolean, approver: boolean) => {
+    switch (status) {
+      case 'Draft':
+        return requester
+          ? tProcurement(
+              'procurementDetail.sodPreannounce',
+              'Submitting hands this to another approver — you can\'t approve your own procurement case.',
+            )
+          : tProcurement('procurementDetail.readyHint.draftOther', 'Ready to submit this procurement for approval.');
+      case 'Requested':
+        return tProcurement(
+          'procurementDetail.readyHint.requested',
+          'You may approve or reject this procurement. The requester cannot self-approve. Separation of duties requires a different reviewer.',
+        );
+      case 'Vendor Invoiced':
+        return approver
+          ? tProcurement(
+              'procurementDetail.readyHint.vendorInvoicedApprover',
+              'Payment must be released by a different finance user — the approver can\'t also pay this procurement.',
+            )
+          : tProcurement(
+              'procurementDetail.readyHint.vendorInvoiced',
+              'Releasing payment — the approver can\'t also pay (separation of duties). You may mark this as paid below.',
+            );
+      default:
+        return tProcurement(
+          'procurementDetail.readyHint.default',
+          'Ready to advance. Select an action below to move this procurement to its next stage.',
+        );
+    }
+  };
+  // The compact SoD hint remains with the decision controls, after the procurement record's
   // identity, value and supporting evidence. The authority and wording stay unchanged.
   // The Draft-author case is covered by the `sod-pre-announce` line below.
   const showReadyHint = !gateMsg && !routeNote && actions.length > 0 && !(isDraft && isRequester);
@@ -209,7 +219,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
           {ceilingNotice}
 
           {/* B-IMP-2 (AC-S6-2): SoD pre-announce for the author on a Draft record.
-              The author (requester) is about to submit their own request; they need to know
+              The author (requester) is about to submit their own procurement record; they need to know
               that submission hands it to a different approver — self-approval is not allowed.
               This is an AUTHOR-side pre-announce on Draft only; the VIEWER-side SoD hint
               (blocked line at Requested) already handles the non-author blocker path. */}
@@ -218,7 +228,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               data-testid="sod-pre-announce"
               className="text-[13px] text-muted-foreground"
             >
-              Submitting hands this to another approver — you can&apos;t approve your own request.
+              Submitting hands this to another approver — you can&apos;t approve your own procurement case.
             </p>
           )}
 
@@ -260,6 +270,8 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
           {showVICapture ? (
             <VIInlineCapture
               vendorId={p.vendor_id}
+              currency={p.currency}
+              subcontractPoId={p.is_subcontract ? p.purchase_orders[0]?.id : undefined}
               busy={mutations.transition.isPending || mutations.createInvoice.isPending}
               onSubmit={(capture) => void submitVICapture(capture)}
               onCancel={() => { setShowVICapture(false); setMutationError(null); }}
@@ -295,11 +307,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                 );
               })}
             </div>
-          ) : (
-            <p className="text-[13px] text-muted-foreground">
-              No further lifecycle actions are available to you at this stage.
-            </p>
-          )}
+          ) : null}
 
           {/* D10 (AC-W3-D10): gate message below the action bar when Draft with no items. */}
           {isDraft && p.items.length === 0 && actions.some((a) => a.to === 'Requested') && (
@@ -333,6 +341,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               {showCreateGR && (
                 <RecordCaptureForm
                   kind="goods_receipt"
+                  items={p.items}
                   busy={mutations.createReceipt.isPending}
                   onCreate={() => Promise.resolve()}
                   onStage={(staged) => {
@@ -357,6 +366,8 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                   kind="vendor_invoice"
                   vendorId={p.vendor_id}
                   itemsNet={itemsNetTotal(p.items)}
+                  currency={p.currency}
+                  subcontractPoId={p.is_subcontract ? p.purchase_orders[0]?.id : undefined}
                   busy={mutations.createInvoice.isPending}
                   onCreate={() => Promise.resolve()}
                   onStage={(staged) => {
@@ -409,18 +420,30 @@ interface VIInlineCaptureProps {
   onCancel: () => void;
   /** #876 slice 2: the vendor whose default tax treatment pre-fills the bill. */
   vendorId?: string | null;
+  /** The purchase's currency: the bill is recorded in it (no conversion), so the amount field names it. */
+  currency?: string | null;
+  /** A subcontract purchase's PO: its issued BoQ lines, when it has any, replace the free amount (#1513 S7.4). */
+  subcontractPoId?: string;
 }
 
-const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel, vendorId = null }) => {
+const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel, vendorId = null, currency = null, subcontractPoId }) => {
   const { t } = useTranslation();
+  const today = useOrgToday();
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
   const showGroupRef = groupRefIsPmoAuthored();
   const [viStatus, setViStatus] = React.useState<'Received' | 'Scheduled'>('Received');
-  const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [invoiceDate, setInvoiceDate] = React.useState(today);
   const [refNum, setRefNum] = React.useState('');
   const [groupRef, setGroupRef] = React.useState('');
   const [amtStr, setAmtStr] = React.useState('');
   const [amtError, setAmtError] = React.useState<string | undefined>(undefined);
+  // #1513 S7.4: set once the PO has issued lines; the amount is then computed from them, not typed.
+  const [bill, setBill] = React.useState<{ lines: SubcontractBillLineInput[]; amount: number } | null>(null);
+  const onBillChange = React.useCallback((lines: SubcontractBillLineInput[], amount: number) => {
+    setBill({ lines, amount });
+    setAmtStr(formatMoneyInputValue(amount));
+    setAmtError(undefined);
+  }, []);
   const amtErrorId = React.useId();
   // #505: the empty string is "not answered yet", not a value. Submit stays disabled until the
   // control holds one of the two (see `tax` below), so nothing can be recorded with a marker nobody
@@ -475,6 +498,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
       referenceNumber: ref,
       ...(showGroupRef && groupRef.trim() ? { externalRef: groupRef.trim() } : {}),
       amount: amt,
+      ...(bill ? { lines: bill.lines } : {}),
       taxTreatment: tax.taxTreatment,
       taxAmount: tax.taxAmount,
       ...(pmoAuthorsTax && taxFields.facts ? { taxRate: taxFields.facts.taxRate, taxBaseNumerator: taxFields.facts.taxBaseNumerator, taxBaseDenominator: taxFields.facts.taxBaseDenominator } : {}),
@@ -486,7 +510,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   return (
     <div data-testid="vi-inline-capture" className="flex flex-col gap-3">
       <p className="text-[12px] font-semibold text-muted-foreground">
-        {t('procurementDetail.vendorInvoice.enterDetails', 'Enter invoice details to mark as Vendor Invoiced:')}
+        {t('procurementDetail.vendorInvoice.enterDetails', 'Enter the supplier invoice details:')}
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
@@ -517,13 +541,14 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           </label>
         )}
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-          {t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)')} 
+          {t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)')}{currency ? ` · ${currency}` : null}
           <input
             type="text"
             inputMode="decimal"
             ref={amtMask.ref}
             value={amtStr}
             onChange={amtMask.onChange}
+            readOnly={bill !== null}
             aria-invalid={amtError ? true : undefined}
             aria-describedby={amtError ? amtErrorId : undefined}
             placeholder="0.00"
@@ -573,8 +598,8 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
                 ...TAX_TREATMENT_OPTIONS.map((o) => ({
                   value: o.value,
                   label: o.value === 'inclusive'
-                    ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive — VAT included')
-                    : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive — VAT added'),
+                    ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive: VAT included')
+                    : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive: VAT added'),
                 })),
               ]}
               helper={t('procurementDetail.vendorInvoice.taxTreatmentHelper', 'Inclusive: VAT is already in the bill amount. Exclusive: VAT is added to it.')}
@@ -600,11 +625,12 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
         <NativeWithholdingField formId="vi-inline" tax={nativeTax} />
         </>
         )}
+        {subcontractPoId && <SubcontractBillLines poId={subcontractPoId} currency={currency ?? ''} onChange={onBillChange} />}
         <Button
           variant="primary"
           size="sm"
           loading={busy}
-          disabled={!invoiceDate || !tax || withheldInvalid}
+          disabled={!invoiceDate || !tax || withheldInvalid || (bill !== null && bill.lines.length === 0)}
           data-testid="btn-submit-vi-capture"
           onClick={handleSubmit}
         >
@@ -626,7 +652,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
       <FieldError id={amtErrorId}>{amtError}</FieldError>
       {pmoAuthorsTax && !amtStr && vendorTax?.pphType && withheldInvalid && (
         <p role="status" className="text-[12px] text-muted-foreground">
-          {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the vendor withholding.')}
+          {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the supplier withholding.')}
         </p>
       )}
       {!tax && (

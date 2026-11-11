@@ -15,8 +15,8 @@ vi.mock('@/src/hooks/useErpnextBinding', () => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'fixture-admin', org_id: 'fixture-org' } }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canManage }));
 import OrgVendorTaxAccounts from './OrgVendorTaxAccounts';
-import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
-import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
 const NONE = { inputVatAccount: null, pph23PayableAccount: null, pph42PayableAccount: null };
 beforeAll(async () => { await financeTestI18nReady; });
@@ -129,7 +129,7 @@ it('AC-VWH-029 a failed read offers a retry and no write', async () => {
 it('AC-VWH-029 the setting renders in Bahasa Indonesia', async () => {
   await financeTestI18n.changeLanguage('id');
   renderSetting();
-  expect(await screen.findByText('Akun pajak tagihan vendor')).toBeInTheDocument();
+  expect(await screen.findByText('Akun pajak tagihan pemasok')).toBeInTheDocument();
   expect(await screen.findByRole('combobox', { name: 'Akun PPN Masukan' })).toBeInTheDocument();
 });
 

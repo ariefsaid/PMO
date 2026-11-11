@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
-  PLATFORM_CURRENCY, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime,
-  formatCurrencyAuto, formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2,
-  formatDateNumeric, formatDateUtc, formatDateTime, formatDayMonth, formatExactMoney, formatFullDate, formatMonthDay,
-  formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatWeekday, formatWeekdayMonthDay,
+  PLATFORM_CURRENCY, completionPct, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime,
+  formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2, formatPercent,
+  formatDateTime, formatDayMonth, formatExactMoney, formatFullDate, formatMonthDay,
+  formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatUtcMonthYearFull, formatWeekday, formatWeekdayMonthDay,
 } from './format';
 
 afterEach(() => resetActiveLocale());
@@ -18,6 +18,17 @@ describe('formatExactMoney', () => {
     expect(formatExactMoney('1.001', 'USD', 'en-US')).toBeNull();
     expect(formatExactMoney('1.00', 'usd', 'en-US')).toBeNull();
     expect(formatExactMoney('1.00', 'USD', 'not_a_locale')).toBeNull();
+  });
+
+  it('AC-MONEY-DISPLAY: rounds exact decimals to whole units without converting through Number', () => {
+    expect(formatExactMoney('1467628320.47', 'IDR', 'en-US', { wholeUnits: true })).toBe('IDR 1,467,628,320');
+    expect(formatExactMoney('9007199254740993.99', 'USD', 'en-US', { wholeUnits: true })).toBe('$9,007,199,254,740,994');
+    expect(formatExactMoney('-1.50', 'USD', 'en-US', { wholeUnits: true })).toBe('−$2');
+    expect(formatExactMoney('1.49', 'USD', 'en-US', { wholeUnits: true })).toBe('$1');
+  });
+
+  it('omits a repeated currency when the containing block already names it', () => {
+    expect(formatExactMoney('1467628320.47', 'IDR', 'en-US', { wholeUnits: true, omitCurrency: true })).toBe('1,467,628,320');
   });
 });
 
@@ -97,6 +108,19 @@ describe('pct — nullable % formatter (added for delivery-milestones feature)',
   });
 });
 
+describe('formatPercent — viewer-number-locale percentage display', () => {
+  it('uses the active number locale for decimal percentages and keeps null honest', () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    expect(formatPercent(0.256)).toBe('25,6%');
+    expect(formatPercent(0.25)).toBe('25%');
+    expect(formatPercent(0.5525, 2)).toBe('55,25%');
+    expect(formatPercent(null)).toBe('—');
+
+    setActiveLocale({ locale: 'id', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    expect(formatPercent(0.256)).toBe('25.6%');
+  });
+});
+
 describe('formatDate — canonical human date formatter (CW-7 coherence: no raw ISO leaks)', () => {
   it('null / undefined / blank render an em-dash, never a raw value', () => {
     expect(formatDate(null)).toBe('—');
@@ -156,29 +180,24 @@ describe('formatCurrencyCents — ERP money, always 2 dp (#477)', () => {
   });
 });
 
-describe('formatCurrencyAuto — default-fraction KPI money (#477)', () => {
-  it('renders 0–3 fraction digits with no padding: $1,234 / $1,234.5 / $1,234.56', () => {
-    expect(formatCurrencyAuto(1234, 'USD')).toBe('$1,234');
-    expect(formatCurrencyAuto(1234.5, 'USD')).toBe('$1,234.5');
-    expect(formatCurrencyAuto(1234.56, 'USD')).toBe('$1,234.56');
-    expect(formatCurrencyAuto(1234567.89, 'USD')).toBe('$1,234,567.89');
+describe('formatCurrency — whole-unit display (#1437)', () => {
+  it('rounds all read-only money to whole currency units', () => {
+    expect(formatCurrency(1234, 'USD')).toBe('$1,234');
+    expect(formatCurrency(1234.5, 'USD')).toBe('$1,235');
+    expect(formatCurrency(1234.56, 'USD')).toBe('$1,235');
+    expect(formatCurrency(1234567.89, 'USD')).toBe('$1,234,568');
   });
 });
 
 describe('#477 review — money formatters agree on where a negative sign goes', () => {
-  // Regression for the review finding: formatCurrencyAuto welded a `$` and rendered "$-1,234.5",
-  // while its siblings used Intl currency style and rendered "-$1,234.50". Two money values on one
-  // screen (RevenueByProject KPI tiles vs its table cells) disagreed. Negative money is reachable —
-  // open AR goes negative on an overpayment/credit.
+  // Regression for the review finding: the whole-unit money display once welded a `$` and rendered
+  // "$-1,234.5", while its siblings used Intl currency style and rendered "-$1,234.50". Two money
+  // values on one screen (RevenueByProject KPI tiles vs its table cells) disagreed. Negative money
+  // is reachable — open AR goes negative on an overpayment/credit.
   it('all three put the minus BEFORE the symbol', () => {
-    expect(formatCurrencyAuto(-1234.5, 'USD')).toBe('-$1,234.5');
+    expect(formatCurrency(-1234.5, 'USD')).toBe('-$1,235');
     expect(formatCurrencyCents(-1234.5, 'USD')).toBe('-$1,234.50');
     expect(formatCurrencyFine(-0.0123, 'USD')).toBe('-$0.0123');
-  });
-  it('formatCurrencyAuto stays byte-identical to the welded form for POSITIVES', () => {
-    for (const v of [0, 1234, 1234.5, 1234.56, 1234.567, 1234567.89]) {
-      expect(formatCurrencyAuto(v, 'USD')).toBe(`$${v.toLocaleString('en-US')}`);
-    }
   });
 });
 
@@ -221,24 +240,25 @@ describe('#477 date variants — all deterministic, TZ-stable (local or UTC-pinn
     expect(formatDateTime(new Date('2026-06-14T15:45:00.000Z'))).toBe('Jun 14, 2026, 03:45 PM');
     expect(formatDateTime(new Date('2026-06-14T00:00:00.000Z'))).toBe('Jun 14, 2026, 12:00 AM');
   });
-  it('formatDateNumeric: "6/14/2026" / "7/4/2026" — byte-identical to bare toLocaleDateString in en-US', () => {
-    expect(formatDateNumeric(new Date(2026, 5, 14))).toBe('6/14/2026');
-    expect(formatDateNumeric(new Date(2026, 6, 4))).toBe('7/4/2026');
-  });
   it('formatMonthYear: "June 2026"', () => {
     expect(formatMonthYear(new Date(2026, 5, 1))).toBe('June 2026');
   });
   it('formatWeekdayMonthDay: "Sun, Jun 14"', () => {
     expect(formatWeekdayMonthDay(new Date(2026, 5, 14))).toBe('Sun, Jun 14');
   });
-  it('formatDateUtc: zone-stable — a 23:00Z instant is Jun 14 in UTC even where local says Jun 15', () => {
-    expect(formatDateUtc(new Date(Date.UTC(2026, 5, 14, 23, 0)))).toBe('Jun 14, 2026');
-  });
   it('formatDayMonth: en-GB "14 Jun"', () => {
     expect(formatDayMonth(new Date(2026, 5, 14))).toBe('14 Jun');
   });
   it('formatUtcMonthYear: "Jun 26"', () => {
     expect(formatUtcMonthYear(new Date(Date.UTC(2026, 5, 14)))).toBe('Jun 26');
+  });
+  it('formatUtcMonthYearFull: month + 4-digit year in the active date locale (en, id)', () => {
+    const d = new Date(Date.UTC(2026, 5, 14));
+    expect(formatUtcMonthYearFull(d)).toBe('Jun 2026');
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    expect(formatUtcMonthYearFull(d)).toBe('Jun 2026');
+    expect(formatUtcMonthYearFull(new Date(Date.UTC(2026, 7, 1)))).toBe('Agu 2026');
+    resetActiveLocale();
   });
   it("formatUtcDayMonthYear: \"15 Mar '25\" / \"31 Dec '26\" (quoted 2-digit year, UTC-stable)", () => {
     expect(formatUtcDayMonthYear(new Date(Date.UTC(2025, 2, 15)))).toBe("15 Mar '25");
@@ -257,9 +277,8 @@ describe('FR-L10N-020..023: currency-aware money formatters', () => {
     expect(formatCurrency(5000000, 'USD')).toBe('$5,000,000');
     expect(formatCurrency(1234.56, 'USD')).toBe('$1,235');
   });
-  it('AC-L10N-020: formatCurrencyCents/Auto/Fine take the record currency', () => {
+  it('AC-L10N-020: formatCurrencyCents/Fine take the record currency', () => {
     expect(formatCurrencyCents(1234.5, 'EUR')).toBe('€1,234.50');
-    expect(formatCurrencyAuto(1234.5, 'EUR')).toBe('€1,234.5');
     expect(formatCurrencyFine(0.0123, 'IDR')).toBe('IDR\u00A00.0123');
   });
   it('AC-L10N-022: formatCompactCurrency has no welded $ or K/M — currency + Intl compact unit', () => {
@@ -275,5 +294,14 @@ describe('FR-L10N-020..023: currency-aware money formatters', () => {
     expect(currencySymbol('USD')).toBe('$');
     expect(currencySymbol('EUR')).toBe('€');
     expect(currencySymbol('IDR')).toBe('IDR'); // no native symbol — the code is the honest glyph
+  });
+});
+
+describe('completionPct', () => {
+  it('never rounds unfinished work up to 100', () => {
+    expect(completionPct(99.6)).toBe(99);
+    expect(completionPct(42.4)).toBe(42);
+    expect(completionPct(100)).toBe(100);
+    expect(completionPct(0)).toBe(0);
   });
 });

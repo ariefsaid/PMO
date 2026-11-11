@@ -26,7 +26,7 @@ insert into auth.users (id, email) values
   ('00960000-0000-0000-0000-0000000000b1','parties-b-manager@example.com');
 
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('00960000-0000-0000-0000-0000000000a1','00960000-0000-0000-0000-000000000001','Org A Manager','parties-a-manager@example.com','Project Manager','active'),
+  ('00960000-0000-0000-0000-0000000000a1','00960000-0000-0000-0000-000000000001','Org A Manager','parties-a-manager@example.com','Executive','active'), -- Executive: archiving is Admin·Executive only (0353)
   ('00960000-0000-0000-0000-0000000000b1','00960000-0000-0000-0000-000000000002','Org B Manager','parties-b-manager@example.com','Project Manager','active');
 
 reset role;

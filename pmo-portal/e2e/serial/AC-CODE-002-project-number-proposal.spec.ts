@@ -68,6 +68,8 @@ test('AC-CODE-001 + AC-CODE-002: Admin saves a client-segment pattern and a PM c
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u, { timeout: 15_000 });
 
     await expect(page.getByRole('heading', { name: projectName })).toBeVisible({ timeout: 15_000 });
+    await page.getByLabel('More actions').click();
+    await page.getByRole('button', { name: 'Project details', exact: true }).click();
     await expect(page.getByText('PMO Project Number', { exact: true }).locator('..')).toContainText(chosenNumber);
     await expect(page.getByText('Client Project Code', { exact: true }).locator('..')).toContainText(clientCode);
   } finally {

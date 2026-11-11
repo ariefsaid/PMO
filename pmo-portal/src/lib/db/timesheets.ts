@@ -1,15 +1,15 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
-import { resolveRange, type PageParams } from '@/src/lib/pagination';
 
 export type TimesheetRow = Tables<'timesheets'>;
 export type TimesheetEntryRow = Tables<'timesheet_entries'>;
 
 /** An entry row with its project name/code resolved in SQL (kills render-time .find()). */
 export type TimesheetEntryWithProject = TimesheetEntryRow & {
-  project: { name: string; code: string | null } | null;
+  project: { name: string; short_name?: string | null; code: string | null } | null;
 };
 
 /** A timesheet header with its entries (each carrying the joined project) resolved in one query. */
@@ -17,32 +17,31 @@ export type TimesheetWithEntries = TimesheetRow & {
   entries: TimesheetEntryWithProject[];
 };
 
-const SELECT = '*, entries:timesheet_entries(*, project:projects(name,code))';
+const SELECT = '*, entries:timesheet_entries(*, project:projects(name,short_name,code))';
 
 /**
  * List the given user's timesheets + entries for the caller's org. org_id is NEVER sent — RLS
  * (timesheets_select) scopes rows; passing the signed-in user's own id keeps it to own rows even
  * for manager roles (FR-DAL-TS-001). On error it throws.
- *
- * Paginated (data-layer performance hardening #4, OPT-IN): passing `params.page`/
- * `params.pageSize` range-bounds the query; omitting both preserves the original unbounded
- * read for every existing caller.
  */
 export async function listTimesheets(
   userId: string,
-  params?: PageParams,
+  opts: { fromWeek?: string } = {},
 ): Promise<TimesheetWithEntries[]> {
-  const range = resolveRange(params);
-  let query = supabase
-    .from('timesheets')
-    .select(SELECT)
-    .eq('user_id', userId)
-    .order('week_start_date', { ascending: false });
-  if (range) query = query.range(range.from, range.to);
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
+  // Complete keyset scan (a capped single response would drop the oldest weeks silently). `fromWeek`
+  // (Monday ISO) bounds it server-side to weeks >= that date: the window is an explicit, caller-owned
+  // range — every week inside it is still returned, none dropped; weeks before it are the caller's
+  // to fetch on demand with an earlier `fromWeek`.
+  const data = await fetchAllRowsByKeyset<TimesheetWithEntries>(async (afterId, limit) => {
+    let q = supabase.from('timesheets').select(SELECT).eq('user_id', userId).order('id', { ascending: true });
+    if (opts.fromWeek) q = q.gte('week_start_date', opts.fromWeek);
+    if (afterId !== null) q = q.gt('id', afterId);
+    const res = await q.limit(limit);
+    return { data: res.data as unknown as TimesheetWithEntries[] | null, error: res.error };
+  });
+  data.sort((a, b) => b.week_start_date.localeCompare(a.week_start_date) || a.id.localeCompare(b.id));
   // Normalise hours to number at the data boundary so callers never need Number() casts.
-  return ((data ?? []) as unknown as TimesheetWithEntries[]).map(sheet => ({
+  return data.map(sheet => ({
     ...sheet,
     entries: sheet.entries.map(e => ({ ...e, hours: Number(e.hours) })),
   }));

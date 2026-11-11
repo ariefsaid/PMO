@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables, TablesInsert, TablesUpdate } from '@/src/lib/supabase/database.types';
@@ -42,6 +43,21 @@ function throwWrite(error: PostgrestErrorLike): never {
   throw new AppError(error.message, error.code);
 }
 
+/** Quote a user-typed term for a PostgREST `ilike`: `%`/`_` are LIKE metacharacters, `\\` escapes them, `"` ends the quoted value. */
+const likeAny = (value: string) => `"%${value.replace(/[\\%_"]/g, '\\$&')}%"`;
+
+/** The register's status filter + type/location search, shared by the page read and the full read. */
+function withFilters<Q extends { eq: (c: string, v: string) => Q; or: (f: string) => Q }>(
+  query: Q,
+  params?: { status?: IncidentStatus; search?: string },
+): Q {
+  if (params?.status) query = query.eq('status', params.status);
+  const term = params?.search?.trim();
+  if (!term) return query;
+  const pattern = likeAny(term);
+  return query.or(`type.ilike.${pattern},location.ilike.${pattern}`);
+}
+
 /**
  * List incident reports in the caller's org for the Incidents index (AC-IN-001). org_id is
  * NEVER sent — RLS (incident_reports_select: org_id = auth_org_id()) scopes the rows. Pass
@@ -49,12 +65,52 @@ function throwWrite(error: PostgrestErrorLike): never {
  * incident_date descending (newest first) for a stable, scannable register. Throws an
  * `AppError` (code preserved) on failure.
  */
-export async function listIncidents(params?: { status?: IncidentStatus }): Promise<IncidentRow[]> {
-  let query = supabase.from('incident_reports').select('*');
-  if (params?.status) query = query.eq('status', params.status);
-  const { data, error } = await query.order('incident_date', { ascending: false });
+export async function listIncidents(params?: { status?: IncidentStatus; search?: string }): Promise<IncidentRow[]> {
+  return fetchAllPages((from, to) => {
+    const query = withFilters(supabase.from('incident_reports').select('*'), params);
+    return query.order('incident_date', { ascending: false }).order('id', { ascending: true }).range(from, to);
+  });
+}
+
+/** One server page of the Incidents register. 50 matches the other server-paged lists. */
+export const INCIDENTS_PAGE_SIZE = 50;
+
+/**
+ * ONE server page of the register (#1991): the optional status filter and the type/location
+ * search run on the SERVER before the range, so a match on page 7 is found and counted. Same
+ * order as `listIncidents`, plus the `id` tiebreak that makes an OFFSET page total. `total` is the
+ * exact count of the FILTERED set. org_id is NEVER sent — RLS scopes the rows. A page error, or an
+ * unresolved total, throws (never an empty page). Callers needing the whole set use `listIncidents`.
+ */
+export async function listIncidentsPage(input: {
+  page: number;
+  pageSize: number;
+  status?: IncidentStatus;
+  search?: string;
+}): Promise<{ rows: IncidentRow[]; total: number }> {
+  const from = Math.max(0, input.page - 1) * input.pageSize;
+  const { data, error, count } = await withFilters(
+    supabase.from('incident_reports').select('*', { count: 'exact' }),
+    input,
+  )
+    .order('incident_date', { ascending: false })
+    .order('id', { ascending: true })
+    .range(from, from + input.pageSize - 1);
   if (error) throwWrite(error);
-  return data ?? [];
+  if (count === null || count === undefined) {
+    throw new AppError('The incidents total could not be resolved.', 'COUNT_UNRESOLVED');
+  }
+  return { rows: data ?? [], total: count };
+}
+
+/** Exact count of every incident RLS lets the caller read — a head request, no row bodies ("x of y" denominator). */
+export async function countIncidents(): Promise<number> {
+  const { count, error } = await supabase.from('incident_reports').select('id', { count: 'exact', head: true });
+  if (error) throwWrite(error);
+  if (count === null || count === undefined) {
+    throw new AppError('The incidents total could not be resolved.', 'COUNT_UNRESOLVED');
+  }
+  return count;
 }
 
 /**

@@ -29,7 +29,7 @@
 -- PART B — a PM winning a colleague's value, Finance winning their own, a PM winning a zero-value
 -- deal, a server-seeded deal, and the whole legitimate pipeline end to end.
 begin;
-select plan(62);
+select plan(63);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — a BYPASSRLS authority, exempt from the guards by design). No JWT claims
@@ -158,15 +158,10 @@ select lives_ok(
   $$ delete from public.budget_versions where id = '01700000-0000-0000-0000-0000000000f2' $$,
   'AC-DPS-012 CONTROL deleteDraftVersion still works: a PM can delete a DRAFT version');
 
--- archiveVersion does a direct `update … set status = ''Archived''` — this guard is DELETE-only.
--- ⚑ 0178 RE-SCOPED THIS PIN. It stays green and it stays a CONTROL, but it is no longer "the UPDATE
---   path is untouched": `Active -> Archived` is now the ONLY status edit a client may make. The two
---   edits this assertion used to bless by omission — `-> Active`, and the `Active -> Draft -> edit the
---   line items -> Active` ROUND TRIP that voided budget_line_items_draft_guard entirely — are denied
---   by 0178 §1 and asserted in 0171 §A. Read this line as "archiveVersion still works", nothing wider.
+-- The archived transition is now paired with durable ERP cancellation intent by the RPC.
 select lives_ok(
-  $$ update public.budget_versions set status = 'Archived' where id = '01700000-0000-0000-0000-0000000000f1' $$,
-  'AC-DPS-012 CONTROL archiveVersion''s direct UPDATE still works (0178 §1 narrowed the UPDATE path to exactly this one transition)');
+  $$ select public.archive_budget_version_with_cancel_intent('01700000-0000-0000-0000-0000000000f1', false) $$,
+  'AC-DPS-012 CONTROL archiveVersion still works through the durable archive RPC');
 -- put it back for the Admin control below
 reset role;
 update public.budget_versions set status = 'Active' where id = '01700000-0000-0000-0000-0000000000f1';
@@ -423,11 +418,14 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
-  $$ select transition_project('01700000-0000-0000-0000-0000000000b3'::uuid,'PQ Submitted'::project_status) $$,
+  $$ select transition_project('01700000-0000-0000-0000-0000000000b3'::uuid,'Quotation Submitted'::project_status) $$,
   'AC-PMS-013 the PM still moves their own deal UP the pipeline alone — the rule binds on the money, not on the pipeline');
 select lives_ok(
-  $$ select transition_project('01700000-0000-0000-0000-0000000000b3'::uuid,'Quotation Submitted'::project_status) $$,
+  $$ select transition_project('01700000-0000-0000-0000-0000000000b3'::uuid,'PQ Submitted'::project_status) $$,
   'AC-PMS-013 …and again');
+select lives_ok(
+  $$ select transition_project('01700000-0000-0000-0000-0000000000b3'::uuid,'Tender Submitted'::project_status) $$,
+  'AC-PMS-013 …and reaches the legal win stage');
 
 select throws_ok(
   $$ select transition_project('01700000-0000-0000-0000-0000000000b3'::uuid,
@@ -439,7 +437,7 @@ select throws_ok(
 reset role;
 select is(
   (select status::text from public.projects where id = '01700000-0000-0000-0000-0000000000b3'),
-  'Quotation Submitted',
+  'Tender Submitted',
   'AC-PMS-013 …and the deal did NOT move to Won');
 
 -- ── CONTROL 1: someone SENIOR set the value → the SAME PM can win it ───────────────────────────
@@ -490,8 +488,9 @@ set local request.jwt.claims =
 insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
   ('01700000-0000-0000-0000-0000000000b4','01700000-0000-0000-0000-000000000001','DPS Finance deal','Leads',88888,'exclusive',0);
 select lives_ok(
-  $$ select transition_project('01700000-0000-0000-0000-0000000000b4'::uuid,'PQ Submitted'::project_status);
-     select transition_project('01700000-0000-0000-0000-0000000000b4'::uuid,'Quotation Submitted'::project_status);
+  $$ select transition_project('01700000-0000-0000-0000-0000000000b4'::uuid,'Quotation Submitted'::project_status);
+     select transition_project('01700000-0000-0000-0000-0000000000b4'::uuid,'PQ Submitted'::project_status);
+     select transition_project('01700000-0000-0000-0000-0000000000b4'::uuid,'Tender Submitted'::project_status);
      select transition_project('01700000-0000-0000-0000-0000000000b4'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-DPS-2', '2026-03-02'::date) $$,
   'AC-PMS-016 CONTROL a FINANCE user may win their OWN self-set value — RE-JUSTIFIED under ADR-0070: not by an enumerated carve-out, but because Finance HOLDS won-value authority by rank (ADR-0019 §1), so no second person is required of them at all');
@@ -504,8 +503,9 @@ set local request.jwt.claims =
 insert into public.projects (id, org_id, name, status) values
   ('01700000-0000-0000-0000-0000000000b5','01700000-0000-0000-0000-000000000001','DPS Zero deal','Leads');
 select lives_ok(
-  $$ select transition_project('01700000-0000-0000-0000-0000000000b5'::uuid,'PQ Submitted'::project_status);
-     select transition_project('01700000-0000-0000-0000-0000000000b5'::uuid,'Quotation Submitted'::project_status);
+  $$ select transition_project('01700000-0000-0000-0000-0000000000b5'::uuid,'Quotation Submitted'::project_status);
+     select transition_project('01700000-0000-0000-0000-0000000000b5'::uuid,'PQ Submitted'::project_status);
+     select transition_project('01700000-0000-0000-0000-0000000000b5'::uuid,'Tender Submitted'::project_status);
      select transition_project('01700000-0000-0000-0000-0000000000b5'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-DPS-3', '2026-03-02'::date) $$,
   'AC-PMS-017 CONTROL a PM wins their OWN deal at contract_value 0 — the rule is about MONEY, and the common case is untaxed');
@@ -578,11 +578,11 @@ set local request.jwt.claims =
 insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
   ('01700000-0000-0000-0000-0000000000b8','01700000-0000-0000-0000-000000000001','DPS Full journey','Leads',250000,'exclusive',0);
 select lives_ok(
-  $$ select transition_project('01700000-0000-0000-0000-0000000000b8'::uuid,'PQ Submitted'::project_status);
-     select transition_project('01700000-0000-0000-0000-0000000000b8'::uuid,'Quotation Submitted'::project_status);
+  $$ select transition_project('01700000-0000-0000-0000-0000000000b8'::uuid,'Quotation Submitted'::project_status);
+     select transition_project('01700000-0000-0000-0000-0000000000b8'::uuid,'PQ Submitted'::project_status);
      select transition_project('01700000-0000-0000-0000-0000000000b8'::uuid,'Tender Submitted'::project_status);
      select transition_project('01700000-0000-0000-0000-0000000000b8'::uuid,'Negotiation'::project_status) $$,
-  'AC-PMS-020 CONTROL the PM drives their own deal the whole length of the pipeline alone — Leads -> PQ -> Quotation -> Tender -> Negotiation');
+  'AC-PMS-020 CONTROL the PM drives their own deal the whole length of the pipeline alone — Leads -> Quotation -> PQ -> Tender -> Negotiation');
 
 reset role;
 set local role authenticated;

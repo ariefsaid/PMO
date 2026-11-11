@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import i18next from 'i18next';
-import { catalogueBackend, parseMissingKeyHandler, initI18n, DEFAULT_NS } from './index';
+import { catalogueBackend, parseMissingKeyHandler, initI18n, DEFAULT_NS, NAMESPACES } from './index';
 
 describe('FR-L10N-043: lazy per-locale catalogue load', () => {
   const fetchMock = vi.fn();
@@ -80,6 +80,13 @@ describe('FR-L10N-041 / AC-L10N-040: a missing key never renders as a raw key', 
 });
 
 describe('feature namespaces', () => {
+  it('registers the CRM catalogue for lazy loading', () => {
+    expect(NAMESPACES).toContain('crm');
+  });
+  it('registers the finance hub catalogue for lazy loading', () => {
+    expect(NAMESPACES).toContain('financeHub');
+  });
+
   it('AC-1070-002: loads an unlisted namespace through the shipped backend in EN and ID', async () => {
     const { createInstance } = await import('i18next');
     const { initReactI18next, I18nextProvider, useTranslation } = await import('react-i18next');
@@ -145,6 +152,96 @@ describe('feature namespaces', () => {
   });
 });
 
+describe('#2097: only `common` is resident at boot; feature namespaces arrive on demand', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  /**
+   * An ISOLATED instance running the SHIPPED init options (`i18nInitOptions`). The shared singleton
+   * is pre-initialised by `test/setup.ts` with empty resources, which makes every namespace report
+   * as loaded — a boot assertion made against it would prove nothing.
+   */
+  async function isolatedBoot(locale = 'en') {
+    const { createInstance } = await import('i18next');
+    const { initReactI18next } = await import('react-i18next');
+    vi.resetModules();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const catalogues: Record<string, object> = {
+        '/locales/en/common.json': { shell: { nav: { projects: 'Projects' } } },
+        '/locales/id/common.json': { shell: { nav: { projects: 'Proyek' } } },
+        '/locales/en/crm.json': { companies: { title: 'Companies' } },
+        '/locales/id/crm.json': { companies: { title: 'Perusahaan' } },
+      };
+      return { ok: Boolean(catalogues[url]), status: catalogues[url] ? 200 : 404, json: () => Promise.resolve(catalogues[url] ?? {}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const mod = await import('./index');
+    const instance = createInstance();
+    await instance.use(mod.catalogueBackend).use(initReactI18next).init(mod.i18nInitOptions(locale));
+    return {
+      mod,
+      instance,
+      urls: () => fetchMock.mock.calls.map((c) => String(c[0])),
+    };
+  }
+
+  it('AC: a cold boot requests ONE namespace catalogue, not all 32', async () => {
+    const { mod, instance, urls } = await isolatedBoot();
+    expect(instance.options.ns).toEqual(['common']);
+    expect(mod.BOOT_NAMESPACES).toEqual(['common']);
+    // Every other catalogue is still registered for on-demand loading (it is what the route
+    // preload rules and `useTranslation('<ns>')` name), but nothing fetches it at boot.
+    expect(mod.NAMESPACES.length).toBeGreaterThan(30);
+    expect(urls()).toEqual(['/locales/en/common.json']);
+  });
+
+  it('AC: a resolved Indonesian locale boots Indonesian FIRST — no English set up front', async () => {
+    const { instance, urls } = await isolatedBoot('id');
+    expect(instance.language).toBe('id');
+    const requested = urls();
+    expect(requested[0]).toBe('/locales/id/common.json');
+    // `fallbackLng: 'en'` still fetches the English OTHER LANGUAGE of the one namespace that is
+    // resident (that is the FR-L10N-041 fallback), but never a feature catalogue.
+    expect(requested.sort()).toEqual(['/locales/en/common.json', '/locales/id/common.json']);
+  });
+
+  it('an unusable boot locale falls back to English instead of asking for a bogus catalogue', async () => {
+    const { instance, urls } = await isolatedBoot('en_US');
+    expect(instance.language).toBe('en');
+    expect(urls().every((u) => u.startsWith('/locales/en/'))).toBe(true);
+  });
+
+  it('a miss in a feature namespace loads that catalogue on demand (no call-site opt-in)', async () => {
+    const { mod, instance, urls } = await isolatedBoot('id');
+    const handler = mod.createParseMissingKeyHandler(instance);
+    // The handler's job is only the no-raw-key backstop; it reads the ENGLISH catalogue.
+    expect(handler('crm:companies.title')).not.toContain('crm:');
+    // The miss itself requests the namespace nobody declared...
+    await vi.waitFor(() => expect(urls()).toContain('/locales/id/crm.json'));
+    // ...and from then on `t()` resolves it in the ACTIVE language (this is what a route renders
+    // after the catalogue lands, which `bindI18n: 'languageChanged loaded'` re-renders).
+    await vi.waitFor(() => expect(instance.t('crm:companies.title')).toBe('Perusahaan'));
+    expect(handler('crm:companies.title')).toBe('Companies');
+  });
+
+  it('resolves the English catalogue entry for the key OWN namespace, not just common', async () => {
+    const { mod, instance } = await isolatedBoot();
+    const handler = mod.createParseMissingKeyHandler(instance);
+    instance.addResource('en', 'crm', 'companies.title', 'Companies');
+    expect(handler('crm:companies.title')).toBe('Companies');
+    // ...and the call site's own default still wins, as before (FR-L10N-041).
+    expect(handler('crm:companies.title', 'Supplier list')).toBe('Supplier list');
+  });
+
+  it('⛔ a namespaced miss with no default never renders the namespace prefix on screen', () => {
+    expect(parseMissingKeyHandler('crm:neverInAnyCatalogue')).toBe('neverInAnyCatalogue');
+    expect(parseMissingKeyHandler('crm:neverInAnyCatalogue')).not.toContain(':');
+  });
+});
+
 describe('init config', () => {
   it('boots in English and takes its language from resolveLocale, never a detector', async () => {
     // FR-L10N-003 is binding: no navigator.language, no localStorage, no detector plugin. Before
@@ -155,6 +252,10 @@ describe('init config', () => {
     expect(i18n.options.fallbackLng).toEqual(['en']);
     expect(i18n.options.fallbackNS).toEqual(['common']);
     expect(i18n.options.returnEmptyString).toBe(false);
+    // A catalogue arriving after the first paint must re-render its subscribers — with only
+    // `common` resident, an on-demand namespace lands mid-session.
+    expect(i18n.options.react?.bindI18n).toContain('loaded');
+    expect(i18n.options.appendNamespaceToMissingKey).toBe(true);
     vi.unstubAllGlobals();
   });
 

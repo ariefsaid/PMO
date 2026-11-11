@@ -11,7 +11,7 @@ import {
   expenseClaimsAwaitingKey,
   externalDomainOwnershipKey,
   nativeDraftInvoicesKey,
-  procurementsKey,
+  requestedProcurementsKey,
 } from '@/src/hooks/approvalsQueryKeys';
 
 /**
@@ -29,7 +29,9 @@ export const ApprovalsNavCount: React.FC = () => {
   const orgId = currentUser?.org_id;
   const userId = currentUser?.id;
   const canApproveProcurement = can('transition', 'procurement', { realRole: role });
-  const canApproveTimesheets = can('transition', 'approval', { realRole: role });
+  // OD-TS-5: assigned managers of any real role can approve timesheets. The awaiting-approval
+  // cache is caller-filtered and applies whenever a real role is authenticated.
+  const canApproveTimesheets = role !== null;
   const canApproveInvoices = can('transition', 'salesInvoice', { realRole: role });
 
   const ownershipKey = useMemo(() => externalDomainOwnershipKey(orgId), [orgId]);
@@ -44,7 +46,7 @@ export const ApprovalsNavCount: React.FC = () => {
   const includeInvoices = canApproveInvoices && invoiceMode !== 'external';
 
   const queueKeys = useMemo(() => [
-    ...(canApproveProcurement ? [procurementsKey(orgId), expenseClaimsAwaitingKey(orgId)] : []),
+    ...(canApproveProcurement ? [requestedProcurementsKey(orgId), expenseClaimsAwaitingKey(orgId)] : []),
     ...(canApproveTimesheets ? [awaitingApprovalKey(orgId, userId, role)] : []),
     ...(includeInvoices ? [nativeDraftInvoicesKey(orgId)] : []),
   ], [canApproveProcurement, canApproveTimesheets, includeInvoices, orgId, role, userId]);

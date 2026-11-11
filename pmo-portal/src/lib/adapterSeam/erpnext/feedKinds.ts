@@ -12,6 +12,7 @@
  */
 import { DOCTYPE_REGISTRY, type ErpDocKind } from './doctypeRegistry.ts';
 import { EXPENSE_JOURNAL_KEY_RE } from './expensePostingKey.ts';
+import { IMPREST_TRANSFER_KEY_RE } from '../imprestTransfer.ts';
 
 export type { ErpDocKind } from './doctypeRegistry.ts';
 
@@ -44,7 +45,27 @@ export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'reve
   'expense-journal': 'expenses',
   'expense-payment': 'expenses',
   'expense-receipt': 'expenses',
+  // #1515 §9 — site float transfers: the same domain, their own side mirror.
+  'imprest-transfer': 'expenses',
 };
+
+const DOMAIN_FEATURE_KEY: Partial<Record<(typeof KIND_DOMAIN)[ErpDocKind], string>> = {
+  companies: 'crm',
+  procurement: 'procurement',
+  revenue: 'revenue',
+  timesheets: 'timesheets',
+};
+
+const KIND_FEATURE_KEY: Partial<Record<ErpDocKind, string>> = {
+  // A site-float transfer shares the `expenses` storage domain with core expense postings, but its
+  // forward transition is specifically entitled by the imprest module.
+  'imprest-transfer': 'imprest',
+};
+
+/** The plan switch that gates inbound reads for one ERP kind; core domains without a switch return undefined. */
+export function featureKeyForKind(kind: ErpDocKind): string | undefined {
+  return KIND_FEATURE_KEY[kind] ?? DOMAIN_FEATURE_KEY[KIND_DOMAIN[kind]];
+}
 
 /** kind → the PMO mirror table the feed upserts/reads (the table carrying `erp_modified`/`erp_docstatus`).
  *  Procurement sub-doctypes each have their own mirror table (slices 4-6); parties share `companies`;
@@ -77,12 +98,16 @@ export const KIND_MIRROR_TABLE: Record<ErpDocKind, string> = {
   'expense-journal': 'expense_posting_erp_mirror',
   'expense-payment': 'expense_posting_erp_mirror',
   'expense-receipt': 'expense_posting_erp_mirror',
+  // #1515 §9 — the replenishment side mirror (0425). ⛔ NEVER `imprest_replenishments`: PMO is the SoT.
+  'imprest-transfer': 'imprest_posting_erp_mirror',
 };
 
 /** Kinds that share a doctype with an earlier kind and are reached only through a discriminator
  *  (`kindFromDoctypeAndPaymentType`'s party type). Kept out of the plain reverse map so `kindFromDoctype` answers
  *  exactly as it did before they existed. */
-const DISCRIMINATED_KINDS: ReadonlySet<ErpDocKind> = new Set<ErpDocKind>(['expense-payment', 'expense-receipt']);
+// ⚑ A Journal Entry webhook routes to `expense-journal` (the plain map), whose discriminator rejects `impt:` keys, so a desk
+// cancel of a site float transfer is seen by the hourly poll only (own discriminator + cursor), not by the webhook. Accepted.
+const DISCRIMINATED_KINDS: ReadonlySet<ErpDocKind> = new Set<ErpDocKind>(['expense-payment', 'expense-receipt', 'imprest-transfer']);
 
 /** Reverse doctype→kind lookup (built from the registry — one source of doctype names). */
 const DOCTYPE_TO_KIND: Record<string, ErpDocKind> = Object.fromEntries(
@@ -127,36 +152,9 @@ export function externalIdForKind(kind: ErpDocKind, erpName: string): string {
 
 // ─── The sweep poll scope (moved from erpnext-sweep, #656) ─────────────────────────────────────────
 
-/**
- * Kinds whose OUTBOUND push shipped before their INBOUND handling did, so the poll had to stay closed
- * for them in the meantime. Registering a kind in DOCTYPE_REGISTRY enrols it in the poll
- * automatically, which is exactly why an exclusion here has to be explicit.
- *
- * `timesheet` (P3b) WAS excluded: FR-TSP's feed is LIFECYCLE-ONLY and must NEVER adopt a
- * natively-created ERP Timesheet — PMO owns entry AND approval (ADR-0059 Posture B), so minting a
- * mirror from a Desk-created Timesheet would import hours that no PMO approver ever approved. That
- * never-adopt branch landed (task 6.2, `erpnextFeedDeps.ts`'s `mintMirrorRow` throws
- * `native-timesheet-not-adopted` for an unmapped Timesheet — it mints nothing), and the desk-cancel
- * reopen (task 6.3) needed the poll running to ever observe a cancelled Timesheet — so `timesheet` was
- * REMOVED from this set in that same change. `employee` was never added here: it is the adopt TARGET
- * (FR-TSP-090/091), gated only by domain ownership (`KIND_DOMAIN.employee === 'timesheets'`,
- * AC-TSP-003) via `sweepKindsForOrg`, exactly like every other adopted master (Supplier/Customer).
- *
- * `budget` (P3c) WAS excluded for the identical shape: FR-BUD-140's never-adopt (a Desk-created ERP
- * Budget is ack-and-skipped, NEVER minted into PMO — PMO is the SoT for the budget figure,
- * OD-BUDGET-1) and FR-BUD-142's never-fight-the-operator (an external cancel reopens `push_state`,
- * never auto-re-pushes). Both now land (slice 5, `erpnextFeedDeps.ts`'s `mintMirrorRow` throws
- * `native-budget-not-adopted` for an unmapped Budget; `cancelStatusPatch`/`tombstoneMirror` reopen +
- * surface a desk-cancel) — so `budget` is REMOVED from this set in the SAME change, per the rule below.
- *
- * ⚑ Remove an entry in the SAME change that lands its inbound branch — never before.
- */
-const SWEEP_UNPOLLED_KINDS = new Set<ErpDocKind>([]);
-
 const SWEEP_DOCTYPES: Array<{ kind: ErpDocKind; doctype: string }> = (Object.entries(DOCTYPE_REGISTRY) as Array<
   [ErpDocKind, { doctype: string }]
 >)
-  .filter(([kind]) => !SWEEP_UNPOLLED_KINDS.has(kind))
   .map(([kind, entry]) => ({ kind, doctype: entry.doctype }));
 
 /** A master another domain also needs: the ERP Employee is polled for `timesheets` AND `expenses` (DD-EXP-21).
@@ -219,6 +217,13 @@ export function pollDiscriminatorForKind(kind: ErpDocKind): KindPollDiscriminato
       filters: [['user_remark', 'like', 'exp%']],
       fields: ['user_remark'],
       admits: (row) => typeof row.user_remark === 'string' && EXPENSE_JOURNAL_KEY_RE.test(row.user_remark),
+    };
+  }
+  if (kind === 'imprest-transfer') {
+    return {
+      filters: [['user_remark', 'like', 'impt:%']],
+      fields: ['user_remark'],
+      admits: (row) => typeof row.user_remark === 'string' && IMPREST_TRANSFER_KEY_RE.test(row.user_remark),
     };
   }
   return null;

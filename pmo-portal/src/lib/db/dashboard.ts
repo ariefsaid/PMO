@@ -14,11 +14,21 @@ export interface StatusCount<S> {
 export interface TopProject {
   id: string;
   name: string;
+  /** Optional display alias (PM dashboard payload); `name` stays contractual. */
+  short_name?: string | null;
   client_name: string | null;
   contract_value: number | null;
   currency: string;
   budget: number | null;
   spent: number | null;
+  /**
+   * #1739 (0700): the PMO open commitment — the unpaid remainder of the project's committed purchases (the Budget
+   * tab's Committed). Null/absent for an ERP-ledger org, whose Actual is the ledger figure. Budget consumption is
+   * spent + this; a surface showing "at risk" must use that sum, never spent alone.
+   */
+  committed?: number | null;
+  /** Whether every committed purchase was readable in the project currency; false withholds the commitment. */
+  committed_complete?: boolean;
   actual_currency?: string | null;
   actual_complete?: boolean;
   budget_currency?: string | null;
@@ -26,6 +36,26 @@ export interface TopProject {
   actual_coverage_total?: number | null;
   realized_margin?: number | null;
   status: ProjectStatus;
+}
+
+/**
+ * #1418: one row of the Delivery list, ranked server-side over the WHOLE active population by how much it needs
+ * attention. The ranking order is the array order — never re-sorted by the client.
+ */
+export interface AttentionProject extends TopProject {
+  /** Distinct signal kinds present: overdue work, over budget, waiting approvals (0–3). The primary sort key. */
+  attention_signals: number;
+  /** Overdue tasks + overdue milestones + overdue client invoices. */
+  overdue_items: number;
+  overdue_tasks: number;
+  overdue_milestones: number;
+  overdue_invoices: number;
+  /** Project-scoped pending approvals: Requested procurements + Submitted expense claims. */
+  waiting_approvals: number;
+  /** Budget consumption past the Active budget; false when the comparison cannot be made. */
+  over_budget: boolean;
+  /** Consumption / Active budget on the dashboard's at-risk basis; null when the basis is incomplete or mixed. */
+  budget_used_ratio: number | null;
 }
 
 /**
@@ -44,7 +74,7 @@ export interface ExecutiveDashboard {
   on_hand_contract_remaining: number | null;
   /** Profit on billed work: billed-work revenue less Actual. */
   on_hand_realized_margin: number | null;
-  on_hand_realized_margin_by_currency?: Array<{ currency: string; known_amount: number | null; unknown_projects: number }>;
+  on_hand_realized_margin_by_currency?: Array<{ currency: string; known_amount: number | null; known_billed_revenue?: number | null; unknown_projects: number }>;
   on_hand_actual_known: number | null;
   on_hand_actual_project_count: number;
   on_hand_actual_project_total: number;
@@ -59,10 +89,19 @@ export interface ExecutiveDashboard {
   pipeline_projected_margin: number | null;
   projects_at_risk: number;
   active_delivery_projects?: number;
+  active_delivery_actual_project_count?: number;
+  active_delivery_actual_project_total?: number;
+  active_delivery_actual_coverage_count?: number;
+  active_delivery_actual_coverage_total?: number;
   risk_unchecked_projects?: number;
   projects_by_status: StatusCount<ProjectStatus>[];
   procurements_by_status: StatusCount<ProcurementStatus>[];
   top_projects: TopProject[];
+  /**
+   * #1418: the true top five projects by attention, computed server-side over every active project (0732). The
+   * array is already ordered and cut to five; render it as given.
+   */
+  attention_projects?: AttentionProject[];
 }
 
 /**
@@ -86,10 +125,24 @@ export interface WinRate {
   losses_count: number;
   /** #774: declined-to-bid deals in the period — NOT part of either win-rate denominator. */
   declined_count?: number;
+  /** Open pipeline bids created in the selected period (current status, not a decision date). */
+  open_count?: number;
+  /** Current open bids whose current stage began at least 90 days ago. */
+  stale_count?: number;
   wins_value: number | null;
   losses_value: number | null;
   win_rate_count: number;
   win_rate_value: number | null;
+  /** Count and value inputs for both win-rate and all-bid conversion, kept separate by currency. */
+  bids_by_currency?: Array<{
+    currency: string;
+    wins_count: number;
+    losses_count: number;
+    open_count: number;
+    wins_value: number;
+    losses_value: number;
+    open_value: number;
+  }>;
   value_by_currency?: Array<{
     currency: string;
     wins_value: number;
@@ -102,6 +155,9 @@ export interface PipelineStage {
   status: ProjectStatus;
   count: number;
   total_value: number;
+  /** Stage's chance the opportunity proceeds, independent of the chance we win it. */
+  go_probability?: number;
+  /** Legacy alias for go_probability while older payload fixtures roll forward. */
   win_probability: number;
   weighted_value: number;
 }
@@ -109,6 +165,7 @@ export interface PipelineStage {
 export interface PipelineProject extends ProjectClassification {
   id: string;
   name: string;
+  short_name: string | null;
   /** Independent PMO and organisation-owned identifiers, projected for search/display. */
   pmo_project_number?: string | null;
   code?: string | null;
@@ -144,6 +201,9 @@ export interface PipelineProject extends ProjectClassification {
   tax_rate?: number | null;
   tax_base_numerator?: number;
   tax_base_denominator?: number;
+  go_probability?: number;
+  get_probability?: number;
+  /** Legacy combined win chance for older projections and saved exports. */
   win_probability: number;
   /**
    * ISO timestamp of the last update to this project row (projects.last_update).
@@ -153,6 +213,12 @@ export interface PipelineProject extends ProjectClassification {
    * Optional only for defensive typing; the RPC always supplies it for a real project.
    */
   last_update?: string;
+  /** Last recorded project status change, falling back to created_at when no status event exists. */
+  stage_started_at?: string;
+  /** #1638: won deals — the Signed date. Projected by toPipelineProject for the Won column. */
+  contract_date?: string | null;
+  /** #1638: lost/declined deals — the decision instant. Projected by toPipelineProject for the Lost column. */
+  decided_at?: string | null;
   /**
    * The project manager's full name (profiles.full_name resolved via the pm join).
    * AVAILABILITY: same as last_update — supplied for open pipeline rows by get_sales_pipeline()
@@ -193,6 +259,21 @@ export async function getWinRate(from?: Date, to?: Date): Promise<WinRate> {
   return data as unknown as WinRate;
 }
 
+/** Loss counts by reason and by client for the same cohort and window as get_win_rate (#1577). */
+export interface LossBreakdown {
+  by_reason: Array<{ reason: string | null; losses_count: number; declined_count: number }>;
+  by_client: Array<{ client_id: string | null; client_name: string | null; wins_count: number; losses_count: number }>;
+}
+
+/** security invoker, counts only, no org_id — RLS scopes to the caller's org. On RPC error throws. */
+export async function getLossBreakdown(from?: Date, to?: Date): Promise<LossBreakdown> {
+  const p_from = from ? toIso(from) : undefined;
+  const p_to = to ? toIso(to) : undefined;
+  const { data, error } = await supabase.rpc('get_loss_breakdown', { p_from, p_to });
+  if (error) throw new Error(error.message);
+  return data as unknown as LossBreakdown;
+}
+
 /**
  * Sales pipeline stages + project list for the caller's org (FR-SPD-010).
  * security invoker, no org_id argument — RLS scopes (NFR-SPD-SEC-001).
@@ -225,6 +306,8 @@ export interface BudgetReviewRow {
   actual_coverage_count: number;
   actual_coverage_total: number;
   actual_as_of: string | null;
+  /** True when the org reads the ERP ledger (spent is the ledger Actual); false when spent is PMO's ordered..paid purchase totals. */
+  ledger_owned?: boolean;
 }
 
 /**

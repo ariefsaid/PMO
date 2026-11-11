@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import {
+  repositories,
+  type ExpenseClaimFilters, type ExpenseClaimInput, type ExpenseClaimPatch, type ExpenseClaimRoute,
+  type ExpenseClaimStatus, type ExpenseClaimWithRefs, type ExpenseKind, type ExpenseLineInput,
+} from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
-import type {
-  ExpenseClaimFilters, ExpenseClaimInput, ExpenseClaimPatch, ExpenseClaimRoute, ExpenseClaimStatus,
-  ExpenseClaimWithRefs, ExpenseKind, ExpenseLineInput,
-} from '@/src/lib/db/expenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 export { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 
@@ -75,6 +75,28 @@ export function useExpenseAdvanceAging() {
     queryKey: ['expense-advance-aging', orgId],
     queryFn: () => repositories.expenseClaim.aging(),
     enabled: Boolean(orgId),
+  });
+}
+
+/** Bucket totals over every visible advance (the aggregate read), not a sum of the capped list. */
+export function useExpenseAdvanceAgingTotals() {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['expense-advance-aging', orgId, 'totals'],
+    queryFn: () => repositories.expenseClaim.agingTotals(),
+    enabled: Boolean(orgId),
+  });
+}
+
+/** The signed-in user's own outstanding advances, filtered on the server before the page cap (claim form choices). */
+export function useOwnExpenseAdvances() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const userId = currentUser?.id;
+  return useQuery({
+    queryKey: ['expense-advance-aging', orgId, 'own', userId],
+    queryFn: () => repositories.expenseClaim.aging({ claimantId: userId as string }),
+    enabled: Boolean(orgId) && Boolean(userId),
   });
 }
 

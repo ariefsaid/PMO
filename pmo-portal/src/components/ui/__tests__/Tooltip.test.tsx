@@ -60,17 +60,18 @@ describe('Tooltip', () => {
 describe('Toast', () => {
   afterEach(() => vi.useRealTimers());
 
-  it('renders aria-live polite (does not steal focus) + maps kind to accent stripe', () => {
+  it('renders aria-live polite (does not steal focus) + maps kind to its icon tone', () => {
     render(<ToastView kind="success" title="Saved" sub="Budget v3 activated" />);
     const toast = screen.getByText('Saved').closest('[role="status"]')!;
     expect(toast).toHaveAttribute('aria-live', 'polite');
-    expect(toast.className).toContain('border-l-success');
+    expect(toast.className).toContain('[&_svg]:text-success');
+    expect(toast.className).not.toContain('border-l-');
   });
 
-  it('warning kind maps to the warning stripe', () => {
+  it('warning kind maps to the warning icon tone', () => {
     render(<ToastView kind="warning" title="Heads up" />);
     expect(screen.getByText('Heads up').closest('[role="alert"]')!.className).toContain(
-      'border-l-warning'
+      '[&_svg]:text-warning-foreground'
     );
   });
 

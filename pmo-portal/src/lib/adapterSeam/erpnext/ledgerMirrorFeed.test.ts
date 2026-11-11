@@ -15,7 +15,7 @@
  * supabase-js at runtime, cast `as never` at the boundary, the actualsSnapshot.ts idiom).
  */
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { feedLedgerMirrors, LEDGER_GL_WM_DOMAIN, LEDGER_PLE_WM_DOMAIN } from './ledgerMirrorFeed.ts';
+import { feedLedgerMirrors, LEDGER_GL_WM_DOMAIN, LEDGER_PLE_WM_DOMAIN, VOUCHER_REPLACES_PER_TICK } from './ledgerMirrorFeed.ts';
 import * as ledgerFetch from './ledgerFetch.ts';
 import { FakePostgrest, type FakeRow } from '@/test/postgrestFake.ts';
 
@@ -60,7 +60,46 @@ function fakeServiceClient(existingGl: Array<Record<string, unknown>> = [], exis
       fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: tier, domain, watermark_cursor: cursor });
     },
     from: (name: string) => fake.from(name),
+    rpc: (name: string, args: Record<string, unknown>) => replaceVoucherInFake(fake, name, args),
   } as unknown as Parameters<typeof feedLedgerMirrors>[0];
+}
+
+/**
+ * The in-memory model of `replace_erp_{gl,ple}_voucher_rows` (migration 0382): ONE step that upserts the
+ * voucher's re-delivered rows (per-row `erp_modified >=` guard) and deletes that voucher's mirror rows
+ * whose name is absent from ERPNext's current set. pgTAP (0382_ledger_voucher_replace.test.sql) proves
+ * the SQL itself; this lets the feed tests assert what the mirror ends up holding.
+ */
+function replaceVoucherInFake(fake: FakePostgrest, name: string, args: Record<string, unknown>) {
+  fake.rpcCalls.push({ fn: name, args: { ...args } });
+  if (name === 'finish_erp_ple_voucher_backfill') {
+    // 0382: once the PLE re-read is complete, rows still without a voucher were not re-delivered.
+    const ple = fake.rowsOf('erp_payment_ledger_mirror');
+    const before = ple.length;
+    for (let i = ple.length - 1; i >= 0; i -= 1) if (ple[i].org_id === args.p_org_id && ple[i].voucher_type == null) ple.splice(i, 1);
+    const wm = fake.rowsOf('external_sync_watermarks');
+    const at = wm.findIndex((r) => r.org_id === args.p_org_id && r.domain === `${LEDGER_PLE_WM_DOMAIN}::repair`);
+    if (at !== -1) wm.splice(at, 1);
+    return Promise.resolve({ data: { deleted: before - ple.length }, error: null });
+  }
+  const table = name === 'replace_erp_gl_voucher_rows' ? 'erp_gl_entry_mirror'
+    : name === 'replace_erp_ple_voucher_rows' ? 'erp_payment_ledger_mirror' : null;
+  if (!table) return Promise.resolve({ data: null, error: { message: `unmodelled rpc: ${name}` } });
+  const rows = fake.rowsOf(table);
+  let upserted = 0;
+  for (const incoming of args.p_rows as FakeRow[]) {
+    const at = rows.findIndex((r) => r.org_id === args.p_org_id && r.erp_name === incoming.erp_name);
+    if (at === -1) { rows.push({ id: `rpc-${String(incoming.erp_name)}`, ...incoming, org_id: args.p_org_id }); upserted += 1; }
+    else if (String(rows[at].erp_modified) <= String(incoming.erp_modified)) { rows[at] = { ...rows[at], ...incoming }; upserted += 1; }
+  }
+  const current = new Set(args.p_current_names as string[]);
+  let deleted = 0;
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    const r = rows[i];
+    if (r.org_id === args.p_org_id && r.voucher_type === args.p_voucher_type && r.voucher_no === args.p_voucher_no
+      && !current.has(String(r.erp_name))) { rows.splice(i, 1); deleted += 1; }
+  }
+  return Promise.resolve({ data: { upserted, deleted }, error: null });
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -83,10 +122,19 @@ function glRow(name: string, over: Partial<ledgerFetch.GlEntryRow> = {}): ledger
 function pleRow(name: string, over: Partial<ledgerFetch.PaymentLedgerEntryRow> = {}): ledgerFetch.PaymentLedgerEntryRow {
   return { name, account: 'Creditors - PSC', party_type: 'Supplier', party: 'Spike Supplier', against_voucher_type: 'Purchase Invoice',
     against_voucher_no: 'ACC-PINV-2026-00042', amount: '125000.00', posting_date: '2026-10-07', due_date: '2026-10-07',
-    docstatus: 1, delinked: false, modified: '2026-10-07 10:00:00.000000', ...over };
+    voucher_type: null, voucher_no: null, docstatus: 1, delinked: false, modified: '2026-10-07 10:00:00.000000', ...over };
 }
 
 describe('erpnext/ledgerMirrorFeed — feedLedgerMirrors (AC-ENA-150/162 basis)', () => {
+  it('AC-JEC-013: a fetched GL remark reaches the mirror row (full replay path)', async () => {
+    const base = fakeServiceClient();
+    const sc = Object.assign(base, { rpc: vi.fn().mockResolvedValue({ data: { deleted: 0 }, error: null }) });
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [glRow('GL-REM', { company: 'Synthetic Co', remarks: 'Vendor X inv 12' })], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    await feedLedgerMirrors(sc as never, { client: { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test' }, orgId: 'org-1', company: 'Synthetic Co', fullReplay: true });
+    expect(h(base).gl.get('GL-REM')).toMatchObject({ remarks: 'Vendor X inv 12' });
+  });
+
   it('AC-005: a complete full replay marks fetched rows and finishes atomically before watermark promotion', async () => {
     const base = fakeServiceClient();
     const rpc = vi.fn().mockResolvedValue({ data: { deleted: 2 }, error: null });
@@ -157,7 +205,7 @@ describe('erpnext/ledgerMirrorFeed — feedLedgerMirrors (AC-ENA-150/162 basis)'
     const pleSpy = vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [
       { name: 'PLE-1', account: 'Creditors - PSC', party_type: 'Supplier', party: 'Spike Supplier',
         against_voucher_type: 'Purchase Invoice', against_voucher_no: 'ACC-PINV-2026-00018', amount: '-50000.00',
-        posting_date: '2026-07-12', due_date: '2026-08-12', docstatus: 1, delinked: false, modified: '2026-07-12 12:05:00.000000' },
+        posting_date: '2026-07-12', due_date: '2026-08-12', voucher_type: 'Payment Entry', voucher_no: 'ACC-PAY-2026-00018', docstatus: 1, delinked: false, modified: '2026-07-12 12:05:00.000000' },
     ], caughtUp: true });
     const res = await feedLedgerMirrors(sc, { client: { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' }, orgId: 'org-1', company: 'PMO Smoke Co' });
     expect(res.glFed).toBe(1);
@@ -300,6 +348,23 @@ describe('erpnext/ledgerMirrorFeed — MEDIUM-1: the staleness guard sees the WH
     expect(h(sc).gl.get('GLE-TARGET')!.debit).toBe('75000.00');
   });
 
+  it('mirror lookups are org-scoped: another org\'s row with the same erp_name never feeds this org\'s stale-drop guard', async () => {
+    const sc = fakeServiceClient([
+      // org-2 shares the ERP document name and holds a NEWER copy; it must be invisible to org-1.
+      { org_id: 'org-2', erp_name: 'GLE-1', account: 'Other Org', erp_modified: '2026-07-12 13:00:00.000000' },
+    ]);
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [
+      { name: 'GLE-1', account: 'Creditors - PSC', cost_center: null, fiscal_year: null, project: null, party_type: null,
+        party: null, voucher_type: null, voucher_no: null, posting_date: null, debit: '1.00', credit: '0.00',
+        is_cancelled: false, docstatus: 1, modified: '2026-07-12 12:00:00.000000' },
+    ], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    const res = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'PMO Smoke Co' });
+    expect(res.glFed).toBe(1);
+    const mine = h(sc).fake.rowsOf('erp_gl_entry_mirror').find((r) => r.org_id === 'org-1' && r.erp_name === 'GLE-1');
+    expect(mine).toMatchObject({ account: 'Creditors - PSC' });
+  });
+
   it('fails CLOSED on a mirror read error — never an empty map that waves every stale row through', async () => {
     const fake = new FakePostgrest(
       { erp_gl_entry_mirror: [{ id: 'gl-1', org_id: 'org-1', erp_name: 'GLE-1', erp_modified: '2026-07-12 12:00:00.000000' }], external_sync_watermarks: [] },
@@ -396,7 +461,8 @@ describe('erpnext/ledgerMirrorFeed — #901 fix round: bounded + ordered + monot
     return Array.from({ length: n }, (_, i) => glRow(`GLE-${i}`, { modified: `2026-10-07 10:0${i}:00.000000` }));
   }
 
-  /** A fake ERPNext list endpoint serving the REAL fetchers (filters/limit_page_length/limit_start). */
+  /** A fake ERPNext list endpoint serving the REAL fetchers: it evaluates the (modified, name) keyset
+   *  filters, the stable order and the page length (an offset is never sent). */
   function fakeErp(rows: ledgerFetch.GlEntryRow[], pleRows: ledgerFetch.PaymentLedgerEntryRow[] = []) {
     const urls: string[] = [];
     const fetchImpl = async (url: string): Promise<Response> => {
@@ -404,11 +470,15 @@ describe('erpnext/ledgerMirrorFeed — #901 fix round: bounded + ordered + monot
       const u = new URL(url);
       const doctype = decodeURIComponent(u.pathname.replace('/api/resource/', ''));
       const filters = JSON.parse(u.searchParams.get('filters') ?? '[]') as Array<[string, string, string]>;
-      const since = filters.find(([col]) => col === 'modified')?.[2];
-      const start = Number(u.searchParams.get('limit_start') ?? 0);
       const len = Number(u.searchParams.get('limit_page_length') ?? 500);
-      const src = (doctype === 'GL Entry' ? rows : pleRows).filter((r) => since === undefined || r.modified >= since);
-      return new Response(JSON.stringify({ data: src.slice(start, start + len) }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      const pass = (r: { name: string; modified: string }) => filters.every(([f, op, v]) => {
+        if (f !== 'modified' && f !== 'name') return true;
+        const x = f === 'modified' ? r.modified : r.name;
+        return op === '=' ? x === v : op === '>=' ? x >= v : op === '>' ? x > v : true;
+      });
+      const src = (doctype === 'GL Entry' ? rows : pleRows).filter(pass)
+        .sort((a, b) => (a.modified === b.modified ? a.name.localeCompare(b.name) : a.modified.localeCompare(b.modified)));
+      return new Response(JSON.stringify({ data: src.slice(0, len) }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     };
     return { client: { fetchImpl: fetchImpl as unknown as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' }, urls };
   }
@@ -420,43 +490,128 @@ describe('erpnext/ledgerMirrorFeed — #901 fix round: bounded + ordered + monot
     row.watermark_cursor = cursor;
   }
 
-  it('ordered pages: a multi-page backfill advances the watermark to the LAST row\'s modified, and every page request carries the stable order', async () => {
+  it('a backfill advances the watermark to the LAST row\'s modified, and every page request carries the stable order', async () => {
     const sc = fakeServiceClient();
     const erp = fakeErp(glSource(5));
-    const res = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co', pageSize: 2 });
+    const res = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' });
     const glUrls = erp.urls.filter((u) => u.includes('/api/resource/GL%20Entry'));
-    expect(glUrls).toHaveLength(3); // 5 rows / pageSize 2
+    expect(glUrls.length).toBeGreaterThan(0);
     for (const u of glUrls) expect(new URL(u).searchParams.get('order_by')).toBe('modified asc, name asc');
     expect(res.glFed).toBe(5);
     expect(res.glCaughtUp).toBe(true);
-    // Pages arrive `modified asc`, so the advanced watermark IS the last row read — never a mid-page value.
-    expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-10-07 10:04:00.000000');
+    // Pages arrive `modified asc, name asc`, so the advanced watermark IS the last row read (modified + name).
+    expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-10-07 10:04:00.000000|GLE-4');
   });
 
-  it('per-tick page budget: tick 1 stops at the budget and advances the watermark; later ticks resume (each bounded); the union is the FULL set with nothing skipped', async () => {
+  it('uses production page and tick bounds, then resumes a real tie group without losing rows', async () => {
     const sc = fakeServiceClient();
-    const erp = fakeErp(glSource(8)); // 4 full pages at pageSize 2 — more than one tick's budget of 2
+    const tiedModified = '2026-10-07 10:00:00.000000';
+    const tie = Array.from({ length: 10_001 }, (_, i) => glRow(`GLE-T${String(i).padStart(5, '0')}`, {
+      modified: tiedModified, voucher_type: null, voucher_no: null,
+    }));
+    const late = glRow('GLE-LATE', {
+      modified: '2026-10-07 10:05:00.000000', voucher_type: null, voucher_no: null,
+    });
+    const erp = fakeErp([...tie, late]);
 
-    const tick1 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co', pageSize: 2, maxPages: 2 });
+    const tick1 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' });
+    const firstTickUrls = erp.urls.filter((url) => url.includes('/api/resource/GL%20Entry'));
+    expect(tick1.glFed).toBe(10_000);
+    expect(tick1.glCaughtUp).toBe(false);
+    expect(tick1.glCursor).toBe(`${tiedModified}|GLE-T09999`);
+    expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe(`${tiedModified}|GLE-T09999`);
+    expect(firstTickUrls).toHaveLength(20);
+    for (const url of firstTickUrls) {
+      const params = new URL(url).searchParams;
+      expect(params.get('limit_page_length')).toBe('500');
+      expect(params.has('limit_start')).toBe(false);
+    }
+
+    const tick2 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' });
+    const allGlUrls = erp.urls.filter((url) => url.includes('/api/resource/GL%20Entry'));
+    const resumedUrls = allGlUrls.slice(firstTickUrls.length);
+    expect(tick2.glFed).toBe(2);
+    expect(tick2.glCaughtUp).toBe(true);
+    expect(tick2.glCursor).toBe('2026-10-07 10:05:00.000000|GLE-LATE');
+    expect(resumedUrls).toHaveLength(2);
+    expect(JSON.parse(new URL(resumedUrls[0]!).searchParams.get('filters') ?? '[]')).toEqual([
+      ['company', '=', 'PMO Smoke Co'],
+      ['modified', '=', tiedModified],
+      ['name', '>', 'GLE-T09999'],
+    ]);
+    expect(JSON.parse(new URL(resumedUrls[1]!).searchParams.get('filters') ?? '[]')).toEqual([
+      ['company', '=', 'PMO Smoke Co'],
+      ['modified', '>', tiedModified],
+    ]);
+    expect(Array.from(h(sc).gl.keys()).sort()).toEqual([...tie.map((row) => row.name), late.name].sort());
+  });
+
+  it('persists a partial page cursor, resumes after it, then reports caught up without re-reading rows', async () => {
+    const sc = fakeServiceClient();
+    const erp = fakeErp([]);
+    const rows = Array.from({ length: 8 }, (_, i) => glRow(`GLE-${i}`, {
+      modified: `2026-10-07 10:${String(i).padStart(2, '0')}:00.000000`, voucher_type: null, voucher_no: null,
+    }));
+    const cursor1 = '2026-10-07 10:03:00.000000|GLE-3';
+    const cursor2 = '2026-10-07 10:07:00.000000|GLE-7';
+    const fetchSpy = vi.spyOn(ledgerFetch, 'fetchGlEntries')
+      .mockResolvedValueOnce({ rows: rows.slice(0, 4), caughtUp: false, cursor: cursor1 })
+      .mockResolvedValueOnce({ rows: rows.slice(4), caughtUp: true, cursor: cursor2 })
+      .mockResolvedValueOnce({ rows: [], caughtUp: true, cursor: cursor2 });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    const tick1 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' });
     expect(tick1.glFed).toBe(4);
-    expect(tick1.glCaughtUp).toBe(false); // the budget, not a short page, stopped the fetch
-    expect(tick1.glCursor).toBe('2026-10-07 10:03:00.000000'); // max modified READ (the last row of page 2)
-    expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-10-07 10:03:00.000000');
+    expect(tick1.glCaughtUp).toBe(false);
+    expect(tick1.glCursor).toBe(cursor1);
+    expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe(cursor1);
     const after1 = Array.from(h(sc).gl.keys()).sort();
     expect(after1).toEqual(['GLE-0', 'GLE-1', 'GLE-2', 'GLE-3']);
 
-    // Tick 2 resumes from the watermark. The inclusive `>=` cursor re-delivers the boundary row
-    // (GLE-3, idempotent re-apply) and carries on past it.
-    // The budget binds EVERY tick, not only the first activation: a long-frozen cursor catches up in steps.
-    const tick2 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co', pageSize: 2, maxPages: 2 });
-    expect(tick2.glCaughtUp).toBe(false);
-    expect(tick2.glFed).toBe(4); // the re-delivered boundary GLE-3 + GLE-4..6
-    expect(tick2.glCursor).toBe('2026-10-07 10:06:00.000000');
-    const tick3 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co', pageSize: 2, maxPages: 2 });
+    // The feed passes the stored composite watermark to the fetch seam and writes each row only once.
+    const tick2 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' });
+    expect(tick2.glCaughtUp).toBe(true);
+    expect(tick2.glFed).toBe(4);
+    expect(tick2.glCursor).toBe(cursor2);
+    expect(fetchSpy).toHaveBeenNthCalledWith(2, erp.client, { company: 'PMO Smoke Co', since: cursor1 });
+    const tick3 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' });
     expect(tick3.glCaughtUp).toBe(true);
-    expect(tick3.glCursor).toBe('2026-10-07 10:07:00.000000');
+    expect(tick3.glFed).toBe(0);
+    expect(tick3.glCursor).toBe(cursor2);
     // UNION across the ticks = the full source, NOTHING skipped, NO duplicates:
     expect(Array.from(h(sc).gl.keys()).sort()).toEqual(['GLE-0', 'GLE-1', 'GLE-2', 'GLE-3', 'GLE-4', 'GLE-5', 'GLE-6', 'GLE-7']);
+  });
+
+  it('THEME-DATA-03: through the feed, a tie group split across fetched pages is drained before later rows', async () => {
+    const sc = fakeServiceClient();
+    const tie = Array.from({ length: 9 }, (_, i) => glRow(`GLE-T${i}`, { modified: '2026-10-07 10:00:00.000000' }));
+    const erp = fakeErp([]);
+    const rows = [...tie, glRow('GLE-LATE', { modified: '2026-10-07 10:05:00.000000' })]
+      .map((row) => ({ ...row, voucher_type: null, voucher_no: null }));
+    const pageEnds = [1, 3, 5, 7, 9];
+    const cursors = [
+      '2026-10-07 10:00:00.000000|GLE-T1',
+      '2026-10-07 10:00:00.000000|GLE-T3',
+      '2026-10-07 10:00:00.000000|GLE-T5',
+      '2026-10-07 10:00:00.000000|GLE-T7',
+      '2026-10-07 10:05:00.000000|GLE-LATE',
+    ];
+    const pages = pageEnds.map((end, index) => ({
+      rows: rows.slice(index === 0 ? 0 : pageEnds[index - 1]! + 1, end + 1),
+      caughtUp: index === pageEnds.length - 1,
+      cursor: cursors[index],
+    }));
+    const fetchSpy = vi.spyOn(ledgerFetch, 'fetchGlEntries');
+    for (const page of pages) fetchSpy.mockResolvedValueOnce(page);
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    let caughtUp = false;
+    for (let tick = 0; tick < 8 && !caughtUp; tick += 1) {
+      caughtUp = (await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' })).glCaughtUp;
+    }
+    expect(caughtUp).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(pages.length);
+    expect(Array.from(h(sc).gl.keys()).sort()).toEqual([...tie.map((r) => r.name), 'GLE-LATE'].sort());
+    expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-10-07 10:05:00.000000|GLE-LATE');
   });
 
   it('overlapping ticks: a watermark write that is OLDER than the stored cursor leaves the stored value unchanged (never rewinds)', async () => {
@@ -474,5 +629,401 @@ describe('erpnext/ledgerMirrorFeed — #901 fix round: bounded + ordered + monot
     // This tick's max (12:30) is OLDER than what the concurrent tick stored (13:00): the write must not land.
     expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-07-12 13:00:00.000000');
     expect(res.glCursor).toBe('2026-07-12 13:00:00.000000'); // the report reflects the STORED truth
+  });
+});
+
+/**
+ * DEFECT (2026-10-25): ERPNext's "Repost Accounting Ledger" re-creates a voucher's GL rows, and a SECOND
+ * repost HARD-DELETES the first repost's rows (no Deleted Document). The mirror upserts by name, so the
+ * deleted rows stayed live and the voucher's project spend was counted twice. Whenever the feed sees a
+ * voucher whose mirror holds rows the fetched batch did not re-deliver, it reads ERPNext's CURRENT full
+ * row set for that voucher and replaces the mirror's copy of it in one atomic RPC.
+ */
+describe('erpnext/ledgerMirrorFeed — a reposted voucher is replaced, never double counted', () => {
+  const client = { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' };
+  const JV = { voucher_type: 'Journal Entry', voucher_no: 'ACC-JV-2026-00070' };
+  const line = { ...JV, account: '519101 - Other Direct Expenses - SYN', project: 'PROJ-0004', company: 'Synthetic Co' };
+
+  /** Mirror state after the FIRST repost: the original (cancelled), its hash-named reversal, and the
+   *  first repost's live hash-named row — the row ERPNext later hard-deletes. */
+  function mirrorAfterFirstRepost() {
+    return [
+      { org_id: 'org-1', erp_name: 'ACC-GLE-2026-00231', ...line, project: null, debit: '241999959.00', credit: '0.00', is_cancelled: true, erp_modified: '2026-10-25 07:37:41.941175' },
+      { org_id: 'org-1', erp_name: '90b076b758', ...line, debit: '0.00', credit: '241999959.00', is_cancelled: true, erp_modified: '2026-10-25 07:37:41.951217' },
+      { org_id: 'org-1', erp_name: '9a24980bf8', ...line, debit: '241999959.00', credit: '0.00', is_cancelled: false, erp_modified: '2026-10-25 07:37:57.013202' },
+    ];
+  }
+  /** ERPNext's current rows for the voucher after the SECOND repost (the 07:37 hash rows are gone). */
+  const erpCurrent = [
+    glRow('ACC-GLE-2026-00231', { ...line, project: null, debit: '241999959.00', is_cancelled: true, modified: '2026-10-25 07:37:41.941175' }),
+    glRow('ACC-GLE-2026-01435', { ...line, credit: '241999959.00', is_cancelled: true, modified: '2026-10-25 08:32:12.248890' }),
+    glRow('ACC-GLE-2026-01438', { ...line, debit: '241999959.00', is_cancelled: false, modified: '2026-10-25 08:32:12.251858' }),
+  ];
+  /** The incremental batch since the 07:37:57 watermark re-delivers only the second repost's rows. */
+  const batch = erpCurrent.slice(1);
+
+  function liveProjectDebit(sc: Parameters<typeof feedLedgerMirrors>[0], project: string): number {
+    return Array.from(h(sc).gl.values())
+      .filter((r) => r.project === project && r.is_cancelled !== true)
+      .reduce((sum, r) => sum + Number(r.debit ?? 0) - Number(r.credit ?? 0), 0);
+  }
+
+  function mockGl(voucherResult: () => Promise<ledgerFetch.LedgerFetchResult<ledgerFetch.GlEntryRow>>) {
+    return vi.spyOn(ledgerFetch, 'fetchGlEntries').mockImplementation(async (_c, opts) =>
+      opts.voucher ? voucherResult() : { rows: batch, caughtUp: true });
+  }
+
+  it('a voucher reposted twice leaves exactly ERPNext\'s current rows in the mirror, so the project spend counts once', async () => {
+    const sc = fakeServiceClient(mirrorAfterFirstRepost());
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-25 07:37:57.013202');
+    const gl = mockGl(async () => ({ rows: erpCurrent, caughtUp: true }));
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    const res = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    expect(Array.from(h(sc).gl.keys()).sort()).toEqual(['ACC-GLE-2026-00231', 'ACC-GLE-2026-01435', 'ACC-GLE-2026-01438']);
+    expect(liveProjectDebit(sc, 'PROJ-0004')).toBe(241999959);
+    const voucherRead = gl.mock.calls.map(([, o]) => o).find((o) => o.voucher);
+    expect(voucherRead).toMatchObject({ company: 'Synthetic Co', voucher: { type: 'Journal Entry', no: 'ACC-JV-2026-00070' } });
+    expect(voucherRead?.since).toBeUndefined(); // the full current set, never the modified cursor
+    expect(res.glCursor).toBe('2026-10-25 08:32:12.251858');
+    expect(res.glCaughtUp).toBe(true);
+  });
+
+  it('AC-JEC-013: a replaced voucher\'s rows carry the GL remark too (voucher-replace path)', async () => {
+    const sc = fakeServiceClient(mirrorAfterFirstRepost());
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-25 07:37:57.013202');
+    const withRemark = erpCurrent.map((r) => ({ ...r, remarks: 'Vendor Lab inv 7' }));
+    mockGl(async () => ({ rows: withRemark, caughtUp: true }));
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+    expect(h(sc).gl.get('ACC-GLE-2026-01438')).toMatchObject({ remarks: 'Vendor Lab inv 7' });
+    expect(h(sc).gl.get('ACC-GLE-2026-00231')).toMatchObject({ remarks: 'Vendor Lab inv 7' });
+  });
+
+  it('a voucher too big to read in full removes nothing, is reported as skipped, and does not block the feed', async () => {
+    const sc = fakeServiceClient(mirrorAfterFirstRepost());
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-25 07:37:57.013202');
+    mockGl(async () => ({ rows: erpCurrent.slice(2), caughtUp: false }));
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    const res = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    // Nothing removed on a partial read; the batch's own rows still land.
+    expect(h(sc).gl.has('9a24980bf8')).toBe(true);
+    expect(h(sc).gl.has('ACC-GLE-2026-01438')).toBe(true);
+    expect(h(sc).fake.rpcCalls.filter((c) => c.fn === 'replace_erp_gl_voucher_rows')).toHaveLength(0);
+    expect(res.skippedVouchers).toEqual(['GL Entry Journal Entry ACC-JV-2026-00070']);
+    // The feed moves on: the cursor advances and the source counts as caught up.
+    expect(res.glCaughtUp).toBe(true);
+    expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-10-25 08:32:12.251858');
+  });
+
+  it('the replace upserts ERPNext\'s FULL current set, not only the batch\'s rows', async () => {
+    const sc = fakeServiceClient(mirrorAfterFirstRepost());
+    mockGl(async () => ({ rows: erpCurrent, caughtUp: true }));
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    const call = h(sc).fake.rpcCalls.find((c) => c.fn === 'replace_erp_gl_voucher_rows')!;
+    expect((call.args.p_rows as Array<{ erp_name: string }>).map((r) => r.erp_name))
+      .toEqual(['ACC-GLE-2026-00231', 'ACC-GLE-2026-01435', 'ACC-GLE-2026-01438']);
+  });
+
+  it('a failed voucher fetch removes nothing and writes nothing', async () => {
+    const sc = fakeServiceClient(mirrorAfterFirstRepost());
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-25 07:37:57.013202');
+    mockGl(async () => { throw new Error('ERP timeout'); });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    await expect(feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' })).rejects.toThrow('ERP timeout');
+
+    expect(Array.from(h(sc).gl.keys()).sort()).toEqual(['90b076b758', '9a24980bf8', 'ACC-GLE-2026-00231']);
+    expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-10-25 07:37:57.013202');
+  });
+
+  it('an empty current set (the voucher vanished between reads) removes nothing', async () => {
+    const sc = fakeServiceClient(mirrorAfterFirstRepost());
+    mockGl(async () => ({ rows: [], caughtUp: true }));
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    expect(h(sc).gl.has('9a24980bf8')).toBe(true);
+    expect(h(sc).fake.rpcCalls.filter((c) => c.fn === 'replace_erp_gl_voucher_rows')).toHaveLength(0);
+  });
+
+  it('a replace RPC error fails the feed before the watermark advances', async () => {
+    const base = fakeServiceClient(mirrorAfterFirstRepost());
+    h(base).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-25 07:37:57.013202');
+    const sc = Object.assign(base, { rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'deadlock', code: '40P01' } }) });
+    mockGl(async () => ({ rows: erpCurrent, caughtUp: true }));
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    await expect(feedLedgerMirrors(sc as never, { client, orgId: 'org-1', company: 'Synthetic Co' })).rejects.toThrow('deadlock');
+    expect(h(base).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-10-25 07:37:57.013202');
+  });
+
+  it('a stale-binding refusal from the replace RPC fails the feed', async () => {
+    const base = fakeServiceClient(mirrorAfterFirstRepost());
+    const sc = Object.assign(base, { rpc: vi.fn().mockResolvedValue({ data: { stale_binding: true }, error: null }) });
+    mockGl(async () => ({ rows: erpCurrent, caughtUp: true }));
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    await expect(feedLedgerMirrors(sc as never, { client, orgId: 'org-1', company: 'Synthetic Co' })).rejects.toThrow(/stale binding/i);
+  });
+
+  it('a batch whose vouchers hold no unseen mirror rows costs no extra ERP read', async () => {
+    const sc = fakeServiceClient();
+    const gl = vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: batch, caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    const res = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    expect(gl).toHaveBeenCalledTimes(1);
+    expect(res.glFed).toBe(2);
+  });
+
+  it('only this company\'s mirror rows make a voucher a candidate', async () => {
+    const other = mirrorAfterFirstRepost().map((r) => ({ ...r, company: 'Other Co' }));
+    const sc = fakeServiceClient(other);
+    const gl = vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: batch, caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    expect(gl).toHaveBeenCalledTimes(1);
+  });
+
+  it('PLE: a reposted voucher\'s hard-deleted payment-ledger rows stop counting', async () => {
+    const PI = { voucher_type: 'Purchase Invoice', voucher_no: 'ACC-PINV-2026-00006' };
+    const sc = fakeServiceClient([], [
+      { org_id: 'org-1', erp_name: 'ple-old', ...PI, account: 'Creditors - SYN', amount: '5811783.49', delinked: false, erp_modified: '2026-10-25 07:00:00.000000' },
+    ]);
+    const current = [pleRow('ple-new', { ...PI, amount: '5811783.49', modified: '2026-10-25 11:52:16.308551' })];
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    const ple = vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: current, caughtUp: true });
+
+    await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    expect(Array.from(h(sc).ple.keys())).toEqual(['ple-new']);
+    expect(h(sc).ple.get('ple-new')).toMatchObject({ voucher_type: 'Purchase Invoice', voucher_no: 'ACC-PINV-2026-00006' });
+    expect(ple).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ voucher: { type: 'Purchase Invoice', no: 'ACC-PINV-2026-00006' } }));
+  });
+});
+
+/**
+ * The one-off repair (0382). A per-source repair marker (`<domain>::repair`) re-reads from its cursor
+ * once, independently of the ordinary cursor — so an old-code tick that runs between the DB and the
+ * edge-function deploy cannot consume the repair (old code never reads the marker).
+ */
+describe('erpnext/ledgerMirrorFeed — the one-off repair re-read', () => {
+  const client = { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' };
+  const GL_REPAIR = `${LEDGER_GL_WM_DOMAIN}::repair`;
+  const PLE_REPAIR = `${LEDGER_PLE_WM_DOMAIN}::repair`;
+
+  it('reads from the repair marker, keeps the ordinary cursor monotonic, and clears the marker once caught up', async () => {
+    const sc = fakeServiceClient();
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-25 11:52:16.353591');
+    h(sc).setWatermark('erpnext', GL_REPAIR, '2026-10-24 00:00:00');
+    h(sc).setWatermark('erpnext', LEDGER_PLE_WM_DOMAIN, '2026-10-25 11:52:16.308551');
+    h(sc).setWatermark('erpnext', PLE_REPAIR, '2000-01-01 00:00:00');
+    const gl = vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [glRow('G1', { modified: '2026-10-25 08:32:12.251858' })], caughtUp: true });
+    const ple = vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    const res = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    expect(gl.mock.calls[0][1].since).toBe('2026-10-24 00:00:00');
+    expect(ple.mock.calls[0][1].since).toBe('2000-01-01 00:00:00');
+    expect(res.glCursor).toBe('2026-10-25 11:52:16.353591'); // never rewound
+    expect(h(sc).watermarks.has(`erpnext::${GL_REPAIR}`)).toBe(false);
+    expect(h(sc).watermarks.has(`erpnext::${PLE_REPAIR}`)).toBe(false);
+  });
+
+  it('a repair that hits the page budget advances its marker and resumes next tick', async () => {
+    const sc = fakeServiceClient();
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-25 11:52:16.353591');
+    h(sc).setWatermark('erpnext', GL_REPAIR, '2026-10-24 00:00:00');
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [glRow('G1', { modified: '2026-10-24 09:00:00' })], caughtUp: false });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    expect(h(sc).watermarks.get(`erpnext::${GL_REPAIR}`)).toBe('2026-10-24 09:00:00');
+    expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-10-25 11:52:16.353591');
+  });
+
+  it('a failed repair tick keeps the marker', async () => {
+    const sc = fakeServiceClient();
+    h(sc).setWatermark('erpnext', GL_REPAIR, '2026-10-24 00:00:00');
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockRejectedValue(new Error('ERP down'));
+
+    await expect(feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' })).rejects.toThrow('ERP down');
+    expect(h(sc).watermarks.get(`erpnext::${GL_REPAIR}`)).toBe('2026-10-24 00:00:00');
+  });
+
+  it('a marker NEWER than the ordinary cursor is ignored (the cursor already covers it) and cleared', async () => {
+    const sc = fakeServiceClient();
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-20 00:00:00');
+    h(sc).setWatermark('erpnext', GL_REPAIR, '2026-10-24 00:00:00');
+    const gl = vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    expect(gl.mock.calls[0][1].since).toBe('2026-10-20 00:00:00');
+    expect(h(sc).watermarks.has(`erpnext::${GL_REPAIR}`)).toBe(false);
+  });
+});
+
+/** I-4: the per-tick replace budget. More candidate vouchers than one tick may read finish across ticks. */
+describe('erpnext/ledgerMirrorFeed — bounded voucher replaces per tick', () => {
+  const client = { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' };
+
+  it(`more than ${VOUCHER_REPLACES_PER_TICK} reposted vouchers finish across ticks with nothing lost`, async () => {
+    const n = VOUCHER_REPLACES_PER_TICK + 5;
+    const stamp = (i: number, s: number) => `2026-10-25 08:${String(i).padStart(2, '0')}:${String(s).padStart(2, '0')}.000000`;
+    const voucher = (i: number) => ({ voucher_type: 'Journal Entry', voucher_no: `JV-${String(i).padStart(3, '0')}`, company: 'Synthetic Co' });
+    // Mirror: each voucher's first-repost row, hard-deleted in ERPNext since.
+    const stale = Array.from({ length: n }, (_, i) => ({ org_id: 'org-1', erp_name: `stale-${i}`, ...voucher(i), account: 'A', debit: '10.00', credit: '0.00', is_cancelled: false, erp_modified: stamp(i, 0) }));
+    // ERPNext: each voucher now holds one current row, modified in voucher order.
+    const erp = Array.from({ length: n }, (_, i) => glRow(`cur-${i}`, { ...voucher(i), account: 'A', debit: '10.00', modified: stamp(i, 30) }));
+    const sc = fakeServiceClient(stale);
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, stamp(0, 0));
+    const voucherReads: string[] = [];
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockImplementation(async (_c, opts) => {
+      if (opts.voucher) {
+        voucherReads.push(opts.voucher.no);
+        return { rows: erp.filter((r) => r.voucher_no === opts.voucher!.no), caughtUp: true };
+      }
+      return { rows: erp.filter((r) => opts.since === undefined || r.modified >= opts.since), caughtUp: true };
+    });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    const tick1 = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+    expect(voucherReads).toHaveLength(VOUCHER_REPLACES_PER_TICK);
+    expect(tick1.glCaughtUp).toBe(false); // accounting waits for the rest
+    // Held at the first voucher not yet replaced, so the next tick re-reads it.
+    expect(tick1.glCursor).toBe(stamp(VOUCHER_REPLACES_PER_TICK, 30));
+    expect(h(sc).gl.has(`stale-${VOUCHER_REPLACES_PER_TICK}`)).toBe(true);
+
+    const tick2 = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+    expect(tick2.glCaughtUp).toBe(true);
+    expect(tick2.glCursor).toBe(stamp(n - 1, 30));
+    expect(voucherReads).toHaveLength(n); // every voucher read exactly once across the two ticks
+    expect(Array.from(h(sc).gl.keys()).sort()).toEqual(erp.map((r) => r.name).sort());
+  });
+});
+
+/** I-1: the PROD shape. Every PLE mirror row from before 0382 has NULL voucher columns; the re-read
+ *  refills the rows ERPNext still has, and the ones it hard-deleted must stop counting. */
+describe('erpnext/ledgerMirrorFeed — PLE voucher backfill retires rows ERPNext no longer has', () => {
+  const client = { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' };
+  const PLE_REPAIR = `${LEDGER_PLE_WM_DOMAIN}::repair`;
+  const legacy = [
+    { org_id: 'org-1', erp_name: 'ple-kept', account: 'Creditors - SYN', against_voucher_type: 'Purchase Invoice', against_voucher_no: 'PINV-6', amount: '5811783.49', delinked: false, erp_modified: '2026-10-15 21:55:08.719963' },
+    { org_id: 'org-1', erp_name: 'ple-gone', account: 'Creditors - SYN', against_voucher_type: 'Purchase Invoice', against_voucher_no: 'PINV-6', amount: '5811783.49', delinked: false, erp_modified: '2026-10-15 21:55:08.719963' },
+  ];
+  const kept = pleRow('ple-kept', { account: 'Creditors - SYN', against_voucher_no: 'PINV-6', amount: '5811783.49', voucher_type: 'Purchase Invoice', voucher_no: 'PINV-6', modified: '2026-10-15 21:55:08.719963' });
+
+  it('a complete PLE re-read refills surviving rows and deletes the never-re-delivered ones', async () => {
+    const sc = fakeServiceClient([], legacy);
+    h(sc).setWatermark('erpnext', LEDGER_PLE_WM_DOMAIN, '2026-10-25 11:52:16.308551');
+    h(sc).setWatermark('erpnext', PLE_REPAIR, '2000-01-01 00:00:00');
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [kept], caughtUp: true });
+
+    await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    expect(Array.from(h(sc).ple.keys())).toEqual(['ple-kept']);
+    expect(h(sc).ple.get('ple-kept')).toMatchObject({ voucher_type: 'Purchase Invoice', voucher_no: 'PINV-6' });
+    expect(h(sc).fake.rpcCalls.filter((c) => c.fn === 'finish_erp_ple_voucher_backfill')).toEqual([
+      { fn: 'finish_erp_ple_voucher_backfill', args: { p_org_id: 'org-1', p_company: 'Synthetic Co' } },
+    ]);
+    expect(h(sc).watermarks.has(`erpnext::${PLE_REPAIR}`)).toBe(false);
+  });
+
+  it('an unfinished PLE re-read retires nothing', async () => {
+    const sc = fakeServiceClient([], legacy);
+    h(sc).setWatermark('erpnext', LEDGER_PLE_WM_DOMAIN, '2026-10-25 11:52:16.308551');
+    h(sc).setWatermark('erpnext', PLE_REPAIR, '2000-01-01 00:00:00');
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [kept], caughtUp: false });
+
+    await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    expect(h(sc).ple.has('ple-gone')).toBe(true);
+    expect(h(sc).fake.rpcCalls.some((c) => c.fn === 'finish_erp_ple_voucher_backfill')).toBe(false);
+  });
+
+  it('a stale-binding refusal of the backfill finish fails the feed', async () => {
+    const base = fakeServiceClient([], legacy);
+    h(base).setWatermark('erpnext', LEDGER_PLE_WM_DOMAIN, '2026-10-25 11:52:16.308551');
+    h(base).setWatermark('erpnext', PLE_REPAIR, '2000-01-01 00:00:00');
+    const sc = Object.assign(base, { rpc: vi.fn().mockResolvedValue({ data: { stale_binding: true }, error: null }) });
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [kept], caughtUp: true });
+
+    await expect(feedLedgerMirrors(sc as never, { client, orgId: 'org-1', company: 'Synthetic Co' })).rejects.toThrow(/stale binding/i);
+  });
+});
+
+/**
+ * THEME-DATA-33 (ADP-006): an incremental feed reads only the existing mirror rows it needs — the
+ * changed identities and the touched vouchers, in bounded batches — never the whole org mirror.
+ * Correctness is unchanged: the stale-row guard and voucher replacement still see every row that
+ * matters, and a failed read still throws.
+ */
+describe('erpnext/ledgerMirrorFeed — THEME-DATA-33: bounded existing-row reads', () => {
+  const client = { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' };
+  const bigMirror = (n: number) => Array.from({ length: n }, (_, i) => ({
+    org_id: 'org-1', erp_name: `GLE-${String(i).padStart(6, '0')}`, account: 'Filler - PSC', debit: '1.00',
+    voucher_type: 'Journal Entry', voucher_no: `JV-${String(Math.floor(i / 2)).padStart(6, '0')}`,
+    company: 'PMO Smoke Co', erp_modified: '2026-07-12 12:00:00.000000',
+  }));
+  const mirrorRowsRead = (sc: Parameters<typeof feedLedgerMirrors>[0]) =>
+    h(sc).fake.reads.filter((r) => r.table === 'erp_gl_entry_mirror').reduce((sum, r) => sum + r.returned, 0);
+
+  it('a 3-row incremental feed over a 2,500-row mirror reads a handful of mirror rows, not the whole mirror', async () => {
+    const sc = fakeServiceClient(bigMirror(2500), []);
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [
+      glRow('GLE-000010', { voucher_type: 'Journal Entry', voucher_no: 'JV-000005', modified: '2026-07-12 13:00:00.000000' }),
+      glRow('GLE-000011', { voucher_type: 'Journal Entry', voucher_no: 'JV-000005', modified: '2026-07-12 13:00:00.000000' }),
+      glRow('GLE-NEW', { voucher_type: 'Journal Entry', voucher_no: 'JV-NEW', modified: '2026-07-12 13:00:00.000000' }),
+    ], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    const res = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'PMO Smoke Co' });
+    expect(res.glFed).toBe(3);
+    expect(mirrorRowsRead(sc)).toBeLessThan(20);
+    expect(h(sc).gl.get('GLE-NEW')).toMatchObject({ voucher_no: 'JV-NEW' });
+  });
+
+  it('still drops a stale re-delivery and still replaces a reposted voucher when the mirror is large', async () => {
+    const sc = fakeServiceClient(bigMirror(2500), []);
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockImplementation(async (_c, opts) => {
+      if (opts.voucher?.no === 'JV-000006') return { rows: [glRow('GLE-000012', { voucher_type: 'Journal Entry', voucher_no: 'JV-000006', modified: '2026-07-12 13:00:00.000000' })], caughtUp: true };
+      if (opts.voucher) return { rows: ['GLE-000100', 'GLE-000101'].map((n) => glRow(n, { voucher_type: 'Journal Entry', voucher_no: 'JV-000050', modified: '2026-07-12 12:00:00.000000' })), caughtUp: true };
+      return { rows: [
+        glRow('GLE-000012', { voucher_type: 'Journal Entry', voucher_no: 'JV-000006', modified: '2026-07-12 13:00:00.000000' }), // reposted: sibling GLE-000013 not re-delivered
+        glRow('GLE-000100', { voucher_type: 'Journal Entry', voucher_no: 'JV-000050', modified: '2026-07-12 11:00:00.000000' }), // older than mirrored: dropped
+      ], caughtUp: true };
+    });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    const res = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'PMO Smoke Co' });
+    expect(res.glFed).toBe(1);
+    expect(h(sc).gl.has('GLE-000013')).toBe(false); // the voucher's absent sibling was removed
+    expect(h(sc).gl.get('GLE-000012')!.erp_modified).toBe('2026-07-12 13:00:00.000000');
+    expect(h(sc).gl.get('GLE-000100')!.erp_modified).toBe('2026-07-12 12:00:00.000000');
+    expect(mirrorRowsRead(sc)).toBeLessThan(40);
+  });
+
+  it('a failed existing-row read throws before any write (fail closed)', async () => {
+    const sc = fakeServiceClient(bigMirror(10), []);
+    (h(sc).fake as unknown as { readErrors: Record<string, { message: string }> }).readErrors.erp_gl_entry_mirror = { message: 'boom' };
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [glRow('GLE-000001')], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    await expect(feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'PMO Smoke Co' })).rejects.toThrow(/boom/);
+    expect(h(sc).fake.upserted.erp_gl_entry_mirror ?? []).toEqual([]);
   });
 });

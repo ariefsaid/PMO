@@ -75,3 +75,17 @@ describe('BvACard — AC-IFW-DASH-01: BvA row name links to /projects/:id', () =
     expect(within(atRiskRow).getByText(/At risk/i)).toBeInTheDocument();
   });
 });
+
+describe('AC-002 #1325: BvACard shows the short name and titles the contractual one', () => {
+  it('uses the alias for the link and its bar label, keeping the contractual name on hover', () => {
+    render(
+      <MemoryRouter>
+        <BvACard projects={[{ ...projects[0], short_name: 'Steelworks' }, projects[1]]} currency="USD" />
+      </MemoryRouter>,
+    );
+    const link = screen.getByRole('link', { name: 'Steelworks' });
+    expect(link).toHaveAttribute('title', 'Meridian Steelworks');
+    expect(screen.queryByText('Meridian Steelworks')).toBeNull();
+    expect(screen.getByRole('link', { name: 'SunVolt Install' })).not.toHaveAttribute('title');
+  });
+});

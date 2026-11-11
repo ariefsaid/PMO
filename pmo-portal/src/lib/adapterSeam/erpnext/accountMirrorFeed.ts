@@ -1,20 +1,7 @@
 import { AppError } from '../../appError.ts';
 import type { StatementAccountSourceRow } from './accountFetch.ts';
 
-interface AccountWriteResult { error: { message: string; code?: string } | null; count?: number | null }
-interface AccountQuery extends PromiseLike<AccountWriteResult> {
-  eq(column: string, value: string): AccountQuery;
-  not(column: string, operator: string, value: string): AccountQuery;
-}
-interface AccountTable {
-  from?(table: string): never;
-  upsert(rows: unknown[], options: { onConflict: string }): Promise<AccountWriteResult>;
-  delete(): AccountQuery;
-  eq(column: string, value: string): AccountQuery;
-  not(column: string, operator: string, value: string): AccountQuery;
-}
 export interface AccountMirrorServiceClient {
-  from(table: string): AccountTable;
   rpc(name: 'replace_erp_account_chart', args: { p_org_id: string; p_company: string; p_rows: Record<string, unknown>[] }): Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
 }
 export interface FeedAccountMirrorOpts {
@@ -44,8 +31,9 @@ function validateChart(accounts: readonly StatementAccountSourceRow[], company: 
 }
 
 /** Persist a fully fetched chart while the caller holds that org's sweep lock row. Validation runs
- * before either write. The chart upsert is one bulk PostgREST operation; obsolete rows are removed
- * only after it succeeds, so failure leaves the sweep's replay/delayed status uncleared. */
+ *  before the single write: the `replace_erp_account_chart` RPC replaces the whole chart atomically
+ *  (upsert + obsolete-row removal), so a failure leaves the stored chart untouched and the sweep's
+ *  replay/delayed status uncleared. */
 export async function feedAccountMirror(sc: AccountMirrorServiceClient, opts: FeedAccountMirrorOpts): Promise<{ upserted: number; removed: boolean }> {
   validateChart(opts.accounts, opts.company);
   const rows = opts.accounts.map((account) => {

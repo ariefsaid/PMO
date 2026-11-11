@@ -338,7 +338,7 @@ No drag-and-drop / row-dropdown stage change on the board; the detail page (Pipe
 
 ## Wave 5 — Approval Experience (OD-W5-*, locked 2026-06-09; plan `docs/plans/2026-06-09-wave5-approval-experience.md`)
 ### OD-W5-1 — Approvals inbox = PROMOTE the existing `/approvals` route
-One canonical role-aware inbox (NOT a new `/inbox`): lists everything awaiting the viewer's decision — procurement PRs (link to the decision screen) + timesheet weeks (embedded queue) — gated by `may('transition', entity)` (Engineer → no access; Finance → procurement; PM/Exec → both). UX-only; RLS is authority. Dashboard "Awaiting your approval" KPI-as-link routes here (N15).
+One canonical role-aware inbox (NOT a new `/inbox`): lists everything awaiting the viewer's decision — procurement PRs (link to the decision screen) + timesheet weeks (embedded queue) — gated by `may('transition', entity)` (Engineer → no access; Finance → procurement; PM/Exec → both). UX-only; RLS is authority. Dashboard "Awaiting your approval" KPI-as-link routes here (N15). For timesheets, the later and more specific OD-TS-5 applies: a viewer of any role sees the timesheet section when they have eligible pending or correction records; Admin break-glass and Executive unmanaged fallback remain subject to separation of duties. The procurement and invoice gates are unchanged.
 ### OD-W5-2 — Approved stage = BOTH forward paths stay, skip-able (one VISUAL primary, both reachable)
 The state machine already allows `Approved → Vendor Quoted` (quote-first) OR `Approved → Ordered` (skip-to-PO). Do NOT force one. Keep both actions; give ONE a visual `primary` and the other `outline` so no stage emits two blue primaries (resolves D7), but the user can choose either path as the situation needs (sole-source → straight to PO; competitive → quotes first). Supersedes the plan's "Request Vendor Quotes is THE primary" — it's the default emphasis, not the only path.
 ### OD-W5-3 — Bulk approve = BOTH timesheets AND procurement, but EVIDENCE-BASED
@@ -465,7 +465,7 @@ billing) and spine 8 (asset registry) and is sequenced after them. Defined in
 
 ## OD-DOC — Document file storage (grill-with-docs session, owner-locked 2026-06-12)
 
-First issue of the KANNA gap-closing series (`review/kanna-gap-analysis.md`). Grilled per the
+First issue of the KANNA gap-closing series (a competitor review, kept private). Grilled per the
 new playbook §2 step-1b gate.
 
 ### OD-DOC-1 — Issue scope: infra + Documents tab only; procurement next; photos out
@@ -1098,7 +1098,7 @@ deferred under this single-org decision.
 
 ## OD-CR-1..6 — RIS-parity + CRM-v2 candidate program (owner grill 2026-07-22)
 
-Candidate program, **not scheduled**. Analysis: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md).
+Candidate program, **not scheduled**. Analysis: (a competitor review, kept private).
 Full decision text (batches A–D + the resulting sequence) lives in the **CANDIDATE PROGRAM** section of
 [`docs/backlog.md`](backlog.md) — indexed here so `OD-CR-*` resolves by id:
 
@@ -3222,7 +3222,7 @@ receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `docs/plans/2
 
 **DD-BUDGET-7 (Director)** — “Drafter” for activation separation of duties means every human who created a version or inserted, updated, or deleted any of its line items. None of those users may activate that version, regardless of role. Current client-writable budget-version header fields contain no money values; client UPDATE is limited to status, so no header-money editor tracking is needed. The version creator is retained in the editor set; clone creation records the cloner on the clone only. With no recorded editor, the existing OD-BUDGET-6 rule remains: only Admin or Finance may activate. Editor evidence is append-only and client-readable only within the version’s org; the activation RPC remains authoritative.
 
-**OD-EXP-PB-1 (owner, 2026-10-07, #775 phase B)** — (1) assume the client ERP has no HRMS; anything an HR module would provide that phase B needs is built in PMO (core doctypes only, DD-EXP-9). (2) Accounts come from the client's own 2025 chart of accounts (client-specific; mapping held privately and entered by the Admin/operator at setup); where the chart has no fitting account (employee payable; a staff-only advance account) the operator adds one with the client's accountant before posting is enabled; claims tagged to a project post to the direct-cost account, untagged claims to the overhead account for their type. (3) claims approved before posting is enabled are not posted retroactively (opening balance covers them). (4) an entry whose recorded approver/payer has left is held with an action-required notice, never posted under them. (5) staff are paid from the company default cash account, else its default bank account.
+**OD-EXP-PB-1 (owner, 2026-10-07, #775 phase B)** — (1) assume the client ERP has no HRMS; anything an HR module would provide that phase B needs is built in PMO (core doctypes only, DD-EXP-9). (2) Accounts come from the client's own 2025 chart of accounts (client-specific; mapping held privately and entered by the Admin/operator at setup); where the chart has no fitting account (employee payable; a staff-only advance account) the operator adds one with the client's accountant before posting is enabled; claims tagged to a project post to the direct-cost account, untagged claims to the overhead account for their type. (3) claims approved before posting is enabled are not posted retroactively (opening balance covers them). (4) an entry whose recorded approver/payer has left is held with an action-required notice, never posted under them. (5) staff are paid from the company default cash account, else its default bank account. **Confirmed by the owner 2026-10-23:** item (2) is built as written — a claim on a delivery project debits the direct-cost account; an Internal Project or untagged claim debits the overhead account for its type (spec §10.8, FR-EXP-119..122).
 
 ## DD-TOAST-1 — warning/error persistence and readable toast timing (Director, #926)
 
@@ -3559,3 +3559,175 @@ progress-billing spec §8; sequential lanes in `docs/plans/2026-10-21-contract-q
 final BAST closes it (DD-CQ-3). Work orders with no allocations keep the manual close. Already-Closed
 work orders are not migrated (none has allocations; no closing value means they read at order net).
 Management-pack earned-value recognition is follow-up #1279.
+
+**OD-TASK-FIN-1 (owner, 2026-10-23)** — Finance works tasks exactly like an Engineer: creates tasks (incl. meeting `/action`), edits tasks it created, changes status on tasks assigned to it, and gets the My Tasks doorway (rail + ⌘K); it does not edit, delete or archive other people's tasks. Supersedes the earlier Finance task scope where it differs. Enforced by migration 0355 (RLS + column guard) and the ClickUp task authorization; proof `AC-TASK-FIN-001`.
+
+## OD-VISUAL-RESET — composition rulings are evidence, not locks; looks are judged rendered (owner 2026-10-25)
+
+Owner, after the #806 slices still read as patched tiles: "I don't want a redesign of changing colors and font. But logical, intent and intuitiveness of UX, IA and IxD of this app needs to be so much more enhanced", and the skills (impeccable, taste, ui-ux-pro-max) should drive the result, not owner-raised findings. Mirrors gordi-mos OD-2026-10-11-VISUAL-RESET. Decided:
+
+- Past rulings about layout, placement, page composition, molecules and "equal or simpler" (DESIGN.md §7, DD/OD layout notes, the subtraction rule as a veto) become **evidence** a design pass may overturn. Tokens, colour, type (ADR-0068), domain language, roles/RLS, money rules and accessibility stay binding.
+- `DESIGN.md` is the token sheet only. Page composition authority is the owner's approval of **rendered screens**. No document pins where a block sits.
+- A test asserts what a user can do, never how it looks. Look-pinning tests are deleted when the page they pin is recomposed; behaviour, a11y, money and role tests stay.
+- UI work is done only with 390 and 1440 screenshots of **every state** (each toggle, period, empty, light/dark), an empty impeccable detector result and no serious axe findings on the touched routes. A figure keeps its form across its own controls: a toggle changes the numbers, never the chart type or layout.
+- Redesign PRs get machine gates plus one security review only when auth, RLS or money files change. No spec or code-quality rounds on composition. Round cap: one review, one fix.
+- Every owner screenshot becomes a GitHub issue the same day (label `ux-owner`), before anyone touches code.
+- *Amended 2026-10-27 (owner):* the area-by-area #806 redesign (2026-10-25/26) was reverted from dev; the UX standard, area specs and route-job rules went with it (rules produced compliance, not design). Restart is one screen at a time, rendered, owner-approved before the next.
+
+**OD-CI-REDESIGN-LANE (owner, 2026-10-25)** — CI on dev is allowed but must be worthwhile: a redesign-lane PR (`redesign/*` → dev) runs the local gates first (`npm run typecheck`, `npx eslint --max-warnings=0 <touched>`, `scripts/with-test-lock.sh … vitest run --changed origin/dev`, `scripts/ux-proof.sh` on touched routes), then is pushed **once** so CI's fast lane runs once; rebase only right before merge; no re-runs for timing-only failures; docs deliverables push direct to dev with no PR; small areas are batched into one PR. Main is never used to find out whether a branch is green: its CI runs once per release.
+
+### OD-CI-REDESIGN-LANE amendment (2026-10-26, owner: finish in hours, not days)
+The local gate for redesign builds and fix rounds no longer includes `vitest --changed origin/dev` or any full suite: CI's unit shards are the full proof on the dev PR. Local gate = `check:guards`, typecheck, eslint on touched files, directly touched tests, touched e2e, `ux-proof` with real-shaped captures. Rendered reviews run in parallel across Sol, Argon and GLM (one PR each); fix rounds use Sol medium; merge on CI green plus the Director's P1 check, P2 leftovers filed as issues.
+
+### OD-LOCAL-GATE-LIGHT (2026-10-26, owner) — no local full suite, CI shards are the proof
+Standing rule for the whole project, not only the redesign lane: the local pre-PR gate is `check:guards`, typecheck, eslint on touched files, the directly touched test files, touched e2e, rendered captures for UI, touched pgTAP for DB. `vitest --changed origin/dev` and full local suites are dropped: CI's two unit shards + pgTAP are the full proof on every PR to dev. Reason: on a shared Mac with parallel builds, one near-full local run per build serialised everything behind the test lock for hours and drove builders to bypass the lock. Supersedes the local-gate wording in older plans and briefs.
+
+
+### DD-ERP-PARTY-DRAFT — party creation and draft case authoring (Director, 2026-10-29)
+
+When ERP owns companies, new parties use the supported Customer or Supplier flow; Internal remains an
+own-organization marker. Creating a contact for an ERP-owned party requires a Customer or Supplier mapping.
+Mirrored contact identity fields stay with ERP while PMO-only enhancements remain editable. Draft procurement
+line values may be authored by an authorized requester or purchasing writer until a case command or ERP
+reference establishes the external record; recovery uses the submitted case snapshot.
+
+### DD-PROC-HEADER-REQUESTER — requester header editing (Director, 2026-10-29)
+
+A requester or same-organization Admin may edit the existing procurement header fields while the case
+is Draft or Rejected. The header command checks active membership, the procurement feature, referenced
+records and case ownership, and leaves identity, lifecycle and accounting fields outside its input.
+
+### DD-BKIND-1 — billing kinds on project invoices (Director, 2026-10-31)
+
+A project invoice carries one billing kind, `contract` (default) or `other`, as a constrained column on
+`sales_invoices`. Only Contract billing draws down the contract value; `get_project_finances` is the single
+calculation authority and Other billing stays in revenue, settlement, outstanding and margin. When Contract
+billing exceeds a known contract value the same payload carries the exact excess and every contributing
+Contract invoice, so the list reconciles to the headline by construction and cannot be truncated. Kind is
+written by three definer paths only (project assignment, a kind-only correction for any linked invoice, native
+creation) plus the connected-creation mirror writer; an omitted kind keeps the stored one, so a classified
+invoice is never silently flipped. It is PMO metadata and never reaches an ERP body. Rollback refuses while any
+Other invoice exists, so no classification silently changes meaning.
+
+### OD-ERP-ANYTIME-1 — PMO syncs with the ERP whenever the connection is made (owner, 2026-10-31)
+PMO must sync with the ERP in all four cases: a new org whose ERP already holds data; a new org with no ERP (connected later); an operational org connecting to a new, empty ERP (PMO's data is pushed out); an operational org connecting to an ERP that already holds data (match both sides, no duplicates, no double count). Setup maps once with bulk-accepted auto-proposals. ERPNext and Odoo follow the same sync workflow through one adapter contract with one contract test suite; an ERPNext sync-workflow change is made in the shared seam or replicated to Odoo where the ERP allows. Spec: `docs/specs/erp-connect-anytime.spec.md`.
+
+### DD-ODC-052 — who decides Odoo party review rows (Director, 2026-11-02; for owner review)
+- The connect-anytime setup gate wins over FR-ODC-052's "Admin or Finance": party review rows are decided by an Admin, account rows by Finance, the same for every ERP. Reason: one setup screen and one gate for all tiers; the connect-anytime spec is the later owner-signed one.
+
+### OD-GRILL-20261101 — owner rulings, grill of 2026-11-01
+- **Specs signed:** connect-an-ERP-anytime (OQ-ECA-1..4 defaults, "for now"), subcontract acceptance #1513 (OQ-1..10 defaults), equipment usage #1519 (OQ-1..9 defaults).
+- **Work orders are the project's billing milestones (#1592).** The project plan shows each work order as a milestone: dates, value, billing status (Planned / In progress / Invoiced / Paid), "Invoice this"; each work order shows days since its acceptance with no invoice yet. OD-BILL-1 stands (bill by the client's PO); this is the same record shown on the plan, no second entry. The showreel is a teaser and is **not re-cut**.
+- **Reel differences (#1593):** build drag-and-drop on the Sales Pipeline board and the project Tasks board (same rules and confirms as the status menu; the menu stays for keyboard users); build the "Signed" pill with its date. Not built: an "In review" task status, the reel's sidebar names.
+- **Pipeline dates (CRM-grade history):** every stage entry is kept (stage, date, who, when recorded), including going back for a re-tender or re-quote; a stage entry's date is the stage's key date ("Quoted", "Tender sent", "Signed" = contract date, "Lost"). Project admin and above, including PMs, may backdate or add a skipped stage; a new entry is never dated before the previous one; every change is audited. Issuing a quotation document proposes the Quoted date. The card shows one concise line for the latest entry ("Quoted 12 Oct · 20 d"); the full history is on the deal page; bulk import takes a date per stage.
+- **Assistant reminders (#1594):** build a confirmed "Remind this person": the assistant proposes, the user confirms, the recipient gets an in-app notification; same org, active member, daily cap.
+- **Evals (#1596):** run the two reel journeys 10 times each on the deployed model (DeepSeek 4.1 Flash); bar 9/10; only the scores are stored.
+
+### DD-EQU-1 — equipment allocation drill-down: Project Managers see their share and non-payroll amounts only (Director, 2026-11-02)
+
+In the equipment allocation drill-down (`list_equipment_allocations`), a Project Manager reads their share and the
+amounts of non-Employee-party pools. The pool, its line count and the driver total are null for them on every row,
+and so is the amount of any Employee-party row. Admin, Finance and Executive read every value. The ledger-read
+ruling (0311, mirror rows for Admin/Finance/Executive) outranks FR-EQU-062 and FR-EQU-044, which are amended to
+say so. Proven in `supabase/tests/equipment_actual_cost.test.sql` (one row per hidden field, PM null / Finance value).
+
+## OD-SIGN-20261102 — three EPC-route specs signed with their defaults (owner 2026-11-02)
+The owner signed `docs/specs/odoo-purchase-to-payment.spec.md` (#1505), `docs/specs/odoo-client-invoices.spec.md` (#1506) and `docs/specs/time-and-materials-claims.spec.md` (#1514), accepting every owner-decision default as written. This includes #1506's default that retention (holding part of a claim and releasing it later) stays out of scope; it remains tracked separately (#1572). Builds follow each spec's plan; money slices ship alone.
+
+### DD-OPP-P9-OUTBOX — Odoo procurement money writes use the shared outbox (Director, 2026-11-04)
+The shipped `adapter-dispatch` selects `resolveOdooMoneyOutboxDeps` for Odoo, and P6 is on `dev` (#1781).
+The Odoo runbook describes the shared outbox, same-intent retries and bounded sweep recovery. Interruption
+evidence is covered by the receipt bed (`odooReceipt.bed.test.ts`), the bill/payment bed
+(`odooPayment.bed.test.ts`) and the AC-OPP-062 sweep case in `odooPurchase.bed.test.ts`: the sweep recovers
+a lost bill-post response and a payment-create response lost after Odoo accepts it, and a second in-flight
+payment intent for the same bill is refused. An edited bill anchor remains held. This sweep-bed evidence
+covers bills and payments; order, receipt and revision recovery are covered by adapter and recovery unit
+tests. Deno tests cover recorded-actor reauthorization, candidate reservation, PO-family ownership handling
+and rejection of amount-only adoption. The browser journey proves replay after a lost browser response.
+This records scoped implementation evidence only; release readiness remains the owner's decision.
+**Update 2026-11-07:** the sweep-recovery condition on the four procurement declarations is met by #1901, so
+`purchase.push`, `bill.push`, `vendor-payment.push` and `purchase-order.revise` are declared `supported` once the
+shared push suites' link cases pass against the production resolver (Odoo procurement runs the shared link check before adapter selection).
+
+## OD-OCI-C9-20261104 — honest #1506 workflow claims (implementation evidence)
+The Odoo adapter declares `invoice.push` supported at the version exercised by its shared contract suite. `invoice.pair-existing` remains pending on #1506 (`receipt.read` became supported 2026-11-07: the harness classifies both payment directions through the production feeds); `cutover.revenue` stays pending on #1602 until its shared suite exists. C7 tax-document review remains on owner hold: `tax-document.read` stays pending on #1506; do not claim that Odoo-held tax-document facts are available until that review closes. `cutover.activation` is covered by the P9 production resolver contract. The recorded receipt journal must be a bank or cash journal with an inbound payment method. Client-withheld tax requires a company-currency current-asset or prepayment account configured in the Odoo setup checklist. Odoo money writes use the revenue outbox; this evidence does not make a release-readiness claim.
+**Update 2026-11-07 (C7):** Odoo tax documents shipped without export per owner ruling (2026-11-07): FR-OCI-094 stands (write no ERP tax-document fields), capability `tax-document.read` is declared unavailable with a plain reason, hand-recorded e-Faktur remains PMO-owned, and migration slot 0514 is returned unused.
+
+Verification after the final dev merge (#1872): adapter-seam and Odoo integration unit suites passed (212 files, 3,031 tests); the C9 bed composite passed 2/2 tests; the served AC-OCI-100 journey passed 1/1 Chromium spec with 10/10 auth setup checks. Changed-line coverage was 50/54 (92.6%), and the post-merge affected-e2e gate found no additional supported UI paths to run.
+
+### OD-1530-COMMIT — PMO open commitment is the order total minus what is already paid (Director ruling, 2026-11-03)
+For an org without an active ERP binding (#1530), budget actuals are PMO paid purchases, so a purchase's open
+commitment is `total_value − pre-tax paid amount` (floor 0), the PMO analogue of ADR-0093 §2 (total minus what is
+already spent). Rules: no amount counts twice — a disconnected org reads no ledger snapshot or attribution term
+(0307), even when an old snapshot survives; paid amounts are compared at their pre-tax value, the basis of the
+budget and the order total; sums are in the project currency, and an org-currency internal charge on a project in
+another currency is unknown, not relabelled; an unusable paid amount keeps the full order total committed. Spec:
+`procurement-flexible-entry.spec.md` FR-PFE-035/036, NFR-PFE-002, AC-PFE-005.
+
+### DD-1739-SPLIT — one PMO position, two figures: spend and open commitment (applies OD-1530-COMMIT to the list and dashboards)
+The Projects list and the dashboards read ONE PMO figure per project — the sum of every ordered..paid purchase total —
+so a half-paid 1,000 purchase read 1,000 Actual on the list and 500 Spent / 500 Committed on the Budget tab (#1739).
+The basis is now the same on every surface, because the position itself is two figures: `project_pmo_spent_position`
+(pre-tax paid + the internal equipment charge — the Budget tab's Spent) and `project_pmo_commitment_position` (the open
+commitment of FR-PFE-036 — the Budget tab's Committed). A surface that means recorded spend reads the spent figure; a
+surface that means budget consumption (the list's Budget used, the at-risk rule) reads spent + committed.
+- **Who sees what.** Finance, Executive, Admin and Project Manager at an org with no ERP binding: the list Actual, the
+  executive and PM dashboards show spent (500 of the half-paid 1,000); Budget used and at-risk use spent + committed
+  (1,000). The Finance home's budget review keeps its one purchase figure (Σ ordered..paid totals, purchases only) and
+  labels it "Committed + spent" for such an org; a ledger org's column stays "Spent" (the ledger Actual).
+  `get_finance_budget_review` rows carry `ledger_owned` for that label. ERP-ledger orgs keep their ledger basis.
+- **Uncategorized paid purchase counts.** The Budget tab's per-category table goes unknown when a paid purchase has no
+  `budget_category`; the project total has no category to misplace it into, so the spent position counts it. Before this
+  change the list showed the order total for such a project; blanking it would have been a new regression. The Budget tab
+  keeps its own coverage rule.
+- **Exception to "spent + committed = the old ordered total".** The internal equipment hire charge is spend (the Budget
+  tab counts it) and a payment on a cancelled order is cash already out (nothing stays committed). Spent + committed can
+  therefore exceed the old total by those amounts, and a project can reach the at-risk line sooner. This is deliberate.
+- **Delivery summary.** `get_projects_delivery.committed_spend` is not redefined; nothing renders it. It follows the
+  commitment position (the open commitment).
+Proven in `supabase/tests/0700_pmo_spend_split.test.sql` (500/500 for a half-paid 1,000 purchase against the real
+collection and project-finances reads; uncategorized and cancelled-paid cases; a ledger org still reads its ledger
+Actual) and `pmo-portal/pages/project-detail/budget/__tests__/pmoSpendSplit.test.ts` (client derivations on that payload).
+
+### OD-VISION-ERP — PMO is an ERP; a client with no ERP is the floor (owner, 2026-11-03)
+The product vision is **PMO as an ERP**. At minimum PMO covers, on its own, a client that runs **no ERP**: its books,
+receivables and payables, bank, statements, tax and close all live in PMO. A connected ERPNext or Odoo stays optional;
+when one is connected it owns the domains the ownership map gives it (ADR-0055 §5), the same switch native revenue
+already uses (OD-NAR / #784). This supersedes, for orgs with no ERP, the "PMO has no ledger / no homegrown ledger" stance
+in ADR-0048 and ADR-0055 §5. Building a native ledger **extends** the vision, it does not reverse a decision. Not
+scheduled yet: the owner said record, don't build (2026-11-03). A future build takes a new ADR for the native ledger
+and a roadmap map.
+
+### DD-1418-ATTENTION — the dashboard's Delivery five is a true attention ranking, computed in the read model (Directive, 2026-11-07, #1418)
+The executive dashboard's five project rows were the five largest contracts, re-sorted on the client by spend percentage — so
+a small project with overdue work and a blown budget could never appear. The ranking now lives in the same
+`get_executive_dashboard` payload as a second key, `attention_projects` (0732; `top_projects` is untouched for its other
+readers; no new round trip, and the screen renders the returned order and never re-sorts): a project ranks first by the
+number of DISTINCT signal kinds it carries — overdue work, over budget, waiting approvals (0–3) — then by more overdue items
+(overdue open tasks + overdue milestones + overdue client invoices), then more waiting approvals (project-scoped Requested
+procurements + Submitted expense claims), then a higher budget-consumption ratio, then contract value, then id — so ties are
+deterministic. Each signal is an EXISTING definition reused, not a new one: overdue tasks follow the agent-chat
+whats_overdue rule; an overdue milestone is the project-detail rule (target past, effective % under 100, started); an
+overdue invoice is the AR due-date rule; "over budget" is the dashboard's own at-risk basis (spent + open commitment, ledger
+Actual for an ERP-ledger org) past 100% of the Active budget, with the ratio null — never a false zero — when the basis
+cannot be compared; "today" is the org-local day. Money size is deliberately not an ingredient of the ranking (that was
+the defect); contract value only breaks a tie between equally pressing projects. The population is the active delivery set
+(active_delivery_project_statuses(): Won Pending KoM, Ongoing, On Hold, Internal; Close Out is out), and tenancy and role visibility are exactly as before: the function is still SECURITY INVOKER so
+every signal read runs under the caller's RLS, and the function adds no per-role filter of its own, so each viewer sees the
+ranking over the projects and signals their role can read (as with top_projects); the role-aware queues stay on the "waiting for you" line. Proven in
+`supabase/tests/0732_executive_attention_ranking.test.sql` (AC-1418-01..18) and
+`pmo-portal/pages/ExecutiveDashboard.test.tsx` (F2/#1418, returned order rendered).
+
+### DD-TMN-1 — A no-ERP org invoices a T&M claim through its own RPC; invoice id = claim id (#1817, 2026-11-06)
+`create_native_tm_invoice(claim)` (migration 0704) is a new RPC, not a `p_id` argument on `create_native_sales_invoice`:
+that function is pinned by signature in six pgTAP files, the function-ACL proof and the isolation manifest, and a
+client-supplied id on a general creator would need the whole claim gate inside it anyway. The cost is VAT/currency drift
+between the two creators, covered by a parity test (AC-TM-025). The invoice takes the claim's id, which is the
+double-billing guard (primary key plus an explicit check that also blocks a cancelled invoice) and how the existing author
+trigger finds the claim. The work-order fence refuses any insert that reuses a claim id; it now lets this RPC through
+with a transaction-local marker that names the claim. Defaults taken from the plan (owner questions open): the approval
+rule is unchanged (a sole-operator org cannot approve its own invoice); volume claims stay out of scope; one line per rate
+line, no item code; no re-invoice after a cancel.
+
+### DD-1413-RESUBMIT — any approver-role member may resubmit a returned budget draft (#1413)
+Resubmit is open to every approver-role member, including the one who returned it. Nothing breaks: activation separation of duties still runs in full on the resubmitted draft.

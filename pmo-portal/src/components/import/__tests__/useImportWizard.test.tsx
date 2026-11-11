@@ -286,3 +286,50 @@ describe('useImportWizard', () => {
     expect(create).not.toHaveBeenCalled();
   });
 });
+
+it('keeps the most recently selected file when an earlier parse finishes later', async () => {
+  let finishFirst!: (value: { headers: string[]; rows: string[][] }) => void;
+  vi.mocked(parseWorkbook).mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve; }))
+    .mockResolvedValueOnce({ headers: ['Company name', 'Type'], rows: [['Second', 'Client']] });
+  const descriptor = makeDescriptor(vi.fn());
+  const { result } = renderHook(() => useImportWizard(descriptor));
+  const first = { name: 'first.xlsx', arrayBuffer: async () => new ArrayBuffer(0) } as File;
+  const second = { name: 'second.xlsx', arrayBuffer: async () => new ArrayBuffer(0) } as File;
+  let pending!: Promise<void>;
+  await act(async () => { pending = result.current.selectFile(first); await Promise.resolve(); });
+  await act(async () => { await result.current.selectFile(second); });
+  await act(async () => { finishFirst({ headers: ['Company name', 'Type'], rows: [['First', 'Client']] }); await pending; });
+  expect(result.current.fileName).toBe('second.xlsx');
+  expect(result.current.parsed?.rows[0][0]).toBe('Second');
+});
+
+it('reset cancels a pending parser error and permits restart', async () => {
+  let reject!: (error: Error) => void;
+  vi.mocked(parseWorkbook).mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }))
+    .mockResolvedValueOnce({ headers: ['Company name', 'Type'], rows: [['New', 'Client']] });
+  const descriptor = makeDescriptor(vi.fn());
+  const { result } = renderHook(() => useImportWizard(descriptor));
+  const input = { name: 'input.xlsx', arrayBuffer: async () => new ArrayBuffer(0) } as File;
+  let pending!: Promise<void>;
+  await act(async () => { pending = result.current.selectFile(input); await Promise.resolve(); });
+  expect(result.current.parsing).toBe(true);
+  act(() => result.current.reset());
+  await act(async () => result.current.selectFile(input));
+  await act(async () => { reject(new Error('late')); await pending; });
+  expect(result.current.parseError).toBeNull();
+  expect(result.current.parsed?.rows[0][0]).toBe('New');
+  expect(result.current.parsing).toBe(false);
+});
+
+it('stops reading a file when the wizard unmounts before its buffer arrives', async () => {
+  let finish!: (buffer: ArrayBuffer) => void;
+  vi.mocked(parseWorkbook).mockClear();
+  const descriptor = makeDescriptor(vi.fn());
+  const { result, unmount } = renderHook(() => useImportWizard(descriptor));
+  const input = { name: 'input.xlsx', arrayBuffer: () => new Promise<ArrayBuffer>(resolve => { finish = resolve; }) } as File;
+  let pending!: Promise<void>;
+  await act(async () => { pending = result.current.selectFile(input); });
+  unmount();
+  await act(async () => { finish(new ArrayBuffer(0)); await pending; });
+  expect(parseWorkbook).not.toHaveBeenCalled();
+});

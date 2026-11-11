@@ -1,64 +1,38 @@
+import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ListPage,
   SearchMini,
   ListState,
   DataTable,
   ConfirmDialog,
-  EntityFormModal,
-  TextField,
-  TextArea,
   SelectField,
-  FormSection,
-  FormGrid,
   AccessDenied,
-  useEntityForm,
   useToast,
   Button,
   Icon,
-  type SubmitError,
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
-import { ExportButton } from '@/src/components/export';
+import { ExportAllButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { makeContactImportDescriptor } from '@/src/lib/import';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useContacts, useContactMutations } from '@/src/hooks/useContacts';
-import { useCompanies } from '@/src/hooks/useCompanies';
+import { useContactsExportAll, useContactsPage, useContactsTotal, useContactMutations } from '@/src/hooks/useContacts';
+import { useCompanyOptions } from '@/src/hooks/useCompanies';
+import { useCompanyPartyMappings } from '@/src/hooks/useCompanyPartyMappings';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
+import type { ContactRow } from '@/src/lib/db/contacts';
+import { ContactFormModal } from './contact/ContactFormModal';
 
-interface FormValues {
-  full_name: string;
-  company_id: string;
-  title: string;
-  email: string;
-  phone: string;
-  notes: string;
-}
-
-/**
- * `t` has to be threaded in: both messages are user-visible, and a module-level literal cannot
- * reach the active locale. The validation SHAPE is unchanged — same fields, same trigger, same keys.
- */
-const makeValidate =
-  (t: TFunction) =>
-  (v: FormValues): Partial<Record<keyof FormValues, string>> => {
-    const errors: Partial<Record<keyof FormValues, string>> = {};
-    if (!v.full_name.trim())
-      errors.full_name = t('contacts.form.errors.nameRequired', 'Contact name is required.');
-    if (!v.company_id)
-      errors.company_id = t('contacts.form.errors.companyRequired', 'A company is required.');
-    return errors;
-  };
+/** The server page size (#1989): 50, the established Odoo-directory/AdminUsers page size. */
+const PAGE_SIZE = 50;
 
 const Contacts: React.FC = () => {
   const { t } = useTranslation();
@@ -66,9 +40,20 @@ const Contacts: React.FC = () => {
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data, isPending, isError, refetch } = useContacts();
-  const { data: companyData } = useCompanies();
+  // PGA02-004: the company directory backs this page's filter options, export company names and
+  // the create/edit form's company select — its loading/error state is consumed, not discarded.
+  // #1989: a picker must offer EVERY company, so the options read stays whole-directory — but it
+  // narrows to the display fields (id + name) instead of the wide company row.
+  const companyOptionsQuery = useCompanyOptions();
+  const companyData = companyOptionsQuery.data;
+  const companiesPending = companyOptionsQuery.isPending;
+  const companiesError = companyOptionsQuery.isError;
+  const refetchCompanies = companyOptionsQuery.refetch;
   const { create, update, archive, remove } = useContactMutations();
+  const ownership = useDomainOwnershipMode('companies');
+  const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
+  const external = ownership.mode === 'external';
+  const mappings = useCompanyPartyMappings((companyData ?? []).map((company) => company.id), external);
 
   // CRM directory view = the master-data roles (Engineer = ○, no nav/page) — mirrors Companies §D.
   const canView = may('view', 'contact');
@@ -78,17 +63,42 @@ const Contacts: React.FC = () => {
   // restores the list's scroll once its rows have loaded (`contentReady`).
   const { workingSet, setWorkingSet, search, setSearch, clearFilters } =
     useListSearchWorkingSet('contacts');
-  const { openRecord } = useListReturn({ list: 'contacts', contentReady: !isPending && !isError });
   const companyFilter = workingSet.company;
+
+  // #1989 (the Master-data pattern): the directory reads ONE server page with the company filter
+  // and search applied SERVER-side, plus the exact matching total. The whole contact directory is
+  // no longer loaded to filter it in the browser.
+  const [page, setPage] = useState(1);
+  const directory = useContactsPage({ companyId: companyFilter, search, page, pageSize: PAGE_SIZE });
+  const { openRecord } = useListReturn({ list: 'contacts', contentReady: !directory.isPending && !directory.isError });
+  const unfiltered = companyFilter === 'All' && !search.trim();
+  // "Showing X of Y" keeps its meaning on a filtered view: Y is the whole directory, read as one
+  // head count only while a filter/search is active (unfiltered, X IS Y — one request, not two).
+  const totalCount = useContactsTotal({ enabled: !unfiltered });
+  const pageRows = useMemo(() => directory.data?.rows ?? [], [directory.data]);
+  const total = directory.data?.total ?? 0;
+  const directoryTotal = unfiltered ? total : (totalCount.data ?? total);
+  const exportAll = useContactsExportAll();
+
+  // A committed filter/search change (typing pause, a select change, or a Back-restore of the URL
+  // working set) makes the old page number meaningless — always land on page 1.
+  useEffect(() => { setPage(1); }, [companyFilter, search]);
+
+  // Out-of-range correction (the AdminUsers ruling): a deletion or a narrowing filter can leave
+  // `page` past the last page — an empty page-N is corrected down instead of shown as truth.
+  useEffect(() => {
+    if (!directory.data || pageRows.length > 0 || total === 0 || page <= 1) return;
+    setPage(Math.max(1, Math.ceil(total / PAGE_SIZE)));
+  }, [directory.data, pageRows.length, total, page]);
 
   const [formTarget, setFormTarget] = useState<{ contact: ContactRow | null } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<ContactRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ContactRow | null>(null);
 
-  const canCreate = may('create', 'contact');
-  const canEdit = may('edit', 'contact');
-  const canArchive = may('archive', 'contact');
-  const canDelete = may('delete', 'contact');
+  const canCreate = ownershipReady && may('create', 'contact') && (!external || (!mappings.isPending && !mappings.isError && mappings.ids.length > 0));
+  const canEdit = ownershipReady && may('edit', 'contact');
+  const canArchive = ownershipReady && may('archive', 'contact');
+  const canDelete = ownership.mode === 'pmo' && may('delete', 'contact');
   const canRowWrite = canEdit || canArchive || canDelete;
 
   const companies = useMemo(() => companyData ?? [], [companyData]);
@@ -117,31 +127,23 @@ const Contacts: React.FC = () => {
     }
     return options;
   }, [companyById, companyData, companyFilter, companyOptions, t]);
-  const importDescriptor = useMemo(() => makeContactImportDescriptor(companies), [companies]);
+  const creatableCompanies = external ? companies.filter((company) => mappings.ids.includes(company.id)) : companies;
+  const createOptions = creatableCompanies.map((company) => ({ value: company.id, label: companyDisplayName(company) }));
+  const importDescriptor = makeContactImportDescriptor(creatableCompanies);
+  // PGA02-004: the export carries each contact's company name — it must not download until the
+  // directory has actually resolved (a transient failure would silently export blank names).
+  const companiesReady = !companiesPending && !companiesError;
 
-  const all = useMemo(() => data ?? [], [data]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return all
-      .filter((c) => companyFilter === 'All' || c.company_id === companyFilter)
-      .filter(
-        (c) =>
-          !q ||
-          c.full_name.toLowerCase().includes(q) ||
-          (c.email ?? '').toLowerCase().includes(q),
-      );
-  }, [all, search, companyFilter]);
-
-  // AC-LRC-012: the DataTable's `empty` branch (with `clearFilters`) only renders when
-  // `all.length > 0` (the collection-empty case is the page-level `state === 'empty'` below), so a
+  // AC-LRC-012 (server-page form): the DataTable's `empty` branch (with `clearFilters`) only
+  // renders when the DIRECTORY holds rows (`unfiltered` false ⇒ the zero-match is a filtered
+  // zero-match; the collection-empty case is the page-level `state === 'empty'` below), so a
   // zero-match result there is always a filtered zero-match.
 
-  const state: 'loading' | 'empty' | 'error' | undefined = isPending
+  const state: 'loading' | 'empty' | 'error' | undefined = directory.isPending
     ? 'loading'
-    : isError || !data
+    : directory.isError || !directory.data
       ? 'error'
-      : all.length === 0
+      : total === 0 && unfiltered
         ? 'empty'
         : undefined;
 
@@ -238,6 +240,8 @@ const Contacts: React.FC = () => {
   return (
     <ListPage
       title={t('contacts.title', 'Contacts')}
+      count={directory.data ? total : undefined}
+      total={directory.data && !unfiltered ? directoryTotal : undefined}
       description={
         // DD-MTG-6: the CRM 'Meeting' kind is the lightweight touchpoint log; anything with
         // attendees and minutes lives in the Meetings module — so this copy no longer promises
@@ -245,11 +249,13 @@ const Contacts: React.FC = () => {
         <>
           {t(
             'contacts.description',
-            'People at the companies you work with. Master data shared by the whole organisation — log calls and emails against each contact. Minuted meetings live in the',
+            'People at the companies you work with. Master data shared by the whole organisation. Log calls and emails against each contact. Minuted meetings live in the',
           )}{' '}
           <Link
             to="/meetings"
-            className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            // Inline-in-prose link: a persistent underline keeps it distinguishable from
+            // the surrounding text without relying on colour (axe link-in-text-block).
+            className="text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             {t('contacts.descriptionMeetingsLink', 'Meetings module')}
           </Link>
@@ -287,23 +293,54 @@ const Contacts: React.FC = () => {
         )
       }
       exportAction={
-        state !== 'loading' && (
-          <ExportButton rows={filtered} columns={columns} entity="Contacts" />
+        state !== 'loading' && companiesReady && (
+          <ExportAllButton
+            entity="Contacts"
+            columns={columns}
+            hasRows={total > 0}
+            fetchRows={() =>
+              exportAll.mutateAsync({
+                companyId: companyFilter === 'All' ? undefined : companyFilter,
+                search: search.trim() || undefined,
+              })
+            }
+          />
         )
       }
       importAction={
-        state !== 'loading' && (
+        state !== 'loading' && canCreate && (
           <ImportButton
             entity="contact"
             descriptor={importDescriptor}
-            onImported={() => void refetch()}
+            onImported={() => void directory.refetch()}
           />
         )
       }
     >
+      {!ownershipReady && <p className="mb-3 text-sm text-muted-foreground">{ownership.mode === 'error' ? t('crm:ownershipError', 'Ownership could not be loaded. Try again.') : t('crm:ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('crm:retry', 'Retry')}</Button>}</p>}
+      {/* PGA02-004: a failed company-directory read is named, with a retry — the filter options,
+          export names and form company select all depend on it. */}
+      {companiesError && (
+        <div className="mb-3 flex items-center gap-2">
+          <p className="text-sm text-muted-foreground">{t('contacts.companiesUnavailable', 'The company directory could not be loaded. Company names, filtering and export are unavailable.')}</p>
+          {refetchCompanies && (
+            <Button variant="outline" size="sm" onClick={() => void refetchCompanies()}>
+              {t('crm:retry', 'Retry')}
+            </Button>
+          )}
+        </div>
+      )}
+      {external && may('create', 'contact') && (
+        <p className="mb-3 text-sm text-muted-foreground">
+          {mappings.isError ? t('crm:mappingUnavailable', 'Company mappings could not be loaded. Try again later.')
+            : mappings.isPending ? t('crm:mappingLoading', 'Checking company mappings…')
+              : t('crm:mappingRequired', 'Map a company to ERP before adding or importing its contacts.')}
+        </p>
+      )}
+      {external && may('delete', 'contact') && <p className="mb-3 text-sm text-muted-foreground">{t('crm:deleteManaged', 'Records managed in ERP can be archived here.')}</p>}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="table" columns={6} rows={6} />
         </div>
       )}
 
@@ -312,7 +349,7 @@ const Contacts: React.FC = () => {
           variant="error"
           title={t('contacts.states.errorTitle', "Couldn't load contacts")}
           sub={t('contacts.states.errorSub', 'The request failed. Check your connection and try again.')}
-          onRetry={() => refetch()}
+          onRetry={() => directory.refetch()}
         />
       )}
 
@@ -341,30 +378,68 @@ const Contacts: React.FC = () => {
       )}
 
       {state === undefined && (
-        <DataTable<ContactRow>
-          rows={filtered}
-          columns={columns}
-          rowKey={(c) => c.id}
-          // CW-4b: rows now NAVIGATE to the routable `/contacts/:id` record page (the
-          // drawer-as-record is retired). Create/edit-in-modal are unchanged.
-          // list-working-set-return (#683, AC-LRC-007): capture the current filtered/searched
-          // Contacts URL + scroll position as return context instead of a bare navigate.
-          onActivate={(c) => openRecord(`/contacts/${c.id}`)}
-          // ⚑ Not extracted — embeds a value; `t()` interpolation is silently dropped by the
-          // notReady `t` the unit suite uses (no i18next instance is mounted there).
-          rowLabel={(c) => `Open ${c.full_name}`}
-          rowMenu={canRowWrite ? rowMenu : undefined}
-          state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('contacts.table.emptyTitle', 'No contacts match your filters')}
-          emptySub={t('contacts.table.emptySub', 'Try a different company or clear the search.')}
-          emptyAction={{ label: t('contacts.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
-        tableId="contacts-table" />
+        <>
+          <DataTable<ContactRow>
+            rows={pageRows}
+            columns={columns}
+            rowKey={(c) => c.id}
+            // CW-4b: rows now NAVIGATE to the routable `/contacts/:id` record page (the
+            // drawer-as-record is retired). Create/edit-in-modal are unchanged.
+            // list-working-set-return (#683, AC-LRC-007): capture the current filtered/searched
+            // Contacts URL + scroll position as return context instead of a bare navigate.
+            onActivate={(c) => openRecord(`/contacts/${c.id}`)}
+            // ⚑ Not extracted — embeds a value; `t()` interpolation is silently dropped by the
+            // notReady `t` the unit suite uses (no i18next instance is mounted there).
+            rowLabel={(c) => `Open ${c.full_name}`}
+            rowMenu={canRowWrite ? rowMenu : undefined}
+            state={pageRows.length === 0 ? 'empty' : undefined}
+            emptyTitle={t('contacts.table.emptyTitle', 'No contacts match your filters')}
+            emptySub={t('contacts.table.emptySub', 'Try a different company or clear the search.')}
+            emptyAction={{ label: t('contacts.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
+          tableId="contacts-table" />
+
+          {/* #1989: the pager under the server page — the Master-data/AdminUsers anatomy. */}
+          <nav aria-label={t('contacts.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
+            <span>
+              {total === 0
+                ? ''
+                : t('contacts.pager.range', '{{from}}–{{to}} of {{total}}', {
+                    from: (page - 1) * PAGE_SIZE + 1,
+                    to: Math.min(page * PAGE_SIZE, total),
+                    total,
+                  })}
+            </span>
+            <span className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1 || directory.isFetching}
+                onClick={() => setPage((p) => p - 1)}
+                aria-label={t('contacts.pager.prev', 'Previous page')}
+              >
+                <Icon name="back" aria-hidden="true" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page * PAGE_SIZE >= total || directory.isFetching}
+                onClick={() => setPage((p) => p + 1)}
+                aria-label={t('contacts.pager.next', 'Next page')}
+              >
+                <Icon name="chev" aria-hidden="true" />
+              </Button>
+            </span>
+          </nav>
+        </>
       )}
 
       {formTarget && (
         <ContactFormModal
           contact={formTarget.contact}
-          companyOptions={companyOptions}
+          ownership={ownership.mode}
+          companyOptions={formTarget.contact ? companyOptions : createOptions}
+          companyOptionsState={companiesPending ? 'pending' : companiesError ? 'error' : 'ready'}
+          onRetryCompanies={companiesError && refetchCompanies ? () => void refetchCompanies() : undefined}
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
             await create.mutateAsync(input);
@@ -412,7 +487,7 @@ const Contacts: React.FC = () => {
         }
         description={t(
           'contacts.confirm.deleteDescription',
-          'This permanently removes the contact and all of their logged activity. This cannot be undone — archive instead to keep the history.',
+          'This permanently removes the contact and all of their logged activity. This cannot be undone. Archive instead to keep the history.',
         )}
         confirmLabel={t('contacts.confirm.deleteConfirm', 'Delete contact')}
         loading={remove.isPending}
@@ -420,200 +495,6 @@ const Contacts: React.FC = () => {
         onCancel={() => setDeleteTarget(null)}
       />
     </ListPage>
-  );
-};
-
-// ── Create / edit form modal ─────────────────────────────────────────────────
-
-interface ContactFormModalProps {
-  contact: ContactRow | null;
-  companyOptions: { value: string; label: string }[];
-  /** When provided (T14 — "Add contact" from CompanyDetail), pre-fills and locks
-   *  the company_id field so the user cannot change it. */
-  defaultCompanyId?: string;
-  onClose: () => void;
-  onCreate: (input: ContactInput) => Promise<void>;
-  onUpdate: (id: string, input: ContactInput) => Promise<void>;
-  onError: (err: unknown) => void;
-}
-
-const ContactFormModal: React.FC<ContactFormModalProps> = ({
-  contact,
-  companyOptions,
-  defaultCompanyId,
-  onClose,
-  onCreate,
-  onUpdate,
-  onError,
-}) => {
-  const { t } = useTranslation();
-  const isEdit = !!contact;
-  // Identity changes only when `t` does (i.e. on a language change), so `useEntityForm`'s
-  // `runValidate` memo behaves exactly as it did with the old module-level function.
-  const validate = useMemo(() => makeValidate(t), [t]);
-  // When defaultCompanyId is set (in-context create from CompanyDetail) the
-  // company_id initialises to it and the field is disabled.
-  const lockedCompanyId = defaultCompanyId ?? null;
-  const form = useEntityForm<FormValues>({
-    initialValues: {
-      full_name: contact?.full_name ?? '',
-      company_id: contact?.company_id ?? lockedCompanyId ?? '',
-      title: contact?.title ?? '',
-      email: contact?.email ?? '',
-      phone: contact?.phone ?? '',
-      notes: contact?.notes ?? '',
-    },
-    validate,
-    idPrefix: 'contact-form',
-    requiredFields: ['full_name', 'company_id'],
-    module: 'contacts',
-  });
-
-  const nameField = form.fieldProps('full_name');
-  const companyField = form.fieldProps('company_id');
-  const titleField = form.fieldProps('title');
-  const emailField = form.fieldProps('email');
-  const phoneField = form.fieldProps('phone');
-  const notesField = form.fieldProps('notes');
-
-  // AC-ERR-001: a rejected save gets PERSISTENT in-dialog evidence, not only the corner
-  // toast (which auto-dismisses, leaving the modal indistinguishable from a pristine form
-  // with data in it). `suppressCapture` because the page's `onError` classifies the same
-  // rejection for the toast and owns the single `save_failed` event.
-  const [saveError, setSaveError] = useState<SubmitError | null>(null);
-
-  const errorSummary = [
-    form.errors.full_name ? { fieldId: nameField.id, message: form.errors.full_name } : null,
-    form.errors.company_id ? { fieldId: companyField.id, message: form.errors.company_id } : null,
-  ].filter(Boolean) as { fieldId: string; message: string }[];
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    void form.handleSubmit(async (values) => {
-      const input: ContactInput = {
-        company_id: values.company_id,
-        full_name: values.full_name.trim(),
-        title: values.title.trim() || null,
-        email: values.email.trim() || null,
-        phone: values.phone.trim() || null,
-        notes: values.notes.trim() || null,
-      };
-      try {
-        if (isEdit && contact) await onUpdate(contact.id, input);
-        else await onCreate(input);
-      } catch (err) {
-        const { headline, detail } = classifyMutationError(err, undefined, {
-          module: 'contacts',
-          operation: isEdit ? 'update' : 'create',
-          suppressCapture: true,
-        });
-        setSaveError({ headline, detail });
-        onError(err);
-      }
-    });
-  };
-
-  return (
-    <EntityFormModal
-      open
-      title={
-        isEdit
-          ? t('contacts.form.editTitle', 'Edit contact')
-          : t('contacts.form.newTitle', 'New contact')
-      }
-      subtitle={
-        isEdit
-          ? t('contacts.form.editSubtitle', 'Update this contact record')
-          : t('contacts.form.newSubtitle', 'Add a person at one of your companies')
-      }
-      submitLabel={
-        isEdit
-          ? t('contacts.form.editSubmit', 'Save contact')
-          : t('contacts.form.newSubmit', 'Create contact')
-      }
-      onSubmit={handleSubmit}
-      onClose={onClose}
-      loading={form.isSubmitting}
-      dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
-      errorSummary={errorSummary.length ? errorSummary : undefined}
-      submitError={saveError}
-    >
-      <FormSection legend={t('contacts.form.sections.identity', 'Identity')}>
-        <FormGrid>
-          <TextField
-            id={nameField.id}
-            label={t('contacts.form.fullName.label', 'Full name')}
-            required
-            value={nameField.value}
-            onChange={nameField.onChange}
-            onBlur={nameField.onBlur}
-            error={nameField.error}
-            placeholder={t('contacts.form.fullName.placeholder', 'e.g. Jane Doe')}
-            autoComplete="name"
-            fullWidth
-          />
-          <SelectField
-            id={companyField.id}
-            label={t('contacts.form.company.label', 'Company')}
-            required
-            value={companyField.value}
-            onChange={(v) => companyField.onChange(v)}
-            onBlur={companyField.onBlur}
-            error={companyField.error}
-            options={[
-              { value: '', label: t('contacts.form.company.placeholder', 'Select a company…') },
-              ...companyOptions,
-            ]}
-            disabled={!!lockedCompanyId}
-          />
-          <TextField
-            id={titleField.id}
-            label={t('contacts.form.jobTitle.label', 'Title')}
-            value={titleField.value}
-            onChange={titleField.onChange}
-            onBlur={titleField.onBlur}
-            placeholder={t('contacts.form.jobTitle.placeholder', 'e.g. Procurement Lead')}
-          />
-        </FormGrid>
-      </FormSection>
-      <FormSection legend={t('contacts.form.sections.contactDetails', 'Contact details')}>
-        <FormGrid>
-          <TextField
-            id={emailField.id}
-            label={t('contacts.form.email.label', 'Email')}
-            type="email"
-            value={emailField.value}
-            onChange={emailField.onChange}
-            onBlur={emailField.onBlur}
-            placeholder="name@example.com"
-            autoComplete="email"
-          />
-          <TextField
-            id={phoneField.id}
-            label={t('contacts.form.phone.label', 'Phone')}
-            value={phoneField.value}
-            onChange={phoneField.onChange}
-            onBlur={phoneField.onBlur}
-            placeholder={t('contacts.form.phone.placeholder', 'e.g. +1 555 010 0000')}
-            autoComplete="tel"
-          />
-          <TextArea
-            id={notesField.id}
-            label={t('contacts.form.notes.label', 'Notes')}
-            value={notesField.value}
-            onChange={notesField.onChange}
-            onBlur={notesField.onBlur}
-            rows={3}
-            fullWidth
-            placeholder={t(
-              'contacts.form.notes.placeholder',
-              'Anything worth remembering about this contact',
-            )}
-          />
-        </FormGrid>
-      </FormSection>
-    </EntityFormModal>
   );
 };
 

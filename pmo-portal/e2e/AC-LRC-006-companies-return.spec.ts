@@ -44,7 +44,7 @@ test(
     await waitReady(page);
 
     // ── Narrow: type=Vendor, then a search ("r") that removes SunVolt Modules Co. ─────────────
-    await page.getByRole('tab', { name: /^Vendor$/i }).click();
+    await page.getByRole('tab', { name: /^Supplier$/i }).click();
     await expect(page).toHaveURL(/[?&]type=Vendor/);
     await expect(page.getByText('SunVolt Modules Co.')).toBeVisible();
     await expect(page.getByText('Meridian Steelworks')).not.toBeVisible();
@@ -78,7 +78,7 @@ test(
     await expect(page).toHaveURL(/[?&]type=Vendor/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=r(&|$)/);
     await waitReady(page);
-    await expect(page.getByRole('tab', { name: /^Vendor$/i })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tab', { name: /^Supplier$/i })).toHaveAttribute('aria-selected', 'true');
     await expect(search).toHaveValue('r');
     // The narrowed SET came back, not just the URL: the searched-out and filtered-out rows stay out.
     await expect(page.getByRole('button', OPEN_CABLECORE)).toBeVisible();

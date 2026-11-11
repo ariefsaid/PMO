@@ -18,6 +18,7 @@ import {
   useEntityForm,
 } from '@/src/components/ui';
 import { Constants } from '@/src/lib/supabase/database.types';
+import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
@@ -48,6 +49,11 @@ import { isDirectCostPostingAccount, proposeBudgetAccountMap, type BudgetPosting
 
 const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
 
+/** AC-CAT-005: the categories added after the original seven are translated here; the seven keep their names. */
+const TRANSLATED_HERE: readonly string[] = ['Special expenses', 'Travel & accommodation', 'Vehicle', 'Overheads'];
+const accountMapCategoryLabel = (value: string, t: (key: string, fallback: string) => string) =>
+  TRANSLATED_HERE.includes(value) ? budgetCategoryLabel(value, t) : value;
+
 interface FormValues {
   erpAccount: string;
 }
@@ -59,8 +65,7 @@ type FormTarget =
 
 const BudgetAccountMap: React.FC = () => {
   const { t } = useTranslation();
-  const categoryLabel = (value: string) => value === 'Special expenses'
-    ? t('budget.category.specialExpenses', 'Special expenses') : value;
+  const categoryLabel = (value: string) => accountMapCategoryLabel(value, t);
   const may = usePermission();
   const canManage = may('manage', 'integration');
   const { toast } = useToast();
@@ -220,7 +225,16 @@ const BudgetAccountMap: React.FC = () => {
       header: t('admin.budgetMap.columns.category', 'Category'),
       kind: 'text',
       size: 180,
-      cell: (category) => <span className="font-medium">{categoryLabel(category)}</span>,
+      cell: (category) => (
+        <div>
+          <span className="font-medium">{categoryLabel(category)}</span>
+          {category === 'Overheads' && (
+            <p className="mt-0.5 text-[12px] text-muted-foreground">
+              {t('finance:budgetMap.overheadsHint', 'Direct project cost, not company overhead.')}
+            </p>
+          )}
+        </div>
+      ),
     },
     {
       key: 'erpAccount',
@@ -231,11 +245,11 @@ const BudgetAccountMap: React.FC = () => {
         const accounts = accountsByCategory.get(category) ?? [];
         const hasPush = accounts.some((a) => a.isPushTarget);
         if (accounts.length === 0) {
-          return <StatusPill variant="warn">{t('admin.budgetMap.unmapped', 'Not mapped — blocks every push')}</StatusPill>;
+          return <StatusPill variant="warn">{t('admin.budgetMap.unmapped', 'Not mapped: blocks every push')}</StatusPill>;
         }
         return (
           <div className="space-y-2">
-            {!hasPush && <StatusPill variant="warn">{t('admin.budgetMap.noPush', 'No push account — blocks every push')}</StatusPill>}
+            {!hasPush && <StatusPill variant="warn">{t('admin.budgetMap.noPush', 'No push account: blocks every push')}</StatusPill>}
             {accounts.filter((account) => account.isPushTarget).map((account) => (
               <div key={account.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="break-words">{account.erpAccount}</span>
@@ -454,8 +468,7 @@ interface MapFormModalProps {
 
 const MapFormModal: React.FC<MapFormModalProps> = ({ target, hasAccounts, allRows, catalogueAccounts, submitError, onClose, onSubmit }) => {
   const { t } = useTranslation();
-  const categoryLabel = (value: string) => value === 'Special expenses'
-    ? t('budget.category.specialExpenses', 'Special expenses') : value;
+  const categoryLabel = (value: string) => accountMapCategoryLabel(value, t);
   const isEdit = target.mode === 'edit';
   const category = target.mode === 'edit' ? target.row.category : target.category;
   const editingId = target.mode === 'edit' ? target.row.id : null;

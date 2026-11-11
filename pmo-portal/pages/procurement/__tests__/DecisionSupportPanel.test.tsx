@@ -15,7 +15,7 @@ import { MemoryRouter } from 'react-router';
 // ---------------------------------------------------------------------------
 const budgetState = { data: 500000 as number | undefined, isPending: false, isError: false };
 const committedState = { data: 100000 as number | undefined, isPending: false, isError: false };
-const reservedState = { data: 0 as number | undefined, isPending: false, isError: false };
+const reservedState = { data: 0 as number | undefined, projectCurrency: 'USD', budgetCurrency: 'USD', otherCurrencies: [], isPending: false, isError: false };
 
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,

@@ -1,11 +1,14 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { isPphType } from '@/src/lib/vendorWithholding';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
-import { isProjectFinances, parseProjectReceiptCash, type ProjectFinances } from '@/src/lib/projectFinances';
+import { isProjectFinances, parseContractExcess, parseProjectReceiptCash, type ProjectFinances } from '@/src/lib/projectFinances';
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
+import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
+import type { BillingKind } from '@/src/lib/billingKind';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
-import { resolveRange, type PageParams } from '@/src/lib/pagination';
 import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
+import { OPEN_CLIENT_INVOICE_STATUSES } from '@/src/lib/revenue/clientInvoiceStatus';
 import { fetchAllPages, fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 
 /** Row shapes matching the DB schema (snake_case) from migration 0104. */
@@ -34,6 +37,10 @@ export interface SalesInvoiceRow {
   /** Stored tax value used to convert this invoice to a comparable basis (0188). */
   tax_amount: number;
   tax_rate?: number | null;
+  /** AC-OCI-081: the invoice project's VAT flag; null/absent = no project, treated as subject to VAT. */
+  project_subject_to_vat?: boolean | null;
+  /** #1275: the invoice project's default tax article for its receipts (pre-fill only); null/absent = none. */
+  project_receipt_withholding_article?: 'pph23' | 'pph4_2' | null;
   tax_base_numerator?: number;
   tax_base_denominator?: number;
   erp_outstanding_amount: number | null;
@@ -44,6 +51,8 @@ export interface SalesInvoiceRow {
   erp_cancelled_at: string | null;
   created_at: string;
   author_user_id: string | null;
+  /** #1471: how this invoice's project attribution counts (`contract` draws down the contract value; NOT NULL, default `contract`). */
+  billing_kind: BillingKind;
   /**
    * EVERY user who has built this invoice's ERP body — migration 0113's append-only
    * `sales_invoice_authors` set, which is the SoD oracle `submit_sales_invoice` actually enforces.
@@ -72,18 +81,43 @@ export interface SalesInvoiceRow {
   /** #784 (DD-NAR-16): the balance carried into the ERP's opening entry when the ERP took revenue over, and when. */
   erp_opening_amount?: number | null;
   erp_opening_at?: string | null;
+  /** C8: latest facts read from Odoo's revenue mirror. */
+  odoo_state?: string | null;
+  odoo_attention?: string | null;
+  odoo_sent_total?: number | null;
+  odoo_read_at?: string | null;
+  /** #1825: the receipt references the last Odoo invoice read-back showed matched against this invoice (`account.payment:<id>`); the awaiting-Odoo flag clears on one of them. */
+  odoo_matched_payment_refs?: string[] | null;
   /** DD-EFK-1: PMO-owned tax-invoice reference (never mirrored to ERP). */
   efaktur_number: string | null;
   /** DD-EFK-1: PMO-owned tax-invoice date (never mirrored to ERP). */
   efaktur_date: string | null;
+  /** ECA-5 (PD-ECA-11): the ERP invoice that counts for this PMO-raised invoice; set only by accepting a pair. */
+  paired_erp_invoice_id?: string | null;
+  /** ECA-5: the number of that ERP invoice; read only on the single-invoice fetch. */
+  paired_erp_number?: string | null;
+}
+
+/** #1415: one LIVE allocation of a PMO receipt to an invoice (a reversed one is not mapped into the row). */
+export interface NativeAllocation {
+  id: string;
+  sales_invoice_id: string;
+  amount: number;
+  cash_amount: number;
+  withheld_amount: number;
+  currency: string;
 }
 
 export interface IncomingPaymentRow {
   received_amount?: number | null;
   withheld_amount?: number | null;
   withholding_slip_number?: string | null;
+  /** #1275: the tax article the client withheld under; null/absent = not stated. */
+  withholding_article?: string | null;
   /** S-06: the ERP-authored invoice allocations (null/absent = coverage unknown; [] = none reported). */
   allocation_details?: ReceiptAllocation[] | null;
+  /** #1415: a PMO receipt's live allocations (the only authority for what it settles). Absent = not loaded. */
+  allocations?: NativeAllocation[];
   id: string;
   org_id: string;
   customer_id: string | null;
@@ -108,6 +142,14 @@ export interface IncomingPaymentRow {
   pmo_number?: string | null;
   /** #784 (DD-NAR-10): set when a PMO receipt is cancelled. */
   cancelled_at?: string | null;
+  /** Latest Odoo receipt command; the invoice stays in an awaiting state until its ERP read advances. */
+  push_command_state?: string | null;
+  push_command_created_at?: string | null;
+  push_command_updated_at?: string | null;
+  /** #1825: the receipt's own Odoo reference the outbox recorded at commit (e.g. `account.payment:42`). */
+  push_command_external_record_id?: string | null;
+  /** #1825: the receipt references the committed command's Odoo read-back recorded (absent for rows finalized before the evidence existed). */
+  push_command_matched_payment_refs?: string[] | null;
 }
 
 export type SalesInvoiceStatus = SalesInvoiceRow['status'];
@@ -138,11 +180,10 @@ function throwWrite(error: PostgrestErrorLike): never {
  * Ordered by invoice_date desc for a stable, scannable list.
  * Includes customer's payment terms (erp_payment_terms_days) for due-date derivation.
  *
- * Money-safety (read-model audit S6): with no explicit `page`/`pageSize` this scans the WHOLE
- * list in `PAGE_SCAN_SIZE` pages. A single unpaged request is silently capped at PostgREST's
- * `max_rows`, so past 1000 invoices the list — and the client-side search that indexes it —
- * saw only the newest 1000 and answered "No invoices match your filters" for an invoice that
- * exists. An explicit `page`/`pageSize` still issues exactly one bounded request.
+ * Money-safety (read-model audit S6): this scans the WHOLE list in `PAGE_SCAN_SIZE` pages. A
+ * single unpaged request is silently capped at PostgREST's `max_rows`, so past 1000 invoices the
+ * list — and the client-side search that indexes it — saw only the newest 1000 and answered
+ * "No invoices match your filters" for an invoice that exists.
  */
 /**
  * The invoice projection every SI read shares: the row, the customer's payment terms, and the
@@ -150,7 +191,7 @@ function throwWrite(error: PostgrestErrorLike): never {
  * consult the same oracle as the RPC, or it offers a "Submit" that 403s (round-6 re-audit NIT 1).
  */
 const SALES_INVOICE_SELECT =
-  '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id)';
+  '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat,receipt_withholding_article)';
 
 /** One joined SI row → the flat `SalesInvoiceRow` (payment terms + author set + customer name flattened). */
 function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
@@ -161,6 +202,8 @@ function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
     erp_payment_terms_days: companies?.erp_payment_terms_days ?? null,
     customer_name: companies ? companyDisplayName({ name: companies.name ?? '', short_name: companies.short_name }) : null,
     author_user_ids: authors.map((a) => a.user_id),
+    project_subject_to_vat: (row.project as { subject_to_vat: boolean } | null)?.subject_to_vat ?? null,
+    project_receipt_withholding_article: ((a: unknown) => (isPphType(a) ? a : null))((row.project as { receipt_withholding_article?: unknown } | null)?.receipt_withholding_article),
     erp_due_date: (row.erp_due_date as string | null | undefined) ?? null,
     received_date: (row.received_date as string | null | undefined) ?? null,
     efaktur_number: (row.efaktur_number as string | null | undefined) ?? null,
@@ -169,7 +212,7 @@ function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
 }
 
 export async function listSalesInvoices(
-  params?: { projectId?: string; status?: SalesInvoiceStatus; nativeOnly?: boolean } & PageParams,
+  params?: { projectId?: string; status?: SalesInvoiceStatus; nativeOnly?: boolean; includePaired?: boolean },
 ): Promise<SalesInvoiceRow[]> {
   const build = (from: number, to: number) => {
     let query = supabase
@@ -178,6 +221,9 @@ export async function listSalesInvoices(
     if (params?.projectId) query = query.eq('project_id', params.projectId);
     if (params?.status) query = query.eq('status', params.status);
     if (params?.nativeOnly) query = query.eq('pmo_native', true);
+    // ECA-5 (PD-ECA-11): a PMO copy paired to an ERP invoice counts through the ERP invoice only, so it leaves every list
+    // that feeds a figure. Only the pairing screen asks for it back.
+    if (!params?.includePaired) query = query.is('paired_erp_invoice_id', null);
     return query
       .order('invoice_date', { ascending: false })
       .order('created_at', { ascending: false })
@@ -186,18 +232,56 @@ export async function listSalesInvoices(
       .range(from, to);
   };
 
-  const range = resolveRange(params);
-  let data: Array<Record<string, unknown>>;
-  if (range) {
-    const res = await build(range.from, range.to);
-    if (res.error) throwWrite(res.error);
-    data = (res.data ?? []) as Array<Record<string, unknown>>;
-  } else {
-    data = await fetchAllPages<Record<string, unknown>>((from, to) =>
-      build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
-    );
-  }
+  const data = await fetchAllPages<Record<string, unknown>>((from, to) =>
+    build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
+  );
   return data.map(toSalesInvoiceRow);
+}
+
+/** Count overdue open invoices from a narrow projection; avoids loading finance tables in the rail. */
+export async function getOverdueInvoiceCount(today: string): Promise<number> {
+  const rows = await fetchAllPages<Record<string, unknown>>((from, to) =>
+    supabase
+      .from('sales_invoices')
+      .select('id,status,invoice_date,erp_due_date,received_date,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
+      .in('status', [...OPEN_CLIENT_INVOICE_STATUSES])
+      .is('paired_erp_invoice_id', null)
+      .order('id', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
+  );
+  return rows.filter((raw) => {
+    const row = raw as { status: string; invoice_date: string | null; erp_due_date: string | null; received_date: string | null; companies: { erp_payment_terms_days: number | null } | null };
+    // #1457: the one shared overdue rule decides; the SQL above narrows to the same open set.
+    return clientInvoiceOverdueDays({
+      status: row.status,
+      invoice_date: row.invoice_date,
+      erp_payment_terms_days: row.companies?.erp_payment_terms_days,
+      erp_due_date: row.erp_due_date,
+      received_date: row.received_date,
+    }, today) !== null;
+  }).length;
+}
+
+/** What the dashboard's overdue tile reads from an open client invoice; nothing else leaves the database. */
+export type OverdueInvoiceFact = Pick<SalesInvoiceRow, 'id' | 'status' | 'currency' | 'invoice_date' | 'erp_due_date' | 'received_date' | 'erp_outstanding_amount' | 'erp_payment_terms_days'>;
+
+/** Open (Submitted/Unpaid) client invoices as narrow facts: the rows `selectOverdueInvoices` keeps from the full list, without the authors/customer-name joins. */
+export async function listOverdueInvoiceFacts(): Promise<OverdueInvoiceFact[]> {
+  const rows = await fetchAllPages<Record<string, unknown>>((from, to) =>
+    supabase
+      .from('sales_invoices')
+      .select('id,status,currency,invoice_date,erp_due_date,received_date,erp_outstanding_amount,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
+      .in('status', [...OPEN_CLIENT_INVOICE_STATUSES])
+      .is('paired_erp_invoice_id', null)
+      .order('id', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
+  );
+  return rows.map((row) => ({
+    ...row,
+    erp_payment_terms_days: (row.companies as { erp_payment_terms_days: number | null } | null)?.erp_payment_terms_days ?? null,
+    erp_due_date: (row.erp_due_date as string | null | undefined) ?? null,
+    received_date: (row.received_date as string | null | undefined) ?? null,
+  }) as unknown as OverdueInvoiceFact);
 }
 
 /**
@@ -213,7 +297,10 @@ export async function getSalesInvoice(id: string): Promise<SalesInvoiceRow | nul
     .maybeSingle();
   if (error) throwWrite(error);
   if (!data) return null;
-  return toSalesInvoiceRow(data as Record<string, unknown>);
+  const row = toSalesInvoiceRow(data as Record<string, unknown>);
+  if (!row.paired_erp_invoice_id) return row;
+  const numbers = await erpInvoiceNumbers([row.paired_erp_invoice_id]);
+  return { ...row, paired_erp_number: numbers.get(row.paired_erp_invoice_id) ?? null };
 }
 
 /**
@@ -223,15 +310,82 @@ export async function getSalesInvoice(id: string): Promise<SalesInvoiceRow | nul
  * row, and the inline `references public.companies(id)` in migration 0123 yields that default name.
  */
 const INCOMING_PAYMENT_SELECT =
-  '*, customer:companies!incoming_payments_customer_id_fkey(name)';
+  '*, customer:companies!incoming_payments_customer_id_fkey(name), allocations:incoming_payment_allocations(id,sales_invoice_id,amount,cash_amount,withheld_amount,currency,reversed_at)';
 
-/** One joined IP row → the flat `IncomingPaymentRow` (customer name flattened). */
+/** One joined IP row → the flat `IncomingPaymentRow` (customer name flattened; only LIVE allocations kept, #1415). */
 function toIncomingPaymentRow(row: Record<string, unknown>): IncomingPaymentRow {
   const customer = row.customer as { name: string | null } | null;
+  const embedded = (row.allocations as Array<NativeAllocation & { reversed_at: string | null }> | null | undefined) ?? [];
   return {
     ...row,
     customer_name: customer?.name ?? null,
+    allocations: embedded.filter((a) => !a.reversed_at).map(({ reversed_at: _reversed, ...live }) => live),
   } as unknown as IncomingPaymentRow;
+}
+
+const RECEIPT_PUSH_STATES = ['pending', 'committing', 'committed', 'quarantined', 'held', 'confirmed'] as const;
+
+/** Reads only the caller's RLS-visible Odoo receipt commands. Errors fail closed so the UI cannot
+ *  claim an invoice is current when the command state could not be read. */
+async function receiptPushCommands(paymentIds: string[]): Promise<Map<string, {
+  state: string; createdAt: string; updatedAt: string; externalRecordId: string | null; matchedPaymentRefs: string[] | null;
+}>> {
+  const commands = new Map<string, {
+    state: string; createdAt: string; updatedAt: string; externalRecordId: string | null; matchedPaymentRefs: string[] | null;
+  }>();
+  // Bound PostgREST URL size even when the incoming-payment list spans many pages.
+  for (let i = 0; i < paymentIds.length; i += 500) {
+    const ids = paymentIds.slice(i, i + 500);
+    for (let from = 0; ; from += 500) {
+      const { data, error } = await supabase
+        .from('external_command_outbox')
+        .select('pmo_record_id, state, created_at, updated_at, external_record_id, canonical')
+        .eq('domain', 'revenue')
+        .eq('external_tier', 'odoo')
+        .in('pmo_record_id', ids)
+        .in('state', RECEIPT_PUSH_STATES)
+        .order('updated_at', { ascending: true })
+        .range(from, from + 499);
+      if (error) throwWrite(error);
+      const rows = (data ?? []) as Array<{ pmo_record_id: string; state: string; created_at: string; updated_at: string; external_record_id: string | null; canonical: unknown }>;
+      for (const row of rows) {
+        const previous = commands.get(row.pmo_record_id);
+        if (!previous || Date.parse(row.updated_at) > Date.parse(previous.updatedAt)) {
+          // #1825: the read-back evidence lives on the committed canonical. Only an array of reference strings
+          // counts — anything else (including a bare string) is not evidence and maps to null.
+          const canonicalRefs = (row.canonical as { odoo_matched_payment_refs?: unknown } | null)?.odoo_matched_payment_refs;
+          const matchedPaymentRefs = Array.isArray(canonicalRefs) && canonicalRefs.every((ref) => typeof ref === 'string') && canonicalRefs.length > 0
+            ? (canonicalRefs as string[])
+            : null;
+          commands.set(row.pmo_record_id, {
+            state: row.state, createdAt: row.created_at, updatedAt: row.updated_at,
+            externalRecordId: row.external_record_id ?? null, matchedPaymentRefs,
+          });
+        }
+      }
+      if (rows.length < 500) break;
+    }
+  }
+  return commands;
+}
+
+async function withReceiptPushCommands(rows: IncomingPaymentRow[]): Promise<IncomingPaymentRow[]> {
+  const ids = rows.map((row) => row.id).filter(Boolean);
+  if (ids.length === 0 || !rows.some((row) => row.status === 'Scheduled' || row.status === 'Paid')) return rows;
+  const commands = await receiptPushCommands(ids);
+  return rows.map((row) => {
+    const command = commands.get(row.id);
+    return command
+      ? {
+          ...row,
+          push_command_state: command.state,
+          push_command_created_at: command.createdAt,
+          push_command_updated_at: command.updatedAt,
+          push_command_external_record_id: command.externalRecordId,
+          push_command_matched_payment_refs: command.matchedPaymentRefs,
+        }
+      : row;
+  });
 }
 
 /**
@@ -240,18 +394,41 @@ function toIncomingPaymentRow(row: Record<string, unknown>): IncomingPaymentRow 
  * invoice either by the native FK or by an ERP-reported JSON allocation, before paging.
  * Ordered by date desc then created_at desc, with an `id` tiebreaker so the scan is stable.
  *
- * Same money-safety contract as `listSalesInvoices` (audit S6): unpaged callers get the WHOLE
- * list via successive pages, never a silently-capped first 1000.
+ * Same money-safety contract as `listSalesInvoices` (audit S6): callers get the WHOLE list via
+ * successive pages, never a silently-capped first 1000.
  */
 export async function listIncomingPayments(
-  params?: { customerId?: string; salesInvoiceId?: string } & PageParams,
+  params?: { customerId?: string; salesInvoiceId?: string },
 ): Promise<IncomingPaymentRow[]> {
+  // #1415: a PMO receipt settles an invoice through its LIVE ALLOCATIONS, never through its own sales_invoice_id (only where it was
+  // recorded from). So the receipts for one invoice are: the ERP receipts that name it (the FK, or the ERP's own allocation list)
+  // plus every receipt holding a live allocation on it. The allocation read is its own request: PostgREST cannot put an
+  // embedded-table filter inside `or()`.
+  let allocatedReceiptIds: string[] = [];
+  if (params?.salesInvoiceId) {
+    const invoiceId = params.salesInvoiceId;
+    const allocations = await fetchAllPages<{ incoming_payment_id: string }>((from, to) =>
+      supabase
+        .from('incoming_payment_allocations')
+        .select('incoming_payment_id')
+        .eq('sales_invoice_id', invoiceId)
+        .is('reversed_at', null)
+        .order('id', { ascending: true })
+        .range(from, to) as unknown as PromiseLike<PageResult<{ incoming_payment_id: string }>>,
+    );
+    allocatedReceiptIds = [...new Set(allocations.map((a) => a.incoming_payment_id))];
+  }
   const build = (from: number, to: number) => {
     let query = supabase.from('incoming_payments').select(INCOMING_PAYMENT_SELECT);
     if (params?.customerId) query = query.eq('customer_id', params.customerId);
     if (params?.salesInvoiceId) {
       const invoiceId = params.salesInvoiceId;
-      query = query.or(`sales_invoice_id.eq.${invoiceId},allocation_details.cs.[{"invoice_id":"${invoiceId}"}]`)
+      const clauses = [
+        `and(sales_invoice_id.eq.${invoiceId},pmo_native.eq.false)`,
+        `allocation_details.cs.[{"invoice_id":"${invoiceId}"}]`,
+        ...(allocatedReceiptIds.length ? [`id.in.(${allocatedReceiptIds.join(',')})`] : []),
+      ];
+      query = query.or(clauses.join(','))
         .neq('status', 'Scheduled')
         .is('erp_cancelled_at', null)
         .is('cancelled_at', null);
@@ -263,16 +440,41 @@ export async function listIncomingPayments(
       .range(from, to);
   };
 
-  const range = resolveRange(params);
-  if (range) {
-    const { data, error } = await build(range.from, range.to);
-    if (error) throwWrite(error);
-    return ((data ?? []) as Array<Record<string, unknown>>).map(toIncomingPaymentRow);
-  }
   const data = await fetchAllPages<Record<string, unknown>>((from, to) =>
     build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
   );
-  return data.map(toIncomingPaymentRow);
+  return withReceiptPushCommands(data.map(toIncomingPaymentRow));
+}
+
+/** What the dashboard's collected figure reads from a received payment. */
+export type PaidPaymentFact = Pick<IncomingPaymentRow, 'status' | 'date' | 'amount' | 'currency'>;
+
+/** Paid receipts as narrow facts: no customer join and no receipt-push command read (the dashboard shows neither). */
+export async function listPaidPaymentFacts(): Promise<PaidPaymentFact[]> {
+  return fetchAllPages<PaidPaymentFact>((from, to) =>
+    supabase
+      .from('incoming_payments')
+      .select('status,date,amount,currency')
+      .eq('status', 'Paid')
+      .order('id', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<PageResult<PaidPaymentFact>>,
+  );
+}
+
+/** Whether the org holds ANY client invoice, whatever its status — the dashboard's empty-state evidence
+ *  the open-status facts read cannot give (an org with only a drafted invoice is not an inactive org).
+ *  One narrow column, one row; RLS scopes org exactly like every other revenue read here. */
+export async function hasAnySalesInvoice(): Promise<boolean> {
+  const { data, error } = await supabase.from('sales_invoices').select('id').limit(1);
+  if (error) throwWrite(error);
+  return (data?.length ?? 0) > 0;
+}
+
+/** Whether the org holds ANY incoming payment, whatever its status — the Scheduled-only counterpart of `hasAnySalesInvoice`. */
+export async function hasAnyIncomingPayment(): Promise<boolean> {
+  const { data, error } = await supabase.from('incoming_payments').select('id').limit(1);
+  if (error) throwWrite(error);
+  return (data?.length ?? 0) > 0;
 }
 
 /**
@@ -287,7 +489,8 @@ export async function getIncomingPayment(id: string): Promise<IncomingPaymentRow
     .maybeSingle();
   if (error) throwWrite(error);
   if (!data) return null;
-  return toIncomingPaymentRow(data as Record<string, unknown>);
+  const row = toIncomingPaymentRow(data as Record<string, unknown>);
+  return (await withReceiptPushCommands([row]))[0];
 }
 
 /**
@@ -305,11 +508,18 @@ export async function submitSalesInvoiceSod(siId: string): Promise<void> {
  * #767 (AC-DUE-001): record (or clear, with null) the date the client received the invoice.
  * Admin/Finance, draft or submitted — enforced by the SECURITY DEFINER RPC, not the UI.
  */
-export async function setSalesInvoiceProject(siId: string, projectId: string): Promise<void> {
+export async function setSalesInvoiceProject(siId: string, projectId: string, billingKind?: BillingKind): Promise<void> {
   const { error } = await supabase.rpc('assign_sales_invoice_project', {
     p_si_id: siId,
     p_project_id: projectId,
+    ...(billingKind ? { p_billing_kind: billingKind } : {}),
   });
+  if (error) throwWrite(error);
+}
+
+/** #1471 FR-004: PMO-only billing-kind correction of an already-linked invoice (Admin/Finance, RPC-enforced). */
+export async function setSalesInvoiceBillingKind(siId: string, billingKind: BillingKind): Promise<void> {
+  const { error } = await supabase.rpc('set_sales_invoice_billing_kind', { p_si_id: siId, p_billing_kind: billingKind });
   if (error) throwWrite(error);
 }
 
@@ -322,15 +532,24 @@ export async function getOrgReadsErpLedger(): Promise<boolean> {
   return data;
 }
 
-export async function getProjectFinances(projectId: string): Promise<ProjectFinances> {
-  const { data, error } = await supabase.rpc('get_project_finances', { p_project_id: projectId });
-  if (error) throwWrite(error);
+/** Validates a `get_project_finances` payload; shared by the per-endpoint read and the Overview read-model. */
+export function parseProjectFinances(data: unknown, projectId: string): ProjectFinances {
   if (!isProjectFinances(data) || data.project_id !== projectId) {
     throw new AppError('Project finance reading unavailable', 'invalid-project-finances');
   }
   // The legacy guard intentionally excludes cash_received; read that additive unknown only after it succeeds.
-  const payload = data as unknown as Omit<ProjectFinances, 'cash_received'> & { cash_received?: unknown };
-  return { ...payload, cash_received: parseProjectReceiptCash(payload.cash_received) };
+  const payload = data as unknown as Omit<ProjectFinances, 'cash_received' | 'contract_excess'> & { cash_received?: unknown; contract_excess?: unknown };
+  return {
+    ...payload,
+    cash_received: parseProjectReceiptCash(payload.cash_received),
+    contract_excess: parseContractExcess(payload.contract_excess, payload.remaining_to_invoice),
+  };
+}
+
+export async function getProjectFinances(projectId: string): Promise<ProjectFinances> {
+  const { data, error } = await supabase.rpc('get_project_finances', { p_project_id: projectId });
+  if (error) throwWrite(error);
+  return parseProjectFinances(data, projectId);
 }
 
 export async function setSalesInvoiceReceivedDate(siId: string, receivedDate: string | null): Promise<void> {
@@ -377,15 +596,19 @@ export async function setSalesInvoiceEfaktur(
 export interface RevenueByProjectRow {
   project_id: string | null;
   project_name: string | null;
+  /** Display alias for the screen only; `project_name` stays contractual for exports. */
+  project_short_name?: string | null;
   /** The invoices' own currency — totals are per (project, currency), never converted (#831). */
   currency: string;
   /** NET of tax, from the shared `sales_invoice_work_billed` view (the management pack's definition). */
   total_amount: number;
   open_ar: number;
+  /** Count of submitted invoices whose ERP outstanding balance is unknown (#1475). */
+  open_ar_unknown_count: number;
   invoice_count: number;
 }
 
-type RevenueAgg = { currency: string; total_amount: number; open_ar: number; invoice_count: number };
+type RevenueAgg = { currency: string; total_amount: number; open_ar: number; open_ar_unknown_count: number; invoice_count: number };
 
 /**
  * #831: Total Revenue is billed WORK, net of tax, read from the one shared definition the management
@@ -401,7 +624,7 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
     const key = `${projectId ?? '__unassigned__'}|${currency}`;
     let entry = agg.get(key);
     if (!entry) {
-      entry = { project_id: projectId, currency, total_amount: 0, open_ar: 0, invoice_count: 0 };
+      entry = { project_id: projectId, currency, total_amount: 0, open_ar: 0, open_ar_unknown_count: 0, invoice_count: 0 };
       agg.set(key, entry);
     }
     return entry;
@@ -432,6 +655,7 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
       .from('sales_invoices')
       .select('id, project_id, currency, erp_outstanding_amount')
       .in('status', REVENUE_STATUSES as unknown as string[])
+      .is('paired_erp_invoice_id', null)   // ECA-5: the paired PMO copy's receivable is its ERP invoice's
       .order('id', { ascending: true });
     if (afterId !== null) query = query.gt('id', afterId);
     return query.limit(limit) as unknown as PromiseLike<PageResult<ArRow>>;
@@ -439,29 +663,154 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
   for (const row of ar) {
     // Every submitted invoice counts (down payments and all) so the count matches the Sales Invoices list.
     const entry = bucket(row.project_id, row.currency ?? '');
-    entry.open_ar += Number(row.erp_outstanding_amount ?? 0);
+    const outstanding = row.erp_outstanding_amount;
+    if (outstanding != null && Number.isFinite(Number(outstanding))) {
+      entry.open_ar += Number(outstanding);
+    } else {
+      entry.open_ar_unknown_count += 1;
+    }
     entry.invoice_count += 1;
   }
 
   // Resolve project names for non-null project_ids
   const projectIds = Array.from(new Set(Array.from(agg.values()).map((v) => v.project_id).filter((id): id is string => id !== null)));
   let projectNames = new Map<string, string>();
+  let projectShortNames = new Map<string, string | null>();
   if (projectIds.length > 0) {
     const { data: projects } = await supabase
       .from('projects')
-      .select('id, name')
+      .select('id, name, short_name')
       .in('id', projectIds);
     if (projects) {
       projectNames = new Map(projects.map((p: { id: string; name: string }) => [p.id, p.name]));
+      projectShortNames = new Map(projects.map((p: { id: string; short_name?: string | null }) => [p.id, p.short_name?.trim() || null]));
     }
   }
 
   return Array.from(agg.values()).map((v) => ({
     project_id: v.project_id,
     project_name: v.project_id ? (projectNames.get(v.project_id) ?? null) : null,
+    ...(v.project_id && projectShortNames.get(v.project_id) ? { project_short_name: projectShortNames.get(v.project_id) } : {}),
     currency: v.currency,
     total_amount: v.total_amount,
     open_ar: v.open_ar,
+    open_ar_unknown_count: v.open_ar_unknown_count,
     invoice_count: v.invoice_count,
+  }));
+}
+
+// ── ECA-5: pair PMO-raised invoices with the same invoices in the ERP (AC-ECA-030) ─────────────────────────────────
+
+export interface InvoicePairProposal {
+  pmoInvoiceId: string;
+  erpInvoiceId: string;
+  /** More than one candidate on either side: listed for a person to decide, never accepted in bulk. */
+  ambiguous: boolean;
+  pmoNumber: string | null;
+  erpNumber: string | null;
+  customerName: string | null;
+  amount: number;
+  currency: string;
+  invoiceDate: string | null;
+}
+
+export type UnpairedReason = 'no-match' | 'ambiguous' | 'has-receipt' | 'project-differs';
+
+export interface UnpairedNativeInvoice {
+  invoiceId: string;
+  pmoNumber: string | null;
+  customerName: string | null;
+  invoiceDate: string | null;
+  amount: number;
+  currency: string;
+  reason: UnpairedReason;
+}
+
+export interface AcceptedInvoicePair {
+  pmoInvoiceId: string;
+  pmoNumber: string | null;
+  amount: number;
+  currency: string;
+  pairedAt: string;
+  erpNumber: string | null;
+}
+
+/** Read in stable pages: PostgREST caps one response at 1,000 rows, and an org can hold more. */
+export async function proposeInvoicePairs(): Promise<InvoicePairProposal[]> {
+  type Row = { pmo_invoice_id: string; erp_invoice_id: string; ambiguous: boolean; pmo_number: string | null; erp_number: string | null;
+    customer_name: string | null; amount: number; currency: string; invoice_date: string | null };
+  const data = await fetchAllPages<Row>((from, to) =>
+    supabase.rpc('propose_invoice_pairs')
+      .order('invoice_date').order('pmo_number').order('erp_number').order('pmo_invoice_id').order('erp_invoice_id')
+      .range(from, to) as unknown as PromiseLike<PageResult<Row>>,
+  );
+  return data.map((r) => ({
+    pmoInvoiceId: r.pmo_invoice_id, erpInvoiceId: r.erp_invoice_id, ambiguous: r.ambiguous,
+    pmoNumber: r.pmo_number, erpNumber: r.erp_number, customerName: r.customer_name,
+    amount: Number(r.amount), currency: r.currency, invoiceDate: r.invoice_date,
+  }));
+}
+
+/**
+ * The ERP invoice numbers behind a set of paired PMO copies. Two reads, not an embed: PostgREST cannot resolve the
+ * self-referencing paired_erp_invoice_id relationship (a hint by constraint name finds nothing, one by column name walks the
+ * wrong direction). RLS scopes the rows to the caller's org.
+ */
+async function erpInvoiceNumbers(ids: string[]): Promise<Map<string, string | null>> {
+  const numbers = new Map<string, string | null>();
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await supabase.from('sales_invoices').select('id, si_number').in('id', ids.slice(i, i + 100));
+    if (error) throwWrite(error);
+    for (const r of (data ?? []) as Array<{ id: string; si_number: string | null }>) numbers.set(r.id, r.si_number);
+  }
+  return numbers;
+}
+
+/** Accepts the given pairs in one transaction; the server re-checks every pair. Returns how many were applied. */
+export async function acceptInvoicePairs(pairs: Array<{ pmoInvoiceId: string; erpInvoiceId: string }>): Promise<number> {
+  if (pairs.length === 0) return 0;
+  const { data, error } = await supabase.rpc('accept_invoice_pairs', {
+    p_pairs: pairs.map((p) => ({ pmo: p.pmoInvoiceId, erp: p.erpInvoiceId })),
+  });
+  if (error) throwWrite(error);
+  return Number(data ?? 0);
+}
+
+/** Undoes one accepted pair: the PMO copy counts again and the ERP copy loses what the accept filled. Admin/Finance, RPC-enforced. */
+export async function unpairInvoice(pmoInvoiceId: string): Promise<void> {
+  const { error } = await supabase.rpc('unpair_invoice', { p_pmo_id: pmoInvoiceId });
+  if (error) throwWrite(error);
+}
+
+export async function listUnpairedNativeInvoices(): Promise<UnpairedNativeInvoice[]> {
+  type Row = { invoice_id: string; pmo_number: string | null; customer_name: string | null; invoice_date: string | null;
+    amount: number; currency: string; reason: string };
+  const data = await fetchAllPages<Row>((from, to) =>
+    supabase.rpc('list_unpaired_native_invoices')
+      .order('invoice_date').order('pmo_number').order('invoice_id')
+      .range(from, to) as unknown as PromiseLike<PageResult<Row>>,
+  );
+  return data.map((r) => ({
+    invoiceId: r.invoice_id, pmoNumber: r.pmo_number, customerName: r.customer_name, invoiceDate: r.invoice_date,
+    amount: Number(r.amount), currency: r.currency, reason: r.reason as UnpairedReason,
+  }));
+}
+
+/** PMO invoices that now count as an ERP invoice, newest first (the "already done" list of the pairing screen). */
+export async function listAcceptedInvoicePairs(): Promise<AcceptedInvoicePair[]> {
+  type Row = { id: string; pmo_number: string | null; amount: number | null; currency: string; paired_at: string; paired_erp_invoice_id: string };
+  const rows = await fetchAllPages<Row>((from, to) =>
+    supabase
+      .from('sales_invoices')
+      .select('id, pmo_number, amount, currency, paired_at, paired_erp_invoice_id')
+      .not('paired_erp_invoice_id', 'is', null)
+      .order('paired_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<PageResult<Row>>,
+  );
+  const numbers = await erpInvoiceNumbers([...new Set(rows.map((r) => r.paired_erp_invoice_id))]);
+  return rows.map((r) => ({
+    pmoInvoiceId: r.id, pmoNumber: r.pmo_number, amount: Number(r.amount ?? 0), currency: r.currency,
+    pairedAt: r.paired_at, erpNumber: numbers.get(r.paired_erp_invoice_id) ?? null,
   }));
 }

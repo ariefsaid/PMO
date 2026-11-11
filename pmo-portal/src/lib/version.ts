@@ -15,6 +15,3 @@
 export const APP_VERSION = __APP_VERSION__;
 export const GIT_SHA = __GIT_SHA__;
 export const BUILD_TIME = __BUILD_TIME__;
-
-/** Human "what's live" label, e.g. "v0.2.0 · a1b2c3d". */
-export const VERSION_LABEL = `v${APP_VERSION} · ${GIT_SHA}`;

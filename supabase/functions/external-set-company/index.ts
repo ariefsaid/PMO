@@ -29,8 +29,10 @@
  * - 500: internal/upstream error
  */
 
+import { splitAuthPair } from '../_shared/erpAuthPair.ts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
+  bearerToken,
   verifyCallerJwt,
   JwtVerifyError,
   jwksFromUrl,
@@ -46,11 +48,14 @@ import {
   type ReadPermFailure,
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts';
 import { applyErpSetup, type ErpSetupBody } from './setup.ts';
+import { routeOdoo } from './odoo/router.ts';
+import { erpSyncFeatureDecision } from './featureGate.ts';
+import { CONNECT_ACTIONS, handleConnectAction } from './connect.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-import { guardedErpFetch, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
+import { guardedErpFetch, isPermittedErpSiteUrl, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
 
 interface SetCompanyBody extends ErpSetupBody {
-  tier: 'erpnext';
+  tier: 'erpnext' | 'odoo';
   companyId: string;
 }
 
@@ -83,16 +88,23 @@ export const testSupabaseOptions = {
   },
 };
 
-function bearerTokenFromHeader(authHeader: string | null): string | null {
-  if (!authHeader) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(authHeader);
-  return m ? m[1] : null;
+const ERPNEXT_READ_ACTIONS = new Set(['readiness', 'list-projects', 'verify-links']);
+
+function shouldGateErpNextWrite(body: SetCompanyBody): boolean {
+  return !body.setupAction || !ERPNEXT_READ_ACTIONS.has(body.setupAction);
 }
 
-function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+async function erpSyncRefusal(serviceClient: SupabaseClient, orgId: string): Promise<Response | null> {
+  const decision = await erpSyncFeatureDecision(serviceClient, orgId);
+  if (decision === 'on') return null;
+  if (decision === 'off') return errorResponse('ERP integration is not enabled for this organization', 'feature_off', 409);
+  return errorResponse('Could not resolve the plan switch', 'INTERNAL', 500);
+}
+
+function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', ...headers }, // #641: every answer is CORS-readable
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }, // #641: every answer is CORS-readable
   });
 }
 
@@ -173,7 +185,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
   }
 
   // 1. Extract and verify caller JWT (ADR-0057)
-  const jwt = bearerTokenFromHeader(req.headers.get('Authorization'));
+  const jwt = bearerToken(req.headers.get('Authorization'));
   if (!jwt) {
     return errorResponse('Missing Authorization header', 'UNAUTHORIZED', 401);
   }
@@ -234,6 +246,30 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
 
   const isAdmin = profile.role === 'Admin';
   const isPlatformOperator = !!isOperator;
+  // ECA setup verbs (#1605): one path for every tier; the verbs gate on role themselves, and a person's decisions run as the caller.
+  if (typeof body.setupAction === 'string' && CONNECT_ACTIONS.has(body.setupAction)) {
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    if (!anonKey) return errorResponse('Server misconfigured', 'MISCONFIGURED', 500);
+    const { data: state, error: stateError } = await serviceClient.rpc('actor_authorization_state', { p_org_id: profile.org_id, p_user_id: userId });
+    if (stateError || (state as { active?: unknown } | null)?.active !== true) {
+      return errorResponse('Only an active member of this organization can set up its ERP connection', 'FORBIDDEN', 403);
+    }
+    try {
+      const callerClient = createClient(supabaseUrl, anonKey, { ...testSupabaseOptions, global: { headers: { Authorization: `Bearer ${jwt}` } } });
+      return json(await handleConnectAction({ serviceClient, callerClient, orgId: profile.org_id, userId, role: profile.role, body: body as unknown as Record<string, unknown> }));
+    } catch (err) {
+      const code = (err as { code?: string }).code ?? 'INTERNAL';
+      const status: Record<string, number> = { FORBIDDEN: 403, NOT_FOUND: 404, BAD_REQUEST: 400, 'config-rejected': 422, 'external-unreachable': 502, feature_off: 409 };
+      return errorResponse(err instanceof AppError ? err.message : 'The request could not be completed', code, status[code] ?? 500);
+    }
+  }
+  // Odoo (#1504 S2, PQ-12): its router runs the active-member check and per-verb gates itself.
+  if (body.tier === 'odoo') {
+    return await routeOdoo({
+      sc: serviceClient, orgId: profile.org_id, userId, role: profile.role, operator: isPlatformOperator,
+      body: body as unknown as Record<string, unknown>, respond: json,
+    });
+  }
   const mayEnsureProject = body.setupAction === 'ensure-project' && ['Executive', 'Project Manager', 'Finance'].includes(profile.role);
   if (!isAdmin && !isPlatformOperator && !mayEnsureProject) {
     return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);
@@ -254,6 +290,11 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
   const { tier, companyId } = body;
   if (tier !== 'erpnext') {
     return errorResponse('Only erpnext tier is supported for company selection', 'BAD_REQUEST', 400);
+  }
+
+  if (shouldGateErpNextWrite(body)) {
+    const refused = await erpSyncRefusal(serviceClient, profile.org_id);
+    if (refused) return refused;
   }
 
   if (!body.setupAction && (!companyId || typeof companyId !== 'string')) {
@@ -294,25 +335,26 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
     return errorResponse('ERPNext credentials not found in Vault', 'CONFIG_REJECTED', 422);
   }
 
-  const stored = (vaultSecret as string).split(':');
-  if (stored.length !== 2) {
+  let apiKey: string;
+  let apiSecret: string;
+  try {
+    ({ apiKey, apiSecret } = splitAuthPair(vaultSecret as string));
+  } catch {
     return errorResponse('Invalid ERPNext credential format in Vault', 'CONFIG_REJECTED', 422);
   }
-  const [apiKey, apiSecret] = stored;
 
   if (body.setupAction) {
     if (!isAdmin && !mayEnsureProject) return errorResponse('Admin role required', 'FORBIDDEN', 403);
     const company = binding.config?.company;
     if (!binding.activated_at || typeof company !== 'string' || !company) return errorResponse('Select the ERPNext Company before setup', 'config-rejected', 422);
     try {
-      const url = new URL(binding.site_url);
-      if (url.protocol !== 'https:' || await isPrivateOrReservedHost(url.hostname)) throw new AppError('ERPNext site URL is not allowed', 'config-rejected');
+      if (!(await isPermittedErpSiteUrl(binding.site_url))) throw new AppError('ERPNext site URL is not allowed', 'config-rejected');
       return json(await applyErpSetup(body, { serviceClient, orgId: profile.org_id, actorId: userId, company, config: binding.config,
         client: { fetchImpl: guardedErpFetch(binding.site_url), baseUrl: binding.site_url, apiKey, apiSecret } }));
     } catch (err) {
       const code = (err as { code?: string }).code ?? 'INTERNAL';
       return errorResponse(err instanceof Error ? err.message : 'ERP setup failed', code,
-        code === 'NOT_FOUND' ? 404 : code === 'BAD_REQUEST' ? 400 : code === 'config-rejected' ? 422 : code === 'external-unreachable' ? 502 : 500);
+        code === 'FORBIDDEN' ? 403 : code === 'NOT_FOUND' ? 404 : code === 'BAD_REQUEST' ? 400 : code === 'config-rejected' || code === 'send-refused' ? 422 : code === 'send-in-flight' || code === 'send-held' ? 409 : code === 'external-unreachable' ? 502 : 500);
     }
   }
 
@@ -395,7 +437,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
 
   // 11. FR-EAC-106/107 — ONE statement: version + company + Company account defaults + the set-once
   // stamp. Replaces the direct PATCH so activation cannot land partially.
-  const { data: activatedAt, error: activateError } = await serviceClient.rpc('activate_external_binding', {
+  const { data: activatedAt, error: activateError } = await serviceClient.rpc('activate_external_binding_audited', {
     p_org_id: profile.org_id,
     p_external_tier: 'erpnext',
     p_version_major: versionMajor,
@@ -408,21 +450,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
     return errorResponse('Failed to activate the ERPNext connection', 'INTERNAL', 500);
   }
 
-  // 12. Audit log
-  const { error: auditError } = await serviceClient.rpc('log_audit', {
-    p_action: 'integration.set_company',
-    p_org_id: profile.org_id,
-    p_actor_id: userId,
-    p_entity_id: null,
-    p_detail: {
-      tier: 'erpnext',
-      company_id: companyId,
-      actor: userId,
-      version_major: versionMajor,
-      activated_at: activatedAt,
-    },
-  });
-  if (auditError) console.error('log_audit failed', auditError);
+  // 12. The audit event is written by the RPC in the same transaction as the activation.
 
   // 13. Return success
   const responseBody: SetCompanyResponse = { ok: true, companyId, versionMajor, activatedAt: activatedAt ?? null };

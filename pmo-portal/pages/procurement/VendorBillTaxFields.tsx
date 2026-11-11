@@ -19,7 +19,7 @@ export const TaxSuggestedFrom: React.FC<{ suggestion: TaxSuggestion | null; id?:
   if (!suggestion) return null;
   return (
     <p id={id} data-testid={VI_VENDOR_TAX_TEST_IDS.suggestedFrom} className="text-[12px] text-muted-foreground">
-      {t('procurementDetail.vendorTax.suggestedFrom', 'Vendor default {{rate}}% of {{base}}', {
+      {t('procurementDetail.vendorTax.suggestedFrom', 'Supplier default {{rate}}% of {{base}}', {
         rate: formatMoneyInputValue(suggestion.rate),
         base: formatMoneyInputValue(suggestion.base),
       })}
@@ -145,7 +145,7 @@ export const ErpTaxAmountFields: React.FC<{ formId: string; tax: ErpVendorTax }>
       </div>
       {tax.amounts === null && (
         <p data-testid={VI_VENDOR_TAX_TEST_IDS.erpRequiredHint} className="text-[12px] text-muted-foreground">
-          {t('procurementDetail.vendorTax.erpRequiredHint', "Enter the VAT amount from the vendor's invoice (0 if none) and, if tax is withheld, its type and amount.")}
+          {t('procurementDetail.vendorTax.erpRequiredHint', "Enter the VAT amount from the supplier's invoice (0 if none) and, if tax is withheld, its type and amount.")}
         </p>
       )}
     </div>

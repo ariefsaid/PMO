@@ -23,9 +23,10 @@
  * Both guards run in `index.ts` BEFORE adapter select / outbox insert / any ERP write.
  */
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { ERPNEXT_DISPATCH_DOMAINS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { decodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
-import { isBudgetAccountPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
+import { isBudgetAccountArchiveKey, isBudgetAccountPushKey, isBudgetLegacyArchiveKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 
 /** The structural service-role read seam both guards need: `.from(t).select(c).eq(...)…maybeSingle()`.
  *  Identical to `refs.ts`'s `ExternalRefsLookupClient` (the filter builder is chainable), re-exported
@@ -40,13 +41,11 @@ export interface TransitionBindingResult {
 
 const OK: TransitionBindingResult = { ok: true, status: 200, message: '' };
 
-/** The PMO domains the erpnext tier owns. A P0/P1 domain (`reference`/`tasks`) is never guarded here —
- *  it has no ERP document identity to bind.
- *
- *  ⚑ This set MUST stay in step with `index.ts`'s `isErpDomain`: a domain that routes to the ERP adapter
- *  but is missing here makes BOTH guards return OK on their first line — INERT, not passing — which
- *  silently re-opens BLOCK #2 and BLOCK #4 for that domain. `budget` (P3c) was exactly that gap. */
-const ERP_DOMAINS = new Set(['companies', 'procurement', 'revenue', 'timesheets', 'budget']);
+/** The PMO domains the erpnext tier owns: the one dispatch list, shared with `index.ts`'s `isErpDomain` and the adapter
+ *  registry so they cannot drift (a domain routed to the ERP adapter but missing here would make BOTH guards return OK on
+ *  their first line, silently re-opening BLOCK #2 and BLOCK #4 for it; `budget` (P3c) was exactly that gap). A P0/P1
+ *  domain (`reference`/`tasks`) is never guarded here: it has no ERP document identity to bind. */
+const ERP_DOMAINS = new Set<string>(ERPNEXT_DISPATCH_DOMAINS);
 
 /**
  * P3b FR-TSP-013 — the domains that accept NO caller-supplied ERP target AT ALL.
@@ -185,9 +184,9 @@ export async function checkCreateTargetUnmapped(
   // receipt (an ERP-path row whose mapping has not landed yet, or a PMO-native one, which is never mapped at all).
   // Both are global primary keys, so any occupied identity is refused — except this command's own retry.
   if (command.domain === 'revenue') {
-    const occupied = await revenueRowsFor(client, String(command.record.id));
-    if (occupied === 'lookup-failed') return { ok: false, status: 503, message: 'Revenue record identity could not be validated' };
-    if (occupied.length > 0 && !(idempotencyKey && await outboxRowExists(client, orgId, command.domain, pmoRecordId, idempotencyKey))) {
+    const target = await revenueTargetStateFor(client, String(command.record.id));
+    if (target === 'lookup-failed') return { ok: false, status: 503, message: 'Revenue record identity could not be validated' };
+    if (target.occupied && !(idempotencyKey && await outboxRowExists(client, orgId, command.domain, pmoRecordId, idempotencyKey))) {
       return { ok: false, status: 422, message: 'a revenue create must name a new record — record.id is already a sales invoice or customer receipt' };
     }
   }
@@ -293,6 +292,8 @@ function judgeBudgetPerYearKey(key: string): boolean | null {
 export function isOpaqueIdempotencyKey(key: string | undefined | null): boolean {
   if (typeof key !== 'string') return false;
   if (key.startsWith('bud16:')) return isBudgetAccountPushKey(key);
+  if (key.startsWith('bud16-archive:')) return isBudgetAccountArchiveKey(key);
+  if (key.startsWith('bud15-archive:')) return isBudgetLegacyArchiveKey(key);
   if (UUID_RE.test(key)) return true;
   // A key that CLAIMS the per-year budget shape is judged by THAT rule alone — the general
   // deterministic regex would otherwise wave through a `bud:<uuid>::<epoch>` (an empty year token
@@ -328,21 +329,27 @@ async function outboxRowExists(
 /** The two revenue read-model tables a revenue `record.id` can name (both keyed by a global uuid). */
 const REVENUE_ROW_TABLES = ['sales_invoices', 'incoming_payments'] as const;
 
-interface RevenueRow { table: (typeof REVENUE_ROW_TABLES)[number]; pmoNative: boolean }
+/** Whether `id` names an existing revenue row at all (`occupied`), and whether any such row is
+ *  PMO-native (`hasNative`). `'lookup-failed'` fails closed. */
+interface RevenueTargetState { occupied: boolean; hasNative: boolean }
 
-/** Every revenue row whose id is `id`, read with the service role (RLS-blind, so another org's row counts too).
- *  A non-uuid id cannot be a row of either table, so it is not looked up — a revenue command's own `record.id`
- *  is canonical by the time it reaches here (the guard below refuses the rest first); the shape skip remains
- *  for the `salesInvoiceId` a receipt cites. `'lookup-failed'` fails closed. */
-async function revenueRowsFor(client: GuardLookupClient, id: string): Promise<RevenueRow[] | 'lookup-failed'> {
-  if (!UUID_RE.test(id)) return [];
-  const rows: RevenueRow[] = [];
+/** The occupancy + PMO-nativeness of the revenue rows whose id is `id`, read with the service role
+ *  (RLS-blind, so another org's row counts too). A non-uuid id cannot be a row of either table, so it is
+ *  not looked up — a revenue command's own `record.id` is canonical by the time it reaches here (the
+ *  guards below refuse the rest first); the shape skip remains for the `salesInvoiceId` a receipt cites.
+ *  `'lookup-failed'` fails closed. */
+async function revenueTargetStateFor(client: GuardLookupClient, id: string): Promise<RevenueTargetState | 'lookup-failed'> {
+  if (!UUID_RE.test(id)) return { occupied: false, hasNative: false };
+  const state: RevenueTargetState = { occupied: false, hasNative: false };
   for (const table of REVENUE_ROW_TABLES) {
     const { data, error } = await client.from(table).select('id, pmo_native').eq('id', id).maybeSingle();
     if (error) return 'lookup-failed';
-    if (data) rows.push({ table, pmoNative: (data as { pmo_native?: unknown }).pmo_native === true });
+    if (data) {
+      state.occupied = true;
+      if ((data as { pmo_native?: unknown }).pmo_native === true) state.hasNative = true;
+    }
   }
-  return rows;
+  return state;
 }
 
 /**
@@ -368,9 +375,9 @@ export async function checkRevenueErpPathTarget(
   const cited = (command.record as { salesInvoiceId?: unknown }).salesInvoiceId;
   const ids = [String(command.record.id), ...(typeof cited === 'string' && cited.length > 0 ? [cited] : [])];
   for (const id of ids) {
-    const rows = await revenueRowsFor(client, id);
-    if (rows === 'lookup-failed') return { ok: false, status: 503, message: 'Revenue record could not be validated' };
-    if (rows.some((row) => row.pmoNative)) {
+    const target = await revenueTargetStateFor(client, id);
+    if (target === 'lookup-failed') return { ok: false, status: 503, message: 'Revenue record could not be validated' };
+    if (target.hasNative) {
       return {
         ok: false,
         status: 422,

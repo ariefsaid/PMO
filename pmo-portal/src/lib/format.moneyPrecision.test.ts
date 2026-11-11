@@ -3,8 +3,8 @@ import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocal
 import {
   formatMoneyInputValue,
   moneyInputErrorKind,
+  normalizeLocalizedDecimal,
   parseMoneyInputAtScale,
-  parseNeutralMoneyInput,
   parseNeutralMoneyInputAtScale,
 } from './format';
 
@@ -14,6 +14,21 @@ const ID = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 afterEach(() => resetActiveLocale());
 
 describe('money target precision', () => {
+  it('normalizes localized decimals to exact plain strings without a Number round-trip', () => {
+    setActiveLocale(ID);
+    expect(normalizeLocalizedDecimal('1.234,50', 2)).toBe('1234.5');
+    expect(normalizeLocalizedDecimal('0,29', 2)).toBe('0.29');
+    expect(normalizeLocalizedDecimal('12,3456', 4)).toBe('12.3456');
+    expect(normalizeLocalizedDecimal('1.234', 2)).toBe('1234');
+    expect(normalizeLocalizedDecimal('1,234', 2)).toBeNull();
+
+    setActiveLocale(EN);
+    expect(normalizeLocalizedDecimal('1,234.50', 2)).toBe('1234.5');
+    expect(normalizeLocalizedDecimal('1e-4', 4)).toBe('0.0001');
+    expect(normalizeLocalizedDecimal('1e-3', 2)).toBeNull();
+    expect(normalizeLocalizedDecimal('0x10', 2)).toBeNull();
+  });
+
   it('AC-PLC-009: applies the target scale after locale parsing without rounding', () => {
     setActiveLocale(ID);
     expect(parseMoneyInputAtScale('1.234', 2)).toBe(1234);
@@ -32,12 +47,13 @@ describe('money target precision', () => {
   it('keeps neutral import values dot-decimal and independent of the active locale', () => {
     for (const locale of [ID, EN]) {
       setActiveLocale(locale);
-      expect(parseNeutralMoneyInput('1.234')).toBe(1.234);
-      expect(parseNeutralMoneyInput('1,234.56')).toBe(1234.56);
-      expect(parseNeutralMoneyInput('12,34')).toBeNull();
-      expect(parseNeutralMoneyInputAtScale('1.234', 2)).toBeNull();
       expect(parseNeutralMoneyInputAtScale('1.2300', 2)).toBe(1.23);
       expect(parseNeutralMoneyInputAtScale('1,234.56', 2)).toBe(1234.56);
+      // A comma is a thousands separator here, never a decimal point: '12,34' is not a neutral money value.
+      expect(parseNeutralMoneyInputAtScale('12,34', 2)).toBeNull();
+      // The AtScale variant is the only shipped neutral parser (T-34 removed the unscaled wrapper):
+      // import cells beyond the target scale are rejected, not rounded.
+      expect(parseNeutralMoneyInputAtScale('1.234', 2)).toBeNull();
     }
   });
 
@@ -146,5 +162,22 @@ describe('DD-I18N-10: neutral import float-noise tolerance', () => {
   it('never extends the tolerance to on-screen entry, where every typed digit is the user\'s', () => {
     setActiveLocale(EN);
     expect(parseMoneyInputAtScale('1234.5600000000002', 2)).toBeNull();
+  });
+});
+
+
+describe('formatExactDecimal (#1507 S7)', () => {
+  it('groups and marks the decimal for the viewer, exactly, with two decimals', async () => {
+    const { formatExactDecimal } = await import('./format');
+    expect(formatExactDecimal('1234567.5', 'en-US')).toBe('1,234,567.50');
+    expect(formatExactDecimal('1234567.5', 'id-ID')).toBe('1.234.567,50');
+    expect(formatExactDecimal('-0.10', 'en-US')).toBe('−0.10');
+    expect(formatExactDecimal('-0.00', 'en-US')).toBe('0.00');
+    expect(formatExactDecimal('90071992547409930.01', 'en-US')).toBe('90,071,992,547,409,930.01');
+  });
+  it('gives back what is not a plain decimal', async () => {
+    const { formatExactDecimal } = await import('./format');
+    expect(formatExactDecimal('1e5', 'en-US')).toBe('1e5');
+    expect(formatExactDecimal('1.234', 'en-US')).toBe('1.234');
   });
 });

@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *
  * All mocks are hoisted so they are available to vi.mock factories.
  */
-const { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle } = vi.hoisted(() => {
+const { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle, mockOrder } = vi.hoisted(() => {
   const mockMaybeSingle = vi.fn();
   const mockEq = vi.fn();
   const mockIn = vi.fn();
@@ -16,7 +16,8 @@ const { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMa
   const mockFrom = vi.fn();
   const mockRpc = vi.fn();
   const mockRange = vi.fn();
-  return { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle };
+  const mockOrder = vi.fn();
+  return { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle, mockOrder };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom, rpc: mockRpc } }));
@@ -26,6 +27,8 @@ import {
   getProject,
   createProject,
   updateProjectHeader,
+  updateProjectGetProbability,
+  updateProjectGoProbability,
   archiveProject,
   deleteProject,
   setProjectContractValue,
@@ -42,6 +45,7 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
     eq: mockEq,
     in: mockIn,
     is: mockIs,
+    order: mockOrder,
     range: mockRange,
     maybeSingle: mockMaybeSingle,
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
@@ -51,6 +55,7 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
   mockEq.mockReturnValue(builder);
   mockIn.mockReturnValue(builder);
   mockIs.mockReturnValue(builder);
+  mockOrder.mockReturnValue(builder);
   mockRange.mockReturnValue(builder);
   mockMaybeSingle.mockImplementation(() => Promise.resolve(resolved));
   mockFrom.mockReturnValue(builder);
@@ -111,6 +116,7 @@ beforeEach(() => {
   mockIs.mockReset();
   mockRpc.mockReset();
   mockRange.mockReset();
+  mockOrder.mockReset();
 });
 
 describe('listProjects', () => {
@@ -246,17 +252,18 @@ describe('listProjects', () => {
     expect(pmCalls).toHaveLength(0);
   });
 
-  it('data-layer perf hardening #4: does NOT range-bound the query when called with no params (opt-in pagination)', async () => {
+  // ⚑ #1774 replaced the former "does NOT range-bound the query when called with no params
+  // (opt-in pagination)" assertion, which pinned exactly the defect: an unbounded read of the
+  // whole table truncated silently at PostgREST's 1,000-row cap. The read is now PAGED —
+  // dynamically, from the first page — so this asserts the fixed behaviour, and
+  // `atRiskReads.paging.test.ts` proves the completeness (1,005 rows returned).
+  it('#1774: pages from the first page in a total id order', async () => {
     makeBuilder({ data: [], error: null });
     await listProjects();
-    expect(mockRange).not.toHaveBeenCalled();
+    expect(mockOrder).toHaveBeenCalledWith('id', { ascending: true });
+    expect(mockRange).toHaveBeenCalledWith(0, 999);
   });
 
-  it('data-layer perf hardening #4: applies an explicit page/pageSize range alongside a status filter', async () => {
-    makeBuilder({ data: [], error: null });
-    await listProjects({ status: 'Loss Tender', page: 1, pageSize: 20 });
-    expect(mockRange).toHaveBeenCalledWith(20, 39);
-  });
 });
 
 describe('AC-PRJ-003 createProject (create a Leads / Internal opportunity)', () => {
@@ -361,6 +368,23 @@ describe('AC-CODE-002 project identifier DAL contract', () => {
     expect(calls.insert[0]).toMatchObject({ pmo_project_number: 'PMO-26-0001', code: 'CLIENT-42' });
   });
 
+  it('AC-001 #1325: create trims the optional alias independently and never sends org_id', async () => {
+    const calls = makeWriteBuilder({ data: { id: 'p1', name: 'Contractual project', short_name: 'North Terminal' }, error: null });
+    await createProject({
+      name: 'Contractual project', short_name: '  North Terminal  ', status: 'Leads', client_id: 'client-1',
+      project_manager_id: null, start_date: null, end_date: null, contract_value: 0,
+    });
+    expect(calls.insert[0]).toMatchObject({ name: 'Contractual project', short_name: 'North Terminal' });
+    expect(calls.insert[0]).not.toHaveProperty('org_id');
+
+    const omitted = makeWriteBuilder({ data: { id: 'p2' }, error: null });
+    await createProject({
+      name: 'Required contractual project', status: 'Leads', client_id: null,
+      project_manager_id: null, start_date: null, end_date: null, contract_value: 0,
+    });
+    expect(omitted.insert[0]).not.toHaveProperty('short_name');
+  });
+
   it('AC-CODE-002 preserves a duplicate-number 23505 as an AppError code', async () => {
     makeWriteBuilder({ data: null, error: { message: 'duplicate key', code: '23505' } });
     await expect(createProject({
@@ -397,6 +421,50 @@ describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () =
     expect(patch).not.toHaveProperty('status');
     expect(calls.eq).toContainEqual(['id', 'p1']);
     expect(JSON.stringify(patch)).not.toContain('org_id');
+  });
+
+  it('AC-WHA-007: updateProjectHeader writes the default receipt withholding article only when given', async () => {
+    const base = { name: 'N', code: null, client_id: null, end_client_id: null, project_manager_id: null, start_date: null, end_date: null };
+    const given = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', { ...base, receipt_withholding_article: 'pph4_2' });
+    expect(given.update[0]).toHaveProperty('receipt_withholding_article', 'pph4_2');
+    const cleared = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', { ...base, receipt_withholding_article: null });
+    expect(cleared.update[0]).toHaveProperty('receipt_withholding_article', null);
+    const omitted = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', base);
+    expect(omitted.update[0]).not.toHaveProperty('receipt_withholding_article');
+  });
+
+  it('AC-001 #1325: alias header updates trim values, clear explicit blank/null, and omission preserves the column', async () => {
+    const set = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', {
+      name: 'Contractual name unchanged', short_name: '  North Terminal  ', code: null, client_id: null,
+      end_client_id: null, project_manager_id: null, start_date: null, end_date: null,
+    });
+    expect(set.update[0]).toMatchObject({ name: 'Contractual name unchanged', short_name: 'North Terminal' });
+    expect(set.update[0]).not.toHaveProperty('org_id');
+
+    const blank = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', {
+      name: 'Contractual name unchanged', short_name: '   ', code: null, client_id: null,
+      end_client_id: null, project_manager_id: null, start_date: null, end_date: null,
+    });
+    expect(blank.update[0]).toHaveProperty('short_name', null);
+
+    const cleared = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', {
+      name: 'Contractual name unchanged', short_name: null, code: null, client_id: null,
+      end_client_id: null, project_manager_id: null, start_date: null, end_date: null,
+    });
+    expect(cleared.update[0]).toHaveProperty('short_name', null);
+
+    const omitted = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', {
+      name: 'Contractual name unchanged', code: null, client_id: null,
+      end_client_id: null, project_manager_id: null, start_date: null, end_date: null,
+    });
+    expect(omitted.update[0]).not.toHaveProperty('short_name');
   });
 
   it('AC-EC-002: updateProjectHeader sends end_client_id as NULL when cleared', async () => {
@@ -443,6 +511,26 @@ describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () =
     await expect(updateProjectHeader('p1', patch)).rejects.toBeInstanceOf(AppError);
     await expect(updateProjectHeader('p1', patch)).rejects.toMatchObject({ code: '42501' });
     expect(calls.update.length).toBeGreaterThan(0);
+  });
+});
+
+describe('AC-1796 updateProjectGetProbability', () => {
+  it('writes only the project Get estimate and never accepts a value outside 0–1', async () => {
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectGetProbability('p1', 0.65);
+    expect(calls.update[0]).toEqual({ get_probability: 0.65 });
+    expect(calls.eq).toContainEqual(['id', 'p1']);
+    expect(JSON.stringify(calls.update)).not.toContain('org_id');
+    await expect(updateProjectGetProbability('p1', 1.01)).rejects.toThrow('between 0 and 1');
+  });
+});
+
+describe('AC-1796 updateProjectGoProbability', () => {
+  it('writes the project-level Go override within the permitted range', async () => {
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectGoProbability('p1', 0.55);
+    expect(calls.update[0]).toEqual({ go_probability: 0.55 });
+    await expect(updateProjectGoProbability('p1', -0.01)).rejects.toThrow('between 0 and 1');
   });
 });
 

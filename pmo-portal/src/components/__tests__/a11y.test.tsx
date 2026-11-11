@@ -38,8 +38,14 @@ import { axeViolations } from './axe';
 
 // ── Companies page is rendered as the real-page surface; mock its hooks the same
 //    way Companies.test.tsx does (repository-seam hooks + impersonation role). ──
-const { listState, mutations } = vi.hoisted(() => ({
-  listState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+const { h, mutations } = vi.hoisted(() => ({
+  // #1989: the page reads one SERVER page; the stub mirrors the directory read's contract.
+  h: {
+    directory: [] as Array<Record<string, unknown>>,
+    pending: false,
+    error: false,
+    refetch: vi.fn(),
+  },
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -48,8 +54,27 @@ const { listState, mutations } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => listState,
+  useCompaniesPage: (input: { type: string; search: string; page: number; pageSize: number }) => {
+    const q = input.search.trim().toLowerCase();
+    const matching = h.directory.filter((c) => {
+      const typeOk = input.type === 'All' || c.type === input.type;
+      const searchOk = !q || String(c.name).toLowerCase().includes(q);
+      return typeOk && searchOk;
+    });
+    const start = (input.page - 1) * input.pageSize;
+    return {
+      data: { rows: matching.slice(start, start + input.pageSize), total: matching.length },
+      isPending: h.pending,
+      isError: h.error,
+      isFetching: false,
+      refetch: h.refetch,
+    };
+  },
+  useCompaniesTotal: () => ({ data: null, isPending: false, isError: false }),
+  useCompaniesExportAll: () => ({ mutateAsync: vi.fn(async () => h.directory), isPending: false }),
   useCompanyMutations: () => mutations,
 }));
 
@@ -66,9 +91,9 @@ const companiesSeed = [
 ];
 
 beforeEach(() => {
-  listState.data = companiesSeed;
-  listState.isPending = false;
-  listState.isError = false;
+  h.directory = companiesSeed;
+  h.pending = false;
+  h.error = false;
   realRole = 'Admin';
 });
 
@@ -93,7 +118,7 @@ describe('AC-A11Y-001: component-layer a11y gate — no critical/serious WCAG-AA
   });
 
   it('AC-A11Y-001: the Companies list page — empty state', async () => {
-    listState.data = [];
+    h.directory = [];
     await expectNoBlockingViolations(<Companies />);
   });
 

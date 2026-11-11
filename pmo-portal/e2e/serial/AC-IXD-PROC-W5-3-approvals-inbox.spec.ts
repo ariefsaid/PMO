@@ -30,8 +30,12 @@ test.describe.configure({ retries: 0 });
 // conforms to the test; never weaken an assertion to match current app state.
 //
 // Seed assumptions (clean `npx supabase db reset`):
-//   PROC-2026-002 (id …003): Requested, $22,500, requested_by = Tomas Beck
-//     (engineer@acme.test / a4). pm@acme.test (Diego / a2) is an approver (PM role).
+//   pm@acme.test (Diego / a2) is an approver (PM role).
+//   ⚑ The procurement journey below assumes NOTHING about seeded procurements — it brings its own
+//     Requested row (see the fixture block). It used to read seed PROC-2026-002 (…003) until #1873:
+//     chromium AC-IXD-WP-002 approves that row, and the serial phase runs AFTER chromium (#1870), so
+//     this journey inherited a used-up fixture. Reading a seed row another spec decides on is the
+//     same mistake as reading a shared timesheet — the data is owned per test now.
 //   ⚑ The timesheet journey below assumes NOTHING about seeded timesheets — it brings its own
 //     (see the fixture block). The seeded sheets (…004 Tomas/a4, …b4 Wave5 BulkEng) are
 //     deliberately no longer load-bearing: whether pm@ may approve them depends on the author's
@@ -40,7 +44,7 @@ test.describe.configure({ retries: 0 });
 
 // ── AC-IXD-PROC-W5-3 ────────────────────────────────────────────────────────
 // Given: a PM opens /approvals.
-// When:  they select the PROC-2026-002 queue row in the two-pane inbox.
+// When:  they select the Requested procurement row this spec owns in the two-pane inbox.
 // Then:  the preview pane reveals the request details + Approve/Reject there, the URL
 //        STAYS on /approvals, and the PM can approve the request without leaving the inbox.
 //
@@ -51,6 +55,17 @@ test.describe.configure({ retries: 0 });
 test(
   'AC-IXD-PROC-W5-3: PM inbox → procurement row previews + approves in place (no navigation)',
   async ({ page }) => {
+    test.skip(
+      !READY,
+      'AC-IXD-PROC-W5-3: needs the service-role client (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY) to seed the procurement it owns',
+    );
+
+    // Arrange: this journey's OWN Requested procurement (see the fixture block above), raised by
+    // engineer@ so pm@ is not the requester (SoD-a) and the flat route puts it in pm@'s queue.
+    admin = createClient(SERVICE_URL, SERVICE_KEY);
+    const ownedRow = await seedOwnedRequestedProcurement(admin);
+    ownedProcurement = ownedRow;
+
     await login(page, 'pm@acme.test');
     await page.goto('/approvals?scope=procurement');
 
@@ -60,11 +75,12 @@ test(
     await expect(preview).toBeVisible({ timeout: 15_000 });
 
     const procurementRows = queue.locator('button[aria-pressed]');
-    await expect(procurementRows.first()).toBeVisible({ timeout: 15_000 });
-    const initialCount = await procurementRows.count();
+    const approvedName = ownedRow.title;
+    const approvedRow = procurementRows.filter({ hasText: approvedName });
+    await expect(approvedRow).toHaveCount(1, { timeout: 15_000 });
 
-    // When: select a procurement queue row. The right pane should preview that request.
-    await procurementRows.first().click();
+    // When: select the named request this spec seeded, not whichever shared row sorts first.
+    await approvedRow.click();
 
     // Goal oracle 1: NO navigation — still inside /approvals, never on a detail route.
     await expect(page).toHaveURL(/\/approvals(?:\?|$)/, { timeout: 5_000 });
@@ -83,8 +99,9 @@ test(
     await expect(dialog).toContainText(new RegExp(`Approve ${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\?`, 'i'), { timeout: 10_000 });
     await dialog.getByRole('button', { name: /^approve$/i }).click();
     await expect(page).toHaveURL(/\/approvals(?:\?|$)/, { timeout: 5_000 });
-    await expect(visibleToast(page, /request approved/i)).toContainText(/request approved/i, { timeout: 15_000 });
-    await expect(queue.getByRole('button')).toHaveCount(initialCount - 1, { timeout: 15_000 });
+    const approvalToast = visibleToast(page, 'Procurement approved');
+    await expect(approvalToast.getByText('Procurement approved', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(queue.getByRole('button', { name: new RegExp(approvedName, 'i') })).toHaveCount(0, { timeout: 15_000 });
   },
 );
 
@@ -229,15 +246,86 @@ async function seedOwnedSubmittedWeeks(client: SupabaseClient, count: number): P
   return seeded;
 }
 
+// ---------------------------------------------------------------------------
+// AC-IXD-PROC-W5-3 fixture — the procurement this journey OWNS.
+//
+// The journey needs ONE Requested purchase that (a) pm@ is authorised to approve and (b) no other
+// spec in this lane has decided on. Both halves were seed properties before #1873, and both are
+// now created here: its own project, requested by engineer@ (never pm@ — SoD-a), no budget category
+// (so `spend_approval_route` returns the flat route → it is in pm@'s queue), and a run-scoped title
+// the row locator keys on. Removed afterwards, so the next spec inherits the seed, not this row.
+// ---------------------------------------------------------------------------
+
+/** engineer@acme.test — the requester, so pm@ approving it is not self-approval. */
+const PROC_REQUESTER_ID = '00000000-0000-0000-0000-0000000000a4';
+
+interface OwnedProcurement {
+  procurementId: string;
+  projectId: string;
+  title: string;
+}
+
+/** Seed the Requested procurement (and its project) this journey decides on. */
+async function seedOwnedRequestedProcurement(client: SupabaseClient): Promise<OwnedProcurement> {
+  const tag = `AC-IXD-PROC-W5-3 ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const project = await client
+    .from('projects')
+    .insert({ org_id: ORG_ID, name: tag, status: 'Ongoing Project' })
+    .select('id')
+    .single();
+  if (project.error) throw new Error(`AC-IXD-PROC-W5-3 seed project failed: ${project.error.message}`);
+
+  const title = `${tag} safety equipment`;
+  const row = await client
+    .from('procurements')
+    .insert({
+      org_id: ORG_ID,
+      title,
+      project_id: project.data.id,
+      requested_by_id: PROC_REQUESTER_ID,
+      status: 'Requested',
+      currency: 'USD',
+      total_value: 12_500,
+    })
+    .select('id')
+    .single();
+  if (row.error) throw new Error(`AC-IXD-PROC-W5-3 seed procurement failed: ${row.error.message}`);
+
+  return { procurementId: row.data.id, projectId: project.data.id, title };
+}
+
+/** Remove the owned procurement (and every record its approval minted) plus its project. */
+async function removeOwnedProcurement(client: SupabaseClient, owned: OwnedProcurement): Promise<void> {
+  for (const table of [
+    'payments',
+    'procurement_invoices',
+    'procurement_receipts',
+    'purchase_orders',
+    'purchase_requests',
+    'procurement_status_events',
+  ] as const) {
+    await client.from(table).delete().eq('procurement_id', owned.procurementId);
+  }
+  await client.from('procurements').delete().eq('id', owned.procurementId);
+  await client.from('projects').delete().eq('id', owned.projectId);
+}
+
 let admin: SupabaseClient | null = null;
 let owned: OwnedWeek | null = null;
+let ownedProcurement: OwnedProcurement | null = null;
 
 // The shared local stack is left EXACTLY as found — the next spec in the lane inherits the seed,
-// not this journey's authors. (The absence of that discipline is what broke this file.)
+// not this journey's authors or procurements. (The absence of that discipline is what broke this file.)
 test.afterEach(async () => {
-  if (!admin || !owned) return;
-  await sweepOwnAuthors(admin);
-  owned = null;
+  if (!admin) return;
+  if (owned) {
+    await sweepOwnAuthors(admin);
+    owned = null;
+  }
+  if (ownedProcurement) {
+    await removeOwnedProcurement(admin, ownedProcurement);
+    ownedProcurement = null;
+  }
 });
 
 // ── AC-IXD-TS-W5-3 ──────────────────────────────────────────────────────────
@@ -389,7 +477,7 @@ test(
     await expect(queue).toBeVisible({ timeout: 15_000 });
 
     // Finance can approve procurement, so the procurement queue group is present.
-    await expect(queue.getByRole('heading', { name: /purchase requests/i })).toBeVisible({ timeout: 15_000 });
+    await expect(queue.getByRole('heading', { name: /procurement/i })).toBeVisible({ timeout: 15_000 });
 
     // Finance cannot approve timesheets, so there is no timesheet tab/lane in the two-pane inbox.
     await expect(page.getByRole('tab', { name: /timesheets/i })).toHaveCount(0);
@@ -410,7 +498,7 @@ test(
 
     // Neither section renders.
     await expect(
-      page.getByRole('region', { name: /purchase requests awaiting you/i }),
+      page.getByRole('region', { name: /procurement awaiting you/i }),
     ).not.toBeVisible({ timeout: 5_000 });
     await expect(
       page.getByRole('region', { name: /timesheets awaiting you/i }),

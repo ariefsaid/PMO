@@ -33,3 +33,18 @@ describe('AC-JR-W1-01: ProjectNameLink', () => {
     expect(link.className).toContain('focus-visible:');
   });
 });
+
+describe('AC-002 #1325: ProjectNameLink with a short name', () => {
+  it('describes the link by the contractual name and titles it', () => {
+    wrap(<ProjectNameLink projectId="p1" name="Depot" legalName="Contractual Depot Expansion" />);
+    const link = screen.getByRole('link', { name: 'Open Depot' });
+    expect(link).toHaveAccessibleDescription('Contractual Depot Expansion');
+    expect(link).toHaveAttribute('title', 'Contractual Depot Expansion');
+  });
+  it('adds no description when the legal name equals the shown name or is absent', () => {
+    wrap(<ProjectNameLink projectId="p1" name="Bridge" legalName="Bridge" />);
+    const link = screen.getByRole('link', { name: 'Open Bridge' });
+    expect(link).not.toHaveAttribute('aria-describedby');
+    expect(link).not.toHaveAttribute('title');
+  });
+});

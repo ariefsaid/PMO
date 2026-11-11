@@ -32,7 +32,7 @@ describe('list working-set URL codec', () => {
       view: 'table',
     });
     expect(parseListWorkingSet('sales', '')).toEqual({
-      scope: 'Open',
+      scope: 'All',
       status: '',
       q: '',
       view: 'kanban',
@@ -45,7 +45,7 @@ describe('list working-set URL codec', () => {
     });
     expect(parseListWorkingSet('companies', '')).toEqual({ type: 'All', q: '' });
     expect(parseListWorkingSet('contacts', '')).toEqual({ company: 'All', q: '' });
-    expect(parseListWorkingSet('meetings', '')).toEqual({ project: 'All', q: '' });
+    expect(parseListWorkingSet('meetings', '')).toEqual({ project: 'All', q: '', archived: false });
   });
 
   it('AC-LRC-002: uses the role default for Projects while preserving the Engineer’s My Projects meaning', () => {
@@ -114,6 +114,16 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('meetings', `?project=${PROJECT_ID}`).project).toBe(PROJECT_ID);
   });
 
+  it('preserves the archived-meetings view while other meeting filters change', () => {
+    const search = `?project=${PROJECT_ID}&archived=1&campaign=fall`;
+    const parsed = parseListWorkingSet('meetings', search);
+    expect(parsed.archived).toBe(true);
+    expect(serializeListWorkingSet('meetings', search, { ...parsed, q: 'planning' }).toString()).toBe(
+      `project=${PROJECT_ID}&archived=1&campaign=fall&q=planning`,
+    );
+    expect(serializeListWorkingSet('meetings', search, { ...parsed, archived: false }).get('archived')).toBeNull();
+  });
+
   it('AC-LRC-002: every lifecycle status stays a reachable exact drill unless a segment is identical', () => {
     for (const status of Object.values(ProcurementStatus)) {
       const source = new URLSearchParams({ status, campaign: 'fall' });
@@ -176,12 +186,41 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('procurement', query).statusMode).toBe('group');
   });
 
-  it('AC-LRC-001/002: rejects invalid Sales scope, stage, and view as appropriate defaults', () => {
+  it('#1461: parses the dashboard drill filters and round-trips the won/decided window', () => {
+    // Each drill value parses (URL-only: never a toolbar tab) and round-trips.
+    for (const filter of ['on-hand', 'delivery', 'ongoing-project', 'won', 'decided'] as const) {
+      const source = new URLSearchParams(`?filter=${filter}`);
+      const parsed = parseListWorkingSet('projects', source);
+      expect(parsed.filter, `${filter} drill should stay selected`).toBe(filter);
+      expect(serializeListWorkingSet('projects', source, parsed).get('filter')).toBe(filter);
+    }
+
+    // The won/decided window rides with those filters and round-trips (may be the current month).
+    const windowed = parseListWorkingSet('projects', '?filter=won&from=2026-01&to=2026-06');
+    expect(windowed).toMatchObject({ filter: 'won', from: '2026-01', to: '2026-06' });
+    expect(serializeListWorkingSet('projects', '?filter=won&from=2026-01&to=2026-06', windowed).toString())
+      .toBe('filter=won&from=2026-01&to=2026-06');
+
+    const decided = parseListWorkingSet('projects', '?filter=decided&from=2026-06&to=2026-06');
+    expect(decided).toMatchObject({ filter: 'decided', from: '2026-06', to: '2026-06' });
+    expect(serializeListWorkingSet('projects', '', decided).toString())
+      .toBe('filter=decided&from=2026-06&to=2026-06');
+
+    // Any other filter drops the inert window (clean canonical URL).
+    const widened = serializeListWorkingSet('projects', '?filter=won&from=2026-01&to=2026-06', { ...windowed, filter: 'All' });
+    expect(widened.get('from')).toBeNull();
+    expect(widened.get('to')).toBeNull();
+
+    // Invalid tokens fall away, and a half window parses to undefined on the missing side.
+    expect(parseListWorkingSet('projects', '?filter=won&from=bogus&to=2026-06')).toMatchObject({ from: undefined, to: '2026-06' });
+  });
+
+  it('AC-LRC-002: rejects invalid Sales scope, stage, and view as appropriate defaults', () => {
     const sales: SalesWorkingSet = parseListWorkingSet(
       'sales',
       '?scope=bogus&status=Not+A+stage&view=crazy&q=review',
     );
-    expect(sales).toEqual({ scope: 'Open', status: '', q: 'review', view: 'kanban' });
+    expect(sales).toEqual({ scope: 'All', status: '', q: 'review', view: 'kanban' });
   });
 
   it('AC-LRC-001/002: round-trips Contacts and Meetings identifiers and search', () => {
@@ -203,7 +242,7 @@ describe('list working-set URL codec', () => {
       'meetings',
       `?project=${PROJECT_ID}&q=review`,
     );
-    expect(meetings).toEqual({ project: PROJECT_ID, q: 'review' });
+    expect(meetings).toEqual({ project: PROJECT_ID, q: 'review', archived: false });
     const meetingsSerialized = serializeListWorkingSet(
       'meetings',
       '?campaign=winter',
@@ -231,7 +270,7 @@ describe('list working-set URL codec', () => {
     expect(meetings.project).toBe('All');
   });
 
-  it('AC-LRC-001/002: within the table view, keeps a Needs-attention scope with an open funnel stage and forces Open only for Lost', () => {
+  it('AC-LRC-001/002: keeps Needs-attention stages and makes terminal Won/Lost scopes unambiguous', () => {
     // Scope is meaningful only for the table view (#682 Director ruling, 2026-09-29) — these
     // scope/stage interactions are a table-only concept, so the URL states this test parses and
     // serializes name `view=table` explicitly.
@@ -249,22 +288,41 @@ describe('list working-set URL codec', () => {
 
     const lostAlone: SalesWorkingSet = parseListWorkingSet('sales', '?scope=Lost&view=table');
     expect(lostAlone).toMatchObject({ scope: 'Lost', status: '' });
+    expect(parseListWorkingSet('sales', '?scope=All&view=table')).toMatchObject({ scope: 'All', status: '' });
+    expect(parseListWorkingSet('sales', '?scope=Won&view=table')).toMatchObject({
+      scope: 'Won', status: '',
+    });
+    expect(parseListWorkingSet('sales', '?scope=Won&status=Leads&view=table')).toMatchObject({
+      scope: 'Open', status: 'Leads',
+    });
 
-    // Serializing a contradictory Lost + open stage omits scope (Open is the default), so the URL
-    // and the controls both read Open + Leads.
+    // Serializing a contradictory Lost + open stage normalizes to explicit Open, since All is now
+    // the default. The URL and the controls both read Open + Leads.
     const lostQuery = serializeListWorkingSet('sales', '?campaign=fall', {
       scope: 'Lost',
       status: 'Leads',
       q: '',
       view: 'table',
     });
-    expect(lostQuery.toString()).toBe('campaign=fall&status=Leads&view=table');
+    expect(lostQuery.toString()).toBe('campaign=fall&scope=Open&status=Leads&view=table');
     expect(parseListWorkingSet('sales', lostQuery)).toMatchObject({ scope: 'Open', status: 'Leads' });
     // Lost without a stage is not contradictory and is written as-is.
     expect(
       serializeListWorkingSet('sales', '', { scope: 'Lost', status: '', q: '', view: 'table' })
         .toString(),
     ).toBe('scope=Lost&view=table');
+    expect(
+      serializeListWorkingSet('sales', '', { scope: 'Won', status: '', q: '', view: 'table' })
+        .toString(),
+    ).toBe('scope=Won&view=table');
+    expect(
+      serializeListWorkingSet('sales', '', { scope: 'Open', status: '', q: '', view: 'table' })
+        .toString(),
+    ).toBe('scope=Open&view=table');
+    expect(
+      serializeListWorkingSet('sales', '', { scope: 'All', status: '', q: '', view: 'table' })
+        .toString(),
+    ).toBe('view=table');
 
     // Round-trips: Needs attention + stage survives serialization.
     const roundTrip = parseListWorkingSet(
@@ -275,13 +333,13 @@ describe('list working-set URL codec', () => {
   });
 
   it('#682 Director ruling (2026-09-29): scope is meaningful only for the Sales table view — the board carries no scope', () => {
-    // A direct/copied board URL with a stale scope parses to Open, never Lost/Needs attention.
+    // A direct/copied board URL with a stale scope parses to All, never Lost/Needs attention.
     expect(parseListWorkingSet('sales', '?view=kanban&scope=Lost')).toMatchObject({
-      scope: 'Open',
+      scope: 'All',
       view: 'kanban',
     });
     expect(parseListWorkingSet('sales', '?view=kanban&scope=Needs+attention')).toMatchObject({
-      scope: 'Open',
+      scope: 'All',
       view: 'kanban',
     });
     // Serializing a working set whose view is the board never writes an inert `scope` key, even
@@ -293,9 +351,9 @@ describe('list working-set URL codec', () => {
       view: 'kanban',
     });
     expect(boardQuery.get('scope')).toBeNull();
-    // Switching the view back to table (same working set otherwise) reads Open, not the stale
+    // Switching the view back to table (same working set otherwise) reads All, not the stale
     // Lost — the URL no longer carries it, so there is nothing to snap back to.
-    expect(parseListWorkingSet('sales', boardQuery)).toMatchObject({ scope: 'Open', view: 'kanban' });
+    expect(parseListWorkingSet('sales', boardQuery)).toMatchObject({ scope: 'All', view: 'kanban' });
   });
 
   it('AC-LRC-002: falls back from invalid enums without discarding valid referenced IDs or unrelated keys', () => {

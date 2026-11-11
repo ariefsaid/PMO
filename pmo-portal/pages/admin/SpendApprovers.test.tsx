@@ -81,6 +81,7 @@ describe('AC-APR-034 Spend approvers admin card', () => {
   it('AC-APR-034: an Admin removes an approver through a confirm', async () => {
     renderPanel('Admin');
     await userEvent.click(await screen.findByRole('button', { name: 'Remove Fiona Finance' }));
+    expect(screen.getByText('They will no longer approve procurement cases. Cases already decided are unchanged.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(removeSpendApprover).toHaveBeenCalledWith('sa-1'));
   });
@@ -98,6 +99,57 @@ describe('AC-APR-034 Spend approvers admin card', () => {
     await userEvent.selectOptions(person, 'u-exec');
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
     await waitFor(() => expect(addSpendApprover).toHaveBeenCalledWith('u-exec', null));
+  });
+});
+
+describe('OE-20 eligible spend approvers (OE04-005)', () => {
+  it('the add modal maps the parent\u2019s eligible list and fetches the people exactly once', async () => {
+    renderPanel('Admin');
+    await screen.findByText('Fiona Finance');
+    await waitFor(() => expect(listOrgProfiles).toHaveBeenCalledTimes(1));
+
+    await userEvent.click(await screen.findByRole('button', { name: /add overhead approver/i }));
+    const person = await screen.findByLabelText('Person');
+    // The picker offers the same eligibility the parent's notes explain — one list, one predicate.
+    await waitFor(() =>
+      expect(within(person).getAllByRole('option').map((o) => o.textContent)).toEqual([
+        'Select a person…',
+        'Eve Exec',
+      ]),
+    );
+    // No second fetch: the modal consumes the parent's query instead of repeating it.
+    expect(listOrgProfiles).toHaveBeenCalledTimes(1);
+  });
+
+  it('eligibility and selection follow the profiles as they change', async () => {
+    const first = renderPanel('Admin');
+    await userEvent.click(await screen.findByRole('button', { name: /add overhead approver/i }));
+    const person = await screen.findByLabelText('Person');
+    await waitFor(() =>
+      expect(within(person).getAllByRole('option').map((o) => o.textContent)).toEqual([
+        'Select a person…',
+        'Eve Exec',
+      ]),
+    );
+    first.unmount();
+
+    // Eve leaves (disabled); Gus becomes an active Finance — the picker must follow.
+    listOrgProfiles.mockResolvedValue([
+      { id: 'u-exec', full_name: 'Eve Exec', role: 'Executive', status: 'disabled' },
+      { id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'active' },
+    ]);
+    renderPanel('Admin');
+    await userEvent.click(await screen.findByRole('button', { name: /add overhead approver/i }));
+    const changed = await screen.findByLabelText('Person');
+    await waitFor(() =>
+      expect(within(changed).getAllByRole('option').map((o) => o.textContent)).toEqual([
+        'Select a person…',
+        'Gus Gone',
+      ]),
+    );
+    await userEvent.selectOptions(changed, 'u-gone');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(addSpendApprover).toHaveBeenCalledWith('u-gone', null));
   });
 });
 
@@ -168,7 +220,7 @@ describe('UX-081 resolved approval route (S-32)', () => {
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
     expect(note).toHaveTextContent('Within budget, the standard rules apply');
-    expect(note).toHaveTextContent('go to the overhead approvers');
+    expect(note).toHaveTextContent('procurement cases go to the overhead approvers');
   });
 
   it('UX-081: an empty project list with no eligible senior approver leaves decisions to an Admin (DD-APR-4)', async () => {
@@ -178,7 +230,7 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockResolvedValue([{ id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' }]);
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
-    expect(note).toHaveTextContent('Only an Admin can decide');
+    expect(note).toHaveTextContent('Only an Admin can decide these procurement cases');
     expect(note).not.toHaveTextContent('go to the overhead approvers');
   });
 
@@ -194,7 +246,24 @@ describe('UX-081 resolved approval route (S-32)', () => {
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
     await waitFor(() => expect(note).toHaveTextContent('Nobody listed can approve right now'));
-    expect(note).toHaveTextContent('go to the overhead approvers');
+    expect(note).toHaveTextContent('These procurement cases go to the overhead approvers');
+  });
+
+  it('shows escalation for each project whose own approvers are ineligible', async () => {
+    listSpendApprovers.mockResolvedValue([
+      { id: 'org', projectId: null, projectName: null, profileId: 'u-exec', fullName: 'Eve Exec' },
+      { id: 'a', projectId: 'p-a', projectName: 'Project A', profileId: 'u-pm', fullName: 'Pat PM' },
+      { id: 'b', projectId: 'p-b', projectName: 'Project B', profileId: 'u-gone', fullName: 'Gus Gone' },
+    ]);
+    listOrgProfiles.mockResolvedValue([
+      { id: 'u-exec', full_name: 'Eve Exec', role: 'Executive', status: 'active' },
+      { id: 'u-pm', full_name: 'Pat PM', role: 'Project Manager', status: 'active' },
+      { id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' },
+    ]);
+    renderPanel('Admin');
+    const projectB = await screen.findByRole('group', { name: 'Project B' });
+    expect(await within(projectB).findByText(/go to the overhead approvers/i)).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Project A' })).queryByText(/go to the overhead approvers/i)).not.toBeInTheDocument();
   });
 
   it('UX-081: dead project rows with no senior rows fall back to the flat role rules', async () => {
@@ -204,7 +273,8 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockResolvedValue([{ id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' }]);
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
-    expect(note).toHaveTextContent('Standard rules: any of');
+    expect(note).toHaveTextContent("Standard rules: any of");
+    expect(note).toHaveTextContent("can approve another person's procurement case");
     expect(note).not.toHaveTextContent('Only an Admin can decide');
   });
 

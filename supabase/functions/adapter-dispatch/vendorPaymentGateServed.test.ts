@@ -12,6 +12,8 @@
 //      inserted (the refusal precedes the money pipeline; nothing touches ERPNext);
 //   2. a non-approver payer → passes the gate: the dispatch completes and the one ERPNext Payment
 //      Entry POST carries the server-resolved party/allocation (money actually moves).
+//   3. #1319: the step no longer gates a payment (a Draft/Ordered case pays when no gate refuses); the org's
+//      approval_before_payment gate refuses before the outbox; SoD-b holds at any step; Cancelled refuses.
 // Mutation contract: deleting the wiring block turns test 1 RED (the approver's dispatch sails
 // through to the outbox/ERP). Verified 2026-10-08 — see the build report.
 //
@@ -84,8 +86,10 @@ function paymentCreateCommand(): Record<string, unknown> {
       erp_doc_kind: 'payment',
       procurementId: PROC_ID,
       invoiceId: INV_ID,
+      supplier: VENDOR_ID,
       paid_amount: 1090000,
       date: '2026-10-08',
+      references: [{ reference_doctype: 'Purchase Invoice', reference_name: PI_NAME, allocated_amount: 1090000 }],
     },
   };
 }
@@ -94,14 +98,41 @@ function paymentCreateCommand(): Record<string, unknown> {
  *  at `Vendor Invoiced` approved by A; the bill is mirrored with the org's currency and outstanding;
  *  the caller's role (actor_authorization_state) is Finance — every gate BEFORE the SoD one passes.
  *  `caller` decides whose JWT is minted, i.e. who the VERIFIED dispatch caller is. */
-function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amountApproverId: string | null = null): MockRoute[] {
-  const outbox = new Map<string, Record<string, unknown>>();
+/** `world` varies the facts #1319 made decisive: the case row (step / approval) and the org's purchase gates. */
+interface World {
+  caseRow?: Record<string, unknown>;
+  gateViolation?: string | null;
+  /** What the database's payment rule (procurement_payment_allowed, 0368) answers: a reason code, or null = allowed. */
+  paymentAllowed?: string | null;
+  /** An HTTP status the payment-rule RPC fails with (the rule cannot be evaluated). */
+  paymentAllowedStatus?: number;
+  /** The outbox claim's named refusal (0368/0373): the rules in force when the queued payment is claimed refuse it. */
+  claimRefusal?: string;
+  /** Another payment holds the bill when the claim runs: the per-bill constraint (0682) raises 23505. */
+  claimBillInFlight?: boolean;
+}
+
+interface SharedPaymentWorld {
+  outbox: Map<string, Record<string, unknown>>;
+  loseNextPaymentPostResponse: boolean;
+  paymentPosts: number;
+}
+
+function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amountApproverId: string | null = null, world: World = {}, shared: SharedPaymentWorld = newSharedWorld()): MockRoute[] {
+  const { outbox } = shared;
   return [
     supabaseSelect('profiles', (call) =>
       call.url.searchParams.has('role') ? jsonResponse([{ id: caller }]) : objectResponse({ org_id: ORG_ID })),
     supabaseRpc('domain_owned_by_tier', () => jsonResponse(true)),
     supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(true)),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
+    supabaseRpc('pre_cutover_procurement', () => jsonResponse(false)), // ECA-4: a purchase ordered after the connection
+    // FR-PFE-010 (#1319): the org's purchase gates, read before any ERP work — all OFF here (the owner's default).
+    supabaseRpc('procurement_gate_violation', () => jsonResponse(world.gateViolation ?? null)),
+    // #1319 slice G review (C1): the database's one payment rule — allowed (null) unless the world says otherwise.
+    supabaseRpc('procurement_payment_allowed', () => world.paymentAllowedStatus
+      ? jsonResponse({ message: 'rule unavailable' }, { status: world.paymentAllowedStatus })
+      : jsonResponse(world.paymentAllowed ?? null)),
     supabaseRpc('read_vault_secret', () => jsonResponse(null)),
     supabaseSelect('external_org_bindings', () => objectResponse({
       site_url: ERP_SITE_URL, secret_ref: SECRET_REF, activated_at: '2026-01-01T00:00:00+00:00', version_major: 15,
@@ -111,7 +142,8 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     // The case — the SoD gate's DB re-read (status + approver) AND the supplier resolution's vendor_id.
     supabaseSelect('procurements', () => objectResponse({
       id: PROC_ID, org_id: ORG_ID, status: 'Vendor Invoiced', approved_by_id: APPROVER_ID,
-      amount_approved_by_id: amountApproverId, vendor_id: VENDOR_ID,
+      amount_approved_by_id: amountApproverId, approved_total_value: 1000000, vendor_id: VENDOR_ID,
+      ...world.caseRow,
     })),
     // The bill — the refs pass' amount/currency gate oracle (org_id is the link-check's own read).
     supabaseSelect('procurement_invoices', () => objectResponse({
@@ -138,7 +170,25 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       label: 'outbox insert', method: 'POST', pathname: '/rest/v1/external_command_outbox',
       response: (call) => {
         const body = call.bodyJson as Record<string, unknown>;
-        const row = { id: 'outbox-1', domain: body.domain, pmo_record_id: body.pmo_record_id,
+        const payload = body.payload as Record<string, unknown> | null;
+        const piNames = Array.isArray(payload?.pi_names) ? payload.pi_names.filter((name): name is string => typeof name === 'string') : [];
+        const inFlightForOneOfTheBills = [...outbox.values()].some((candidate) => {
+          if (candidate.org_id !== body.org_id || candidate.external_tier !== 'erpnext' || candidate.domain !== 'procurement'
+              || candidate.state === 'confirmed' || candidate.state === 'failed') return false;
+          const candidatePayload = candidate.payload as Record<string, unknown> | null;
+          const candidatePiNames = Array.isArray(candidatePayload?.pi_names) ? candidatePayload.pi_names : [];
+          return candidatePiNames.some((name) => piNames.includes(name));
+        });
+        if (inFlightForOneOfTheBills) {
+          return jsonResponse({
+            code: '23505',
+            message: 'duplicate key value violates unique constraint "external_command_outbox_one_inflight_erpnext_payment_per_bill"',
+            details: 'Key (org_id, bill_name) already exists.',
+            hint: null,
+          }, { status: 409 });
+        }
+        const row = { id: `outbox-${outbox.size + 1}`, domain: body.domain, pmo_record_id: body.pmo_record_id,
+          org_id: body.org_id, external_tier: body.external_tier,
           idempotency_key: body.idempotency_key, state: 'pending', external_record_id: null, canonical: null,
           claim_generation: 0, payload_digest: body.payload_digest ?? null, payload: body.payload ?? null };
         outbox.set(`${String(body.pmo_record_id)}|${String(body.idempotency_key)}`, row);
@@ -147,9 +197,23 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     },
     { label: 'outbox update', method: 'PATCH', pathname: '/rest/v1/external_command_outbox',
       response: () => jsonResponse([{ id: 'outbox-1' }]) },
+    supabaseRpc('fail_refused_payment_claim', () => jsonResponse(null)),
     supabaseRpc('claim_outbox_for_commit', () => {
-      const row = [...outbox.values()][0];
-      return jsonResponse(row ? { ...row, state: 'committing', claim_generation: 1 } : null);
+      if (world.claimBillInFlight) {
+        return jsonResponse({
+          code: '23505',
+          message: 'duplicate key value violates unique constraint "external_command_outbox_one_inflight_erpnext_payment_per_bill"',
+          details: 'Key (org_id, bill_name) already exists.',
+          hint: null,
+        }, { status: 409 });
+      }
+      if (world.claimRefusal) {
+        return jsonResponse({ code: 'P0001', message: world.claimRefusal, details: null, hint: null }, { status: 400 });
+      }
+      const row = [...outbox.values()].find((candidate) => candidate.state === 'pending');
+      if (!row) return jsonResponse(null);
+      Object.assign(row, { state: 'committing', claim_generation: Number(row.claim_generation ?? 0) + 1 });
+      return jsonResponse(row);
     }),
     supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
     supabaseRpc('confirm_outbox', () => jsonResponse(1)),
@@ -158,9 +222,16 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     { label: 'notifications', pathname: '/rest/v1/notifications', response: () => jsonResponse([]) },
     {
       label: 'ERP Payment Entry create', host: ERP_HOST, pathname: '/api/resource/Payment%20Entry',
-      response: (call) => call.method === 'POST'
-        ? jsonResponse({ data: { ...(call.bodyJson as Record<string, unknown>), name: PE_NAME, docstatus: 0 } })
-        : jsonResponse({ data: [] }),
+      response: (call) => {
+        if (call.method !== 'POST') return jsonResponse({ data: [] });
+        shared.paymentPosts += 1;
+        if (shared.loseNextPaymentPostResponse) {
+          shared.loseNextPaymentPostResponse = false;
+          // The remote accepted the POST, then the connection timed out before its response arrived.
+          return Promise.reject(new TypeError('request timed out after Payment Entry POST'));
+        }
+        return jsonResponse({ data: { ...(call.bodyJson as Record<string, unknown>), name: PE_NAME, docstatus: 0 } });
+      },
     },
     {
       label: 'ERP Payment Entry submit / read', host: ERP_HOST, pathname: /^\/api\/resource\/Payment%20Entry\/.+$/,
@@ -170,18 +241,20 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
   ];
 }
 
-async function dispatchAs(caller: string) {
+const newSharedWorld = (): SharedPaymentWorld => ({ outbox: new Map(), loseNextPaymentPostResponse: false, paymentPosts: 0 });
+
+async function dispatchAs(caller: string, world: World = {}, command = paymentCreateCommand(), shared = newSharedWorld()) {
   const unexpected: FetchCall[] = [];
-  const result = await withFetchMock(routes(unexpected, caller), async ({ calls }) => {
+  const result = await withFetchMock(routes(unexpected, caller, true, null, world, shared), async ({ calls }) => {
     const jwt = await auth.mintJwt({ sub: caller });
     const res = await servedHandler!(new Request('http://edge.test/adapter-dispatch', {
       method: 'POST',
       headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
-      body: JSON.stringify(paymentCreateCommand()),
+      body: JSON.stringify(command),
     }));
     return { status: res.status, body: await res.text(), calls };
   });
-  return { ...result, unexpected };
+  return { ...result, unexpected, shared };
 }
 
 describe('#910 — the vendor-payment SoD gate through the SERVED adapter-dispatch handler', () => {
@@ -239,5 +312,149 @@ describe('#910 — the vendor-payment SoD gate through the SERVED adapter-dispat
     assertEquals(body.references, [
       { reference_doctype: 'Purchase Invoice', reference_name: PI_NAME, allocated_amount: 1090000 },
     ]);
+    const outboxInsert = r.calls.find((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox');
+    assert(outboxInsert, 'the composite probe payload is persisted at the outbox boundary');
+    const paymentPayload = (outboxInsert.bodyJson as { payload: Record<string, unknown> }).payload;
+    assertEquals(paymentPayload.party_type, 'Supplier');
+    assertEquals(paymentPayload.party, 'Demo Supplier');
+    assertEquals(paymentPayload.payment_type, 'Pay');
+    assertEquals(paymentPayload.paid_amount, 1090000);
+    assertEquals(paymentPayload.pi_names, [PI_NAME]);
+    assertEquals(paymentPayload.si_names, []);
+  });
+
+  it('a lost ERPNext Payment Entry POST response leaves the outbox in flight and refuses a second intent for the same bill', async () => {
+    const shared = newSharedWorld();
+    shared.loseNextPaymentPostResponse = true;
+    const first = await dispatchAs(PAYER_ID, {}, paymentCreateCommand(), shared);
+    assertEquals(first.status, 502, first.body);
+    assertEquals(shared.paymentPosts, 1, 'the remote POST was issued before its response was lost');
+    assertEquals([...shared.outbox.values()].map((row) => row.state), ['committing'], 'the ambiguous write remains in flight for recovery');
+
+    const secondCommand = paymentCreateCommand();
+    secondCommand.idempotencyKey = 'cccccccc-cccc-4ccc-8ccc-000000000911';
+    (secondCommand.record as Record<string, unknown>).id = 'dddddddd-dddd-4ddd-8ddd-000000000911';
+    const second = await dispatchAs(PAYER_ID, {}, secondCommand, shared);
+    assertEquals(second.status, 409, second.body);
+    assertEquals(JSON.parse(second.body).message, 'A payment for this bill is already in progress. Wait for it to finish before paying again.');
+    assertEquals([...shared.outbox.values()].length, 1, 'the refusing insert leaves no second outbox row');
+    assertEquals(shared.paymentPosts, 1, 'the same bill cannot receive a second payment while the first outcome is unknown');
+  });
+  // #1319 (owner AC-1 / AC-3): the step no longer gates a payment; the org's purchase gates and SoD still do.
+  it('AC-PFE-001 a payment on a purchase that never reached Vendor Invoiced, with no approval recorded, dispatches — and the ceiling is not asked', async () => {
+    const r = await dispatchAs(PAYER_ID, { caseRow: { status: 'Draft', approved_by_id: null, approved_total_value: null } });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.status, 200, r.body);
+    assert(r.calls.some((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox'), 'outbox row inserted');
+    assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST' && c.url.pathname === '/api/resource/Payment%20Entry').length, 1, r.body);
+    assertEquals(r.calls.filter((c) => c.url.pathname === '/rest/v1/rpc/procurement_payment_within_ceiling').length, 0, 'no approval = no ceiling');
+  });
+
+  it('AC-PFE-003 with approval_before_payment ON and no approval, the payment is refused with the gate reason BEFORE any outbox row', async () => {
+    const r = await dispatchAs(PAYER_ID, {
+      caseRow: { status: 'Ordered', approved_by_id: null, approved_total_value: null },
+      gateViolation: 'gate_approval_before_payment',
+    });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body), { error: 'commit-rejected', message: 'gate_approval_before_payment' });
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
+    assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST).length, 0, 'nothing touched ERPNext');
+  });
+
+  it('FR-PFE-016 the approver paying a case at Ordered (step skipped) is still refused 403', async () => {
+    const r = await dispatchAs(APPROVER_ID, { caseRow: { status: 'Ordered' } });
+    assertEquals(r.status, 403, r.body);
+    assertEquals(JSON.parse(r.body).message, 'separation of duties: approver cannot pay own procurement');
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
+  });
+
+  // #1319 slice G review (C1): the database's payment rule decides whether a purchase may be paid without an approval.
+  it('C1 a Requested purchase with no approver is refused 422 BEFORE any outbox row (no approval, no ceiling, no payment)', async () => {
+    const r = await dispatchAs(PAYER_ID, {
+      caseRow: { status: 'Requested', approved_by_id: null, approved_total_value: null },
+      gateViolation: 'awaiting_approval',
+      paymentAllowed: 'awaiting_approval',
+    });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body), { error: 'commit-rejected', message: 'awaiting_approval' });
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
+    assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST).length, 0, 'nothing touched ERPNext');
+  });
+
+  it('C1 a purchase that entered approval and was never approved (Rejected -> Draft -> Ordered) is refused by the payment rule before any outbox row', async () => {
+    // The org's gates are off, so only the payment rule can refuse it.
+    const r = await dispatchAs(PAYER_ID, {
+      caseRow: { status: 'Ordered', approved_by_id: null, approved_total_value: null },
+      paymentAllowed: 'approval_missing',
+    });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body), { error: 'commit-rejected', message: 'approval_missing' });
+    assert(r.calls.some((c) => c.url.pathname === '/rest/v1/rpc/procurement_payment_allowed'), 'the payment rule was asked');
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
+    assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST).length, 0, 'nothing touched ERPNext');
+  });
+
+  it('C1 fail closed: the payment rule RPC answers 500 — refused 422 before any outbox row', async () => {
+    const r = await dispatchAs(PAYER_ID, {
+      caseRow: { status: 'Draft', approved_by_id: null, approved_total_value: null },
+      paymentAllowedStatus: 500,
+    });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body).error, 'commit-rejected');
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
+    assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST).length, 0, 'nothing touched ERPNext');
+  });
+
+  it('AC-PFE-001 a Cancelled purchase is refused 422 purchase_closed before any outbox row', async () => {
+    const r = await dispatchAs(PAYER_ID, { caseRow: { status: 'Cancelled' } });
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body).message, 'purchase_closed');
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
+  });
+
+  // 0373: the rules can change between the foreground check and the claim (or a queued payment is retried later). The
+  // claim re-asks them under a lock on the purchase; its named refusal is a 422 and nothing is posted to ERP.
+  it('a queued payment the claim now refuses answers 422 with the named reason and posts nothing to ERP', async () => {
+    const r = await dispatchAs(PAYER_ID, { claimRefusal: 'procurement-payment-refused: gate_approval_before_order' });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body).message, 'procurement-payment-refused: gate_approval_before_order');
+    assert(r.calls.some((c) => c.url.pathname === '/rest/v1/rpc/claim_outbox_for_commit'), 'the claim was asked');
+    assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST').length, 0, 'no ERP document was created');
+    // C1: the never-claimed row is failed through the service-role function, which also uses up its automatic
+    // attempts (the cap is a database fact, not a TS literal), so the sweep never re-drives a refused payment.
+    const refusalWrites = r.calls.filter((c) => c.url.pathname === '/rest/v1/rpc/fail_refused_payment_claim');
+    assertEquals(refusalWrites.length, 1, 'the refusal is recorded through fail_refused_payment_claim');
+    assertEquals(refusalWrites[0].bodyJson, { p_id: 'outbox-1', p_error: 'procurement-payment-refused: gate_approval_before_order' });
+    assertEquals(r.calls.filter((c) => c.method === 'PATCH' && c.url.pathname === '/rest/v1/external_command_outbox').length, 0,
+      'no direct table write that could leave the automatic attempts unspent');
+  });
+
+  // M6 (per-bill payment review): a person's same-key retry of a payment freed from its bill is refused with the
+  // named in-flight reason while another payment holds the bill, and posts nothing.
+  it('a same-key retry while another payment holds the bill answers 409 payment-in-flight-for-bill and posts nothing', async () => {
+    const shared = newSharedWorld();
+    shared.loseNextPaymentPostResponse = true;
+    const first = await dispatchAs(PAYER_ID, {}, paymentCreateCommand(), shared);
+    assertEquals(first.status, 502, first.body);
+    // The first payment was freed from its bill (failed); a newer payment now holds it.
+    const [freed] = [...shared.outbox.values()];
+    freed.state = 'failed';
+    shared.outbox.set('newer-payment|key-newer', {
+      ...freed, id: 'outbox-newer', pmo_record_id: 'newer-payment', idempotency_key: 'key-newer', state: 'committing',
+    });
+    const postsBefore = shared.paymentPosts;
+
+    const retry = await dispatchAs(PAYER_ID, { claimBillInFlight: true }, paymentCreateCommand(), shared);
+    assertEquals(retry.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(retry.status, 409, retry.body);
+    assertEquals(JSON.parse(retry.body).error, 'payment-in-flight-for-bill');
+    assert(retry.calls.some((c) => c.url.pathname === '/rest/v1/rpc/claim_outbox_for_commit'), 'the claim was asked');
+    assertEquals(retry.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST').length, 0, 'no ERP document was created');
+    assertEquals(shared.paymentPosts, postsBefore, 'the bill received no second payment');
   });
 });

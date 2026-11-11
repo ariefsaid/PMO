@@ -12,15 +12,10 @@ import type { PipelineStage } from '@/src/lib/db/dashboard';
 const OPEN_STATUSES = new Set(
   SALES_COLUMNS.filter((c) => !c.terminal).flatMap((c) => c.statuses),
 );
-/**
- * Batch-3 polish: weighted-value bars are quiet indicators, not the page's primary
- * action. Use the neutral chart tone so the track+fill read as measurement, not CTA.
- */
-const BAR_FILL = chartTheme.axis;
+/** A single-series comparison uses the primary chart channel; stage names carry identity. */
+const BAR_FILL = chartTheme.series.primary;
 
 export interface ProjectedMarginBarsProps {
-  /** Probability-adjusted portfolio margin (exec RPC, already loaded). */
-  projectedMargin: number | null;
   /** Per-stage weighted breakdown from useSalesPipeline(). */
   stages: PipelineStage[];
   /** Org operating currency (pipeline stages are RPC-shaped, no per-row currency) — FR-L10N-020. */
@@ -28,12 +23,11 @@ export interface ProjectedMarginBarsProps {
 }
 
 /**
- * Pipeline forecast margin: a 30px headline % (the weighted lens) over
- * per-open-stage weighted-value bars. Real data only — headline from the exec
- * payload, bars from `useSalesPipeline().stages` with Won/Lost terminal stages
- * excluded. Each bar direct-labels its weighted value and carries an aria label.
+ * Per-open-stage weighted pipeline values. The projected-margin percentage is
+ * shown by its KPI; this chart only displays stage values, with Won/Lost
+ * terminal stages excluded.
  */
-export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projectedMargin, stages, currency }) => {
+export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ stages, currency }) => {
   const { t } = useTranslation();
   const money = (value: number) => formatCompactCurrency(value, currency);
   const fullMoney = (value: number) => formatDashboardMoney(value, currency)
@@ -46,17 +40,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projec
   const max = useMemo(() => Math.max(1, ...open.map((s) => s.weighted_value)), [open]);
 
   return (
-    <div role="group" aria-label={t('dashboard.projectedMargin.group', 'Pipeline projected margin')}>
-      {projectedMargin !== null && (
-        <div className="mb-3.5 flex items-baseline gap-2.5">
-          <span className="min-w-0 break-words text-[30px] font-bold leading-none tracking-[-0.02em] tabular">
-            {`${(projectedMargin * 100).toFixed(1)}%`}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {t('dashboard.projectedMargin.summary', 'probability-adjusted across {{count}} open {{stageNoun}}', { count: open.length, stageNoun: open.length === 1 ? t('dashboard.projectedMargin.stage', 'stage') : t('dashboard.projectedMargin.stages', 'stages') })}
-          </span>
-        </div>
-      )}
+    <div role="group" aria-label={t('dashboard.projectedMargin.group', 'Weighted pipeline value by stage')}>
 
       {/* D-1 (AC-JR-W3B-05): each stage row is a Link to /sales?status=<encoded> so
           the exec can drill into that stage's deals directly from the margin card. */}

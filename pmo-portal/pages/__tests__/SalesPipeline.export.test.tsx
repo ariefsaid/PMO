@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
+// Harness: the board now mounts DraggableSalesBoard (useQueryClient), so the page renders under a QueryClientProvider (#1637).
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider, type Column } from '@/src/components/ui';
@@ -52,7 +54,8 @@ vi.mock('@/src/hooks/useDashboard', () => ({
       projects: [
         {
           id: 'sp1',
-          name: 'Deal 1',
+          name: 'Contractual Deal 1',
+          short_name: 'Short Deal 1',
           client_name: 'Client A',
           status: 'Qualified',
           contract_value: 10000,
@@ -75,6 +78,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
     refetch: vi.fn(),
   }),
   useLostDeals: () => ({ data: [] }),
+  useWonDeals: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
 import SalesPipeline from '../SalesPipeline';
@@ -129,7 +133,8 @@ describe('SalesPipeline — live Export (AC-EXP-008)', () => {
       'Value',
       'Currency',
       'Weighted',
-      'Win %',
+      '% Go',
+      '% Get',
       'Owner',
       'Last touch',
     ]);
@@ -140,7 +145,8 @@ describe('SalesPipeline — live Export (AC-EXP-008)', () => {
       (body as (string | number)[][]).map((row) => [row[0], row]),
     );
 
-    const usd = byProject.get('Deal 1') as (string | number)[];
+    const usd = byProject.get('Contractual Deal 1') as (string | number)[];
+    expect(byProject.has('Short Deal 1')).toBe(false);
     expect(usd).toBeDefined();
     expect(usd[5]).toBe('USD');
     expect(usd[4]).toBe(10000);

@@ -1,24 +1,11 @@
 /**
- * Procurement history-union model (Slice 5.6, [PD-4], FR-PR-025).
+ * Procurement progression timeline model (Slice 5.6, [PD-4], FR-PR-025).
  *
  * Pure function over the already-loaded `ProcurementDetail` bundle — no fetch, no N+1
- * (NFR-PR-PERF-002). Unions two event streams:
- *
- * 1. **Transition events** — from `detail.statusEvents` (the `procurement_status_events`
- *    log appended by `transition_procurement` in Slice 4, [PD-7]). Each row carries
- *    `from_status → to_status`, `actor_id`, and `created_at`. These are real persisted
- *    events; NOT synthesized from terminal status stamps.
- *
- * 2. **Record events** — one event per child record (purchase_request, rfq, purchase_order,
- *    payment, quotation, receipt, invoice), keyed on `created_at` + the minted number.
- *    The actor field on record events is null (records carry no created_by column).
- *
- * Result is sorted ascending by `at` (stable sort — ties preserve stream order:
- * transitions first, then records within the same millisecond).
- *
- * `buildProgressionTimeline` (new) — transition-centric merge: the status-transition
- * events are the spine; each matching record is folded in as a `docRef`/`docHref`
- * annotation rather than a separate row. Produces ~one row per lifecycle event.
+ * (NFR-PR-PERF-002). `buildProgressionTimeline` is transition-centric: the status-transition
+ * events (`detail.statusEvents`, the `procurement_status_events` log appended by
+ * `transition_procurement`, [PD-7]) are the spine; each matching record is folded in as a
+ * `docRef`/`docHref` annotation rather than a separate row.
  */
 
 import type { ProcurementDetail } from './procurementLifecycle';
@@ -55,112 +42,6 @@ export interface ProgressionEvent extends HistoryEvent {
   actorName: string | null;
 }
 
-/**
- * Builds the ordered progression-history array from the already-loaded `ProcurementDetail`
- * bundle. Pure function — no side effects, no async. Safe to call in a React render.
- *
- * AC-PR-021: result length = (transition events) + (record-creation events), sorted by `at`.
- */
-export function buildProcurementHistory(detail: ProcurementDetail): HistoryEvent[] {
-  const events: HistoryEvent[] = [];
-
-  // ── 1. Transition events from the persisted log ([PD-7]) ──────────────────
-  for (const ev of detail.statusEvents ?? []) {
-    const fromPart = ev.from_status ?? 'Created';
-    const label = `${fromPart} → ${ev.to_status}`;
-    events.push({
-      kind: 'transition',
-      label,
-      actor: ev.actor_id ?? null,
-      at: ev.created_at,
-    });
-  }
-
-  // ── 2. Record-creation events ─────────────────────────────────────────────
-  // New record types (Slice 1)
-  for (const row of detail.purchase_requests ?? []) {
-    events.push({
-      kind: 'record',
-      label: `Purchase Request ${row.pr_number ?? row.id}`,
-      actor: null,
-      at: row.created_at,
-    });
-  }
-
-  for (const row of detail.rfqs ?? []) {
-    events.push({
-      kind: 'record',
-      label: `RFQ ${row.rfq_number ?? row.id}`,
-      actor: null,
-      at: row.created_at,
-    });
-  }
-
-  for (const row of detail.purchase_orders ?? []) {
-    events.push({
-      kind: 'record',
-      label: `Purchase Order ${row.po_number ?? row.id}`,
-      actor: null,
-      at: row.created_at,
-    });
-  }
-
-  for (const row of detail.payments ?? []) {
-    events.push({
-      kind: 'record',
-      label: `Payment ${row.pay_number ?? row.id}`,
-      actor: null,
-      at: row.created_at,
-    });
-  }
-
-  // Legacy record types (quotations / receipts / invoices).
-  // Note: procurement_quotations has no created_at column; use received_date as the proxy
-  // timestamp (or fall back to the case's created_at for stable sort when date is null).
-  for (const row of detail.quotations ?? []) {
-    events.push({
-      kind: 'record',
-      label: `Quotation ${row.vq_number ?? row.id}`,
-      actor: null,
-      at: row.received_date ?? detail.created_at,
-    });
-  }
-
-  for (const row of detail.receipts ?? []) {
-    events.push({
-      kind: 'record',
-      label: `Receipt ${row.gr_number ?? row.id}`,
-      actor: null,
-      at: row.created_at,
-    });
-  }
-
-  for (const row of detail.invoices ?? []) {
-    events.push({
-      kind: 'record',
-      label: `Invoice ${row.vi_number ?? row.id}`,
-      actor: null,
-      at: row.created_at,
-    });
-  }
-
-  // ── 3. Sort ascending by timestamp (stable) ────────────────────────────────
-  // Normalize to YYYY-MM-DD before comparing so a date-only string ("2026-05-06")
-  // and a same-day timestamped one ("2026-05-06T08:00:00Z") compare as equal at the
-  // day level. Tiebreak by the full original string ascending (date-only < timestamp
-  // alphabetically, so date-only records sort before same-day timestamped ones).
-  events.sort((a, b) => {
-    const aDay = a.at.slice(0, 10);
-    const bDay = b.at.slice(0, 10);
-    if (aDay !== bDay) return aDay < bDay ? -1 : 1;
-    if (a.at < b.at) return -1;
-    if (a.at > b.at) return 1;
-    return 0;
-  });
-
-  return events;
-}
-
 // ---------------------------------------------------------------------------
 // Transition → record mapping (to_status → which record type carries the doc ref)
 // ---------------------------------------------------------------------------
@@ -192,45 +73,23 @@ function pickDocRef(
 
   const kind = STATUS_TO_RECORD_KIND[toStatus];
 
-  switch (kind) {
-    case 'purchase_request': {
-      const row = (detail.purchase_requests ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.pr_number ?? null, consumedId: row.id };
+  // Only fold a docRef in when exactly one record of the kind exists: there is no persisted
+  // transition→record link, so with 2+ (re-quote, re-issued PO) any pick would be a guess.
+  // Those records surface as their own rows instead.
+  const rows: Array<{ id: string; ref: string | null | undefined }> = (() => {
+    switch (kind) {
+      case 'purchase_request': return (detail.purchase_requests ?? []).map((r) => ({ id: r.id, ref: r.pr_number }));
+      case 'rfq': return (detail.rfqs ?? []).map((r) => ({ id: r.id, ref: r.rfq_number }));
+      case 'quotation': return (detail.quotations ?? []).map((r) => ({ id: r.id, ref: r.vq_number }));
+      case 'purchase_order': return (detail.purchase_orders ?? []).map((r) => ({ id: r.id, ref: r.po_number }));
+      case 'receipt': return (detail.receipts ?? []).map((r) => ({ id: r.id, ref: r.gr_number }));
+      case 'invoice': return (detail.invoices ?? []).map((r) => ({ id: r.id, ref: r.vi_number }));
+      case 'payment': return (detail.payments ?? []).map((r) => ({ id: r.id, ref: r.pay_number }));
+      default: return [];
     }
-    case 'rfq': {
-      const row = (detail.rfqs ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.rfq_number ?? null, consumedId: row.id };
-    }
-    case 'quotation': {
-      const row = (detail.quotations ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.vq_number ?? null, consumedId: row.id };
-    }
-    case 'purchase_order': {
-      const row = (detail.purchase_orders ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.po_number ?? null, consumedId: row.id };
-    }
-    case 'receipt': {
-      const row = (detail.receipts ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.gr_number ?? null, consumedId: row.id };
-    }
-    case 'invoice': {
-      const row = (detail.invoices ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.vi_number ?? null, consumedId: row.id };
-    }
-    case 'payment': {
-      const row = (detail.payments ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.pay_number ?? null, consumedId: row.id };
-    }
-    default:
-      return { docRef: null, consumedId: null };
-  }
+  })();
+  const row = rows.length === 1 && !consumed.has(rows[0].id) ? rows[0] : null;
+  return row ? { docRef: row.ref ?? null, consumedId: row.id } : { docRef: null, consumedId: null };
 }
 
 /**

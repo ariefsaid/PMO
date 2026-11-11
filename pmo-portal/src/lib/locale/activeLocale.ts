@@ -1,4 +1,12 @@
-import { enUS, id as idLocale, type Locale as DateFnsLocale } from 'date-fns/locale';
+import { enUS } from 'date-fns/locale/en-US';
+import { id as idLocale } from 'date-fns/locale/id';
+import type { Locale as DateFnsLocale } from 'date-fns';
+// ⚑ Deep locale imports, NOT the `date-fns/locale` barrel (unit-speed, #1584
+// scope 4, profiled 2026-10-31): the barrel executes ~380 locale modules on
+// every import, and under Vitest's per-file isolation EVERY test file pays it
+// — 824 ms/file measured (vs 49 ms deep) — because setup.ts pins the locale
+// per file. Deep paths are the same objects the barrel re-exports; the app
+// build already tree-shook this; only the module graph changes.
 import {
   FALLBACK_LOCALE,
   FALLBACK_TIMEZONE,

@@ -1,5 +1,6 @@
 import React from 'react';
-import { getYear, parseISO } from 'date-fns';
+import { getYear } from 'date-fns/getYear';
+import { parseISO } from 'date-fns/parseISO';
 import { useTranslation } from 'react-i18next';
 import { pct, formatDayMonth } from '@/src/lib/format';
 import { StatusPill } from '@/src/components/ui';
@@ -75,7 +76,7 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
           <span data-testid="milestone-phase-name" className="min-w-0 break-words text-[12px] font-semibold text-foreground">{name}</span>
           {/* AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas (sub-AA,
               DESIGN.md accessibility posture). text-primary-text is the AA on-canvas variant, same
-              token the "Back to Sales Pipeline" link (PipelineLens) already uses for blue text. */}
+              token the "Back to Sales Pipeline" link (DealBand) already uses for blue text. */}
           {isCurrent && <span className="text-xs font-semibold uppercase tracking-[0.04em] text-primary-text">{t('projectDetail.milestones.current', 'Current')}</span>}
           {isOverdue && <StatusPill variant="overdue">{t('projectDetail.milestones.overdue', 'Overdue')}</StatusPill>}
         </div>

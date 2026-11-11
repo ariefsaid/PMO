@@ -16,21 +16,43 @@ import type { Role } from '@/src/auth/AuthContext';
  * Two-sided: a PM sees the directory; an Engineer sees the denied region + Back.
  */
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
 vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => navigate };
 });
 
-const { companiesState } = vi.hoisted(() => ({
-  companiesState: {
-    data: [{ id: 'c1', name: 'Cascade Port Authority', type: 'Client', archived_at: null }] as Array<Record<string, unknown>>,
-    isPending: false,
-    isError: false,
+const { h } = vi.hoisted(() => ({
+  // #1989: the page reads one SERVER page; the stub mirrors the directory read's contract.
+  h: {
+    directory: [
+      { id: 'c1', name: 'Cascade Port Authority', type: 'Client', archived_at: null },
+    ] as Array<Record<string, unknown>>,
+    pending: false,
+    error: false,
     refetch: vi.fn(),
   },
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => companiesState,
+  useCompaniesPage: (input: { type: string; search: string; page: number; pageSize: number }) => {
+    const q = input.search.trim().toLowerCase();
+    const matching = h.directory.filter((c) => {
+      const typeOk = input.type === 'All' || c.type === input.type;
+      const searchOk = !q || String(c.name).toLowerCase().includes(q);
+      return typeOk && searchOk;
+    });
+    const start = (input.page - 1) * input.pageSize;
+    return {
+      data: { rows: matching.slice(start, start + input.pageSize), total: matching.length },
+      isPending: h.pending,
+      isError: h.error,
+      isFetching: false,
+      refetch: h.refetch,
+    };
+  },
+  useCompaniesTotal: () => ({ data: null, isPending: false, isError: false }),
+  useCompaniesExportAll: () => ({ mutateAsync: vi.fn(async () => h.directory), isPending: false }),
   useCompanyMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -54,8 +76,8 @@ const renderAs = (realRole: Role) =>
 
 beforeEach(() => {
   navigate.mockClear();
-  companiesState.isPending = false;
-  companiesState.isError = false;
+  h.pending = false;
+  h.error = false;
 });
 
 describe('Companies — Engineer page view-gate (A-5)', () => {
@@ -65,9 +87,10 @@ describe('Companies — Engineer page view-gate (A-5)', () => {
     expect(screen.getByText('Cascade Port Authority')).toBeInTheDocument();
   });
 
-  it('AC-W2-RBAC-010: an Engineer sees an access-denied surface, not the directory', () => {
+  it('AC-W2-RBAC-010 AC-CO-001b: an Engineer sees an access-denied surface, not the directory or New company button', () => {
     renderAs('Engineer');
     expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /new company/i })).not.toBeInTheDocument();
     expect(
       screen.getByRole('region', { name: /don't have access/i }),
     ).toBeInTheDocument();

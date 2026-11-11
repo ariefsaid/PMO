@@ -6,9 +6,13 @@ import {
   PIPELINE_STATUSES,
   LOST_STATUSES,
   ON_HAND_STATUSES,
+  LEGAL_PROJECT_TRANSITIONS,
   projectStatusGroup,
+  type ProjectStatus,
 } from '@/src/lib/db/projectTransitions';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { formatPercent as formatLocalizedPercent, formatDayMonth } from '@/src/lib/format';
+import { OPEN_BID_STATUSES, STALE_BID_THRESHOLD_DAYS } from '@/src/lib/dashboardConstants';
 
 /**
  * Kanban column model (OD-SP-1 / FR-SPD-014). Seven columns in fixed order: the five open
@@ -45,8 +49,8 @@ export interface SalesColumn {
  */
 export const OPEN_FUNNEL_STAGES = [
   'Leads',
-  'PQ Submitted',
   'Quotation Submitted',
+  'PQ Submitted',
   'Tender Submitted',
   'Negotiation',
 ] as const satisfies readonly string[];
@@ -55,8 +59,8 @@ export type OpenFunnelStage = (typeof OPEN_FUNNEL_STAGES)[number];
 /** Board titles for the open stages (may differ from the enum, e.g. "Pre-Qual"). */
 const OPEN_STAGE_TITLES: Record<OpenFunnelStage, string> = {
   Leads: 'Leads',
-  'PQ Submitted': 'Pre-Qual',
   'Quotation Submitted': 'Quotation',
+  'PQ Submitted': 'Pre-Qual',
   'Tender Submitted': 'Tender',
   Negotiation: 'Negotiation',
 };
@@ -85,6 +89,21 @@ export const SALES_COLUMNS: readonly SalesColumn[] = [
   },
 ] as const;
 
+/** What dropping a deal on a board column means (DND, #1637). Derived from the status menu's rule source only. */
+export type ProjectDropResolution =
+  | { kind: 'noop' }
+  | { kind: 'refused' }
+  | { kind: 'target'; to: ProjectStatus }
+  | { kind: 'choice'; options: ProjectStatus[] };
+
+export function resolveProjectDrop(status: ProjectStatus, column: SalesColumn): ProjectDropResolution {
+  if (column.statuses.includes(status as string)) return { kind: 'noop' };
+  const legal = (LEGAL_PROJECT_TRANSITIONS[status as string] ?? []).filter((s) => column.statuses.includes(s)) as ProjectStatus[];
+  if (legal.length === 0) return { kind: 'refused' };
+  if (legal.length === 1) return { kind: 'target', to: legal[0] };
+  return { kind: 'choice', options: legal };
+}
+
 /**
  * Aging threshold in days. A pipeline deal untouched for >= 30 days is flagged as
  * "needs attention". Applied to any row that carries `last_update`.
@@ -96,6 +115,15 @@ export const SALES_COLUMNS: readonly SalesColumn[] = [
  * positive from missing data, per the honest-dashboard rule.
  */
 export const ATTENTION_THRESHOLD_DAYS = 30;
+
+/** An open bid is stale after 90 days without a move to a new pipeline stage. */
+export function isStaleBid(
+  project: Pick<PipelineProject, 'status' | 'stage_started_at'>,
+): boolean {
+  if (!OPEN_BID_STATUSES.has(project.status as string)) return false;
+  const ageInDays = daysSince(project.stage_started_at);
+  return ageInDays !== null && ageInDays >= STALE_BID_THRESHOLD_DAYS;
+}
 
 /**
  * Returns the number of days since the given ISO timestamp, or null if the
@@ -117,9 +145,13 @@ export function isNeedsAttention(p: Pick<PipelineProject, 'last_update'>): boole
   return d !== null && d >= ATTENTION_THRESHOLD_DAYS;
 }
 
-/** Weighted forecast value (computed client-side per Director decision 1). */
-export function weightedValue(p: Pick<PipelineProject, 'contract_value' | 'win_probability'>): number {
-  return p.contract_value * p.win_probability;
+/** Weighted forecast value from independent stage Go and project Get probabilities. */
+export function weightedValue(
+  p: Pick<PipelineProject, 'contract_value'> & Partial<Pick<PipelineProject, 'go_probability' | 'get_probability' | 'win_probability'>>,
+): number {
+  const go = p.go_probability ?? p.win_probability ?? 0;
+  const get = p.get_probability ?? 1;
+  return p.contract_value * go * get;
 }
 
 /**
@@ -139,7 +171,7 @@ export function pillVariantForStatus(status: PipelineProject['status']): StatusV
 
 /** Whole-number percent label from an RPC win_probability fraction. */
 export function formatPercent(probability: number): string {
-  return `${Math.round(probability * 100)}%`;
+  return formatLocalizedPercent(probability, 0);
 }
 
 /**
@@ -161,6 +193,15 @@ export function openOpportunity(
   open(`/projects/${project.id}`, 'projects');
 }
 
+export type DealJourneyStage =
+  | 'Leads'
+  | 'Quotation'
+  | 'Pre-Qualification'
+  | 'Tender'
+  | 'Negotiation'
+  | 'Won'
+  | 'Lost';
+
 /**
  * The deal-stage journey for the detail page's LifecycleStepper (AC-SP-208).
  * Six steps: the five pipeline stages + a terminal node. Stages before the deal's
@@ -168,20 +209,32 @@ export function openOpportunity(
  * deal marks every pipeline step done + the terminal `paid`; a lost deal marks the
  * terminal `skipped`. Derived from `PIPELINE_STATUSES` (single source).
  */
-export function dealJourneySteps(status: PipelineProject['status']): LifecycleStep[] {
+export function dealJourneySteps(
+  status: PipelineProject['status'],
+  labelMapper?: (label: DealJourneyStage) => string,
+): LifecycleStep[] {
   const group = projectStatusGroup(status);
-  const labels = ['Leads', 'Pre-Qualification', 'Quotation', 'Tender', 'Negotiation'];
+  const rawLabels: ('Leads' | 'Quotation' | 'Pre-Qualification' | 'Tender' | 'Negotiation')[] = [
+    'Leads',
+    'Quotation',
+    'Pre-Qualification',
+    'Tender',
+    'Negotiation',
+  ];
+  const labels = labelMapper ? rawLabels.map(labelMapper) : rawLabels;
+  const wonLabel = labelMapper ? labelMapper('Won') : 'Won';
+  const lostLabel = labelMapper ? labelMapper('Lost') : 'Lost';
 
   if (group === 'onHand') {
     return [
       ...labels.map((label): LifecycleStep => ({ label, state: 'done' })),
-      { label: 'Won', state: 'paid' },
+      { label: wonLabel, state: 'paid' },
     ];
   }
   if (group === 'lost') {
     return [
       ...labels.map((label): LifecycleStep => ({ label, state: 'done' })),
-      { label: 'Lost', state: 'skipped' },
+      { label: lostLabel, state: 'skipped' },
     ];
   }
 
@@ -192,6 +245,47 @@ export function dealJourneySteps(status: PipelineProject['status']): LifecycleSt
       if (i === currentIdx) return { label, state: 'current' };
       return { label, state: 'upcoming' };
     }),
-    { label: 'Won', state: 'upcoming' },
+    { label: wonLabel, state: 'upcoming' },
   ];
+}
+
+/** #1638 — key-date label per stage: [i18n key, English default]. Spec §3. */
+export const STAGE_KEY_DATE_LABEL: Record<string, readonly [string, string]> = {
+  'Leads': ['sales:stageDate.lead', 'Lead'],
+  'PQ Submitted': ['sales:stageDate.pq', 'Pre-qual sent'],
+  'Quotation Submitted': ['sales:stageDate.quoted', 'Quoted'],
+  'Tender Submitted': ['sales:stageDate.tender', 'Tender sent'],
+  'Negotiation': ['sales:stageDate.negotiation', 'Negotiation'],
+  'Won, Pending KoM': ['sales:stageDate.signed', 'Signed'],
+  'Loss Tender': ['sales:stageDate.lost', 'Lost'],
+  'Declined': ['sales:stageDate.declined', 'Declined'],
+  'Ongoing Project': ['sales:stageDate.started', 'Started'],
+  'On Hold': ['sales:stageDate.onHold', 'On hold'],
+  'Close Out': ['sales:stageDate.closedOut', 'Closed out'],
+  'Internal Project': ['sales:stageDate.internal', 'Internal'],
+};
+
+/** Whole calendar days from `fromIso` to `toIso` (both 'YYYY-MM-DD'); 0 when from is after to. */
+export function daysBetweenDates(fromIso: string, toIso: string): number {
+  const a = Date.UTC(+fromIso.slice(0, 4), +fromIso.slice(5, 7) - 1, +fromIso.slice(8, 10));
+  const b = Date.UTC(+toIso.slice(0, 4), +toIso.slice(5, 7) - 1, +toIso.slice(8, 10));
+  return Math.max(0, Math.round((b - a) / 86_400_000));
+}
+
+type Translate = (key: string, defaultValue: string) => string;
+
+/**
+ * A 'YYYY-MM-DD' calendar date as "12 Oct". formatDayMonth formats in the BROWSER's timezone, so the Date must be
+ * local midnight — `T00:00:00Z` would print the day before in any browser west of UTC (spec T15).
+ */
+export function formatIsoDayMonth(iso: string): string {
+  return formatDayMonth(new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)));
+}
+
+/** The card's one line for the latest stage entry: "Quoted 12 Oct · 20 d" (FR-PSH-013). */
+export function stageLine(status: string, enteredOn: string, todayIso: string, t: Translate): string {
+  const [key, fallback] = STAGE_KEY_DATE_LABEL[status] ?? ['', status];
+  const label = key ? t(key, fallback) : fallback;
+  const day = enteredOn.slice(0, 10);
+  return `${label} ${formatIsoDayMonth(day)} · ${daysBetweenDates(day, todayIso)} ${t('sales:stageDate.daysShort', 'd')}`;
 }

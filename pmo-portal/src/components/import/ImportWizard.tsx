@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Button, DataTable, Icon, StatusPill, type Column, type StatusVariant } from '@/src/components/ui';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
+import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import type { ImportDescriptor, ImportField } from '@/src/lib/import';
 import { MAX_IMPORT_ROWS } from '@/src/lib/import';
 import { useImportWizard, type WizardStep } from './useImportWizard';
@@ -70,6 +71,11 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [requestClose]);
 
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  useEffect(() => {
+    return acquireBackgroundInert();
+  }, []);
+
   // Focus in on open, restore to the trigger on unmount (mirrors EntityFormModal).
   useEffect(() => {
     triggerRef.current = document.activeElement as HTMLElement | null;
@@ -127,7 +133,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
         )}
       >
         {/* Header */}
-        <div className="flex items-center gap-2.5 border-b border-border px-[18px] py-4">
+        <div className="flex items-center gap-2 border-b border-border px-[var(--space-content-inset)] py-4">
           <div className="min-w-0 flex-1">
             <h2 id={titleId} className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground">
               {wiz.step === 'upload'
@@ -150,7 +156,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
         </div>
 
         {/* Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--space-content-inset)] py-4">
           {wiz.step === 'upload' && <UploadStep wiz={wiz} />}
           {wiz.step === 'mapping' && <MappingStep wiz={wiz} descriptor={descriptor} />}
           {wiz.step === 'preview' && <PreviewStep wiz={wiz} descriptor={descriptor} />}
@@ -159,7 +165,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
         </div>
 
         {/* Footer — per-step actions. */}
-        <div className="flex items-center gap-2 border-t border-border px-[18px] py-3.5">
+        <div className="flex items-center gap-2 border-t border-border px-[var(--space-content-inset)] py-3">
           {(wiz.step === 'mapping' || wiz.step === 'preview') && (
             <Button variant="ghost" size="sm" onClick={wiz.back}>
               Back
@@ -235,6 +241,7 @@ function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
           }}
         />
       </label>
+      {wiz.parsing && <p role="status">Reading file…</p>}
       {wiz.parseError && (
         <p role="alert" className="flex items-start gap-1.5 text-[12.5px] text-destructive">
           <Icon name="alert" className="mt-px size-4 shrink-0" />

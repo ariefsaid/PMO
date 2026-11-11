@@ -33,10 +33,12 @@ import {
 } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { formatCurrency } from '@/src/lib/format';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus } from './projects';
 import ProjectCardShell from './ProjectCardShell';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 // ---------------------------------------------------------------------------
 // Column definitions — lifecycle order, DESIGN.md tokens for dot colors.
@@ -107,7 +109,9 @@ interface ProjectKanbanCardProps {
 
 const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActivate }) => {
   const { t } = useTranslation();
-  const initial = (project.name.trim().charAt(0) || '•').toUpperCase();
+  const projectStatusLabel = useProjectStatusLabel();
+  const displayName = projectDisplayName(project);
+  const initial = (displayName.trim().charAt(0) || '•').toUpperCase();
   // FR-PRJUX-004/005: the footer label reads from the manager ID so an assigned blank-name
   // profile shows `Unnamed user · <short ID>` and a null ID shows `Unassigned` — the two
   // "no name" states stay distinct across every visible Projects view (incl. Kanban).
@@ -121,13 +125,14 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
     <ProjectCardShell
       variant="kanban"
       initial={initial}
-      name={project.name}
+      name={displayName}
+      contractualName={project.name}
       client={project.client ? companyDisplayName(project.client) : null}
       pmoProjectNumber={project.pmo_project_number}
       code={project.code}
       status={
         <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
-          {project.status}
+          {projectStatusLabel(project.status as string)}
         </StatusPill>
       }
       body={
@@ -142,7 +147,7 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
           {project.project_manager_id != null && (
             <span
               aria-hidden
-              className="grid size-[16px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
+              className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-muted-foreground"
             >
               {(pmLabel.trim().charAt(0) || '?').toUpperCase()}
             </span>

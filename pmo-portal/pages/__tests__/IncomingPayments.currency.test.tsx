@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 
 /**
  * #530 / AC-L10N-020 — an incoming payment renders in ITS OWN currency.
@@ -34,6 +35,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: clientOptions }),
+  useInvoiceProjectOptions: () => ({ data: [] }),
 }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
@@ -103,7 +105,7 @@ describe('IncomingPayments — currency (#530)', () => {
     await screen.findByRole('dialog');
     await user.click(screen.getByRole('combobox', { name: 'Customer' }));
     await user.click(await screen.findByRole('option', { name: /Acme Co/ }));
-    await user.click(screen.getByRole('combobox', { name: 'Sales Invoice' }));
+    await user.click(screen.getByRole('combobox', { name: /^Sales Invoice/ }));
     await user.click(await screen.findByRole('option', { name: /SI-IDR/ }));
 
     const settled = screen.getByLabelText(/^Amount settled/);
@@ -126,6 +128,14 @@ describe('IncomingPayments — currency (#530)', () => {
     expect(withheld).not.toBeVisible();
     expect(screen.getByText(/Tax withheld:/)).toHaveTextContent(/IDR.*110/);
     expect(screen.getByText('Withholding slip: SYN-WHT-IDR')).toBeInTheDocument();
+  });
+
+  it('uses the organization currency before an invoice is selected', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
+    expect(screen.getByLabelText(/^Amount settled/).parentElement).toHaveTextContent('$');
+    expect(screen.getByLabelText(/^Cash received/).parentElement).toHaveTextContent('$');
   });
 
   it('renders an IDR payment in IDR, never the org default', () => {

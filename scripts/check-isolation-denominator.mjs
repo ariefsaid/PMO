@@ -190,10 +190,10 @@ export function validateDenominator(parsed) {
     if (!r || !/^[a-z_][a-z0-9_]*$/.test(r.name) || rpcNames.has(r.name)) throw new Error('invalid denominator: duplicate or invalid RPC name');
     rpcNames.add(r.name);
     if (!['inert', 'write', 'read'].includes(r.class)) throw new Error(`invalid denominator: RPC ${r.name} class is required`);
-    if (!Array.isArray(r.expect_denial) || r.expect_denial.some(e => !e || ![403, 500].includes(e.http) || !/^[A-Z0-9]{5}$/.test(e.sqlstate) || (e.sqlstate === '42501' ? e.http !== 403 : e.http !== 500))) {
+    if (!Array.isArray(r.expect_denial) || r.expect_denial.some(e => !e || ![400, 403, 500].includes(e.http) || !/^[A-Z0-9]{5}$/.test(e.sqlstate) || (e.sqlstate === '42501' ? e.http !== 403 : e.http !== (e.sqlstate === 'P0001' ? 400 : 500)))) {
       throw new Error(`invalid denominator: RPC ${r.name} expect_denial must declare SQLSTATE/HTTP pairs (never 401)`);
     }
-    if (r.shape != null && !['empty-array', 'false', 'boolean', 'must-deny'].includes(r.shape)) throw new Error(`invalid denominator: RPC ${r.name} shape is invalid`);
+    if (r.shape != null && !['empty-array', 'false', 'boolean', 'must-deny', 'null', 'own-org-no-foreign-ids'].includes(r.shape)) throw new Error(`invalid denominator: RPC ${r.name} shape is invalid`);
     if (!r.expect_denial.length && !r.shape) throw new Error(`invalid denominator: RPC ${r.name} expect_denial or shape is required`);
     if (!Array.isArray(r.source) || !r.source.length || r.source.some(s => !/^supabase\/migrations\/\d{4}_[a-z0-9_]+\.sql:[1-9][0-9]*$/.test(s))) throw new Error(`invalid denominator: RPC ${r.name} source citations are required`);
     const isDeclaredFunction = r.source.some(s => {
@@ -285,8 +285,14 @@ export function readActualCatalog({
 
   let edge_functions = [];
   if (!fs.existsSync(functionsRoot)) throw new Error(`edge functions root not found: ${functionsRoot}`);
+  // An edge function is a DEPLOYABLE unit: a directory with an `index.ts` entry point — the same
+  // discovery rule `scripts/deno-typecheck-edge-fns.sh` and `supabase functions deploy` use. Support
+  // directories under supabase/functions (`_shared`, Deno test harnesses like `tests/`) have no
+  // entry point, are never deployed, and are not probe surface; counting them made the inventory
+  // name a function that does not exist.
   edge_functions = fs.readdirSync(functionsRoot, { withFileTypes: true })
     .filter((e) => e.isDirectory() && e.name !== '_shared')
+    .filter((e) => fs.existsSync(path.join(functionsRoot, e.name, 'index.ts')))
     .map((e) => e.name)
     .sort();
 

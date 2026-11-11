@@ -80,7 +80,7 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     expect(title.className).not.toMatch(/truncate|line-clamp/);
   });
 
-  it('AC-KTR-002: preserves the grid title button, clamp, and status placement', () => {
+  it('AC-KTR-002: preserves the grid title button and places status below the full title and meta', () => {
     render(<ProjectCardShell {...baseProps} />);
     const gridName = screen.getByRole('button', { name: /Innovate Corp HQ Fit-Out/i });
     const textColumn = gridName.parentElement!;
@@ -90,6 +90,18 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     expect(gridName.className).toContain('break-words');
     expect(textColumn).not.toContainElement(status);
     expect(textColumn.parentElement).toContainElement(status);
+    expect(status.parentElement?.className).toContain('col-start-2');
+    expect(status.parentElement?.className).toContain('row-start-2');
+    expect(status.parentElement?.className).not.toContain('sm:col-start-3');
+  });
+
+  it('joins only non-empty project references in the accessible label and visible subtitle', () => {
+    const { rerender } = render(<ProjectCardShell {...baseProps} pmoProjectNumber="   " code="CLIENT-77" />);
+    expect(screen.getByRole('button', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
+    expect(screen.getByTestId('project-card')).toHaveTextContent('Client Project Code: CLIENT-77');
+    expect(screen.queryByText(/^·/)).not.toBeInTheDocument();
+    rerender(<ProjectCardShell {...baseProps} variant="kanban" pmoProjectNumber="   " code="CLIENT-77" />);
+    expect(screen.getByRole('button', { name: 'Innovate Corp HQ Fit-Out. Client Project Code: CLIENT-77' })).toBeInTheDocument();
   });
 
   it('exposes a single project-card test carrier so every surface is the same molecule', () => {
@@ -123,6 +135,22 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     const card = screen.getByTestId('project-card');
     expect(within(card).getByTestId('body-slot')).toBeInTheDocument();
     expect(within(card).getByTestId('foot-slot')).toBeInTheDocument();
+  });
+
+  it('AC-002 #1325: short-first grid and kanban titles disclose contractual name and retain one activation target', () => {
+    const { rerender } = render(<ProjectCardShell {...baseProps} name="Harbor Operations" contractualName="Contractual Harbor Works" onOpen={vi.fn()} />);
+    const gridButton = screen.getByRole('button', { name: 'Harbor Operations' });
+    expect(gridButton).toHaveAttribute('title', 'Contractual Harbor Works');
+    expect(gridButton).toHaveAccessibleDescription('Contractual Harbor Works');
+    expect(within(screen.getByTestId('project-card')).queryByRole('button')).toBe(gridButton);
+    rerender(<ProjectCardShell {...baseProps} name="Harbor Operations" contractualName="Contractual Harbor Works" variant="kanban" onOpen={vi.fn()} />);
+    const kanbanButton = screen.getByRole('button', { name: /Harbor Operations/ });
+    expect(within(kanbanButton).getByTitle('Contractual Harbor Works')).toHaveTextContent('Harbor Operations');
+    expect(kanbanButton).toHaveAccessibleDescription('Contractual Harbor Works');
+    expect(within(kanbanButton).queryByRole('button')).toBeNull();
+    rerender(<ProjectCardShell {...baseProps} name="Harbor Operations" variant="kanban" />);
+    expect(screen.getByTitle('Harbor Operations')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Harbor Operations/ })).toHaveAccessibleDescription('');
   });
 
   it('AC-KTR-003: activates one Kanban card for click, Enter, and Space without nested buttons', async () => {

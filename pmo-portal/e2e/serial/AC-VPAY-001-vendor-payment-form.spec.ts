@@ -27,8 +27,11 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { formatMoneyInputValue } from '../../src/lib/format';
 import { login } from '../helpers';
 import { SAR_CURRENCY } from './_sarHelpers';
+import { runFullSweep } from './_sweepHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -41,7 +44,6 @@ const SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:80
 const BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080';
 const BENCH_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const BENCH_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
-const SWEEP_SECRET = process.env.ERPNEXT_SWEEP_SECRET ?? 'e2e-erpnext-sweep-secret';
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const ADMIN_EMAIL = 'admin@acme.test';
 const FINANCE_EMAIL = 'finance@acme.test';
@@ -66,6 +68,7 @@ const resource = (doctype: string, name?: string) =>
   `/api/resource/${encodeURIComponent(doctype)}${name === undefined ? '' : `/${encodeURIComponent(name)}`}`;
 
 async function erp(method: 'GET' | 'POST', path: string, body?: unknown): Promise<{ status: number; data: unknown }> {
+  assertLocalBenchUrl(BENCH_URL);
   const res = await fetch(`${BENCH_URL}${path}`, {
     method,
     headers: { 'Content-Type': 'application/json', Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}` },
@@ -127,6 +130,8 @@ async function seed(admin: SupabaseClient, s: Seed): Promise<void> {
       id: s.procurementId,
       org_id: ORG_ID, title: `AC-VPAY-001 case ${suffix}`, vendor_id: s.companyId,
       status: 'Vendor Invoiced', currency: SAR_CURRENCY, approved_by_id: approverId,
+      // #1332/#0368 requires a recorded approved amount before an approved purchase can be paid.
+      approved_total_value: 1_090_000,
     })
     .select('id').single();
   if (procErr) throw new Error(`seed procurement failed: ${procErr.message}`);
@@ -203,7 +208,7 @@ test('AC-VPAY-001 finance pays an ERP-owned bill through the ledger form: PE lan
     await login(page, FINANCE_EMAIL);
     await page.goto(`/procurement/${s.procurementId}`);
     await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-    await page.getByRole('tab', { name: /Documents/i }).click();
+    await page.getByRole('tab', { name: 'Files', exact: true }).click();
 
     // The ledger capture offers Payment at Vendor Invoiced (ledgerCapture.ts) — the dashed
     // prompt's "Capture Payment" affordance (ledger-capture-open; the LedgerCaptureRow one).
@@ -217,7 +222,8 @@ test('AC-VPAY-001 finance pays an ERP-owned bill through the ledger form: PE lan
     await expect(page.getByTestId('payment-status-select')).toHaveCount(0);
     await page.getByTestId('payment-invoice-select').selectOption(s.piRecordId);
     // DD-VPAY-10: the amount prefills the bill's ERP outstanding — accepted as-is.
-    await expect(page.getByTestId('payment-amount-input')).toHaveValue('1090000');
+    // #1455 added useMoneyInputMask to this field; assert its exact English number display.
+    await expect(page.getByTestId('payment-amount-input')).toHaveValue(formatMoneyInputValue(1_090_000, 'en-US'));
     await page.getByTestId('payment-save-btn').click();
 
     // The real served dispatch commits (no page.route). PMO's payments row mirrors the PE —
@@ -248,13 +254,8 @@ test('AC-VPAY-001 finance pays an ERP-owned bill through the ledger form: PE lan
     }
 
     // ── The sweep brings the settlement back: the bill shows Paid / outstanding 0 (FR-VPAY-008) ──
-    const sweep = await fetch(`${FUNCTIONS_URL}/functions/v1/erpnext-sweep`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SWEEP_SECRET}` },
-      body: JSON.stringify({ org_id: ORG_ID }),
-    });
+    const sweep = await runFullSweep(FUNCTIONS_URL, ORG_ID);
     expect([200, 202]).toContain(sweep.status);
-    await sweep.arrayBuffer();
     await expect.poll(async () => (await bill()).data?.status, { timeout: 30_000 }).toBe('Paid');
     const { data: settled } = await bill();
     expect(settled).toMatchObject({ status: 'Paid', erp_outstanding_amount: 0, amount: 1110000, currency: SAR_CURRENCY });
@@ -262,7 +263,7 @@ test('AC-VPAY-001 finance pays an ERP-owned bill through the ledger form: PE lan
     // ── The ledger renders the Payment row (and the bill's Paid state) ──
     await page.reload();
     await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-    await page.getByRole('tab', { name: /Documents/i }).click();
+    await page.getByRole('tab', { name: 'Files', exact: true }).click();
     const ledger = page.getByTestId('procurement-ledger');
     await expect(ledger.getByText(String((payRow as Doc).pay_number), { exact: false })).toBeVisible({ timeout: 15_000 });
     await expect(ledger.getByText('Paid', { exact: true }).first()).toBeVisible();

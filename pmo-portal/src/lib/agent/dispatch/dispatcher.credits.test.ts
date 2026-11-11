@@ -11,6 +11,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { runDispatchTick } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import type { AutomationRow } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
+import { makeDispatcherTestRpc } from './dispatcherTestRpc';
 
 function makeScheduleAutomation(overrides: Partial<AutomationRow> = {}): AutomationRow {
   return {
@@ -54,7 +55,7 @@ function makeServiceClient(automations: AutomationRow[]) {
     return { select: selectMock, update: updateMock };
   });
 
-  return { client: { from }, tablesTouched, updateMock };
+  return { client: { from, rpc: makeDispatcherTestRpc() }, tablesTouched, updateMock };
 }
 
 /** A minted-client mock recording every .from() call, including a notifications insert path. */
@@ -132,7 +133,7 @@ describe('runDispatchTick — AC-AAN-027 over-credit no-start plus warning notif
     // FR-CRE-004: any member's turn reads the same org pool), before any fire — and receives
     // the MINTED OWNER CLIENT (never service_role) so the real createCreditRateGuard can
     // compute the balance under owner RLS (ADR-0044 §6, NFR-AAN-SEC-002/SEC-006).
-    expect(rateGuard.check).toHaveBeenCalledWith('org-A', minted.client);
+    expect(rateGuard.check).toHaveBeenCalledWith('org-A', minted.client, expect.any(String));
 
     // A severity='warning' notification was created for the owner via the MINTED owner client.
     expect(minted.notifInsert).toHaveBeenCalledTimes(1);

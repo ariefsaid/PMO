@@ -1,15 +1,17 @@
+import { invalidateTaskProjections } from './taskQueryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
-import type {
-  MeetingWithRefs,
-  MeetingInput,
-  MeetingPatch,
-  MeetingListParams,
-  MeetingAttendeeWithRefs,
-  MeetingAttendeeInput,
-  MeetingGrantWithRefs,
-} from '@/src/lib/db/meetings';
-import type { TaskWithRefs } from '@/src/lib/db/tasks';
+import {
+  repositories,
+  type MeetingWithRefs,
+  type MeetingListItem,
+  type MeetingInput,
+  type MeetingPatch,
+  type MeetingListParams,
+  type MeetingAttendeeWithRefs,
+  type MeetingAttendeeInput,
+  type MeetingGrantWithRefs,
+  type TaskWithRefs,
+} from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -21,13 +23,13 @@ import { useAuth } from '@/src/auth/useAuth';
 export function useMeetings(params?: MeetingListParams) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<MeetingWithRefs[]>({
-    queryKey: ['meetings', orgId, params?.projectId ?? 'all', params?.search ?? ''],
+  return useQuery<MeetingListItem[]>({
+    queryKey: ['meetings', orgId, params?.projectId ?? 'all', params?.search ?? '', params?.includeArchived ? 'archived' : 'active'],
     queryFn: () => repositories.meeting.list(params),
     enabled: Boolean(orgId),
     // Keep the previous rows on screen while a search/filter keystroke refetches — the list
     // must not flash its loading skeleton (and unmount the search box) on every character.
-    placeholderData: (prev: MeetingWithRefs[] | undefined) => prev,
+    placeholderData: (prev: MeetingListItem[] | undefined) => prev,
   });
 }
 
@@ -108,6 +110,7 @@ export interface CreateActionItemArgs {
  */
 export function useMeetingMutations() {
   const qc = useQueryClient();
+  const orgId = useAuth().currentUser?.org_id;
   const invalidateMeetings = () => {
     qc.invalidateQueries({ queryKey: ['meetings'] });
     qc.invalidateQueries({ queryKey: ['meeting'] });
@@ -125,6 +128,11 @@ export function useMeetingMutations() {
 
   const archive = useMutation({
     mutationFn: (id: string) => repositories.meeting.archive(id),
+    onSuccess: invalidateMeetings,
+  });
+
+  const restore = useMutation({
+    mutationFn: (id: string) => repositories.meeting.restore(id),
     onSuccess: invalidateMeetings,
   });
 
@@ -171,20 +179,14 @@ export function useMeetingMutations() {
         end_date: endDate,
         meeting_id: meetingId,
       }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['meeting-action-items'] });
-      // A /action task is a real task — refresh any open task list too, not just the meeting's
-      // own action-item list: the project Tasks tab keys off ['tasks', …] and My Tasks off
-      // ['my-tasks', …] (distinct caches — both must be busted).
-      qc.invalidateQueries({ queryKey: ['tasks'] });
-      qc.invalidateQueries({ queryKey: ['my-tasks'] });
-    },
+    onSuccess: (_data, { projectId, meetingId }) => invalidateTaskProjections(qc, orgId, projectId, meetingId),
   });
 
   return {
     create,
     update,
     archive,
+    restore,
     remove,
     addAttendee,
     removeAttendee,

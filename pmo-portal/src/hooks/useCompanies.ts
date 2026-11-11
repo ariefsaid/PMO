@@ -1,9 +1,12 @@
+import { procurementKeys } from './procurementQueryKeys';
+import { projectKeys, invalidateProjectProjections } from './projectQueryKeys';
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
-import { listProjectsByClient, type ProjectWithRefs } from '@/src/lib/db/projects';
-import { listProcurementsByVendor, type ProcurementWithRefs } from '@/src/lib/db/procurements';
+import type { CompanyDirectoryPage, CompanyOptionRow, CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
+import type { CompanyTypeFilter } from '@/src/lib/listWorkingSet';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { useAuth } from '@/src/auth/useAuth';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
@@ -25,6 +28,80 @@ export function useCompanies(type?: CompanyType, opts?: { enabled?: boolean }) {
     queryKey: ['companies', orgId, type ?? 'all'],
     queryFn: () => repositories.company.list(type ? { type } : undefined),
     enabled: Boolean(orgId) && opts?.enabled !== false,
+  });
+}
+
+/** The directory's page size: 50, the established Odoo-directory/AdminUsers page size (#1989). */
+export const COMPANIES_DIRECTORY_PAGE_SIZE = 50;
+
+/**
+ * ONE server page of the Companies directory (issue #1989, the Master-data/AdminUsers pattern):
+ * the URL's type filter + committed search go to the SERVER; filter, search, page and page size
+ * are part of the query key so an old view's response can never be served as the new one, and
+ * `keepPreviousData` keeps the previous page visible while a new one loads (no empty flash).
+ * 'All' is the ABSENCE of a type filter; a blank search is the absence of a search.
+ */
+export function useCompaniesPage(input: {
+  type: CompanyTypeFilter;
+  search: string;
+  page: number;
+  pageSize: number;
+}) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<CompanyDirectoryPage>({
+    queryKey: ['companies', orgId, 'page', input.type, input.search, input.page, input.pageSize],
+    queryFn: () =>
+      repositories.company.listPage({
+        page: input.page,
+        pageSize: input.pageSize,
+        type: input.type === 'All' ? undefined : input.type,
+        search: input.search.trim() || undefined,
+      }),
+    enabled: Boolean(orgId),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * The exact non-archived company total — the "of Y" behind the directory's filtered
+ * "Showing X of Y" (#1989). One head count per org, cached; the page enables it only while a
+ * filter/search is active (unfiltered, the page's own total IS the directory total).
+ */
+export function useCompaniesTotal(opts?: { enabled?: boolean }) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<number>({
+    queryKey: ['companies', orgId, 'total'],
+    queryFn: () => repositories.company.count(),
+    enabled: Boolean(orgId) && opts?.enabled !== false,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * EVERY company as a display row (id + name fields only) — the Contacts page's filter options,
+ * export company names and create/edit select (#1989). A picker must offer everyone, not one
+ * page (the AdminUsers ruling); the narrow projection keeps that whole-directory read small.
+ */
+export function useCompanyOptions(opts?: { enabled?: boolean }) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<CompanyOptionRow[]>({
+    queryKey: ['companies', orgId, 'options'],
+    queryFn: () => repositories.company.listOptions(),
+    enabled: Boolean(orgId) && opts?.enabled !== false,
+  });
+}
+
+/**
+ * The full-set export read (#1989): EVERY company matching the directory's current
+ * filter/search, fetched only when the user actually exports.
+ */
+export function useCompaniesExportAll() {
+  return useMutation({
+    mutationFn: (params?: { type?: CompanyType; search?: string }) =>
+      repositories.company.listAll(params),
   });
 }
 
@@ -53,8 +130,8 @@ export function useProjectsByClient(companyId: string | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ProjectWithRefs[]>({
-    queryKey: ['projects', 'by-client', orgId, companyId],
-    queryFn: () => listProjectsByClient(companyId!),
+    queryKey: projectKeys.byClient(orgId, companyId),
+    queryFn: () => repositories.project.listByClient(companyId!),
     enabled: Boolean(orgId && companyId),
   });
 }
@@ -68,8 +145,8 @@ export function useProcurementsByVendor(companyId: string | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ProcurementWithRefs[]>({
-    queryKey: ['procurements', 'by-vendor', orgId, companyId],
-    queryFn: () => listProcurementsByVendor(companyId!),
+    queryKey: procurementKeys.byVendor(orgId, companyId),
+    queryFn: () => repositories.procurement.listByVendor(companyId!),
     enabled: Boolean(orgId && companyId),
   });
 }
@@ -87,6 +164,7 @@ export interface UpdateCompanyArgs {
  */
 export function useCompanyMutations() {
   const qc = useQueryClient();
+  const orgId = useAuth().currentUser?.org_id;
   // Also bust the FK-picker caches (F2, Wave 3): a company is both a vendor and a client option,
   // so create/edit/archive/delete must refresh `['fk-options','vendor']` + `['fk-options','client']`
   // or combobox forms serve a stale/archived/missing company for the ~5-min query staleTime.
@@ -96,13 +174,7 @@ export function useCompanyMutations() {
     qc.invalidateQueries({ queryKey: ['company'] });
     qc.invalidateQueries({ queryKey: ['fk-options', 'vendor'] });
     qc.invalidateQueries({ queryKey: ['fk-options', 'client'] });
-    qc.invalidateQueries({ queryKey: ['projects'] });
-    qc.invalidateQueries({ queryKey: ['project'] });
-    qc.invalidateQueries({ queryKey: ['opportunity'] });
-    qc.invalidateQueries({ queryKey: ['sales-pipeline'] });
-    qc.invalidateQueries({ queryKey: ['lost-deals'] });
-    qc.invalidateQueries({ queryKey: ['dashboard'] });
-    qc.invalidateQueries({ queryKey: ['finance-budget-review'] });
+    invalidateProjectProjections(qc, orgId);
   };
 
   // Discover CRITICAL 1 follow-up: create/update already route through the repository seam (Slice

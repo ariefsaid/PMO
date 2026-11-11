@@ -1,15 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  listProcurements,
-  listProcurementsByProject,
-  getProjectCommittedSpend,
-  getProjectReservedSpend,
-  type ProcurementWithRefs,
-} from '@/src/lib/db/procurements';
 import { useAuth } from '@/src/auth/useAuth';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
-import { repositories } from '@/src/lib/repositories';
-import { procurementsKey } from './approvalsQueryKeys';
+import { repositories, type ProcurementWithRefs, type ProjectCommittedSpend } from '@/src/lib/repositories';
+import { procurementsKey, requestedProcurementsKey } from './approvalsQueryKeys';
 
 export { procurementsKey } from './approvalsQueryKeys';
 
@@ -17,15 +10,23 @@ export { procurementsKey } from './approvalsQueryKeys';
  * Org-scoped procurement list. queryKey includes org_id so cache is tenant-scoped (FR-QRY-PROC-001).
  * `withRefs` (#769) is the Procurement index only: it adds the record-reference embeds for search/export
  * under its own cache key, so Approvals/dashboards keep the lean payload. Both keys share the
- * `['procurements', orgId]` prefix, so existing invalidations still refetch it.
+ * `['procurements', orgId]` prefix, so existing invalidations still refetch it. `lean` is the dashboards' list (PERF-DASH-1). `withSharedDetails`
+ * adds the batched money/stage inputs needed by the shared procurement block under a third cache key.
+ * `status: 'Requested'` is the approvals queue (Approvals page, nav count, approval tiles): the default row, server-filtered, under its own key.
  */
-export function useProcurements(opts?: { withRefs?: boolean; enabled?: boolean }) {
+export function useProcurements(opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; withoutRoutes?: boolean; status?: 'Requested'; enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const withRefs = opts?.withRefs === true;
+  const withSharedDetails = opts?.withSharedDetails === true;
+  const lean = opts?.lean === true;
+  const withoutRoutes = lean && opts?.withoutRoutes === true;
+  const requested = opts?.status === 'Requested';
   return useQuery<ProcurementWithRefs[]>({
-    queryKey: procurementsKey(orgId, withRefs),
-    queryFn: () => listProcurements(undefined, withRefs ? { withRefs: true } : undefined),
+    queryKey: requested ? requestedProcurementsKey(orgId) : procurementsKey(orgId, withRefs, withSharedDetails, lean, withoutRoutes),
+    queryFn: () => repositories.procurement.list(requested ? { status: 'Requested' } : lean ? (withoutRoutes ? { lean: true, withoutRoutes: true } : { lean: true }) : withSharedDetails
+      ? { withRefs: true, withSharedDetails: true }
+      : withRefs ? { withRefs: true } : undefined),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
@@ -39,23 +40,25 @@ export function useProjectProcurements(projectId: string | null | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<ProcurementWithRefs[]>({
     queryKey: ['procurements', orgId, 'by-project', projectId],
-    queryFn: () => listProcurementsByProject(projectId as string),
+    queryFn: () => repositories.procurement.listByProject(projectId as string),
     enabled: Boolean(orgId && projectId),
   });
 }
 
 /**
- * Committed spend for ONE project (OD-W5-4): Σ PO total_value in Ordered..Paid — the same basis the
- * dashboards use. Powers the DecisionSupportPanel's "Committed spend" figure. Org-scoped via RLS.
+ * Committed spend for one project: the SQL open-commitment position, including the ERP ledger
+ * treatment in ADR-0093. Powers the DecisionSupportPanel. Org-scoped via RLS.
  */
 export type CommitmentSource = 'pmo' | 'not-tracked' | 'unavailable';
+export type CommittedOtherCurrencies = ProjectCommittedSpend['otherCurrencies'];
+const NO_OTHER_CURRENCIES: CommittedOtherCurrencies = [];
 
 export function useProjectCommittedSpend(projectId: string | null | undefined, includeOwnership = false) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  const query = useQuery<number>({
+  const query = useQuery<ProjectCommittedSpend>({
     queryKey: ['project-committed-spend', orgId, projectId],
-    queryFn: () => getProjectCommittedSpend(projectId as string),
+    queryFn: () => repositories.procurement.getProjectCommittedSpend(projectId as string),
     enabled: Boolean(orgId && projectId),
   });
   const ownership = useExternalDomainOwnership(includeOwnership);
@@ -72,7 +75,12 @@ export function useProjectCommittedSpend(projectId: string | null | undefined, i
   const ledgerBasis = !includeOwnership || ledger.isPending || ledger.isError || ledger.data === undefined
     ? 'unavailable' as const
     : ledger.data ? 'erp' as const : 'pmo' as const;
-  return { ...query, commitmentSource, ledgerBasis, ownershipPending: ownership.isPending, ownershipError: ownership.isError };
+  // `data` stays the project-currency figure every consumer formats with the project currency; amounts in other
+  // currencies travel beside it so a consumer can say they exist instead of folding them into that figure.
+  return {
+    ...query, data: query.data?.amount, otherCurrencies: query.data?.otherCurrencies ?? NO_OTHER_CURRENCIES,
+    commitmentSource, ledgerBasis, ownershipPending: ownership.isPending, ownershipError: ownership.isError,
+  };
 }
 
 /**
@@ -83,9 +91,11 @@ export function useProjectCommittedSpend(projectId: string | null | undefined, i
 export function useProjectReservedSpend(projectId: string | null | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<number>({
+  const query = useQuery({
     queryKey: ['project-reserved-spend', orgId, projectId],
-    queryFn: () => getProjectReservedSpend(projectId as string),
+    queryFn: () => repositories.procurement.getProjectReservedSpend(projectId as string),
     enabled: Boolean(orgId && projectId),
   });
+  return { ...query, data: query.data?.amount, projectCurrency: query.data?.projectCurrency,
+    budgetCurrency: query.data?.budgetCurrency, otherCurrencies: query.data?.otherCurrencies ?? [] };
 }

@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError } from '@/src/lib/appError';
 import type { WorkOrderStatus } from '@/src/lib/db/workOrders';
 
@@ -45,6 +46,8 @@ export interface UnbilledWorkOrderRow {
   currency: string;
   remaining: number;
   daysSinceClosed: number | null;
+  /** #1640: days since a confirmed acceptance with no invoice submitted after it; null when none. */
+  daysSinceAcceptance: number | null;
   /** The client's PO on the work order, when it has one (read beside the document, for the row's label). */
   clientPoNumber: string | null;
 }
@@ -126,13 +129,27 @@ export async function listWorkOrderBilling(projectId: string): Promise<WorkOrder
  */
 async function attachBillingProblems(rows: WorkOrderBillingRow[]): Promise<void> {
   const byId = new Map(rows.map((r) => [r.workOrderId, r] as const));
-  const lines = await supabase
-    .from('work_order_billing_lines')
-    .select('record_id, work_order_id, billed, currency')
-    .in('work_order_id', [...byId.keys()]);
-  if (lines.error) return;
+  // ⚑ #1774 — paged: a work order with a long billing history has more than 1,000 lines, and the
+  // tail used to vanish silently (the row said "Can't total" without naming the cause it could not
+  // read). The view has no `id`; `record_id` is the record's own primary key (an invoice or an
+  // unraised claim — 0250 makes a raised claim appear once, as its invoice), so ordering by it is
+  // the view's total order. A failed page still leaves the row untotallable and attaches NO causes —
+  // never a partial set behind a figure the user could act on.
+  let lines: ReadonlyArray<Record<string, unknown>>;
+  try {
+    lines = await fetchAllPages<Record<string, unknown>>((from, to) =>
+      supabase
+        .from('work_order_billing_lines')
+        .select('record_id, work_order_id, billed, currency')
+        .in('work_order_id', [...byId.keys()])
+        .order('record_id', { ascending: true })
+        .range(from, to),
+    );
+  } catch {
+    return;
+  }
   const found: Array<{ wo: WorkOrderBillingRow; problem: WorkOrderBillingProblem }> = [];
-  for (const l of (lines.data ?? []) as ReadonlyArray<Record<string, unknown>>) {
+  for (const l of lines) {
     const wo = byId.get(String(l.work_order_id));
     if (!wo || typeof l.record_id !== 'string') continue;
     const currency = typeof l.currency === 'string' ? l.currency : null;
@@ -174,31 +191,43 @@ export async function getUnbilledWorkOrders(limit: number): Promise<UnbilledWork
  * the count still shows.
  */
 async function listIncompleteWorkOrders(limit: number): Promise<UnbilledIncompleteWorkOrder[]> {
-  const wos = await supabase
-    .from('work_order_billing')
-    .select('work_order_id, wo_number, title, project_id')
-    .eq('figures_complete', false)
-    .in('status', ['Issued', 'Closed'])
-    .limit(limit);
-  if (wos.error) return [];
-  const rows = (wos.data ?? []) as ReadonlyArray<Record<string, unknown>>;
-  if (rows.length === 0) return [];
-  const projects = await supabase
-    .from('projects')
-    .select('id, name')
-    .in('id', [...new Set(rows.map((r) => String(r.project_id)))])
-    .is('archived_at', null);
-  if (projects.error) return [];
-  const names = new Map(((projects.data ?? []) as ReadonlyArray<Record<string, unknown>>).map((p) => [String(p.id), String(p.name ?? '')] as const));
-  return rows
-    .filter((r) => names.has(String(r.project_id)))
-    .map((r) => ({
-      workOrderId: String(r.work_order_id),
-      woNumber: typeof r.wo_number === 'string' ? r.wo_number : null,
-      title: String(r.title ?? ''),
-      projectId: String(r.project_id),
-      projectName: names.get(String(r.project_id)) ?? '',
-    }));
+  // Archived-project rows must not use up the cap: read stable-ordered pages and keep the live ones until `limit` are found.
+  // ponytail: page cap bounds the scan; a tenant with more than PAGE * MAX_PAGES incomplete rows ahead of the live ones shows fewer.
+  const PAGE = 100;
+  const MAX_PAGES = 20;
+  const out: UnbilledIncompleteWorkOrder[] = [];
+  for (let page = 0; page < MAX_PAGES && out.length < limit; page++) {
+    const wos = await supabase
+      .from('work_order_billing')
+      .select('work_order_id, wo_number, title, project_id')
+      .eq('figures_complete', false)
+      .in('status', ['Issued', 'Closed'])
+      .order('work_order_id')
+      .range(page * PAGE, page * PAGE + PAGE - 1);
+    if (wos.error) return out;
+    const rows = (wos.data ?? []) as ReadonlyArray<Record<string, unknown>>;
+    if (rows.length === 0) break;
+    const projects = await supabase
+      .from('projects')
+      .select('id, name')
+      .in('id', [...new Set(rows.map((r) => String(r.project_id)))])
+      .is('archived_at', null);
+    if (projects.error) return out;
+    const names = new Map(((projects.data ?? []) as ReadonlyArray<Record<string, unknown>>).map((p) => [String(p.id), String(p.name ?? '')] as const));
+    for (const r of rows) {
+      if (out.length >= limit) break;
+      if (!names.has(String(r.project_id))) continue;
+      out.push({
+        workOrderId: String(r.work_order_id),
+        woNumber: typeof r.wo_number === 'string' ? r.wo_number : null,
+        title: String(r.title ?? ''),
+        projectId: String(r.project_id),
+        projectName: names.get(String(r.project_id)) ?? '',
+      });
+    }
+    if (rows.length < PAGE) break;
+  }
+  return out;
 }
 
 async function readClientPos(ids: string[]): Promise<Map<string, string>> {
@@ -239,7 +268,29 @@ export function parseUnbilledWorkOrders(data: unknown): UnbilledDocument {
         currency: text(r.currency, 'currency'),
         remaining: num(r.remaining, 'remaining'),
         daysSinceClosed: r.days_since_closed == null ? null : num(r.days_since_closed, 'days_since_closed'),
+        daysSinceAcceptance: r.days_since_acceptance == null ? null : num(r.days_since_acceptance, 'days_since_acceptance'),
       };
     }),
   };
+}
+
+/** #1640 FR-WOMS-020: days since a work order's acceptance with no invoice yet (view work_order_uninvoiced_acceptance). */
+export interface WorkOrderAcceptanceAge { workOrderId: string; anchorDate: string; days: number }
+
+export async function listWorkOrderAcceptanceAge(projectId: string): Promise<WorkOrderAcceptanceAge[]> {
+  const { data, error } = await supabase
+    .from('work_order_uninvoiced_acceptance')
+    .select('work_order_id, anchor_date, days')
+    .eq('project_id', projectId)
+    .limit(WORK_ORDER_BILLING_ROW_LIMIT + 1);
+  if (error) throw new AppError(error.message, error.code);
+  const rows: ReadonlyArray<Record<string, unknown>> = data ?? [];
+  if (rows.length > WORK_ORDER_BILLING_ROW_LIMIT) {
+    throw new AppError(`This project has more than ${WORK_ORDER_BILLING_ROW_LIMIT} work orders; billing cannot be shown in one view.`, 'too-many-work-orders');
+  }
+  return rows.map((r) => ({
+    workOrderId: text(r.work_order_id, 'work_order_id'),
+    anchorDate: text(r.anchor_date, 'anchor_date'),
+    days: num(r.days, 'days'),
+  }));
 }

@@ -1,4 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { toAppError } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { TimesheetRow, TimesheetWithEntries } from './timesheets';
 
@@ -17,31 +19,10 @@ export type TimesheetAwaitingApproval = TimesheetWithEntries & {
 };
 
 // ---------------------------------------------------------------------------
-// Transition map (OD-TS-2 config seam — single TS source, mirrors the SQL
-// literal inside transition_timesheet(), AC-900, FR-TS-001)
+// Transition map — ENFORCED by the security-definer RPC transition_timesheet
+// (0180 body, map literal from 0161). The owning acceptance proof is pgTAP —
+// supabase/tests/timesheet_transition_map.test.sql (AC-900, FR-TS-001).
 // ---------------------------------------------------------------------------
-
-export const LEGAL_TIMESHEET_TRANSITIONS: Record<string, string[]> = {
-  Draft:     ['Submitted'],
-  Submitted: ['Approved', 'Rejected'],
-  Rejected:  ['Draft'],
-  // Slice A (FR-TSC-001): `Approved` is no longer terminal — an approver may re-open an Approved
-  // sheet with no confirmed ERP document (the RPC's race-safe precondition gates the live-doc case).
-  Approved:  ['Draft'],
-};
-
-/**
- * Returns true when (from → to) is in the legal transition map (AC-900, FR-TS-001).
- * Pure function; mirrors the map literal in transition_timesheet().
- */
-export function isLegalTimesheetTransition(
-  from: TimesheetStatus,
-  to: TimesheetStatus,
-): boolean {
-  const allowed = LEGAL_TIMESHEET_TRANSITIONS[from as string];
-  if (!allowed) return false;
-  return allowed.includes(to as string);
-}
 
 // ---------------------------------------------------------------------------
 // Cosmetic action-gate helper (AC-901, FR-TS-004/005)
@@ -84,7 +65,7 @@ export async function submitTimesheet(id: string): Promise<void> {
     p_to: 'Submitted',
 
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 /**
@@ -97,7 +78,7 @@ export async function approveTimesheet(id: string, notes?: string): Promise<void
     p_to: 'Approved',
     p_notes: notes,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 /**
@@ -111,11 +92,11 @@ export async function rejectTimesheet(id: string, notes?: string): Promise<void>
     // Regenerated RPC arg types encode optionals as `string | undefined` — omit, never null.
     p_notes: notes,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 /**
- * Reopens a Rejected timesheet back to Draft (AC-W3-B1, LEGAL_TIMESHEET_TRANSITIONS Rejected→Draft).
+ * Reopens a Rejected timesheet back to Draft (AC-W3-B1; the RPC's Rejected→Draft map edge).
  * Single-click routine reversible step — no confirm dialog (OD-UX-1).
  * org_id is NEVER sent (AC-902, FR-TS-009/010).
  */
@@ -124,23 +105,7 @@ export async function reopenTimesheet(id: string): Promise<void> {
     p_timesheet_id: id,
     p_to: 'Draft',
   });
-  if (error) throw new Error(error.message);
-}
-
-/**
- * Slice A (AC-TSC-012, FR-TSC-060) — re-opens an APPROVED timesheet to Draft. A PURE PMO transition:
- * it issues ONLY `transition_timesheet(id,'Draft')` and NO adapter/push/repositories call of any kind.
- * The security-definer RPC enforces the approver-authority + the race-safe precondition (no live ERP
- * doc, no in-flight push) server-side; org_id is NEVER sent (the RPC re-asserts org from auth context).
- * A refusal (P0001 reopen-erp-document-held / reopen-push-in-flight) is surfaced to the caller — it is
- * correct behaviour and Slice B's entry point, not an error to swallow.
- */
-export async function reopenApprovedTimesheet(id: string): Promise<void> {
-  const { error } = await supabase.rpc('transition_timesheet', {
-    p_timesheet_id: id,
-    p_to: 'Draft',
-  });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 /**
@@ -159,15 +124,22 @@ export async function attestTimesheetNoErpDocument(id: string, reason: string): 
     p_timesheet_id: id,
     p_reason: reason,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 // ---------------------------------------------------------------------------
 // DAL read — timesheets awaiting approval (AC-903, FR-TS-011)
 // ---------------------------------------------------------------------------
 
+function canDecideTimesheet(sheet: TimesheetAwaitingApproval, selfId: string, role: TimesheetApprovalViewerRole | null): boolean {
+  return sheet.user_id !== selfId && sheet.owner !== null && (
+    sheet.owner.manager_id === selfId || role === 'Admin' ||
+    (role === 'Executive' && sheet.owner.manager_id === null)
+  );
+}
+
 const AWAITING_SELECT =
-  '*, owner:profiles!timesheets_user_id_fkey(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,code))';
+  '*, owner:profiles!timesheets_user_id_fkey!inner(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,short_name,code))';
 
 /**
  * Returns Submitted timesheets visible to the caller (via RLS) excluding their own (SoD).
@@ -178,23 +150,26 @@ export async function listTimesheetsAwaitingApproval(
   selfId: string,
   viewerRole: TimesheetApprovalViewerRole | null,
 ): Promise<TimesheetAwaitingApproval[]> {
-  const { data, error } = await supabase
-    .from('timesheets')
-    .select(AWAITING_SELECT)
-    .eq('status', 'Submitted')
-    .neq('user_id', selfId)
-    .order('week_start_date', { ascending: false });
-  if (error) throw new Error(error.message);
+  // Complete keyset scan: the manager/role filter is applied server-side (inner owner embed), and the
+  // scan is unbounded by db-max-rows so no eligible sheet is hidden behind a capped first response.
+  const data = await fetchAllRowsByKeyset<TimesheetAwaitingApproval>(async (afterId, limit) => {
+    let query = supabase
+      .from('timesheets')
+      .select(AWAITING_SELECT)
+      .eq('status', 'Submitted')
+      .neq('user_id', selfId)
+      .order('id', { ascending: true });
+    if (afterId !== null) query = query.gt('id', afterId);
+    if (viewerRole === 'Executive') query = query.or(`manager_id.eq.${selfId},manager_id.is.null`, { referencedTable: 'owner' });
+    else if (viewerRole !== 'Admin') query = query.eq('owner.manager_id', selfId);
+    const res = await query.limit(limit);
+    return { data: res.data as unknown as TimesheetAwaitingApproval[] | null, error: res.error };
+  });
+  data.sort((a, b) => b.week_start_date.localeCompare(a.week_start_date) || a.id.localeCompare(b.id));
   // Mirror the RPC's approve authority locally so the queue never advertises an action the server
   // will reject. A missing owner join fails closed rather than being treated as a null manager.
-  const approvable = ((data ?? []) as unknown as TimesheetAwaitingApproval[]).filter(sheet =>
-    sheet.user_id !== selfId &&
-    sheet.owner !== null &&
-    (
-      sheet.owner.manager_id === selfId ||
-      viewerRole === 'Admin' ||
-      (viewerRole === 'Executive' && sheet.owner.manager_id === null)
-    )
+  const approvable = data.filter(sheet =>
+    canDecideTimesheet(sheet, selfId, viewerRole)
   );
   // Normalise entry hours to number at the data boundary (mirrors listTimesheets).
   return approvable.map(sheet => ({
@@ -262,25 +237,26 @@ export type ReopenableApprovedTimesheet = TimesheetAwaitingApproval & {
 };
 
 const REOPENABLE_SELECT =
-  '*, owner:profiles!timesheets_user_id_fkey(full_name), entries:timesheet_entries(*, project:projects(name,code)), mirror:timesheet_erp_mirror!timesheet_erp_mirror_timesheet_id_fkey(ts_number, push_state, erp_cancelled_at, post_submit_unknown_at)';
+  '*, owner:profiles!timesheets_user_id_fkey!inner(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,short_name,code)), mirror:timesheet_erp_mirror!timesheet_erp_mirror_timesheet_id_fkey(ts_number, push_state, erp_cancelled_at, post_submit_unknown_at)';
 
 /**
  * Slice A (FR-TSC-060 / F5) — the Approved sheets an approver may consider re-opening: other users'
  * Approved sheets, joined to their ERP mirror so the surface can tell an UN-PUSHED sheet (re-openable
  * now) from a PUSHED one (honest "already in ERP — correction path coming" note). `timesheets_select`
- * RLS (0007 A2 manager-of clause) + `timesheet_erp_mirror_select` RLS (0136) scope both halves; this
- * fn adds none of its own (RBAC-transparent, matching the other timesheet read hooks). org_id is
- * NEVER sent.
+ * RLS (0007 A2 manager-of clause) + `timesheet_erp_mirror_select` RLS (0136) scope both halves.
+ * The query narrows those reads to the same record-level authority as the transition RPC. org_id
+ * is NEVER sent.
  */
 export async function listReopenableApprovedTimesheets(
   selfId: string,
+  viewerRole: TimesheetApprovalViewerRole | null,
 ): Promise<ReopenableApprovedTimesheet[]> {
   // ⚑ S4 — BOUNDED. The window is served by `timesheets_org_status_week_idx` (status + week_start_date
   // DESC), so this is an index range scan rather than a growing seq scan, and the page limit caps both
   // the payload and the `in` list built from it below. A week older than the window is not offered here;
   // it is not lost (the RPC still governs), it is simply out of the correction surface's scope.
   const windowStart = new Date(Date.now() - REOPENABLE_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
-  const { data, error } = await supabase
+  let query = supabase
     .from('timesheets')
     .select(REOPENABLE_SELECT)
     .eq('status', 'Approved')
@@ -288,8 +264,11 @@ export async function listReopenableApprovedTimesheets(
     .gte('week_start_date', windowStart)
     .order('week_start_date', { ascending: false })
     .limit(REOPENABLE_PAGE_LIMIT);
+  if (viewerRole === 'Executive') query = query.or(`manager_id.eq.${selfId},manager_id.is.null`, { referencedTable: 'owner' });
+  else if (viewerRole !== 'Admin') query = query.eq('owner.manager_id', selfId);
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
-  const sheets = (data ?? []) as unknown as ReopenableApprovedTimesheet[];
+  const sheets = ((data ?? []) as unknown as ReopenableApprovedTimesheet[]).filter(sheet => canDecideTimesheet(sheet, selfId, viewerRole));
   if (sheets.length === 0) return [];
 
   // The in-flight half. `external_command_outbox_select` (0096) already grants an active org member

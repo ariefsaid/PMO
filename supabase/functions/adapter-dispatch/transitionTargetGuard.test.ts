@@ -23,6 +23,7 @@ import {
   isOpaqueIdempotencyKey,
   type GuardLookupClient,
 } from './transitionTargetGuard.ts';
+import { budgetAccountArchiveKey, budgetAccountIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 
 /** Fake service-role client over the two tables the guards read: `external_refs` (the PMO→ERP
  *  mapping) and `external_command_outbox` (this command's own in-flight row, for the retry
@@ -387,6 +388,14 @@ Deno.test('FR-TSP-041: the DETERMINISTIC Posture-B key is accepted as opaque; a 
   assert(!isOpaqueIdempotencyKey('ts:3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f:%'), 'a LIKE metacharacter must not pass');
   assert(!isOpaqueIdempotencyKey('ts:3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f:2026-01-12T03:04:05Z_'), 'a LIKE metacharacter must not pass');
   assert(!isOpaqueIdempotencyKey('ts:3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f'), 'the state stamp is not optional');
+});
+
+Deno.test('FR-BUD-122: archive cancellation has a valid, distinct v16 outbox key', () => {
+  const identity = budgetAccountIdentity('3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f', '2026', 'Labor');
+  const key = budgetAccountArchiveKey(identity, '2026-10-15T10:00:00Z');
+
+  assert(isOpaqueIdempotencyKey(key), 'the operator-requested archive cancellation key must pass the served key guard');
+  assert(!isOpaqueIdempotencyKey(`bud16-archive:${identity}:01x`), 'a malformed archive key must fail closed');
 });
 
 // ── P3c — the `budget` domain must be GUARDED, not vacuously OK ───────────────────────────────────

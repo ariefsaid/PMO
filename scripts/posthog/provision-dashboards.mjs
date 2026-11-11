@@ -18,6 +18,9 @@
  * already exists (delete the insight in the UI to force a rebuild). Fine for provisioning.
  */
 
+import { SPEC } from './dashboardSpec.mjs';
+import { provision } from './provision.mjs';
+
 const HOST = (process.env.POSTHOG_HOST || 'https://us.i.posthog.com').replace(/\/$/, '');
 const KEY = process.env.POSTHOG_API_KEY;
 const PID = process.env.POSTHOG_PROJECT_ID;
@@ -58,208 +61,17 @@ async function listAll(path) {
   return out;
 }
 
-// ── Query builders (HogQL InsightVizNode — verified shapes) ────────────────────
-const DATE_FROM = '-30d';
 
-function trend(series, { breakdown, interval = 'day', display } = {}) {
-  return {
-    kind: 'InsightVizNode',
-    source: {
-      kind: 'TrendsQuery',
-      dateRange: { date_from: DATE_FROM },
-      interval,
-      series: series.map((s) => ({
-        kind: 'EventsNode',
-        event: s.event,
-        name: s.label || s.event,
-        math: s.math || 'total',
-        ...(s.mathProperty ? { math_property: s.mathProperty } : {}),
-      })),
-      ...(breakdown
-        ? { breakdownFilter: { breakdown_type: 'event', breakdown } }
-        : {}),
-      trendsFilter: display ? { display } : {},
-    },
-  };
-}
-
-function funnel(events, { interval = 'day' } = {}) {
-  return {
-    kind: 'InsightVizNode',
-    source: {
-      kind: 'FunnelsQuery',
-      dateRange: { date_from: DATE_FROM },
-      interval,
-      series: events.map((e) => ({ kind: 'EventsNode', event: e, name: e })),
-      funnelsFilter: {},
-    },
-  };
-}
-
-// ── The dashboard spec (name → tiles) ──────────────────────────────────────────
-const NS = '[PMO]'; // name prefix so provisioned objects are greppable + upsert-keyed
-const SPEC = [
-  {
-    dashboard: `${NS} Agent · Adoption & Reliability`,
-    description: 'Agent panel usage, run outcomes, approval funnel, latency. Source: agent_* events.',
-    insights: [
-      { name: `${NS} Agent panel opens (daily)`, query: trend([{ event: 'agent_panel_opened' }]) },
-      {
-        name: `${NS} Agent runs — started / completed / errored`,
-        query: trend([
-          { event: 'agent_run_started', label: 'started' },
-          { event: 'agent_run_completed', label: 'completed' },
-          { event: 'agent_run_errored', label: 'errored' },
-        ]),
-      },
-      {
-        name: `${NS} Agent run errors by code`,
-        query: trend([{ event: 'agent_run_errored' }], { breakdown: 'error_code', display: 'ActionsBarValue' }),
-      },
-      {
-        name: `${NS} Agent approval funnel (shown → decided)`,
-        query: funnel(['agent_approval_shown', 'agent_approval_decided']),
-      },
-      {
-        name: `${NS} Agent approval decisions (approved / denied)`,
-        query: trend([{ event: 'agent_approval_decided' }], { breakdown: 'decision', display: 'ActionsBarValue' }),
-      },
-      {
-        name: `${NS} Agent run latency — avg duration_ms`,
-        query: trend([{ event: 'agent_run_completed', label: 'avg ms', math: 'avg', mathProperty: 'duration_ms' }]),
-      },
-      {
-        name: `${NS} Agent tool rounds — avg`,
-        query: trend([{ event: 'agent_run_completed', label: 'avg rounds', math: 'avg', mathProperty: 'tool_round_count' }]),
-      },
-      {
-        name: `${NS} Agent feedback by rating`,
-        query: trend([{ event: 'agent_feedback_rated' }], { breakdown: 'rating', display: 'ActionsBarValue' }),
-      },
-      { name: `${NS} Agent threads resumed`, query: trend([{ event: 'agent_thread_resumed' }]) },
-    ],
-  },
-  {
-    dashboard: `${NS} Auth · Login Health`,
-    description: 'Login success/failure, failure reasons, logout. Source: auth_* events.',
-    insights: [
-      {
-        name: `${NS} Logins — success vs failed`,
-        query: trend([
-          { event: 'auth_login_succeeded', label: 'succeeded' },
-          { event: 'auth_login_failed', label: 'failed' },
-        ]),
-      },
-      {
-        name: `${NS} Login failures by reason`,
-        query: trend([{ event: 'auth_login_failed' }], { breakdown: 'reason_code', display: 'ActionsBarValue' }),
-      },
-      { name: `${NS} Logouts`, query: trend([{ event: 'auth_logout_succeeded' }]) },
-    ],
-  },
-  {
-    dashboard: `${NS} Product · Usage & Friction`,
-    description: 'Navigation, detail opens, search/filter, and friction (validation/save/permission). Source: product events.',
-    insights: [
-      {
-        name: `${NS} Top routes viewed`,
-        query: trend([{ event: 'app_route_viewed' }], { breakdown: 'route', display: 'ActionsBarValue' }),
-      },
-      {
-        name: `${NS} Detail opens — project vs procurement`,
-        query: trend([
-          { event: 'project_detail_opened', label: 'project' },
-          { event: 'procurement_detail_opened', label: 'procurement' },
-        ]),
-      },
-      {
-        name: `${NS} Search & filter usage`,
-        query: trend([
-          { event: 'search_used', label: 'search' },
-          { event: 'filter_applied', label: 'filter' },
-        ]),
-      },
-      {
-        name: `${NS} Empty states seen by module`,
-        query: trend([{ event: 'empty_state_seen' }], { breakdown: 'module', display: 'ActionsBarValue' }),
-      },
-      {
-        name: `${NS} Save failures by reason`,
-        query: trend([{ event: 'save_failed' }], { breakdown: 'reason_code', display: 'ActionsBarValue' }),
-      },
-      {
-        name: `${NS} Form validation failures by module`,
-        query: trend([{ event: 'form_validation_failed' }], { breakdown: 'module', display: 'ActionsBarValue' }),
-      },
-    ],
-  },
-  {
-    dashboard: `${NS} Demo · Prospect Funnel`,
-    description:
-      'Land -> persona selected -> login -> first module opened. Source: demo_persona_selected, ' +
-      'auth_login_succeeded, app_route_viewed, coming_soon_clicked (FR-PHG-020/021).',
-    insights: [
-      {
-        name: `${NS} Demo funnel — persona -> login -> module`,
-        query: funnel(['demo_persona_selected', 'auth_login_succeeded', 'app_route_viewed']),
-      },
-      {
-        name: `${NS} Demo personas chosen`,
-        query: trend([{ event: 'demo_persona_selected' }], { breakdown: 'persona_role', display: 'ActionsBarValue' }),
-      },
-      {
-        name: `${NS} Demo — first modules opened`,
-        query: trend([{ event: 'app_route_viewed' }], { breakdown: 'route', display: 'ActionsBarValue' }),
-      },
-      {
-        name: `${NS} Coming-soon demand by feature`,
-        query: trend([{ event: 'coming_soon_clicked' }], { breakdown: 'feature_id', display: 'ActionsBarValue' }),
-      },
-    ],
-  },
-];
-
-// ── Upsert ─────────────────────────────────────────────────────────────────────
 async function main() {
-  const dashboards = await listAll('/dashboards/?limit=100');
-  const insights = await listAll('/insights/?limit=500');
-  const dashByName = new Map(dashboards.filter((d) => !d.deleted).map((d) => [d.name, d]));
-  const insByName = new Map(insights.filter((i) => !i.deleted).map((i) => [i.name, i]));
-
-  let created = { dashboards: 0, insights: 0 };
-  let skipped = { dashboards: 0, insights: 0 };
-  // Every `[PMO]` insight this run touched (created OR already-existing) — refreshed
-  // below so a freshly-provisioned dashboard never renders blank tiles (root-cause
-  // fix: an upserted insight's `result` stays null until something computes it).
-  const provisionedIds = [];
-
-  for (const spec of SPEC) {
-    let dash = dashByName.get(spec.dashboard);
-    if (!dash) {
-      dash = await api('POST', '/dashboards/', { name: spec.dashboard, description: spec.description });
-      created.dashboards++;
-      console.log(`+ dashboard  ${spec.dashboard}  (id ${dash.id})`);
-    } else {
-      skipped.dashboards++;
-      console.log(`= dashboard  ${spec.dashboard}  (id ${dash.id}, exists)`);
-    }
-
-    for (const ins of spec.insights) {
-      const existing = insByName.get(ins.name);
-      if (existing) {
-        skipped.insights++;
-        provisionedIds.push(existing.id);
-        console.log(`  = insight  ${ins.name}  (exists)`);
-        continue;
-      }
-      const body = { name: ins.name, query: ins.query, dashboards: [dash.id] };
-      const made = await api('POST', '/insights/', body);
-      insByName.set(ins.name, made);
-      created.insights++;
-      provisionedIds.push(made.id);
-      console.log(`  + insight  ${ins.name}  (id ${made.id})`);
-    }
-  }
+  const io = {
+    listDashboards: () => listAll('/dashboards/?limit=100'),
+    listInsights: () => listAll('/insights/?limit=500'),
+    createDashboard: (b) => api('POST', '/dashboards/', b),
+    createInsight: (b) => api('POST', '/insights/', b),
+    refreshInsight: (id) => api('GET', `/insights/${id}/?refresh=blocking`),
+    log: (m) => console.log(m),
+  };
+  const { created, skipped, provisionedIds } = await provision(SPEC, io);
 
   console.log(
     `\nDone. dashboards: +${created.dashboards}/=${skipped.dashboards}  ` +
@@ -271,7 +83,7 @@ async function main() {
   // open it (PostHog only computes on-demand by default).
   let refreshed = 0;
   for (const id of provisionedIds) {
-    await api('GET', `/insights/${id}/?refresh=blocking`);
+    await io.refreshInsight(id);
     refreshed++;
   }
   console.log(`refreshed ${refreshed} insights`);

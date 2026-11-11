@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
+import { useTextSize, type TextSize } from '@/src/hooks/useTextSize';
 import { profilePreferencesRepository } from '@/src/lib/repositories/profilePreferences';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useOrgLocaleDefaults, useResolvedLocale } from '@/src/hooks/useResolvedLocale';
@@ -12,7 +13,8 @@ import { Button, Combobox, SelectField, type ComboboxOption } from '@/src/compon
 type LocaleChoice = 'inherit' | 'id' | 'en';
 type NumberLocaleChoice = 'inherit' | 'id-ID' | 'en-US';
 type TimezoneChoice = 'inherit' | string;
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+/** `stale` = the write landed but the session refresh failed — saved, not errored. */
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'stale' | 'error';
 
 function toLocaleChoice(locale: string | null | undefined): LocaleChoice {
   if (locale === 'id' || locale === 'en') return locale;
@@ -41,8 +43,9 @@ function numberExample(numberLocale: string): string {
  * three stored values are written together, then the signed-in profile is refreshed before success
  * is announced so the same-session formatters and language provider see the saved values.
  */
-export const ProfileSettings: React.FC = () => {
+const ProfileSettings: React.FC = () => {
   const { t } = useTranslation();
+  const { textSize, setTextSize } = useTextSize();
   const { currentUser, refreshCurrentUser } = useAuth();
   const resolvedLocale = useResolvedLocale();
   const orgDefaults = useOrgLocaleDefaults();
@@ -53,6 +56,7 @@ export const ProfileSettings: React.FC = () => {
   const [timezoneChoice, setTimezoneChoice] = useState<TimezoneChoice>(toTimezoneChoice(currentUser?.timezone));
   const [status, setStatus] = useState<SaveStatus>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [refreshBusy, setRefreshBusy] = useState(false);
 
   useEffect(() => setLanguageChoice(toLocaleChoice(currentUser?.locale)), [currentUser?.locale]);
   useEffect(() => setNumberChoice(toNumberLocaleChoice(currentUser?.number_locale)), [currentUser?.number_locale]);
@@ -144,6 +148,16 @@ export const ProfileSettings: React.FC = () => {
     setErrorMsg(null);
   };
 
+  // Re-run only the session refresh after a successful write: the preferences are already
+  // stored, so this retry never re-writes them.
+  const retryProfileRefresh = async () => {
+    if (refreshBusy) return;
+    setRefreshBusy(true);
+    const { error } = await refreshCurrentUser();
+    setRefreshBusy(false);
+    if (!error) setStatus('saved');
+  };
+
   const handleSave = async () => {
     if (isSaving) return;
     if (timezoneChoice !== 'inherit' && !isValidTimeZone(timezoneChoice)) {
@@ -161,14 +175,21 @@ export const ProfileSettings: React.FC = () => {
     };
     try {
       await profilePreferencesRepository.setLocalePreferences(currentUser.id, preferences);
-      const { error } = await refreshCurrentUser();
-      if (error) throw new Error(error);
-      setStatus('saved');
     } catch (error) {
       classifyMutationError(error);
       setErrorMsg(t('profileSettings.error', 'Could not save your preferences. Please try again.'));
       setStatus('error');
+      return;
     }
+    // The write LANDED. Refreshing the signed-in profile is a separate step: when it fails the
+    // preferences are still stored (they apply on the next session), so that outcome is reported
+    // as saved-with-stale-session — never as a failed save — with a scoped refresh retry.
+    const { error: refreshError } = await refreshCurrentUser();
+    if (refreshError) {
+      setStatus('stale');
+      return;
+    }
+    setStatus('saved');
   };
 
   return (
@@ -221,6 +242,17 @@ export const ProfileSettings: React.FC = () => {
             </p>
           </div>
 
+          <div>
+            <SelectField label={t('profilePreferences:textSize.label', 'Text size')}
+              value={textSize} onChange={(value) => setTextSize(value as TextSize)}
+              options={[
+                { value: 'default', label: t('profilePreferences:textSize.default', 'Default') },
+                { value: 'large', label: t('profilePreferences:textSize.large', 'Large') },
+                { value: 'larger', label: t('profilePreferences:textSize.larger', 'Larger') },
+              ]}
+              helper={t('profilePreferences:textSize.help', 'Applied immediately on this device.')} fullWidth />
+          </div>
+
           <div className="sm:col-span-2">
             <Combobox
               label={t('profileSettings.timezone.label', 'Timezone')}
@@ -263,6 +295,28 @@ export const ProfileSettings: React.FC = () => {
           <p role="status" className="mt-3 text-[13px] font-medium text-foreground">
             {t('profileSettings.saved', 'Preferences saved')}
           </p>
+        )}
+        {status === 'stale' && (
+          <div className="mt-3 space-y-2">
+            <p role="status" className="text-[13px] font-medium text-foreground">
+              {t('profileSettings.saved', 'Preferences saved')}
+            </p>
+            <p role="alert" className="text-[13px] leading-[1.5] text-muted-foreground">
+              {t(
+                'profileSettings.staleRefresh',
+                'Refreshing this session failed — your choices are stored and will apply on your next sign-in.',
+              )}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              loading={refreshBusy}
+              onClick={() => void retryProfileRefresh()}
+            >
+              {t('profileSettings.refreshRetry', 'Retry refresh')}
+            </Button>
+          </div>
         )}
         {status === 'error' && errorMsg && (
           <p role="alert" className="mt-3 text-[13px] font-medium text-destructive-text">

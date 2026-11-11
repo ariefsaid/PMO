@@ -12,21 +12,18 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   size?: ButtonSize;
   /** Renders a spinner, sets aria-busy, and disables the button. */
   loading?: boolean;
-  /** 32px square icon button. Requires an aria-label for a11y. */
+  /** Compact square icon button. Requires an aria-label for a11y. */
   iconOnly?: boolean;
 }
 
 const Spinner: React.FC = () => (
-  <svg
-    data-testid="button-spinner"
-    className="size-4 animate-spin"
-    viewBox="0 0 24 24"
-    fill="none"
-    aria-hidden="true"
-  >
-    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
-    <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-  </svg>
+  // swap-in on a wrapper: the unlayered .icon-swap-in animation would override animate-spin on the svg.
+  <span className="icon-swap-in inline-flex">
+    <svg data-testid="button-spinner" className="size-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  </span>
 );
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(

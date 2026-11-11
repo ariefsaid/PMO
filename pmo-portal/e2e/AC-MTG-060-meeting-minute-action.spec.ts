@@ -193,7 +193,13 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     // ── 8. …and the term-less list still shows it, newest-first (FR-MTG-028/035): this
     //       meeting was created moments ago, so it outranks every seeded row. ──────────────
     await page.getByLabel('Search meetings').fill('');
-    const firstRow = page.getByRole('table').locator('tbody tr').first();
-    await expect(firstRow.getByText(meetingTitle)).toBeVisible({ timeout: 15_000 });
+    //    Parallel specs also create meetings, so "first row" is not ours alone: assert the claim itself,
+    //    that this fresh meeting sorts above the seeded (older) one.
+    const rows = page.getByRole('table').locator('tbody tr');
+    await expect(rows.filter({ hasText: meetingTitle })).toHaveCount(1, { timeout: 15_000 });
+    const titles = await rows.allInnerTexts();
+    const own = titles.findIndex((t) => t.includes(meetingTitle));
+    const seeded = titles.findIndex((t) => t.includes('Meridian PV — weekly site coordination'));
+    expect(seeded === -1 || own < seeded).toBe(true);
   });
 });

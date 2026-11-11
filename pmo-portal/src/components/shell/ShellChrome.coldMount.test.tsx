@@ -32,7 +32,10 @@ vi.mock('@/src/lib/db/dashboard', async (orig) => ({
   getSalesPipeline: dal.getSalesPipeline,
 }));
 vi.mock('@/src/lib/repositories', () => ({
-  repositories: { company: dal, contact: dal, incident: dal, meeting: dal, project: dal },
+  repositories: {
+    company: dal, contact: dal, incident: dal, meeting: dal, project: dal,
+    notification: { unreadCount: async () => 0, listPage: async () => ({ rows: [], nextCursor: null }), markRead: async () => {} },
+  },
 }));
 
 import { ShellChrome } from '@/App';
@@ -57,5 +60,7 @@ describe('ShellChrome cold mount (AC-OVERFETCH-001)', () => {
     for (const fn of [dal.listProjects, dal.listProcurements, dal.getSalesPipeline, dal.list]) {
       expect(fn).not.toHaveBeenCalled();
     }
+    // The /projects/p1 route lazy-loads page chunks; let them finish before the environment tears down.
+    await vi.dynamicImportSettled();
   });
 });

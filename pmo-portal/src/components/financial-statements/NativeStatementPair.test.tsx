@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'jest-axe';
+import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FinancialStatementsSection } from './FinancialStatementsSection';
@@ -360,7 +361,7 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
     expect(cellsOf(rowFor(table, '^Income$'))).toEqual(['1,500.00', '1,000.00']);
   });
 
-  it('keeps an empty period local: no-activity for that period, the other period still reachable', () => {
+  it('AC-008 support: keeps an empty period local: no-activity for that period, the other period still reachable', () => {
     renderPair(pairWithUnusableAccountUnion([], priorRows));
     expect(screen.getByText(labels.noActivity)).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
@@ -413,7 +414,7 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
     expect(profit.querySelector('td')).toHaveClass('border-double');
   });
 
-  it('states the balance sheet as-at date once, in its heading', () => {
+  it('AC-008 support: states the balance sheet as-at date once, in its heading', () => {
     renderPair(plPair('Balance Sheet'), 'Balance sheet');
     const table = screen.getByRole('table', { name: /Balance sheet/ });
     expect(table).toHaveAccessibleName(/As at Sep 30, 2026/);
@@ -429,6 +430,12 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
     expect(cellsOf(rowFor(screen.getByRole('table'), 'Service revenue'))).toEqual(['1,500.00', '—']);
   });
 
+  it('AC-008 support: two empty trial balances retain no-activity without a level-three heading', () => {
+    renderPair(pairWithUnusableAccountUnion([], []));
+    expect(screen.getByText(labels.noActivity)).toBeVisible();
+    expect(screen.queryByRole('heading', { level: 3 })).not.toBeInTheDocument();
+  });
+
   it('shows the no-activity state when both comparison periods are empty', () => {
     renderPair({
       current: report('current', [], { reportName: 'Balance Sheet', columns: plColumns }),
@@ -438,7 +445,7 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
-  it('composes inside the section without replacing its capture time or delayed note', () => {
+  it('AC-008 support: composes inside the section without replacing its capture time or delayed note', () => {
     render(
       <FinancialStatementsSection
         title="Financial statements"

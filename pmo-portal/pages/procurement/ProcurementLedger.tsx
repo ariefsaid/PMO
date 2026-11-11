@@ -36,7 +36,11 @@ import { EfakturCell } from '@/src/components/EfakturCell';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
 import { LedgerFileCell } from './LedgerFileCell';
 import { WithholdingBreakdown } from './WithholdingBreakdown';
-import type { RecordKind } from './RecordCaptureForm';
+import { OdooOutcome } from '@/src/components/procurement/OdooOutcome';
+import { odooOutcome } from '@/src/lib/procurement/odooOutcome';
+import type { RecordKind, StagedRecord } from './RecordCaptureForm';
+import type { TFunction } from 'i18next';
+import type { ProcurementGates } from '@/src/lib/db/orgs';
 import { useProcurementRecordMutations } from '@/src/hooks/useProcurementRecords';
 import { usePermission } from '@/src/auth/usePermission';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
@@ -48,7 +52,6 @@ import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { useVendorWithholdingCoverage } from '@/src/hooks/useVendorWithholdingSlips';
 import { VendorWithholdingSlipCell } from './VendorWithholdingSlipCell';
-import type { BillRow } from '@/src/lib/db/vendorWithholdingSlips';
 import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
 import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 
@@ -108,6 +111,26 @@ const GroupRefHeader: React.FC = () => {
 const EfakturHeader: React.FC = () => {
   const { t } = useTranslation();
   return <>{t('efaktur.column', 'e-Faktur')}</>;
+};
+
+/** #1505 P8: the record's own status, then what Odoo last said about it and, for a receipt, the quantity Odoo booked (FR-OPP-034/090). */
+const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
+  const { t } = useTranslation(['common', 'procurement']);
+  const facts = row.odoo!;
+  const outcome = odooOutcome({ erpState: facts.erpState, erpAttention: facts.erpAttention, erpReadAt: facts.erpReadAt });
+  return (
+    <div className="inline-flex flex-col items-start gap-1">
+      <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>
+      {outcome && <OdooOutcome outcome={outcome} quiet />}
+      {facts.paymentView === 'awaiting-odoo' && <span data-testid="odoo-payment-awaiting" className="text-[12px] text-muted-foreground">{t('procurement:odoo.paymentAwaiting', 'Payment sent, awaiting Odoo')}</span>}
+      {facts.booked !== null && (
+        <span data-testid="odoo-quantities" className="text-[12px] text-muted-foreground tabular-nums">
+          {t('procurement:odoo.booked', 'Received in Odoo: {{qty}}', { qty: facts.booked })}
+          {facts.entered !== null && facts.entered !== facts.booked ? ` · ${t('procurement:odoo.entered', 'entered {{qty}}', { qty: facts.entered })}` : ''}
+        </span>
+      )}
+    </div>
+  );
 };
 
 const STATIC_COLUMNS: Column<LedgerRow>[] = [
@@ -172,9 +195,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'status',
     header: <LedgerHeader translationKey="procurementLedger.status" fallback="Status" />,
-    cell: (row) => (
-      <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>
-    ),
+    cell: (row) => (row.odoo ? <OdooRowStatus row={row} /> : <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>),
   },
 ];
 
@@ -193,6 +214,21 @@ const FILTERED_EMPTY_SUB: Record<LedgerFilter, string> = {
   financial: 'Clear the filter to see all records.',
   'has-file': 'Clear the filter to see all records.',
 };
+
+/** The empty ledger says what to do for THIS status, not a generic "capture the first record below". */
+function ledgerEmptyCopy(status: string, canApprove: boolean, t: TFunction): { title: string; sub: string } | null {
+  const title = t('procurement:ledger.emptyTitle', 'No documents yet');
+  if (status === 'Requested') {
+    return { title, sub: canApprove
+      ? t('procurement:ledger.approveToStart', 'Approve to start recording documents.')
+      : t('procurement:ledger.waitingApproval', 'Waiting for approval.') };
+  }
+  if (status === 'Draft') return { title, sub: t('procurement:ledger.recordFirst', 'Record the first document below.') };
+  if (status === 'Paid' || status === 'Cancelled' || status === 'Rejected') {
+    return { title, sub: t('procurement:ledger.nothingRecorded', 'Nothing was recorded for this purchase.') };
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Props
@@ -217,11 +253,7 @@ export interface ProcurementLedgerProps {
   efakturSaving?: boolean;
   /** Invoice rows for the payment predecessor-FK dropdown ([PD-5]). */
   invoices?: ProcurementInvoiceRow[];
-  withholdingCoverage?: Record<string, BillRow>;
-  withholdingCoverageLoading?: boolean;
-  withholdingCoverageError?: boolean;
   canWriteWithholdingSlip?: boolean;
-  onRetryWithholdingCoverage?: () => void;
   onRecordWithholdingSlip?: (invoice: ProcurementInvoiceRow) => void;
   vendorMissing?: boolean;
   onSetVendor?: () => void;
@@ -231,13 +263,27 @@ export interface ProcurementLedgerProps {
   targetInvoiceId?: string;
   /** Current user is the case approver; server SoD prevents them from paying an ERP-owned case. */
   isApprover?: boolean;
+  /** FR-PFE-001: the kinds the viewer's role may record as the first document of an empty Draft. */
+  firstDocumentKinds?: RecordKind[];
+  /** One-shot arrival handoff from intake; uses the same Draft first-document capture row. */
+  autoOpenFirstDocument?: RecordKind | null;
+  onAutoOpenFirstDocumentConsumed?: () => void;
+  /** The viewer may approve this purchase (worded into the Requested empty state). */
+  canApprove?: boolean;
+  /** Goods receipt / vendor invoice stage a confirm-before-commit on the page instead of writing here. */
+  onStageRecord?: (staged: StagedRecord) => void;
+  /** #876: forwarded to the vendor-invoice capture's tax pre-fill. */
+  vendorId?: string | null;
+  itemsNet?: number | null;
+  /** The org's purchase rules, to hold back first-document choices they forbid. */
+  gates?: ProcurementGates;
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
+export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   detail,
   rows,
   procurementId,
@@ -247,11 +293,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   onSetEfaktur,
   efakturSaving = false,
   invoices = [],
-  withholdingCoverage = {},
-  withholdingCoverageLoading = false,
-  withholdingCoverageError = false,
   canWriteWithholdingSlip = false,
-  onRetryWithholdingCoverage,
   onRecordWithholdingSlip,
   vendorMissing = false,
   onSetVendor,
@@ -259,11 +301,19 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   onWithholdingHistory,
   targetInvoiceId,
   isApprover = false,
+  firstDocumentKinds,
+  autoOpenFirstDocument,
+  onAutoOpenFirstDocumentConsumed,
+  canApprove = false,
+  onStageRecord,
+  vendorId: invoiceVendorId,
+  itemsNet,
+  gates,
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
   const focusedInvoiceTarget = useRef<HTMLElement | null>(null);
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'procurement']);
   const may = usePermission();
   // Migration 0350: a role that reads no vendor bills or payments must not read their absence as "none exist".
   // Said once, only where a bill is expected (the case has reached Vendor Invoiced).
@@ -276,9 +326,13 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
     projectName: detail.project?.name,
     pmoProjectNumber: detail.project?.pmo_project_number,
   }), [detail.project, detail.project_id, detail.title]);
-  const resolvedWithholdingCoverage = withholdingCoverage;
-  const slipCoverageLoading = withholdingCoverageLoading;
-  const slipCoverageError = withholdingCoverageError;
+  // The slip coverage IS the coverage query: the ledger consumes the hook directly and derives
+  // the map and retry from it (the hook keeps its query disabled while there are no invoices).
+  const coverageQuery = useVendorWithholdingCoverage(invoices.map((invoice) => invoice.id));
+  const withholdingCoverage = useMemo(
+    () => Object.fromEntries((coverageQuery.data ?? []).map((row) => [row.invoice_id, row])),
+    [coverageQuery.data],
+  );
   const filterLabels: Record<LedgerFilter, string> = {
     all: t('procurementLedger.filter.all', 'All'),
     financial: t('procurementLedger.filter.financial', 'Financial'),
@@ -302,6 +356,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           fileHref={row.fileHref}
           fileTitle={row.fileTitle}
           fileCount={row.fileCount}
+          fileRef={row.fileRef}
           canWrite={canWrite}
           procurementId={procurementId}
           uploadedById={uploadedById}
@@ -318,10 +373,10 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
       const total = <span className="inline-flex items-baseline justify-end gap-1.5"><span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
       const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment) : null;
       const invoice = row.type === 'Invoice' ? invoices.find((item) => item.id === row.recordId) : undefined;
-      const slipCell = row.type === 'Invoice' ? <VendorWithholdingSlipCell row={resolvedWithholdingCoverage[row.recordId]} isLoading={slipCoverageLoading} isError={slipCoverageError} canWrite={canWriteWithholdingSlip} onRetry={onRetryWithholdingCoverage} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} vendorMissing={vendorMissing} onSetVendor={onSetVendor} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} /> : null;
+      const slipCell = row.type === 'Invoice' ? <VendorWithholdingSlipCell row={withholdingCoverage[row.recordId]} isLoading={coverageQuery.isLoading} isError={coverageQuery.isError} canWrite={canWriteWithholdingSlip} onRetry={() => void coverageQuery.refetch()} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} vendorMissing={vendorMissing} onSetVendor={onSetVendor} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} /> : null;
       return figures ? <div className="inline-flex flex-col items-end gap-0.5">{total}<WithholdingBreakdown figures={figures} currency={row.currency} />{slipCell}</div> : slipCell ? <div className="inline-flex flex-col items-end gap-0.5">{total}{slipCell}</div> : total;
     },
-  }), [canWriteWithholdingSlip, invoices, onRecordWithholdingSlip, onRetryWithholdingCoverage, onSetVendor, onViewWithholdingSlip, onWithholdingHistory, resolvedWithholdingCoverage, slipCoverageError, slipCoverageLoading, vendorMissing]);
+  }), [canWriteWithholdingSlip, coverageQuery, invoices, onRecordWithholdingSlip, onSetVendor, onViewWithholdingSlip, onWithholdingHistory, withholdingCoverage, vendorMissing]);
 
   const columns = useMemo<Column<LedgerRow>[]>(
     () => [...STATIC_COLUMNS.slice(0, 6), amountColumn, ...STATIC_COLUMNS.slice(6), fileColumn],
@@ -359,10 +414,9 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   // Determine DataTable state
   const tableState = filteredRows.length === 0 ? 'empty' : undefined;
   const isFiltered = filter !== 'all';
-  const emptyTitle = isFiltered
-    ? FILTERED_EMPTY_TITLE[filter]
-    : FILTERED_EMPTY_TITLE.all;
-  const emptySub = isFiltered ? FILTERED_EMPTY_SUB[filter] : FILTERED_EMPTY_SUB.all;
+  const emptyCopy = ledgerEmptyCopy(detail.status, canApprove, t);
+  const emptyTitle = isFiltered ? FILTERED_EMPTY_TITLE[filter] : (emptyCopy?.title ?? FILTERED_EMPTY_TITLE.all);
+  const emptySub = isFiltered ? FILTERED_EMPTY_SUB[filter] : (emptyCopy ? emptyCopy.sub : FILTERED_EMPTY_SUB.all);
 
   // Handle capture onCreate dispatching to the right mutation
   const handleCreate = async (kind: RecordKind, input: unknown) => {
@@ -387,6 +441,10 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           input as Parameters<typeof mutations.createPayment.mutateAsync>[0],
         );
         break;
+      default:
+        // Goods receipt and vendor invoice are written through the page's confirm (`onStageRecord`), never here.
+        // Throwing keeps the form from ever reporting "recorded" for a kind that wrote nothing.
+        throw new Error(`No ledger writer for ${kind}`);
     }
   };
 
@@ -447,10 +505,10 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           if (row.type !== 'Invoice') return undefined;
           const items: RowMenuItem[] = [];
           if (canRecordEfaktur && onSetEfaktur && !row.efakturLocked) items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(row) });
-          const coverage = resolvedWithholdingCoverage[row.recordId];
+          const coverage = withholdingCoverage[row.recordId];
           const invoice = invoices.find((item) => item.id === row.recordId);
           if (coverage?.active_slip_id) items.push({ label: t('bupot.view', 'View bukti potong'), onClick: () => onViewWithholdingSlip?.(coverage.active_slip_id!) });
-          else if (coverage?.coverage_state === 'not-recorded' && invoice && vendorMissing && onSetVendor) items.push({ label: t('bupot.setVendor', 'Set vendor'), onClick: onSetVendor });
+          else if (coverage?.coverage_state === 'not-recorded' && invoice && vendorMissing && onSetVendor) items.push({ label: t('bupot.setVendor', 'Set supplier'), onClick: onSetVendor });
           else if (canWriteWithholdingSlip && coverage?.coverage_state === 'not-recorded' && invoice && !vendorMissing) items.push({ label: t('bupot.record', 'Record bukti potong'), onClick: () => onRecordWithholdingSlip?.(invoice) });
           items.push({ label: t('bupot.history', 'Bukti potong history'), onClick: () => onWithholdingHistory?.(row.recordId) });
           return items.length ? items : undefined;
@@ -484,6 +542,12 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
 
       {/* Capture affordance + note */}
       <CardPad>
+        {detail.pre_cutover && (
+          // FR-ECA-030: ordered before the ERP connection, so receipts, bills and payments stay in PMO. Information, not an alert.
+          <p data-testid="ledger-pre-cutover" className="mb-2.5 text-[12.5px] text-muted-foreground">
+            {t('procurement:ledger.preCutover', 'Recorded before the ERP connection, not sent')}
+          </p>
+        )}
         {pendingPush.status !== 'idle' && (
           <div className="mb-2.5 flex justify-end">
             <TaskPushBadge state={pendingPush} />
@@ -496,37 +560,31 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           invoices={invoices}
           invoiceIdentityContext={invoiceIdentityContext}
           isApprover={isApprover}
+          firstDocumentKinds={firstDocumentKinds}
+          autoOpenFirstDocument={autoOpenFirstDocument}
+          onAutoOpenFirstDocumentConsumed={onAutoOpenFirstDocumentConsumed}
+          canApprove={canApprove}
+          emptyLedger={rows.length === 0}
+          onStage={onStageRecord}
+          resetKey={rows.length}
+          vendorId={invoiceVendorId}
+          itemsNet={itemsNet}
+          currency={detail.currency}
+          gates={gates}
           busy={captureBusy}
           onCreate={handleCreate}
         />
         {billsHiddenForRole && (
           <p className="mt-3 text-[12px] text-muted-foreground" data-testid="ledger-bills-hidden-note">
-            {t('procurement:ledger.billsHiddenForRole', 'Vendor bills and payments are not shown for your role.')}
+            {t('procurement:ledger.billsHiddenForRole', 'Supplier invoices and payments are not shown for your role.')}
           </p>
         )}
-        <p className="mt-3 text-[11px] text-muted-foreground">
+        <p className="mt-3 text-xs text-muted-foreground">
           {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types have no row.')}
         </p>
       </CardPad>
     </div>
   );
-};
-
-function WithholdingCoverageBridge(props: ProcurementLedgerProps) {
-  const query = useVendorWithholdingCoverage((props.invoices ?? []).map((invoice) => invoice.id));
-  return <ProcurementLedgerContent
-    {...props}
-    withholdingCoverage={Object.fromEntries((query.data ?? []).map((row) => [row.invoice_id, row]))}
-    withholdingCoverageLoading={query.isLoading}
-    withholdingCoverageError={query.isError}
-    onRetryWithholdingCoverage={props.onRetryWithholdingCoverage ?? (() => void query.refetch())}
-  />;
-}
-
-export const ProcurementLedger: React.FC<ProcurementLedgerProps> = (props) => {
-  if (props.withholdingCoverage) return <ProcurementLedgerContent {...props} />;
-  if (props.onRecordWithholdingSlip) return <WithholdingCoverageBridge {...props} />;
-  return <ProcurementLedgerContent {...props} withholdingCoverage={{}} withholdingCoverageLoading={false} withholdingCoverageError={false} />;
 };
 
 ProcurementLedger.displayName = 'ProcurementLedger';

@@ -18,18 +18,16 @@ import type { AnalyticsConfig } from './config';
 const config: AnalyticsConfig = {
   enabled: true,
   demoMode: false,
-  analyticsEnabled: true,
   replayAndAutocapture: false,
   posthogKey: 'phc_' + 'a'.repeat(24),
   posthogHost: 'https://ph-e2e.invalid',
   appEnv: 'test',
-  isDev: false,
   isProd: false,
   demoAudience: 'internal',
   demoAccount: 'local',
 };
 
-function withStubbedNetwork<T>(run: () => T): T {
+async function withStubbedNetwork<T>(run: () => Promise<T>): Promise<T> {
   const originalFetch = global.fetch;
   global.fetch = (async () => ({
     ok: true,
@@ -38,7 +36,7 @@ function withStubbedNetwork<T>(run: () => T): T {
     text: async () => '',
   })) as unknown as typeof fetch;
   try {
-    return run();
+    return await run();
   } finally {
     global.fetch = originalFetch;
   }
@@ -47,12 +45,13 @@ function withStubbedNetwork<T>(run: () => T): T {
 const RAW_UUID_PATH = '/projects/550e8400-e29b-41d4-a716-446655440000';
 
 describe('$current_url / $pathname raw-UUID leak — the REAL SDK captured payload (SECURITY #6)', () => {
-  it('a route containing a raw record UUID never reaches $current_url/$pathname/$initial_current_url on the actual captured event', () => {
+  it('a route containing a raw record UUID never reaches $current_url/$pathname/$initial_current_url on the actual captured event', async () => {
     window.history.pushState({}, '', RAW_UUID_PATH);
     expect(window.location.pathname).toBe(RAW_UUID_PATH);
 
-    const data = withStubbedNetwork(() => {
+    const data = await withStubbedNetwork(async () => {
       analyticsClient.init(config);
+      await analyticsClient.ready();
       // The app's own facade always passes the ALREADY-parameterised route (routeAnalyticsForPath)
       // — the point of this test is what the SDK adds on top, not what we passed in.
       return posthog.capture('app_route_viewed', { route: '/projects/:projectId' });

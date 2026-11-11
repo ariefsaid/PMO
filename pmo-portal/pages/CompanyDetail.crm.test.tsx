@@ -78,6 +78,10 @@ const {
   },
 }));
 
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
+vi.mock('@/src/hooks/useCompanyPartyMappings', () => ({ useCompanyPartyMappings: () => ({ ids: [], isPending: false, isError: false }) }));
+
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompany: () => detailState,
   useCompanyMutations: () => mutations,
@@ -223,9 +227,11 @@ describe('CompanyDetail — contacts error state (AC-CRM-CD-01)', () => {
     renderPage();
     // Must show error state, NOT the misleading empty state
     expect(screen.queryByText(/no contacts yet/i)).not.toBeInTheDocument();
-    const retryBtn = screen.getByRole('button', { name: /retry|try again/i });
-    expect(retryBtn).toBeInTheDocument();
-    await userEvent.click(retryBtn);
+    // PGA02-002: the activity card ALSO surfaces the failed contacts read with its own retry,
+    // so the page shows one retry per affected section — click the contacts section's one.
+    const retryButtons = screen.getAllByRole('button', { name: /retry|try again/i });
+    expect(retryButtons.length).toBeGreaterThan(0);
+    await userEvent.click(retryButtons[0]!);
     expect(contactsState.refetch).toHaveBeenCalled();
   });
 });
@@ -411,5 +417,22 @@ describe('CompanyDetail — primary contact + related opportunities (AC-CRM-CD-0
     expect(headings.length).toBeGreaterThan(0);
     // And the project row links to /projects/p-1
     expect(screen.getByRole('link', { name: /Meridian Solar Phase 1/i })).toHaveAttribute('href', '/projects/p-1');
+  });
+});
+
+describe('CompanyDetail — activity card vs a failed contacts read (PGA02-002)', () => {
+  it('does NOT show the add-contact cold-start prompt while the contacts fetch has failed; it offers retry', () => {
+    // The contacts query failed and no activity rows are cached: absence of data must not be read
+    // as "this company has no contacts". The old card ignored the error and rendered the
+    // cold-start prompt — telling a user to add a contact on a company that may already have
+    // contacts — instead of the failure state every other section shows.
+    contactsState.data = [];
+    contactsState.isError = true;
+    contactActivitiesState.data = [];
+    renderPage();
+    expect(screen.queryByText(/add a contact to start logging activity/i)).not.toBeInTheDocument();
+    // The card names the read failure and offers the retry the page gives every other section.
+    expect(screen.getAllByText(/couldn't load contacts/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /retry/i }).length).toBeGreaterThan(0);
   });
 });

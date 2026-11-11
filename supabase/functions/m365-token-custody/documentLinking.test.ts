@@ -100,10 +100,7 @@ Deno.test("AC-M365DOC-066 served refresh refuses a project author demoted to a n
           org_id: "synthetic-org",
           role: "Engineer",
         })),
-      supabaseSelect("org_features", () =>
-        jsonResponse({ enabled: true }, {
-          headers: { "content-type": "application/vnd.pgrst.object+json" },
-        })),
+      supabaseRpc("service_feature_enabled", () => jsonResponse(true)),
       supabaseSelect("project_documents", () =>
         jsonResponse([{
           id: "10200000-0000-0000-0000-000000000301",
@@ -257,10 +254,7 @@ Deno.test("AC-M365DOC-064 served check_documents sends claimed stale references 
             role: "Finance",
           }),
       ),
-      supabaseSelect("org_features", () =>
-        jsonResponse({ enabled: true }, {
-          headers: { "content-type": "application/vnd.pgrst.object+json" },
-        })),
+      supabaseRpc("service_feature_enabled", () => jsonResponse(true)),
       supabaseRpc("m365_claim_document_checks", (call) => {
         const payload = call.bodyJson as { p_actor_id?: string };
         if (payload.p_actor_id !== "synthetic-verified-user") {
@@ -454,10 +448,7 @@ Deno.test("AC-M365DOC-064 served checks fence inactive callers and use only veri
           role: "Finance",
         });
       }),
-      supabaseSelect("org_features", () =>
-        jsonResponse({ enabled: true }, {
-          headers: { "content-type": "application/vnd.pgrst.object+json" },
-        })),
+      supabaseRpc("service_feature_enabled", () => jsonResponse(true)),
       supabaseRpc("m365_claim_document_checks", (call) => {
         const payload = call.bodyJson as Record<string, unknown>;
         if (payload.p_actor_id !== "synthetic-verified-user") {
@@ -554,10 +545,7 @@ Deno.test("AC-M365DOC-056 served handler enforces consented scopes on graph_prox
           org_id: "synthetic-org",
           role: "Admin",
         })),
-      supabaseSelect("org_features", () =>
-        jsonResponse({ enabled: true }, {
-          headers: { "content-type": "application/vnd.pgrst.object+json" },
-        })),
+      supabaseRpc("service_feature_enabled", () => jsonResponse(true)),
       supabaseSelect("ms_graph_connections", () =>
         jsonResponse({
           id: "synthetic-connection",
@@ -625,13 +613,10 @@ Deno.test("AC-M365DOC-056 served graph_proxy keeps its caller-scoped connection 
           org_id: "synthetic-org",
           role: "Admin",
         })),
-      supabaseSelect("org_features", () =>
-        jsonResponse({ enabled: true }, {
-          headers: { "content-type": "application/vnd.pgrst.object+json" },
-        })),
+      supabaseRpc("service_feature_enabled", () => jsonResponse(true)),
       supabaseSelect(
         "ms_graph_connections",
-        () => jsonResponse({ message: "not found" }, { status: 406 }),
+        () => jsonResponse({ code: "PGRST116", message: "not found" }, { status: 406 }),
       ),
     ], async ({ calls }) => {
       const response = await handler(

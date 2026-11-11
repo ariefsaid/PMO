@@ -7,8 +7,8 @@
  * S-curve); now that the S-curve is moved INSIDE the Overview tabpanel the ordering test
  * is superseded — the scope test (Overview-only) is the correct oracle.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -33,7 +33,9 @@ const milestonesState = {
 };
 
 // ── module mocks ─────────────────────────────────────────────────────────────
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
+vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
+vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   // #840: the detail route reads ONE project by id (any stage), never the whole list.
@@ -72,15 +74,42 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({
+    data: { project_id: 'del1', contract_invoiced: '0', remaining_to_invoice: '3000000', invoices: [], budget: null,
+      cash_received: { state: 'known', buckets: [], receipt_count: 0 },
+      actuals: { currency: 'USD', as_of: null, total: '0.00', excludes_restricted_rows: false, categories: [] } },
+    isPending: false, isError: false, refetch: vi.fn(),
+  }),
+}));
+vi.mock('@/src/hooks/useProgressBilling', () => ({
+  useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectBilling: () => ({ data: { contractLines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useRevenue', async (orig) => ({
+  ...(await orig<typeof import('@/src/hooks/useRevenue')>()),
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
+
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  // The deep-link Budget case now actually renders the real BudgetTab › ProjectBudget (the
+  // #1344 helper waits for the chunk), so the mock must cover every hook ProjectBudget calls
+  // at render — same shape as the ProjectDetail.test.tsx fixture.
+  useBudgetDistribution: () => ({ data: null, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetActivationPrecheck: () => ({ data: undefined, isPending: false, isError: false }),
+  useBudgetArchiveTargets: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: vi.fn() }, activate: { mutateAsync: vi.fn() },
     archive: { mutateAsync: vi.fn() }, cloneVersion: { mutateAsync: vi.fn() },
+    returnVersion: { mutateAsync: vi.fn(), isPending: false },
+    resubmitVersion: { mutateAsync: vi.fn(), isPending: false },
     deleteDraft: { mutateAsync: vi.fn() }, createLineItem: { mutateAsync: vi.fn() },
-    deleteLineItem: { mutateAsync: vi.fn() },
+    deleteLineItem: { mutateAsync: vi.fn() }, switchDraftMode: { mutateAsync: vi.fn() },
+    saveDistribution: { mutateAsync: vi.fn() },
   }),
 }));
 
@@ -175,12 +204,31 @@ const renderAt = async (path: string) => {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  // #1344: the old wait named project-detail-panel-loading, an id the demand-loading change
+  // (#1469) retired — it asserted nothing and returned before the panel's Suspense fallback
+  // cleared, racing the skeleton on a loaded machine (#1198 fixed the defaultTab fixture;
+  // same binding here). Every path this helper renders has a tabpanel whose data hooks are
+  // mocked settled, so the fallback clears with the record commit — the wait refuses to
+  // return before it has.
+  const panel = screen.getByRole('tabpanel');
+  await waitFor(() => expect(within(panel).queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
   return view;
 };
 
 // ── tests ─────────────────────────────────────────────────────────────────────
 describe('AC-IFW-RECORD-02: S-curve is Overview-tab-only for delivery projects', () => {
+  // #1905: the lazy tab chunks (ProjectSCurve on Overview; TasksTab/BudgetTab on the deep-link
+  // cases) are React.lazy-loaded by ProjectSections, so on a cold module graph a chunk's first
+  // on-demand transform/import takes seconds (machine-speed-dependent — red on a loaded local
+  // Mac, green on CI) and races the helper's fixed 1s window. Priming the imports here
+  // resolves every lazy chunk BEFORE the first render, so the render helper's boundary wait
+  // (#1344) observes settled output instead of machine speed. The goal-oracles are untouched,
+  // and no clock/TZ pin is needed: the heading is gated on data only (dated, weighted phases)
+  // — never on today's date or the org timezone — so it cannot turn red on a later date.
+  beforeAll(async () => {
+    await Promise.all([import('../ProjectSCurve'), import('../tabs/TasksTab'), import('../tabs/BudgetTab')]);
+  });
+
   beforeEach(() => {
     projectsState.data = [deliveryRow];
     projectsState.isPending = false;
@@ -205,7 +253,7 @@ describe('AC-IFW-RECORD-02: S-curve is Overview-tab-only for delivery projects',
     expect(screen.queryByText('Progress curve')).not.toBeInTheDocument();
   });
 
-  it('AC-IFW-RECORD-02: the PipelineLens deal banner is NOT rendered for a delivery project', async () => {
+  it('AC-IFW-RECORD-02: the DealBand deal banner is NOT rendered for a delivery project', async () => {
     await renderAt('/projects/del1');
     expect(screen.queryByLabelText('Project stage journey')).toBeNull();
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();

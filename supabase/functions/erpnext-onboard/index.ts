@@ -24,17 +24,31 @@ import { ensureErpSellingSettings } from '../../../pmo-portal/src/lib/adapterSea
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpAuthPair } from '../_shared/erpAuthPair.ts';
 import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
-import { findPmoRecordId, recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { findPmoRecordId, insertExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { findCompanyCandidates } from '../_shared/companyCandidates.ts';
+import { recordPartyReview } from '../_shared/recordPartyReview.ts';
+import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 import { applyErpContact } from '../_shared/erpnextContacts.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
-import type { PartyCandidate, PartyDoctype } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/partyAdopt.ts';
+import type { PartyDoctype } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/partyAdopt.ts';
 import type { PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' } }); // #641
 }
+
+/** The canonical company fields mirrored into `companies`, shared by the insert and the update. */
+const companyMirrorFields = (canonical: PmoRecord) => ({
+  name: canonical.name,
+  type: canonical.type,
+  erp_party_type: canonical.erp_party_type ?? null,
+  erp_supplier_name: canonical.erp_supplier_name ?? null,
+  erp_customer_name: canonical.erp_customer_name ?? null,
+  erp_tax_id: canonical.erp_tax_id ?? null,
+  erp_payment_terms_days: canonical.erp_payment_terms_days ?? null,
+});
 
 export async function handleOnboardRequest(req: Request): Promise<Response> {
   // ── 1. Authorization: the caller (an Operator action) must present the service-role bearer. ──
@@ -65,6 +79,12 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
   });
 
   try {
+    for (const key of ['erp_sync', 'crm'] as const) {
+      const { data: enabled, error } = await serviceClient.rpc('service_feature_enabled', { p_org_id: orgId, p_key: key });
+      if (error) return json({ error: 'INTERNAL', message: 'could not resolve the plan switch' }, 500);
+      if (enabled !== true) return json({ error: 'feature_off', message: 'ERP onboarding is not enabled for this organization' }, 409);
+    }
+
     const { data: bindingRow, error: bindingError } = await serviceClient
       .from('external_org_bindings')
       .select('site_url, secret_ref, activated_at')
@@ -84,9 +104,7 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
     const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, { orgId, secretRef: binding.secret_ref });
 
     const clientDeps: ErpClientDeps = {
-      fetchImpl: async (input, init) => {
-        return guardedErpFetch(binding.site_url)(input, init);
-      },
+      fetchImpl: guardedErpFetch(binding.site_url),
       apiKey,
       apiSecret,
       baseUrl: binding.site_url,
@@ -102,48 +120,28 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
 
     const result = await onboardParties(sources, {
       findPmoRecordId: (externalRecordId) => findPmoRecordId(serviceClient as never, orgId, 'companies', externalRecordId),
-      findCandidates: async (doctype: PartyDoctype, name: string): Promise<PartyCandidate[]> => {
-        const targetType = doctype === 'Supplier' ? 'Vendor' : 'Client';
-        const { data, error } = await serviceClient
-          .from('companies')
-          .select('id, erp_tax_id')
-          .eq('org_id', orgId)
-          .eq('type', targetType)
-          .eq('name', name);
-        if (error) throw new AppError(error.message, error.code);
-        return ((data ?? []) as Array<{ id: string; erp_tax_id: string | null }>).map((row) => ({ pmoRecordId: row.id, taxId: row.erp_tax_id }));
-      },
+      findCandidates: (doctype: PartyDoctype, name: string, taxId?: string | null) => findCompanyCandidates(serviceClient, orgId, doctype, name, taxId),
       insertCompaniesMirror: async (canonical: PmoRecord) => {
-        const { error } = await serviceClient.from('companies').insert({
-          id: canonical.id,
-          org_id: orgId,
-          name: canonical.name,
-          type: canonical.type,
-          erp_party_type: canonical.erp_party_type ?? null,
-          erp_supplier_name: canonical.erp_supplier_name ?? null,
-          erp_customer_name: canonical.erp_customer_name ?? null,
-          erp_tax_id: canonical.erp_tax_id ?? null,
-          erp_payment_terms_days: canonical.erp_payment_terms_days ?? null,
-        });
+        const { error } = await serviceClient.from('companies').insert({ id: canonical.id, org_id: orgId, ...companyMirrorFields(canonical) });
         if (error) throw new AppError(error.message, error.code);
       },
       updateCompaniesMirror: async (pmoRecordId: string, canonical: PmoRecord) => {
         const { error } = await serviceClient
           .from('companies')
-          .update({
-            name: canonical.name,
-            type: canonical.type,
-            erp_party_type: canonical.erp_party_type ?? null,
-            erp_supplier_name: canonical.erp_supplier_name ?? null,
-            erp_customer_name: canonical.erp_customer_name ?? null,
-            erp_tax_id: canonical.erp_tax_id ?? null,
-            erp_payment_terms_days: canonical.erp_payment_terms_days ?? null,
-          })
+          .update(companyMirrorFields(canonical))
           .eq('org_id', orgId)
           .eq('id', pmoRecordId);
         if (error) throw new AppError(error.message, error.code);
       },
-      recordExternalRef: (mapping) => recordExternalRefWrite(serviceClient as never, { ...mapping, orgId, domain: 'companies', externalTier: ERPNEXT_TIER }),
+      recordExternalRef: (mapping) => insertExternalRef(serviceClient as never, { ...mapping, orgId, domain: 'companies', externalTier: ERPNEXT_TIER }),
+      mirrorExists: async (pmoRecordId: string) => {
+        const { data, error } = await serviceClient.from('companies').select('id').eq('org_id', orgId).eq('id', pmoRecordId).maybeSingle();
+        if (error) throw new AppError(error.message, error.code);
+        return !!data;
+      },
+      // Same notification (text + unread dedupe) as the change feed's unclear match.
+      notifyUnclearMatch: (entry) => surfaceActionRequired(serviceClient, orgId, 'party-match-unclear', { erpName: entry.name }),
+      recordReview: (entry) => recordPartyReview(serviceClient, orgId, entry),
     });
 
     const contacts = {adopted: 0, reconciled: 0};

@@ -38,7 +38,7 @@ const h = vi.hoisted(() => {
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 
-import { listNotifications, listNotificationsPage, listUnreadCount, markNotificationRead } from './notifications';
+import { listNotificationsPage, listUnreadCount, markNotificationRead } from './notifications';
 import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => {
@@ -47,49 +47,6 @@ beforeEach(() => {
     (h.calls[k] as unknown[]).length = 0;
   }
   h.result.value = { data: null, error: null, count: null };
-});
-
-describe('FR-AAN-035 listNotifications', () => {
-  it('listNotifications orders created_at desc, never sends org_id/owner_id', async () => {
-    h.result.value = {
-      data: [
-        { id: 'n1', title: 'First', created_at: '2026-07-01T00:00:00Z' },
-        { id: 'n2', title: 'Second', created_at: '2026-07-02T00:00:00Z' },
-      ],
-      error: null,
-      count: null,
-    };
-    const rows = await listNotifications();
-
-    expect(h.calls.from).toEqual(['notifications']);
-    expect(h.calls.order).toContainEqual(['created_at', { ascending: false }]);
-    expect(JSON.stringify(h.calls)).not.toContain('org_id');
-    expect(JSON.stringify(h.calls)).not.toContain('owner_id');
-    expect(rows).toHaveLength(2);
-  });
-
-  it('returns [] when supabase returns null data', async () => {
-    h.result.value = { data: null, error: null, count: null };
-    await expect(listNotifications()).resolves.toEqual([]);
-  });
-
-  it('throws AppError preserving the PG code on a read error', async () => {
-    h.result.value = { data: null, error: { message: 'denied', code: '42501' }, count: null };
-    await expect(listNotifications()).rejects.toMatchObject({ message: 'denied', code: '42501' });
-    await expect(listNotifications()).rejects.toBeInstanceOf(AppError);
-  });
-
-  it('data-layer perf hardening #4: does NOT range-bound the query when called with no params (opt-in pagination)', async () => {
-    h.result.value = { data: [], error: null, count: null };
-    await listNotifications();
-    expect(h.calls.range).toEqual([]);
-  });
-
-  it('data-layer perf hardening #4: applies an explicit page/pageSize range', async () => {
-    h.result.value = { data: [], error: null, count: null };
-    await listNotifications({ page: 1, pageSize: 30 });
-    expect(h.calls.range).toContainEqual([30, 59]);
-  });
 });
 
 describe('FR-AAN-034 listUnreadCount', () => {

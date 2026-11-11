@@ -6,11 +6,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // the builder for upsert/delete) resolves to the configured { data, error }.
 // ---------------------------------------------------------------------------
 
-const { mockFrom, mockSelect, mockEq, mockOrder, mockRange, mockInsert, mockSingle, mockUpsert, mockDelete } =
+const { mockFrom, mockSelect, mockEq, mockGte, mockOrder, mockRange, mockInsert, mockSingle, mockUpsert, mockDelete } =
   vi.hoisted(() => ({
     mockFrom: vi.fn(),
     mockSelect: vi.fn(),
     mockEq: vi.fn(),
+    mockGte: vi.fn(),
     mockOrder: vi.fn(),
     mockRange: vi.fn(),
     mockInsert: vi.fn(),
@@ -36,7 +37,10 @@ function builderResolving(resolved: { data: unknown; error: unknown }) {
   const builder: Record<string, unknown> = {};
   mockSelect.mockReturnValue(builder);
   mockEq.mockReturnValue(builder);
+  mockGte.mockReturnValue(builder);
   mockOrder.mockReturnValue(builder);
+  builder.gt = () => builder;
+  builder.limit = () => builder;
   mockRange.mockResolvedValue(resolved);
   mockInsert.mockReturnValue(builder);
   mockSingle.mockResolvedValue(resolved);
@@ -46,6 +50,7 @@ function builderResolving(resolved: { data: unknown; error: unknown }) {
   mockDelete.mockReturnValue(builder);
   builder.select = mockSelect;
   builder.eq = mockEq;
+  builder.gte = mockGte;
   builder.order = mockOrder;
   builder.range = mockRange;
   builder.insert = mockInsert;
@@ -63,6 +68,7 @@ beforeEach(() => {
   mockFrom.mockReset();
   mockSelect.mockReset();
   mockEq.mockReset();
+  mockGte.mockReset();
   mockOrder.mockReset();
   mockRange.mockReset();
   mockInsert.mockReset();
@@ -77,7 +83,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('listTimesheets', () => {
-  it('selects timesheets with nested entries+project, filtered by user_id, ordered by week desc (AC-608, FR-DAL-TS-001)', async () => {
+  it('selects timesheets with nested entries+project, filtered by user_id, scanned by id then ordered by week desc (AC-608, FR-DAL-TS-001)', async () => {
     const rows = [{
       id: '70000000-0000-0000-0000-000000000002',
       user_id: '00000000-0000-0000-0000-0000000000a2',
@@ -94,11 +100,24 @@ describe('listTimesheets', () => {
     builderResolving({ data: rows, error: null });
     const result = await listTimesheets('00000000-0000-0000-0000-0000000000a2');
     expect(mockFrom).toHaveBeenCalledWith('timesheets');
-    expect(mockSelect).toHaveBeenCalledWith('*, entries:timesheet_entries(*, project:projects(name,code))');
+    expect(mockSelect).toHaveBeenCalledWith('*, entries:timesheet_entries(*, project:projects(name,short_name,code))');
     expect(mockEq).toHaveBeenCalledWith('user_id', '00000000-0000-0000-0000-0000000000a2');
-    expect(mockOrder).toHaveBeenCalledWith('week_start_date', { ascending: false });
+    expect(mockOrder).toHaveBeenCalledWith('id', { ascending: true });
     expect(result[0].entries[0].project?.name).toBe('Innovate Corp HQ Fit-Out');
     expect(result[0].entries[0].entry_date).toBe('2026-06-01');
+  });
+
+  it('returns weeks newest first even though the scan serves them in id order (AC-608)', async () => {
+    builderResolving({
+      data: [
+        { id: 'a', week_start_date: '2026-05-04', entries: [] },
+        { id: 'b', week_start_date: '2026-06-01', entries: [] },
+        { id: 'c', week_start_date: '2026-05-18', entries: [] },
+      ],
+      error: null,
+    });
+    const result = await listTimesheets('u1');
+    expect(result.map(r => r.id)).toEqual(['b', 'c', 'a']);
   });
 
   it('sends no org_id (RLS scopes it) (FR-DAL-TS-001)', async () => {
@@ -113,17 +132,21 @@ describe('listTimesheets', () => {
     await expect(listTimesheets('u1')).rejects.toThrow('boom');
   });
 
+  it('perf q12: with fromWeek it filters week_start_date >= fromWeek server-side and still keyset-scans the window; without it sends no date filter', async () => {
+    builderResolving({ data: [], error: null });
+    await listTimesheets('u1');
+    expect(mockGte).not.toHaveBeenCalled();
+    await listTimesheets('u1', { fromWeek: '2026-03-02' });
+    expect(mockGte).toHaveBeenCalledWith('week_start_date', '2026-03-02');
+    expect(mockOrder).toHaveBeenCalledWith('id', { ascending: true });
+  });
+
   it('data-layer perf hardening #4: does NOT range-bound the query when called with no page params (opt-in pagination)', async () => {
     builderResolving({ data: [], error: null });
     await listTimesheets('u1');
     expect(mockRange).not.toHaveBeenCalled();
   });
 
-  it('data-layer perf hardening #4: applies an explicit page/pageSize range', async () => {
-    builderResolving({ data: [], error: null });
-    await listTimesheets('u1', { page: 1, pageSize: 12 });
-    expect(mockRange).toHaveBeenCalledWith(12, 23);
-  });
 });
 
 // ---------------------------------------------------------------------------

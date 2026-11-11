@@ -13,7 +13,7 @@
  *
  * The two halves ask the same question of different authorities, because a submit builds no body:
  *   • create / update / amend — the COMMAND carries the project (`record.projectId`); the body is
- *     built from it. (`dispatchFactory.assertSiProjectGate` owns the second half of this same rule:
+ *     built from it. (`dispatchPreflight.assertSiProjectGate` owns the second half of this same rule:
  *     a projectId that is present but resolves to no ERP project mapping.)
  *   • submit                  — the PMO MIRROR ROW is the authority (`sales_invoices.project_id`),
  *     which is precisely what an inbound-adopted or gate-off-created invoice leaves NULL.

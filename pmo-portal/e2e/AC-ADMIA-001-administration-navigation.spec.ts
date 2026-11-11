@@ -47,6 +47,12 @@ const ORGANIZATION_SECTIONS = [
   { name: 'Exchange rates', url: '/administration/exchange-rates', testid: 'administration-panel-exchange-rates', heading: 'Exchange rates' },
 ] as const;
 
+const EXPECTED_ORGANIZATION_LINKS = [
+  ...ORGANIZATION_SECTIONS.map(({ name }) => name),
+  'Your plan',
+  'Cost attribution',
+];
+
 const sectionNav = (page: Page) => page.getByRole('navigation', { name: 'Administration sections' });
 const sectionLink = (page: Page, name: string) => sectionNav(page).getByRole('link', { name });
 const panel = (page: Page, testid: string) => page.getByTestId(testid);
@@ -95,7 +101,7 @@ async function navigateAndRestore(
   await expectSectionSelected(page, from);
 }
 
-test('AC-ADMIA-001: /administration aliases to the Users destination and exposes only the six organization sections', async ({ page }) => {
+test('AC-ADMIA-001: /administration aliases to the Users destination and exposes organization sections', async ({ page }) => {
   await signIn(page, ADMIN);
   await page.goto('/administration');
 
@@ -106,8 +112,12 @@ test('AC-ADMIA-001: /administration aliases to the Users destination and exposes
   await expect(page.getByRole('searchbox', { name: 'Search users' })).toBeVisible();
   await expect(page.getByText('All users')).toBeVisible();
 
-  // A non-Operator org Admin sees exactly the organization destinations, never Usage/Features.
-  await expect(sectionNav(page).getByRole('link')).toHaveCount(ORGANIZATION_SECTIONS.length);
+  // A non-Operator org Admin sees organization destinations, including Cost attribution, never Usage/Features.
+  await expect(sectionNav(page).getByRole('link')).toHaveCount(EXPECTED_ORGANIZATION_LINKS.length);
+  for (const name of EXPECTED_ORGANIZATION_LINKS) {
+    await expect(sectionLink(page, name)).toBeVisible();
+  }
+  await expect(sectionLink(page, 'Cost attribution')).toBeVisible();
   await expect(sectionNav(page).getByRole('link', { name: 'Usage' })).toHaveCount(0);
   await expect(sectionNav(page).getByRole('link', { name: 'Features' })).toHaveCount(0);
 });

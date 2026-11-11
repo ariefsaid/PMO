@@ -188,7 +188,15 @@ export async function probeErpByPaymentComposite(
     if (input.paidFrom) filters.push(['paid_from', '=', input.paidFrom]);
     if (input.paidTo) filters.push(['paid_to', '=', input.paidTo]);
   }
-  const names = await listDocNamesByFilters(deps.client, deps.doctype, filters, 20);
+  const names: string[] = [];
+  let after = '';
+  for (;;) {
+    const page = await listDocNamesByFilters(deps.client, deps.doctype, after ? [...filters, ['name', '>', after]] : filters, 20, 'name asc');
+    if (page.some((name, index) => name <= (index === 0 ? after : page[index - 1]))) return null;
+    names.push(...page);
+    if (page.length < 20) break;
+    after = page[page.length - 1];
+  }
   const matches: Array<{ name: string; doc: unknown }> = [];
   for (const name of names) {
     const doc = await getDoc(deps.client, deps.doctype, name);

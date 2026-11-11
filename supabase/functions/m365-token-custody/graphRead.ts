@@ -25,6 +25,9 @@ import {
   validFolderWriteName,
 } from "./graphFolderWrite.ts";
 import type { GraphBudget } from "./folderBudget.ts";
+import { buildPreviewRequest, previewAllowed, readPreviewGetUrl } from "./graphPreview.ts";
+import { validPreviewEmbedUrl } from "../_shared/microsoftDocumentPreview.ts";
+import { buildUploadRequest, uploadAllowed } from "./graphFileUpload.ts";
 
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 30_000;
@@ -59,7 +62,7 @@ export function validateGraphProxyInput(
   }
   // The browser surface is GET-only and body-less (FR-M365DOC-070): held write scopes never make a
   // browser-supplied mutation permissible. The single folder write is server-built (graphFolderWrite.ts).
-  const browserMethodAllowed = normalizeGraphMethod(req.method) === "GET"; // mutation-witness:browser-get-only
+  const browserMethodAllowed = isGetMethod(req.method); // mutation-witness:browser-get-only
   if (
     !browserMethodAllowed || req.body !== undefined ||
     !normalizeGraphRequestPath(req.path)
@@ -196,6 +199,87 @@ export async function openCallerRecordFolderAccess(
   return ensure;
 }
 
+export type PreviewOutcome =
+  | { kind: "ok"; url: string }
+  | { kind: "forbidden" }
+  | { kind: "not_found" }
+  | { kind: "unsupported" }
+  | { kind: "unavailable"; result?: HandlerResult; retryAfter?: number };
+
+/** Read capability plus exactly one preview call. No write method, credential getter or generic request exists on it. */
+export interface DocumentPreviewAccess {
+  /** Scope-checked metadata read of ONE item (used only to prove a folder child's parent); never returned to the browser. */
+  readItem(driveId: string, itemId: string): Promise<FolderOutcome>;
+  previewItem(driveId: string, itemId: string): Promise<PreviewOutcome>;
+}
+
+const FILES_READ_SCOPES = new Set(["Files.Read", "Files.ReadWrite", "Files.Read.All", "Files.ReadWrite.All"]);
+const PREVIEW_TIMEOUT_MS = 8_000;
+
+/**
+ * Open the caller's own connection for `preview_document`. The Files read grant every connection already
+ * holds is required BEFORE any token refresh or Graph call; no new consent is ever asked for.
+ */
+export async function openCallerDocumentPreview(
+  deps: HandlerDeps,
+): Promise<DocumentPreviewAccess | HandlerResult> {
+  const own = await openOwnConnection(
+    deps,
+    undefined,
+    (scopes) => scopes.some((scope) => FILES_READ_SCOPES.has(scope)),
+    undefined,
+    "previewing a file requires additional consent",
+  );
+  if (!("connection" in own)) return own;
+  const limited = await microsoftReadQuota(deps);
+  if (limited) return limited;
+  return {
+    readItem: (driveId, itemId) => own.readItem(driveId, itemId, PREVIEW_TIMEOUT_MS),
+    previewItem: (driveId, itemId) => own.previewItem(driveId, itemId, PREVIEW_TIMEOUT_MS),
+  };
+}
+
+export type UploadOutcome =
+  | { kind: "ok"; item: Record<string, unknown> }
+  | { kind: "forbidden" }
+  | { kind: "not_found" }
+  | { kind: "unavailable"; result?: HandlerResult; retryAfter?: number };
+
+/** Exactly one mutator, bound to the server-chosen library drive. No read, credential getter or generic request exists on it. */
+export interface RecordFileUploadAccess {
+  uploadFile(parentId: string, fileName: string, bytes: Uint8Array): Promise<UploadOutcome>;
+}
+
+const UPLOAD_TIMEOUT_MS = 25_000;
+
+/**
+ * Open the caller's own connection for `upload_record_file`. The stored `Sites.Selected` consent is
+ * required BEFORE any token refresh or Graph call (refresh never upgrades old consent), exactly as the
+ * folder write requires it; the drive comes from the server-loaded default library, never the request.
+ */
+export async function openCallerRecordFileUpload(
+  deps: HandlerDeps,
+  library: RecordFolderLibrary,
+  budget: GraphBudget,
+): Promise<RecordFileUploadAccess | HandlerResult> {
+  const own = await openOwnConnection(
+    deps,
+    undefined,
+    (scopes) => scopes.some((scope) => SITES_SELECTED_SCOPES.has(scope)),
+    budget,
+    "uploading a file requires additional consent",
+  );
+  if (!("connection" in own)) return own;
+  return {
+    uploadFile: (parentId, fileName, bytes) => {
+      const left = budget.remaining();
+      return left <= 0
+        ? Promise.resolve({ kind: "unavailable" })
+        : own.uploadFile(library.drive_id, parentId, fileName, bytes, Math.min(UPLOAD_TIMEOUT_MS, left));
+    },
+  };
+}
+
 interface OwnConnection {
   connection: ConnectionRow;
   get(
@@ -214,6 +298,23 @@ interface OwnConnection {
     name: string,
     timeoutMs: number,
   ): Promise<FolderOutcome>;
+  readItem(
+    driveId: string,
+    itemId: string,
+    timeoutMs: number,
+  ): Promise<FolderOutcome>;
+  uploadFile(
+    driveId: string,
+    parentId: string,
+    fileName: string,
+    bytes: Uint8Array,
+    timeoutMs: number,
+  ): Promise<UploadOutcome>;
+  previewItem(
+    driveId: string,
+    itemId: string,
+    timeoutMs: number,
+  ): Promise<PreviewOutcome>;
 }
 
 const FOLDER_ITEM_SELECT = "id,name,webUrl,parentReference,file,folder";
@@ -223,6 +324,7 @@ async function openOwnConnection(
   beforeConnection?: () => HandlerResult | null,
   requireScope?: (scopes: string[]) => boolean,
   deadline?: GraphBudget,
+  scopeMessage = "folder creation requires additional consent",
 ): Promise<OwnConnection | HandlerResult> {
   const resolved = await resolveOrgOrResult(deps);
   if (typeof resolved !== "string") return resolved;
@@ -236,7 +338,15 @@ async function openOwnConnection(
     .eq("user_id", userId)
     .single();
 
-  if (connError || !conn) {
+  // Only a confirmed absence (no row) means not connected; a failed read is a retryable outage.
+  if (connError && (connError as { code?: string }).code !== "PGRST116") {
+    return {
+      status: 502,
+      body: { error: "GRAPH_ERROR", message: "Graph API request failed" },
+      headers: GRAPH_HEADERS,
+    };
+  }
+  if (!conn) {
     return {
       status: 404,
       body: {
@@ -267,10 +377,7 @@ async function openOwnConnection(
   if (requireScope && !requireScope(connection.scopes ?? [])) {
     return {
       status: 403,
-      body: {
-        error: "SCOPE_INSUFFICIENT",
-        message: "folder creation requires additional consent",
-      },
+      body: { error: "SCOPE_INSUFFICIENT", message: scopeMessage },
       headers: GRAPH_HEADERS,
     };
   }
@@ -281,20 +388,28 @@ async function openOwnConnection(
     try {
       accessToken = await loadFreshAccessToken(connection, deps, deadline);
       return accessToken;
-    } catch {
-      // A refresh that ran into the invocation deadline is an outage, not a stale connection.
-      if (deadline && deadline.remaining() <= 0) {
+    } catch (err) {
+      // A refresh that ran into the invocation deadline, or hit a transient provider/DB fault, is an outage, not a stale connection.
+      if (err instanceof TransientRefreshError || (deadline && deadline.remaining() <= 0)) {
         return {
           status: 502,
           body: { error: "GRAPH_ERROR", message: "Graph API request failed" },
           headers: GRAPH_HEADERS,
         };
       }
-      const { data: fresh } = await serviceClient
+      const { data: fresh, error: freshError } = await serviceClient
         .from("ms_graph_connections")
         .select("status")
         .eq("id", connection.id)
         .single();
+      // The status re-read itself failing is a DB outage: retryable, not a reconnect.
+      if (freshError) {
+        return {
+          status: 502,
+          body: { error: "GRAPH_ERROR", message: "Graph API request failed" },
+          headers: GRAPH_HEADERS,
+        };
+      }
       if ((fresh as { status?: string } | null)?.status === "revoked") {
         return {
           status: 410,
@@ -302,6 +417,7 @@ async function openOwnConnection(
           headers: GRAPH_HEADERS,
         };
       }
+      // Stale, or an unhandled OAuth error (e.g. invalid_client): reconnect/admin action, not a retry.
       return {
         status: 409,
         body: {
@@ -453,6 +569,25 @@ async function openOwnConnection(
     );
   };
 
+  const readItem = async (
+    driveId: string,
+    itemId: string,
+    timeoutMs: number,
+  ): Promise<FolderOutcome> => {
+    if (!safeGraphId(driveId) || !safeGraphId(itemId)) return { kind: "unavailable" };
+    const path = `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}`;
+    const normalizedPath = normalizeGraphRequestPath(path);
+    if (!normalizedPath || !scopeCoversPath(connection.scopes, "GET", normalizedPath)) {
+      return { kind: "unavailable" };
+    }
+    const bearer = await token();
+    if (typeof bearer !== "string") return { kind: "unavailable", result: bearer };
+    if (!scopeCoversPath(connection.scopes, "GET", normalizedPath)) return { kind: "unavailable" };
+    const url = graphUrl(normalizedPath, { "$select": FOLDER_ITEM_SELECT });
+    if (!url) return { kind: "unavailable" };
+    return await sendFolderRequest(url, "GET", bearer, deps, connection, resolved, undefined, timeoutMs);
+  };
+
   const createFolder = async (
     driveId: string,
     parentId: string,
@@ -491,7 +626,161 @@ async function openOwnConnection(
     );
   };
 
-  return { connection, get, batch, readFolder, createFolder };
+  const uploadFile = async (
+    driveId: string,
+    parentId: string,
+    fileName: string,
+    bytes: Uint8Array,
+    timeoutMs: number,
+  ): Promise<UploadOutcome> => {
+    const context = { driveId, parentId, fileName, bytes: bytes.byteLength };
+    let request: ReturnType<typeof buildUploadRequest>;
+    try {
+      request = buildUploadRequest(context);
+    } catch {
+      return { kind: "unavailable" };
+    }
+    const bearer = await token();
+    if (typeof bearer !== "string") return { kind: "unavailable", result: bearer };
+    if (requireScope && !requireScope(connection.scopes ?? [])) { // mutation-witness:refreshed-upload-grant
+      return { kind: "unavailable", result: {
+        status: 403, body: { error: "SCOPE_INSUFFICIENT", message: scopeMessage }, headers: GRAPH_HEADERS,
+      } };
+    }
+    const url = new URL(`${GRAPH_BASE}${request.path}?${request.query}`);
+    if (url.origin !== "https://graph.microsoft.com" || !url.pathname.startsWith("/v1.0/")) {
+      return { kind: "unavailable" };
+    }
+    // The exact allowlist runs IMMEDIATELY before the only upload call in custody.
+    if (!uploadAllowed(request, context)) return { kind: "unavailable" };
+    return await sendUploadRequest(url, bearer, request.contentType, bytes, deps, connection, resolved, timeoutMs);
+  };
+
+  const previewItem = async (
+    driveId: string,
+    itemId: string,
+    timeoutMs: number,
+  ): Promise<PreviewOutcome> => {
+    const context = { driveId, itemId };
+    let request: ReturnType<typeof buildPreviewRequest>;
+    try {
+      request = buildPreviewRequest(context);
+    } catch {
+      return { kind: "unavailable" };
+    }
+    const bearer = await token();
+    if (typeof bearer !== "string") return { kind: "unavailable", result: bearer };
+    // A refresh can change the stored scopes; the read grant is re-checked on the refreshed set.
+    if (requireScope && !requireScope(connection.scopes ?? [])) { // mutation-witness:refreshed-preview-grant
+      return { kind: "unavailable", result: {
+        status: 403, body: { error: "SCOPE_INSUFFICIENT", message: scopeMessage }, headers: GRAPH_HEADERS,
+      } };
+    }
+    const url = graphUrl(request.path);
+    if (!url) return { kind: "unavailable" };
+    // The exact allowlist runs IMMEDIATELY before the only preview call in custody.
+    if (!previewAllowed(request, context)) return { kind: "unavailable" };
+    return await sendPreviewRequest(url, bearer, deps, connection, resolved, timeoutMs);
+  };
+
+  return { connection, get, batch, readFolder, createFolder, readItem, uploadFile, previewItem };
+}
+
+/**
+ * Upload transport: one bounded PUT of the raw bytes, never retried, no redirects. Only a 200/201 answer
+ * with a JSON item is `ok`. No upstream text, URL, name or id is logged or returned.
+ */
+async function sendUploadRequest(
+  url: URL,
+  accessToken: string,
+  contentType: string,
+  bytes: Uint8Array,
+  deps: HandlerDeps,
+  connection: ConnectionRow,
+  orgId: string,
+  timeoutMs: number,
+): Promise<UploadOutcome> {
+  let graphRes: Response;
+  let data: unknown;
+  try {
+    ({ response: graphRes, data } = await fetchMicrosoftJson(deps.fetch ?? fetch, url.toString(), {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": contentType },
+      body: bytes as unknown as BodyInit,
+    }, timeoutMs));
+  } catch {
+    await recordM365Error(deps.serviceClient, { errorCode: "GRAPH_ERROR", contextId: connection.id, orgId });
+    return { kind: "unavailable" };
+  }
+  if (!graphRes.ok) {
+    if (graphRes.status === 403) return { kind: "forbidden" };
+    if (graphRes.status === 404) return { kind: "not_found" };
+    const retryAfter = graphRes.status === 429 || graphRes.status === 503
+      ? retryAfterSeconds(graphRes.headers.get("Retry-After"))
+      : undefined;
+    console.error("[m365-token-custody] upload upstream failure", {
+      status: graphRes.status,
+      connectionId: connection.id,
+    });
+    await recordM365Error(deps.serviceClient, { errorCode: "GRAPH_ERROR", contextId: connection.id, orgId });
+    return retryAfter === undefined ? { kind: "unavailable" } : { kind: "unavailable", retryAfter };
+  }
+  if (graphRes.status !== 200 && graphRes.status !== 201) return { kind: "unavailable" };
+  return data && typeof data === "object" && !Array.isArray(data)
+    ? { kind: "ok", item: data as Record<string, unknown> }
+    : { kind: "unavailable" };
+}
+
+/**
+ * Preview transport: one bounded POST `{}`, never retried. Only an embeddable Microsoft `getUrl` is an
+ * `ok`; the URL is a short-lived capability, so nothing here logs or stores it, the item id or the name:
+ * a failure logs `{status, connectionId}` only and upstream text is never returned.
+ */
+async function sendPreviewRequest(
+  url: URL,
+  accessToken: string,
+  deps: HandlerDeps,
+  connection: ConnectionRow,
+  orgId: string,
+  timeoutMs: number,
+): Promise<PreviewOutcome> {
+  let graphRes: Response;
+  let data: unknown;
+  try {
+    ({ response: graphRes, data } = await fetchMicrosoftJson(deps.fetch ?? fetch, url.toString(), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, ...GRAPH_HEADERS },
+      body: "{}",
+    }, timeoutMs));
+  } catch {
+    await recordM365Error(deps.serviceClient, { errorCode: "GRAPH_ERROR", contextId: connection.id, orgId });
+    return { kind: "unavailable" };
+  }
+  if (!graphRes.ok) {
+    let upstreamCode = "";
+    try {
+      upstreamCode = String((data as { error?: { code?: unknown } } | null)?.error?.code ?? "");
+    } catch { /* non-JSON upstream body */ }
+    if (graphRes.status === 403) return { kind: "forbidden" };
+    if (graphRes.status === 404) return { kind: "not_found" };
+    if (
+      graphRes.status === 415 ||
+      (graphRes.status === 400 && ["notSupported", "unsupportedMediaType"].includes(upstreamCode))
+    ) return { kind: "unsupported" };
+    const retryAfter = graphRes.status === 429 || graphRes.status === 503
+      ? retryAfterSeconds(graphRes.headers.get("Retry-After"))
+      : undefined;
+    console.error("[m365-token-custody] preview upstream failure", {
+      status: graphRes.status,
+      connectionId: connection.id,
+    });
+    await recordM365Error(deps.serviceClient, { errorCode: "GRAPH_ERROR", contextId: connection.id, orgId });
+    return retryAfter === undefined ? { kind: "unavailable" } : { kind: "unavailable", retryAfter };
+  }
+  if (graphRes.status !== 200) return { kind: "unavailable" };
+  const getUrl = readPreviewGetUrl(data);
+  if (getUrl === null) return { kind: "unsupported" };
+  return validPreviewEmbedUrl(getUrl) ? { kind: "ok", url: getUrl } : { kind: "unavailable" };
 }
 
 /**
@@ -557,14 +846,9 @@ async function sendFolderRequest(
   if (method === "POST" ? graphRes.status !== 201 : graphRes.status !== 200) {
     return { kind: "unavailable" };
   }
-  try {
-    const item = data;
-    return item && typeof item === "object" && !Array.isArray(item)
-      ? { kind: "ok", item: item as Record<string, unknown> }
-      : { kind: "unavailable" };
-  } catch {
-    return { kind: "unavailable" };
-  }
+  return data && typeof data === "object" && !Array.isArray(data)
+    ? { kind: "ok", item: data as Record<string, unknown> }
+    : { kind: "unavailable" };
 }
 
 async function sendGraphRequest(
@@ -671,6 +955,9 @@ function graphUrl(path: string, query?: Record<string, string>): URL | null {
   return url;
 }
 
+/** A provider/DB fault while refreshing: retryable, says nothing about the connection. */
+class TransientRefreshError extends Error {}
+
 async function loadFreshAccessToken(
   connection: ConnectionRow,
   deps: HandlerDeps,
@@ -688,7 +975,9 @@ async function loadFreshAccessToken(
   ) {
     const timeoutMs = deadline ? deadline.slice() : undefined;
     if (timeoutMs === null) throw new Error("deadline spent");
-    const refreshed = await refreshAccessToken(connection, deps, timeoutMs);
+    const outcome: { transient?: boolean } = {};
+    const refreshed = await refreshAccessToken(connection, deps, timeoutMs, outcome);
+    if (outcome.transient) throw new TransientRefreshError();
     if (!refreshed) throw new Error("refresh failed");
     const { data: fresh, error: freshError } = await serviceClient
       .from("ms_graph_connections")
@@ -719,15 +1008,11 @@ async function loadFreshAccessToken(
   return decryptToken(envelope.ciphertext, envelope.iv, kek);
 }
 
-const GRAPH_METHODS = new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]);
 const ENCODED_UNSAFE_PATH = /%2e|%2f|%5c/i;
 
-function normalizeGraphMethod(
-  method: unknown,
-): GraphProxyRequest["method"] | null {
-  if (typeof method !== "string") return null;
-  const upper = method.toUpperCase();
-  return GRAPH_METHODS.has(upper) ? upper as GraphProxyRequest["method"] : null;
+/** Case-insensitive GET check; every other method (and any non-string) is rejected. */
+function isGetMethod(method: unknown): boolean {
+  return typeof method === "string" && method.toUpperCase() === "GET";
 }
 
 /** True when any `/`-separated segment is exactly `.` or `..` (the only real traversal forms). */
@@ -794,9 +1079,8 @@ export function scopeCoversPath(
 ): boolean {
   const normalizedPath = normalizePathForScope(path, dotSegmentsOnly);
   if (!normalizedPath || !isOneDrivePath(normalizedPath)) return false;
-  const normalizedMethod = normalizeGraphMethod(method);
   // Reads only: held write scopes never make a mutation permissible here (FR-M365DOC-070).
-  if (normalizedMethod !== "GET") return false; // mutation-witness:scope-get-only
+  if (!isGetMethod(method)) return false; // mutation-witness:scope-get-only
   return scopes.some((scope) =>
     ["Files.Read", "Files.ReadWrite", "Files.Read.All", "Files.ReadWrite.All"]
       .includes(scope)

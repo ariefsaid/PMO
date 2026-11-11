@@ -9,13 +9,22 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => 'exclusive' };
 });
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: { procurement: true, procurement_full: true },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { RecordCaptureForm } from './RecordCaptureForm';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 afterEach(() => clearOwnershipCache());
 
@@ -75,7 +84,7 @@ describe('AC-EXT-001 RecordCaptureForm group reference', () => {
   it.each(['purchase_request', 'purchase_order', 'vendor_invoice'] as const)(
     'an ERP-owned org is not asked for it on %s (the dispatched create would drop it)',
     (kind) => {
-      setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+      setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
       renderForm(kind);
       expect(screen.queryByTestId(`${kind}-group-ref-input`)).not.toBeInTheDocument();
     },

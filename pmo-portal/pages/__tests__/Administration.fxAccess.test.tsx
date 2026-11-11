@@ -24,6 +24,8 @@ vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (action: string, entity: string) => {
     if (entity === 'fxRate' && action === 'view')
       return state.role === 'Finance' || state.role === 'Admin';
+    if (entity === 'costAttribution' && action === 'manage')
+      return state.role === 'Finance' || state.role === 'Admin';
     if (entity === 'user' && action === 'view')
       return state.role === 'Executive' || state.role === 'Admin';
     return false;
@@ -40,6 +42,10 @@ vi.mock('@/src/auth/useIsOperator', () => ({
 }));
 vi.mock('@/src/hooks/useUsers', () => ({
   useUsers: () => ({ data: [], isPending: false, isError: false }),
+  useUsersPage: () => ({ data: { rows: [], total: 0 }, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }),
+  useActiveAdminCounts: () => ({ data: {}, isPending: false, isError: false }),
+  useUserFocusPage: () => ({ data: null, isPending: false, isError: false }),
+  useManagerChoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useUserMutations: () => ({}),
 }));
 vi.mock('@/src/hooks/useUsage', () => ({
@@ -84,10 +90,10 @@ function renderPage(path: string, role: Role, operator = false, pending = false,
 afterEach(() => cleanup());
 
 describe('AC-FX-010 Administration access', () => {
-  it('Finance lands on FX only and settled operator status does not gate it', async () => {
+  it('Finance lands on FX with only Cost attribution beside it, and settled operator status does not gate it', async () => {
     renderPage('/administration/exchange-rates', 'Finance', false, true);
     expect(await screen.findByTestId('administration-panel-exchange-rates')).toBeInTheDocument();
-    expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(screen.getAllByRole('link').map((l) => l.textContent)).toEqual(['Exchange rates', 'Cost attribution']);
     expect(screen.getByRole('link', { name: 'Exchange rates' })).toHaveAttribute(
       'aria-current',
       'page',

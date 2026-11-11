@@ -8,26 +8,20 @@ describe('Card', () => {
   it('static card has a border and NO rest shadow (Flat-By-Default)', () => {
     render(<Card>body</Card>);
     const card = screen.getByText('body');
-    expect(card.className).toContain('border-border');
-    expect(card.className).toContain('bg-card');
+    expect(card.className).toContain('panel-card');
     expect(card.className).not.toMatch(/shadow-\[/);
-  });
-
-  it('interactive card gets the hover state-lift shadow', () => {
-    render(<Card interactive>body</Card>);
-    expect(screen.getByText('body').className).toContain('hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]');
   });
 
   it('seam variant squares the bottom corners (sits above a table)', () => {
     render(<Card seam>body</Card>);
-    expect(screen.getByText('body').className).toContain('rounded-b-none');
+    expect(screen.getByText('body').className).toContain('panel-card-seam');
   });
 
-  it('CardHead renders a titled header with a bottom border and a navigable heading level', () => {
+  it('CardHead renders a titled header without a divider and keeps a navigable heading level', () => {
     render(<CardHead>Pipeline</CardHead>);
     // Default sits one level under the page h1 (no h1 -> h3 skip); explicit level for nested cards.
     const heading = screen.getByRole('heading', { name: 'Pipeline', level: 2 });
-    expect(heading.parentElement?.className).toContain('border-b');
+    expect(heading.parentElement?.parentElement).not.toHaveClass('border-b');
   });
 
   it('CardHead actions sit beside the heading: its accessible name is the title only', async () => {
@@ -41,7 +35,14 @@ describe('Card', () => {
     // The action stays operable and shares the header row.
     await userEvent.click(screen.getByRole('button', { name: 'Add line' }));
     expect(onClick).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Add line' }).closest('[class*="border-b"]')).toBe(heading.parentElement);
+    expect(screen.getByRole('button', { name: 'Add line' }).closest('[class*="border-b"]')).toBe(heading.closest('[class*="border-b"]'));
+  });
+
+  it('CardHead keeps an optional subline outside the heading name', () => {
+    const HeadWithSubline = CardHead as React.FC<React.ComponentProps<typeof CardHead> & { subline: React.ReactNode }>;
+    render(<HeadWithSubline subline="Updated through 27 Oct">Project finances</HeadWithSubline>);
+    expect(screen.getByRole('heading', { name: 'Project finances' })).toBeInTheDocument();
+    expect(screen.getByText('Updated through 27 Oct')).toBeInTheDocument();
   });
 
   it('CardHead forwards ref, id and tabIndex to the heading element (not the wrapper)', () => {
@@ -63,18 +64,21 @@ describe('Card', () => {
     expect(screen.getByRole('heading', { name: 'Delivery overview', level: 3 })).toBeInTheDocument();
   });
 
-  it('CardPad applies 16px padding', () => {
+  it('CardPad uses the responsive panel inset', () => {
     render(<CardPad>inner</CardPad>);
-    expect(screen.getByText('inner').className).toContain('p-4');
+    expect(screen.getByText('inner').className).toContain('p-[var(--panel-inset)]');
   });
 
-  // ── content-over-containers (monochrome-calm reskin, L2-RECORD) ──────────
-  // `variant="bare"` drops the card frame so a section sits directly on the canvas
-  // (heading + content, separated from neighbors by whitespace + an optional hairline).
-  // Default (`framed`) keeps the border + bg-card + rounding — unchanged everywhere else.
+  it('CardPad can keep a table flush with the panel edge', () => {
+    render(<CardPad flush>table</CardPad>);
+    expect(screen.getByText('table').className).toContain('p-0');
+  });
+
+  // `variant="bare"` keeps content inside an existing panel from drawing another frame.
   it('variant="bare": no card frame — content sits on the canvas', () => {
     render(<Card variant="bare">body</Card>);
     const card = screen.getByText('body');
+    expect(card.className).not.toContain('panel-card');
     expect(card.className).not.toContain('border-border');
     expect(card.className).not.toContain('bg-card');
     expect(card.className).not.toContain('rounded-lg');

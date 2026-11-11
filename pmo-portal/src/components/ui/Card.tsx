@@ -10,21 +10,18 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   seam?: boolean;
   /**
    * Visual treatment (monochrome-calm reskin, content-over-containers):
-   *   • `framed` (default) — the 1px border + bg-card surface.
+   *   • `framed` (default) — the panel surface with its explicit boundary.
    *   • `bare`             — no frame: the section sits directly on the canvas
-   *                          (heading + content), separated from neighbors by
-   *                          whitespace + an optional hairline. CardHead's rule
-   *                          stays as the section heading divider.
+   *                          inside an existing panel.
    */
   variant?: 'framed' | 'bare';
 }
 
 /**
- * The Flat-By-Default Rule: a card is defined by its 1px border + surface tone,
+ * The Panel Rule: a card is defined by its 1px border + surface tone,
  * never a rest shadow. The state-lift shadow appears only on interactive hover.
  *
- * `variant="bare"` (content-over-containers) drops the frame so a section reads as
- * heading + content on the canvas — fewer boxes, more air (monochrome-calm reskin).
+ * `variant="bare"` drops the frame and separates sibling content groups on the canvas.
  */
 export const Card: React.FC<CardProps> = ({
   interactive = false,
@@ -37,11 +34,12 @@ export const Card: React.FC<CardProps> = ({
 }) => (
   <div
     className={cn(
-      variant === 'framed' && 'rounded-lg border border-border bg-card',
+      variant === 'framed' && 'panel-card',
+      variant === 'bare' && 'space-y-[var(--space-group)]',
       clip && 'overflow-hidden',
-      seam && 'rounded-b-none',
+      seam && 'panel-card-seam',
       interactive &&
-        'transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]',
+        'transition-colors duration-150 hover:bg-surface-hover',
       className
     )}
     {...rest}
@@ -53,6 +51,8 @@ export const Card: React.FC<CardProps> = ({
 export type CardHeadingLevel = 2 | 3 | 4 | 5 | 6;
 type CardHeadProps = Omit<React.HTMLAttributes<HTMLHeadingElement>, 'aria-level'> & {
   level?: CardHeadingLevel;
+  /** Optional secondary line under the heading, outside its accessible name. */
+  subline?: React.ReactNode;
   /**
    * Controls that live beside the title (buttons, links, menus, file inputs). They render OUTSIDE the
    * heading so its accessible name stays the title alone. `children` must be title text only.
@@ -63,6 +63,7 @@ type CardHeadProps = Omit<React.HTMLAttributes<HTMLHeadingElement>, 'aria-level'
 
 export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
   level = 2,
+  subline,
   className,
   children,
   actions,
@@ -71,14 +72,18 @@ export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
   const Heading = `h${level}` as const;
   return (
     <div
-      className={cn(
-        'flex items-center gap-2.5 border-b border-border px-4 py-[13px] text-sm font-semibold',
-        className
-      )}
+      className={cn('flex items-start gap-2 px-[var(--panel-inset)] py-4', className)}
     >
-      <Heading ref={ref} className="flex min-w-0 flex-1 items-center gap-2.5" {...rest}>
-        {children}
-      </Heading>
+      <div className="min-w-0 flex-1">
+        <Heading
+          ref={ref}
+          className="flex min-w-0 items-center gap-2 text-group font-semibold"
+          {...rest}
+        >
+          {children}
+        </Heading>
+        {subline != null && <p className="mt-1 text-support font-normal text-muted-foreground">{subline}</p>}
+      </div>
       {actions != null && actions !== false && (
         <div className="ml-auto flex shrink-0 items-center gap-1.5">{actions}</div>
       )}
@@ -87,12 +92,25 @@ export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
 });
 CardHead.displayName = 'CardHead';
 
-export const CardPad: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
+type CardPadProps = React.HTMLAttributes<HTMLDivElement> & { flush?: boolean };
+
+export const CardPad: React.FC<CardPadProps> = ({
+  flush = false,
   className,
   children,
   ...rest
 }) => (
-  <div className={cn('p-4', className)} {...rest}>
+  <div className={cn(flush ? 'p-0' : 'p-[var(--panel-inset)]', className)} {...rest}>
+    {children}
+  </div>
+);
+
+export const CardFoot: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
+  className,
+  children,
+  ...rest
+}) => (
+  <div className={cn('border-t border-border px-[var(--panel-inset)] py-3', className)} {...rest}>
     {children}
   </div>
 );

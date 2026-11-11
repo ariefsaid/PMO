@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../../../pmo-portal/src/lib/appError.ts";
 import { fetchAllRowsByKeyset } from "../../../pmo-portal/src/lib/pagedRead.ts";
 import {
-  createDoc,
   type ErpClientDeps,
   ErpError,
   getDoc,
@@ -18,7 +17,15 @@ import {
   ACTIVATION_PROBE_TOTAL_BUDGET_MS,
   assertErpReadPermissions,
 } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts";
+import { COMMAND_IN_FLIGHT_FOR_RECORD } from "../../../pmo-portal/src/lib/adapterSeam/dispatch.ts";
+import { erpReason } from "../_shared/erpReason.ts";
+import { sendMasterOnce } from "../../../pmo-portal/src/lib/adapterSeam/connect/sendViaOutbox.ts";
+import { createErpnextConnectAdapter, erpnextSendProbe } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/connectAdapter.ts";
+import { createDbMoneyOutboxDeps } from "../adapter-dispatch/moneyOutboxDeps.ts";
 import { sweepKindsForOrg } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts";
+
+/** #1326: split out of Special expenses; required in setup only when budgeted (pmo-portal erpSetupIncompleteness). */
+const OPTIONAL_BUDGET_CATEGORIES = ["Travel & accommodation", "Vehicle"] as const;
 
 export interface ErpSetupBody {
   setupAction?: string;
@@ -65,6 +72,7 @@ export async function applyErpSetup(
   if (body.setupAction === "list-projects") {
     return await listErpProjects(body, ctx);
   }
+  if (body.setupAction === "verify-links") return await verifyErpProjectLinks(ctx);
   if (body.setupAction === "ensure-project") {
     return await ensureErpProject(body, ctx);
   }
@@ -193,23 +201,19 @@ const REVIEWABLE_PROJECT_STATUSES = new Set([
   "Internal Project",
 ]);
 async function readErpSetup(ctx: ErpSetupContext) {
-  const read = (table: string, columns: string, active = false) =>
+  const read = (table: string, columns: string) =>
     fetchAllRowsByKeyset<{ id: string; [key: string]: unknown }>(
       (after, limit) => {
         let query = ctx.serviceClient.from(table).select(columns).eq(
           "org_id",
           ctx.orgId,
         ).order("id").limit(limit);
-        if (active) query = query.eq("status", "active");
         if (table === "projects") query = query.is("archived_at", null);
-        if (table === "timesheet_entries") {
-          query = query.gt("hours", 0).eq("timesheets.org_id", ctx.orgId);
-        }
         if (after) query = query.gt("id", after);
         return query as never;
       },
     );
-  const [ownership, projects, accounts, members, employees, timeEntries] = await Promise.all(
+  const [ownership, projects, accounts, unlinked] = await Promise.all(
     [
       ctx.serviceClient.from("external_domain_ownership").select("domain").eq(
         "org_id",
@@ -217,25 +221,23 @@ async function readErpSetup(ctx: ErpSetupContext) {
       ).eq("external_tier", "erpnext"),
       read("projects", "id,name,code,status"),
       read("budget_category_account_map", "id,category,erp_account,is_push_target"),
-      read("profiles", "id", true),
-      read("erp_employees", "id,profile_id,link_state"),
-      read("timesheet_entries", "id,timesheets!inner(user_id)"),
+      ctx.serviceClient.rpc("erp_setup_unlinked_participant_count", { p_org_id: ctx.orgId }),
     ],
   );
   if (ownership.error) {
     throw new AppError(ownership.error.message, ownership.error.code);
   }
-  const linkedProfiles = new Set(
-    employees.filter((row) => row.link_state === "confirmed").map((row) =>
-      row.profile_id
+  if (unlinked.error) throw new AppError(unlinked.error.message, unlinked.error.code);
+  // #1326: Travel & accommodation and Vehicle need a mapping only once the org budgets in them.
+  const optionalUse = await Promise.all(
+    OPTIONAL_BUDGET_CATEGORIES.map((category) =>
+      ctx.serviceClient.from("budget_line_items").select("category").eq("org_id", ctx.orgId)
+        .eq("category", category).limit(1)
     ),
   );
-  const timeEntryParticipants = new Set(
-    timeEntries.flatMap((row) => {
-      const timesheet = row.timesheets as { user_id?: unknown } | null;
-      return typeof timesheet?.user_id === "string" ? [timesheet.user_id] : [];
-    }),
-  );
+  for (const result of optionalUse) {
+    if (result.error) throw new AppError(result.error.message, result.error.code);
+  }
   const projectMap = (ctx.config.project_map ?? {}) as Record<string, unknown>;
   return {
     defaults: Object.fromEntries(
@@ -264,11 +266,12 @@ async function readErpSetup(ctx: ErpSetupContext) {
         ).map((row) => row.category),
       ),
     ],
+    budgetUsedOptionalCategories: OPTIONAL_BUDGET_CATEGORIES.filter((_, i) =>
+      (optionalUse[i].data ?? []).length > 0
+    ),
     // Only people with recorded time-entry participation need an ERP employee link.
     // Role membership alone is not evidence that a person uses time entry.
-    unlinkedEmployeeCount: members.filter((row) =>
-      timeEntryParticipants.has(row.id) && !linkedProfiles.has(row.id)
-    ).length,
+    unlinkedEmployeeCount: unlinked.data as number,
   };
 }
 
@@ -419,6 +422,7 @@ async function saveProjectMap(
   erpProject: string,
 ) {
   let prior = ctx.config;
+  const original = (prior.project_map as Record<string, unknown> | undefined)?.[projectId];
   for (let attempt = 0; attempt < 4; attempt++) {
     const map = prior.project_map ?? {};
     if (typeof map !== "object" || map === null || Array.isArray(map)) {
@@ -458,6 +462,13 @@ async function saveProjectMap(
         "config-rejected",
       );
     }
+    const now = (current.config.project_map as Record<string, unknown> | undefined)?.[projectId];
+    if (now !== original && now !== erpProject) {
+      throw new AppError(
+        "The project match changed; reload and review the current ERP Project",
+        "config-rejected",
+      );
+    }
     prior = current.config as Record<string, unknown>;
   }
   throw new AppError(
@@ -468,6 +479,7 @@ async function saveProjectMap(
 
 async function ensureErpProject(body: ErpSetupBody, ctx: ErpSetupContext) {
   const project = await ownProject(body, ctx);
+  const master = { id: project.id, name: project.name, code: project.code };
   const mapped = (ctx.config.project_map as Record<string, unknown> | undefined)
     ?.[project.id];
   if (typeof mapped === "string" && mapped) {
@@ -517,15 +529,105 @@ async function ensureErpProject(body: ErpSetupBody, ctx: ErpSetupContext) {
       "config-rejected",
     );
   }
-  // ERPNext requires unique project_name. A retry looks up the landed master before any new POST.
-  const target = matches[0] ??
-    await createDoc(ctx.client, "Project", {
-      project_name: project.name,
-      company: ctx.company,
-    }) as Record<string, unknown>;
-  assertErpProject(target, ctx.company);
-  await saveProjectMap(ctx, project.id, target.name as string);
-  return { ok: true, erpProject: target.name };
+  // ERPNext requires unique project_name. A retry looks up the landed master before any new POST; a project the ERP lacks is
+  // sent through the money outbox under seed:project:<id> (ECA3-T10, PD-ECA-7), so one PMO project makes at most one ERP project.
+  if (matches[0]) assertErpProject(matches[0], ctx.company);
+  const erpProject = matches[0]?.name as string ?? (await sendProject(ctx, project, master)).externalRecordId;
+  await saveProjectMap(ctx, project.id, erpProject);
+  return { ok: true, erpProject };
+}
+
+/** I4: what the outbox can answer, in the words a Project Manager reads, with a status the handler maps (409 / 409 / 422), never a 500. */
+async function sendProject(ctx: ErpSetupContext, project: { id: string; name: string }, master: { id: string; name: string; code: string | null }) {
+  try {
+    return await sendMasterOnce(
+    {
+      money: createDbMoneyOutboxDeps({
+        serviceClient: ctx.serviceClient as never,
+        orgId: ctx.orgId,
+        externalTier: "erpnext",
+        operation: "create",
+        probeByRemarksKey: () => erpnextSendProbe(ctx.client, ctx.company, "project", master),
+        reissueOnInconclusiveAbsence: true,
+        actorUserId: ctx.actorId,
+      }),
+    },
+    createErpnextConnectAdapter(ctx.client, ctx.company),
+    "project",
+    master,
+    );
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === COMMAND_IN_FLIGHT_FOR_RECORD) {
+      throw new AppError("This project is already being created in the ERP. Try again in a minute.", "send-in-flight");
+    }
+    if (code === "command-held") {
+      // the Admin's decision row, with its way out (send it again), in the setup checklist
+      await ctx.serviceClient.rpc("record_connect_record_held", { p_org_id: ctx.orgId, p_tier: "erpnext", p_kind: "project", p_pmo: project.id, p_name: project.name });
+      throw new AppError("We could not confirm whether the ERP created this project. An Admin can check it in the ERP and send it again from the setup checklist.", "send-held");
+    }
+    if (code === "commit-rejected") {
+      const reason = erpReason(err);
+      throw new AppError(`The ERP refused this project${reason ? `: ${reason}` : ". Check it in the ERP, then try again."}`, "send-refused");
+    }
+    throw err;
+  }
+}
+
+const VERIFY_CONCURRENCY = 5;
+async function verifyErpProjectLinks(ctx: ErpSetupContext) {
+  const projectMap = (ctx.config.project_map ?? {}) as Record<string, unknown>;
+  const projects = await fetchAllRowsByKeyset<{ id: string; name: string; code: string | null }>(
+    (after, limit) => {
+      let query = ctx.serviceClient.from("projects").select("id,name,code")
+        .eq("org_id", ctx.orgId).is("archived_at", null).order("id").limit(limit);
+      if (after) query = query.gt("id", after);
+      return query as never;
+    },
+  );
+  type Mismatch = Record<string, unknown>;
+  const check = async (project: { id: string; name: string; code: string | null }): Promise<Mismatch | null> => {
+    const erpName = typeof projectMap[project.id] === "string" ? String(projectMap[project.id]).trim() : "";
+    if (!erpName) {
+      return { project_id: project.id, code: project.code, name: project.name, reason: "unmapped" };
+    }
+    // The link is the stored ERP key (ERPNext may auto-name it), so the PMO business code is not compared: verify the
+    // mapped identity, its company and active state, and the contractual project name.
+    try {
+      const erp = await getDoc(ctx.client, "Project", erpName) as Record<string, unknown>;
+      assertErpProject(erp, ctx.company);
+      const reason = erp.name !== erpName ? "identity_changed" : erp.project_name !== project.name ? "name_mismatch" : null;
+      return reason
+        ? { project_id: project.id, code: project.code, name: project.name, erp_project: erp.name, erp_project_name: erp.project_name, reason }
+        : null;
+    } catch (err) {
+      // Only a confirmed absence (404) or a refused project is a broken link; an outage or auth refusal is a failed check.
+      if (err instanceof AppError || (err instanceof ErpError && err.status === 404)) {
+        return { project_id: project.id, code: project.code, name: project.name, erp_project: erpName, reason: "missing_or_invalid_erp_project" };
+      }
+      if (err instanceof ErpError && err.status === 403) {
+        throw new AppError("The ERP refused access to a project; check the integration user's permissions", "FORBIDDEN");
+      }
+      throw new AppError("The ERP could not be reached to verify project links; try again", "external-unreachable");
+    }
+  };
+  // Bounded concurrency: a fixed pool of workers drains a shared cursor; results keep the project order.
+  const results: Array<Mismatch | null> = new Array(projects.length);
+  let cursor = 0;
+  let failed = false;
+  await Promise.all(Array.from({ length: Math.min(VERIFY_CONCURRENCY, projects.length) }, async () => {
+    while (!failed && cursor < projects.length) {
+      const i = cursor++;
+      try {
+        results[i] = await check(projects[i]);
+      } catch (err) {
+        failed = true; // one failed check fails the run: the other workers stop calling the ERP
+        throw err;
+      }
+    }
+  }));
+  const mismatches = results.filter((row): row is Mismatch => row !== null);
+  return { checked: projects.length, mismatches };
 }
 
 async function listErpProjects(body: ErpSetupBody, ctx: ErpSetupContext) {

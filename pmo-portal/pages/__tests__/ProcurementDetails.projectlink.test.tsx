@@ -25,7 +25,15 @@ const detailState = {
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+// ProcurementDetails resolves the project (PM manager scope) through useProject; a Finance viewer
+// passes no id, so the stub returns an idle query. Pinned so the page renders without a QueryClient.
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProject: () => ({ data: undefined, isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -61,7 +69,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: vi.fn(), isPending: false },
     deleteDocument: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProcurementDocuments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
@@ -102,6 +109,7 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+import { headerActions } from '@/pages/__tests__/helpers/procurementHeader';
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -133,6 +141,11 @@ const baseProcurement = {
   quotations: [],
   receipts: [],
   invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
 const renderPage = (id = 'proc-1') =>
@@ -165,13 +178,24 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
     expect(projectLinks[0].getAttribute('href')).toBe('/projects/proj-1');
   });
 
+  it('review 12: without a request number the header meta starts with the project, not a stray "·"', () => {
+    detailState.data = { ...baseProcurement, code: null };
+    renderPage();
+    const link = screen.getAllByRole('link', { name: /Open Bridge Alpha/i })[0];
+    const meta = link.parentElement!.parentElement!;
+    expect(meta.textContent?.trim().startsWith('·')).toBe(false);
+    // The restructured header (#1404) reads project · supplier · raised-by (avatar initial + "Raised by").
+    expect(meta.textContent?.trim().startsWith('Bridge Alpha · ')).toBe(true);
+    expect(meta.textContent).toContain('Raised by Eng User');
+  });
+
   it('AC-JR-W1-05: moneyContext in Approve confirm shows project name as a link', async () => {
     // Finance role, different requester — can Approve
     detailState.data = { ...baseProcurement, status: 'Requested' as const };
     renderPage();
 
-    // Click "Approve"
-    const approveBtn = screen.getByRole('button', { name: /approve/i });
+    // Click "Approve" (the phone-only bar repeats it, so scope to the header)
+    const approveBtn = headerActions().getByRole('button', { name: /approve/i });
     await userEvent.click(approveBtn);
 
     // The confirm dialog body should contain the project name as a link
@@ -187,7 +211,7 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
     detailState.data = { ...baseProcurement, status: 'Requested' as const };
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: /approve/i }));
 
     const dialog = screen.getByRole('dialog');
     expect(dialog.textContent).toContain('Approve $25,000 on Bridge Alpha, requested by Eng User?');
@@ -203,7 +227,7 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
     };
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: /approve/i }));
 
     const dialog = screen.getByRole('dialog');
     expect(dialog.textContent).toContain('Approve $25,000?');
@@ -223,6 +247,27 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
   });
 });
 
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpOrphans: () => ({ data: [], isError: false, isPending: false }) }));
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useErpJournalLines', () => import('@/pages/__tests__/helpers/erpJournalLinesMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));
+
+describe('AC-002 #1325: ProcurementDetails shows the short name but keeps money confirms contractual', () => {
+  it('the header project link shows the short name described by the contractual title', () => {
+    detailState.data = { ...baseProcurement, project: { name: 'Bridge Alpha Contractual', short_name: 'Bridge', code: 'PRJ-001' } };
+    renderPage();
+    const link = screen.getAllByRole('link', { name: 'Open Bridge' })[0];
+    expect(link).toHaveAccessibleDescription('Bridge Alpha Contractual');
+    expect(link.getAttribute('href')).toBe('/projects/proj-1');
+  });
+
+  it('the Approve money sentence names the contractual project', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested' as const, project: { name: 'Bridge Alpha Contractual', short_name: 'Bridge', code: 'PRJ-001' } };
+    renderPage();
+    await userEvent.click(headerActions().getByRole('button', { name: /approve/i }));
+    expect(screen.getByRole('dialog').textContent).toContain('on Bridge Alpha Contractual,');
+  });
+});

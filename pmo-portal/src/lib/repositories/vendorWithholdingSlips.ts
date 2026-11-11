@@ -22,12 +22,25 @@ export const vendorWithholdingSlipsRepository: VendorWithholdingSlipsRepository 
     limit: params.limit,
   })),
   coverage: async (invoiceIds) => {
-    const out: Awaited<ReturnType<typeof dal.listBills>>['rows'] = [];
-    for (let offset = 0; offset < invoiceIds.length; offset += 100) {
-      const result = await wrap(() => dal.listBills({ p_invoice_ids: invoiceIds.slice(offset, offset + 100), limit: 100 }));
-      out.push(...result.rows);
+    // Deduplicated 100-ID chunks (the server RPC's cap), fetched by a bounded pool of at most
+    // three requests in flight. Results land by chunk index, so the concatenation follows the
+    // input order even when later chunks finish first; a rejected chunk rejects the whole read.
+    const uniqueIds = [...new Set(invoiceIds)];
+    const chunks: string[][] = [];
+    for (let offset = 0; offset < uniqueIds.length; offset += 100) {
+      chunks.push(uniqueIds.slice(offset, offset + 100));
     }
-    return out;
+    const chunkRows: Awaited<ReturnType<typeof dal.listBills>>['rows'][] = new Array(chunks.length);
+    let nextChunk = 0;
+    const workers = Array.from({ length: Math.min(3, chunks.length) }, async () => {
+      while (nextChunk < chunks.length) {
+        const index = nextChunk++;
+        const result = await wrap(() => dal.listBills({ p_invoice_ids: chunks[index]!, limit: 100 }));
+        chunkRows[index] = result.rows;
+      }
+    });
+    await Promise.all(workers);
+    return chunkRows.flat();
   },
   readBillContexts: (input) => wrap(() => dal.readBillContexts(input)),
   get: (slipId) => wrap(() => dal.getSlip(slipId)),

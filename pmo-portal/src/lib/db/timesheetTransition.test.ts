@@ -4,14 +4,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // vi.hoisted mock setup — mirrors procurementLifecycle.test.ts builder pattern
 // ---------------------------------------------------------------------------
 
-const { mockRpc, mockFrom, mockSelect, mockEq, mockNeq, mockOrder } = vi.hoisted(() => {
+const { mockRpc, mockFrom, mockSelect, mockEq, mockNeq, mockOrder, mockOr } = vi.hoisted(() => {
   const mockRpc = vi.fn();
   const mockFrom = vi.fn();
   const mockSelect = vi.fn();
   const mockEq = vi.fn();
   const mockNeq = vi.fn();
   const mockOrder = vi.fn();
-  return { mockRpc, mockFrom, mockSelect, mockEq, mockNeq, mockOrder };
+  const mockOr = vi.fn();
+  return { mockRpc, mockFrom, mockSelect, mockEq, mockNeq, mockOrder, mockOr };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({
@@ -19,11 +20,12 @@ vi.mock('@/src/lib/supabase/client', () => ({
 }));
 
 import {
-  isLegalTimesheetTransition,
   timesheetActions,
   submitTimesheet,
   approveTimesheet,
   rejectTimesheet,
+  reopenTimesheet,
+  attestTimesheetNoErpDocument,
   listTimesheetsAwaitingApproval,
 } from './timesheetTransition';
 
@@ -46,6 +48,9 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   builder.eq = mockEq.mockReturnValue(builder);
   builder.neq = mockNeq.mockReturnValue(builder);
   builder.order = mockOrder.mockReturnValue(builder);
+  builder.or = mockOr.mockReturnValue(builder);
+  builder.gt = () => builder;
+  builder.limit = () => builder;
   builder.then = (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
     Promise.resolve(resolved).then(resolve, reject);
   mockFrom.mockReturnValue(builder);
@@ -59,27 +64,13 @@ beforeEach(() => {
   mockEq.mockReset();
   mockNeq.mockReset();
   mockOrder.mockReset();
+  mockOr.mockReset();
 });
 
 // ---------------------------------------------------------------------------
-// B1/B2 — Transition map (AC-900)
+// B1/B2 — Transition map (AC-900) lives at pgTAP now: the RPC transition_timesheet (0180) is the
+// enforcement authority — supabase/tests/timesheet_transition_map.test.sql (#1710 re-home).
 // ---------------------------------------------------------------------------
-
-describe('isLegalTimesheetTransition', () => {
-  it('AC-900: timesheet transition map accepts legal pairs, rejects illegal jumps and terminal exits (FR-TS-001)', () => {
-    // Legal transitions
-    expect(isLegalTimesheetTransition('Draft', 'Submitted')).toBe(true);
-    expect(isLegalTimesheetTransition('Submitted', 'Approved')).toBe(true);
-    expect(isLegalTimesheetTransition('Submitted', 'Rejected')).toBe(true);
-    expect(isLegalTimesheetTransition('Rejected', 'Draft')).toBe(true);
-    // Slice A (FR-TSC-001): Approved is no longer terminal — an approver may re-open it to Draft.
-    expect(isLegalTimesheetTransition('Approved', 'Draft')).toBe(true);
-
-    // Illegal jumps
-    expect(isLegalTimesheetTransition('Draft', 'Approved')).toBe(false);
-    expect(isLegalTimesheetTransition('Submitted', 'Draft')).toBe(false);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // B3 — Action-gate helper (AC-901)
@@ -136,6 +127,20 @@ describe('timesheetActions', () => {
 // ---------------------------------------------------------------------------
 
 describe('submitTimesheet / approveTimesheet / rejectTimesheet', () => {
+  it('AC-902: every transition and attest RPC refusal keeps its SQLSTATE and detail on the thrown error', async () => {
+    const calls = [
+      () => submitTimesheet('ts'),
+      () => approveTimesheet('ts'),
+      () => rejectTimesheet('ts'),
+      () => reopenTimesheet('ts'),
+      () => attestTimesheetNoErpDocument('ts', 'checked'),
+    ];
+    for (const call of calls) {
+      makeRpcBuilder({ data: null, error: { message: 'refused', code: 'P0001', details: 'sheet-state' } });
+      await expect(call()).rejects.toMatchObject({ message: 'refused', code: 'P0001', details: 'sheet-state' });
+    }
+  });
+
   it('AC-902: submitTimesheet/approveTimesheet/rejectTimesheet surface the RPC 42501/P0001 error and send {p_timesheet_id,p_to,p_notes} with no org_id (FR-TS-002/010)', async () => {
     // Error path: should throw
     makeRpcBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
@@ -182,7 +187,7 @@ describe('submitTimesheet / approveTimesheet / rejectTimesheet', () => {
 // ---------------------------------------------------------------------------
 
 describe('listTimesheetsAwaitingApproval', () => {
-  it("AC-903: listTimesheetsAwaitingApproval selects Submitted sheets, neq user_id (SoD), joins owner + entries, orders by week_start_date, sends no org_id (FR-TS-011)", async () => {
+  it("AC-903: listTimesheetsAwaitingApproval selects Submitted sheets, neq user_id (SoD), joins owner + entries, keyset-scans by id, sends no org_id (FR-TS-011)", async () => {
     const rows = [
       {
         id: 'ts-1',
@@ -206,11 +211,11 @@ describe('listTimesheetsAwaitingApproval', () => {
 
     expect(mockFrom).toHaveBeenCalledWith('timesheets');
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, owner:profiles!timesheets_user_id_fkey(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,code))',
+      '*, owner:profiles!timesheets_user_id_fkey!inner(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,short_name,code))',
     );
     expect(mockEq).toHaveBeenCalledWith('status', 'Submitted');
     expect(mockNeq).toHaveBeenCalledWith('user_id', 'self-id');
-    expect(mockOrder).toHaveBeenCalledWith('week_start_date', { ascending: false });
+    expect(mockOrder).toHaveBeenCalledWith('id', { ascending: true });
 
     // No org_id sent
     expect(JSON.stringify(mockEq.mock.calls)).not.toContain('org_id');
@@ -227,6 +232,16 @@ describe('listTimesheetsAwaitingApproval', () => {
     { id: 'self', user_id: 'manager-1', status: 'Submitted', week_start_date: '2026-05-31', owner: { full_name: 'Manager', manager_id: 'manager-9' }, entries: [] },
     { id: 'missing-owner', user_id: 'worker-4', status: 'Submitted', week_start_date: '2026-05-30', owner: null, entries: [] },
   ];
+
+  it('AC-903: the queue lists the newest week first even though the scan serves rows in id order', async () => {
+    const mk = (id: string, week: string) => ({
+      id, user_id: `w-${id}`, status: 'Submitted', week_start_date: week,
+      owner: { full_name: id, manager_id: 'manager-1' }, entries: [],
+    });
+    makeFromBuilder({ data: [mk('a', '2026-05-04'), mk('b', '2026-06-01'), mk('c', '2026-05-18')], error: null });
+    const result = await listTimesheetsAwaitingApproval('manager-1', 'Admin');
+    expect(result.map(sheet => sheet.id)).toEqual(['b', 'c', 'a']);
+  });
 
   it('AC-903: a manager receives only sheets assigned to that manager', async () => {
     makeFromBuilder({ data: approvalRows, error: null });
@@ -250,6 +265,19 @@ describe('listTimesheetsAwaitingApproval', () => {
     makeFromBuilder({ data: approvalRows.filter(row => row.id !== 'self'), error: null });
     const result = await listTimesheetsAwaitingApproval('manager-9', 'Project Manager');
     expect(result).toEqual([]);
+  });
+
+  it.each(['Engineer', 'Finance'] as const)('AC-903: %s sees assigned records with a server-side manager filter', async role => {
+    makeFromBuilder({ data: approvalRows, error: null });
+    const rows = await listTimesheetsAwaitingApproval('manager-1', role);
+    expect(rows.map(row => row.id)).toEqual(['assigned']);
+    expect(mockEq).toHaveBeenCalledWith('owner.manager_id', 'manager-1');
+  });
+
+  it('AC-903: Executive server filtering includes assigned and unmanaged records', async () => {
+    makeFromBuilder({ data: approvalRows, error: null });
+    await listTimesheetsAwaitingApproval('manager-1', 'Executive');
+    expect(mockOr).toHaveBeenCalledWith('manager_id.eq.manager-1,manager_id.is.null', { referencedTable: 'owner' });
   });
 
   it('AC-903: a missing joined owner is excluded rather than treated as unassigned', async () => {

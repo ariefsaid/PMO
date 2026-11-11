@@ -7,12 +7,7 @@ import React from 'react';
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 import { Rail } from '../Rail';
 
-/**
- * AC-IXD-DASH-004 (Area 4, plan task 20): don't promote an unbuilt module to prime nav.
- * "Reports" renders an empty PlaceholderPage, so it is demoted/hidden from the Rail until the
- * module ships (the /reports route is kept for stray deep links). A role that sees the rail
- * does NOT see "Reports" as a top-slot nav item leading to an empty stub.
- */
+/** Finance Reports is now a real child destination inside the Finance rail group. */
 
 let effectiveRole = 'Executive';
 
@@ -38,6 +33,7 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
       incidents: false,
       crm: true,
       procurement: true,
+      revenue: true,
       timesheets: true,
       import_export: true,
       agent_assistant: false,
@@ -55,18 +51,18 @@ const renderRail = () =>
     </MemoryRouter>,
   );
 
-describe('Rail — Reports demoted until built (AC-IXD-DASH-004)', () => {
-  it('AC-IXD-DASH-004: Reports is NOT a rail item for Executive (unbuilt module hidden)', () => {
+describe('Rail — Finance Reports destination', () => {
+  it('Executive sees Reports inside the Finance group', () => {
     effectiveRole = 'Executive';
     renderRail();
-    expect(screen.queryByRole('link', { name: /Reports/i })).toBeNull();
-    expect(screen.queryByText(/Reports/i)).toBeNull();
+    expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/finance/reports');
+    expect(screen.getByRole('link', { name: 'Finance' })).toHaveAttribute('href', '/finance');
   });
 
-  it('AC-IXD-DASH-004: Reports is NOT a rail item for Finance either', () => {
+  it('Finance sees Reports as a child destination', () => {
     effectiveRole = 'Finance';
     renderRail();
-    expect(screen.queryByRole('link', { name: /Reports/i })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/finance/reports');
   });
 
   it('AC-IXD-DASH-004: the surviving Overview group still shows Dashboard', () => {

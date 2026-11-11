@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -65,7 +65,6 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
-  usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
 const navigate = vi.fn();
 vi.mock('react-router', async (orig) => {
@@ -127,14 +126,15 @@ describe('Projects: search_used fires (debounced) at the projects search box', (
 });
 
 describe('Projects: empty_state_seen fires when there are zero projects (FIX 1)', () => {
-  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', () => {
+  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', async () => {
     projectsState.data = [];
     renderPage();
     expect(screen.getByText('No projects yet')).toBeInTheDocument();
-    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith(
+    // The facade is loaded lazily (ListState defers the analytics chunk off the first paint).
+    await waitFor(() => expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith(
       'projects-empty',
       'Project Manager',
       'projects',
-    );
+    ));
   });
 });

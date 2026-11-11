@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { calculateStandaloneTax } from './taxTreatment';
 import {
   itemsNetTotal, netOf, parseErpTaxAmounts, parseNativeWithholding, parseVendorTaxDefaultsDraft,
   suggestVat, suggestWithheld, vendorTaxDefaultOf, withholdingFigures,
@@ -39,6 +40,28 @@ describe('vendor tax defaults and suggestions (#876 slice 2, DD-VWH-17)', () => 
   it('AC-VWH-025 the VAT inside a tax-inclusive amount is amount × rate / (100 + rate)', () => {
     expect(suggestVat(1110000, 'inclusive', 11)).toBe(110000);
     expect(suggestVat(1000, 'inclusive', 12)).toBe(107.14);
+  });
+
+  it('a positive in-domain suggestion IS the standalone calculator answer', () => {
+    for (const treatment of ['inclusive', 'exclusive'] as const) {
+      expect(suggestVat(333333.33, treatment, 12)).toBe(calculateStandaloneTax(333333.33, treatment, 12)!.taxAmount);
+      expect(suggestVat(1110, treatment, 12)).toBe(calculateStandaloneTax(1110, treatment, 12)!.taxAmount);
+    }
+  });
+
+  it('a suggestion outside the calculator domain keeps its own signed answer', () => {
+    expect(suggestVat(-100, 'exclusive', 11)).toBe(-11);
+    expect(suggestVat(-111, 'inclusive', 11)).toBe(-11);
+    expect(suggestVat(-5, 'inclusive', 0)).toBe(0);
+    expect(suggestVat(100, 'exclusive', 150)).toBe(150);
+    expect(suggestVat(100, 'inclusive', 150)).toBe(60);
+    expect(suggestVat(10.005, 'exclusive', 10)).toBe(1);
+    expect(suggestVat(1e12, 'exclusive', 11)).toBe(110000000000);
+  });
+
+  it('a non-numeric draft fails the suggestion the same way it always has', () => {
+    expect(() => suggestVat(Number.NaN, 'inclusive', 11)).toThrow(RangeError);
+    expect(() => suggestVat(Infinity, 'exclusive', 11)).toThrow(RangeError);
   });
 
   it('AC-VWH-025 the PPh suggested is rate × the net (DPP), half-up to the cent', () => {

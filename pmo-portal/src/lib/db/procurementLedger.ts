@@ -22,6 +22,7 @@
  * the single-source status registry (CW-2, DESIGN.md).
  */
 
+import { billPaymentView } from '@/src/lib/adapterSeam/odoo/purchase/status';
 import type { ProcurementDetail } from './procurementLifecycle';
 import type { StatusVariant } from '@/src/components/ui/StatusPill';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
@@ -31,6 +32,14 @@ import { workflowVariant } from '@/src/lib/status/statusVariants';
 // ---------------------------------------------------------------------------
 
 export type RecordType = 'PR' | 'RFQ' | 'Quote' | 'PO' | 'GR' | 'Invoice' | 'Payment';
+
+/** What the viewer needs to open the first attached file: its row id and, for a SharePoint-backed file, the reference. */
+export interface LedgerFileRef {
+  id: string;
+  source: 'upload' | 'onedrive' | null;
+  ms_web_url: string | null;
+  ms_item_name: string | null;
+}
 
 export interface LedgerRow {
   /** Unique ID for this row — `<type>-<recordId>` to avoid cross-type collisions. */
@@ -100,6 +109,8 @@ export interface LedgerRow {
    * 0 when no files are attached.
    */
   fileCount: number;
+  /** The first file row (id + SharePoint reference) so the viewer can address it. Absent when no file. */
+  fileRef?: LedgerFileRef;
   /**
    * true = this record type has a monetary commitment (PR / Quote / PO / Invoice / Payment).
    * false = process milestone without a direct financial value (RFQ / GR).
@@ -114,6 +125,37 @@ export interface LedgerRow {
    * carries no currency, so they stamp the parent procurement's (their amount is null anyway).
    */
   currency: string;
+  /** #1505 P8: what Odoo last said about this record. Absent for a record PMO owns (it renders exactly as before). */
+  odoo?: OdooRowFacts;
+}
+
+/** The mirror facts of an Odoo-held record (migration 0506). `booked`/`entered` are receipt quantities summed over lines; null = none yet. */
+export interface OdooRowFacts {
+  erpState: string | null;
+  erpAttention: string | null;
+  erpReadAt: string | null;
+  booked: number | null;
+  entered: number | null;
+  /** A bill only (FR-OPP-046/054): Paid, payment sent and awaiting Odoo's next read, or unpaid. */
+  paymentView?: 'paid' | 'awaiting-odoo' | 'unpaid';
+}
+
+interface OdooMirrorColumns {
+  erp_state?: string | null; erp_attention?: string | null; erp_read_at?: string | null;
+  odoo_booked?: unknown; odoo_entered?: unknown;
+}
+
+const sumQuantities = (list: unknown): number | null => {
+  if (!Array.isArray(list)) return null;
+  return list.reduce<number>((n, l) => n + (Number((l as { quantity?: unknown })?.quantity) || 0), 0);
+};
+
+function odooFacts(rec: OdooMirrorColumns): OdooRowFacts | undefined {
+  if (rec.erp_state == null && rec.erp_attention == null) return undefined;
+  return {
+    erpState: rec.erp_state ?? null, erpAttention: rec.erp_attention ?? null, erpReadAt: rec.erp_read_at ?? null,
+    booked: sumQuantities(rec.odoo_booked), entered: sumQuantities(rec.odoo_entered),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -129,8 +171,12 @@ function isFinancial(type: RecordType): boolean {
 
 /** Minimal shape of the file rows embedded in the bundle. */
 interface EmbeddedFileRow {
+  id?: string;
   title?: string | null;
   file_path?: string | null;
+  source?: 'upload' | 'onedrive' | null;
+  ms_web_url?: string | null;
+  ms_item_name?: string | null;
   archived_at?: string | null;
 }
 
@@ -142,19 +188,24 @@ function fileBasename(path: string): string {
 
 /**
  * Derive file presence (href, title, count) from the embedded file rows.
- * Filters out archived rows (archived_at != null). Zero network calls.
+ * Filters out archived rows (archived_at != null). A SharePoint-backed row has no storage path, so it counts
+ * by its browser link and `fileHref` carries that link. Zero network calls.
  */
 function filePresence(files: EmbeddedFileRow[] | undefined): {
   fileHref: string | null;
   fileTitle: string | null;
   fileCount: number;
+  fileRef?: LedgerFileRef;
 } {
-  const active = (files ?? []).filter((f) => f.archived_at == null && f.file_path);
+  const active = (files ?? []).filter((f) => f.archived_at == null && (f.file_path || (f.source === 'onedrive' && f.ms_web_url)));
   if (active.length === 0) return { fileHref: null, fileTitle: null, fileCount: 0 };
   const first = active[0];
-  const path = first.file_path!;
-  const title = first.title ? first.title : fileBasename(path);
-  return { fileHref: path, fileTitle: title, fileCount: active.length };
+  const href = first.file_path ?? first.ms_web_url!;
+  const title = first.title || first.ms_item_name || fileBasename(href);
+  const fileRef = first.id
+    ? { id: first.id, source: first.source ?? null, ms_web_url: first.ms_web_url ?? null, ms_item_name: first.ms_item_name ?? null }
+    : undefined;
+  return { fileHref: href, fileTitle: title, fileCount: active.length, ...(fileRef ? { fileRef } : {}) };
 }
 
 /** Per-type optional row facts (a PR/PO carries only `groupRef`; a vendor invoice carries its tax basis too). */
@@ -188,7 +239,7 @@ function makeRow(
   const { groupRef, taxTreatment, taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown, taxAmount, withheldAmount,
     efakturNumber, efakturDate, efakturLocked } = extra;
   const businessDate = date ?? createdAt;
-  const { fileHref, fileTitle, fileCount } = filePresence(files);
+  const { fileHref, fileTitle, fileCount, fileRef } = filePresence(files);
   return {
     id: `${type}-${recordId}`,
     date: businessDate,
@@ -202,6 +253,7 @@ function makeRow(
     fileHref,
     fileTitle,
     fileCount,
+    ...(fileRef ? { fileRef } : {}),
     financial: isFinancial(type),
     recordId,
     currency,
@@ -372,6 +424,27 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         (pay as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
+  }
+
+  // ── Odoo facts (#1505 P8): attached by record id, only where the mirror holds a fact ──
+  const mirrored = new Map<string, OdooRowFacts>();
+  for (const rec of [...(detail.purchase_orders ?? []), ...(detail.receipts ?? []), ...(detail.invoices ?? []), ...(detail.payments ?? [])]) {
+    const facts = odooFacts(rec as unknown as OdooMirrorColumns);
+    if (facts) mirrored.set((rec as { id: string }).id, facts);
+  }
+  // A bill is "awaiting Odoo" while PMO has sent more payment than Odoo's own outstanding amount reflects (FR-OPP-054).
+  for (const inv of detail.invoices ?? []) {
+    const facts = mirrored.get(inv.id);
+    if (!facts?.erpState) continue;
+    const total = Number(inv.amount ?? 0);
+    const outstanding = inv.erp_outstanding_amount;
+    const sent = (detail.payments ?? []).filter((p) => p.invoice_id === inv.id).reduce((n, p) => n + Number(p.amount ?? 0), 0);
+    const reflected = outstanding == null ? 0 : total - Number(outstanding);
+    facts.paymentView = billPaymentView({ state: facts.erpState, residual: outstanding == null ? null : String(outstanding), paymentsSent: sent > reflected + 0.005 ? 1 : 0 });
+  }
+  for (const row of rows) {
+    const facts = mirrored.get(row.recordId);
+    if (facts && ['PO', 'GR', 'Invoice', 'Payment'].includes(row.type)) row.odoo = facts;
   }
 
   // ── Sort: newest-first (descending by business date) ─────────────────────

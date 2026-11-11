@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EXPENSE_ACCOUNT_KEYS, expenseAccountProblem, isExpenseAccountKey, type ErpAccountFacts } from './expenseAccountRules';
+import { EXPENSE_ACCOUNT_KEYS, expenseAccountProblem, imprestCashAccountFits, isExpenseAccountKey, type ErpAccountFacts } from './expenseAccountRules';
 
 const ctx = { company: 'PMO Smoke Co', companyCurrency: 'IDR', defaultPayableAccount: 'Creditors - PSC' };
 const acct = (over: Partial<ErpAccountFacts>): ErpAccountFacts =>
@@ -33,9 +33,31 @@ describe('expenseAccountProblem (AC-EXP-118)', () => {
     expect(expenseAccountProblem('Travel', acct({ account_currency: 'USD' }), ctx)).toMatch(/USD/);
   });
 
-  it('AC-EXP-118 the keys are the two party keys plus every expense type', () => {
-    expect(EXPENSE_ACCOUNT_KEYS).toEqual(['employee_payable', 'employee_advance', 'Travel', 'Accommodation', 'Meals', 'Local transport', 'Other']);
+  it('AC-EXP-118 the keys are the two party keys, the project direct-cost key and every expense type', () => {
+    expect(EXPENSE_ACCOUNT_KEYS).toEqual(['employee_payable', 'employee_advance', 'project_direct_cost', 'Travel', 'Accommodation', 'Meals', 'Local transport', 'Other']);
+    expect(isExpenseAccountKey('project_direct_cost')).toBe(true);
     expect(isExpenseAccountKey('Meals')).toBe(true);
     expect(isExpenseAccountKey('Bogus')).toBe(false);
+  });
+
+  it('AC-EXP-118 project direct cost: an Expense-root ledger account, the expense-type rule', () => {
+    expect(expenseAccountProblem('project_direct_cost', acct({ name: 'Project Direct Cost - PSC' }), ctx)).toBeNull();
+    expect(expenseAccountProblem('project_direct_cost', acct({ name: 'Employee Payable - PSC', root_type: 'Liability', account_type: 'Payable' }), ctx))
+      .toBe('project_direct_cost: Employee Payable - PSC must be an Expense account');
+    expect(expenseAccountProblem('project_direct_cost', acct({ is_group: 1 }), ctx)).toMatch(/group/);
+  });
+});
+
+describe('imprestCashAccountFits (AC-IMP-071)', () => {
+  const cash = (over: Record<string, unknown> = {}) => ({ name: 'Site Cash F - PSC', account_type: 'Cash', company: 'PMO Smoke Co', is_group: 0, disabled: 0, ...over });
+  it('AC-IMP-071 a Cash ledger account of the bound company fits', () => {
+    expect(imprestCashAccountFits(cash(), 'PMO Smoke Co')).toBe(true);
+  });
+  it('AC-IMP-071 an account that no longer fits is refused, not posted', () => {
+    expect(imprestCashAccountFits(null, 'PMO Smoke Co')).toBe(false);
+    expect(imprestCashAccountFits(cash({ account_type: 'Bank' }), 'PMO Smoke Co')).toBe(false);
+    expect(imprestCashAccountFits(cash({ company: 'Other Co' }), 'PMO Smoke Co')).toBe(false);
+    expect(imprestCashAccountFits(cash({ disabled: 1 }), 'PMO Smoke Co')).toBe(false);
+    expect(imprestCashAccountFits(cash({ is_group: 1 }), 'PMO Smoke Co')).toBe(false);
   });
 });

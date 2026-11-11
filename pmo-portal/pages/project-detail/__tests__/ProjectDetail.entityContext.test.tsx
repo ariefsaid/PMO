@@ -16,6 +16,8 @@ import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
+vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinancesSection: () => null }));
 
 const projData = [
@@ -30,6 +32,7 @@ const projData = [
     last_update: '',
     org_id: 'o1',
     contract_value: 200_000,
+    currency: 'USD',
     win_probability: 1,
     stage_id: null,
     code: null,
@@ -72,12 +75,11 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
 }));
 
 // Stub tab contents — this test only asserts the entity-context side effect.
-vi.mock('../tabs/OverviewTab', () => ({ default: () => <div data-testid="tab-overview">Overview</div> }));
 vi.mock('../tabs/BudgetTab', () => ({ default: () => <div data-testid="tab-budget">Budget</div> }));
 vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-procurement">Procurement</div> }));
 vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
 vi.mock('../tabs/DocumentsTab', () => ({ default: () => <div data-testid="tab-documents">Documents</div> }));
-vi.mock('../PipelineLens', () => ({ default: () => <div>Pipeline</div> }));
+vi.mock('../../sales/DealBand', () => ({ default: () => <div>Pipeline</div> }));
 vi.mock('@/src/hooks/useTasks', () => ({
   useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
@@ -94,6 +96,24 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectPosition', () => ({
+  useProjectAttention: () => ({ items: [], isPending: false }),
+  useOverdueReceivables: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));
+vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () => null, MoneyBlock: () => null }));
+vi.mock('../ProjectActivity', () => ({ ActivityFooter: () => null, MyOpenTasks: () => null, ProjectActivity: () => null }));
+vi.mock('../ProjectDrawdown', () => ({ default: () => null }));
+vi.mock('../ProjectSCurve', () => ({ default: () => null }));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
 }));
 vi.mock('../ProjectDetailHeader', () => ({
   default: () => <div data-testid="stubbed-header">Header</div>,

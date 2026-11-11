@@ -12,11 +12,11 @@ interface ToastData {
   sub?: string;
 }
 
-const KIND_STRIPE: Record<ToastKind, string> = {
-  info: 'border-l-primary [&_svg]:text-primary',
-  success: 'border-l-success [&_svg]:text-success',
-  warning: 'border-l-warning [&_svg]:text-warning-foreground',
-  error: 'border-l-destructive [&_svg]:text-destructive',
+const KIND_ICON_TONE: Record<ToastKind, string> = {
+  info: '[&_svg]:text-muted-foreground',
+  success: '[&_svg]:text-success',
+  warning: '[&_svg]:text-warning-foreground',
+  error: '[&_svg]:text-destructive',
 };
 
 const KIND_ICON: Record<ToastKind, IconName> = {
@@ -33,14 +33,17 @@ export const ToastView: React.FC<{
   sub?: string;
   announce?: boolean;
   moreCount?: number;
-}> = ({ kind, title, sub, announce = true, moreCount = 0 }) => {
+  leaving?: boolean;
+}> = ({ kind, title, sub, announce = true, moreCount = 0, leaving = false }) => {
   const { t } = useTranslation('common');
   return (
     <div
       {...(announce ? { role: kind === 'warning' || kind === 'error' ? 'alert' : 'status', 'aria-live': kind === 'warning' || kind === 'error' ? 'assertive' : 'polite' } : {})}
       className={cn(
-        'toast-anim flex min-w-[230px] max-w-[360px] items-center gap-2.5 rounded-lg border border-l-[3px] border-border bg-popover px-3.5 py-[11px] text-[13.5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)] [&_svg]:size-[17px] [&_svg]:shrink-0',
-        KIND_STRIPE[kind]
+        'toast-anim flex min-w-[230px] max-w-[360px] items-center gap-2 rounded-overlay border border-border bg-popover px-3 py-3 text-control shadow-[var(--shadow-lg)] [&_svg]:size-4 [&_svg]:shrink-0',
+        KIND_ICON_TONE[kind],
+        kind === 'success' && 'save-pulse',
+        leaving && 'out'
       )}
     >
       <Icon name={KIND_ICON[kind]} />
@@ -55,9 +58,11 @@ export const ToastView: React.FC<{
 
 interface ToastApi {
   toast: {
-    (title: string, kind?: ToastKind): void;
-    (title: string, sub?: string, kind?: ToastKind): void;
+    (title: string, kind?: ToastKind): number;
+    (title: string, sub?: string, kind?: ToastKind): number;
   };
+  dismiss: (id: number) => void;
+  clear: () => void;
 }
 const ToastCtx = createContext<ToastApi | undefined>(undefined);
 
@@ -79,7 +84,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [alertAnnouncement]);
 
-  const toast = useCallback((title: string, subOrKind?: string, kind?: ToastKind) => {
+  const toast = useCallback((title: string, subOrKind?: string, kind?: ToastKind): number => {
     const isKind = (value: string | undefined): value is ToastKind =>
       value === 'info' || value === 'success' || value === 'warning' || value === 'error';
     const resolvedKind = kind ?? (isKind(subOrKind) ? subOrKind : 'info');
@@ -88,9 +93,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const current = itemRef.current;
     const urgent = resolvedKind === 'warning' || resolvedKind === 'error';
     const message = [title, sub].filter(Boolean).join(' ');
-    const enqueue = (entry: ToastData, front = false) => {
+    const enqueue = (entry: ToastData, front = false): number => {
       const existingIndex = queue.current.findIndex((queued) => queued.kind === entry.kind && queued.title === entry.title);
-      if (existingIndex >= 0) {
+      const existing = existingIndex >= 0 ? queue.current[existingIndex] : undefined;
+      if (existing) {
         if (front && existingIndex > 0) {
           const updated = [...queue.current];
           const [existing] = updated.splice(existingIndex, 1);
@@ -98,7 +104,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           queue.current = updated;
           setQueueCount(updated.length);
         }
-        return;
+        return existing.id;
       }
       const updated = front ? [entry, ...queue.current] : [...queue.current, entry];
       if (updated.length > 5) {
@@ -112,21 +118,23 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       queue.current = updated;
       setQueueCount(updated.length);
+      return entry.id;
     };
 
     if (current?.kind === 'warning' && resolvedKind === 'error') {
       enqueue(current, true);
       itemRef.current = next;
       setItem(next);
-      return;
+      return next.id;
     }
     if (current?.kind === 'warning' || current?.kind === 'error') {
       if (current.kind === 'error' && urgent) announceQueuedUrgent(message);
-      if (current.kind !== resolvedKind || current.title !== title) enqueue(next);
-      return;
+      if (current.kind !== resolvedKind || current.title !== title) return enqueue(next);
+      return current.id;
     }
     itemRef.current = next;
     setItem(next);
+    return next.id;
   }, [announceQueuedUrgent]);
 
   // These regions are persistent for the lifetime of the provider. Content is added only
@@ -135,13 +143,33 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const container = document.querySelector<HTMLElement>('[data-toast-container]');
     if (!container) return;
     const sync = () => {
-      const value = String(Boolean(document.querySelector('[aria-modal="true"]')));
+      const overlays = document.querySelectorAll<HTMLElement>('[aria-modal="true"]');
+      const value = String(overlays.length > 0);
       if (container.dataset.dialogOpen !== value) container.dataset.dialogOpen = value;
+      // Side drawers are edge-anchored full-height panels: the generic dialog remedy
+      // (toast above the dialog) would land the toast exactly on the drawer's header —
+      // its title AND action buttons (issue 1816). Measure the live header band into
+      // --toast-top-inset so index.css can tuck the toast just below it, on every
+      // viewport width. Re-measured on resize (a wrapped header is taller on phones).
+      const drawer = Array.from(overlays).find((overlay) => overlay.hasAttribute('data-drawer-panel'));
+      if (drawer) {
+        const header = drawer.querySelector<HTMLElement>(':scope > [data-drawer-header]');
+        const headerBottom = header?.getBoundingClientRect().bottom ?? 0;
+        container.style.setProperty('--toast-top-inset', `${Math.ceil(headerBottom + 12)}px`);
+        if (container.dataset.overlayDrawer !== 'true') container.dataset.overlayDrawer = 'true';
+      } else if (container.dataset.overlayDrawer !== undefined) {
+        delete container.dataset.overlayDrawer;
+        container.style.removeProperty('--toast-top-inset');
+      }
     };
     sync();
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-modal'] });
-    return () => observer.disconnect();
+    window.addEventListener('resize', sync);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', sync);
+    };
   }, []);
 
   useEffect(() => {
@@ -177,8 +205,58 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setItem(next ?? null);
   }, []);
 
+  const dismissById = useCallback((id: number) => {
+    if (itemRef.current?.id === id) {
+      dismiss();
+      return;
+    }
+    const index = queue.current.findIndex((queued) => queued.id === id);
+    if (index < 0) return;
+
+    const removed = queue.current[index];
+    if (!removed) return;
+    queue.current = queue.current.filter((queued) => queued.id !== id);
+    setQueueCount(queue.current.length);
+
+    const current = itemRef.current;
+    const removedMessage = [removed.title, removed.sub].filter(Boolean).join(' ');
+    const currentMessage = current && (current.kind === 'warning' || current.kind === 'error')
+      ? [current.title, current.sub].filter(Boolean).join(' ')
+      : '';
+    if ((removed.kind === 'warning' || removed.kind === 'error') && alertAnnouncement === removedMessage && currentMessage) {
+      setAlertAnnouncement('');
+      setTimeout(() => setAlertAnnouncement(currentMessage), 0);
+    }
+  }, [alertAnnouncement, dismiss]);
+
+  // Exit animation (#1970): play the shorter exit, then drop the toast. Keyed by id so a
+  // replacement toast arriving mid-exit is never dismissed by the old timer.
+  const [leavingId, setLeavingId] = useState<number | null>(null);
+  const leaveThenDismiss = useCallback(() => {
+    const id = itemRef.current?.id;
+    if (id === undefined) return;
+    const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const ms = reduced ? 0 : parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--motion-toast-out')) || 0;
+    if (ms <= 0) return dismiss();
+    setLeavingId(id);
+    setTimeout(() => {
+      setLeavingId((cur) => (cur === id ? null : cur));
+      if (itemRef.current?.id === id) dismiss();
+    }, ms);
+  }, [dismiss]);
+
+  const clear = useCallback(() => {
+    queue.current = [];
+    setQueueCount(0);
+    itemRef.current = null;
+    setItem(null);
+    setStatusAnnouncement('');
+    setAlertAnnouncement('');
+    lastAnnouncement.current = null;
+  }, []);
+
   return (
-    <ToastCtx.Provider value={{ toast }}>
+    <ToastCtx.Provider value={{ toast, dismiss: dismissById, clear }}>
       {children}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{statusAnnouncement}</div>
       <div className="sr-only" role="alert" aria-live="assertive" aria-atomic="true">{alertAnnouncement}</div>
@@ -188,12 +266,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         style={{ transform: 'translateY(calc(0px - var(--mobile-action-bar-height, 0px)))' }}
       >
         {item && (
-          <AutoDismiss key={item.id} kind={item.kind} textLength={item.title.length + (item.sub?.length ?? 0)} onDone={dismiss}>
-            <div className="pointer-events-auto flex max-w-[min(360px,calc(100vw-40px))] items-start gap-1">
+          <AutoDismiss key={item.id} kind={item.kind} textLength={item.title.length + (item.sub?.length ?? 0)} onDone={leaveThenDismiss}>
+            <div className={cn("flex max-w-[min(360px,calc(100vw-40px))] items-start gap-1",
+              item.kind === 'warning' || item.kind === 'error' ? 'pointer-events-auto' : 'pointer-events-none')}>
               <div aria-hidden="true" data-toast="visible" className="min-w-0 flex-1">
-                <ToastView kind={item.kind} title={item.title} sub={item.sub} announce={false} moreCount={item.kind === 'warning' || item.kind === 'error' ? queueCount : 0} />
+                <ToastView kind={item.kind} title={item.title} sub={item.sub} announce={false} leaving={leavingId === item.id} moreCount={item.kind === 'warning' || item.kind === 'error' ? queueCount : 0} />
               </div>
-              <DismissButton onClick={dismiss} />
+              <DismissButton onClick={leaveThenDismiss} />
             </div>
           </AutoDismiss>
         )}
@@ -243,12 +322,15 @@ const AutoDismiss: React.FC<{
   useEffect(() => {
     start();
     return () => {
-      if (timer.current !== null) clearTimeout(timer.current);
+      if (timer.current !== null) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
     };
   }, [start]);
 
   return (
-    <div onMouseEnter={pause} onMouseLeave={resume} onFocusCapture={pause} onBlurCapture={(event) => {
+    <div onFocusCapture={pause} onBlurCapture={(event) => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) resume();
     }}>
       {children}
@@ -263,7 +345,7 @@ const DismissButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
       type="button"
       onClick={onClick}
       aria-label={t('toast.dismiss', 'Dismiss notification')}
-      className="pointer-events-auto inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="touch-target pointer-events-auto inline-flex size-[var(--control-height-sm)] shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover hover:text-foreground active:bg-surface-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Icon name="x" />
     </button>

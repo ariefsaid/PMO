@@ -159,3 +159,12 @@ Deno.test('round-8: a `failed` park (a gate refusal — nothing was ever sent) d
     `a refusal park must not claim an unknown ERP outcome, got ${JSON.stringify(mirror.post_submit_unknown_at)}`,
   );
 });
+
+// AC-ENA-CAD-004 (C1): a `failed` command waiting out its 0357 retry delay — including a hold an operator
+// just released — is not exhausted; the timesheet backstop must leave it for a later tick.
+Deno.test('AC-ENA-CAD-004 a failed timesheet command inside its retry delay is left for a later tick, never held', async () => {
+  const mirror: MirrorRow = { org_id: ORG, timesheet_id: SHEET, push_state: 'failed', erp_cancelled_at: null };
+  const deps = timesheetBackstopDepsLive(fakeDb(mirror, 'failed'), ORG_BINDING, new Set(), new Set(['outbox-1']));
+  await deps.driveTimesheetPush(CANDIDATE, APPROVED_AT, SUBJECT).catch(() => undefined);
+  assert(mirror.push_state === 'failed', `a command waiting out its retry delay was parked '${mirror.push_state}'`);
+});

@@ -53,6 +53,9 @@ describe('useMilestones', () => {
   it("useMilestones queries by project and invalidates tasks + projects on mutate", async () => {
     const client = freshClient();
     const invalidate = vi.spyOn(client, 'invalidateQueries');
+    client.setQueryData(['milestone-dates', 'org-1', ['p1']], 'old');
+    client.setQueryData(['projects-delivery', 'pct', 'org-1', 'p1'], 1);
+    client.setQueryData(['projects-delivery', 'pct', 'org-2', 'p1'], 2);
 
     const { result } = renderHook(() => useMilestones('p1'), { wrapper: wrap(client) });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -69,10 +72,40 @@ describe('useMilestones', () => {
       });
     });
     // Should invalidate milestones, tasks, and projects-delivery (no ['projects'] — redundant).
+    expect(client.getQueryState(['milestone-dates', 'org-1', ['p1']])?.isInvalidated).toBe(true);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['milestones', 'org-1', 'p1'] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['tasks', 'org-1', 'p1'] });
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['projects'] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects-delivery'] });
+    expect(client.getQueryState(['projects-delivery', 'pct', 'org-1', 'p1'])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['projects-delivery', 'pct', 'org-2', 'p1'])?.isInvalidated).toBe(false);
+  });
+
+  it('refreshes the calendar dates after a milestone update only in the current org', async () => {
+    const client = freshClient();
+    client.setQueryData(['milestone-dates', 'org-1', ['p1']], 'old');
+    client.setQueryData(['milestone-dates', 'org-2', ['p1']], 'other');
+    const { result } = renderHook(() => useMilestoneMutations('p1'), { wrapper: wrap(client) });
+    await act(async () => { await result.current.update.mutateAsync({ id: 'm1', patch: { target_date: '2026-12-01' } }); });
+    expect(client.getQueryState(['milestone-dates', 'org-1', ['p1']])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['milestone-dates', 'org-2', ['p1']])?.isInvalidated).toBe(false);
+  });
+
+  it('refreshes calendar dates after removing a milestone', async () => {
+    const client = freshClient();
+    client.setQueryData(['milestone-dates', 'org-1', ['p1']], 'old');
+    const { result } = renderHook(() => useMilestoneMutations('p1'), { wrapper: wrap(client) });
+    await act(async () => { await result.current.remove.mutateAsync('m1'); });
+    expect(client.getQueryState(['milestone-dates', 'org-1', ['p1']])?.isInvalidated).toBe(true);
+  });
+
+  it('refreshes task surfaces after assigning a milestone', async () => {
+    const client = freshClient();
+    client.setQueryData(['my-tasks', 'org-1', 'u1'], 'old');
+    client.setQueryData(['meeting-action-items', 'org-1', 'm1'], 'old');
+    const { result } = renderHook(() => useMilestoneMutations('p1'), { wrapper: wrap(client) });
+    await act(async () => { await result.current.setTaskMilestone.mutateAsync({ taskId: 't1', milestoneId: 'm1' }); });
+    expect(client.getQueryState(['my-tasks', 'org-1', 'u1'])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['meeting-action-items', 'org-1', 'm1'])?.isInvalidated).toBe(true);
   });
 
   it('is disabled (no fetch) without a projectId', () => {

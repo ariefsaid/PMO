@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { nextProcurementStep, stageLabelForStatus } from '@/components/procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -19,7 +20,7 @@ export function useProjectStatusLabel(): (status: string) => string {
     'Ongoing Project': t('projects.status.ongoingProject', 'Ongoing Project'),
     'On Hold': t('projects.status.onHold', 'On Hold'),
     'Close Out': t('projects.status.closeOut', 'Close Out'),
-    'Loss Tender': t('projects.status.lossTender', 'Loss Tender'),
+    'Loss Tender': t('projects.status.lossTender', 'Lost'),
     Declined: t('projects.status.declined', 'Declined'),
     'Internal Project': t('projects.status.internalProject', 'Internal Project'),
   };
@@ -47,33 +48,36 @@ export function useSalesStageLabel(): (col: { title: string; testId: string }) =
 /** Display the shared full purchasing-state noun without changing its stored enum. */
 export function useProcurementStatusLabel(): (status: string) => string {
   const { t } = useTranslation();
-  const labels: Record<string, string> = {
+  // The label table (and the callback over it) is stable between language switches, so a caller's
+  // `useMemo` over derived columns/tabs keeps bailing on unrelated re-renders (the list page
+  // re-renders once per query settle; rebuilding an export-column list each time is pure waste).
+  const labels: Record<string, string> = useMemo(() => ({
     Draft: t('uxs19.status.draft', 'Draft'),
     Requested: t('uxs19.status.requested', 'Purchase Request'),
     Approved: t('uxs19.status.approved', 'Approved'),
-    'Vendor Quoted': t('uxs19.status.vendorQuoted', 'Vendor Quote'),
+    'Vendor Quoted': t('uxs19.status.vendorQuoted', 'Supplier quote'),
     'Quote Selected': t('uxs19.status.quoteSelected', 'Quote Selected'),
     Ordered: t('uxs19.status.ordered', 'Purchase Order'),
     Received: t('uxs19.status.received', 'Goods Receipt'),
-    'Vendor Invoiced': t('uxs19.status.vendorInvoiced', 'Vendor Invoice'),
+    'Vendor Invoiced': t('uxs19.status.vendorInvoiced', 'Supplier invoice'),
     Paid: t('uxs19.status.paid', 'Paid'),
     Rejected: t('uxs19.status.rejected', 'Rejected'),
     Cancelled: t('uxs19.status.cancelled', 'Cancelled'),
-  };
-  return (status) => labels[status] ?? stageLabelForStatus(status as ProcurementStatus);
+  }), [t]);
+  return useMemo(() => (status: string) => labels[status] ?? stageLabelForStatus(status as ProcurementStatus), [labels]);
 }
 
 /** Localized next-step descriptions stay descriptive and never authorize a transition. */
 export function useProcurementNextStepLabel(): (status: string) => string | null {
   const { t } = useTranslation();
   const labels: Partial<Record<string, string>> = {
-    Draft: t('uxs19.nextStep.draft', 'Submit request'),
+    Draft: t('uxs19.nextStep.draft', 'Submit for approval'),
     Requested: t('uxs19.nextStep.requested', 'Await approval'),
-    Approved: t('uxs19.nextStep.approved', 'Request vendor quotes'),
+    Approved: t('uxs19.nextStep.approved', 'Request supplier quotes'),
     'Vendor Quoted': t('uxs19.nextStep.vendorQuoted', 'Select quote'),
     'Quote Selected': t('uxs19.nextStep.quoteSelected', 'Prepare purchase order'),
     Ordered: t('uxs19.nextStep.ordered', 'Record receipt'),
-    Received: t('uxs19.nextStep.received', 'Record vendor invoice'),
+    Received: t('uxs19.nextStep.received', 'Record supplier invoice'),
     'Vendor Invoiced': t('uxs19.nextStep.vendorInvoiced', 'Record payment'),
   };
   return (status) => {

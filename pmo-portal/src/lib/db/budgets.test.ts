@@ -11,6 +11,8 @@ const {
   mockSelect,
   mockEq,
   mockIn,
+  mockIs,
+  mockNeq,
   mockOrder,
   mockLimit,
   mockUpdate,
@@ -25,6 +27,8 @@ const {
   const mockSelect = vi.fn();
   const mockEq = vi.fn();
   const mockIn = vi.fn();
+  const mockIs = vi.fn();
+  const mockNeq = vi.fn();
   const mockOrder = vi.fn();
   const mockLimit = vi.fn();
   const mockUpdate = vi.fn();
@@ -39,6 +43,8 @@ const {
     mockSelect,
     mockEq,
     mockIn,
+    mockIs,
+    mockNeq,
     mockOrder,
     mockLimit,
     mockUpdate,
@@ -59,7 +65,9 @@ vi.mock('@/src/lib/supabase/client', () => ({
 
 import {
   deriveProjectBudget,
+  importBudgetLine,
   getBudgetActivationMode,
+  precheckBudgetActivation,
   listBudgetVersions,
   createLineItem,
   updateLineItem,
@@ -69,10 +77,19 @@ import {
   activateVersion,
   retryBudgetPush,
   archiveVersion,
+  listBudgetArchiveLiveTargets,
+  listLegacyBudgetArchiveLiveTargets,
+  listBudgetArchiveTargets,
   deleteDraftVersion,
   listBudgetDocumentLinks,
   addBudgetDocumentLink,
   removeBudgetDocumentLink,
+  getBudgetDistribution,
+  saveBudgetDistribution,
+  switchBudgetDraftMode,
+  returnVersion,
+  resubmitVersion,
+  type BudgetDistributionPlan,
 } from './budgets';
 import { AppError } from '@/src/lib/appError';
 
@@ -82,10 +99,12 @@ import { AppError } from '@/src/lib/appError';
 
 /** Creates a chainable builder that resolves to `resolved` at .then() time. */
 function makeRpcBuilder(resolved: { data: unknown; error: unknown }) {
-  const builder = {
+  const builder: Record<string, unknown> = {
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(resolved).then(resolve, reject),
   };
+  builder.order = vi.fn().mockReturnValue(builder);
+  builder.range = vi.fn().mockReturnValue(builder);
   mockRpc.mockReturnValue(builder);
   return builder;
 }
@@ -100,8 +119,11 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   builder.select = mockSelect.mockReturnValue(builder);
   builder.eq = mockEq.mockReturnValue(builder);
   builder.in = mockIn.mockReturnValue(builder);
+  builder.is = mockIs.mockReturnValue(builder);
+  builder.neq = mockNeq.mockReturnValue(builder);
   builder.order = mockOrder.mockReturnValue(builder);
   builder.limit = mockLimit.mockReturnValue(builder);
+  builder.range = vi.fn().mockReturnValue(builder);
   builder.update = mockUpdate.mockReturnValue(builder);
   builder.delete = mockDelete.mockReturnValue(builder);
   builder.insert = mockInsert.mockReturnValue(builder);
@@ -121,6 +143,8 @@ beforeEach(() => {
   mockSelect.mockReset();
   mockEq.mockReset();
   mockIn.mockReset();
+  mockIs.mockReset();
+  mockNeq.mockReset();
   mockOrder.mockReset();
   mockLimit.mockReset();
   mockUpdate.mockReset();
@@ -226,79 +250,71 @@ describe('deriveProjectBudget', () => {
 });
 
 describe('listBudgetVersions', () => {
-  it('lists versions with nested line_items and a numeric total (FR-BV-010 read side)', async () => {
-    const versions = [
-      {
-        id: 'v1',
-        org_id: 'org-1',
-        project_id: 'p1',
-        version: 1,
-        name: 'V1',
-        status: 'Active' as const,
-        created_at: '2026-01-01T00:00:00Z',
-        line_items: [
-          { id: 'li1', budget_version_id: 'v1', org_id: 'org-1', category: 'Labor' as const, description: null, budgeted_amount: 3000000, actual_amount: 0 },
-          { id: 'li2', budget_version_id: 'v1', org_id: 'org-1', category: 'Materials' as const, description: 'steel', budgeted_amount: 1700000, actual_amount: 0 },
-        ],
-      },
-      {
-        id: 'v2',
-        org_id: 'org-1',
-        project_id: 'p1',
-        version: 2,
-        name: 'V2',
-        status: 'Draft' as const,
-        created_at: '2026-02-01T00:00:00Z',
-        line_items: [],
-      },
-    ];
+  // The read contract is ONE aggregate invoker RPC. These tests keep every behavioural oracle of the
+  // previous four-request path (complete set, ordering, editor grouping, numeric coercion, error
+  // propagation, no client-supplied org scope) while pinning the new single-request call shape.
+  const aggregate = (over: Record<string, unknown>) => ({
+    version_no: 1, version_id: 'v1', version_row: {}, line_items: [], editor_ids: [], total: 0, ...over,
+  });
 
-    makeFromBuilder({ data: versions, error: null });
+  it('lists versions with nested line_items and a numeric total (FR-BV-010 read side)', async () => {
+    const v1 = {
+      id: 'v1', org_id: 'org-1', project_id: 'p1', version: 1, name: 'V1',
+      status: 'Active' as const, created_at: '2026-01-01T00:00:00Z', currency: 'USD',
+    };
+    const v2 = {
+      id: 'v2', org_id: 'org-1', project_id: 'p1', version: 2, name: 'V2',
+      status: 'Draft' as const, created_at: '2026-02-01T00:00:00Z', currency: 'USD',
+    };
+    makeRpcBuilder({
+      data: [
+        aggregate({
+          version_no: 1, version_id: 'v1', version_row: v1, total: 4700000,
+          line_items: [
+            { id: 'li1', budget_version_id: 'v1', org_id: 'org-1', category: 'Labor' as const, description: null, budgeted_amount: 3000000, actual_amount: 0 },
+            { id: 'li2', budget_version_id: 'v1', org_id: 'org-1', category: 'Materials' as const, description: 'steel', budgeted_amount: 1700000, actual_amount: 0 },
+          ],
+        }),
+        aggregate({ version_no: 2, version_id: 'v2', version_row: v2, total: 0 }),
+      ],
+      error: null,
+    });
 
     const result = await listBudgetVersions('p1');
 
-    expect(mockFrom).toHaveBeenCalledWith('budget_versions');
-    expect(mockSelect).toHaveBeenCalledWith('*, line_items:budget_line_items(*)');
-    expect(mockEq).toHaveBeenCalledWith('project_id', 'p1');
-    expect(mockOrder).toHaveBeenCalledWith('version', { ascending: true });
-
+    expect(mockRpc).toHaveBeenCalledWith('budget_version_read', { p_project_id: 'p1', p_offset: 0, p_limit: 1000 });
+    expect(mockFrom).not.toHaveBeenCalled();
     expect(result).toHaveLength(2);
     expect(result[0].total).toBe(4700000);
     expect(result[1].total).toBe(0);
+    expect(result[0].line_items.map((li) => li.id)).toEqual(['li1', 'li2']);
     expect(result.map((version) => version.editor_ids)).toEqual([[], []]);
     // numerics are JS numbers
     expect(typeof result[0].total).toBe('number');
-    // no org_id sent in the query args
-    expect(JSON.stringify(mockEq.mock.calls)).not.toContain('org_id');
+    // no org_id sent in the read args
+    expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
   });
 
-  it('coerces string numerics from PostgREST into a number total (guards Number() on budgets.ts:62)', async () => {
-    // Postgres numeric arrives over PostgREST as a STRING; the DAL must Number()-coerce it.
-    const versions = [
-      {
-        id: 'v1',
-        org_id: 'org-1',
-        project_id: 'p1',
-        version: 1,
-        name: 'V1',
-        status: 'Active' as const,
-        created_at: '2026-01-01T00:00:00Z',
-        line_items: [
-          { id: 'li1', budget_version_id: 'v1', org_id: 'org-1', category: 'Labor' as const, description: null, budgeted_amount: '3000000', actual_amount: '0' },
-        ],
-      },
-    ];
-    makeFromBuilder({ data: versions, error: null });
+  it('coerces string numerics from PostgREST into a number total (guards the Number() conversion)', async () => {
+    // Postgres numeric may arrive over PostgREST as a STRING; the DAL must Number()-coerce it.
+    makeRpcBuilder({
+      data: [aggregate({
+        version_row: { id: 'v1', org_id: 'org-1', project_id: 'p1', version: 1, name: 'V1', status: 'Active', created_at: '2026-01-01T00:00:00Z' },
+        line_items: [{ id: 'li1', budget_version_id: 'v1', org_id: 'org-1', category: 'Labor', description: null, budgeted_amount: '3000000', actual_amount: '0' }],
+        total: '3000000',
+      })],
+      error: null,
+    });
 
     const result = await listBudgetVersions('p1');
 
-    // Numeric (not string concatenation: '03000000' or '03000000') and typed as number.
+    // Numeric (not string concatenation) and typed as number.
     expect(result[0].total).toBe(3000000);
     expect(typeof result[0].total).toBe('number');
   });
 
   it('throws on PostgREST error', async () => {
-    makeFromBuilder({ data: null, error: { message: 'list error' } });
+    makeRpcBuilder({ data: null, error: { message: 'list error' } });
     await expect(listBudgetVersions('p1')).rejects.toThrow('list error');
   });
 });
@@ -374,6 +390,45 @@ describe('createLineItem and deleteLineItem', () => {
   it('deleteLineItem throws on error', async () => {
     makeFromBuilder({ data: null, error: { message: 'delete fail' } });
     await expect(deleteLineItem('li-bad')).rejects.toThrow('delete fail');
+  });
+});
+
+describe('version allocation under contention', () => {
+  it('re-reads the maximum after a project-version collision', async () => {
+    const conflict = { code: '23505', message: 'duplicate key value violates unique constraint "budget_versions_project_id_version_key"' };
+    const result = { id: 'created', version: 3 };
+    let read = 0;
+    const inserted: number[] = [];
+    mockFrom.mockImplementation(() => {
+      const b: Record<string, unknown> = {};
+      for (const method of ['select', 'eq', 'order', 'limit', 'single']) b[method] = () => b;
+      let isInsert = false;
+      b.insert = (row: { version: number }) => { isInsert = true; inserted.push(row.version); return b; };
+      b.then = (resolve: (value: unknown) => void) => Promise.resolve(!isInsert
+        ? { data: [{ version: ++read }], error: null }
+        : inserted.length === 1 ? { data: null, error: conflict } : { data: result, error: null }).then(resolve);
+      return b;
+    });
+    await expect(createBudgetVersion('p1', 'Draft')).resolves.toEqual(result);
+    expect(inserted).toEqual([2, 3]);
+  });
+
+  it('does not retry a different unique constraint', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "budget_versions_import_key_uidx"' } });
+    await expect(cloneVersion('source')).rejects.toMatchObject({ code: '23505' });
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops retrying persistent version collisions and preserves the error', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "budget_versions_project_id_version_key"' } });
+    await expect(cloneVersion('source')).rejects.toMatchObject({ code: '23505' });
+    expect(mockRpc).toHaveBeenCalledTimes(4);
+  });
+
+  it('retries a clone when another allocation wins its version', async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "budget_versions_project_id_version_key"' } });
+    mockRpc.mockResolvedValueOnce({ data: 'copy', error: null });
+    await expect(cloneVersion('source')).resolves.toBe('copy');
   });
 });
 
@@ -503,6 +558,14 @@ describe('cloneVersion', () => {
 });
 
 describe('activateVersion', () => {
+  /** ADR-0062: activation resolves `queued` on the PMO write; the push outcome arrives via `onPushSettled`. */
+  async function activateAndSettle(id: string) {
+    let settled!: (s: string) => void;
+    const outcome = new Promise<string>((r) => (settled = r));
+    const result = await activateVersion(id, settled);
+    return { result, outcome: await outcome };
+  }
+
   it('activateVersion calls the activate RPC with version_id, no org_id (FR-BV-005)', async () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
@@ -526,20 +589,26 @@ describe('activateVersion', () => {
     // at all (every mirror writer lives inside `adapter-dispatch`), so the sweep backstop — whose work
     // queue IS that mirror — is structurally blind to it. Returning `void` made the UI show a plain
     // success while ERPNext kept enforcing the previous budget indefinitely.
-    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'failed' });
+    const { result, outcome } = await activateAndSettle('v-draft');
+    expect(result).toEqual({ pushState: 'queued' });
+    expect(outcome).toBe('failed');
   });
 
   it('HIGH-C a SUCCESSFUL push is reported as such', async () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
     mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: 'BUDGET-2026-00001', canonical: { id: 'v-draft' } }, error: null });
-    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'pushed' });
+    const { result, outcome } = await activateAndSettle('v-draft');
+    expect(result).toEqual({ pushState: 'queued' });
+    expect(outcome).toBe('pushed');
   });
 
   it('AC-BUD-032 activation still succeeds when the version carries no activation stamp to key the push on', async () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: null }, error: null }); // budgetPushKey fails closed on this
-    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'failed' });
+    const { result, outcome } = await activateAndSettle('v-draft');
+    expect(result).toEqual({ pushState: 'queued' });
+    expect(outcome).toBe('failed');
     expect(mockFunctionsInvoke).not.toHaveBeenCalled();
   });
 
@@ -617,11 +686,36 @@ describe('activateVersion', () => {
     await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pushed' });
   });
 
+  /**
+   * ⚑ rm-1472 — a 202 `budget-cancellation-pending` is NOT a push.
+   *
+   * The served gate parks a whole-project range's units behind an unsettled predecessor cancellation
+   * and answers `202 { error: 'budget-cancellation-pending' }` WITHOUT writing a single outbox row: no
+   * ERPNext Budget exists yet. The body names no `years`, and the pre-fix "absent years ⇒ face value"
+   * rule read that as success — the toast said the budget was pushed while the per-year banner said
+   * nothing was. Activation stands; the push is queued and the sweep resumes it by itself.
+   */
+  it('rm-1472 a 202 cancellation-pending answer is reported as pending, never as a push that happened', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({
+      data: { error: 'budget-cancellation-pending', message: 'An earlier ERPNext Budget cancellation is unresolved; range units are pending and no replacement was created.' },
+      error: null,
+    });
+    // ⚑ ADR-0062 moved the push out of the activation call: `activateVersion` now resolves on the PMO
+    // write alone (`'queued'`) and the outcome reaches the per-year push-status read. The 202 mapping
+    // this test is about still lives on the operator's retry, which reports it as its own state.
+    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'queued' });
+    await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pending-cancellation' });
+  });
+
   it('AC-BFY-009 activation reports nothing-to-push too — an activated version with no lines pushed nothing', async () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
     mockFunctionsInvoke.mockResolvedValue({ data: { years: [] }, error: null });
-    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'nothing-to-push' });
+    const { result, outcome } = await activateAndSettle('v-draft');
+    expect(result).toEqual({ pushState: 'queued' });
+    expect(outcome).toBe('nothing-to-push');
   });
 
   // ── H-3 (Luna audit round 3): the retry must not report a failure it never made durable. ──────
@@ -644,7 +738,7 @@ describe('activateVersion', () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
     mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: null, canonical: { id: 'v-draft' } }, error: null });
-    await activateVersion('v-draft');
+    await activateAndSettle('v-draft');
     expect(mockFunctionsInvoke).toHaveBeenCalledTimes(1);
     const body = mockFunctionsInvoke.mock.calls[0][1].body;
     // ⚑ `record.id` is the BARE budget_version_id — the year-qualified identity is derived server-side
@@ -658,24 +752,107 @@ describe('activateVersion', () => {
   });
 });
 
+describe('precheckBudgetActivation', () => {
+  it('reads activation readiness through the caller-authenticated adapter boundary without a write', async () => {
+    const result = {
+      status: 'ready',
+      erpCheck: 'available',
+      fiscalYearNames: ['2026'],
+      issues: [],
+    };
+    mockFunctionsInvoke.mockResolvedValue({ data: result, error: null });
+
+    await expect(precheckBudgetActivation('v-draft')).resolves.toEqual(result);
+    expect(mockFunctionsInvoke).toHaveBeenCalledWith('adapter-dispatch', {
+      body: { action: 'budget-activation-precheck', versionId: 'v-draft' },
+    });
+  });
+
+  it('surfaces a failed PMO readiness read rather than treating it as ready', async () => {
+    mockFunctionsInvoke.mockResolvedValue({ data: null, error: { message: 'could not read draft' } });
+    await expect(precheckBudgetActivation('v-draft')).rejects.toThrow('could not read draft');
+  });
+});
+
 describe('archiveVersion', () => {
-  it('archiveVersion sets status Archived via update (FR-BV-008)', async () => {
-    makeFromBuilder({ data: [{ id: 'v1', status: 'Archived' }], error: null });
-    await archiveVersion('v1');
-    expect(mockFrom).toHaveBeenCalledWith('budget_versions');
-    expect(mockUpdate).toHaveBeenCalledWith({ status: 'Archived' });
-    expect(mockEq).toHaveBeenCalledWith('id', 'v1');
+  it('archives through the durable RPC and returns the queued cancellation count', async () => {
+    makeRpcBuilder({ data: { cancel_erp: true, live_target_count: 2, intent_ids: ['job-1', 'job-2'] }, error: null });
+    await expect(archiveVersion('v1', true)).resolves.toEqual({
+      cancelErp: true, liveTargetCount: 2, queuedCount: 2,
+    });
+    expect(mockRpc).toHaveBeenCalledWith('archive_budget_version_with_cancel_intent', expect.objectContaining({
+      p_version_id: 'v1', p_cancel_erp: true,
+      p_archive_request_id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+    }));
+    expect(mockUpdate).not.toHaveBeenCalled();
   });
 
-  it('sends no org_id (FR-BV-008)', async () => {
-    makeFromBuilder({ data: [{ id: 'v1' }], error: null });
-    await archiveVersion('v1');
-    expect(JSON.stringify(mockUpdate.mock.calls)).not.toContain('org_id');
+  it('preserves the stored operator decision returned by an idempotent retry', async () => {
+    makeRpcBuilder({ data: { cancel_erp: true, live_target_count: 1, intent_ids: ['job-1'] }, error: null });
+    await expect(archiveVersion('v1', false)).resolves.toMatchObject({ cancelErp: true, queuedCount: 1 });
   });
 
-  it('throws on error', async () => {
-    makeFromBuilder({ data: null, error: { message: 'archive fail' } });
-    await expect(archiveVersion('v1')).rejects.toThrow('archive fail');
+  it('throws on a failed archive RPC', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'archive fail', code: '42501' } });
+    await expect(archiveVersion('v1', true)).rejects.toThrow('archive fail');
+  });
+});
+
+describe('listBudgetArchiveLiveTargets', () => {
+  function configureArchiveTargets(binding: { version_major: number; activated_at: string | null }, rows: unknown[]) {
+    const targetBuilder = makeFromBuilder({ data: rows.map((row) => ({ to_fiscal_year: null, ...(row as object) })), error: null });
+    const bindingBuilder = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: binding, error: null }),
+    };
+    mockFrom.mockImplementation((table: string) => table === 'external_org_bindings' ? bindingBuilder : targetBuilder);
+  }
+
+  it('reads live v16 account budgets for the supplied versions', async () => {
+    configureArchiveTargets({ version_major: 16, activated_at: '2026-01-01T00:00:00Z' }, [
+      { id: 'm1', budget_version_id: 'v1', fiscal_year: '2026', erp_account: '5100', erp_budget_name: 'BUD-1', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure', activated_at_witness: '2026-01-01T00:00:00Z' },
+      { id: 'm2', budget_version_id: 'v1', fiscal_year: '2027', erp_account: '5200', erp_budget_name: null, erp_docstatus: null, erp_cancelled_at: null, push_state: 'failed', budget_intent: 'ensure' },
+      { id: 'm3', budget_version_id: 'v1', fiscal_year: '2028', erp_account: '5300', erp_budget_name: 'BUD-3', erp_docstatus: 2, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure' },
+      { id: 'm4', budget_version_id: 'v2', fiscal_year: '2026', erp_account: '5400', erp_budget_name: 'BUD-4', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure', activated_at_witness: '2026-01-01T00:00:00Z' },
+      { id: 'm5', budget_version_id: 'v1', fiscal_year: '2026', erp_account: '5500', erp_budget_name: 'BUD-5', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pending', budget_intent: 'remove', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+    const targets = await listBudgetArchiveLiveTargets(['v1', 'v2']);
+    expect(targets.map((row) => row.id)).toEqual(['m1', 'm4', 'm5']);
+    expect(targets.every((row) => row.archive_cancellation_available)).toBe(true);
+    expect(mockFrom).toHaveBeenCalledWith('budget_push_mirror_rows');
+    expect(mockFrom).toHaveBeenCalledWith('external_org_bindings');
+    expect(mockSelect).toHaveBeenCalledWith('id,budget_version_id,fiscal_year,to_fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness');
+    expect(mockIn).toHaveBeenCalledWith('budget_version_id', ['v1', 'v2']);
+    expect(mockIs).toHaveBeenCalledWith('erp_cancelled_at', null);
+    expect(mockNeq).toHaveBeenCalledWith('erp_account', '');
+  });
+
+  it('keeps live targets visible for the action-required banner when v16 cancellation is unavailable', async () => {
+    configureArchiveTargets({ version_major: 16, activated_at: null }, [
+      { id: 'm1', budget_version_id: 'v1', fiscal_year: '2026', erp_account: '5100', erp_budget_name: 'BUD-1', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const targets = await listBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].archive_cancellation_available).toBe(false);
+  });
+
+  it('enables archive cancellation only for an active ERPNext v16 binding', async () => {
+    configureArchiveTargets({ version_major: 15, activated_at: '2026-01-01T00:00:00Z' }, [
+      { id: 'm1', budget_version_id: 'v1', fiscal_year: '2026', erp_account: '5100', erp_budget_name: 'BUD-1', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const targets = await listBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].archive_cancellation_available).toBe(false);
+  });
+
+  it('does not query when there are no versions', async () => {
+    await expect(listBudgetArchiveLiveTargets([])).resolves.toEqual([]);
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 });
 
@@ -713,7 +890,7 @@ describe('AC-W3-F6: budget DAL throws AppError preserving the Postgres error cod
   });
 
   it('listBudgetVersions rejects with AppError carrying the original code', async () => {
-    makeFromBuilder({ data: null, error: { message: 'illegal state', code: 'P0001' } });
+    makeRpcBuilder({ data: null, error: { message: 'illegal state', code: 'P0001' } });
     const err = await listBudgetVersions('p1').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('P0001');
@@ -755,8 +932,8 @@ describe('AC-W3-F6: budget DAL throws AppError preserving the Postgres error cod
   });
 
   it('archiveVersion rejects with AppError carrying the original code', async () => {
-    makeFromBuilder({ data: null, error: { message: 'rls denied', code: '42501' } });
-    const err = await archiveVersion('v1').catch((e: unknown) => e);
+    makeRpcBuilder({ data: null, error: { message: 'rls denied', code: '42501' } });
+    const err = await archiveVersion('v1', true).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('42501');
   });
@@ -805,16 +982,16 @@ describe('#541 budget writes reject a using-denied 0-row no-op', () => {
   });
 
   it('#541: archiveVersion resolves when the row comes back (positive control)', async () => {
-    makeFromBuilder({ data: [{ id: 'v1' }], error: null });
-    await expect(archiveVersion('v1')).resolves.toBeUndefined();
+    makeRpcBuilder({ data: { cancel_erp: false, live_target_count: 0, intent_ids: [] }, error: null });
+    await expect(archiveVersion('v1', false)).resolves.toMatchObject({ cancelErp: false, queuedCount: 0 });
   });
 
   it('#541: archiveVersion rejects 42501 when 0 rows matched and no error was reported', async () => {
-    makeFromBuilder({ data: [], error: null });
-    const err = await archiveVersion('v1').catch((e: unknown) => e);
+    makeRpcBuilder({ data: null, error: { message: 'budget version not found', code: '42501' } });
+    const err = await archiveVersion('v1', false).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('42501');
-    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockRpc).toHaveBeenCalled();
   });
 
   it('#541: deleteDraftVersion resolves when the row comes back (positive control)', async () => {
@@ -830,5 +1007,471 @@ describe('#541 budget writes reject a using-denied 0-row no-op', () => {
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('42501');
     expect(mockDelete).toHaveBeenCalled();
+  });
+});
+
+
+describe('budget import authority adapter', () => {
+  const request = { versionId: 'v', item: { category: 'Labor' as const, description: null, budgeted_amount: 1.25, fiscal_year: null },
+    batchId: 'b', importedAt: 'date', v2Key: 'v2', legacyKey: 'old', hasReference: false };
+  it('passes the exact arguments and preserves the outcome', async () => {
+    mockRpc.mockResolvedValueOnce({ data: [{ outcome: 'conflict', line_id: 'existing' }], error: null });
+    await expect(importBudgetLine(request)).resolves.toEqual({ outcome: 'conflict', line_id: 'existing' });
+    expect(mockRpc).toHaveBeenCalledWith('import_budget_line_v2', { p_version_id: 'v', p_category: 'Labor', p_description: null,
+      p_budgeted_amount: 1.25, p_fiscal_year: null, p_batch_id: 'b', p_imported_at: 'date',
+      p_v2_key: 'v2', p_legacy_key: 'old', p_has_reference: false });
+  });
+  it('propagates database errors and rejects unexpected outcomes', async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '23505' } });
+    await expect(importBudgetLine(request)).rejects.toMatchObject({ code: '23505' });
+    mockRpc.mockResolvedValueOnce({ data: [{ outcome: 'unknown' }], error: null });
+    await expect(importBudgetLine(request)).rejects.toThrow(/Unexpected/);
+    mockRpc.mockResolvedValueOnce({ data: [{ outcome: 'created', line_id: null }], error: null });
+    await expect(importBudgetLine(request)).rejects.toThrow(/Unexpected/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #1472 S6A — budget_mode on version writes, distribution read/save seam
+// ---------------------------------------------------------------------------
+
+/** A chainable builder NOT bound to mockFrom, so tests can route per table. */
+function makeStandaloneBuilder(resolved: { data: unknown; error: unknown }) {
+  const builder: Record<string, unknown> = {};
+  builder.select = vi.fn().mockReturnValue(builder);
+  builder.eq = vi.fn().mockReturnValue(builder);
+  builder.in = vi.fn().mockReturnValue(builder);
+  builder.is = vi.fn().mockReturnValue(builder);
+  builder.neq = vi.fn().mockReturnValue(builder);
+  builder.order = vi.fn().mockReturnValue(builder);
+  builder.limit = vi.fn().mockReturnValue(builder);
+  builder.range = vi.fn().mockReturnValue(builder);
+  builder.update = vi.fn().mockReturnValue(builder);
+  builder.delete = vi.fn().mockReturnValue(builder);
+  builder.insert = vi.fn().mockReturnValue(builder);
+  builder.single = vi.fn().mockReturnValue(builder);
+  builder.maybeSingle = vi.fn().mockReturnValue(builder);
+  builder.then = (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
+    Promise.resolve(resolved).then(resolve, reject);
+  return builder;
+}
+
+const distributionPlanRow = {
+  budget_version_id: 'v-draft',
+  org_id: 'org-1',
+  method: 'amount_by_year',
+  inputs: { '2026': '40', '2027': '60' },
+  category_overrides: { Materials: { method: 'percent_by_year', inputs: { '2026': '25', '2027': '75' } } },
+  basis: {
+    projectStart: '2026-01-01',
+    projectEnd: '2027-12-31',
+    years: [
+      { name: '2026', start: '2026-01-01', end: '2026-12-31' },
+      { name: '2027', start: '2027-01-01', end: '2027-12-31' },
+    ],
+  },
+  updated_by: 'u1',
+  updated_at: '2026-11-03T00:00:00Z',
+};
+
+const distributionRowRows = [
+  { id: 'd1', budget_version_id: 'v-draft', org_id: 'org-1', category: 'Labor', fiscal_year: '2026', ordinal: 0, amount: 80000, method: 'amount_by_year', is_override: false },
+  { id: 'd2', budget_version_id: 'v-draft', org_id: 'org-1', category: 'Labor', fiscal_year: '2027', ordinal: 1, amount: 120000, method: 'amount_by_year', is_override: false },
+  { id: 'd3', budget_version_id: 'v-draft', org_id: 'org-1', category: 'Materials', fiscal_year: '2026', ordinal: 0, amount: 0, method: 'percent_by_year', is_override: true },
+  { id: 'd4', budget_version_id: 'v-draft', org_id: 'org-1', category: 'Materials', fiscal_year: '2027', ordinal: 1, amount: 30000.5, method: 'percent_by_year', is_override: true },
+];
+
+const expectedPlan: BudgetDistributionPlan = {
+  method: 'amount_by_year',
+  inputs: { '2026': '40', '2027': '60' },
+  categoryOverrides: { Materials: { method: 'percent_by_year', inputs: { '2026': '25', '2027': '75' } } },
+  basis: distributionPlanRow.basis,
+  rows: [
+    { category: 'Labor', fiscal_year: '2026', ordinal: 0, amount: '80000', method: 'amount_by_year', is_override: false },
+    { category: 'Labor', fiscal_year: '2027', ordinal: 1, amount: '120000', method: 'amount_by_year', is_override: false },
+    { category: 'Materials', fiscal_year: '2026', ordinal: 0, amount: '0', method: 'percent_by_year', is_override: true },
+    { category: 'Materials', fiscal_year: '2027', ordinal: 1, amount: '30000.5', method: 'percent_by_year', is_override: true },
+  ],
+};
+
+describe('getBudgetDistribution (#1472 S6A)', () => {
+  it('reads one atomic snapshot so replacement cannot mix old plan metadata with new rows', async () => {
+    const replacementPlan: BudgetDistributionPlan = {
+      method: 'by_days',
+      inputs: {},
+      categoryOverrides: {},
+      basis: {
+        projectStart: '2028-01-01',
+        projectEnd: '2028-12-31',
+        years: [{ name: '2028', start: '2028-01-01', end: '2028-12-31' }],
+      },
+      rows: [
+        { category: 'Labor', fiscal_year: '2028', ordinal: 0, amount: '200000', method: 'by_days', is_override: false },
+      ],
+    };
+    const planBuilder = makeStandaloneBuilder({ data: distributionPlanRow, error: null });
+    const rowsBuilder = makeStandaloneBuilder({
+      data: [{ ...distributionRowRows[0], fiscal_year: '2028', ordinal: 0, amount: 200000, method: 'by_days' }],
+      error: null,
+    });
+    mockFrom.mockImplementation((table: string) => (table === 'budget_distribution_plans' ? planBuilder : rowsBuilder));
+    makeRpcBuilder({
+      data: {
+        method: 'by_days',
+        inputs: {},
+        category_overrides: {},
+        basis: replacementPlan.basis,
+        rows: replacementPlan.rows,
+      },
+      error: null,
+    });
+
+    await expect(getBudgetDistribution('v-draft')).resolves.toEqual(replacementPlan);
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+    expect(mockRpc).toHaveBeenCalledWith('get_budget_distribution_snapshot', { p_version_id: 'v-draft' });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('parses exact strings, zero, overrides, basis, and every row from one RPC response', async () => {
+    makeRpcBuilder({
+      data: {
+        method: expectedPlan.method,
+        inputs: expectedPlan.inputs,
+        category_overrides: expectedPlan.categoryOverrides,
+        basis: expectedPlan.basis,
+        rows: expectedPlan.rows,
+      },
+      error: null,
+    });
+    const plan = await getBudgetDistribution('v-draft');
+    expect(plan).toEqual(expectedPlan);
+    expect(plan?.rows.map((row) => row.amount)).toEqual(['80000', '120000', '0', '30000.5']);
+    expect(plan?.rows.every((row) => typeof row.amount === 'string')).toBe(true);
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('a missing visible plan is null from the RPC', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(getBudgetDistribution('v-none')).resolves.toBeNull();
+    expect(mockRpc).toHaveBeenCalledWith('get_budget_distribution_snapshot', { p_version_id: 'v-none' });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('propagates snapshot RPC failures', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'snapshot read denied', code: '42501' } });
+    await expect(getBudgetDistribution('v-draft')).rejects.toMatchObject({ message: 'snapshot read denied', code: '42501' });
+  });
+
+  it('rejects a snapshot whose JSON payload is structurally malformed', async () => {
+    const snapshot = {
+      method: expectedPlan.method,
+      inputs: expectedPlan.inputs,
+      category_overrides: expectedPlan.categoryOverrides,
+      basis: expectedPlan.basis,
+      rows: expectedPlan.rows,
+    };
+    for (const broken of [
+      { ...snapshot, basis: { noYears: true } },
+      { ...snapshot, inputs: { '2026': 40 } },
+      { ...snapshot, category_overrides: { Materials: { method: 'nope', inputs: {} } } },
+      { ...snapshot, method: 'unknown_method' },
+      { ...snapshot, rows: null },
+      { ...snapshot, rows: [{ ...expectedPlan.rows[0], amount: 80000 }] },
+      { ...snapshot, rows: [{ ...expectedPlan.rows[0], category: 'invalid' }] },
+    ]) {
+      makeRpcBuilder({ data: broken, error: null });
+      await expect(getBudgetDistribution('v-draft')).rejects.toThrow(/malformed/);
+    }
+  });
+});
+
+describe('saveBudgetDistribution (#1472 S6A)', () => {
+  it('calls the accepted six-argument RPC with the exact snapshot and no client-supplied org', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(saveBudgetDistribution('v-draft', expectedPlan)).resolves.toBeUndefined();
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+    const [fn, args] = mockRpc.mock.calls[0];
+    expect(fn).toBe('save_budget_distribution');
+    expect(args).toMatchObject({
+      p_version: 'v-draft',
+      p_method: 'amount_by_year',
+      p_inputs: { '2026': '40', '2027': '60' },
+      p_basis: expectedPlan.basis,
+      p_category_overrides: expectedPlan.categoryOverrides,
+    });
+    // Rows pass through verbatim — category/year/ordinal/exact decimal string/method/flag — nothing more.
+    expect(args.p_rows).toEqual([
+      { category: 'Labor', fiscal_year: '2026', ordinal: 0, amount: '80000', method: 'amount_by_year', is_override: false },
+      { category: 'Labor', fiscal_year: '2027', ordinal: 1, amount: '120000', method: 'amount_by_year', is_override: false },
+      { category: 'Materials', fiscal_year: '2026', ordinal: 0, amount: '0', method: 'percent_by_year', is_override: true },
+      { category: 'Materials', fiscal_year: '2027', ordinal: 1, amount: '30000.5', method: 'percent_by_year', is_override: true },
+    ]);
+    // Tenant scope is stamped server-side: no org_id may ever travel from the client.
+    expect(JSON.stringify(args)).not.toMatch(/org_id/);
+  });
+
+  it('round-trips: the saved snapshot reads back equal', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await saveBudgetDistribution('v-draft', expectedPlan);
+    makeRpcBuilder({
+      data: {
+        method: expectedPlan.method,
+        inputs: expectedPlan.inputs,
+        category_overrides: expectedPlan.categoryOverrides,
+        basis: expectedPlan.basis,
+        rows: expectedPlan.rows,
+      },
+      error: null,
+    });
+    await expect(getBudgetDistribution('v-draft')).resolves.toEqual(expectedPlan);
+    expect(mockRpc).toHaveBeenNthCalledWith(2, 'get_budget_distribution_snapshot', { p_version_id: 'v-draft' });
+  });
+
+  it('maps server rejections through the shared AppError pattern (message preserved)', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'budget distribution for Labor must reconcile to its source lines', code: 'P0001' } });
+    await expect(saveBudgetDistribution('v-draft', expectedPlan)).rejects.toMatchObject({
+      message: 'budget distribution for Labor must reconcile to its source lines', code: 'P0001',
+    });
+  });
+});
+
+describe('returnVersion / resubmitVersion (#1413)', () => {
+  it('returns a draft through the RPC with the reason and no tenant fields', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(returnVersion('v-draft', 'Split labour by quarter')).resolves.toBeUndefined();
+    expect(mockRpc).toHaveBeenCalledWith('return_budget_version', { version_id: 'v-draft', reason: 'Split labour by quarter' });
+    expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
+  });
+
+  it('surfaces a separation-of-duties refusal with its code', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'separation of duties: You edited this version, so someone else must return it.', code: '42501' } });
+    await expect(returnVersion('v-draft', 'x')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('resubmits a returned draft through the RPC', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(resubmitVersion('v-draft')).resolves.toBeUndefined();
+    expect(mockRpc).toHaveBeenCalledWith('resubmit_budget_version', { version_id: 'v-draft' });
+  });
+
+  it('throws on a resubmit RPC error', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'only a returned Draft version can be resubmitted', code: 'P0001' } });
+    await expect(resubmitVersion('v-draft')).rejects.toThrow('only a returned Draft version can be resubmitted');
+  });
+});
+
+describe('switchBudgetDraftMode (#1472 B2)', () => {
+  const lines = [
+    { id: 'line-1', category: 'Labor' as const, budgeted_amount: '200000.00', fiscal_year: 'FY27' },
+    { id: 'line-2', category: 'Travel & accommodation' as const, budgeted_amount: '1000.25', fiscal_year: null },
+  ];
+
+  it('sends the exact line witness and explicit assignments without client tenant fields', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(switchBudgetDraftMode('v-draft', 'per_year', lines, [
+      { id: 'line-1', fiscal_year: 'FY27' },
+      { id: 'line-2', fiscal_year: 'FY28' },
+    ])).resolves.toBeUndefined();
+    expect(mockRpc).toHaveBeenCalledWith('switch_budget_draft_mode', {
+      p_version: 'v-draft',
+      p_target_mode: 'per_year',
+      p_expected_lines: lines,
+      p_assignments: [
+        { id: 'line-1', fiscal_year: 'FY27' },
+        { id: 'line-2', fiscal_year: 'FY28' },
+      ],
+    });
+    expect(JSON.stringify(mockRpc.mock.calls[0][1])).not.toMatch(/org_id/);
+  });
+
+  it('propagates stale-witness rejection without retrying or changing the caller snapshot', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'budget lines changed; refresh and review the mode change again', code: '40001' } });
+    await expect(switchBudgetDraftMode('v-draft', 'whole_project', lines, [])).rejects.toMatchObject({
+      message: 'budget lines changed; refresh and review the mode change again',
+      code: '40001',
+    });
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('createBudgetVersion budget_mode (#1472 S6A, FR-001)', () => {
+  function stageVersionInsert() {
+    const insertPayloads: Array<Record<string, unknown>> = [];
+    mockFrom.mockImplementation(() => {
+      const b: Record<string, unknown> = {};
+      let call = 0;
+      b.select = vi.fn().mockReturnValue(b);
+      b.eq = vi.fn().mockReturnValue(b);
+      b.order = vi.fn().mockReturnValue(b);
+      b.limit = vi.fn().mockReturnValue(b);
+      b.insert = vi.fn((payload: Record<string, unknown>) => {
+        insertPayloads.push(payload);
+        return b;
+      });
+      b.single = vi.fn().mockReturnValue(b);
+      b.then = (resolve: (v: { data: unknown; error: null }) => void) => {
+        call++;
+        const resolved = call === 1
+          ? { data: [], error: null }
+          : { data: { id: 'v-new', project_id: 'p1', version: 1, name: 'V1', status: 'Draft', org_id: 'org-1' }, error: null };
+        return Promise.resolve(resolved).then(resolve);
+      };
+      return b;
+    });
+    return insertPayloads;
+  }
+
+  it('a UI-created version sends budget_mode whole_project explicitly', async () => {
+    const payloads = stageVersionInsert();
+    await createBudgetVersion('p1', 'V1', undefined, 'whole_project');
+    expect(payloads[0]).toMatchObject({ budget_mode: 'whole_project', status: 'Draft' });
+  });
+
+  it('an explicit per_year request sends per_year (never silently reinterpreted)', async () => {
+    const payloads = stageVersionInsert();
+    await createBudgetVersion('p1', 'V1', undefined, 'per_year');
+    expect(payloads[0]).toMatchObject({ budget_mode: 'per_year' });
+  });
+
+  it('a provenance call that passes no mode omits budget_mode (the import descriptor names per_year itself, see budgetDescriptor)', async () => {
+    const payloads = stageVersionInsert();
+    await createBudgetVersion('p1', 'Imported', { importBatchId: 'batch-1', importedAt: '2026-11-03T00:00:00Z' });
+    expect(payloads[0]).not.toHaveProperty('budget_mode');
+    expect(payloads[0]).toMatchObject({ status: 'Draft' });
+    expect(JSON.stringify(payloads[0])).not.toMatch(/org_id/);
+  });
+
+  it('historic reads preserve the version actual persisted mode and clone writes never touch it', async () => {
+    const versionRow = { id: 'v-old', project_id: 'p1', version: 1, name: 'Old', status: 'Active', budget_mode: 'per_year', org_id: 'org-1' };
+    mockFrom.mockReset();
+    mockRpc.mockReset();
+    mockRpc.mockImplementation(() => makeStandaloneBuilder({
+      data: [{ version_id: 'v-old', version_no: 1, version_row: versionRow, line_items: [], editor_ids: [], total: 100 }],
+      error: null,
+    }));
+    const versions = await listBudgetVersions('p1');
+    expect(versions[0]?.budget_mode).toBe('per_year');
+    makeRpcBuilder({ data: 'v-clone', error: null });
+    await cloneVersion('v-old');
+    const [cloneFn, cloneArgs] = mockRpc.mock.calls[mockRpc.mock.calls.length - 1];
+    expect(cloneFn).toBe('clone_budget_version');
+    expect(JSON.stringify(cloneArgs)).not.toMatch(/budget_mode|org_id/);
+  });
+});
+
+describe('#1462 listLegacyBudgetArchiveLiveTargets', () => {
+  function configureLegacy(binding: { version_major: number; activated_at: string | null } | null, rows: unknown[]) {
+    const targetBuilder = makeFromBuilder({ data: rows, error: null });
+    const bindingBuilder = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: binding, error: null }),
+    };
+    mockFrom.mockImplementation((table: string) => table === 'external_org_bindings' ? bindingBuilder : targetBuilder);
+  }
+
+  it('keeps legacy documents visible but unavailable under an unproven v16 binding', async () => {
+    configureLegacy({ version_major: 16, activated_at: '2026-01-01T00:00:00Z' }, [
+      { id: 'lm1', budget_version_id: 'v1', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', activated_at_witness: null },
+      { id: 'lm2', budget_version_id: 'v1', fiscal_year: '2027', erp_budget_name: null, erp_docstatus: null, erp_cancelled_at: null, push_state: 'failed', activated_at_witness: '2026-01-01T00:00:00Z' },
+      { id: 'lm3', budget_version_id: 'v1', fiscal_year: '2028', erp_budget_name: 'BUD-CANCELLED', erp_docstatus: 2, erp_cancelled_at: null, push_state: 'pushed', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const targets = await listLegacyBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets.map((row) => row.id)).toEqual(['lm1']);
+    expect(targets[0]).toMatchObject({ source_kind: 'legacy', erp_account: '', budget_intent: 'ensure', archive_cancellation_available: false });
+    expect(targets[0].activated_at_witness).toBeNull();
+    expect(mockFrom).toHaveBeenCalledWith('budget_version_erp_mirror');
+    expect(mockIs).toHaveBeenCalledWith('erp_cancelled_at', null);
+  });
+
+  it('reports a proven active v15 binding as compatible with legacy cancellation', async () => {
+    configureLegacy({ version_major: 15, activated_at: '2026-01-01T00:00:00Z' }, [
+      { id: 'lm1', budget_version_id: 'v1', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const targets = await listLegacyBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({ source_kind: 'legacy', erp_account: '', archive_cancellation_available: true });
+  });
+
+  it('keeps legacy targets visible while cancellation is unavailable', async () => {
+    configureLegacy(null, [
+      { id: 'lm1', budget_version_id: 'v1', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const targets = await listLegacyBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].archive_cancellation_available).toBe(false);
+  });
+
+  it('does not query when there are no versions', async () => {
+    await expect(listLegacyBudgetArchiveLiveTargets([])).resolves.toEqual([]);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+});
+
+describe('#1462 listBudgetArchiveTargets', () => {
+  it('maps the server eligibility verdict for both mirror kinds', async () => {
+    makeRpcBuilder({ data: [
+      { source_kind: 'legacy', fiscal_year: '2026', to_fiscal_year: null, erp_budget_name: 'BUD-OLD', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: '2026', to_fiscal_year: null, erp_budget_name: 'BUD-NEW', eligible: false, reason: 'command-unsettled', push_state: 'pending', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: 'FY/Alpha', to_fiscal_year: 'FY:Beta', erp_budget_name: 'BUD-RANGE', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+    ], error: null });
+
+    const targets = await listBudgetArchiveTargets('v1');
+
+    expect(mockRpc).toHaveBeenCalledWith('get_budget_archive_targets', { p_version_id: 'v1' });
+    expect(targets).toEqual([
+      { source_kind: 'legacy', fiscal_year: '2026', to_fiscal_year: null, erp_budget_name: 'BUD-OLD', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: '2026', to_fiscal_year: null, erp_budget_name: 'BUD-NEW', eligible: false, reason: 'command-unsettled', push_state: 'pending', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: 'FY/Alpha', to_fiscal_year: 'FY:Beta', erp_budget_name: 'BUD-RANGE', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+    ]);
+  });
+
+  it('reads every server target when the archive inventory exceeds PostgREST max_rows', async () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({
+      source_kind: 'legacy',
+      fiscal_year: String(2000 + index),
+      to_fiscal_year: null,
+      erp_budget_name: `BUD-${index}`,
+      eligible: index !== 1000,
+      reason: index === 1000 ? 'command-unsettled' : 'eligible',
+      push_state: 'pushed',
+      erp_docstatus: 1,
+    }));
+    const ranges: Array<[number, number]> = [];
+    mockRpc.mockImplementation(() => {
+      const builder = {
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn((from: number, to: number) => {
+        ranges.push([from, to]);
+        return Promise.resolve({ data: rows.slice(from, to + 1), error: null });
+        }),
+      };
+      return builder as never;
+    });
+
+    const targets = await listBudgetArchiveTargets('v1');
+
+    expect(targets).toHaveLength(1001);
+    expect(targets[1000]).toMatchObject({ eligible: false, reason: 'command-unsettled' });
+    expect(ranges).toEqual([[0, 999], [1000, 1999]]);
+  });
+
+  it('fails closed on a read error instead of reporting an empty inventory', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'read failed', code: 'P0001' } });
+    await expect(listBudgetArchiveTargets('v1')).rejects.toThrow();
+  });
+
+  it('rejects an unexpected payload rather than rendering it as truth', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(listBudgetArchiveTargets('v1')).rejects.toThrow('unexpected response');
+    makeRpcBuilder({ data: [{ source_kind: 'mystery', fiscal_year: '2026', erp_budget_name: 'X', eligible: true, reason: 'eligible' }], error: null });
+    await expect(listBudgetArchiveTargets('v1')).rejects.toThrow('invalid row');
   });
 });

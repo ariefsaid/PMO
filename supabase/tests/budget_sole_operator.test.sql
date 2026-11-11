@@ -2,7 +2,7 @@
 -- is scoped to active membership in that org and never changes the no-drafter role rule.
 begin;
 create extension if not exists pgtap;
-select plan(13);
+select plan(21);
 
 insert into organizations (id, name) values
   ('a1050000-0000-0000-0000-000000000001','Sole Operator Org'),
@@ -84,6 +84,40 @@ set local request.jwt.claims = '{"sub":"a1050000-0000-0000-0000-0000000000a1","r
 select throws_ok($$ select public.activate_budget_version('a1052222-0000-0000-0000-000000000005') $$,
   '42501','a budget version with no recorded drafter can be activated by Admin or Finance only',
   'AC-1050-05: the sole-operator exception does not alter the no-drafter rule');
+-- A legacy draft without a drafter remains subject to the role guard even for its sole editor.
+reset role;
+set local request.jwt.claims = '{}';
+update public.profiles set status='disabled' where id='a1050000-0000-0000-0000-0000000000a2';
+insert into budget_versions (id, org_id, project_id, version, name, status)
+ values ('a1052222-0000-0000-0000-000000000006','a1050000-0000-0000-0000-000000000001','a1051111-0000-0000-0000-000000000001',6,'Legacy editor','Draft');
+insert into budget_version_editors (org_id,budget_version_id,user_id)
+ values ('a1050000-0000-0000-0000-000000000001','a1052222-0000-0000-0000-000000000006','a1050000-0000-0000-0000-0000000000a1');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a1050000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.budget_activation_mode('a1052222-0000-0000-0000-000000000006'), 'blocked_no_drafter', 'legacy sole PM editor is blocked');
+select throws_ok($$ select public.activate_budget_version('a1052222-0000-0000-0000-000000000006') $$, '42501', 'a budget version with no recorded drafter can be activated by Admin or Finance only', 'legacy sole PM editor cannot activate');
+reset role;
+update public.profiles set role='Executive' where id='a1050000-0000-0000-0000-0000000000a1';
+set local role authenticated;
+select is(public.budget_activation_mode('a1052222-0000-0000-0000-000000000006'), 'blocked_no_drafter', 'legacy sole Executive editor is blocked');
+select throws_ok($$ select public.activate_budget_version('a1052222-0000-0000-0000-000000000006') $$, '42501', 'a budget version with no recorded drafter can be activated by Admin or Finance only', 'legacy sole Executive editor cannot activate');
+reset role;
+update public.profiles set role='Admin' where id='a1050000-0000-0000-0000-0000000000a1';
+set local role authenticated;
+select is(public.budget_activation_mode('a1052222-0000-0000-0000-000000000006'), 'sole_operator', 'legacy sole Admin editor is eligible');
+select lives_ok($$ select public.activate_budget_version('a1052222-0000-0000-0000-000000000006') $$, 'legacy sole Admin editor can activate');
+reset role;
+update public.profiles set role='Finance' where id='a1050000-0000-0000-0000-0000000000a1';
+set local request.jwt.claims = '{}';
+insert into budget_versions (id, org_id, project_id, version, name, status)
+ values ('a1052222-0000-0000-0000-000000000007','a1050000-0000-0000-0000-000000000001','a1051111-0000-0000-0000-000000000001',7,'Legacy finance','Draft');
+insert into budget_version_editors (org_id,budget_version_id,user_id)
+ values ('a1050000-0000-0000-0000-000000000001','a1052222-0000-0000-0000-000000000007','a1050000-0000-0000-0000-0000000000a1');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a1050000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.budget_activation_mode('a1052222-0000-0000-0000-000000000007'), 'sole_operator', 'legacy sole Finance editor is eligible');
+select lives_ok($$ select public.activate_budget_version('a1052222-0000-0000-0000-000000000007') $$, 'legacy sole Finance editor can activate');
+
 reset role;
 select ok(not has_function_privilege('anon','public.budget_activation_mode(uuid)','EXECUTE')
           and not has_function_privilege('anon','public.activate_budget_version(uuid)','EXECUTE'),

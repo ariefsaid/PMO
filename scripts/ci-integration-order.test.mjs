@@ -23,6 +23,7 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   const databaseTests = [
     'financial-statements-publication-race.test.mjs',
     'financial-statements-rollback.test.mjs',
+    'financial-statements-nightly-intent-race.test.mjs',
   ];
   const nonDatabase = workflow.match(/find scripts[^\n]+/);
   assert.ok(nonDatabase, 'CI must discover non-database script tests by glob');
@@ -39,6 +40,14 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   provesCoverage(workflow);
   assert.throws(() => provesCoverage(workflow.replace(/scripts\/financial-statements-rollback\.test\.mjs/g, '')),
     /financial-statements-rollback\.test\.mjs is missing from CI/);
+  // The release path must run the two-session interleaving proof too, not only the PR-to-dev job:
+  // a harness that only runs before a dev merge would never gate a promote to main.
+  const integrationJob = workflow.slice(workflow.indexOf('\n  integration:'));
+  const integrationReset = integrationJob.indexOf('supabase db reset');
+  const integrationRace = integrationJob.indexOf('scripts/financial-statements-nightly-intent-race.test.mjs');
+  assert.ok(integrationRace !== -1, 'integration (PR-to-main release gate) must run the owning nightly-intent race proof');
+  assert.ok(integrationReset !== -1 && integrationRace > integrationReset,
+    'the race proof needs the released schema: it must run after the reset');
   const verifyJob = workflow.slice(workflow.indexOf('  verify:'), workflow.indexOf('  pgtap:'));
   assert.doesNotMatch(verifyJob, /node --test[^\n]*scripts\/[^ \n]+\.test\.mjs/,
     'script tests must run only through the repository-test glob, not hand-picked duplicates');
@@ -267,12 +276,34 @@ test('every repo guard runs in CI: check:guards holds every check:* and CI verif
   // The unit suite runs in the sharded `unit` job; verify must wait for it, fail (not skip) when a
   // shard fails, and merge every shard's report + coverage before the changed-lines gate.
   const merge = at('run: npx vitest run --merge-reports --coverage');
-  assert.match(verifyJob, /\n    needs: unit\n/, 'verify must need the sharded unit job');
+  assert.match(verifyJob, /\n    needs: \[scope, unit\]\n/, 'verify must need the scope and unit jobs');
   assert.ok(at('run: test "${{ needs.unit.result }}" = success') !== -1, 'verify must fail when any shard fails');
   assert.ok(merge !== -1 && merge < at('Changed-lines coverage gate'), 'shard coverage must merge before the gate');
   const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  verify:'));
-  assert.match(unitJob, /shard: \[1, 2\]/, 'unit job must run every shard');
+  assert.match(unitJob, /fromJSON\(needs\.scope\.outputs\.unit_matrix\)/, 'unit matrix comes from the scope job');
+  assert.match(workflow, /"include":\[\{"shard":1,"mode":"full"\},\{"shard":2,"mode":"full"\}\]/, 'full mode must run both shards');
   assert.match(unitJob, /--coverage --shard=\$\{\{ matrix\.shard \}\}\/2 .*--reporter=blob/, 'each shard must record coverage');
+  assert.match(unitJob, /vitest run --coverage --reporter=default --reporter=blob "\$\{files\[@\]\}"/, 'affected mode must record coverage too');
+  assert.match(unitJob, /timeout-minutes: 40/, 'unit job must have a timeout (#1528)');
+});
+
+test('AC-CI-002/003/004: scope narrows only a PR to dev; dev pushes run everything', () => {
+  // Everything but a PR to dev is forced to full — in the workflow, not in the script.
+  assert.match(workflow, /if \[ "\$EVENT" = pull_request \] && \[ "\$BASE_REF" = dev \]; then/);
+  assert.match(workflow, /"unit":"full","pgtap":true,"deno":true/);
+  assert.match(workflow, /\n    branches: \[main, dev\]\n/, 'push CI covers dev');
+  const pgtap = workflow.slice(workflow.indexOf('\n  pgtap:'), workflow.indexOf('\n  browser-chromium:'));
+  assert.match(pgtap, /needs\.scope\.outputs\.pgtap == 'true'/);
+  assert.match(pgtap, /github\.event_name == 'push' && github\.ref == 'refs\/heads\/dev'/, 'pgTAP is part of the full run on push to dev');
+  const verifyJob = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
+  for (const step of ['denoland/setup-deno', 'bash scripts/deno-typecheck-edge-fns.sh', 'bash scripts/deno-boot-smoke-edge-fns.sh', 'bash scripts/deno-test-edge-fns.sh']) {
+    const at = verifyJob.indexOf(step);
+    assert.ok(at !== -1, `${step} missing`);
+    const from = verifyJob.lastIndexOf('\n      - ', at);
+    const to = verifyJob.indexOf('\n      - ', at);
+    assert.match(verifyJob.slice(from, to), /if: needs\.scope\.outputs\.deno == 'true'/, `${step} must be gated on scope.deno`);
+  }
+  assert.match(verifyJob, /node scripts\/ci-test-scope\.mjs --self-test/);
 });
 
 test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration gate keeps pgTAP', () => {
@@ -320,6 +351,31 @@ test('gate-script-only changes still trigger CI', () => {
 test('authoritative browser runs own their Vite servers', () => {
   const config = readFileSync(new URL('../pmo-portal/playwright.config.ts', import.meta.url), 'utf8');
   assert.equal((config.match(/reuseExistingServer:\s*false/g) ?? []).length, 2);
+});
+
+test('#1968 CI browser e2e serves a production build; the dev server stays local', () => {
+  const config = readFileSync(new URL('../pmo-portal/playwright.config.ts', import.meta.url), 'utf8');
+  // The mode switch: E2E_SERVER=dev|build, CI defaults to the production build, local keeps dev.
+  assert.match(config, /E2E_SERVER/, 'the e2e server mode must be switchable via E2E_SERVER');
+  assert.match(
+    config,
+    /process\.env\.CI\s*\?\s*'build'\s*:\s*'dev'/,
+    'CI must default to the production build; local runs keep the dev server (E2E_SERVER=dev|build)',
+  );
+  // Build mode must serve a REAL production bundle: vite build, then vite preview on the same ports.
+  assert.match(config, /vite build/, 'build mode must run vite build');
+  assert.match(config, /vite preview/, 'build mode must serve the bundle with vite preview');
+  // The dev-server command stays available for local runs (E2E_SERVER=dev).
+  assert.match(config, /'npm run dev/, 'local runs must keep the dev server');
+  // The two lanes build to SEPARATE output dirs: Playwright starts both webServers concurrently,
+  // and two concurrent vite builds cannot share one dist/.
+  assert.match(
+    config,
+    /dist-consent/,
+    'the analytics (:3100) lane must build to its own outDir — it cannot share dist/ with the :3000 lane',
+  );
+  // Polarity: CI must never pin the dev server — the whole point of #1968 is serving the build there.
+  assert.doesNotMatch(workflow, /E2E_SERVER:\s*['"]?dev/);
 });
 
 test('auth setup exposes transient login failures to Playwright flake detection', () => {

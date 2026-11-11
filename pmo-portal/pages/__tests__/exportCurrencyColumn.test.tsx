@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vite
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import ExcelJS from 'exceljs';
 import { ToastProvider } from '@/src/components/ui';
@@ -15,7 +16,7 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 const hoisted = vi.hoisted(() => ({ captured: [] as ArrayBuffer[] }));
 
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/lib/export', async (orig) => {
   const actual = (await orig()) as typeof import('@/src/lib/export');
@@ -53,23 +54,19 @@ const proc = (id: string, title: string, total_value: number, currency: string) 
   id, title, code: id, status: 'Draft', total_value, currency, created_at: '2026-01-01T00:00:00Z',
   project: { name: 'Project A' }, requested_by: { full_name: 'Alice', id: 'u1' }, requested_by_id: 'u1',
 });
+const procState = vi.hoisted(() => ({ current: null as null | { data: unknown[]; isPending: boolean; isError: boolean; refetch: () => void } }));
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => ({
-    data: [proc('p-usd', 'Widgets USD', 5000, 'USD'), proc('p-idr', 'Widgets IDR', 75000000, 'IDR')],
-    isPending: false, isError: false, refetch: vi.fn(),
-  }),
+  useProcurements: () => procState.current,
+  useProjectProcurements: () => procState.current,
 }));
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
-vi.mock('@/src/hooks/useProcurementView', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/src/hooks/useProcurementView')>()),
-  useProcurementView: () => ['table', vi.fn()],
-}));
 
 // ── Projects ────────────────────────────────────────────────────────────────
 const proj = (id: string, name: string, contract_value: number, currency: string) => ({
-  id, name, code: id, status: 'Ongoing Project', client_id: 'c1', project_manager_id: 'u1',
+  id, name, short_name: name === 'Alpha USD' ? 'North Terminal' : null,
+  code: id, status: 'Ongoing Project', client_id: 'c1', project_manager_id: 'u1',
   contract_value, currency, budget: 900_000, spent: 0, end_date: null, client: { name: 'Acme' },
   pm: { full_name: 'Alice PM' }, customer_contract_ref: null, contract_date: null, decided_at: null,
   tax_treatment: 'exclusive',
@@ -78,6 +75,7 @@ vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: [], isError: false }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
+  useProject: () => ({ data: null }),
   useProjects: () => ({
     data: [proj('pr-usd', 'Alpha USD', 1_000_000, 'USD'), proj('pr-idr', 'Beta IDR', 15_000_000_000, 'IDR')],
     isPending: false, isError: false, refetch: vi.fn(),
@@ -93,17 +91,12 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
 }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
-vi.mock('@/src/hooks/useProjectView', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/src/hooks/useProjectView')>()),
-  useProjectView: () => ['table', vi.fn()],
-}));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: {} }),
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
-  usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
 
 let ProcurementPage: React.ComponentType;
@@ -114,6 +107,10 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(() => {
+  procState.current = {
+    data: [proc('p-usd', 'Widgets USD', 5000, 'USD'), proc('p-idr', 'Widgets IDR', 75000000, 'IDR')],
+    isPending: false, isError: false, refetch: vi.fn(),
+  };
   hoisted.captured = [];
   URL.createObjectURL = vi.fn(() => 'blob:test');
   URL.revokeObjectURL = vi.fn();
@@ -123,11 +120,13 @@ afterEach(() => vi.restoreAllMocks());
 
 async function exportFrom(node: React.ReactElement) {
   render(
-    <ImpersonationProvider realRole="Admin">
-      <MemoryRouter>
-        <ToastProvider>{node}</ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <ImpersonationProvider realRole="Admin">
+        <MemoryRouter>
+          <ToastProvider>{node}</ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </QueryClientProvider>,
   );
   const user = userEvent.setup();
   const exportButton = screen.queryByRole('button', { name: /export/i });
@@ -150,7 +149,7 @@ describe('AC-L10N-052 Projects and Procurement exports carry the row currency', 
     const { ws, col } = await exportFrom(<ProcurementPage />);
     expect(col('Currency')).toBe(col('Value') + 1);
     const row = (title: string) =>
-      [2, 3].map((r) => ws.getRow(r)).find((x) => x.getCell(col('Request')).value === title)!;
+      [2, 3].map((r) => ws.getRow(r)).find((x) => x.getCell(col('Procurement')).value === title)!;
     expect(row('Widgets USD').getCell(col('Currency')).value).toBe('USD');
     expect(row('Widgets USD').getCell(col('Value')).value).toBe(5000);
     expect(row('Widgets IDR').getCell(col('Currency')).value).toBe('IDR');
@@ -162,6 +161,8 @@ describe('AC-L10N-052 Projects and Procurement exports carry the row currency', 
     expect(col('Currency')).toBe(col('Contract') + 1);
     const row = (name: string) =>
       [2, 3].map((r) => ws.getRow(r)).find((x) => x.getCell(col('Project')).value === name)!;
+    expect(row('Alpha USD').getCell(col('Project')).value).toBe('Alpha USD');
+    expect(row('Alpha USD').getCell(col('Project')).value).not.toBe('North Terminal');
     expect(row('Alpha USD').getCell(col('Currency')).value).toBe('USD');
     expect(row('Beta IDR').getCell(col('Currency')).value).toBe('IDR');
     expect(row('Beta IDR').getCell(col('Contract')).value).toBe(15_000_000_000);

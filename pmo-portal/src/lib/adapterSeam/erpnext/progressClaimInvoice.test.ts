@@ -1,26 +1,44 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
 import { siFromDoc, siToBody } from './bodies/salesInvoice.ts';
 import type { AdapterCommand } from '../contract.ts';
 import { canonicalCommandDigest } from '../../../../../supabase/functions/adapter-dispatch/moneyOutboxDeps.ts';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 type Row = Record<string, unknown>;
 const ORG = 'org-1';
 const CLAIM: Row = {
   id: 'claim-1', org_id: ORG, kind: 'progress', currency: 'IDR', project_id: 'proj-1', work_order_id: null,
-  down_payment_amount: null, dp_recovery_amount: '40000.00', dp_item_code: 'DP-ITEM', withdrawn_at: null,
+  gross_amount: '260000.00', down_payment_amount: null, dp_recovery_amount: '40000.00', dp_item_code: 'DP-ITEM', withdrawn_at: null,
 };
+const TM_CLAIM: Row = {
+  ...CLAIM, kind: 'time_materials', gross_amount: '6000000.02', dp_recovery_amount: '0.00', dp_item_code: null,
+};
+const TM_STATE: Row = {
+  id: 'claim-1', org_id: ORG, status: 'SignedOff', confirmed_by: 'confirmer-1', gross_amount: '6000000.02',
+};
+const TM_LINES: Row[] = [
+  // Product is 0.0165; the frozen claim-line amount is rounded once to 0.02.
+  { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', basis: 'work', label: 'Rounding case', unit: 'hour', units: '0.33', rate: '0.05', amount: '0.02' },
+  // Deliberately after rate-line-2 in the fixture to pin the reader's stable line_key ordering.
+  { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '120.00', rate: '50000.00', amount: '6000000.00' },
+];
 // Deliberately out of BoQ order: the resolver must sort by boq_item_id so every resolution is identical.
 const LINES: Row[] = [
-  { org_id: ORG, claim_id: 'claim-1', boq_item_id: 'boq-b', item_code: 'STATION', description: 'Station build', unit: 'unit', quantity: '1.000', rate: '100000.00' },
-  { org_id: ORG, claim_id: 'claim-1', boq_item_id: 'boq-a', item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: '4.000', rate: '50000.00' },
+  { org_id: ORG, claim_id: 'claim-1', boq_item_id: 'boq-b', item_code: 'STATION', description: 'Station build', unit: 'unit', quantity: '1.000', rate: '100000.00', amount: '100000.00' },
+  { org_id: ORG, claim_id: 'claim-1', boq_item_id: 'boq-a', item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: '4.000', rate: '50000.00', amount: '200000.00' },
 ];
 const EVIDENCE: Row[] = [{ id: 'ev-1', org_id: ORG, claim_id: 'claim-1' }];
 
 /** PostgREST boundary fake: enforces filters and selected columns (a missing column throws). */
-function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderTax: Row = {}, projectTax: Row = {}): DispatchServiceClient {
+function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderTax: Row = {}, projectTax: Row = {},
+  timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[]; progressLines?: Row[] } = {}): DispatchServiceClient {
+  const rateLines = timeMaterials.rateLines ?? (timeMaterials.lines ?? TM_LINES).map((line) => ({
+    org_id: line.org_id, project_id: 'proj-1', line_key: line.line_key, is_current: true,
+    version: line.rate_version, sales_item_code: 'SERVICE-LABOUR',
+  }));
   const rows: Record<string, Row[]> = {
-    external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001', 'proj-2': 'ERP-PROJ-002' } } }],
+    external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001', 'proj-2': 'ERP-PROJ-002' }, item_map: { 'Site engineer': 'SERVICE-LABOUR', 'Rounding case': 'SERVICE-LABOUR' } } }],
     companies: [{ id: 'cust-1', org_id: ORG }, { id: 'cust-2', org_id: ORG }, { id: 'cust-org2', org_id: 'org-2' }],
     external_refs: [
       { org_id: ORG, domain: 'companies', pmo_record_id: 'cust-1', external_record_id: 'Customer:Synthetic Customer' },
@@ -35,20 +53,33 @@ function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderT
     work_orders: [{ id: 'wo-1', org_id: ORG, client_po_number: 'WO-PO-001', order_date: '2026-09-01', tax_base_numerator: 1, tax_base_denominator: 1, ...workOrderTax }],
     sales_invoices: [],
     progress_claims: claim ? [claim] : [],
-    progress_claim_lines: LINES,
+    progress_claim_lines: timeMaterials.progressLines ?? LINES,
     progress_claim_evidence: evidence,
+    tm_claims: timeMaterials.claims ?? [],
+    tm_claim_lines: timeMaterials.lines ?? [],
+    contract_rate_lines: rateLines,
   };
   return {
     from(table: string) {
       return {
         select(columns: string) {
-          const filters: Record<string, string> = {};
-          let orderBy: string | null = null;
+          const filters: Record<string, string | string[]> = {};
+          const orderBy: string[] = [];
           const matches = () => {
             // uuid columns compare case-insensitively in Postgres; model that for `id` so a case-variant id finds its row.
-            const found = (rows[table] ?? []).filter((row) => Object.entries(filters).every(([key, value]) =>
-              key === 'id' ? String(row[key]).toLowerCase() === String(value).toLowerCase() : row[key] === value));
-            return orderBy === null ? found : [...found].sort((a, b) => String(a[orderBy as string]).localeCompare(String(b[orderBy as string])));
+            const found = (rows[table] ?? []).filter((row) => Object.entries(filters).every(([key, value]) => {
+              const values = Array.isArray(value) ? value : [value];
+              return values.some((candidate) => key === 'id'
+                ? String(row[key]).toLowerCase() === String(candidate).toLowerCase()
+                : row[key] === candidate);
+            }));
+            return orderBy.length === 0 ? found : [...found].sort((a, b) => {
+              for (const column of orderBy) {
+                const comparison = String(a[column]).localeCompare(String(b[column]));
+                if (comparison !== 0) return comparison;
+              }
+              return 0;
+            });
           };
           const pick = (row: Row): Row => Object.fromEntries(columns.split(',').map((col) => col.trim()).map((col) => {
             if (!(col in row)) throw new Error(`fixture lacks selected column ${table}.${col}`);
@@ -56,7 +87,8 @@ function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderT
           }));
           const chain = {
             eq(col: string, val: string) { filters[col] = val; return chain; },
-            order(col: string) { orderBy = col; return chain; },
+            in(col: string, values: string[]) { filters[col] = values; return chain; },
+            order(col: string) { orderBy.push(col); return chain; },
             limit() { return chain; },
             gt() { return chain; },
             async maybeSingle() { const row = matches()[0]; return { data: row ? pick(row) : null, error: null }; },
@@ -69,52 +101,56 @@ function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderT
   } as unknown as DispatchServiceClient;
 }
 
-function command(record: Row, operation: AdapterCommand['operation'] = 'create'): AdapterCommand {
+function command(record: Row, operation: AdapterCommand['operation'] = 'create', idempotencyKey = 'pb-test-key'): AdapterCommand {
   return {
-    domain: 'revenue', operation, idempotencyKey: 'pb-test-key',
+    domain: 'revenue', operation, idempotencyKey,
     record: { id: 'claim-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-1', ...record },
   };
 }
 
 const TAX_TEMPLATE = { name: 'Synthetic Sales Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT - SC', rate: 10, description: 'VAT' }] };
 
-function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsDenied?: boolean; customerCurrency?: string | null; companyCurrency?: string } = {}) {
-  const { negativeRates = true, template = TAX_TEMPLATE, settingsDenied = false, customerCurrency = 'IDR', companyCurrency = 'IDR' } = opts;
-  const sent: { body: Row } = { body: {} };
+function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsDenied?: boolean; systemSettings?: Row | 'denied'; customerCurrency?: string | null; companyCurrency?: string } = {}) {
+  const { systemSettings, negativeRates = true, template = TAX_TEMPLATE, settingsDenied = false, customerCurrency = 'IDR', companyCurrency = 'IDR' } = opts;
+  const sent: { body: Row; bodyText: string } = { body: {}, bodyText: '' };
   const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const path = decodeURIComponent(new URL(String(url)).pathname);
     if (path === '/api/resource/Item' && init?.method === 'GET') {
-      return Response.json({ data: ['SURVEY', 'STATION', 'DP-ITEM', 'OWN-ITEM'].map((name) => ({ name, item_name: name, disabled: 0, is_sales_item: 1, is_purchase_item: 0 })) });
+      return Response.json({ data: ['SURVEY', 'STATION', 'DP-ITEM', 'OWN-ITEM', 'SERVICE-LABOUR', 'ERP-LABOUR-001', 'ERP-LABOUR-002'].map((name) => ({ name, item_name: name, disabled: 0, is_sales_item: 1, is_purchase_item: 0 })) });
     }
     if (path === '/api/resource/Customer/Synthetic Customer') return Response.json({ data: { name: 'Synthetic Customer', default_currency: customerCurrency } });
     if (path === '/api/resource/Company/Synthetic Co') return Response.json({ data: { name: 'Synthetic Co', default_currency: companyCurrency } });
+    if (path === '/api/resource/System Settings/System Settings') return systemSettings === 'denied' ? Response.json({ exc_type: 'PermissionError' }, { status: 403 }) : Response.json({ data: systemSettings ?? { float_precision: '3', currency_precision: '2', number_format: '#,###.##' } });
     if (path === '/api/resource/Selling Settings/Selling Settings' && settingsDenied) return Response.json({ exc_type: 'PermissionError' }, { status: 403 });
     if (path === '/api/resource/Selling Settings/Selling Settings') return Response.json({ data: { allow_negative_rates_for_items: negativeRates ? 1 : 0 } });
     if (path === '/api/resource/Sales Taxes and Charges Template') return Response.json({ data: template ? [{ name: 'Synthetic Sales Tax' }] : [] });
     if (path === '/api/resource/Sales Taxes and Charges Template/Synthetic Sales Tax') return Response.json({ data: template });
-    sent.body = JSON.parse(String(init?.body)) as Row;
+    sent.bodyText = String(init?.body);
+    sent.body = JSON.parse(sent.bodyText) as Row;
     return new Response(JSON.stringify({ data: { name: 'SYNTHETIC-SI-766', ...sent.body, docstatus: 0 } }), { status: 200 });
   });
   return { sent, fetchImpl };
 }
 
-async function push(record: Row, claim: Row | null = CLAIM, erp: Parameters<typeof erpFetch>[0] = {}, workOrderTax: Row = {}, projectTax: Row = {}) {
-  const cmd = command(record);
+async function push(record: Row, claim: Row | null = CLAIM, erp: Parameters<typeof erpFetch>[0] = {}, workOrderTax: Row = {},
+  projectTax: Row = {}, timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[]; progressLines?: Row[] } = {}, idempotencyKey = 'pb-test-key') {
+  const cmd = command(record, 'create', idempotencyKey);
   const { sent, fetchImpl } = erpFetch(erp);
   const adapter = await resolveErpDispatchAdapter({
-    serviceClient: serviceClient(claim, EVIDENCE, workOrderTax, projectTax), orgId: ORG, command: cmd,
+    serviceClient: serviceClient(claim, EVIDENCE, workOrderTax, projectTax, timeMaterials), orgId: ORG, command: cmd,
     fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
     doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
   });
   await adapter.commit(cmd);
-  return { body: sent.body, command: cmd };
+  return { body: sent.body, bodyText: sent.bodyText, command: cmd };
 }
 
 /** Synchronous on purpose: the caller attaches `.rejects` in the same tick, so no rejection goes unhandled. */
-function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[] = EVIDENCE, erp: Parameters<typeof erpFetch>[0] = {}, projectTax: Row = {}) {
+function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[] = EVIDENCE, erp: Parameters<typeof erpFetch>[0] = {},
+  projectTax: Row = {}, timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[]; progressLines?: Row[] } = {}) {
   const { fetchImpl } = erpFetch(erp);
   const attempt = resolveErpDispatchAdapter({
-    serviceClient: serviceClient(claim, evidence, {}, projectTax), orgId: ORG, command: cmd,
+    serviceClient: serviceClient(claim, evidence, {}, projectTax, timeMaterials), orgId: ORG, command: cmd,
     fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
     doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
   });
@@ -123,14 +159,264 @@ function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[]
 
 const digest = (cmd: AdapterCommand) => canonicalCommandDigest({ domain: cmd.domain, operation: cmd.operation, record: cmd.record });
 
+afterEach(() => resetActiveLocale());
+
 describe('billing claim invoice (AC-PB-006)', () => {
   it('AC-PB-006 builds a progress invoice from the claim lines in BoQ order plus the recovery line', async () => {
-    const { body } = await push({});
+    const { body, bodyText } = await push({});
     expect(body.items).toEqual([
       { item_code: 'SURVEY', qty: 4, rate: 50000, description: 'Route survey (km)' },
       { item_code: 'STATION', qty: 1, rate: 100000, description: 'Station build (unit)' },
       { item_code: 'DP-ITEM', qty: 1, rate: -40000 },
     ]);
+    expect(bodyText).toBe('{"customer":"Synthetic Customer","items":[{"item_code":"SURVEY","qty":4,"rate":50000,"description":"Route survey (km)"},{"item_code":"STATION","qty":1,"rate":100000,"description":"Station build (unit)"},{"item_code":"DP-ITEM","qty":1,"rate":-40000}],"project":"ERP-PROJ-001","currency":"IDR","taxes":[{"charge_type":"On Net Total","account_head":"VAT - SC","description":"VAT","rate":10}],"remarks":"pb-test-key"}');
+  });
+
+  it('AC-1820 a progress line ERPNext would round away from its signed amount is sent as 1 x the signed amount', async () => {
+    const odd = { org_id: ORG, claim_id: 'claim-1', boq_item_id: 'boq-c', item_code: 'SURVEY', description: 'Odd quantity', unit: 'km', quantity: '0.333', rate: '1000.01', amount: '333.00' };
+    const progressLines = [LINES[1], odd];
+    const claim = { ...CLAIM, currency: 'USD', gross_amount: '200333.00', dp_recovery_amount: '0.00' };
+    const run = (systemSettings: Row | 'denied') => push({}, claim, { systemSettings, customerCurrency: 'USD', companyCurrency: 'USD' }, {}, {}, { progressLines });
+    const floatTwo = await run({ float_precision: '2', currency_precision: '2' });
+    expect(floatTwo.body.items).toEqual([
+      { item_code: 'SURVEY', qty: 4, rate: 50000, description: 'Route survey (km)' },
+      { item_code: 'SURVEY', qty: 1, rate: 333, description: 'Odd quantity (km): 0.333 x 1,000.01, rounded to $333.00' },
+    ]);
+    const floatThree = await run({ float_precision: '3', currency_precision: '2' });
+    expect((floatThree.body.items as Row[])[1]).toMatchObject({ qty: 0.333, rate: 1000.01 });
+    const unreadable = await run('denied');
+    expect((unreadable.body.items as Row[]).map((i) => [i.qty, i.rate])).toEqual([[4, 50000], [1, 333]]);
+  });
+
+  it('AC-TM-014 carries signed T&M claim lines and their frozen amounts into the canonical invoice lines', async () => {
+    const timeMaterials = { claims: [TM_STATE], lines: TM_LINES };
+    const { body, command: cmd } = await push({}, TM_CLAIM, {}, {}, {}, timeMaterials, 'claim-1');
+    const lines = cmd.record.items as Array<Row>;
+    expect(lines.map(({ label, unit, quantity, rate, amount, item }) => ({ label, unit, quantity, rate, amount, item }))).toEqual([
+      { label: 'Site engineer', unit: 'hour', quantity: 120, rate: 50000, amount: '6000000.00', item: 'SERVICE-LABOUR' },
+      { label: 'Rounding case', unit: 'hour', quantity: 0.33, rate: 0.05, amount: '0.02', item: 'SERVICE-LABOUR' },
+    ]);
+    expect(lines.every(({ quantity, rate }) => typeof quantity === 'number' && typeof rate === 'number')).toBe(true);
+    expect(body.items).toEqual([
+      { item_code: 'SERVICE-LABOUR', qty: 120, rate: 50000, description: 'Site engineer (hour)' },
+      { item_code: 'SERVICE-LABOUR', qty: 0.33, rate: 0.05, description: 'Rounding case (hour)' },
+    ]);
+    expect(lines.reduce((sum, line) => sum + Number(line.amount), 0)).toBe(Number(TM_STATE.gross_amount));
+    const roundingLine = TM_LINES.find((line) => line.label === 'Rounding case');
+    expect(roundingLine).toBeDefined();
+    expect(Number(roundingLine?.amount)).not.toBe(Number(roundingLine?.units) * Number(roundingLine?.rate));
+    expect(cmd.idempotencyKey).toBe('claim-1');
+  });
+
+  it('AC-TM-014 uses each rate line sales item and keeps the rate label as its description', async () => {
+    const timeMaterials = {
+      claims: [TM_STATE],
+      lines: TM_LINES,
+      rateLines: [
+        { org_id: ORG, project_id: 'proj-1', line_key: 'rate-line-1', is_current: true, sales_item_code: 'ERP-LABOUR-001' },
+        { org_id: ORG, project_id: 'proj-1', line_key: 'rate-line-2', is_current: true, sales_item_code: 'ERP-LABOUR-002' },
+      ],
+    };
+    const { body } = await push({}, TM_CLAIM, {}, {}, {}, timeMaterials);
+    expect(body.items).toEqual([
+      { item_code: 'ERP-LABOUR-001', qty: 120, rate: 50000, description: 'Site engineer (hour)' },
+      { item_code: 'ERP-LABOUR-002', qty: 0.33, rate: 0.05, description: 'Rounding case (hour)' },
+    ]);
+  });
+
+  it('AC-TM-014 carries a frozen standby basis into the invoice description', async () => {
+    const standbyClaim = { ...TM_CLAIM, gross_amount: '1200000.00' };
+    const standbyState = { ...TM_STATE, gross_amount: '1200000.00' };
+    const { body } = await push({}, standbyClaim, {}, {}, {}, {
+      claims: [standbyState],
+      lines: [{
+        org_id: ORG, claim_id: 'claim-1', line_key: 'equipment-line', rate_version: 1, kind: 'equipment', basis: 'standby',
+        label: 'Excavator', unit: 'hour', units: '6.00', rate: '200000.00', amount: '1200000.00',
+      }],
+      rateLines: [{ org_id: ORG, project_id: 'proj-1', line_key: 'equipment-line', is_current: true, sales_item_code: 'SERVICE-LABOUR' }],
+    });
+    expect(body.items).toEqual([{ item_code: 'SERVICE-LABOUR', qty: 6, rate: 200000, description: 'Excavator (siaga) (hour)' }]);
+  });
+
+  it('AC-TM-014 an unknown saved ERP item is refused before any ERP write', async () => {
+    const cmd = command({});
+    const { fetchImpl } = erpFetch();
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: serviceClient(TM_CLAIM, EVIDENCE, {}, {}, {
+        claims: [TM_STATE], lines: TM_LINES,
+        rateLines: TM_LINES.map((line) => ({
+          org_id: ORG, project_id: 'proj-1', line_key: line.line_key, is_current: true,
+          sales_item_code: 'ITEM-NOT-IN-ERP',
+        })),
+      }),
+      orgId: ORG,
+      command: cmd,
+      fetchImpl: fetchImpl as typeof fetch,
+      apiKey: 'synthetic-key',
+      apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    });
+    await expect(adapter.commit(cmd)).rejects.toMatchObject({
+      code: 'commit-rejected', message: 'Line 1: item "ITEM-NOT-IN-ERP" is not an enabled ERP item',
+    });
+    expect(fetchImpl.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false);
+  });
+
+  it('AC-TM-014 sends a half-cent tie as its frozen amount so ERPNext books the signed cents', async () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id', timezone: 'Asia/Jakarta' });
+    const halfCentTie = [{
+      org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', basis: 'work',
+      label: 'Site engineer', unit: 'hour', units: '0.25', rate: '1000.02', amount: '250.01',
+    }];
+    const claim = { ...TM_CLAIM, gross_amount: '250.01' };
+    const tmClaim = { ...TM_STATE, gross_amount: '250.01' };
+    const { body, command: cmd } = await push({}, claim, {}, {}, {}, { claims: [tmClaim], lines: halfCentTie });
+    expect(body.items).toEqual([
+      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 250.01, description: 'Site engineer (hour): 0,25 x 1.000,02, rounded to Rp\u00a0250,01' },
+    ]);
+    const [line] = cmd.record.items as Array<Row>;
+    expect(line).toMatchObject({ quantity: 0.25, signed_rate: 1000.02, rate: 250.01, amount: '250.01' });
+    expect(Number(line.quantity) * Number(line.signed_rate)).toBe(250.005);
+  });
+
+  it('AC-TM-014 reshapes both reviewer tie cases because at least one Frappe rounding method loses a cent', async () => {
+    const lines = [
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '4.31', rate: '3148.50', amount: '13570.04' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '30.25', rate: '4637199.02', amount: '140275270.36' },
+    ];
+    const gross = '140288840.40';
+    const { body } = await push({}, { ...TM_CLAIM, gross_amount: gross }, {}, {}, {}, {
+      claims: [{ ...TM_STATE, gross_amount: gross }], lines,
+    });
+
+    expect((body.items as Array<Row>).map(({ qty, rate }) => ({ qty, rate }))).toEqual([
+      { qty: 1, rate: 13570.04 },
+      { qty: 1, rate: 140275270.36 },
+    ]);
+  });
+
+  it('AC-TM-014 books every reshaped amount at its frozen cent under all three Frappe rounding methods', async () => {
+    const lines = [
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '4.31', rate: '3148.50', amount: '13570.04' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '30.25', rate: '4637199.02', amount: '140275270.36' },
+    ];
+    const gross = '140288840.40';
+    const { body } = await push({}, { ...TM_CLAIM, gross_amount: gross }, {}, {}, {}, {
+      claims: [{ ...TM_STATE, gross_amount: gross }], lines,
+    });
+    const originalBookingsByMethod = {
+      "Banker's Rounding": [1_357_004, 14_027_527_036],
+      "Banker's Rounding (legacy)": [1_357_004, 14_027_527_035],
+      'Commercial Rounding': [1_357_003, 14_027_527_036],
+    } as const;
+    const frozenAmountsInCents = [1_357_004, 14_027_527_036];
+    const items = body.items as Array<Row>;
+    for (const [method, originalBookings] of Object.entries(originalBookingsByMethod)) {
+      for (const [index, item] of items.entries()) {
+        // Unreshaped reviewer examples use the method-specific ERPNext result above; a `1 × frozen`
+        // body is an exact cent amount and is unchanged under all three methods.
+        const bookedCents = Number(item.qty) === 1
+          ? Math.round(Number(item.qty) * Number(item.rate) * 100)
+          : originalBookings[index];
+        expect(bookedCents, `${method} booked a different cent`).toBe(frozenAmountsInCents[index]);
+      }
+    }
+  });
+
+  it('AC-TM-014 preserves quantity and rate when all three Frappe rounding methods agree with the frozen cent', async () => {
+    const ordinary = [{
+      org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', basis: 'work',
+      label: 'Site engineer', unit: 'hour', units: '0.50', rate: '1.02', amount: '0.51',
+    }];
+    const claim = { ...TM_CLAIM, gross_amount: '0.51' };
+    const tmClaim = { ...TM_STATE, gross_amount: '0.51' };
+    const { body } = await push({}, claim, {}, {}, {}, { claims: [tmClaim], lines: ordinary });
+
+    expect(body.items).toEqual([
+      { item_code: 'SERVICE-LABOUR', qty: 0.5, rate: 1.02, description: 'Site engineer (hour)' },
+    ]);
+  });
+
+  it('AC-TM-014 keeps every matching line quantity and rate, shaping only lines ERPNext would round away from frozen cents', async () => {
+    const lines = [
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '0.25', rate: '1000.02', amount: '250.01' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '120.00', rate: '50000.00', amount: '6000000.00' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-3', rate_version: 1, kind: 'labour', basis: 'work', label: 'Rounding case', unit: 'hour', units: '0.33', rate: '0.05', amount: '0.02' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-4', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '0.5', rate: '0.03', amount: '0.02' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-5', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '99999999.5', rate: '0.01', amount: '1000000.00' },
+    ];
+    const gross = '7000250.05';
+    const { body, command: cmd } = await push({}, { ...TM_CLAIM, gross_amount: gross }, {}, {}, {}, {
+      claims: [{ ...TM_STATE, gross_amount: gross }], lines,
+    });
+    const signedLines = cmd.record.items as Array<Row>;
+    expect(body.items).toEqual([
+      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 250.01, description: 'Site engineer (hour): 0,25 x 1.000,02, rounded to Rp\u00a0250,01' },
+      { item_code: 'SERVICE-LABOUR', qty: 120, rate: 50000, description: 'Site engineer (hour)' },
+      { item_code: 'SERVICE-LABOUR', qty: 0.33, rate: 0.05, description: 'Rounding case (hour)' },
+      { item_code: 'SERVICE-LABOUR', qty: 0.5, rate: 0.03, description: 'Site engineer (hour)' },
+      { item_code: 'SERVICE-LABOUR', qty: 99999999.5, rate: 0.01, description: 'Site engineer (hour)' },
+    ]);
+    const bodyItems = body.items as Array<Row>;
+    expect(bodyItems.map((item) => Math.round(Number(item.qty) * Number(item.rate) * 100) / 100))
+      .toEqual(signedLines.map((line) => Number(line.amount)));
+    expect(signedLines[0]).toMatchObject({ quantity: 0.25, signed_rate: 1000.02, amount: '250.01' });
+    expect(signedLines.slice(1).map(({ quantity, rate, amount }) => ({ quantity, rate, amount }))).toEqual([
+      { quantity: 120, rate: 50000, amount: '6000000.00' },
+      { quantity: 0.33, rate: 0.05, amount: '0.02' },
+      { quantity: 0.5, rate: 0.03, amount: '0.02' },
+      { quantity: 99999999.5, rate: 0.01, amount: '1000000.00' },
+    ]);
+  });
+
+  it('AC-TM-014 refuses unsigned T&M claim lines before they can reach an invoice body', async () => {
+    const unsigned = { claims: [{ ...TM_STATE, status: 'Draft', confirmed_by: null }], lines: TM_LINES };
+    const { attempt, fetchImpl } = refused(command({}), TM_CLAIM, EVIDENCE, {}, {}, unsigned);
+    await expect(attempt).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['the progress-claim row', { ...TM_CLAIM, withdrawn_at: '2026-10-06T00:00:00Z' }, TM_STATE],
+    ['the T&M claim row', TM_CLAIM, { ...TM_STATE, status: 'Withdrawn' }],
+  ])('AC-TM-014 refuses a T&M claim withdrawn in %s with its claim type in the message', async (_label, claim, tmState) => {
+    const withdrawn = { claims: [tmState], lines: TM_LINES };
+    const { attempt, fetchImpl } = refused(command({}), claim, EVIDENCE, {}, {}, withdrawn);
+    await expect(attempt).rejects.toThrow('This time-and-materials claim was withdrawn, so no invoice can be raised for it');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['progress-claim header', { ...TM_CLAIM, gross_amount: '6000000.03' }, TM_STATE],
+    ['T&M claim header', TM_CLAIM, { ...TM_STATE, gross_amount: '6000000.03' }],
+  ])('AC-TM-014 refuses T&M lines that do not match the %s before any ERP call', async (_label, claim, tmState) => {
+    const mismatched = { claims: [tmState], lines: TM_LINES };
+    const { attempt, fetchImpl } = refused(command({}), claim, EVIDENCE, {}, {}, mismatched);
+    await expect(attempt).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('AC-TM-014 scopes signed T&M lines to the dispatching org', async () => {
+    const otherOrgLine = {
+      ...TM_LINES[0], org_id: 'org-2', line_key: 'rate-line-3', label: 'Foreign org line',
+      units: '1.00', rate: '1.00', amount: '1.00',
+    };
+    const { body } = await push({}, TM_CLAIM, {}, {}, {}, { claims: [TM_STATE], lines: [...TM_LINES, otherOrgLine] });
+    expect(body.items).toEqual([
+      { item_code: 'SERVICE-LABOUR', qty: 120, rate: 50000, description: 'Site engineer (hour)' },
+      { item_code: 'SERVICE-LABOUR', qty: 0.33, rate: 0.05, description: 'Rounding case (hour)' },
+    ]);
+  });
+
+  it('AC-TM-014 refuses a rate line without its own sales item even when its label exists in the binding item map', async () => {
+    const { attempt, fetchImpl } = refused(command({}), TM_CLAIM, EVIDENCE, {}, {}, {
+      claims: [TM_STATE], lines: TM_LINES,
+      rateLines: [{ org_id: ORG, project_id: 'proj-1', line_key: 'rate-line-2', is_current: true, sales_item_code: 'ERP-LABOUR-002' }],
+    });
+    await expect(attempt).rejects.toMatchObject({
+      code: 'commit-rejected', message: 'Rate line "Site engineer" has no sales item — map it on the rate card',
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('AC-PB-006 builds a down payment invoice as one line on the claim item', async () => {

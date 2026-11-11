@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, EntityFormModal, Icon, ListState, TextField, useEntityForm, type SubmitError } from '@/src/components/ui';
+import { Button, EntityFormModal, Icon, ListState, TextField, type SubmitError } from '@/src/components/ui';
 import { useMicrosoftDocuments } from '@/src/hooks/useMicrosoftDocuments';
 import {
-  browseDrives, browseOneDrive, browseSites, getPersonalDrive, listChildren, listDrives, listSites, searchDrive,
+  browseDrives, browseOneDrive, browseSites, getPersonalDrive, listChildren, searchDrive,
   type GraphDrive, type GraphItem, type GraphReadRequest, type GraphSite,
 } from '@/src/lib/m365/graphClient';
 import { suggestFolders, type PickerContext } from '@/src/lib/m365/folderSuggestions';
@@ -81,8 +81,6 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
   const kindLabel = (kind: GraphItem['item_kind']) => (kind === 'folder' ? t('m365Documents.picker.kindFolder', 'folder') : t('m365Documents.picker.kindFile', 'file'));
   const { connection, defaultLibrary, isPending, connectionError, defaultError, refetch } = useMicrosoftDocuments();
   const canBrowse = connection?.connected === true && connection.status === 'active';
-  const form = useEntityForm<{ selected: string }>({ initialValues: { selected: '' }, requiredFields: ['selected'] });
-  const setSelectedValue = form.setValue;
 
   const [location, setLocation] = useState<Location>({ kind: 'chooser' });
   const [selected, setSelected] = useState<GraphItem | null>(null);
@@ -213,7 +211,6 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
 
   function select(item: GraphItem) {
     setSelected(item);
-    setSelectedValue('selected', item.item_id);
   }
 
   function openItems(target: GraphDrive, nextPath: GraphItem[], nextOrigin: 'default' | 'manual' = 'manual') {
@@ -226,7 +223,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
     locationCursors.current.clear();
     setSites({ status: 'loading', value: [], next: null, error: null });
     try {
-      const result = await listSites();
+      const result = await browseSites();
       if (seq === navGeneration.current) setSites({ status: 'ready', value: result.value, next: result.next, error: null });
     } catch (error) {
       if (seq === navGeneration.current) setSites({ status: 'error', value: [], next: null, error });
@@ -239,7 +236,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
     locationCursors.current.clear();
     setLibraries({ status: 'loading', value: [], next: null, error: null });
     try {
-      const result = await listDrives(site.id);
+      const result = await browseDrives(site.id);
       if (seq === navGeneration.current) setLibraries({ status: 'ready', value: result.value, next: result.next, error: null });
     } catch (error) {
       if (seq === navGeneration.current) setLibraries({ status: 'error', value: [], next: null, error });
@@ -357,7 +354,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
       disabledReason={t('m365Documents.picker.disabledReason', 'Select a file or folder to link.')}
       onSubmit={(e) => void submit(e)}
       onClose={onClose}
-      submitDisabled={!form.isComplete || !selected}
+      submitDisabled={!selected}
       loading={saving}
       submitError={submitError}
       width="lg"
@@ -506,13 +503,14 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
                         {item.item_kind === 'folder' ? (
                           <Button variant="ghost" className={ROW_BUTTON} title={item.name} aria-label={t('m365Documents.picker.browseNamed', 'Browse {{name}}', { name: item.name })} onClick={() => openItems(drive, [...path, item])}>
                             <Icon name="folder" className="shrink-0" />{item.name}
+                            <Icon name="chev" aria-hidden className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
                           </Button>
                         ) : (
                           <span title={item.name} className={`flex min-w-0 items-start gap-1.5 ${WRAP} px-3 py-1 text-[13.5px] text-foreground`}><Icon name="doc" className="mt-0.5 shrink-0" />{item.name}</span>
                         )}
                         {isSelected && <span className="ml-3 inline-flex items-center gap-1 text-[12px] font-semibold text-foreground"><Icon name="check" />{t('m365Documents.picker.selected', 'Selected')}</span>}
                       </div>
-                      <Button variant="outline" className="touch-target shrink-0" aria-pressed={isSelected} aria-label={t('m365Documents.picker.selectNamed', 'Select {{kind}} {{name}}', { kind: kindLabel(item.item_kind), name: item.name })} onClick={() => select(item)}>{t('m365Documents.picker.select', 'Select')}</Button>
+                      <Button variant="outline" className="touch-target shrink-0" aria-pressed={isSelected} aria-label={item.item_kind === 'folder' ? t('m365Documents.picker.linkFolderNamed', 'Link this folder {{name}}', { name: item.name }) : t('m365Documents.picker.linkFileNamed', 'Link this file {{name}}', { name: item.name })} onClick={() => select(item)}>{item.item_kind === 'folder' ? t('m365Documents.picker.linkFolder', 'Link this folder') : t('m365Documents.picker.linkFile', 'Link this file')}</Button>
                     </li>
                   );
                 })}

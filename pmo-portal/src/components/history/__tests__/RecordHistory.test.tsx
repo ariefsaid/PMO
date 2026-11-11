@@ -7,22 +7,30 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BahasaProvider } from '@/test/bahasa';
 import { formatCurrency, formatDateOnly, formatDateTime } from '@/src/lib/format';
 
-const { repo, listProcurementsByProject, listBudgetVersions, procDetail } = vi.hoisted(() => ({
-  repo: {
-    recordHistory: { list: vi.fn(), lookupNames: vi.fn() },
-    profile: { listOrgProfiles: vi.fn() },
-    company: { list: vi.fn(), get: vi.fn() },
-    task: { list: vi.fn() },
-    milestone: { list: vi.fn() },
-    workOrder: { list: vi.fn() },
-  },
-  listProcurementsByProject: vi.fn(),
-  listBudgetVersions: vi.fn(),
-  procDetail: { data: undefined as Record<string, unknown> | undefined },
-}));
+const { repo, listProcurementsByProject, listBudgetVersions, procDetail, authState } = vi.hoisted(() => {
+  const listBudgetVersions = vi.fn();
+  const listProcurementsByProject = vi.fn();
+  return {
+    repo: {
+      recordHistory: { list: vi.fn(), lookupNames: vi.fn() },
+      profile: { listOrgProfiles: vi.fn() },
+      company: { list: vi.fn(), getMany: vi.fn() },
+      task: { list: vi.fn() },
+      milestone: { list: vi.fn() },
+      workOrder: { list: vi.fn() },
+      // PR-2 (7b63bc389 "Refresh budget and timesheet query consumers") moved useBudgetVersions onto
+      // the repository seam, so the versions read arrives here; the journey is unchanged.
+      budget: { listVersions: listBudgetVersions },
+      procurement: { listByProject: listProcurementsByProject },
+    },
+    listProcurementsByProject,
+    listBudgetVersions,
+    procDetail: { data: undefined as Record<string, unknown> | undefined },
+    authState: { orgId: 'org-1' },
+  };
+});
 vi.mock('@/src/lib/repositories', () => ({ repositories: repo }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurementsByProject }));
-vi.mock('@/src/lib/db/budgets', () => ({ listBudgetVersions }));
 // #878: the procurement History names its document children (PR / RFQ / PO / payment) from the SAME
 // cached detail query the page itself uses — the hook stays disabled off a procurement History.
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
@@ -32,7 +40,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     isError: false,
   }),
 }));
-vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: authState.orgId } }) }));
 
 import { RecordHistory } from '../RecordHistory';
 
@@ -55,12 +63,13 @@ const renderIt = (props: Partial<React.ComponentProps<typeof RecordHistory>> = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  authState.orgId = 'org-1';
   repo.recordHistory.lookupNames.mockResolvedValue({});
   repo.profile.listOrgProfiles.mockResolvedValue([
     { id: 'u1', full_name: 'Dana PM' }, { id: 'u2', full_name: 'Sam Lead' },
   ]);
   repo.company.list.mockResolvedValue([{ id: 'c1', name: 'Acme Corp' }, { id: 'c2', name: 'Globex' }]);
-  repo.company.get.mockResolvedValue(null);
+  repo.company.getMany.mockResolvedValue([]);
   repo.task.list.mockResolvedValue([
     { id: 't1', name: 'Install pump' }, { id: 't2', name: 'Commission pump' },
   ]);
@@ -75,6 +84,79 @@ beforeEach(() => {
 });
 
 describe('RecordHistory — formatting (AC-CHG-015)', () => {
+  it('AC-CHG-015 retains earlier names while resolving more than fifty appended child events', async () => {
+    const first = Array.from({ length: 40 }, (_, i) => ev(i + 1, { entityType: 'purchase_request', entityId: `child-${i + 1}`, op: 'insert' }));
+    const second = Array.from({ length: 35 }, (_, i) => ev(i + 41, { entityType: 'purchase_request', entityId: `child-${i + 41}`, op: 'insert' }));
+    const cursor = { seq: 1, at: '2026-10-06T09:00:00Z' };
+    repo.recordHistory.list.mockResolvedValueOnce({ events: first, nextCursor: cursor }).mockResolvedValueOnce({ events: second, nextCursor: null });
+    let release: (value: unknown) => void = () => {};
+    repo.recordHistory.lookupNames.mockImplementation(({ purchase_request }: { purchase_request: string[] }) => {
+      const names = { purchase_request: new Map(purchase_request.map((id) => [id, `PR-${id}`])) };
+      return purchase_request.length > 50 ? new Promise((resolve) => { release = resolve; }) : Promise.resolve(names);
+    });
+    renderIt({ includeChildren: true });
+    expect(await screen.findByText('Purchase request · PR-child-1')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load older' }));
+    await waitFor(() => expect(repo.recordHistory.lookupNames).toHaveBeenLastCalledWith({ purchase_request: expect.arrayContaining(['child-1', 'child-75']) }));
+    expect(screen.getByText('Purchase request · PR-child-1')).toBeInTheDocument();
+    release({ purchase_request: new Map([...first, ...second].map((event) => [event.entityId, `PR-${event.entityId}`])) });
+    expect(await screen.findByText('Purchase request · PR-child-75')).toBeInTheDocument();
+    expect(screen.getByText('Purchase request · PR-child-1')).toBeInTheDocument();
+  });
+
+  it('keeps reference lookups scoped to the current organization and history record', async () => {
+    const event = ev(1, { entityType: 'purchase_request', entityId: 'shared-child', op: 'insert' });
+    repo.recordHistory.list.mockResolvedValue({ events: [event], nextCursor: null });
+    let resolveSecond: (value: unknown) => void = () => {};
+    repo.recordHistory.lookupNames
+      .mockResolvedValueOnce({ purchase_request: new Map([['shared-child', 'First record name']]) })
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }))
+      .mockResolvedValueOnce({ purchase_request: new Map([['shared-child', 'Second organization name']]) });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const tree = (entityId: string) => (
+      <MemoryRouter>
+        <QueryClientProvider client={client}>
+          <RecordHistory entityType="project" entityId={entityId} includeChildren />
+        </QueryClientProvider>
+      </MemoryRouter>
+    );
+    const view = render(tree('project-one'));
+
+    expect(await screen.findByText('Purchase request · First record name')).toBeInTheDocument();
+    view.rerender(tree('project-two'));
+    await waitFor(() => expect(repo.recordHistory.lookupNames).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('Purchase request · First record name')).not.toBeInTheDocument();
+    expect(screen.getByText('Purchase request · Unavailable')).toBeInTheDocument();
+    resolveSecond({ purchase_request: new Map([['shared-child', 'Second record name']]) });
+    expect(await screen.findByText('Purchase request · Second record name')).toBeInTheDocument();
+
+    authState.orgId = 'org-2';
+    view.rerender(tree('project-two'));
+    expect(await screen.findByText('Purchase request · Second organization name')).toBeInTheDocument();
+    expect(repo.recordHistory.lookupNames).toHaveBeenCalledTimes(3);
+  });
+
+  it('reports a failed appended name lookup without replacing known names or inventing new ones', async () => {
+    const first = Array.from({ length: 40 }, (_, i) => ev(i + 1, { entityType: 'purchase_request', entityId: `child-${i + 1}`, op: 'insert' }));
+    const second = Array.from({ length: 35 }, (_, i) => ev(i + 41, { entityType: 'purchase_request', entityId: `child-${i + 41}`, op: 'insert' }));
+    repo.recordHistory.list.mockResolvedValueOnce({ events: first, nextCursor: { seq: 1, at: '2026-10-06T09:00:00Z' } })
+      .mockResolvedValueOnce({ events: second, nextCursor: null });
+    repo.recordHistory.lookupNames
+      .mockImplementationOnce(({ purchase_request }: { purchase_request: string[] }) => Promise.resolve({
+        purchase_request: new Map(purchase_request.map((id) => [id, `PR-${id}`])),
+      }))
+      .mockRejectedValueOnce(new Error('later name chunk diagnostic'));
+    renderIt({ includeChildren: true });
+
+    expect(await screen.findByText('Purchase request · PR-child-1')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load older' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Some record names could not be loaded.');
+    expect(screen.getByText('Purchase request · PR-child-1')).toBeInTheDocument();
+    expect(screen.getAllByText('Purchase request · Unavailable').length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toMatch(/later name chunk diagnostic/);
+  });
+
   it('HI-1: resolves only procurement child event IDs on the loaded History page', async () => {
     repo.recordHistory.list.mockResolvedValue({ events: [
       ev(4, { entityType: 'purchase_request', entityId: 'pr-child', changes: {} }),
@@ -157,7 +239,7 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     });
     renderIt({ includeChildren: true, kindFilters: true });
     expect(await screen.findByText('Sales invoice · SI-2026-01')).toBeInTheDocument();
-    expect(screen.getByText('Vendor bill · VI-2026-01')).toBeInTheDocument();
+    expect(screen.getByText('Supplier invoice · VI-2026-01')).toBeInTheDocument();
     expect(repo.recordHistory.lookupNames).toHaveBeenCalledWith({
       sales_invoice: ['si-1'], procurement_invoice: ['vi-1'],
     });
@@ -243,8 +325,8 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Load older' }));
     await waitFor(() => expect(screen.getAllByTestId('history-group')).toHaveLength(2));
     const groups = screen.getAllByTestId('history-group');
-    const firstGroup = within(groups[0]).getByRole('button', { name: '2 system events' });
-    const secondGroup = within(groups[1]).getByRole('button', { name: '2 system events' });
+    const firstGroup = within(groups[0]).getByRole('button', { name: /created · 2 records$/ });
+    const secondGroup = within(groups[1]).getByRole('button', { name: /created · 2 records$/ });
     expect(firstGroup).toHaveAttribute('aria-expanded', 'false');
     expect(secondGroup).toHaveAttribute('aria-expanded', 'false');
 
@@ -406,12 +488,12 @@ describe('RecordHistory — enum values use the module label helpers (AC-CHG-015
     expect(screen.getByText('Alone → Consortium')).toBeInTheDocument();
     // the same stage word the procurement header pill shows for Received
     expect(screen.getByText('Purchase Order → Goods Receipt')).toBeInTheDocument();
-    expect(screen.getByText('Vendor Invoice → Paid')).toBeInTheDocument();
+    expect(screen.getByText('Supplier invoice → Paid')).toBeInTheDocument();
     expect(screen.getByText('Draft → Issued')).toBeInTheDocument();
     expect(screen.getByText('Draft → Active')).toBeInTheDocument();
     expect(screen.getByText('Labor → Materials')).toBeInTheDocument();
     expect(
-      screen.getByText('Exclusive — tax is on top of the amount → Inclusive — the amount already includes tax'),
+      screen.getByText('Exclusive: tax is on top of the amount → Inclusive: the amount already includes tax'),
     ).toBeInTheDocument();
     expect(screen.queryByText(/tender → |direct|Received/)).toBeNull();
   });
@@ -421,8 +503,8 @@ describe('RecordHistory — enum values use the module label helpers (AC-CHG-015
     renderIt({ includeChildren: true }, true);
     expect(await screen.findByText('Penunjukan langsung → Tender')).toBeInTheDocument();
     expect(screen.getByText('Sendiri → Konsorsium')).toBeInTheDocument();
-    expect(screen.getByText('Purchase Order → Penerimaan Barang')).toBeInTheDocument();
-    expect(screen.getByText('Invoice Vendor → Lunas')).toBeInTheDocument();
+    expect(screen.getByText('Pesanan pembelian → Penerimaan Barang')).toBeInTheDocument();
+    expect(screen.getByText('Faktur pemasok → Lunas')).toBeInTheDocument();
     expect(screen.getByText('Draft → Diterbitkan')).toBeInTheDocument();
     expect(screen.getByText('Draf → Aktif')).toBeInTheDocument();
   });
@@ -500,16 +582,27 @@ describe('RecordHistory — child records and references on the project History 
   });
 
   it('a company archived since the change still resolves by id (only the ids missing from the active list are fetched)', async () => {
-    repo.company.get.mockImplementation(async (id: string) =>
-      id === 'c9' ? { id: 'c9', name: 'Former Client Ltd', archived_at: '2026-10-01T00:00:00Z' } : null,
+    repo.company.getMany.mockImplementation(async (ids: string[]) =>
+      ids.includes('c9') ? [{ id: 'c9', name: 'Former Client Ltd', archived_at: '2026-10-01T00:00:00Z' }] : [],
     );
     repo.recordHistory.list.mockResolvedValue({
       events: [ev(1, { changes: { client_id: { old: 'c9', new: 'c1' } } })], nextCursor: null,
     });
     renderIt();
     expect(await screen.findByText('Former Client Ltd → Acme Corp')).toBeInTheDocument();
-    expect(repo.company.get).toHaveBeenCalledWith('c9');
-    expect(repo.company.get).not.toHaveBeenCalledWith('c1');
+    expect(repo.company.getMany).toHaveBeenCalledTimes(1);
+    expect(repo.company.getMany).toHaveBeenCalledWith(['c9']);
+  });
+
+  it('several archived companies resolve in ONE batched read, not one request each', async () => {
+    repo.company.getMany.mockImplementation(async (ids: string[]) => ids.map((id) => ({ id, name: `Former ${id}` })));
+    repo.recordHistory.list.mockResolvedValue({
+      events: [ev(1, { changes: { client_id: { old: 'c8', new: 'c9' } } })], nextCursor: null,
+    });
+    renderIt();
+    expect(await screen.findByText('Former c8 → Former c9')).toBeInTheDocument();
+    expect(repo.company.getMany).toHaveBeenCalledTimes(1);
+    expect(repo.company.getMany.mock.calls[0]![0]).toEqual(expect.arrayContaining(['c8', 'c9']));
   });
 
   it('a company reads by the display name the pickers show (short name when set)', async () => {

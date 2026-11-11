@@ -1,5 +1,5 @@
 /**
- * AC-TSC-012 (FE DAL half) — `reopenApprovedTimesheet` is a PURE PMO transition: it calls
+ * AC-TSC-012 (FE DAL half) — `reopenTimesheet` is a PURE PMO transition: it calls
  * `transition_timesheet(id,'Draft')` and issues NO ERP / adapter / push / repositories call of any
  * kind (FR-TSC-060). Slice A's re-open of an un-pushed sheet is structural: the RPC does the status
  * flip server-side under the race-safe precondition; the client never reaches for ERP. org_id is
@@ -25,7 +25,7 @@ vi.mock('@/src/lib/repositories', () => ({
   repositories: { timesheet: { pushApproved: pushApprovedSpy } },
 }));
 
-import { reopenApprovedTimesheet } from './timesheetTransition';
+import { reopenTimesheet } from './timesheetTransition';
 
 function makeRpcBuilder(resolved: { data: unknown; error: unknown }) {
   const builder = {
@@ -42,10 +42,10 @@ beforeEach(() => {
   pushApprovedSpy.mockReset();
 });
 
-describe('AC-TSC-012: reopenApprovedTimesheet is a pure PMO transition (no ERP call)', () => {
+describe('AC-TSC-012: reopenTimesheet is a pure PMO transition (no ERP call)', () => {
   it('AC-TSC-012: calls transition_timesheet(id,"Draft") with no org_id', async () => {
     makeRpcBuilder({ data: null, error: null });
-    await reopenApprovedTimesheet('ts-reopen-1');
+    await reopenTimesheet('ts-reopen-1');
 
     expect(mockRpc).toHaveBeenCalledTimes(1);
     expect(mockRpc).toHaveBeenCalledWith('transition_timesheet', {
@@ -58,7 +58,7 @@ describe('AC-TSC-012: reopenApprovedTimesheet is a pure PMO transition (no ERP c
 
   it('AC-TSC-012: issues NO ERP / adapter / push / repositories call (FR-TSC-060 — pure PMO)', async () => {
     makeRpcBuilder({ data: null, error: null });
-    await reopenApprovedTimesheet('ts-reopen-2');
+    await reopenTimesheet('ts-reopen-2');
 
     // The ONLY interaction with the backend is the single transition_timesheet RPC.
     expect(mockFrom).not.toHaveBeenCalled();
@@ -67,7 +67,7 @@ describe('AC-TSC-012: reopenApprovedTimesheet is a pure PMO transition (no ERP c
 
   it('AC-TSC-012: surfaces the RPC error (does not swallow a refusal)', async () => {
     makeRpcBuilder({ data: null, error: { message: 'reopen-erp-document-held', code: 'P0001' } });
-    await expect(reopenApprovedTimesheet('ts-reopen-3')).rejects.toThrow('reopen-erp-document-held');
+    await expect(reopenTimesheet('ts-reopen-3')).rejects.toThrow('reopen-erp-document-held');
     // A refusal still issues no ERP command.
     expect(pushApprovedSpy).not.toHaveBeenCalled();
     expect(mockFrom).not.toHaveBeenCalled();

@@ -1,0 +1,14 @@
+{
+  "field": { "reason": "Alasan", "choose": "Pilih alasan", "note": "Catatan", "noteOptional": "Catatan (opsional)", "noteRequired": "Catatan (wajib untuk Lainnya)", "noteHelp": "Maksimal 500 karakter." },
+  "reasons": {
+    "price": "Harga", "competitor": "Kalah dari kompetitor", "scope_fit": "Lingkup atau kecocokan", "timing": "Waktu", "capacity": "Kapasitas kami",
+    "relationship": "Hubungan", "client_cancelled": "Klien membatalkan atau menunda", "no_decision": "Klien belum memutuskan", "other": "Lainnya"
+  },
+  "notRecorded": "Belum dicatat",
+  "deal": { "label": "Alasan kalah", "noteLabel": "Catatan" },
+  "breakdown": {
+    "reasonsTitle": "Mengapa deal kalah", "clientsTitle": "Menang dan kalah per klien", "none": "Tidak ada deal kalah pada periode ini.",
+    "lostCount": "{{n}} kalah", "declinedCount": "{{n}} ditolak", "wonLost": "{{won}} menang, {{lost}} kalah",
+    "unknownClient": "Klien tidak dikenal", "errorTitle": "Rincian kalah gagal dimuat", "retry": "Coba lagi"
+  }
+}

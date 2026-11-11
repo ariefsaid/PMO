@@ -77,16 +77,18 @@ describe('ProjectCalendarView — event placement', () => {
   it('AC-CAL-002: project start/end events land in their day cells', () => {
     render(
       <ProjectCalendarView
-        projects={[project({ id: 'p1', name: 'Acme', start_date: '2026-06-03', end_date: '2026-06-20' })]}
+        projects={[project({ id: 'p1', name: 'Contractual Acme Project', short_name: 'North Terminal', start_date: '2026-06-03', end_date: '2026-06-20' })]}
         milestoneDates={[]}
         onOpenProject={() => {}}
         initialCursor={JUNE}
       />,
     );
     const day3 = screen.getByTestId('calendar-cell-2026-06-03');
-    expect(within(day3).getByRole('button', { name: /Acme — start/ })).toBeInTheDocument();
+    const start = within(day3).getByRole('button', { name: /North Terminal — start/ });
+    expect(start).toHaveAttribute('title', 'Contractual Acme Project');
     const day20 = screen.getByTestId('calendar-cell-2026-06-20');
-    expect(within(day20).getByRole('button', { name: /Acme — end/ })).toBeInTheDocument();
+    const end = within(day20).getByRole('button', { name: /North Terminal — end/ });
+    expect(end).toHaveAttribute('title', 'Contractual Acme Project');
   });
 
   it('AC-CAL-003: a milestone event labelled with its name lands in its day cell', () => {
@@ -95,14 +97,15 @@ describe('ProjectCalendarView — event placement', () => {
     ];
     render(
       <ProjectCalendarView
-        projects={[project({ id: 'p1', name: 'Acme' })]}
+        projects={[project({ id: 'p1', name: 'Contractual Acme Project', short_name: 'North Terminal' })]}
         milestoneDates={milestones}
         onOpenProject={() => {}}
         initialCursor={JUNE}
       />,
     );
     const day12 = screen.getByTestId('calendar-cell-2026-06-12');
-    expect(within(day12).getByText(/Kickoff/)).toBeInTheDocument();
+    const event = within(day12).getByRole('button', { name: /North Terminal.*Kickoff/ });
+    expect(event).toHaveAttribute('title', 'Contractual Acme Project · Kickoff');
   });
 
   it.each([

@@ -11,7 +11,7 @@
  *   the project via the procurement detail page which links there.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import ProcurementBoard from '../ProcurementBoard';
@@ -64,7 +64,19 @@ describe('AC-JR-W1-04 / AC-C-PR-2: ProcurementBoard card — single activation t
 
   it('AC-C-PR-2: renders em-dash when project is null', () => {
     wrap([row({ project: null, project_id: null })]);
-    expect(screen.getByText('—')).toBeInTheDocument();
+    const card = screen.getByRole('button', { name: /Open Structural Steel/i });
+    expect(within(card).getByText('—')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Open /i })).toBeNull();
+  });
+});
+
+describe('AC-002 #1325: ProcurementBoard card shows the short name with the contractual title on hover', () => {
+  it('leads with the short name, titles the contractual one, and falls back without an alias', () => {
+    const { unmount } = wrap([row({ project: { name: 'Eastfield Phase 2 Contractual', short_name: 'Eastfield', code: 'PRJ-001' } })]);
+    expect(screen.getByText('Eastfield')).toHaveAttribute('title', 'Eastfield Phase 2 Contractual');
+    expect(screen.queryByText('Eastfield Phase 2 Contractual')).toBeNull();
+    unmount();
+    wrap([row()]);
+    expect(screen.getByText('Eastfield Phase 2')).not.toHaveAttribute('title');
   });
 });

@@ -9,6 +9,8 @@ const h = vi.hoisted(() => {
     eq: [] as unknown[],
     is: [] as unknown[],
     order: [] as unknown[],
+    gt: [] as unknown[],
+    limit: [] as unknown[],
     insert: [] as unknown[],
     update: [] as unknown[],
     delete: 0,
@@ -29,6 +31,8 @@ const h = vi.hoisted(() => {
   builder.eq = chain('eq');
   builder.is = chain('is');
   builder.order = chain('order');
+  builder.gt = chain('gt');
+  builder.limit = chain('limit');
   builder.insert = chain('insert');
   builder.update = chain('update');
   builder.delete = chain('delete');
@@ -75,7 +79,7 @@ beforeEach(() => {
 });
 
 describe('AC-CRM-020 listContacts', () => {
-  it('AC-CRM-020: selects non-archived contacts ordered by name, never sends org_id', async () => {
+  it('AC-CRM-020: selects non-archived contacts, never sends org_id, reads the complete keyset (DAL01-005)', async () => {
     h.result.value = {
       data: [{ id: 'ct1', full_name: 'Aaron', archived_at: null }],
       error: null,
@@ -83,7 +87,11 @@ describe('AC-CRM-020 listContacts', () => {
     const rows = await listContacts();
     expect(h.calls.from).toEqual(['contacts']);
     expect(h.calls.is).toContainEqual(['archived_at', null]);
-    expect(h.calls.order).toContainEqual('full_name');
+    // DAL01-005: the keyset traversal orders by id (the unique total order) and bounds each page;
+    // the name-ordered contract is restored on the returned rows (covered end-to-end in
+    // directory.paging.test.ts).
+    expect(h.calls.order).toContainEqual(['id', { ascending: true }]);
+    expect(h.calls.limit).toContainEqual(1000);
     expect(JSON.stringify(h.calls)).not.toContain('org_id');
     expect(rows[0].full_name).toBe('Aaron');
   });
@@ -105,21 +113,17 @@ describe('AC-CRM-020 listContacts', () => {
     expect(h.calls.range).toEqual([]);
   });
 
-  it('data-layer perf hardening #4: applies an explicit page/pageSize range', async () => {
-    h.result.value = { data: [], error: null };
-    await listContacts({ page: 3, pageSize: 15 });
-    expect(h.calls.range).toContainEqual([45, 59]);
-  });
 });
 
 describe('AC-CRM-021 listContactsByCompany', () => {
-  it('AC-CRM-021: filters company_id + non-archived, ordered by name', async () => {
+  it('AC-CRM-021: filters company_id + non-archived, reads the complete keyset (DAL01-005)', async () => {
     h.result.value = { data: [], error: null };
     await listContactsByCompany('co1');
     expect(h.calls.from).toEqual(['contacts']);
     expect(h.calls.eq).toContainEqual(['company_id', 'co1']);
     expect(h.calls.is).toContainEqual(['archived_at', null]);
-    expect(h.calls.order).toContainEqual('full_name');
+    expect(h.calls.order).toContainEqual(['id', { ascending: true }]);
+    expect(h.calls.limit).toContainEqual(1000);
   });
 });
 

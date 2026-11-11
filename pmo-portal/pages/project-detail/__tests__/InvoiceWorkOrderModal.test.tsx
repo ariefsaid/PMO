@@ -17,8 +17,8 @@ vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: (mod
 
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { financeTestI18n } from '../../__tests__/financeI18nTestInstance';
-import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const WO = { id: 'wo-1', project_id: 'p1', wo_number: 'WO-1', title: 'Phase 1 fabrication', status: 'Issued', currency: 'USD' } as WorkOrderRow;
 const onCreated = vi.fn();
@@ -72,6 +72,11 @@ describe('InvoiceWorkOrderModal (OD-BILL-1)', () => {
     await submit();
     expect((await screen.findAllByText(message)).length).toBeGreaterThan(0);
     expect(h.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('C5 a cap with cents keeps its cents, so the refusal names the real limit', async () => {
+    renderModal(80_000.5);
+    expect(screen.getByText('Up to $80,000.50 is still to invoice on this work order.')).toBeInTheDocument();
   });
 
   it('AC-BWO-004 requires the ERP item', () => {

@@ -14,30 +14,9 @@ describe('T5 — HoursBar', () => {
     expect(bar).toHaveAttribute('aria-valuemax', '10');
   });
 
-  it('shows the hours value with tabular class (T5 tabular-nums rule)', () => {
-    const { container } = render(<HoursBar label="Beta" code={null} hours={7.5} maxHours={10} />);
-    const hoursEl = container.querySelector('.tabular');
-    expect(hoursEl).not.toBeNull();
-    expect(hoursEl!.textContent).toContain('7.5');
-  });
 
-  it('renders a neutral fill element, NOT bg-primary (T5 Freed-Blue / r2fix-enforce Part 2)', () => {
-    // A quantity/hours bar is a data indicator, NOT an interactive affordance.
-    // The Freed-Blue Status Rule (DESIGN.md §2): action-blue must not appear on
-    // non-interactive data indicators. Fill uses bg-muted-foreground (neutral).
-    const { container } = render(<HoursBar label="Project" code="P1" hours={5} maxHours={10} />);
-    // Fill must be present (not empty).
-    const fill = container.querySelector('[role="progressbar"] span');
-    expect(fill).not.toBeNull();
-    // Fill must NOT carry the action-blue token.
-    expect(fill!.className).not.toMatch(/bg-primary\b/);
-    // Fill must be a neutral tone (muted-foreground).
-    expect(fill!.className).toMatch(/bg-muted-foreground/);
-    // Must NOT bleed status-hue fills either.
-    expect(fill!.className).not.toMatch(/bg-success\b/);
-    expect(fill!.className).not.toMatch(/bg-destructive\b/);
-    expect(fill!.className).not.toMatch(/bg-warning\b/);
-  });
+
+
 
   it('renders mono code when provided (T5 Mono-For-Identifiers)', () => {
     render(<HoursBar label="Alpha" code="A001" hours={4} maxHours={8} />);

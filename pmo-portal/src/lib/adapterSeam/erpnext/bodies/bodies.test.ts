@@ -41,7 +41,7 @@ describe('ERP tax ownership', () => {
       customer: 'Customer', items: [{ item_code: 'ITEM', qty: 1, rate: 1000 }],
     });
     expect(piToBody(record, CTX)).toEqual({
-      supplier: 'Spike Supplier', items: [{ item_code: 'ITEM', qty: 1, rate: 1000 }],
+      company: 'PMO Smoke Co', supplier: 'Spike Supplier', items: [{ item_code: 'ITEM', qty: 1, rate: 1000 }],
     });
     for (const fromDoc of [siFromDoc, piFromDoc]) {
       const mirrored = fromDoc({ name: 'ERP-INVOICE', grand_total: '1110.03',
@@ -55,10 +55,18 @@ describe('ERP tax ownership', () => {
   });
 });
 
+describe('billing kind stays PMO metadata', () => {
+  it('FR-012 never sends the billing kind to the ERP', () => {
+    const record = rec({ items: [{ item_code: 'ITEM', qty: 1, rate: 1000 }], billingKind: 'other', billing_kind: 'other' });
+    const body = JSON.stringify(siToBody(record, { ...CTX, refs: { customer: 'Customer' } }));
+    expect(body).not.toMatch(/billing/i);
+  });
+});
+
 describe('erpnext/bodies — R9-frozen toBody', () => {
-  it('R9 §1 purchaseInvoice.ts: {supplier, items:[{item_code,qty,rate}]}', () => {
+  it('R9 §1 purchaseInvoice.ts: {company, supplier, items:[{item_code,qty,rate}]}', () => {
     const body = piToBody(rec({ items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 150000 }] }), CTX);
-    expect(body).toEqual({ supplier: 'Spike Supplier', items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 150000 }] });
+    expect(body).toEqual({ company: 'PMO Smoke Co', supplier: 'Spike Supplier', items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 150000 }] });
   });
 
   it('AC-VWH-034 amounts mode sends the server-built rows with an EMPTY template (an empty table is "no tax")', () => {
@@ -155,6 +163,10 @@ describe('erpnext/bodies — R9-frozen toBody', () => {
     expectCommitRejected(() => peToBody(rec({ paid_amount: 100, date: '2026-10-08' }), ctx), /default_payable_account/);
   });
 
+  it('AC-VPAY-002 a payment refusal uses supplier wording', () => {
+    expectCommitRejected(() => peToBody(rec({ paid_amount: 0, date: '2026-10-08' }), CTX), /supplier payment/i);
+  });
+
   it('AC-VPAY-002 paid_amount absent or ≤ 0 is refused — never sent as undefined', () => {
     expectCommitRejected(() => peToBody(rec({ date: '2026-10-08' }), CTX), /paid_amount/);
     expectCommitRejected(() => peToBody(rec({ paid_amount: 0, date: '2026-10-08' }), CTX), /paid_amount/);
@@ -207,20 +219,22 @@ describe('erpnext/bodies — R9-frozen toBody', () => {
     expect(body.references).toEqual([]);
   });
 
-  it('R9 §3 purchaseOrder.ts: schedule_date on the item row is mandatory', () => {
+  it('R9 §3 purchaseOrder.ts: company from the binding + schedule_date on the item row (mandatory)', () => {
     const body = poToBody(rec({ items: [{ item_code: 'SPIKE-ITEM-1', qty: 2, rate: 100000, schedule_date: '2026-07-18' }] }), CTX);
     expect(body).toEqual({
+      company: 'PMO Smoke Co',
       supplier: 'Spike Supplier',
       items: [{ item_code: 'SPIKE-ITEM-1', qty: 2, rate: 100000, schedule_date: '2026-07-18' }],
     });
   });
 
-  it('R9 §4 goodsReceipt.ts: purchase_order + purchase_order_item (the PO item child-row name) per row', () => {
+  it('R9 §4 goodsReceipt.ts: company from the binding + purchase_order + purchase_order_item (the PO item child-row name) per row', () => {
     const body = grToBody(
       rec({ items: [{ item_code: 'SPIKE-ITEM-1', qty: 2, rate: 100000, po_item_child_name: 'i7d62dicpp' }] }),
       CTX,
     );
     expect(body).toEqual({
+      company: 'PMO Smoke Co',
       supplier: 'Spike Supplier',
       items: [
         { item_code: 'SPIKE-ITEM-1', qty: 2, rate: 100000, purchase_order: 'PUR-ORD-2026-00001', purchase_order_item: 'i7d62dicpp' },
@@ -256,6 +270,11 @@ describe('erpnext/bodies — R9-frozen toBody', () => {
 });
 
 describe('erpnext/bodies — fromDoc canonical mapping (decimal-string money, header total is the oracle)', () => {
+  it('rounds ERP decimal text at the invoice mirror boundary', () => {
+    expect(piFromDoc({ name: 'PI-1', grand_total: '10.075', outstanding_amount: '-10.075' }))
+      .toMatchObject({ amount: '10.08', erp_outstanding_amount: '-10.08' });
+  });
+
   it('piFromDoc maps grand_total/outstanding_amount/docstatus (never sums lines)', () => {
     const canonical = piFromDoc({
       name: 'ACC-PINV-2026-00002',

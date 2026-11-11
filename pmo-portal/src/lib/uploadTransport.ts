@@ -7,6 +7,8 @@
  * Usage: DAL creates a signed upload URL, then this util PUTs the file to it.
  */
 
+import { validateFileSignature } from './validateFile';
+
 export interface UploadTransportOptions {
   /** MIME type to set as Content-Type header. Use FILE_MIME_BY_EXT, not file.type. */
   contentType: string;
@@ -44,6 +46,16 @@ export function uploadWithProgress(
   file: File | Blob,
   options: UploadTransportOptions,
 ): Promise<void> {
+  // Single chokepoint for every private-storage upload: refuse a file whose bytes do not match its extension.
+  // Nameless Blobs have no extension to check and go straight through.
+  if (!('name' in file)) return put(url, file, options);
+  return validateFileSignature(file).then((v) => {
+    if (!v.ok) throw new TransportError(415, v.message ?? 'File content does not match its type');
+    return put(url, file, options);
+  });
+}
+
+function put(url: string, file: File | Blob, options: UploadTransportOptions): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);

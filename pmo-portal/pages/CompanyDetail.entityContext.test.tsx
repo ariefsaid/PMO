@@ -33,6 +33,10 @@ const { detailState, mutations, contactsState } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
+vi.mock('@/src/hooks/useCompanyPartyMappings', () => ({ useCompanyPartyMappings: () => ({ ids: [], isPending: false, isError: false }) }));
+
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompany: () => detailState,
   useCompanyMutations: () => mutations,

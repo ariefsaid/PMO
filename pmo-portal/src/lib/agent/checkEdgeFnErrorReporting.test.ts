@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import {
   checkFunctionSource,
   isRunAsMain,
+  JOB_FUNCTIONS,
 } from '../../../../scripts/check-edge-fn-error-reporting.mjs';
 
 const CLI = resolve(__dirname, '../../../../scripts/check-edge-fn-error-reporting.mjs');
@@ -90,9 +91,9 @@ describe('checkFunctionSource — the gate CAN go red', () => {
   it('passes a correctly wired function with zero failures', () => {
     const src = `
       import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-      serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response> => {
+      serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req: Request): Promise<Response> => {
         return new Response('ok');
-      });
+      }));
     `;
     expect(checkFunctionSource('erpnext-sweep', src)).toEqual([]);
   });
@@ -104,6 +105,28 @@ describe('checkFunctionSource — the gate CAN go red', () => {
       }
     `;
     expect(checkFunctionSource('external-companies', src)).toEqual([]);
+  });
+});
+
+describe('AC-PHO-022 a registered job must be wrapped in withJobRun (#1532 S3)', () => {
+  it('AC-PHO-022 a registered job without withJobRun fails', () => {
+    const src = "serveWithErrorReporting('erpnext-sweep', async () => new Response('x'))";
+    expect(checkFunctionSource('erpnext-sweep', src).join(' ')).toMatch(/withJobRun/);
+  });
+  it('AC-PHO-022 a job that wraps with its OWN name passes; a copy-pasted name fails', () => {
+    expect(checkFunctionSource('clickup-sweep', "serveWithErrorReporting('clickup-sweep', withJobRun('clickup-sweep', h))")).toEqual([]);
+    expect(checkFunctionSource('clickup-sweep', "serveWithErrorReporting('clickup-sweep', withJobRun('erpnext-sweep', h))")).not.toEqual([]);
+  });
+  it('the jobHandler shape (import.meta.main files) passes', () => {
+    const src = "export const jobHandler = withJobRun('telegram-notify', h);\nif (import.meta.main) { serveWithErrorReporting('telegram-notify', jobHandler); }";
+    expect(checkFunctionSource('telegram-notify', src)).toEqual([]);
+  });
+  it('a non-job function is not required to wrap', () => {
+    expect(checkFunctionSource('health', "serveWithErrorReporting('health', h)")).toEqual([]);
+  });
+  it('JOB_FUNCTIONS equals the runtime JOB_NAMES list', async () => {
+    const { JOB_NAMES } = await import('../../../../supabase/functions/_shared/jobRun');
+    expect([...JOB_FUNCTIONS].sort()).toEqual([...JOB_NAMES].sort());
   });
 });
 

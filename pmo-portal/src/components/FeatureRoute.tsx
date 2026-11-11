@@ -1,39 +1,48 @@
 import React from 'react';
-import { Navigate } from 'react-router';
 import { useFeature } from '@/src/auth/useFeature';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
+import { FeatureUnavailable } from '@/src/components/FeatureUnavailable';
 import { isCoreFeature } from '@/src/lib/features';
 import type { EntitleableKey } from '@/src/lib/features';
 
 /**
- * Route-element gate for the per-org entitlement system (ops-admin-surface S6, FR-ENT-005/006,
- * AC-ENT-003). Renders `element` when the feature is enabled; otherwise redirects (default `/`)
- * so bookmarks/deep-links to a hidden module degrade gracefully to the dashboard instead of
- * 404-ing or rendering the hidden page (disable = hide, never destroy).
+ * Route-element gate for the per-org entitlement system (AC-PLN-008, FR-PLN-005).
  *
- * Resolves the entitlement via `useFeature()` (core keys always true; a stored `org_features`
- * row overrides the env default; absence = the env default). The route analog of <FeatureGate>.
+ * Resolves the entitlement via `useFeature()` — the database projection, never a copy of the order —
+ * and renders one of four states:
  *
- * UX-only: this hides a route, it does NOT protect the module's data (its tables/RPCs remain
- * reachable by direct API until server-enforced — ADR-0049).
+ *   core            → the element immediately (core keys are never gated);
+ *   loading         → null: HOLD. No redirect and no element, so a deep-link never flash-denies a
+ *                     module the org actually has (AC-ENT-005, kept);
+ *   read failed     → the unavailable state WITH a retry, and never the words "not on your plan"
+ *                     (an unknown answer must not be reported as a plan decision). Only when there
+ *                     is NO resolved answer at all: a BACKGROUND refetch that fails leaves the
+ *                     earlier answer in `data`, and unmounting the page then would throw away a
+ *                     half-typed form (the stale answer is still the org's answer);
+ *   resolved OFF    → the not-available state (AC-PLN-008). This replaces the old redirect to `/`:
+ *                     the spec asks the route to say why, and data is kept either way (FR-PLN-007);
+ *   resolved ON     → the element.
  *
- * FIX (AC-ENT-005): while the org-features query is loading for a non-core feature,
- * render null (stay put, no redirect, no element) to avoid the flash-redirect race.
- * Core features (projects/dashboard/approvals/administration) render immediately.
+ * UX gate only: since S2 the server refuses writes for a disabled module (FR-PLN-006). This keeps
+ * the surface from being offered at all.
  */
 export const FeatureRoute: React.FC<{
   feature: EntitleableKey;
   element: React.ReactNode;
-  redirectTo?: string;
-}> = ({ feature, element, redirectTo = '/' }) => {
-  const { isLoading } = useOrgFeatures();
+}> = ({ feature, element }) => {
+  const { data, isLoading, isError, refetch } = useOrgFeatures();
   const enabled = useFeature(feature);
 
-  // Core features are always enabled and render immediately (AC-ENT-002).
-  // For non-core features, wait for the org-features query to resolve before deciding.
-  if (!isCoreFeature(feature) && isLoading) {
-    return null;
-  }
+  if (isCoreFeature(feature)) return <>{element}</>;
 
-  return enabled ? <>{element}</> : <Navigate to={redirectTo} replace />;
+  // Hold while the resolved set is in flight, and while it is absent without an error (a disabled
+  // query, e.g. before the session is known) — never decide from a missing answer.
+  if (isLoading || (!data && !isError)) return null;
+
+  // Error WITH an answer means a background refetch failed: `data` is the last good resolution, so
+  // keep deciding from it. Unmounting the route there would discard an in-progress form for a
+  // transient network blip. Only an error with NO answer is genuinely unknown → offer the retry.
+  if (isError && !data) return <FeatureUnavailable variant="error" onRetry={refetch} />;
+
+  return enabled ? <>{element}</> : <FeatureUnavailable variant="off" feature={feature} />;
 };

@@ -13,7 +13,8 @@
  * it is decided once, here, and proven once, here.
  *
  * Three facts per code:
- *   • `message`  — a sentence. NEVER a token (`RAW_ADAPTER_TOKEN` is asserted against in the tests).
+ *   • `message`  — a sentence. NEVER a token (the tests assert against the test-support
+ *                  `lib/testing/rawAdapterToken` oracle).
  *   • `retryable`— can re-running the SAME command plausibly land it without a change elsewhere?
  *                  Fail OPEN on an unknown code: stranding an operator is worse than a wasted click.
  *   • `transport`— did it fail to REACH ERPNext (nothing on screen was fixable), or did ERPNext /
@@ -22,13 +23,6 @@
  * `remedy` is what must change first; it is always present when `retryable` is false, because a
  * withheld button with no route out is a dead end (the C-3 lesson, applied to error copy).
  */
-
-/**
- * A raw adapter token: two-or-more lowercase/digit segments joined by hyphens, standing alone as a
- * word. Surfaces assert against this so a NEW code can never quietly reach the DOM by being added to
- * a writer and forgotten here.
- */
-export const RAW_ADAPTER_TOKEN = /(?:^|[\s(])[a-z0-9]+(?:-[a-z0-9]+)+(?=$|[\s.,;:)])/;
 
 export interface PushErrorCopy {
   /** The classified code, for logic/tests. `null` when nothing was recorded. */
@@ -41,6 +35,8 @@ export interface PushErrorCopy {
   transport: boolean;
   /** What must change first. Always set when `retryable` is false. */
   remedy: string | null;
+  /** `info`: nothing went wrong, so a surface must not style it as a failure. Absent for every real failure. */
+  severity?: 'info';
 }
 
 interface Entry {
@@ -48,7 +44,21 @@ interface Entry {
   retryable: boolean;
   transport?: boolean;
   remedy?: string;
+  severity?: 'info';
 }
+
+/** Codes whose copy lives in the `project` locale (`projectDetail.budget.pushError.<code>`). The rest of this
+ *  module is still inline English: translating it is a follow-up. */
+export const TRANSLATED_PUSH_ERRORS: ReadonlySet<string> = new Set([
+  'budget-project-start-date-missing',
+  'budget-fiscal-year-unresolved',
+  'budget-fiscal-year-ambiguous',
+  'budget-multi-fiscal-year-unphased',
+  'outbox-finalize-refused',
+  // rm-1472 / M-2 — the two held-for-a-person reasons a parked replacement push resolves to.
+  'budget-archive-cancellation-held',
+  'budget-archive-resume-actor-unauthorized',
+]);
 
 const CODES: Record<string, Entry> = {
   // ── budget push ──────────────────────────────────────────────────────────────────────────────
@@ -64,6 +74,35 @@ const CODES: Record<string, Entry> = {
     retryable: false,
     remedy: 'Split the budget so each version covers a single fiscal year, then activate it again.',
   },
+  // #1364 — refused before anything was written: the project's own dates decide the fiscal years, so the
+  // fix is on the project, and a retry cannot succeed until it is made.
+  'budget-project-start-date-missing': {
+    message: 'The project has no start date, so PMO cannot tell which fiscal year this budget belongs to.',
+    retryable: false,
+    remedy: 'Set the project start and end dates, then retry the push.',
+  },
+  'budget-fiscal-year-unresolved': {
+    message: 'No ERPNext fiscal year contains the project start or end date.',
+    retryable: false,
+    remedy: 'Add the missing fiscal year in ERPNext, or correct the project dates, then retry the push.',
+  },
+  'budget-fiscal-year-ambiguous': {
+    message: 'More than one ERPNext fiscal year contains the project start date, so PMO will not pick one.',
+    retryable: false,
+    remedy: 'Remove the overlap between the fiscal years in ERPNext, then retry the push.',
+  },
+  'budget-multi-fiscal-year-unphased': {
+    message: 'The project spans more than one fiscal year but some budget lines have no fiscal year.',
+    retryable: false,
+    remedy: 'Set a fiscal year on every budget line (or shorten the project dates to one year), then activate again.',
+  },
+  // #1364 — the ERP document exists but PMO's finalize step refused to record it, repeatedly. The refusals
+  // behind it are rules (a different Budget on the slot, a changed version), so a Retry meets the same one.
+  'outbox-finalize-refused': {
+    message: 'ERPNext accepted the budget, but PMO could not record its reference after several tries.',
+    retryable: false,
+    remedy: "Retrying repeats the same refusal. Ask an administrator to check the ERPNext connection and the budget's saved reference.",
+  },
   'budget-draft-rival-on-grain': {
     message: 'ERPNext already holds an unsubmitted budget for this project and fiscal year.',
     retryable: false,
@@ -77,7 +116,7 @@ const CODES: Record<string, Entry> = {
     message: 'ERPNext already holds a budget for this project and fiscal year that PMO did not create.',
     retryable: false,
     remedy:
-      'Someone authored that budget in ERPNext directly. PMO will not cancel or amend it. In ERPNext, remove it if it is superseded — or leave it in place and stop pushing this project’s budget, since ERPNext is already enforcing one.',
+      'Someone authored that budget in ERPNext directly. PMO will not cancel or amend it unless an Admin or Finance user confirms. They can use its figures as a PMO draft, or replace it with this version.',
   },
   'budget-enforcement-absent': {
     // HIGH-1: the previous ERP budget was cancelled and its replacement never landed.
@@ -130,10 +169,107 @@ const CODES: Record<string, Entry> = {
     retryable: true,
     remedy: 'Retry the push to queue a fresh command.',
   },
+  // ── the register and its maintenance (#1511 F4) ──────────────────────────────────────────────
+  // Refused BEFORE any outbox row: the asset page is where each is fixed, so no retry can help.
+  'equipment-not-linked': {
+    message: 'This asset is not linked to the Odoo register yet.',
+    retryable: false,
+    remedy: 'An Admin matches it to its Odoo asset on the match screen, then record this again.',
+  },
+  'equipment-kind-mismatch': {
+    message: 'A vehicle takes a service log; equipment takes a maintenance request.',
+    retryable: false,
+    remedy: 'Record the right kind of maintenance for this asset: a service log for a vehicle, a maintenance request for equipment.',
+  },
+  'register-role': {
+    message: 'Only an Admin or Project Manager can change the register.',
+    retryable: false,
+    remedy: 'Ask an Admin or a Project Manager to save this change; anyone can record maintenance.',
+  },
+  // The id a register CREATE reserves is already in the book (this org's or another's): nothing was sent, and a retry would meet the
+  // same row. The asset page is where the fresh id comes from.
+  'record-id-invalid': {
+    message: 'This save would reuse a PMO asset identity that already belongs to a record, so it was not sent to the register.',
+    retryable: false,
+    remedy: 'Start the register entry again from the asset page, so it gets its own identity.',
+  },
+  // A picker the caller named — a vehicle model, a maintenance stage, a service type, a vendor — is not one the Odoo directory
+  // mirrors for this organisation, so the register holds no row PMO could point at. Refused before any outbox row.
+  'vehicle-model-invalid': {
+    message: 'The vehicle model this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a model from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  'stage-invalid': {
+    message: 'The maintenance stage this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a stage from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  'service-type-invalid': {
+    message: 'The service type this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a service type from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  'vendor-invalid': {
+    message: 'The vendor this entry names is not in the Odoo directory PMO mirrors for your organisation.',
+    retryable: false,
+    remedy: 'Pick a vendor from the Odoo list, or sync the Odoo directory, then save again.',
+  },
+  // ⚑ rm-1472 / M-2 (review r8) — the two reasons a PARKED replacement push is held for a person once
+  // the project's archive-cancellation fence is settled. Retryable ON PURPOSE: a Retry re-runs the whole
+  // gate under the retrying person's own authority, which is exactly the way out of both (a different,
+  // currently-authorised pusher; and for a held cancellation, after the previous Budget is resolved).
+  'budget-archive-cancellation-held': {
+    message: 'Nothing was sent for this budget yet: an earlier ERPNext budget cancellation for the project still needs a person, or the person who activated this version can no longer be identified.',
+    retryable: true,
+    remedy: 'Resolve the previous version’s budget in ERPNext, then retry — an authorised pusher’s retry runs every check again.',
+  },
+  'budget-archive-resume-actor-unauthorized': {
+    message: 'Nothing was sent for this budget: the person recorded as having activated this version is no longer allowed to push budgets to ERPNext. The earlier cancellation is not the problem.',
+    retryable: true,
+    remedy: 'Restore that person’s access, or have an Admin or Finance user retry the push — it runs under whoever retries it.',
+  },
+  // ⚑ rm-1472 — a parked unit RETIRED because it is no longer part of the active budget. Not a failure:
+  // the account left the plan when the previous version's ERPNext budget was cancelled, so there is
+  // nothing to push for it, and a retry could only re-loop.
+  'budget-archive-cancellation-superseded': {
+    message: 'This account is no longer part of the active budget, and its earlier ERPNext budget was already cancelled with the previous version.',
+    retryable: false,
+    remedy: 'Nothing to push for this account. Activate a new version if it becomes part of the budget again.',
+  },
+  // ── cut-over (FR-ECA-030, OQ-ECA-1) ──────────────────────────────────────────────────────────
+  // Not a failure: a purchase ordered before the ERP connection is finished in PMO, on purpose.
+  'pre-cutover': {
+    message: 'Not sent: this purchase started before the ERP connection',
+    retryable: false,
+    severity: 'info',
+    remedy: 'Nothing was saved. Record this step again in PMO: this purchase finishes there.',
+  },
   // ── shared ───────────────────────────────────────────────────────────────────────────────────
   'commit-rejected': {
     message: 'ERPNext understood the request and refused it.',
     retryable: true,
+  },
+  // ── ERP master sends (#1504 S8): the reasons an Odoo create or lookup is refused, as the adapter raises them ──
+  validation: {
+    message: 'The ERP refused this record because something in it is not valid there.',
+    retryable: true,
+    remedy: 'Check the record\u2019s name, tax number and code, fix what is wrong, then try again.',
+  },
+  ambiguous: {
+    message: 'Two records in the ERP match this one, so nothing was sent.',
+    retryable: false,
+    remedy: 'Link the right ERP record by hand, or remove the duplicate there.',
+  },
+  'unit-unmapped': {
+    message: 'This item\u2019s unit has no match in the ERP yet, so it was not sent.',
+    retryable: false,
+    remedy: 'Match the unit in the ERP connection settings, then send the item again.',
+  },
+  'analytic-plan-unset': {
+    message: 'No cost account plan is chosen for projects yet, so this project was not sent.',
+    retryable: false,
+    remedy: 'Choose the plan in the ERP connection settings, then send the project again.',
   },
   'config-rejected': {
     message: 'The ERPNext connection is not usable — it is inactive, or its version no longer matches.',
@@ -165,6 +301,37 @@ const CODES: Record<string, Entry> = {
     retryable: false,
     remedy: 'Re-activate the approver, or have an administrator resolve the hold — retrying under the same recorded approver is refused.',
   },
+  // ── purchase-order revise refusals (#1998) ───────────────────────────────────────────────────
+  revision_superseded: {
+    message: 'A newer revision already exists for this purchase order, so this revision cannot be pushed.',
+    retryable: false,
+    remedy: 'View the latest revision of the purchase order to send or review changes.',
+  },
+  'revision-superseded': {
+    message: 'A newer revision already exists for this purchase order, so this revision cannot be pushed.',
+    retryable: false,
+    remedy: 'View the latest revision of the purchase order to send or review changes.',
+  },
+  po_has_submitted_bill: {
+    message: 'This purchase order has a submitted supplier bill in the ERP, so it cannot be revised to cancel the order.',
+    retryable: false,
+    remedy: 'Cancel or credit the submitted bill in the ERP first before revising this purchase order.',
+  },
+  revision_not_issued: {
+    message: 'This purchase order revision has not been issued yet in PMO.',
+    retryable: false,
+    remedy: 'Issue the revision before pushing it to the ERP.',
+  },
+  po_not_found: {
+    message: 'The purchase order could not be found.',
+    retryable: false,
+    remedy: 'Check that the purchase order exists and has not been deleted.',
+  },
+  'below-received': {
+    message: 'Ordered quantity cannot be reduced below the quantity already received or billed.',
+    retryable: false,
+    remedy: 'Adjust the revision quantity to be at least the received or billed amount.',
+  },
   // ⚑ round-12 SHOULD-FIX 2 (mirror half) — the attestation moves a `held` mirror to `failed` and leaves
   // this code. That row lands in the same "needs attention" queue, so it must classify rather than read
   // "could not be classified" like the recovery codes above once did. Retryable: the whole point of the
@@ -175,12 +342,13 @@ const CODES: Record<string, Entry> = {
     retryable: true,
   },
   'external-unreachable': {
-    message: 'ERPNext could not be reached, so the push never arrived.',
+    message: 'ERPNext could not be reached, so the outcome is unconfirmed.',
     retryable: true,
     transport: true,
+    remedy: 'The system rechecks ERPNext on its own; confirm there before assuming the push did not land.',
   },
   DISPATCH_FAILED: {
-    message: 'The push failed before ERPNext answered.',
+    message: 'The push stopped before ERPNext answered, so the outcome is unconfirmed.',
     retryable: true,
     transport: true,
   },
@@ -211,6 +379,8 @@ function splitCode(raw: string): string {
  * live rejection — goes through here, so there is one vocabulary and one place to extend it.
  */
 export function describePushMutationError(err: unknown): PushErrorCopy {
+  // A classified code beats prose: the cut-over answer is information, and its sentence must not be re-parsed.
+  if ((err as { code?: unknown } | null)?.code === 'pre-cutover') return describePushError('pre-cutover');
   const raw =
     err instanceof Error ? err.message : typeof err === 'string' ? err : null;
   return describePushError(raw);
@@ -231,8 +401,15 @@ export function describePushError(raw: string | null | undefined): PushErrorCopy
     };
   }
 
-  const code = splitCode(classifiedInput);
-  const entry = CODES[code];
+  let code = splitCode(classifiedInput);
+  let entry = CODES[code];
+  if (!entry || code === 'commit-rejected' || code === 'adapter-held') {
+    const subMatch = classifiedInput.match(/\b(revision_superseded|revision-superseded|po_has_submitted_bill|revision_not_issued|po_not_found|below-received)\b/);
+    if (subMatch && CODES[subMatch[1]]) {
+      code = subMatch[1];
+      entry = CODES[code];
+    }
+  }
   if (entry) {
     return {
       code,
@@ -240,6 +417,7 @@ export function describePushError(raw: string | null | undefined): PushErrorCopy
       retryable: entry.retryable,
       transport: entry.transport ?? false,
       remedy: entry.remedy ?? null,
+      ...(entry.severity ? { severity: entry.severity } : {}),
     };
   }
 

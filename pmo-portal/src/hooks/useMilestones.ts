@@ -1,3 +1,5 @@
+import { invalidateTaskProjections } from './taskQueryKeys';
+import { projectKeys } from './projectQueryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { MilestoneInput, MilestonePatch } from '@/src/lib/db/milestones';
@@ -42,9 +44,10 @@ export function useMilestoneMutations(projectId: string) {
   const orgId = currentUser?.org_id;
 
   const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: projectKeys.milestoneDates(orgId) });
     void qc.invalidateQueries({ queryKey: ['milestones', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['tasks', orgId, projectId] });
-    void qc.invalidateQueries({ queryKey: ['projects-delivery'] });
+    void qc.invalidateQueries({ predicate: q => q.queryKey[0] === 'projects-delivery' && q.queryKey[2] === orgId });
   };
 
   const create = useMutation({
@@ -67,7 +70,10 @@ export function useMilestoneMutations(projectId: string) {
   const setTaskMilestone = useMutation({
     mutationFn: ({ taskId, milestoneId }: SetTaskMilestoneArgs) =>
       repositories.milestone.setTaskMilestone(taskId, milestoneId),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: projectKeys.milestoneDates(orgId) });
+      invalidateTaskProjections(qc, orgId, projectId);
+    },
   });
 
   return { create, update, remove, setTaskMilestone };

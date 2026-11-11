@@ -63,7 +63,10 @@ function throwRpc(error: RpcErrorLike): never {
 
 export type ProcurementItemRow = Tables<'procurement_items'>;
 
-export type ProcurementDetail = ProcurementWithRefs & {
+export type ProcurementDetail = Omit<
+  ProcurementWithRefs,
+  'purchase_requests' | 'purchase_orders' | 'receipts' | 'procurement_invoices' | 'payments'
+> & {
   approved_by: { full_name: string } | null;
   /** Editable line items (CRUD+RBAC Procurement slice) joined into the detail. */
   items: ProcurementItemRow[];
@@ -79,6 +82,9 @@ export type ProcurementDetail = ProcurementWithRefs & {
   statusEvents: Tables<'procurement_status_events'>[];
   /** The server payment ceiling, read only while the request awaits payment (Vendor Invoiced). */
   paymentCeiling?: ProcurementPaymentCeiling | null;
+  paymentEligibility?: string | null;
+  /** ECA-4: this purchase was ordered before the ERP connection, so its later steps are recorded in PMO only. Set only for an org that employs procurement. */
+  pre_cutover?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -99,6 +105,18 @@ export const LEGAL_TRANSITIONS: Record<string, string[]> = {
   Paid:             [],
   Cancelled:        [],
 };
+
+/** Stable display order for lifecycle charts, derived from the transition graph's canonical order. */
+export const PROCUREMENT_LIFECYCLE_ORDER = Object.keys(LEGAL_TRANSITIONS) as ProcurementStatus[];
+
+/** Sort status aggregates by lifecycle progression without changing the records or their enum values. */
+export function orderByProcurementLifecycle<T extends { status: string }>(rows: readonly T[]): T[] {
+  const rank = new Map<string, number>(PROCUREMENT_LIFECYCLE_ORDER.map((status, index) => [status, index]));
+  return [...rows].sort((left, right) =>
+    (rank.get(left.status) ?? Number.MAX_SAFE_INTEGER) - (rank.get(right.status) ?? Number.MAX_SAFE_INTEGER)
+      || left.status.localeCompare(right.status),
+  );
+}
 
 /**
  * Returns true when (from → to) is in the legal transition superset (AC-800/801, FR-PROC-001/002).
@@ -134,31 +152,11 @@ export function canCancel(role: string, isRequester: boolean, from: ProcurementS
 }
 
 // ---------------------------------------------------------------------------
-// Reference-number formatter (AC-803, FR-PROC-010)
-// Pure TS mirror of the SQL: prefix-YYMMDD####
+// Reference-number format (AC-803, FR-PROC-010) — ENFORCED by the shipped minter
+// next_procurement_doc_number (0006): <prefix>-<YYMMDD><seq zero-padded to 4>.
+// Its owning acceptance proof is pgTAP — supabase/tests/procurement_doc_number_format.test.sql
+// (#1710 re-home); the deleted TS mirror was a second date authority (the C4 TZ bug's source).
 // ---------------------------------------------------------------------------
-
-/**
- * Formats a procurement document number. Mirrors the SQL lpad/to_char in next_procurement_doc_number
- * (AC-803, FR-PROC-010). `date` is the server date; `seq` is the per-(org,prefix,day) sequence.
- *
- * Stays native-UTC intentionally: the `yyMMdd` parts use `getUTC*` (the C4 fix) so a date-only
- * value never drifts by one day in behind-UTC zones. date-fns `format` is LOCAL → it would shift
- * the day, and the UTC-correct fix (`date-fns-tz` `formatInTimeZone`) is a second package we
- * intentionally do not add for a dependency-free getter that is already correct (ADR-0030 §F).
- */
-export function formatDocNumber(
-  prefix: 'PR' | 'VQ' | 'PO' | 'GR' | 'VI',
-  date: Date,
-  seq: number,
-): string {
-  // C4: use UTC parts so a date constructed from a UTC ISO string (e.g. new Date('2026-06-04'))
-  // or the server date never shifts by one day in behind-UTC timezones (date-only convention).
-  const yy = String(date.getUTCFullYear()).slice(2);
-  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(date.getUTCDate()).padStart(2, '0');
-  return `${prefix}-${yy}${mm}${dd}${String(seq).padStart(4, '0')}`;
-}
 
 // ---------------------------------------------------------------------------
 // DAL reads — getProcurementDetail (AC-816)
@@ -168,14 +166,14 @@ export function formatDocNumber(
 // archived_at is null filtering is done client-side in buildLedgerRows (filePresence())
 // since PostgREST embedded `.is(archived_at, null)` filters are applied via query
 // params on the main select, not sub-selects. We fetch all and discard archived in JS.
-const FILE_FIELDS = 'id, title, file_path, archived_at';
+const FILE_FIELDS = 'id, title, file_path, archived_at, source, ms_web_url, ms_item_name';
 
 const DETAIL_SELECT = [
   '*',
   // The DecisionSupportPanel sources committed spend via useProjectCommittedSpend (the
   // honest Σ-PO-in-Ordered..Paid basis, OD-W5-4) — NOT the static projects.budget/spent
   // columns (0 in seed, contradict the dashboards). Include the human PMO number for tax evidence.
-  'project:projects(name,code,pmo_project_number)',
+  'project:projects(name,short_name,code,pmo_project_number)',
   'vendor:companies(name)',
   'requested_by:profiles!procurements_requested_by_id_fkey(full_name)',
   'approved_by:profiles!procurements_approved_by_id_fkey(full_name)',
@@ -232,6 +230,20 @@ export async function transitionProcurement(
     p_notes: notes,
   })) as unknown as { data: null; error: RpcErrorLike | null };
   if (error) throwRpc(error);
+}
+
+/**
+ * ECA-4 (FR-ECA-030, PD-ECA-9): was this purchase started before the ERP connection? A payment names its bill: one the
+ * ERP holds is paid there. The server answers from PMO's own tables; `null` (a case the caller cannot see) reads as "no".
+ * The ERP write gate re-checks, so this only picks a route.
+ */
+export async function isPreCutoverProcurement(procurementId: string, invoiceId?: string): Promise<boolean> {
+  const { data, error } = (await supabase.rpc('pre_cutover_procurement', {
+    p_procurement_id: procurementId,
+    ...(invoiceId ? { p_invoice_id: invoiceId } : {}),
+  })) as unknown as { data: boolean | null; error: RpcErrorLike | null };
+  if (error) throwRpc(error);
+  return data === true;
 }
 
 /** DD-EFK-1: set PMO-owned supplier e-Faktur facts directly; no procurement/ERP command is created. */
@@ -352,6 +364,8 @@ export interface CreateInvoiceInput extends VendorInvoiceTaxInput {
    * external branch (forwarded to the dispatch, which builds the ERPNext rows); the native RPC has no such parameter.
    */
   erpTaxAmounts?: ErpVendorTaxAmounts;
+  /** #1505 P8: the taxes picked from the Odoo tax directory. Consumed ONLY by the repository's external branch; the native RPC has no such parameter. */
+  taxIds?: string[];
 }
 
 /**

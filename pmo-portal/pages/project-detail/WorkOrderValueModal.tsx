@@ -15,7 +15,7 @@ import {
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseMoneyInputAtScale } from '@/src/lib/format';
-import { parseTaxFacts } from '@/src/lib/taxTreatment';
+import { validateWorkOrderAmount } from './workOrderAmountValidation';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import type { WorkOrderRow, SetWorkOrderValueInput } from '@/src/lib/db/workOrders';
 
@@ -49,27 +49,26 @@ interface FormValues {
 
 const validate = (v: FormValues, t: TFunction): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
-  const value = parseMoneyInputAtScale(v.value, 2);
-  if (value === null || value < 0) {
+  const issues = validateWorkOrderAmount(v.value, v.taxTreatment, v.taxAmount);
+  if (issues.value) {
     errors.value = t(
       'projectDetail.workOrderValue.errors.value',
       'Enter the order value as a non-negative amount with no more than 2 decimal places',
     );
   }
-  if (!v.taxTreatment.trim()) {
+  if (issues.taxTreatment) {
     errors.taxTreatment = t(
       'projectDetail.workOrderValue.errors.treatmentRequired',
       'Choose whether this value already includes tax',
     );
   }
-  const tax = parseTaxFacts(v.taxTreatment, v.taxAmount);
-  if (tax === null && v.taxTreatment.trim()) {
+  if (issues.taxAmount === 'taxAmount') {
     errors.taxAmount = t(
       'projectDetail.workOrderValue.errors.taxAmount',
-      'Enter the tax amount — 0 if there is no tax',
+      'Enter the tax amount (0 if there is no tax)',
     );
   }
-  if (tax !== null && value !== null && tax.taxTreatment === 'inclusive' && tax.taxAmount > value) {
+  if (issues.taxAmount === 'inclusiveTaxTooLarge') {
     errors.taxAmount = t(
       'projectDetail.workOrderValue.errors.inclusiveTaxTooLarge',
       'An inclusive value already contains its tax, so the tax cannot be larger than the value itself',
@@ -78,7 +77,7 @@ const validate = (v: FormValues, t: TFunction): Partial<Record<keyof FormValues,
   return errors;
 };
 
-export interface WorkOrderValueModalProps {
+interface WorkOrderValueModalProps {
   workOrder: WorkOrderRow;
   /** Rendered read-only context: the figure on the row today, already formatted with its basis. */
   currentValueText: string;
@@ -94,7 +93,7 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
   onClose,
   onSave,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const validateWithT = useCallback((v: FormValues) => validate(v, t), [t]);
   const { options: taxOptions, placeholder: taxPlaceholder } = useTaxTreatmentOptions();
 
@@ -152,7 +151,7 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
       title={t('projectDetail.workOrderValue.title', 'Set the work order value')}
       subtitle={t(
         'projectDetail.workOrderValue.subtitle',
-        'Your name is recorded against this figure. Whoever sets it cannot also issue the work order — that is the second pair of eyes on the money.',
+        'Your name is recorded against this figure. Whoever sets it cannot also issue the work order. That is the second pair of eyes on the money.',
       )}
       submitLabel={t('projectDetail.workOrderValue.save', 'Set value')}
       onSubmit={handleSubmit}

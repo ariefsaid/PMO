@@ -24,7 +24,6 @@ import {
 import {
   ENTITY_WHITELIST,
   VALID_FILTER_OPS,
-  ValidationError,
 } from '@/src/lib/viewspec/types';
 import { registry } from '@/src/lib/viewspec/registry';
 import type {
@@ -114,7 +113,9 @@ const FORM_FILTER_OPS: SelectOption[] = Array.from(VALID_FILTER_OPS)
   .filter((op) => op !== 'date-range')
   .map((op) => ({ value: op, label: op }));
 
-export interface PanelEditorFormProps {
+const PROJECT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+interface PanelEditorFormProps {
   open: boolean;
   /** null = add mode; PanelSpec = edit mode (pre-populated) */
   initialPanel: PanelSpec | null;
@@ -122,7 +123,7 @@ export interface PanelEditorFormProps {
   onClose: () => void;
 }
 
-export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
+const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
   open,
   initialPanel,
   onConfirm,
@@ -130,13 +131,11 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
 }) => {
   const { t } = useTranslation();
   const [form, setForm] = useState<FormState>(emptyForm);
-  const [error, setError] = useState<string | null>(null);
 
   // Reset or pre-populate when the modal opens
   useEffect(() => {
     if (!open) return;
     setForm(initialPanel ? panelToForm(initialPanel) : emptyForm());
-    setError(null);
   }, [open, initialPanel]);
 
   const entityEntry =
@@ -183,11 +182,20 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
   };
 
   // tasks entity: requires a project_id eq|in filter (FR-VB-032 §4, AC-VB-006)
+  const isProjectIdFilterValid = (filter: FilterRow) => {
+    if (filter.column !== 'project_id' || (filter.op !== 'eq' && filter.op !== 'in')) return false;
+    const values = filter.op === 'in'
+      ? filter.value.split(',').map((value) => value.trim())
+      : [filter.value.trim()];
+    return values.length > 0 && values.every((value) => PROJECT_ID_PATTERN.test(value));
+  };
+
+  const hasInvalidProjectFilter = form.filters.some(
+    (filter) => filter.column === 'project_id' && (filter.op === 'eq' || filter.op === 'in') && !isProjectIdFilterValid(filter),
+  );
   const tasksFilterSatisfied =
     form.entity !== 'tasks' ||
-    form.filters.some(
-      (f) => f.column === 'project_id' && (f.op === 'eq' || f.op === 'in'),
-    );
+    (form.filters.some(isProjectIdFilterValid) && !hasInvalidProjectFilter);
 
   const isFormComplete =
     form.primitive !== '' &&
@@ -197,7 +205,6 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
 
     if (!isFormComplete) return;
 
@@ -237,17 +244,24 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
 
     const id = initialPanel?.id ?? crypto.randomUUID().slice(0, 8);
 
+    const layout = { ...initialPanel?.layout };
+    if (form.colSpan) layout.colSpan = parseInt(form.colSpan, 10);
+    else delete layout.colSpan;
+
+    const props = { ...initialPanel?.props };
+    if (form.label) props.label = form.label;
+    else delete props.label;
+
     const panel: PanelSpec = {
+      ...initialPanel,
       id,
       primitive: form.primitive,
       querySpec: qs,
-      ...(form.colSpan && {
-        layout: { colSpan: parseInt(form.colSpan, 10) },
-      }),
-      ...(form.label && {
-        props: { label: form.label },
-      }),
     };
+    if (Object.keys(layout).length > 0) panel.layout = layout;
+    else delete panel.layout;
+    if (Object.keys(props).length > 0) panel.props = props;
+    else delete panel.props;
 
     onConfirm(panel);
   };
@@ -304,9 +318,6 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
   // Warn if $current_team is entered in any filter value
   const hasTeamToken = form.filters.some((f) => f.value === '$current_team');
 
-  // Suppress unused import warning — ValidationError is imported for type checking
-  void ValidationError;
-
   return (
     <EntityFormModal
       open={open}
@@ -317,7 +328,6 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
       onClose={onClose}
       submitDisabled={!isFormComplete}
       width="lg"
-      errorSummary={error ? [{ fieldId: 'panel-error', message: error }] : undefined}
     >
       <FormGrid>
         {/* Primitive selector */}
@@ -388,6 +398,14 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
                   label={t('viewBuilder.filterValue', 'Filter value')}
                   value={f.value}
                   onChange={(v) => updateFilter(idx, 'value', v)}
+                  error={
+                    form.entity === 'tasks' &&
+                    f.column === 'project_id' &&
+                    (f.op === 'eq' || f.op === 'in') &&
+                    !isProjectIdFilterValid(f)
+                      ? t('viewBuilder:invalidProjectFilter', 'Enter a valid project ID.')
+                      : undefined
+                  }
                 />
                 <button
                   type="button"
@@ -401,7 +419,7 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
             ))}
             {hasTeamToken && (
               <FieldError>
-                {t('viewBuilder.currentTeamWarning', '$current_team requires a teamId context at render time — it may fail at preview.')}
+                {t('viewBuilder.currentTeamWarning', '$current_team requires a teamId context at render time. It may fail at preview.')}
               </FieldError>
             )}
             <button

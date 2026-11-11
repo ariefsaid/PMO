@@ -3,20 +3,27 @@ import { useTranslation } from 'react-i18next';
 import { FinancialStatementsSection, type FinancialStatementsSectionState } from '@/src/components/financial-statements/FinancialStatementsSection';
 import { ProjectStatementTotals } from '@/src/components/financial-statements/ProjectStatementTotals';
 import { StatementPeriodPicker, type StatementPeriodKind } from '@/src/components/financial-statements/StatementPeriodPicker';
+import { OdooStatementsSection } from '@/src/components/financial-statements/OdooStatementsSection';
 import { FormGrid } from '@/src/components/ui/FormFields';
+import { useOdooLedgerMode } from '@/src/hooks/useOdooLedger';
+import { LedgerModeNotice } from '@/src/components/odoo-ledger/LedgerModeNotice';
 import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead } from '@/src/lib/financialStatements';
 import { formatDateOnly } from '@/src/lib/format';
 
-export interface ProjectProfitLossSectionProps {
+interface ProjectProfitLossSectionProps {
   projectId: string;
 }
 
-function latestSuppliedPair(periods: readonly FinancialStatementPair[], kind: StatementPeriodKind): FinancialStatementPair | null {
+function latestSuppliedPair(
+  periods: readonly FinancialStatementPair[],
+  kind: StatementPeriodKind,
+  today: string,
+): FinancialStatementPair | null {
   const choices = periods.filter((pair) => pair.kind === kind).slice().sort((left, right) => left.currentStart.localeCompare(right.currentStart));
   if (choices.length === 0) return null;
-  const today = new Date().toISOString().slice(0, 10);
   const begun = choices.filter((pair) => pair.currentStart <= today);
   return begun[begun.length - 1] ?? choices[choices.length - 1] ?? null;
 }
@@ -40,8 +47,9 @@ function totalsContext(read: FinancialStatementRead, currentLabel: string): stri
   ].join(' · ');
 }
 
-const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ projectId }) => {
-  const { t } = useTranslation();
+const ErpnextProjectProfitLoss: React.FC<ProjectProfitLossSectionProps> = ({ projectId }) => {
+  const { t } = useTranslation('project');
+  const today = useOrgToday();
   const catalogueQuery = useFinancialStatementCatalogue({ kind: 'project', projectId });
   const catalogue = catalogueQuery.data;
   const [periodKind, setPeriodKind] = useState<StatementPeriodKind>('month');
@@ -50,7 +58,7 @@ const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ pro
     () => (catalogue?.state === 'complete' ? catalogue.periods : []).filter((pair) => pair.kind === periodKind),
     [catalogue, periodKind],
   );
-  const initialPair = useMemo(() => latestSuppliedPair(catalogue?.periods ?? [], periodKind), [catalogue, periodKind]);
+  const initialPair = useMemo(() => latestSuppliedPair(catalogue?.periods ?? [], periodKind, today), [catalogue, periodKind, today]);
   const selectedPair = periodStart === null
     ? initialPair
     : choices.find((pair) => pair.currentStart === periodStart) ?? null;
@@ -130,7 +138,7 @@ const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ pro
   if (sectionState.kind === 'loading' && !catalogue) return null;
 
   return (
-    <div className="min-w-0">
+    <div className="mt-6 min-w-0 border-t border-border/70 pt-4">
       {catalogue?.state === 'complete' && (
         <FormGrid className="mb-4 min-w-0">
           <StatementPeriodPicker
@@ -148,7 +156,7 @@ const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ pro
             }}
             onKindChange={(nextKind) => {
               setPeriodKind(nextKind);
-              setPeriodStart(latestSuppliedPair(catalogue.periods, nextKind)?.currentStart ?? null);
+              setPeriodStart(latestSuppliedPair(catalogue.periods, nextKind, today)?.currentStart ?? null);
             }}
             onPeriodChange={setPeriodStart}
             disabled={!catalogueQuery.eligible}
@@ -181,6 +189,23 @@ const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ pro
           />
         )}
       </FinancialStatementsSection>
+    </div>
+  );
+};
+
+/** #1507 S7: an Odoo organisation reads project profit and loss from the Odoo ledger; the saved-report section is the ERPNext path and is left as it was. */
+const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ projectId }) => {
+  const { odoo, error, retry } = useOdooLedgerMode();
+  const { t } = useTranslation();
+  if (!odoo) {
+    return error
+      ? <><LedgerModeNotice className="mt-6" onRetry={retry} /><ErpnextProjectProfitLoss projectId={projectId} /></>
+      : <ErpnextProjectProfitLoss projectId={projectId} />;
+  }
+  return (
+    <div className="mt-6 min-w-0 border-t border-border/70 pt-4">
+      <h2 className="sr-only">{t('financialStatements.projectProfitAndLoss', 'Project profit and loss')}</h2>
+      <OdooStatementsSection projectId={projectId} />
     </div>
   );
 };

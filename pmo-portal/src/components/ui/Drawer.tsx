@@ -4,6 +4,9 @@ import { cn } from './cn';
 import { Icon } from './icons';
 import { Button } from './Button';
 import { RecordHeader } from './RecordHeader';
+import { overlayBackdropClassName, overlayBackdropStyle } from './OverlaySurface';
+import { acquireBackgroundInert } from './backgroundInert';
+import { useExitPresence } from './useExitPresence';
 
 // ---------------------------------------------------------------------------
 // Drawer — a right-side quick-view sheet (Wave-5 Cluster 6, D11/D12).
@@ -21,10 +24,9 @@ import { RecordHeader } from './RecordHeader';
 //     uses for its discard dialog)
 //   - role="dialog" + aria-modal + aria-labelledby/aria-describedby
 //
-// Token-pure: white `popover` surface, a single left `border` hairline seam
-// (Single-Border Rule), the verbatim *Overlay* shadow on the floating edge,
-// the `subheading`/`muted-foreground` header, a ghost close icon-button. No new
-// token. Slides in via `confirm-anim` discipline; motion-reduce → crossfade.
+// Token-pure: `popover` surface, a single left `border` hairline seam,
+// neutral header and a ghost close icon-button. Slides in via `confirm-anim`
+// discipline; motion-reduce → crossfade.
 //
 // Same overlay z-band as the modal: scrim z-[800], panel z-[810].
 // ---------------------------------------------------------------------------
@@ -45,20 +47,20 @@ export interface DrawerProps {
    * EntityFormModal's discard-dialog pattern.
    */
   nestedOpen?: boolean;
-  /** Width preset: 'sm' = 420px (default) | 'lg' = min(560px, 92vw). */
+  /** Desktop width preset: 'sm' = --drawer-width (default) | 'lg' = min(560px, 92vw). Drawers fill phones. */
   width?: 'sm' | 'lg';
   /** Optional border-top footer slot for secondary entry points. */
   footer?: React.ReactNode;
   /**
    * CW-3a: record-header anatomy. When `icon` or `status` is provided, the drawer
-   * header renders the shared `RecordHeader` (icon + name + status pill + a top-right
+   * header renders the shared `RecordHeader` (name + status pill + a top-right
    * action zone) instead of the plain title/subtitle row — so a drawer record opens
    * with the SAME header anatomy as a full record page. `headerActions` holds the
    * record actions (Edit/Archive/Delete by permission), surfaced in the HEADER (not
-   * the footer). `status` doubles as the drawer's aria-describedby content.
+   * the footer). `status` doubles as the drawer's aria-describedby content. The icon
+   * itself is not drawn: a coloured tile in every drawer header is decoration.
    */
   icon?: React.ReactNode;
-  iconColor?: string;
   /** Status pill node — surfaced beside the name in the RecordHeader anatomy. */
   status?: React.ReactNode;
   /** Top-right record action zone (Edit/Archive/Delete by permission). */
@@ -76,11 +78,11 @@ export const Drawer: React.FC<DrawerProps> = ({
   width = 'sm',
   footer,
   icon,
-  iconColor,
   status,
   headerActions,
   children,
 }) => {
+  const { mounted, closing } = useExitPresence(open, '--motion-drawer-out');
   const titleId = useId();
   const subId = useId();
 
@@ -107,6 +109,12 @@ export const Drawer: React.FC<DrawerProps> = ({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [open, nestedOpen, requestClose]);
 
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  useEffect(() => {
+    if (!open) return;
+    return acquireBackgroundInert();
+  }, [open]);
+
   // Focus: capture the trigger, move focus into the panel on open, restore on
   // close. Works for BOTH close patterns:
   //   • re-render to open=false (EntityFormModal-style): the else-if branch fires.
@@ -131,13 +139,6 @@ export const Drawer: React.FC<DrawerProps> = ({
           triggerRef.current = null;
         }
       };
-    } else if (triggerRef.current) {
-      // Re-render path (open=false): the cleanup above already fired and nulled
-      // the ref, so this branch handles the edge case where the effect runs
-      // without the cleanup having fired (e.g. if open was never true in this
-      // mount cycle and someone set a triggerRef manually). Guard is harmless.
-      triggerRef.current.focus();
-      triggerRef.current = null;
     }
   }, [open]);
 
@@ -167,7 +168,7 @@ export const Drawer: React.FC<DrawerProps> = ({
     [nestedOpen],
   );
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   // CW-3a: when record-header props are supplied the drawer header renders the shared
   // RecordHeader anatomy (icon + name + status + top-right action zone) instead of the
@@ -180,33 +181,40 @@ export const Drawer: React.FC<DrawerProps> = ({
       <div
         data-testid="drawer-scrim"
         aria-hidden
+        data-closing={closing || undefined}
         onClick={requestClose}
-        className="confirm-scrim-anim absolute inset-0 bg-foreground/40"
+        className={overlayBackdropClassName}
+        style={overlayBackdropStyle}
       />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        // Shared-toast placement seam (issue 1816): marks this overlay as an
+        // edge-anchored drawer so ToastProvider tucks toasts below the header
+        // band instead of on top of it (the generic dialog remedy lands exactly
+        // there). Every drawer built on this component inherits the rule.
+        data-drawer-panel
         aria-labelledby={titleId}
         aria-describedby={subtitle ? subId : undefined}
         tabIndex={-1}
         onKeyDown={onTrapKeyDown}
         // While a nested ConfirmDialog/Modal is open it owns focus + AT; make
         // the panel inert so the background can't be tabbed into or read.
-        inert={nestedOpen || undefined}
-        aria-hidden={nestedOpen || undefined}
+        inert={nestedOpen || closing || undefined}
+        aria-hidden={nestedOpen || closing || undefined}
+        data-closing={closing || undefined}
         className={cn(
           // Edge-anchored: full-height right panel, square against the viewport
-          // edge (inner cards keep their own radius); the left border is the
-          // only seam (Single-Border Rule), the *Overlay* shadow floats it.
+          // edge (inner cards keep their own radius); the left border is the only seam.
           'drawer-anim relative z-[810] flex h-full flex-col border-l border-border bg-popover',
-          'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
           'motion-reduce:animate-none',
-          width === 'lg' ? 'w-[min(560px,92vw)]' : 'w-[min(420px,92vw)]',
+          'max-md:w-full',
+          width === 'lg' ? 'md:w-[min(560px,92vw)]' : 'md:w-[min(420px,92vw)]',
         )}
       >
         {/* Header */}
-        <div className="flex items-start gap-2.5 border-b border-border px-[18px] py-4">
+        <div data-drawer-header className="flex items-start gap-2 border-b border-border bg-secondary px-[var(--space-content-inset)] py-3">
           {useRecordHeader ? (
             <div className="min-w-0 flex-1">
               {/* Visually-hidden a11y anchor — RecordHeader's own h1 carries no stable
@@ -217,11 +225,11 @@ export const Drawer: React.FC<DrawerProps> = ({
               </span>
               <RecordHeader
                 variant="drawer"
-                icon={icon ?? (typeof title === 'string' ? title.trim().charAt(0).toUpperCase() : '•')}
-                iconColor={iconColor}
+                icon={null}
                 name={title}
                 status={status}
                 meta={subtitle}
+                metaId={subtitle ? subId : undefined}
                 actions={headerActions}
               />
             </div>
@@ -229,12 +237,12 @@ export const Drawer: React.FC<DrawerProps> = ({
             <div className="min-w-0 flex-1">
               <h2
                 id={titleId}
-                className="truncate text-[16px] font-bold tracking-[-0.01em] text-popover-foreground"
+                className="truncate text-control font-semibold text-popover-foreground"
               >
                 {title}
               </h2>
               {subtitle && (
-                <div id={subId} className="mt-1.5 text-[12.5px] text-muted-foreground">
+                <div id={subId} className="mt-1 text-support text-muted-foreground">
                   {subtitle}
                 </div>
               )}
@@ -252,11 +260,11 @@ export const Drawer: React.FC<DrawerProps> = ({
         </div>
 
         {/* Body (scrollable) */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--space-content-inset)] py-[var(--space-content-inset)]">{children}</div>
 
         {/* Optional footer action row */}
         {footer && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-border px-[18px] py-3.5">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-[var(--space-content-inset)] pt-2 pb-4">
             {footer}
           </div>
         )}

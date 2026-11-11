@@ -8,39 +8,37 @@ import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersRe
 import { tooltipContentStyle, tooltipLabelStyle, axisTickStyle } from '@/src/components/dashboard/chartChrome';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { useMilestones } from '@/src/hooks/useMilestones';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useTasks } from '@/src/hooks/useTasks';
 import { buildSCurve, evenAxisTicks, formatSCurveAxisDate } from '@/src/lib/delivery/sCurve';
 
-export interface ProjectSCurveProps {
+interface ProjectSCurveProps {
   projectId: string;
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
-/**
- * Per-project cumulative S-curve on the Delivery lens (FR-SC-001), below the
- * milestone stepper. Reuses `useMilestones(projectId)` + `useTasks(projectId)` which
- * are already loaded on the project-detail page (NFR-SCA-004 — no extra round-trip;
- * RLS on the security-invoker RPC scopes rows, NFR-SC-SEC-001).
- *
- * Planned = dashed multi-point cumulative curve at each milestone `target_date`
- * (monotonic → 100%). Actual = solid multi-point line via the hybrid source rule
- * (FR-SCA-008): task-tracked milestones step at each Done task's `completed_at` (or
- * `end_date` proxy); overridden/task-less milestones contribute at `target_date`.
- * Falls back to a single as-of-today dot when tasks are absent (FR-SCA-011).
- * Both lines share One-Blue (DESIGN.md single-blue identity); style-only distinction.
- */
 const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
+  const today = useOrgToday();
   const { data, isPending, isError, refetch } = useMilestones(projectId);
   // NFR-SCA-004: reuse tasks already loaded on the project-detail page — no extra round-trip.
-  const { data: tasksData } = useTasks(projectId);
+  // PGB-014: require both milestones and tasks to settle before building actual history.
+  const {
+    data: tasksData,
+    isPending: isTasksPending,
+    isError: isTasksError,
+    refetch: refetchTasks,
+  } = useTasks(projectId);
   const prefersReducedMotion = usePrefersReducedMotion();
 
-  const model = useMemo(
-    () => buildSCurve(data ?? [], todayIso(), tasksData ?? []),
-    [data, tasksData],
-  );
+  const isAnyPending = isPending || isTasksPending;
+  const isAnyError = isError || isTasksError;
+
+  const model = useMemo(() => {
+    if (isAnyPending || isAnyError || !data || !tasksData) {
+      return { points: [], plannedToDate: null, actualToDate: 0, usesProxyDates: false };
+    }
+    return buildSCurve(data, today, tasksData);
+  }, [data, tasksData, isAnyPending, isAnyError, today]);
 
   // FR-SCA-013: suppress the lone dot only when the actual series has ≥2 points.
   const hasActualSeries = model.points.filter((p) => p.actual !== null).length >= 2;
@@ -56,9 +54,9 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
     return evenAxisTicks(tsMin, tsMax);
   }, [model.points]);
 
-  const state: ChartState = isPending
+  const state: ChartState = isAnyPending
     ? 'loading'
-    : isError
+    : isAnyError
       ? 'error'
       : model.points.length === 0
         ? 'empty'
@@ -77,6 +75,11 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
     : t('projectDetail.scurve.summary', 'Project S-curve: actual to date {{actual}}.', {
         actual: actualText,
       });
+
+  const handleRetry = () => {
+    void refetch();
+    void refetchTasks();
+  };
 
   // PD-B: no curve to draw (or not known yet) → render nothing; the phases line already says so.
   if (state === 'loading' || state === 'empty') return null;
@@ -101,7 +104,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
           'projectDetail.scurve.errorSub',
           'The request failed. Check your connection and try again.',
         )}
-        onRetry={() => refetch()}
+        onRetry={handleRetry}
       >
         <figure role="img" aria-label={summary} className="m-0">
           <ResponsiveContainer width="100%" height={240}>
@@ -161,15 +164,13 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
             </LineChart>
           </ResponsiveContainer>
 
-          <figcaption className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground">
+          <figcaption className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span
                 data-testid="legend-dot"
                 aria-hidden="true"
-                className="h-0.5 w-4 shrink-0 rounded-full"
-                style={{
-                  background: `repeating-linear-gradient(to right, ${chartTheme.series.primary} 0 5px, transparent 5px 9px)`,
-                }}
+                className="w-4 shrink-0 border-t-2 border-dashed"
+                style={{ borderColor: chartTheme.series.primary }}
               />
               {t('projectDetail.scurve.seriesPlanned', 'Planned')}
             </span>
@@ -180,8 +181,8 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 className="h-0.5 w-4 shrink-0 rounded-full"
                 style={{ background: chartTheme.series.primary }}
               />
-              {t('projectDetail.scurve.seriesActual', 'Actual to date')}
-              <span className="tabular font-semibold text-foreground">{model.actualToDate}%</span>
+              <span>{t('projectDetail.scurve.seriesActual', 'Actual to date')}</span>{' '}
+              <span className="font-semibold text-foreground tabular-nums">{actualText}</span>
             </span>
           </figcaption>
 

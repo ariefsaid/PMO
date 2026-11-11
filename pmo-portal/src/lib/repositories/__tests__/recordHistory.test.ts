@@ -92,7 +92,7 @@ describe('recordHistoryRepository.list', () => {
     expect([...seen].sort()).toEqual([5, 6, 7, 8, 9]);
   });
 
-  it('resolves names for the newest visible child events when one kind exceeds fifty ids', async () => {
+  it('resolves names for all visible child events when one kind exceeds fifty ids', async () => {
     const ids = Array.from({ length: 75 }, (_, i) => `child-${i + 1}`);
     const requested: string[][] = [];
     const query = {
@@ -107,9 +107,44 @@ describe('recordHistoryRepository.list', () => {
     const names = await recordHistoryRepository.lookupNames({ purchase_request: ids });
 
     expect(requested[0]).toHaveLength(50);
-    expect(requested[0]).toContain('child-75');
-    expect(requested[0]).not.toContain('child-1');
+    expect(requested.flat()).toEqual(ids);
+    expect(requested.every((batch) => batch.length <= 50)).toBe(true);
+    expect(names.purchase_request?.get('child-1')).toBe('PR-child-1');
     expect(names.purchase_request?.get('child-75')).toBe('PR-child-75');
+  });
+
+  it('deduplicates ids and leaves missing rows unresolved', async () => {
+    const requested: string[][] = [];
+    from.mockReturnValue({ select: () => ({ in: (_column: string, values: string[]) => {
+      requested.push(values);
+      return Promise.resolve({ data: [{ id: 'found', pr_number: 'PR-1', reference_number: null }], error: null });
+    } }) });
+    const names = await recordHistoryRepository.lookupNames({ purchase_request: ['found', '', 'missing', 'found'] });
+    expect(requested).toEqual([['found', 'missing']]);
+    expect(names.purchase_request?.get('found')).toBe('PR-1');
+    expect(names.purchase_request?.has('missing')).toBe(false);
+  });
+
+  it('bounds concurrent name queries across kinds and rejects a later failed chunk', async () => {
+    let active = 0;
+    let maxActive = 0;
+    const releases: Array<() => void> = [];
+    from.mockImplementation((table: string) => ({ select: () => ({ in: (_column: string, values: string[]) => new Promise((resolve) => {
+      active += 1;
+      maxActive = Math.max(active, maxActive);
+      releases.push(() => { active -= 1; resolve({ data: [], error: table === 'purchase_requests' && values.includes('id-51') ? { message: 'later failure', code: 'XX000' } : null }); });
+    }) }) }));
+    const ids = Array.from({ length: 120 }, (_, i) => `id-${i + 1}`);
+    const pending = recordHistoryRepository.lookupNames({ purchase_request: ids, rfq: ids, project: ids });
+    const rejected = expect(pending).rejects.toMatchObject({ message: 'later failure' });
+    while (releases.length || active) {
+      const batch = releases.splice(0);
+      batch.forEach((release) => release());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    await rejected;
+    expect(maxActive).toBeLessThanOrEqual(4);
+    expect(maxActive).toBeGreaterThan(1);
   });
 
   it('AC-PFIN-008 resolves project names in bounded 200-id batches, including archived rows', async () => {

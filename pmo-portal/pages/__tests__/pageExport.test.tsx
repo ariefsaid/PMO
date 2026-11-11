@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -17,7 +18,7 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/components/export/useExport', () => ({
   useExport: () => ({ exportXlsx: vi.fn(), busy: false }),
@@ -44,6 +45,15 @@ vi.mock('@/src/hooks/useCompanies', () => ({
     isError: false,
     refetch: vi.fn(),
   }),
+  // #1989: the directory reads one server page + an on-demand export read.
+  useCompaniesPage: () => ({
+    data: { rows: [{ id: '1', name: 'Acme', type: 'Client' }], total: 1 },
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+  useCompaniesTotal: () => ({ data: 1 }),
+  useCompaniesExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
   useCompanyMutations: () => ({
     create: { mutateAsync: vi.fn() },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -54,8 +64,10 @@ vi.mock('@/src/hooks/useCompanies', () => ({
 
 // ── Incidents mocks ──────────────────────────────────────────────────────────
 vi.mock('@/src/hooks/useIncidents', () => ({
-  useIncidents: () => ({
-    data: [
+  useIncidentsPage: () => ({
+    allTotal: 1,
+    list: {
+    data: { total: 1, rows: [
       {
         id: 'i1',
         type: 'Slip',
@@ -65,11 +77,13 @@ vi.mock('@/src/hooks/useIncidents', () => ({
         location: 'Site A',
         description: '',
       },
-    ],
+    ] },
     isPending: false,
     isError: false,
     refetch: vi.fn(),
+    },
   }),
+  useIncidentsExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
   useIncidentMutations: () => ({
     create: { mutateAsync: vi.fn() },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -83,8 +97,8 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [] }),
   useVendorOptions: () => ({ data: [] }),
 }));
-vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => ({
+const { procState } = vi.hoisted(() => ({
+  procState: {
     data: [
       {
         id: 'p1',
@@ -100,15 +114,15 @@ vi.mock('@/src/hooks/useProcurements', () => ({
     ],
     isPending: false,
     isError: false,
-    refetch: vi.fn(),
-  }),
+    refetch: () => undefined,
+  },
+}));
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProcurements: () => procState,
+  useProjectProcurements: () => procState,
 }));
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: vi.fn(), isPending: false }),
-}));
-vi.mock('@/src/hooks/useProcurementView', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/src/hooks/useProcurementView')>()),
-  useProcurementView: () => ['table', vi.fn()],
 }));
 
 // ── SalesPipeline mocks ───────────────────────────────────────────────────────
@@ -132,13 +146,11 @@ vi.mock('@/src/hooks/useDashboard', () => ({
     refetch: vi.fn(),
   }),
   useLostDeals: () => ({ data: [] }),
-}));
-vi.mock('@/src/hooks/usePipelineView', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/src/hooks/usePipelineView')>()),
-  usePipelineView: () => ['table', vi.fn()],
+  useWonDeals: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 // ── Projects mocks ────────────────────────────────────────────────────────────
 vi.mock('@/src/hooks/useProjects', () => ({
+  useProject: () => ({ data: null }),
   useProjects: () => ({
     data: [
       { id: 'p1', name: 'Alpha Build', code: 'PRJ-001', status: 'Ongoing Project',
@@ -162,17 +174,12 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
 }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
-vi.mock('@/src/hooks/useProjectView', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/src/hooks/useProjectView')>()),
-  useProjectView: () => ['table', vi.fn()],
-}));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: {} }),
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
-  usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({
   ImpersonationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -182,11 +189,13 @@ vi.mock('@/src/auth/impersonation', () => ({
 // ── render helper ─────────────────────────────────────────────────────────────
 const wrap = (ui: React.ReactElement) =>
   render(
-    <ImpersonationProvider realRole="Admin">
-      <MemoryRouter>
-        <ToastProvider>{ui}</ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <ImpersonationProvider realRole="Admin">
+        <MemoryRouter>
+          <ToastProvider>{ui}</ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </QueryClientProvider>,
   );
 
 // ── lazy page imports (dynamic import avoids circular-ref issues in test isolation)

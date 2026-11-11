@@ -10,7 +10,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 const h = vi.hoisted(() => ({
   data: [] as unknown[],
-  projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', clientId: 'cust-1', subjectToVat: true, taxRate: 12, archived: false }],
+  projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', contractualName: 'Contractual Alpha Platform', clientId: 'cust-1', subjectToVat: true, taxRate: 12, archived: false }],
   isError: false,
   isPending: false,
   enabled: [] as boolean[],
@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   submit: vi.fn(async (_args: unknown): Promise<void> => undefined),
   userId: 'u-fin2',
   route: 'pmo' as 'pmo' | 'external',
+  tier: 'erpnext' as 'erpnext' | 'odoo',
+  draftEnabled: [] as boolean[],
   deny: [] as string[],
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
@@ -25,11 +27,15 @@ vi.mock('@/src/hooks/useRevenue', () => ({
     h.enabled.push(enabled);
     return { data: h.isError ? undefined : h.data, isPending: h.isPending, isError: h.isError, refetch: h.refetch };
   },
+  useDraftInvoices: (enabled: boolean) => {
+    h.draftEnabled.push(enabled);
+    return { data: h.isError ? undefined : h.data, isPending: h.isPending, isError: h.isError, refetch: h.refetch };
+  },
   useRevenueMutations: () => ({ submitInvoice: { mutateAsync: h.submit, isPending: false } }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => h.route) }));
-vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: (h.route === 'external' ? [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }] : []), isError: false }) }));
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: (h.route === 'external' ? [{ id: 'o-1', orgId: 'org-1', externalTier: h.tier, domain: 'revenue' }] : []), isError: false }) }));
 vi.mock('@/src/auth/usePermission', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/src/auth/usePermission')>();
   return {
@@ -51,7 +57,7 @@ vi.mock('@/src/hooks/useCommandIntent', () => ({
 
 import { SalesInvoiceApprovalSection } from './SalesInvoiceApprovalSection';
 import { SalesInvoiceApprovalPreview } from './SalesInvoiceApprovalRow';
-import { FinanceI18nTestProvider } from '../__tests__/financeI18nTestProvider';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { MemoryRouter } from 'react-router';
 import { within } from '@testing-library/react';
 
@@ -88,8 +94,11 @@ beforeEach(() => {
   h.submit.mockResolvedValue(undefined);
   h.userId = 'u-fin2';
   h.route = 'pmo';
+  h.tier = 'erpnext';
+  h.draftEnabled = [];
   h.deny = [];
   h.projectOptions[0].label = 'Alpha Platform';
+  h.projectOptions[0].contractualName = 'Contractual Alpha Platform';
 });
 
 const region = () => screen.getByRole('region', { name: 'Customer invoices awaiting you' });
@@ -98,9 +107,29 @@ async function expand(user: ReturnType<typeof userEvent.setup>, customer = 'Acme
 }
 
 describe('SalesInvoiceApprovalSection (#784)', () => {
-  it('RF-028 keeps the full project identity readable in invoice evidence', () => {
+  it('AC-OCI-090: an Odoo draft without an ERP number is approvable by PMO id and explains when Odoo assigns its number', async () => {
+    h.route = 'external';
+    h.tier = 'odoo';
+    const odooDraft = draft({ id: 'si-odoo-7', pmo_native: false, pmo_number: null, invoice_date: '2026-11-01' });
+    h.data = [odooDraft];
+    renderSection();
+    expect(h.draftEnabled).toContain(true);
+    const user = userEvent.setup();
+    await expand(user);
+    expect(screen.getByText('Draft — Odoo assigns the number on approval')).toBeInTheDocument();
+    expect(screen.queryByText('si-odoo-7')).not.toBeInTheDocument();
+    expect(screen.getByText('Invoice date')).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'Line items' })).getByText('Site survey')).toBeInTheDocument();
+    await user.click(within(region()).getByRole('button', { name: 'Approve' }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Approve invoice' }));
+    expect(h.submit).toHaveBeenCalledWith(expect.objectContaining({ siId: 'si-odoo-7' }));
+  });
+
+  it('AC-003 #1325: invoice approval evidence uses the contractual project name, not the picker alias', () => {
     const projectName = 'North Coast Materials Recovery and Logistics Programme';
-    h.projectOptions[0].label = projectName;
+    h.projectOptions[0].label = 'North Coast Logistics';
+    h.projectOptions[0].contractualName = projectName;
     render(
       <FinanceI18nTestProvider>
         <MemoryRouter>
@@ -123,7 +152,7 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     );
     expect(screen.queryByText('Raised by')).not.toBeInTheDocument();
     expect(screen.queryByText('Customer PO')).not.toBeInTheDocument();
-    expect(screen.getByText('Line items are kept in ERPNext for this invoice.')).toBeInTheDocument();
+    expect(screen.getByText('Line items are kept in the accounting system for this invoice.')).toBeInTheDocument();
     expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. PPN');
     expect(screen.queryByText(/DPP|rate not recorded/i)).not.toBeInTheDocument();
   });

@@ -170,8 +170,8 @@ describe('AC-W3-B2: Rejected document status actions (Reopen + Close)', () => {
 
   it('AC-W3-B2: a read-only role (Engineer) sees NO "Reopen for revision" or "Close" actions on a Rejected doc', () => {
     renderTab('Engineer', 'eng-1');
-    // Engineers have no row action menu at all (read-only in documents)
-    expect(screen.queryByRole('button', { name: /Row actions/i })).not.toBeInTheDocument();
+    // The redesigned register keeps its non-mutating row menu (for example, Copy link),
+    // while status-changing actions remain unavailable to a read-only role.
     expect(screen.queryByRole('menuitem', { name: /Reopen for revision/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /^Close$/i })).not.toBeInTheDocument();
   });

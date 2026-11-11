@@ -18,6 +18,7 @@ import type { ErrorEventRow, SendLogEntry } from './logic.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
 import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 
 // M4 (perf, 2026-07-28 review): caps the unnotified-rows query so one error storm cannot load the
@@ -25,6 +26,17 @@ import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 // (migration 0167); the oldest rows are pulled first (ORDER BY created_at asc) so a persistent storm
 // still drains in FIFO order rather than starving old, still-unnotified rows.
 const UNNOTIFIED_BATCH_LIMIT = 500;
+
+// Drain lease TTL: must OUTLIVE any live drain (>= the edge wall-clock cap, 400 s on the largest plan)
+// or a slow drain's lease expires mid-run and the next tick double-sends; <= the RPC's 15-minute
+// ceiling. Expiry still frees a crashed drain's lease.
+const DRAIN_LEASE_TTL = '7 minutes';
+
+/** A failed read must surface as a failed drain, never as "nothing pending". */
+function orThrow<T>(res: { data: T | null; error: unknown }, what: string): T | null {
+  if (res.error) throw new Error(`${what} read failed`);
+  return res.data;
+}
 
 export async function handleTelegramNotifyRequest(req: Request): Promise<Response> {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -47,14 +59,26 @@ export async function handleTelegramNotifyRequest(req: Request): Promise<Respons
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
   const cooldownSec = Number(Deno.env.get('TELEGRAM_COOLDOWN_SECONDS') ?? '900');
   const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
   const chatId = Deno.env.get('TELEGRAM_CHAT_ID');
   const heartbeatUrl = Deno.env.get('HEARTBEAT_URL') ?? undefined;
 
+  const leaseHolder = crypto.randomUUID();
   try {
     const drain = await runDrain({
+      claimLease: async () => {
+        const { data, error } = await serviceClient.rpc('claim_ops_job_lease', {
+          p_job: 'telegram-notify', p_holder: leaseHolder, p_ttl: DRAIN_LEASE_TTL,
+        });
+        if (error) throw new Error('drain lease claim failed');
+        return data === true;
+      },
+      releaseLease: async () => {
+        const { error } = await serviceClient.rpc('release_ops_job_lease', { p_job: 'telegram-notify', p_holder: leaseHolder });
+        if (error) throw new Error('drain lease release failed');
+      },
       now: () => new Date(),
       cooldownSec,
       livenessIntervalHours: Number(Deno.env.get('LIVENESS_INTERVAL_HOURS') ?? '24'),
@@ -66,20 +90,26 @@ export async function handleTelegramNotifyRequest(req: Request): Promise<Respons
         // M4 (perf, 2026-07-28 review): bounded by UNNOTIFIED_BATCH_LIMIT and served by the
         // error_events_unnotified_idx partial index (migration 0167) — a storm can no longer load
         // the whole table into the worker every 2 minutes.
-        const { data } = await serviceClient
-          .from('error_events')
-          .select('id, error_code, fn, context_id, org_id, created_at')
-          .is('notified_at', null)
-          .order('created_at', { ascending: true })
-          .limit(UNNOTIFIED_BATCH_LIMIT);
+        const data = orThrow(
+          await serviceClient
+            .from('error_events')
+            .select('id, error_code, fn, context_id, org_id, created_at')
+            .is('notified_at', null)
+            .order('created_at', { ascending: true })
+            .limit(UNNOTIFIED_BATCH_LIMIT),
+          'error_events',
+        );
         return (data ?? []) as ErrorEventRow[];
       },
       selectLastSentByKey: async (errorCodes) => {
         if (errorCodes.length === 0) return [];
-        const { data } = await serviceClient
-          .from('alert_send_log')
-          .select('org_id, error_code, last_sent_at, delivered_at')
-          .in('error_code', errorCodes);
+        const data = orThrow(
+          await serviceClient
+            .from('alert_send_log')
+            .select('org_id, error_code, last_sent_at, delivered_at')
+            .in('error_code', errorCodes),
+          'alert_send_log',
+        );
         return ((data ?? []) as {
           org_id: string | null;
           error_code: string;
@@ -127,11 +157,14 @@ export async function handleTelegramNotifyRequest(req: Request): Promise<Respons
         return await query;
       },
       readHeartbeat: async (job) => {
-        const { data } = await serviceClient
-          .from('ops_job_heartbeats')
-          .select('last_run_at, last_outbound_at')
-          .eq('job_name', job)
-          .maybeSingle();
+        const data = orThrow(
+          await serviceClient
+            .from('ops_job_heartbeats')
+            .select('last_run_at, last_outbound_at')
+            .eq('job_name', job)
+            .maybeSingle(),
+          'ops_job_heartbeats',
+        );
         const beat = data as { last_run_at: string; last_outbound_at: string | null } | null;
         return beat ? { lastRunAt: beat.last_run_at, lastOutboundAt: beat.last_outbound_at } : null;
       },
@@ -141,6 +174,8 @@ export async function handleTelegramNotifyRequest(req: Request): Promise<Respons
           { job_name: job, last_run_at: atIso, last_outbound_at: atIso },
           { onConflict: 'job_name' },
         ),
+      rollbackLivenessAhead: async (job, previousIso) =>
+        await serviceClient.from('ops_job_heartbeats').update({ last_outbound_at: previousIso }).eq('job_name', job),
       // I4: the unconditional run signal — called once at the end of every completed tick.
       writeHeartbeat: async (job, runAtIso, outboundAtIso, detail) => {
         const patch: Record<string, unknown> = { job_name: job, last_run_at: runAtIso, last_detail: detail };
@@ -149,7 +184,9 @@ export async function handleTelegramNotifyRequest(req: Request): Promise<Respons
       },
     });
 
-    await pingHeartbeat(heartbeatUrl);
+    // The external monitor means "the drain worked": no ping when it was skipped (secrets unset,
+    // lease held) or any alert failed to send/stamp. A thrown drain never reaches this line.
+    if (!drain.skipped && drain.sendFailures === 0 && drain.stampFailures === 0) await pingHeartbeat(heartbeatUrl);
     return new Response(JSON.stringify({ ok: true, ...drain }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -171,6 +208,19 @@ export async function handleTelegramNotifyRequest(req: Request): Promise<Respons
   }
 }
 
+/** job_run summary (#1532 S3): notifications sent; unset secrets or a failed send/stamp fail the run. */
+export function summarizeTelegramNotify(body: unknown): JobSummary | null {
+  const b = body as { sent?: number; skipped?: string; sendFailures?: number; stampFailures?: number } | null;
+  if (!b || typeof b.sent !== 'number') return null;
+  // 'lease-held' = another drain is running; not a failure.
+  const failedCode = b.skipped === 'secrets-unset'
+    ? 'SECRETS_UNSET'
+    : (b.sendFailures ?? 0) > 0 || (b.stampFailures ?? 0) > 0 ? 'SEND_FAILED' : undefined;
+  return { items: b.sent, ...(failedCode ? { failedCode } : {}) };
+}
+
+export const jobHandler = withJobRun('telegram-notify', handleTelegramNotifyRequest, { summarize: summarizeTelegramNotify });
+
 if (import.meta.main) {
-  serveWithErrorReporting('telegram-notify', handleTelegramNotifyRequest);
+  serveWithErrorReporting('telegram-notify', jobHandler);
 }

@@ -92,8 +92,7 @@ get "profiles?select=id,role&org_id=eq.$ORG" 5 "team list"
 
 # ── Project Manager ─────────────────────────────────────────────────────────────────────────────
 signin "Project Manager" "$PM_EMAIL" "$PM_PW" && {
-rpc transition_project "{\"p_id\":\"$LEAD\",\"p_to\":\"PQ Submitted\"}" "pipeline Leads→PQ"
-rpc transition_project "{\"p_id\":\"$PROJ\",\"p_to\":\"PQ Submitted\"}" "deal →PQ"
+rpc transition_project "{\"p_id\":\"$LEAD\",\"p_to\":\"Quotation Submitted\"}" "pipeline Leads→Quotation"
 rpc transition_project "{\"p_id\":\"$PROJ\",\"p_to\":\"Quotation Submitted\"}" "deal →Quotation"
 rpc transition_project "{\"p_id\":\"$PROJ\",\"p_to\":\"Won, Pending KoM\",\"p_customer_contract_ref\":\"$tag/PO\",\"p_contract_date\":\"2026-09-11\"}" "deal WON (PM wins what Admin valued)"
 rpc transition_project "{\"p_id\":\"$PROJ\",\"p_to\":\"Ongoing Project\"}" "deal →Ongoing"

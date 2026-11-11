@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within, waitFor, act } from '@testing-library/react';
+import { screen, fireEvent, within, waitFor, act } from '@testing-library/react';
+// Harness: the board now mounts DraggableSalesBoard (useQueryClient), so the page renders under a QueryClientProvider (#1637).
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -8,6 +10,10 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import { findPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 import { formatCurrency } from '@/src/lib/format';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import en from '@/public/locales/en/common.json';
+import id from '@/public/locales/id/common.json';
 
 const viewport = vi.hoisted(() => ({ isDesktop: true }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => viewport.isDesktop }));
@@ -21,12 +27,12 @@ const seedStages = [
   { status: 'Negotiation', count: 0, total_value: 0, win_probability: 0.75, weighted_value: 0 },
 ];
 const seedProjects = [
-  { id: 'p2', name: 'Northwind ERP Rollout', client_name: 'Northwind', pmo_project_number: 'PMO-26-7712', code: 'CLIENT-82', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', win_probability: 0.5 },
-  { id: 'p10', name: 'Regional Services', client_name: null, status: 'PQ Submitted', contract_value: 800000, currency: 'USD', win_probability: 0.25 },
+  { id: 'p2', name: 'Northwind ERP Rollout', short_name: null as string | null, client_name: 'Northwind', pmo_project_number: 'PMO-26-7712', code: 'CLIENT-82', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', go_probability: 0.5, get_probability: 0.25, win_probability: 0.125 },
+  { id: 'p10', name: 'Regional Services', short_name: null as string | null, client_name: null, status: 'PQ Submitted', contract_value: 800000, currency: 'USD', win_probability: 0.25 },
   // #530 / FR-L10N-020: mixed-currency pair for the table regression — each row shows its OWN
   // currency, not the USD org default (a single-currency fixture set could hide a hardcoded literal).
-  { id: 'idr1', name: 'IDR Deal', client_name: 'Garuda', status: 'Tender Submitted', contract_value: 1234, currency: 'IDR', win_probability: 0.5 },
-  { id: 'usd1', name: 'USD Deal', client_name: 'Acme Corp', status: 'Tender Submitted', contract_value: 9000, currency: 'USD', win_probability: 0.5 },
+  { id: 'idr1', name: 'IDR Deal', short_name: null as string | null, client_name: 'Garuda', status: 'Tender Submitted', contract_value: 1234, currency: 'IDR', win_probability: 0.5 },
+  { id: 'usd1', name: 'USD Deal', short_name: null as string | null, client_name: 'Acme Corp', status: 'Tender Submitted', contract_value: 9000, currency: 'USD', win_probability: 0.5 },
 ];
 
 const pipelineState: {
@@ -41,6 +47,11 @@ const lostState: { data: Array<Record<string, unknown>>; isPending: boolean; isE
   isPending: false,
   isError: false,
 };
+const wonState: { data: Array<Record<string, unknown>>; isPending: boolean; isError: boolean } = {
+  data: [],
+  isPending: false,
+  isError: false,
+};
 // FR-L10N-020: this component reads useOrgCurrency for its ACROSS-record aggregates. Pinned here
 // rather than left to a real query. ⚑ At LINE-START on purpose — inserted inside a neighbouring
 // vi.mock call it parses as a syntax error and hides every real error beneath it.
@@ -48,6 +59,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
+  useWonDeals: () => wonState,
   useDashboard: () => ({ data: undefined, isPending: false, isError: false }),
   useWinRate: () => ({ data: undefined, isPending: false, isError: false }),
 }));
@@ -102,6 +114,9 @@ beforeEach(() => {
   lostState.data = [];
   lostState.isPending = false;
   lostState.isError = false;
+  wonState.data = [];
+  wonState.isPending = false;
+  wonState.isError = false;
 });
 
 describe('SalesPipeline header + funnel (AC-SP-202)', () => {
@@ -124,6 +139,28 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
     expect(screen.getByRole('button', { name: /New project/i })).toBeInTheDocument();
     // the live Export outline button is kept.
     expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument();
+  });
+
+  it('AC-002 #1325: open pipeline cards and table search by both identities while disclosing the contractual title', async () => {
+    const contractualName = 'Contractual Regional Development Agreement';
+    const shortName = 'North Terminal';
+    pipelineState.data = {
+      stages: seedStages,
+      projects: [{ ...seedProjects[0], name: contractualName, short_name: shortName }],
+    };
+    renderPage();
+
+    const boardTitle = screen.getByText(shortName).closest('[title]');
+    expect(boardTitle).toHaveAttribute('title', contractualName);
+    const search = screen.getByRole('searchbox', { name: /search projects/i });
+    fireEvent.change(search, { target: { value: contractualName } });
+    expect(screen.getByText(shortName)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    expect(screen.getByText(shortName)).toBeInTheDocument();
+    fireEvent.change(search, { target: { value: shortName } });
+    expect(screen.getByText(shortName)).toBeInTheDocument();
+    expect(screen.queryByText('Regional Services')).not.toBeInTheDocument();
   });
 
   it('AC-CODE-003: searches pipeline deals by PMO Project Number and Client Project Code', async () => {
@@ -158,6 +195,24 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
 });
 
 describe('SalesPipeline phone stage list (AC-S24-001)', () => {
+  it('AC-1441: a phone user can switch to Won bids and open the project', async () => {
+    const user = userEvent.setup();
+    wonState.data = [
+      { id: 'won-phone-1', name: 'Won phone project', short_name: null, client_name: 'Acme', status: 'Close Out', contract_value: 400000, currency: 'USD', win_probability: 1 },
+    ];
+    viewport.isDesktop = false;
+    renderPage();
+
+    await user.click(screen.getByRole('tab', { name: /^Won$/i }));
+    await waitFor(() => {
+      expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '').get('scope')).toBe('Won');
+      expect(within(screen.getByTestId('sales-phone-stage-list')).getByText('Won phone project')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('combobox', { name: 'Pipeline stage' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Won phone project/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/projects/won-phone-1'));
+  });
+
   it('keeps the URL working set, selected stage, compact rows, and Lost scope aligned', async () => {
     const user = userEvent.setup();
     lostState.data = [
@@ -165,7 +220,7 @@ describe('SalesPipeline phone stage list (AC-S24-001)', () => {
       { id: 'declined-phone-1', name: 'Declined Deal Echo', client_name: 'Echo', status: 'Declined', contract_value: 300000, currency: 'USD', win_probability: 0 },
     ];
     viewport.isDesktop = false;
-    renderPage('/sales?view=kanban&status=Tender%20Submitted');
+    renderPage('/sales?view=table&scope=Open&status=Tender%20Submitted');
 
     const phoneList = screen.getByTestId('sales-phone-stage-list');
     const selection = screen.getByRole('combobox', { name: 'Pipeline stage' });
@@ -191,6 +246,92 @@ describe('SalesPipeline phone stage list (AC-S24-001)', () => {
     });
     expect(screen.getByText('Declined Deal Echo')).toBeInTheDocument();
     expect(screen.queryByText('Regional Services')).toBeNull();
+  });
+});
+
+// AC-S24-004 (moved down from the browser): the same synthetic pipeline in both locales. Light/dark
+// only changed paint, so it adds no behaviour to prove here.
+describe.each(['en', 'id'] as const)('SalesPipeline AC-S24-004 synthetic pipeline in %s', (locale) => {
+  const word = locale === 'id'
+    ? { stage: 'Tahap pipeline', search: 'Cari proyek', empty: 'Tidak ada proyek pada tahap ini', clear: 'Hapus filter', lost: /Kalah/, summary: /Ringkasan pipeline/i }
+    : { stage: 'Pipeline stage', search: 'Search projects', empty: 'No projects in this stage', clear: 'Clear filters', lost: /Lost/, summary: /Pipeline summary/i };
+  const stages = [
+    { status: 'Leads', count: 1, total_value: 1_250_000_000_000, win_probability: 0.1, weighted_value: 125_000_000_000 },
+    { status: 'PQ Submitted', count: 1, total_value: 800_000, win_probability: 0.25, weighted_value: 200_000 },
+    { status: 'Quotation Submitted', count: 1, total_value: 560_000, win_probability: 0.4, weighted_value: 224_000 },
+    { status: 'Tender Submitted', count: 1, total_value: 0, win_probability: 0.5, weighted_value: 0 },
+    { status: 'Negotiation', count: 1, total_value: 3_400_000, win_probability: 0.75, weighted_value: 2_550_000 },
+  ];
+  const open = [
+    { id: 'syn-1', name: 'Integrated maintenance planning for regional facilities and remote teams', short_name: null, client_name: 'PT Garuda Regional Infrastructure Services', status: 'Leads', contract_value: 1_250_000_000_000, currency: 'IDR', win_probability: 0.1 },
+    { id: 'syn-2', name: 'Regional Services Upgrade', short_name: null, client_name: 'Northwind Services', status: 'PQ Submitted', contract_value: 800_000, currency: 'USD', win_probability: 0.25 },
+    { id: 'syn-3', name: 'Quotation for Fleet Support', short_name: null, client_name: 'Meridian Transport', status: 'Quotation Submitted', contract_value: 560_000, currency: 'USD', win_probability: 0.4 },
+    { id: 'syn-4', name: 'Tender for Service Coverage', short_name: null, client_name: 'Atlas Contracting', status: 'Tender Submitted', contract_value: 0, currency: 'IDR', win_probability: 0.5 },
+    { id: 'syn-5', name: 'Negotiation for Network Maintenance', short_name: null, client_name: 'Horizon Network Group', status: 'Negotiation', contract_value: 3_400_000, currency: 'USD', win_probability: 0.75 },
+  ];
+
+  const renderLocalized = async (initialPath: string) => {
+    const i18n = i18next.createInstance();
+    await i18n.init({ lng: locale, fallbackLng: 'en', defaultNS: 'common', resources: { en: { common: en }, id: { common: id } } });
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <ImpersonationProvider realRole="Admin">
+          <MemoryRouter initialEntries={[initialPath]}>
+            <LocationProbe />
+            <ToastProvider>
+              <SalesPipeline />
+            </ToastProvider>
+          </MemoryRouter>
+        </ImpersonationProvider>
+      </I18nextProvider>,
+    );
+  };
+  const search = () => screen.getByTestId('location-probe').getAttribute('data-search');
+
+  it(`AC-S24-004: phone stage, search, and Lost recovery in ${locale}`, async () => {
+    const user = userEvent.setup();
+    pipelineState.data = { stages, projects: open } as never;
+    lostState.data = [
+      { id: 'syn-6', name: 'Synthetic Lost Coverage Contract', client_name: 'Example Lost Customer', status: 'Loss Tender', contract_value: 1_600_000, currency: 'USD', win_probability: 0 },
+      { id: 'syn-7', name: 'Synthetic Declined Service Bid', client_name: 'Example Declined Customer', status: 'Declined', contract_value: 0, currency: 'IDR', win_probability: 0 },
+    ];
+    viewport.isDesktop = false;
+    await renderLocalized('/sales?view=table&scope=Open');
+
+    const selector = screen.getByRole('combobox', { name: word.stage });
+    expect(screen.getAllByRole('combobox', { name: word.stage })).toHaveLength(1);
+    const list = () => screen.getByTestId('sales-phone-stage-list');
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(open.length);
+
+    await user.selectOptions(selector, 'Negotiation');
+    await waitFor(() => expect(search()).toMatch(/[?&]status=Negotiation/));
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(list()).getByText('Negotiation for Network Maintenance')).toBeInTheDocument();
+    expect(within(list()).queryByText(open[0].name)).toBeNull();
+
+    await user.type(screen.getByRole('searchbox', { name: word.search }), 'no synthetic match');
+    expect(await screen.findByText(word.empty)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: word.clear }));
+    await waitFor(() => expect(search()).toBe(''));
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(open.length + lostState.data.length);
+
+    await user.click(screen.getByRole('tab', { name: word.lost }));
+    await waitFor(() => expect(search()).toMatch(/[?&]scope=Lost/));
+    expect(search()).toMatch(/[?&]view=table/);
+    expect(await screen.findByText('Synthetic Lost Coverage Contract')).toBeInTheDocument();
+    expect(screen.getByText('Synthetic Declined Service Bid')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: word.stage })).toBeNull();
+  });
+
+  it(`AC-S24-004: desktop funnel and board in ${locale}`, async () => {
+    pipelineState.data = { stages, projects: open } as never;
+    viewport.isDesktop = true;
+    await renderLocalized('/sales?view=kanban');
+
+    expect(screen.getByRole('region', { name: word.summary })).toBeVisible();
+    expect(screen.getByTestId('stage-Leads')).toBeInTheDocument();
+    expect(screen.getByTestId('stage-Tender Submitted')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: word.stage })).toBeNull();
   });
 });
 
@@ -222,11 +363,41 @@ describe('SalesPipeline states (AC-SP-203)', () => {
 });
 
 describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', () => {
+  it('AC-1441: the Won terminal card is sourced and opens its canonical project route', async () => {
+    wonState.data = [
+      { id: 'won-route-1', name: 'Won project', short_name: null, client_name: 'Acme', status: 'Ongoing Project', contract_value: 400000, currency: 'USD', win_probability: 1 },
+    ];
+    renderPage();
+
+    const wonColumn = screen.getByTestId('stage-Won');
+    const card = within(wonColumn).getByText('Won project').closest('[role="button"]');
+    expect(card).not.toBeNull();
+    expect(within(wonColumn).getByText(formatCurrency(400_000, 'USD'))).toBeVisible();
+    await userEvent.click(card!);
+    await userEvent.click(await screen.findByRole('button', { name: 'Open deal' }));
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/projects/won-route-1'));
+  });
+
   it('AC-SP-204: defaults to the Kanban view with the Tender stage column and its card count', () => {
     renderPage();
     const tender = screen.getByTestId('stage-Tender Submitted');
     expect(within(tender).getByText('Northwind ERP Rollout')).toBeInTheDocument();
     expect(within(tender).getByText('3')).toBeInTheDocument();
+  });
+
+  it('AC-1441: selecting Won in the table clears an incompatible open-stage filter', async () => {
+    wonState.data = [
+      { id: 'won-filter-1', name: 'Won filter project', short_name: null, client_name: 'Acme', status: 'Ongoing Project', contract_value: 400000, currency: 'USD', win_probability: 1 },
+    ];
+    renderPage('/sales?view=table&status=Leads');
+
+    await userEvent.click(screen.getByRole('tab', { name: /^Won$/i }));
+    await waitFor(() => {
+      const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '');
+      expect(params.get('scope')).toBe('Won');
+      expect(params.get('status')).toBeNull();
+      expect(screen.getByText('Won filter project')).toBeInTheDocument();
+    });
   });
 
   it('AC-SP-206: the view toggle is a tablist with Board selected by default', () => {
@@ -279,6 +450,42 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
   });
 });
 
+describe('SalesPipeline All scope and result count', () => {
+  it('defaults to All, searches across open, won, and lost projects, and keeps Won scoped', async () => {
+    const user = userEvent.setup();
+    pipelineState.data = {
+      stages: seedStages,
+      projects: [{ ...seedProjects[0], id: 'open-1', name: 'Open project' }],
+    };
+    wonState.data = [
+      { id: 'won-1', name: 'Won project', short_name: null, client_name: 'Acme', status: 'Ongoing Project', contract_value: 400000, currency: 'USD', win_probability: 1 },
+    ];
+    lostState.data = [
+      { id: 'lost-1', name: 'Lost project', client_name: 'Initech', status: 'Loss Tender', contract_value: 300000, currency: 'USD', win_probability: 0 },
+    ];
+    renderPage('/sales?view=table');
+
+    expect(screen.getByRole('tab', { name: /^All$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Open project')).toBeInTheDocument();
+    expect(screen.getByText('Won project')).toBeInTheDocument();
+    expect(screen.getByText('Lost project')).toBeInTheDocument();
+    expect(screen.getByText('3 projects')).toBeInTheDocument();
+
+    const search = screen.getByRole('searchbox', { name: /search projects/i });
+    await user.type(search, 'Won project');
+    expect(screen.getByText('Showing 1 of 3 projects')).toBeInTheDocument();
+    expect(screen.queryByText('Open project')).not.toBeInTheDocument();
+    expect(screen.queryByText('Lost project')).not.toBeInTheDocument();
+
+    await user.clear(search);
+    await user.click(screen.getByRole('tab', { name: /^Won$/i }));
+    expect(screen.getByText('Won project')).toBeInTheDocument();
+    expect(screen.queryByText('Open project')).not.toBeInTheDocument();
+    expect(screen.queryByText('Lost project')).not.toBeInTheDocument();
+    expect(screen.getByText('1 project')).toBeInTheDocument();
+  });
+});
+
 describe('SalesPipeline drill-down (Model B canonical route)', () => {
   // Model B (ADR-0020): the deal's canonical detail route is /projects/:id (was /sales/:id).
   // Director ruling (2026-09-29): the destination stays canonical `/projects/p2` while the
@@ -286,6 +493,7 @@ describe('SalesPipeline drill-down (Model B canonical route)', () => {
   it('AC-IXD-PROJ-001 / AC-LRC-004: clicking a card navigates to the canonical /projects/:id detail route, carrying Sales return context', async () => {
     renderPage();
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('[role="button"]')!);
+    await userEvent.click(await screen.findByRole('button', { name: 'Open deal' }));
     const probe = screen.getByTestId('location-probe');
     await waitFor(() => expect(probe.dataset.pathname).toBe('/projects/p2'));
     const state = JSON.parse(probe.dataset.state ?? 'null') as Record<string, unknown>;
@@ -296,6 +504,7 @@ describe('SalesPipeline drill-down (Model B canonical route)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('tr')!);
+    await userEvent.click(await screen.findByRole('button', { name: 'Open deal' }));
     const probe = screen.getByTestId('location-probe');
     await waitFor(() => expect(probe.dataset.pathname).toBe('/projects/p2'));
     const state = JSON.parse(probe.dataset.state ?? 'null') as Record<string, unknown>;
@@ -334,11 +543,10 @@ describe('SalesPipeline list working set — AC-LRC-001/002', () => {
 });
 
 // #682 Director ruling (2026-09-29): the Board is the open pipeline by stage and has no scope.
-// Switching Table → Board resets scope to Open in the working set's single write, so the URL no
-// longer carries an inert `scope`; a direct/copied board URL with a stale scope parses to Open
-// the same way. Switching back to Table then shows Open, never the scope that was active before.
+// Switching Table → Board drops any table scope; a direct/copied board URL with a stale scope
+// parses to the All default. Switching back to Table then shows All, never the old scope.
 describe('SalesPipeline Board has no scope (#682 Director ruling)', () => {
-  it('switching Table (Lost) → Board resets scope to Open and drops it from the URL; switching back to Table shows Open', async () => {
+  it('switching Table (Lost) → Board drops scope from the URL; switching back to Table shows All', async () => {
     lostState.data = [
       { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
     ];
@@ -355,11 +563,11 @@ describe('SalesPipeline Board has no scope (#682 Director ruling)', () => {
     expect(new URLSearchParams(probe.dataset.search).get('scope')).toBeNull();
 
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
+    expect(screen.getByRole('tab', { name: /^All$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
   });
 
-  it('a direct/copied `?view=kanban&scope=Lost` URL parses to Open scope (Board renders; Table then shows Open)', async () => {
+  it('a direct/copied `?view=kanban&scope=Lost` URL parses to All scope (Board renders; Table then shows All)', async () => {
     lostState.data = [
       { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
     ];
@@ -370,9 +578,9 @@ describe('SalesPipeline Board has no scope (#682 Director ruling)', () => {
     expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /^All$/i })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
-    expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
   });
 });
 
@@ -390,9 +598,9 @@ describe('SalesPipeline — Lost deals in the Pipeline (AC-IXD-PROJ-007)', () =>
     lostState.data = [
       { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
     ];
-    renderPage();
+    renderPage('/sales?view=table&scope=Open');
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    // default Open scope: the open deal shows, the lost deal does not
+    // Explicit Open scope: the open deal shows, the lost deal does not.
     expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
     expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
     // switch to the Lost scope: the lost deal shows, the open deal does not
@@ -420,7 +628,7 @@ describe('SalesPipeline table zero-match', () => {
     expect(screen.queryByText(/No lost projects/i)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /^All$/i })).toHaveAttribute('aria-selected', 'true');
   });
 });
 
@@ -467,10 +675,9 @@ describe('SalesPipeline Board stage selection (#697)', () => {
     // The selected column carries a visible mark; the others do not.
     expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
     expect(screen.getByTestId('stage-Leads').querySelector('[data-selected="true"]')).toBeNull();
-    // Not colour-only: the selected column is announced (aria-current) and carries a ring cue.
+    // Not colour-only: the selected column is announced (aria-current).
     const selectedColumn = screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]');
     expect(selectedColumn).toHaveAttribute('aria-current', 'true');
-    expect(selectedColumn).toHaveClass('ring-2');
     expect(screen.getByTestId('stage-Leads').querySelector('[aria-current="true"]')).toBeNull();
   });
 
@@ -510,8 +717,8 @@ it.each(['table', 'kanban'])('AC-TAG-002 Sales %s filters the actual visible dea
   expect(screen.queryByText('Regional Services')).toBeNull();
   await user.type(screen.getByLabelText('Filter by location'), 'Bali');
   // #830: the location filter writes the URL after a short pause, not on every keystroke.
-  await waitFor(() => expect(screen.queryByText('Northwind ERP Rollout')).toBeNull());
-  expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('location=Bali');
+  await waitFor(() => expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('location=Bali'));
+  expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
   if (view === 'kanban') expect(screen.getByText('No projects match these classifications')).toBeVisible();
 });
 
@@ -663,7 +870,7 @@ describe('SalesPipeline subtraction (SUB-H)', () => {
     expect(r.queryByText(/11%/)).toBeNull();
   });
 
-  it('SUB-H phone: no Board/Table toggle, no Export, no per-card details disclosure, win % beside the value', () => {
+  it('SUB-H phone: no Board/Table toggle, no Export, no per-card details disclosure, Go/Get beside the value', () => {
     viewport.isDesktop = false;
     renderPage('/sales?view=kanban');
     expect(screen.queryByRole('tablist', { name: /Pipeline view/i })).toBeNull();
@@ -671,7 +878,8 @@ describe('SalesPipeline subtraction (SUB-H)', () => {
     const list = screen.getByTestId('sales-phone-stage-list');
     expect(within(list).queryByText('Financial and project details')).toBeNull();
     const card = within(list).getByText('Northwind ERP Rollout').closest('li')!;
-    expect(within(card as HTMLElement).getByText('50%')).toBeVisible();
+    expect(within(card as HTMLElement).getByLabelText('% Go 50%')).toBeVisible();
+    expect(within(card as HTMLElement).getByLabelText('% Get 25%')).toBeVisible();
   });
 
   it('SUB-H phone: a table-view URL still shows the card list (no toggle to get stuck behind)', () => {
@@ -740,12 +948,12 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
     expect(within(tenderRow).getByText('Tender')).toBeInTheDocument();
   });
 
-  it('AC-RD-SALES-001 funnel bars are neutral except the selected stage', () => {
+  it('AC-RD-SALES-001 funnel bars use the primary channel for the single series', () => {
     pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD') };
     renderPage('/sales?status=Tender%20Submitted');
     const funnel = screen.getByLabelText('Pipeline summary');
     const fills = Array.from(funnel.querySelectorAll('[data-funnel-stage-bar]')).map((b) => (b.firstElementChild as HTMLElement).style.background);
-    expect(fills.filter((f) => f === 'hsl(var(--primary))')).toHaveLength(1);
+    expect(fills.every((f) => f === 'hsl(var(--primary))')).toBe(true);
   });
 });
 

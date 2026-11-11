@@ -1,12 +1,14 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { FinanceI18nTestProvider } from '../__tests__/financeI18nTestProvider';
-import { financeTestI18n, financeTestI18nReady } from '../__tests__/financeI18nTestInstance';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
 const state = vi.hoisted(() => ({
   detail: { isLoading: false, isError: false, data: null as unknown, refetch: vi.fn() },
   contexts: {} as Record<string, { state: 'ready' | 'pending' | 'unavailable'; caseTitle?: string; projectName?: string; pmoProjectNumber?: string }>,
+  orgTimezone: 'UTC',
   correct: vi.fn(), voidSlip: vi.fn(),
 }));
 vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
@@ -15,6 +17,7 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ correct: { mutateAsync: state.correct, isPending: false }, void: { mutateAsync: state.voidSlip, isPending: false } }),
 }));
 vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => <div>Slip change history</div> }));
+vi.mock('@/src/hooks/useResolvedLocale', () => ({ useOrgBusinessTimezone: () => state.orgTimezone }));
 
 import { VendorWithholdingSlipDetails } from './VendorWithholdingSlipDetails';
 
@@ -32,6 +35,11 @@ beforeEach(() => {
   state.correct.mockReset(); state.correct.mockResolvedValue({ slipId: 'slip-1', revision: 8 });
   state.voidSlip.mockReset(); state.voidSlip.mockResolvedValue({ slipId: 'slip-1', revision: 8 });
 });
+afterEach(() => {
+  vi.useRealTimers();
+  state.orgTimezone = 'UTC';
+  resetActiveLocale();
+});
 
 describe('AC-BUPOT-018 withholding-slip details', () => {
   it.each(['en', 'id'] as const)('AC-UXT-004 renders linked-bill identity and preserves its case/slip destination in %s', async (locale) => {
@@ -47,11 +55,11 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     };
     const onOpenProcurement = vi.fn();
     render(<FinanceI18nTestProvider><VendorWithholdingSlipDetails slipId="slip-1" canWrite={false} onClose={vi.fn()} onOpenProcurement={onOpenProcurement} /></FinanceI18nTestProvider>);
-    expect(screen.getByText(locale === 'en' ? 'Vendor invoice reference: SUP-INV-002' : 'Referensi faktur vendor: SUP-INV-002')).toBeInTheDocument();
-    expect(screen.getByText(locale === 'en' ? 'System VI number: VI-002' : 'Nomor VI sistem: VI-002')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference: SUP-INV-002' : 'Referensi faktur pemasok: SUP-INV-002')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice no. (accounting): VI-002' : 'No. faktur pemasok (akuntansi): VI-002')).toBeInTheDocument();
     expect(document.body).toHaveTextContent(locale === 'en' ? 'Case: Case two' : 'Kasus: Case two');
     expect(document.body).toHaveTextContent('Harbor works');
-    expect(screen.getByText(locale === 'en' ? 'Vendor invoice reference not recorded' : 'Referensi faktur vendor belum dicatat')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi faktur pemasok belum dicatat')).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'Case: Details unavailable' : 'Kasus: Detail tidak tersedia')).toBeInTheDocument();
     const open = screen.getByRole('button', { name: /SUP-INV-002.*VI-002.*Case two/ });
     fireEvent.click(open);
@@ -71,7 +79,7 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     expect(screen.queryAllByText(/^(needs-review|reconciled|active|void|pph23)$/i, { selector: 'dd' })).toHaveLength(0);
     if (overrides.status === 'active') expect(screen.getByText('Active')).toBeInTheDocument();
     expect(screen.getAllByText(/IDR.?20,000\.00/)).toHaveLength(2);
-    expect(screen.getByText('System VI number: VI-002')).toBeInTheDocument();
+    expect(screen.getByText('Supplier invoice no. (accounting): VI-002')).toBeInTheDocument();
     expect(screen.getByText('Slip change history')).toBeInTheDocument();
     if (overrides.status === 'void') expect(screen.getByText(/Duplicate entry/)).toBeInTheDocument();
     if (overrides.validation_state === 'needs-review') { expect(screen.getByText('Needs review')).toBeInTheDocument(); expect(screen.getByText(/Verify the source/)).toBeInTheDocument(); }
@@ -196,6 +204,21 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     expect(screen.getByText('Choose a tax month no later than the current month.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(state.correct).not.toHaveBeenCalled();
+  });
+
+  it('AC-BUPOT-018 bounds correction dates and months to the organization day across the month boundary', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-07-01T00:30:00.000Z'));
+    state.orgTimezone = 'America/Los_Angeles';
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Tokyo' });
+    renderPanel();
+    fireEvent.click(screen.getByRole('button', { name: 'Correct metadata' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Correct metadata' });
+    const dateInput = dialog.querySelector('input[type="date"]')!;
+    const monthInput = dialog.querySelector('input[type="month"]')!;
+    expect(dateInput).toHaveAttribute('max', '2026-06-30');
+    expect(monthInput).toHaveAttribute('max', '2026-06');
   });
 
   it('requires confirmation and a reason before voiding; copy does not claim the tax-office document is cancelled', async () => {

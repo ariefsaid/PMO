@@ -31,7 +31,8 @@ const profile = () =>
     return jsonResponse({ org_id: 'org-test' }, { headers: objectHeaders });
   });
 const actor = (role: string) => supabaseRpc('actor_authorization_state', (call) => {
-  assertEquals(call.headers.get('authorization')?.startsWith('Bearer ey'), true);
+  // AC-CLI-B3: service client, not the caller's token — the API-client guard refuses this RPC for a user token.
+  assertEquals(call.headers.get('authorization'), `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`);
   assertEquals(call.bodyJson, { p_org_id: 'org-test', p_user_id: 'user-test' });
   return jsonResponse({ role, active: true });
 });
@@ -50,6 +51,13 @@ const binding = (status = 'active', config: Record<string, unknown> = { company:
       { headers: objectHeaders },
     );
   });
+const ownership = (domain: 'revenue' | 'procurement', tier: 'erpnext' | 'odoo') =>
+  supabaseSelect('external_domain_ownership', (call) => {
+    assertEquals(call.url.searchParams.get('org_id'), 'eq.org-test');
+    assertEquals(call.url.searchParams.get('domain'), `eq.${domain}`);
+    assertEquals(call.url.searchParams.get('external_tier'), 'in.(erpnext,odoo)');
+    return jsonResponse({ external_tier: tier }, { headers: objectHeaders });
+  });
 async function request(body: unknown = { purpose: 'sales' }) {
   return createAuthedRequest(
     'http://edge.test/items',
@@ -59,10 +67,72 @@ async function request(body: unknown = { purpose: 'sales' }) {
 }
 
 describe('external-items shipped handler', () => {
+  it('reads enabled Odoo sales products from the owned company catalogue', async () => {
+    await withFetchMock(
+      [
+        profile(),
+        ownership('revenue', 'odoo'),
+        supabaseSelect('external_org_bindings', (call) => {
+          assertEquals(call.url.searchParams.get('org_id'), 'eq.org-test');
+          assertEquals(call.url.searchParams.get('external_tier'), 'eq.odoo');
+          return jsonResponse({
+            secret_ref: 'test-ref',
+            site_url: 'https://odoo.example.com',
+            status: 'active',
+            activated_at: '2026-10-05',
+            config: { odoo_company_id: 45, database: 'odoo_test' },
+          }, { headers: objectHeaders });
+        }),
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-api-key')),
+        {
+          label: 'odoo-product-catalogue',
+          method: 'POST',
+          host: 'odoo.example.com',
+          pathname: '/json/2/product.product/search_read',
+          response: (call) => {
+            assertEquals(call.headers.get('authorization'), 'bearer test-api-key');
+            assertEquals(call.headers.get('x-odoo-database'), 'odoo_test');
+            assertEquals(call.bodyJson, {
+              domain: [
+                ['active', '=', true],
+                ['sale_ok', '=', true],
+                ['company_id', 'in', [45, false]],
+              ],
+              fields: ['default_code', 'name', 'active', 'sale_ok', 'company_id'],
+              offset: 0,
+              limit: 200,
+              order: 'default_code asc',
+              context: { allowed_company_ids: [45], company_id: 45 },
+            });
+            return jsonResponse([
+              { id: 61, default_code: 'SVC-100', name: 'Implementation services', active: true, sale_ok: true, company_id: [45, 'Company'] },
+              { id: 62, default_code: 'DISABLED', name: 'Disabled service', active: false, sale_ok: true, company_id: [45, 'Company'] },
+              { id: 63, default_code: 'PURCHASE', name: 'Purchase only', active: true, sale_ok: false, company_id: [45, 'Company'] },
+              { id: 64, default_code: 'OTHER-COMPANY', name: 'Other company', active: true, sale_ok: true, company_id: [46, 'Other'] },
+              { id: 65, default_code: 'SHARED', name: 'Shared service', active: true, sale_ok: true, company_id: false },
+              { id: 66, default_code: false, name: 'Uncoded service', active: true, sale_ok: true, company_id: false },
+            ]);
+          },
+        },
+      ],
+      async () => {
+        const response = await handleItemsRequest(await request({ purpose: 'sales' }));
+        assertEquals(response.status, 200);
+        assertEquals(await response.json(), {
+          items: [
+            { code: 'SVC-100', name: 'Implementation services' },
+            { code: 'SHARED', name: 'Shared service' },
+          ],
+        });
+      },
+    );
+  });
+
   it('AC-ITM-001 reads enabled ERP sales items using only the verified caller org', async () => {
     await withFetchMock(
       [
         profile(),
+        ownership('revenue', 'erpnext'),
         binding(),
         supabaseRpc('read_vault_secret', () => jsonResponse('test:test')),
         erp('erp.example.com', '/api/resource/Item', (call) => {
@@ -125,6 +195,7 @@ describe('external-items shipped handler', () => {
     await withFetchMock(
       [
         profile(),
+        ownership('procurement', 'erpnext'),
         binding(),
         supabaseRpc('read_vault_secret', () => jsonResponse('test:test')),
         erp('erp.example.com', '/api/resource/Item', (call) => {
@@ -171,7 +242,7 @@ describe('external-items shipped handler', () => {
   });
 
   it('refuses inactive binding and invalid purpose without ERP reads', async () => {
-    await withFetchMock([profile(), binding('disconnected')], async ({ calls }) => {
+    await withFetchMock([profile(), ownership('revenue', 'erpnext'), binding('disconnected')], async ({ calls }) => {
       assertEquals((await handleItemsRequest(await request())).status, 422);
       assertEquals(calls.filter((c) => c.url.host === 'erp.example.com').length, 0);
     });
@@ -209,6 +280,27 @@ describe('external-items shipped handler', () => {
     );
   });
 
+  it('pages the account mirror past the 1000-row response cap and fails the whole read when a later page fails', async () => {
+    const row = (i: number) => ({
+      erp_name: `A${i}`, account_name: `A${i}`, account_number: String(i), parent_account: null,
+      root_type: 'Expense', is_group: false, disabled: false,
+    });
+    const mirror = (failSecond: boolean) =>
+      supabaseSelect('erp_account_mirror', (call) => {
+        const offset = Number(call.url.searchParams.get('offset') ?? 0);
+        if (offset === 0) return jsonResponse(Array.from({ length: 1000 }, (_, i) => row(i)));
+        return failSecond ? jsonResponse({ message: 'boom' }, { status: 500 }) : jsonResponse([row(1000), row(1001)]);
+      });
+    await withFetchMock([profile(), actor('Admin'), binding(), mirror(false)], async () => {
+      const response = await handleItemsRequest(await request({ purpose: 'budget-accounts' }));
+      assertEquals(response.status, 200);
+      assertEquals((await response.json()).accounts.length, 1002);
+    });
+    await withFetchMock([profile(), actor('Admin'), binding(), mirror(true)], async () => {
+      const response = await handleItemsRequest(await request({ purpose: 'budget-accounts' }));
+      assertEquals(response.status, 502);
+    });
+  });
   it('AC-UX-076 falls back to the live company chart only when the account mirror is empty', async () => {
     await withFetchMock(
       [
@@ -335,6 +427,7 @@ describe('external-items — host guard (#751)', () => {
   const HOST = 'rebind.erp.test';
   const routes = () => [
     profile(),
+    ownership('revenue', 'erpnext'),
     supabaseSelect('external_org_bindings', (call) => {
       assertEquals(call.url.searchParams.get('org_id'), 'eq.org-test');
       assertEquals(call.url.searchParams.get('external_tier'), 'eq.erpnext');

@@ -7,6 +7,16 @@ import { Button } from './Button';
 import { FormActions } from './FormFields';
 import { ConfirmDialog } from './ConfirmDialog';
 import { acquireBackgroundInert } from './backgroundInert';
+import { useExitPresence } from './useExitPresence';
+import {
+  overlayBackdropClassName,
+  overlayBackdropStyle,
+  overlayBodyClassName,
+  overlayDesktopContainerClassName,
+  overlayDefaultDesktopWidthClassName,
+  overlayFooterClassName,
+  overlayHeaderClassName,
+} from './OverlaySurface';
 
 // ---------------------------------------------------------------------------
 // EntityFormModal — the create / focused-edit composite (crud-components §2.2).
@@ -15,8 +25,8 @@ import { acquireBackgroundInert } from './backgroundInert';
 // sticky FormActions footer, and a post-submit error summary that moves focus to
 // the first invalid field. Confirms before discarding a dirty form.
 //
-// Token-pure: white `popover` surface, 1px `border`, `rounded-lg`, the verbatim
-// *Overlay* shadow, the desaturated near-black scrim (No-Pure-Black-Shadow).
+// Token-pure: `popover` surface, 1px `border`, shared overlay radius, and the
+// theme-aware scrim role.
 //
 // a11y: `role="dialog"` + `aria-modal` + `aria-labelledby`/`aria-describedby`;
 // focus moves in on open, restores to the trigger on close; Esc + scrim close
@@ -63,11 +73,15 @@ export interface EntityFormModalProps {
   /** Footer primary label, e.g. "Create deal". */
   submitLabel: string;
   cancelLabel?: string;
+  /** Read-only dialog: only the footer submit (labelled Close/Done) dismisses. */
+  hideCancel?: boolean;
   /** Native form submit handler — call preventDefault + run your mutation. */
   onSubmit: (e: React.FormEvent) => void;
   onClose: () => void;
   /** Disable the submit (e.g. while the form is invalid). */
   submitDisabled?: boolean;
+  /** Drop the primary submit from the footer (Cancel/Done only). */
+  hideSubmit?: boolean;
   /**
    * The screen-reader reason a disabled submit is described by. Defaults to the required-fields hint;
    * pass your own when the submit is disabled for another reason (e.g. an invalid value).
@@ -98,7 +112,7 @@ export interface EntityFormModalProps {
    * identical object reference is treated as "nothing new happened".
    */
   submitError?: SubmitError | null;
-  /** Max-width preset: 'sm' single-entity (520px) | 'lg' with line-items (640px). */
+  /** Max-width preset: 'sm' single-entity (--drawer-width) | 'lg' with line-items (640px). */
   width?: 'sm' | 'lg';
   children: React.ReactNode;
 }
@@ -109,9 +123,11 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   subtitle,
   submitLabel,
   cancelLabel,
+  hideCancel,
   onSubmit,
   onClose,
   submitDisabled,
+  hideSubmit,
   disabledReason,
   discardCopy,
   loading = false,
@@ -122,6 +138,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   children,
 }) => {
   const { t } = useTranslation();
+  const { mounted, closing } = useExitPresence(open, '--motion-dialog-out');
   const titleId = useId();
   const subId = useId();
   const summaryId = useId();
@@ -274,7 +291,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
     }
   }, [confirmDiscard]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   return createPortal(
     <>
@@ -282,8 +299,10 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
         <div
           data-testid="entity-modal-scrim"
           aria-hidden
+          data-closing={closing || undefined}
           onClick={requestClose}
-          className="confirm-scrim-anim absolute inset-0 bg-foreground/40"
+          className={overlayBackdropClassName}
+          style={overlayBackdropStyle}
         />
         <div
           ref={dialogRef}
@@ -295,23 +314,23 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
           onKeyDown={onTrapKeyDown}
           // While the discard ConfirmDialog is open it owns focus + AT; make the
           // form dialog inert so the background can't be tabbed into or read.
-          inert={confirmDiscard || undefined}
-          aria-hidden={confirmDiscard || undefined}
+          inert={confirmDiscard || closing || undefined}
+          aria-hidden={confirmDiscard || closing || undefined}
+          data-closing={closing || undefined}
           className={cn(
-            'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] flex-col rounded-lg border border-border bg-popover',
-            'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
-            'origin-center motion-reduce:animate-none',
-            width === 'lg' ? 'max-w-[640px]' : 'max-w-[520px]',
+            overlayDesktopContainerClassName,
+            'flex max-h-[85dvh] flex-col',
+            width === 'lg' ? 'max-w-[640px]' : overlayDefaultDesktopWidthClassName,
           )}
         >
           {/* Header */}
-          <div className="flex items-center gap-2.5 border-b border-border px-[18px] py-4">
+          <div className={overlayHeaderClassName}>
             <div className="min-w-0 flex-1">
-              <h2 id={titleId} className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground">
+              <h2 id={titleId} className="text-control font-semibold text-popover-foreground">
                 {title}
               </h2>
               {subtitle && (
-                <p id={subId} className="mt-px text-[12.5px] text-muted-foreground">
+                <p id={subId} className="mt-1 text-support text-muted-foreground">
                   {subtitle}
                 </p>
               )}
@@ -329,7 +348,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
 
           {/* Body (the form) */}
           <form onSubmit={handleFormSubmit} className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-4">
+            <div className={cn('min-h-0 flex-1 overflow-y-auto', overlayBodyClassName)}>
               {visibleSaveError && (
                 <div
                   ref={saveErrorRef}
@@ -343,17 +362,17 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                 >
                   <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" />
                   <div className="min-w-0">
-                    <div className="text-[13px] font-semibold text-destructive-text">
+                    <div className="text-control font-semibold text-destructive-text">
                       {visibleSaveError.headline}
                     </div>
                     {visibleSaveError.detail && (
-                      <p className="text-[12.5px] text-muted-foreground">{visibleSaveError.detail}</p>
+                      <p className="text-support text-muted-foreground">{visibleSaveError.detail}</p>
                     )}
                     {visibleSaveError.action && (
-                      <p className="text-[12.5px]">{visibleSaveError.action}</p>
+                      <p className="text-support">{visibleSaveError.action}</p>
                     )}
-                    <p className="text-[12.5px] text-muted-foreground">
-                      {t('entityForm.nothingSaved', 'Nothing was saved — your entries are still here.')}
+                    <p className="text-support text-muted-foreground">
+                      {t('entityForm.nothingSaved', 'Nothing was saved: your entries are still here.')}
                     </p>
                   </div>
                 </div>
@@ -367,7 +386,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                 >
                   <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" />
                   <div className="min-w-0">
-                    <div className="text-[13px] font-semibold text-destructive-text">
+                    <div className="text-control font-semibold text-destructive-text">
                       {t('entityForm.fixFields', 'Fix {{count}} fields before saving', { count: errorSummary!.length })}
                     </div>
                     {errorSummary!.map((item) => (
@@ -378,7 +397,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                           e.preventDefault();
                           document.getElementById(item.fieldId)?.focus();
                         }}
-                        className="block min-h-6 py-1 text-[12.5px] text-destructive-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-6 [@media(pointer:coarse)]:min-h-11"
+                        className="block min-h-6 py-1 text-support text-destructive-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-6 [@media(pointer:coarse)]:min-h-11"
                       >
                         {item.message}
                       </a>
@@ -390,8 +409,8 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
             </div>
 
             {/* Sticky footer */}
-            <div className="border-t border-border px-[18px] py-3.5">
-              {submitDisabled && (
+            <div className={overlayFooterClassName}>
+              {submitDisabled && !hideSubmit && (
                 <span id={disabledReasonId} className="sr-only">
                   {disabledReason ?? t('entityForm.completeRequired', 'Complete all required fields (marked with an asterisk) to save.')}
                 </span>
@@ -399,8 +418,10 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
               <FormActions
                 submitLabel={submitLabel}
                 cancelLabel={cancelLabel ?? t('entityForm.cancel', 'Cancel')}
+                hideCancel={hideCancel}
                 onCancel={requestClose}
                 disabled={submitDisabled}
+                hideSubmit={hideSubmit}
                 loading={loading}
                 submitDescribedBy={disabledReasonId}
               />

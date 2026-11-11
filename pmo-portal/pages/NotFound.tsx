@@ -19,9 +19,7 @@ const NotFound: React.FC = () => (
       'flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-card px-6 py-14 text-center',
     )}
   >
-    <span className="grid size-[52px] place-items-center rounded-[14px] bg-secondary text-muted-foreground">
-      <Icon name="alert" className="size-6" strokeWidth={1.75} />
-    </span>
+    <Icon name="alert" aria-hidden className="size-6 text-muted-foreground" strokeWidth={1.75} />
     <div className="text-[15px] font-semibold">Page not found</div>
     <div className="max-w-[44ch] text-[13px] text-muted-foreground">
       The page you're looking for doesn't exist or has been moved.

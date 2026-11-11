@@ -34,13 +34,11 @@ export interface AwaitingApprovalTileProps {
   includeTimesheets: boolean;
   /** Label override (default "Awaiting your approval"). */
   label?: string;
-  testId?: string;
 }
 
 export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   includeTimesheets,
   label,
-  testId = 'kpi-awaiting-approval',
 }) => {
   const { t } = useTranslation();
   const resolvedLabel = label ?? t('dashboard.kpi.awaitingApproval.label', 'Awaiting your approval');
@@ -48,7 +46,7 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   const { realRole } = useEffectiveRole();
   const selfId = currentUser?.id;
 
-  const { data: procurements, isPending: procPending, isError: procError } = useProcurements();
+  const { data: procurements, isPending: procPending, isError: procError } = useProcurements({ status: 'Requested' });
   const { data: timesheets, isPending: tsPending, isError: tsError } = useTimesheetsAwaitingApproval();
   // Loading until BOTH contributing queries settle, else the tile briefly shows a
   // procurement-only count as if final (review #4).
@@ -72,7 +70,7 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   if (!loading && !hasError && total === 0) return null;
 
   const vs = hasError
-    ? t('dashboard.kpi.awaitingApproval.unavailable', 'unavailable — check connection')
+    ? t('dashboard.kpi.awaitingApproval.unavailable', 'unavailable: check connection')
     : total === 1
         ? t('dashboard.kpi.awaitingApproval.one', '{{count}} item waiting', { count: total })
         : t('dashboard.kpi.awaitingApproval.many', '{{count}} items waiting', { count: total });
@@ -85,7 +83,7 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
 
   return (
     <KPITile
-      testId={testId}
+      testId="kpi-awaiting-approval"
       tone={hasError ? 'red' : 'amber'}
       icon="check"
       label={resolvedLabel}

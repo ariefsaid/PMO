@@ -1,5 +1,8 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset, mapBounded } from '@/src/lib/pagedRead';
+
+const SHEET_CHUNK = 100;
 
 /**
  * The Approved-only gate read (P3b, FR-TSP-010/011) — a typed wrapper over
@@ -38,7 +41,10 @@ export async function approvedTimesheetForPush(timesheetId: string): Promise<App
 
 /**
  * The push-state operator surface (P3b, FR-TSP-085/173) — a typed read of the sheet's
- * `timesheet_erp_mirror` row (migration 0136). `null` when NO mirror row exists (an org that hasn't
+ * `timesheet_erp_mirror` row (migration 0136). Direction and ownership (docs/GLOSSARY.md
+ * "Read-model"): the timesheet stays PMO-authoritative even after approval; the mirror row
+ * tracks the EXTERNAL side (where the pushed sheet stands in ERPNext), never the reverse.
+ * `null` when NO mirror row exists (an org that hasn't
  * flipped `timesheets`, or a sheet that hasn't reached the push path yet) — a NORMAL state, never an
  * error. The badge that consumes this must render nothing on `null`, never a blocked/error page
  * (FR-TSP-173: the ERP badge is supplementary; its absence can never gate the page's render).
@@ -77,22 +83,32 @@ export interface PushNeedingAttention {
 }
 
 export async function listPushesNeedingAttention(): Promise<PushNeedingAttention[]> {
-  const { data: mirrors, error: mirrorError } = await supabase
-    .from('timesheet_erp_mirror')
-    .select('timesheet_id, push_state, push_error, ts_number')
-    .in('push_state', ['failed', 'held']);
-  if (mirrorError) throw new AppError(mirrorError.message, mirrorError.code);
-  const mirrorRows = mirrors ?? [];
+  // Complete keyset scan (db-max-rows would otherwise hide failed pushes past the cap).
+  const mirrorRows = await fetchAllRowsByKeyset(async (afterId, limit) => {
+    let q = supabase
+      .from('timesheet_erp_mirror')
+      .select('id, timesheet_id, push_state, push_error, ts_number')
+      .in('push_state', ['failed', 'held'])
+      .order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit);
+  });
   if (mirrorRows.length === 0) return [];
 
+  // Chunked so neither the `in` list nor the response can pass a request/row cap.
   const timesheetIds = mirrorRows.map((m) => m.timesheet_id);
-  const { data: sheets, error: sheetsError } = await supabase
-    .from('timesheets')
-    .select('id, week_start_date, approved_by, owner:profiles!timesheets_user_id_fkey(full_name)')
-    .in('id', timesheetIds);
-  if (sheetsError) throw new AppError(sheetsError.message, sheetsError.code);
+  const chunks: string[][] = [];
+  for (let i = 0; i < timesheetIds.length; i += SHEET_CHUNK) chunks.push(timesheetIds.slice(i, i + SHEET_CHUNK));
+  const pages = await mapBounded(chunks, 4, async (ids) => {
+    const { data, error } = await supabase
+      .from('timesheets')
+      .select('id, week_start_date, approved_by, owner:profiles!timesheets_user_id_fkey(full_name)')
+      .in('id', ids);
+    if (error) throw new AppError(error.message, error.code);
+    return data ?? [];
+  });
 
-  const byId = new Map((sheets ?? []).map((s) => [s.id, s]));
+  const byId = new Map(pages.flat().map((s) => [s.id, s]));
   return mirrorRows.map((m) => {
     const sheet = byId.get(m.timesheet_id);
     const owner = sheet?.owner as { full_name?: string } | null | undefined;

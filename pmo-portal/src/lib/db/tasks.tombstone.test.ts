@@ -30,6 +30,7 @@ const h = vi.hoisted(() => {
   builder.eq = chain('eq');
   builder.is = chain('is');
   builder.order = chain('order');
+  builder.range = () => builder;
   builder.maybeSingle = chain('maybeSingle');
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((table: string) => {

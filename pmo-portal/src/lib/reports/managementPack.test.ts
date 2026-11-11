@@ -21,6 +21,12 @@ function facts(over: Partial<ManagementPackFacts> = {}): ManagementPackFacts {
 }
 
 describe('AC-MMP-006 planned revenue (DD-MMP-2)', () => {
+  it('AC-003 #1325: report rows keep the contractual name when a display alias exists', () => {
+    const aliasProject = { ...P1, short_name: 'North Terminal' };
+    const row = buildManagementPack(facts({ projects: [aliasProject] })).rows[0];
+    expect(row.projectName).toBe('Alpha');
+    expect(row.projectName).not.toBe('North Terminal');
+  });
   it('AC-MMP-006: spreads the net contract straight-line by calendar day', () => {
     const months = ['2026-01-01', '2026-02-01', '2026-03-01', '2026-04-01'];
     expect(months.map((m) => plannedForMonth(c(1_200_000), '2026-01-01', '2026-04-30', m)))
@@ -84,11 +90,44 @@ describe('AC-MMP-007 recognised revenue (DD-MMP-1)', () => {
   });
 });
 
+describe('AC-1279 recognised revenue from per-line earned value', () => {
+  const earned = (month: string, earned_value: number) => ({ project_id: 'p1', month, earned_value });
+
+  it('AC-1279: a project with contract lines recognises earned value, not percent x contract, month by month', () => {
+    const row = buildManagementPack(facts({
+      progress: [prog('2026-02-01', 40)],
+      earned: [earned('2025-12-01', 0), earned('2026-01-01', 50_000), earned('2026-02-01', 400_000), earned('2026-03-01', 400_000), earned('2026-04-01', 1_300_000)],
+    })).rows[0];
+    expect(row.months.map((m) => m.recognisedToDate)).toEqual([c(50_000), c(400_000), c(400_000), c(1_300_000)]);
+    expect(row.months.map((m) => m.recognised)).toEqual([c(50_000), c(350_000), 0, c(900_000)]);
+    expect(row.months.map((m) => m.basis)).toEqual(['earned', 'earned', 'earned', 'earned']);
+    expect(row.months[3].backlog).toBe(-c(100_000));
+  });
+
+  it('AC-1279: the month before the window is the baseline for the first month', () => {
+    const row = buildManagementPack(facts({ earned: [earned('2025-12-01', 100_000), earned('2026-01-01', 130_000)] })).rows[0];
+    expect(row.months[0]).toMatchObject({ recognised: c(30_000), recognisedToDate: c(130_000) });
+  });
+
+  it('AC-1279: a project without earned facts keeps the percent basis', () => {
+    const row = buildManagementPack(facts({ progress: [prog('2026-02-01', 40)], earned: [{ project_id: 'other', month: '2026-02-01', earned_value: 5 }] })).rows[0];
+    expect(row.months.map((m) => m.basis)).toEqual(['invoiced', 'progress', 'progress', 'progress']);
+    expect(row.months[1].recognisedToDate).toBe(c(480_000));
+  });
+});
+
 describe('AC-MMP-008 unbilled (DD-MMP-3)', () => {
   it('AC-MMP-008: recognised to date minus invoiced to date; negative means billed ahead', () => {
     const row = buildManagementPack(scenario).rows[0];
     expect(row.months.map((m) => m.invoicedToDate)).toEqual([c(300_000), c(300_000), c(600_000), c(600_000)]);
     expect(row.months.map((m) => m.unbilled)).toEqual([0, c(180_000), -c(120_000), c(60_000)]);
+  });
+
+  it('AC-1405-REPORT-001: invoice counts use dated monthly facts and accumulate through the as-at month', () => {
+    const row = buildManagementPack(scenario).rows[0];
+    expect(row.months.map((month) => month.invoiceCount)).toEqual([1, 0, 1, 0]);
+    expect(row.months.map((month) => month.invoiceCountToDate)).toEqual([2, 2, 3, 3]);
+    expect(buildManagementPack(scenario).totals[0]?.months.map((month) => month.invoiceCountToDate)).toEqual([2, 2, 3, 3]);
   });
 });
 
@@ -120,7 +159,7 @@ describe('AC-MMP-009 backlog (DD-MMP-3)', () => {
     expect(pack.totals.map((t) => t.currency)).toEqual(['EUR', 'IDR', 'USD']);
     const noActivity = buildManagementPack(facts({
       projects: [],
-      invoiced_before: [before(null, 'JPY', 0, 1)],
+      invoiced_before: [before(null, 'JPY', 0, 0)],
     }));
     expect(noActivity.totals).toEqual([]);
   });

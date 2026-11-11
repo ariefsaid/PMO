@@ -90,7 +90,7 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
 
   // Post-state: she STAYS on the editable grid (no view switch). The editable cell
   // is still an input; the weekly total reflects the persisted 8h; Draft pill shows.
-  await expect(page.getByText('Draft — not submitted', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('Draft: not submitted', { exact: true })).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('tbody tr').filter({ hasText: PROJECT_NAME })
     .getByRole('textbox', { name: new RegExp(`${PROJECT_NAME}, Mon hours`, 'i') })).toBeVisible();
   await expect(page.getByTestId('timesheets-weekly-total')).toContainText('8');

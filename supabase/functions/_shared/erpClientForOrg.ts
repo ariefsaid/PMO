@@ -8,6 +8,7 @@ export interface ErpClientForOrg {
   baseUrl: string;
   fetchImpl: typeof fetch;
   maxRetries: 0;
+  versionMajor: number | null;
 }
 
 export type ErpClientRefusal = 'not-found' | 'inactive' | 'invalid-site' | 'credentials' | 'company-not-set';
@@ -23,7 +24,7 @@ export async function erpClientForOrg(
 ): Promise<ErpClientForOrgResult> {
   const { data: binding, error } = await serviceClient
     .from('external_org_bindings')
-    .select('site_url,secret_ref,status,activated_at,config')
+    .select('site_url,secret_ref,status,activated_at,version_major,config')
     .eq('org_id', orgId)
     .eq('external_tier', 'erpnext')
     .maybeSingle();
@@ -44,6 +45,7 @@ export async function erpClientForOrg(
         baseUrl: binding.site_url,
         fetchImpl: guardedErpFetch(binding.site_url),
         maxRetries: 0,
+        versionMajor: Number.isInteger(binding.version_major) ? binding.version_major : null,
       },
       config,
     };

@@ -14,10 +14,12 @@ export function contactDb(seed: Record<string, Row[]> = {}, opts: { failTable?: 
       let patch: Row = {};
       const filters: Array<[string, unknown]> = [];
       const inFilters: Array<[string, unknown[]]> = [];
+      const likes: Array<[string, string]> = [];
       const value = (r: Row, k: string) => k.includes('->>') ? (r[k.split('->>')[0]] as Row)?.[k.split('->>')[1]] : r[k];
       const result = () => {
         const selected = (rows[table] ?? []).filter((r) =>
           filters.every(([k, v]) => value(r, k) === v) && inFilters.every(([k, vs]) => vs.includes(value(r, k)))
+            && likes.every(([k, p]) => String(value(r, k) ?? "").toLowerCase().includes(p))
         );
         if (op === "insert" && table === "external_sync_watermarks" && patch.watermark_cursor === null) {
           return { data: [] as Row[], error: { message: 'null value in column "watermark_cursor" violates not-null constraint', code: "23502" } };
@@ -34,6 +36,8 @@ export function contactDb(seed: Record<string, Row[]> = {}, opts: { failTable?: 
         select: (_c: string) => b,
         in: (k: string, vs: unknown[]) => { inFilters.push([k, vs]); return b; },
         is: () => b,
+        // `%word%` only (companyCandidates.ts): case-insensitive contains
+        ilike: (k: string, pattern: string) => { likes.push([k, pattern.replace(/^%|%$/g, "").replace(/\\(.)/g, "$1").toLowerCase()]); return b; },
         not: () => b,
         contains: () => b,
         order: () => b,

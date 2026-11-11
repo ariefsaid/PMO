@@ -50,9 +50,9 @@ function multiTableClient(tables: Record<string, TableResponder>): DispatchServi
   } as unknown as DispatchServiceClient;
 }
 
-function erpFetch(poDocItems: Array<{ item_code: string; name: string }>): typeof fetch {
+function erpFetch(poDocItems: Array<{ item_code: string; name: string }>, itemNames: string[] = ['SPIKE-ITEM-1']): typeof fetch {
   return (vi.fn(async (_url: string, init?: RequestInit) => {
-    if (new URL(_url).pathname === '/api/resource/Item') return Response.json({ data: [{ name: 'SPIKE-ITEM-1', item_name: 'Test item', disabled: 0, is_sales_item: 1, is_purchase_item: 1 }] });
+    if (new URL(_url).pathname === '/api/resource/Item') return Response.json({ data: itemNames.map((name) => ({ name, item_name: 'Test item', disabled: 0, is_sales_item: 1, is_purchase_item: 1 })) });
     if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'MAT-PRE-2026-00001' }), { status: 200 });
     if (init?.method === 'PUT') return new Response(JSON.stringify({ name: 'MAT-PRE-2026-00001', docstatus: 1 }), { status: 200 });
     // GET — either the PO doc fetch (ref resolution) or the post-submit re-fetch; both return
@@ -105,6 +105,46 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
     expect(body.items[0].schedule_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
+  // PD-ECA-5 / ECA2-T15: an accepted item link writes config.item_map[<line name>] = <ERP item code>.
+  async function purchaseOrderBody(config: Record<string, unknown>, lines: Array<{ name: string; quantity: number; rate: number }>, itemNames: string[]) {
+    const client = multiTableClient({
+      external_org_bindings: { ...ACTIVATED_ROW, config: { ...ACTIVATED_ROW.config, ...config } },
+      procurements: { org_id: 'org-1', vendor_id: 'company-1' },
+      external_refs: [{ external_record_id: 'Supplier:Spike Supplier' }],
+      procurement_items: lines,
+    });
+    const fetchImpl = erpFetch([], itemNames);
+    const command = { domain: 'procurement' as const, operation: 'create' as const, record: { id: 'pmo-po-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-order' } };
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: client, orgId: 'org-1', command, fetchImpl, apiKey: 'k', apiSecret: 's',
+      doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES,
+    });
+    await adapter.commit(command);
+    const calls = (fetchImpl as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const post = calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+    return JSON.parse((post![1] as RequestInit).body as string) as { items: Array<{ item_code: string }> };
+  }
+
+  it('ECA2-T15 a line whose name is in the binding item map goes to the mapped ERP item code', async () => {
+    const body = await purchaseOrderBody({ item_map: { 'Semen 50 kg': 'SMN-50' } }, [{ name: 'Semen 50 kg', quantity: 3, rate: 70000 }], ['SMN-50']);
+    expect(body.items.map((i) => i.item_code)).toEqual(['SMN-50']);
+  });
+
+  it('ECA2-T15 a line absent from the map keeps its own name as the item code', async () => {
+    const body = await purchaseOrderBody({ item_map: { 'Semen 50 kg': 'SMN-50' } }, [{ name: 'Pasir', quantity: 1, rate: 1 }, { name: 'Semen 50 kg', quantity: 1, rate: 1 }], ['Pasir', 'SMN-50']);
+    expect(body.items.map((i) => i.item_code)).toEqual(['Pasir', 'SMN-50']);
+  });
+
+  it('Minor 3 a line named like a JavaScript built-in keeps its own name as the item code', async () => {
+    const body = await purchaseOrderBody({ item_map: { Pasir: 'PSR-1' } }, [{ name: 'toString', quantity: 1, rate: 1 }, { name: 'constructor', quantity: 1, rate: 1 }], ['toString', 'constructor']);
+    expect(body.items.map((i) => i.item_code)).toEqual(['toString', 'constructor']);
+  });
+
+  it('ECA2-T15 no item map at all changes nothing', async () => {
+    const body = await purchaseOrderBody({}, [{ name: 'SPIKE-ITEM-1', quantity: 1, rate: 1 }], ['SPIKE-ITEM-1']);
+    expect(body.items.map((i) => i.item_code)).toEqual(['SPIKE-ITEM-1']);
+  });
+
   it('a goods-receipt command additionally resolves the case PO + the PO-item child-row name (never a raw PMO id)', async () => {
     const client = multiTableClient({
       external_org_bindings: ACTIVATED_ROW,
@@ -146,6 +186,110 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
     expect(body.items).toEqual([
       { item_code: 'SPIKE-ITEM-1', qty: 2, rate: 100000, purchase_order: 'PUR-ORD-2026-00001', purchase_order_item: 'i7d62dicpp' },
     ]);
+  });
+
+  it('freezes goods receipt lines with their purchase-order item references', async () => {
+    const client = multiTableClient({
+      external_org_bindings: ACTIVATED_ROW,
+      procurements: { org_id: 'org-1', vendor_id: 'company-1' },
+      external_refs: (filters: Record<string, string>) => filters.domain === 'companies'
+        ? [{ external_record_id: 'Supplier:Spike Supplier' }]
+        : [{ external_record_id: 'PUR-ORD-2026-00001' }],
+      procurement_items: [{ name: 'SPIKE-ITEM-1', description: 'Service', quantity: 2, rate: 100000 }],
+      purchase_orders: [{ id: 'po-pmo-1' }],
+    });
+    const command = { domain: 'procurement' as const, operation: 'create' as const,
+      record: { id: 'pmo-gr-1', procurementId: 'proc-1', erp_doc_kind: 'goods-receipt' } };
+    const capture = vi.fn();
+    await resolveErpDispatchAdapter({ serviceClient: client, orgId: 'org-1', command,
+      fetchImpl: erpFetch([{ item_code: 'SPIKE-ITEM-1', name: 'item-ref' }]), apiKey: 'k', apiSecret: 's',
+      captureProcurementSourceLines: capture,
+      doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES });
+    expect(command.record).toMatchObject({ items: [{ item_code: 'SPIKE-ITEM-1', description: 'Service', qty: 2, rate: 100000, po_item_child_name: 'item-ref' }] });
+    expect(capture).toHaveBeenCalledWith([{ name: 'SPIKE-ITEM-1', description: 'Service', quantity: 2, rate: 100000 }]);
+  });
+
+  it('replays a persisted goods receipt with its original supplier and order links', async () => {
+    const client = multiTableClient({
+      external_org_bindings: ACTIVATED_ROW,
+      procurements: { org_id: 'org-1', vendor_id: 'company-1' },
+      external_refs: [{ external_record_id: 'Supplier:Changed Supplier' }],
+      procurement_items: [{ name: 'CHANGED', quantity: 8, rate: 9 }],
+      purchase_orders: [{ id: 'new-po' }],
+    });
+    const command = { domain: 'procurement' as const, operation: 'create' as const,
+      record: { id: 'pmo-gr-1', procurementId: 'proc-1', erp_doc_kind: 'goods-receipt',
+        items: [{ item_code: 'SPIKE-ITEM-1', qty: 2, rate: 100000, po_item_child_name: 'item-ref' }],
+        pmo_gr_snapshot: { supplier: 'Spike Supplier', po: 'PUR-ORD-2026-00001', raw_digest: 'witness' } } };
+    const fetchImpl = erpFetch([]);
+    const adapter = await resolveErpDispatchAdapter({ serviceClient: client, orgId: 'org-1', command,
+      fetchImpl, apiKey: 'k', apiSecret: 's', replay: true, trustedReceiptSnapshot: true,
+      doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES });
+    await adapter.commit(command);
+    const post = (fetchImpl as unknown as { mock: { calls: unknown[][] } }).mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+    const body = JSON.parse((post![1] as RequestInit).body as string);
+    expect(body.supplier).toBe('Spike Supplier');
+    expect(body.items).toEqual([{ item_code: 'SPIKE-ITEM-1', qty: 2, rate: 100000, purchase_order: 'PUR-ORD-2026-00001', purchase_order_item: 'item-ref' }]);
+  });
+
+  it('does not treat a legacy payload property as a server snapshot', async () => {
+    const client = multiTableClient({ external_org_bindings: ACTIVATED_ROW,
+      procurements: { org_id: 'org-1', vendor_id: 'company-1' },
+      external_refs: [{ external_record_id: 'Supplier:Current Supplier' }],
+      procurement_items: [{ name: 'SPIKE-ITEM-1', quantity: 1, rate: 10 }], purchase_orders: [] });
+    const command = { domain: 'procurement' as const, operation: 'create' as const,
+      record: { id: 'pmo-gr-1', procurementId: 'proc-1', erp_doc_kind: 'goods-receipt',
+        pmo_gr_snapshot: { supplier: 'Caller supplied', po: 'Caller supplied PO', raw_digest: 'caller' } } };
+    const fetchImpl = erpFetch([]);
+    const adapter = await resolveErpDispatchAdapter({ serviceClient: client, orgId: 'org-1', command,
+      fetchImpl, apiKey: 'k', apiSecret: 's', replay: true,
+      doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES });
+    await adapter.commit(command);
+    const post = (fetchImpl as unknown as { mock: { calls: unknown[][] } }).mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+    expect(JSON.parse((post![1] as RequestInit).body as string).supplier).toBe('Current Supplier');
+  });
+
+  it('keeps an absent supplier absent in a verified receipt snapshot', async () => {
+    const client = multiTableClient({ external_org_bindings: ACTIVATED_ROW,
+      procurements: { org_id: 'org-1', vendor_id: 'company-1' },
+      companies: { id: 'company-1', org_id: 'org-1' },
+      external_refs: [{ external_record_id: 'Supplier:Changed Supplier' }] });
+    const command = { domain: 'procurement' as const, operation: 'create' as const,
+      record: { id: 'pmo-gr-1', procurementId: 'proc-1', vendorId: 'company-1', erp_doc_kind: 'goods-receipt',
+        items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 10 }], pmo_gr_snapshot: { supplier: null, po: null } } };
+    const fetchImpl = erpFetch([]);
+    const adapter = await resolveErpDispatchAdapter({ serviceClient: client, orgId: 'org-1', command,
+      fetchImpl, apiKey: 'k', apiSecret: 's', replay: true, trustedReceiptSnapshot: true,
+      doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES });
+    await adapter.commit(command);
+    const post = (fetchImpl as unknown as { mock: { calls: unknown[][] } }).mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+    expect(JSON.parse((post![1] as RequestInit).body as string).supplier).toBeNull();
+  });
+
+  it('freezes the supplier when a receipt supplies its own items', async () => {
+    const client = multiTableClient({ external_org_bindings: ACTIVATED_ROW,
+      procurements: { org_id: 'org-1', vendor_id: 'company-1' },
+      external_refs: [{ external_record_id: 'Supplier:Original Supplier' }] });
+    const command = { domain: 'procurement' as const, operation: 'create' as const,
+      record: { id: 'pmo-gr-1', procurementId: 'proc-1', erp_doc_kind: 'goods-receipt',
+        items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 10 }] } };
+    await resolveErpDispatchAdapter({ serviceClient: client, orgId: 'org-1', command,
+      fetchImpl: erpFetch([]), apiKey: 'k', apiSecret: 's',
+      doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES });
+    expect(command.record).toMatchObject({ pmo_gr_snapshot: { supplier: 'Original Supplier', po: null } });
+  });
+
+  it('refuses a case command when its source lines cannot be read', async () => {
+    const base = multiTableClient({ external_org_bindings: ACTIVATED_ROW,
+      procurements: { org_id: 'org-1', vendor_id: null }, external_refs: [], purchase_orders: [] });
+    const client = { ...base, from: (table: string) => table === 'procurement_items'
+      ? { select: () => ({ eq: () => Promise.resolve({ data: null, error: { message: 'source unavailable', code: 'XX000' } }) }) }
+      : base.from(table) } as unknown as DispatchServiceClient;
+    const command = { domain: 'procurement' as const, operation: 'create' as const,
+      record: { id: 'pmo-gr-1', procurementId: 'proc-1', erp_doc_kind: 'goods-receipt' } };
+    await expect(resolveErpDispatchAdapter({ serviceClient: client, orgId: 'org-1', command,
+      fetchImpl: erpFetch([]), apiKey: 'k', apiSecret: 's', captureProcurementSourceLines: vi.fn(),
+      doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES })).rejects.toThrow('source unavailable');
   });
 
   it('a command with no procurementId takes zero ref-resolution DB calls (byte-for-byte for every existing caller)', async () => {

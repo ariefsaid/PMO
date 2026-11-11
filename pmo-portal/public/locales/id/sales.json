@@ -1,6 +1,75 @@
 {
+  "goProbability": "% Go",
+  "getProbability": "% Get",
+  "goShort": "Go",
+  "getShort": "Get",
+  "column": {
+    "goPct": "% Go",
+    "getPct": "% Get"
+  },
   "pipeline": {
     "endCustomerLine": "untuk {{name}}",
-    "mixedCurrency": "Mata uang campuran, jadi tidak ada total tunggal"
+    "mixedCurrency": "Mata uang campuran, jadi tidak ada total tunggal",
+    "staleBid": "Tender tidak aktif · tahap tidak berubah selama 90+ hari"
+  },
+  "scope": {
+    "all": "Semua",
+    "won": "Menang"
+  },
+  "results": {
+    "one": "{{count}} proyek",
+    "many": "{{count}} proyek",
+    "showing": "Menampilkan {{shown}} dari {{total}} proyek",
+    "showingOne": "Menampilkan {{shown}} dari {{total}} proyek"
+  },
+  "wonError": {
+    "sub": "Terjadi kesalahan saat mengambil proyek yang menang.",
+    "title": "Gagal memuat proyek yang menang"
+  },
+  "tableEmpty": {
+    "won": {
+      "sub": "Proyek yang ditandai menang akan muncul di sini.",
+      "title": "Tidak ada proyek yang menang"
+    }
+  },
+  "stageDate": {
+    "lead": "Prospek",
+    "pq": "Prakualifikasi dikirim",
+    "quoted": "Penawaran",
+    "tender": "Tender dikirim",
+    "negotiation": "Negosiasi",
+    "signed": "Ditandatangani",
+    "lost": "Kalah",
+    "declined": "Ditolak",
+    "started": "Dimulai",
+    "onHold": "Ditunda",
+    "closedOut": "Ditutup",
+    "internal": "Internal",
+    "daysShort": "h"
+  },
+  "options": {
+    "dealPanel": "Proyek",
+    "decisionBand": "Posisi saat ini",
+    "dealFiguresLabel": "Angka proyek",
+    "figuresLabel": "Angka pipeline",
+    "idleReason": "Tidak disentuh selama {{days}} hari",
+    "lastUpdate": "Pembaruan terakhir",
+    "mixAria": "Perkiraan tertimbang per tahap",
+    "needsYou": "Perlu perhatian",
+    "needsYouHeading": "Perlu Anda · {{n}}",
+    "needsYouNote": "Tidak disentuh 30+ hari atau 90+ hari di satu tahap",
+    "ofOpen": "dari {{value}} terbuka pada {{n}} proyek",
+    "openCount": "{{n}} proyek terbuka",
+    "openDeal": "Buka proyek",
+    "openValue": "Nilai terbuka",
+    "outcomes": "Menang · Kalah",
+    "outcomesNote": "Proyek yang sudah diputuskan di papan ini",
+    "quickView": "Tinjauan cepat",
+    "showAllAttention": "Tampilkan semua {{n}}",
+    "stageNav": "Tahap pipeline",
+    "staleReason": "Di {{stage}} selama {{days}} hari",
+    "viewByStage": "Per tahap",
+    "weightedForecast": "Perkiraan tertimbang",
+    "weightedNote": "Nilai × peluang berjalan × peluang kita menang"
   }
 }

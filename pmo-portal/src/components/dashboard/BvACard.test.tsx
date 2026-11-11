@@ -26,6 +26,30 @@ describe('BvACard (Exec — real top_projects)', () => {
     ).toBeInTheDocument();
   });
 
+  it('D-005: shows one contract percentage beside the bar and lists budget separately', () => {
+    renderCard([{
+      ...projects[0],
+      id: 'sample-project',
+      name: 'Sample project',
+      contract_value: 1_000,
+      budget: 880,
+      spent: 920,
+    }]);
+
+    const row = screen.getByRole('link', { name: 'Sample project' }).closest('[data-row]') as HTMLElement;
+    const bar = within(row).getByRole('progressbar');
+    expect(bar).toHaveAttribute('aria-valuenow', '92');
+    expect(within(row).getByText('92% of contract')).toBeInTheDocument();
+    expect(within(row).getByText('Active budget: $880')).toBeInTheDocument();
+    expect(row).not.toHaveTextContent('104%');
+  });
+
+  it('D-005: names an absent active budget instead of showing an unknown amount', () => {
+    renderCard([{ ...projects[0], budget: null }]);
+
+    expect(screen.getByText('No active budget')).toBeInTheDocument();
+  });
+
   it('exposes a per-row accessible contract comparison percentage', () => {
     renderCard();
     // Innovate spent 2.1M of 5M contract = 42%
@@ -45,6 +69,24 @@ describe('BvACard (Exec — real top_projects)', () => {
     // the on-track project has no At-risk pill
     const ok = screen.getByText('Innovate HQ').closest('[data-row]') as HTMLElement;
     expect(within(ok).queryByText(/At risk/i)).toBeNull();
+  });
+
+  it('#1739: the risk signal is budget consumption (spent + open commitment), never spent alone', () => {
+    // A half-paid 1,000 purchase of a 1,000 budget: 500 spent and 500 still committed consumes the whole budget,
+    // so the pill must show — the same rule the Projects list and the server's count use.
+    renderCard([{
+      ...projects[0], id: 'half-paid', name: 'Half-paid project', contract_value: 10_000,
+      budget: 1_000, spent: 500, committed: 500, committed_complete: true,
+    }]);
+    const row = screen.getByText('Half-paid project').closest('[data-row]') as HTMLElement;
+    expect(within(row).getByText(/At risk/i)).toBeInTheDocument();
+    // A readable spent figure with a withheld commitment is not reported as risk (unknown is not zero).
+    renderCard([{
+      ...projects[0], id: 'half-paid-unknown', name: 'Unknown commitment project', contract_value: 10_000,
+      budget: 1_000, spent: 500, committed: 500, committed_complete: false,
+    }]);
+    const unknown = screen.getByText('Unknown commitment project').closest('[data-row]') as HTMLElement;
+    expect(within(unknown).queryByText(/At risk/i)).toBeNull();
   });
 
   it('labels the whole section for assistive tech', () => {

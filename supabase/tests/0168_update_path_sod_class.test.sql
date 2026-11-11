@@ -33,7 +33,7 @@
 -- and select_procurement_quote — including under an ERPNext domain flip, where ADR-0055's PMO
 -- enhancement (`procurement_quotations.is_selected`) must stay reachable.
 begin;
-select plan(42);
+select plan(48);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — a BYPASSRLS authority, exempt from the origination guards by design).
@@ -242,6 +242,25 @@ select is(
 
 -- D5. the three create_procurement_* RPCs (M-3: the quotation one had no positive control before)
 --     and select_procurement_quote still run end to end as their postgres owner.
+--     ⚑ AMENDED BY 0362 (ADR-0093, FR-PFE-002): the quote control runs FIRST. Recording a vendor invoice
+--     under a user JWT now derives the purchase to Vendor Invoiced, after which no quote can be selected;
+--     the control proves select_procurement_quote from Vendor Quoted, so it must run before the records.
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"01680000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+select lives_ok(
+  $$ select select_procurement_quote('01680000-0000-0000-0000-0000000000e3'::uuid) $$,
+  'AC-UPS-032 CONTROL select_procurement_quote still succeeds — the sanctioned is_selected authority');
+
+reset role;
+select is(
+  (select is_selected::text from public.procurement_quotations where id = '01680000-0000-0000-0000-0000000000e3')
+  || '/' || (select status::text from public.procurements where id = '01680000-0000-0000-0000-0000000000d1')
+  || '/' || (select total_value::text from public.procurements where id = '01680000-0000-0000-0000-0000000000d1'),
+  'true/Quote Selected/500.00',
+  'AC-UPS-032 the RPC set is_selected AND synced the header stage + total in one txn (what the direct UPDATE skipped)');
+
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01680000-0000-0000-0000-0000000000a2","role":"authenticated"}';
@@ -269,22 +288,6 @@ select is(
        and total_amount = 900 and vq_number is not null),
   1,
   'AC-UPS-031 the RPC-created quotation landed WITH a minted vq_number (the sequence still runs)');
-
-set local role authenticated;
-set local request.jwt.claims =
-  '{"sub":"01680000-0000-0000-0000-0000000000a2","role":"authenticated"}';
-
-select lives_ok(
-  $$ select select_procurement_quote('01680000-0000-0000-0000-0000000000e3'::uuid) $$,
-  'AC-UPS-032 CONTROL select_procurement_quote still succeeds — the sanctioned is_selected authority');
-
-reset role;
-select is(
-  (select is_selected::text from public.procurement_quotations where id = '01680000-0000-0000-0000-0000000000e3')
-  || '/' || (select status::text from public.procurements where id = '01680000-0000-0000-0000-0000000000d1')
-  || '/' || (select total_value::text from public.procurements where id = '01680000-0000-0000-0000-0000000000d1'),
-  'true/Quote Selected/500.00',
-  'AC-UPS-032 the RPC set is_selected AND synced the header stage + total in one txn (what the direct UPDATE skipped)');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- E. ADR-0055 / FR-ENA-130 Finding 8 — the PMO enhancement stays reachable under an ERPNext flip.
@@ -324,8 +327,10 @@ delete from external_domain_ownership where org_id = '01680000-0000-0000-0000-00
 -- F. actor_bypasses_rls() hardening (I-4) — the guard predicate every create-path trigger delegates to.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 select is(
+  -- 0407 added the caller-role overload (the definer-context entry point of the same predicate);
+  -- this assertion pins the CLIENT form — the no-arg helper — so the subquery names that signature.
   (select proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls'),
+    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls' and p.pronargs = 0),
   array['search_path=pg_catalog, public'],
   'AC-UPS-050 actor_bypasses_rls resolves pg_catalog FIRST — a public.pg_roles relation cannot shadow the catalog');
 
@@ -365,6 +370,42 @@ select is(
       and p.proname <> 'actor_bypasses_rls'),
   0,
   'AC-UPS-053 no OTHER function carries its own copy of the BYPASSRLS lookup either');
+
+-- 0407: the caller-role overload is the definer-context entry point of the same predicate. The
+-- pins mirror the no-arg form's contract (AC-UPS-050/051): catalog-first search_path, explicit
+-- client EXECUTE, SECURITY INVOKER — plus its behavior: true for a bypass role, false for a
+-- non-bypass role, and fail-closed false for a role that does not exist.
+select is(
+  (select proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls' and p.pronargs = 1),
+  array['search_path=pg_catalog, public'],
+  'AC-UPS-053 the actor_bypasses_rls(role) overload resolves pg_catalog FIRST — same contract as the no-arg form');
+
+select ok(
+  (select not prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls' and p.pronargs = 1),
+  'AC-UPS-053 the actor_bypasses_rls(role) overload stays SECURITY INVOKER');
+
+select is(
+  (select count(distinct r.rolname)::int
+     from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+     cross join lateral aclexplode(p.proacl) a
+     join pg_roles r on r.oid = a.grantee
+    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls' and p.pronargs = 1
+      and a.privilege_type = 'EXECUTE' and r.rolname in ('authenticated','anon')),
+  2,
+  'AC-UPS-053 the actor_bypasses_rls(role) overload carries an EXPLICIT execute grant to authenticated + anon');
+
+select is(public.actor_bypasses_rls('pg_read_all_data'::name), false,
+  'AC-UPS-053 the overload answers false for a real non-BYPASSRLS role');
+
+select is(public.actor_bypasses_rls('no_such_role_at_all'::name), false,
+  'AC-UPS-053 the overload fails CLOSED for a role that does not exist');
+
+select is(public.actor_bypasses_rls(current_user),
+  (select rolbypassrls from pg_roles where rolname = current_user),
+  'AC-UPS-053 the overload agrees with the catalog for the current role (bypass fixture)');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- H. I-3 — audit_events indexes. 0173/0174 turned it from low-volume into one row per create on four

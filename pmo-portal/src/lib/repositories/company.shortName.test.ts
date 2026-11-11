@@ -51,7 +51,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
 
 
 import { repositories } from './index';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 beforeEach(() => {
   h.from.mockClear(); h.invoke.mockClear();
@@ -62,7 +62,7 @@ beforeEach(() => {
 
 describe('company short-name writes through the public repository', () => {
   it('rejects a short-name save when the company is no longer readable', async () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     h.result.value = { data: null, error: null };
     await expect(repositories.company.update('c1', { name: 'Example Legal Company', type: 'Client', short_name: 'Example' })).rejects.toMatchObject({ code: '42501' });
     expect(h.calls.update).toEqual([]);
@@ -74,28 +74,28 @@ describe('company short-name writes through the public repository', () => {
   });
 
   it('clears the optional short name with a local null write', async () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     await repositories.company.update('c1', { name: 'Example Legal Company', type: 'Client', short_name: null });
     expect(h.invoke).not.toHaveBeenCalled();
     expect(h.calls.update).toEqual([{ short_name: null }]);
   });
 
   it('short-name enhancement update stays local on an external company', async () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     await repositories.company.update('c1', { name: 'Example Legal Company', type: 'Client', short_name: 'Example' });
     expect(h.invoke).not.toHaveBeenCalled();
     expect(h.calls.update).toEqual([{ short_name: 'Example' }]);
   });
 
   it('rejects a legal-name change bundled with the enhancement on an external company', async () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     await expect(repositories.company.update('c1', { name: 'Changed Legal Company', type: 'Client', short_name: 'Example' })).rejects.toMatchObject({ code: '42501' });
     expect(h.invoke).not.toHaveBeenCalled();
     expect(h.calls.update).toEqual([]);
   });
 
   it('external create sends only native fields and saves the short name locally', async () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     const result = await repositories.company.create({ name: 'Example Legal Company', type: 'Client', short_name: 'Example' });
     const [, body] = h.invoke.mock.calls[0] as unknown as [string, { body: { record: Record<string, unknown> } }];
     expect(body.body.record).not.toHaveProperty('short_name');

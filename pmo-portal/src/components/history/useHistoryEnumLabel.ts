@@ -33,9 +33,23 @@ export function useHistoryEnumLabel(): (entityType: string, column: string, valu
       if (value === 'pph23') return t('history.withholdingType.pph23', 'PPh 23');
       if (value === 'pph4_2') return t('history.withholdingType.pph4_2', 'PPh 4(2)');
     }
+    if (column === 'billing_kind') {
+      if (value === 'contract') return t('finance:billingKind.contract', 'Contract billing');
+      if (value === 'other') return t('finance:billingKind.other', 'Other billing');
+    }
     if (column === 'type_source') {
       if (value === 'bill') return t('history.typeSource.bill', 'Bill type');
       if (value === 'declared') return t('history.typeSource.declared', 'Declared from slip');
+    }
+    if (column === 'source' && entityType === 'project_stage_entry') {
+      switch (value) {
+        case 'origination': return t('project:projectDetail.stageHistory.source.origination', 'Origination');
+        case 'transition': return t('project:projectDetail.stageHistory.source.transition', 'Transition');
+        case 'added': return t('project:projectDetail.stageHistory.source.added', 'Added later');
+        case 'import': return t('project:projectDetail.stageHistory.source.import', 'Import');
+        case 'backfill': return t('project:projectDetail.stageHistory.source.backfill', 'Backfill');
+        default: return value;
+      }
     }
     if (column === 'status' && entityType === 'vendor_withholding_slip') {
       if (value === 'active') return t('history.slipStatus.active', 'Active');
@@ -48,7 +62,7 @@ export function useHistoryEnumLabel(): (entityType: string, column: string, valu
     if (column === 'type' && entityType === 'company') {
       switch (value) {
         case 'Client': return t('companies.type.client', 'Client');
-        case 'Vendor': return t('companies.type.vendor', 'Vendor');
+        case 'Vendor': return t('companies.type.vendor', 'Supplier');
         case 'Internal': return t('companies.type.internal', 'Internal');
         default: return value;
       }

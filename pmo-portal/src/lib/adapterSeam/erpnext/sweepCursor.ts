@@ -2,9 +2,9 @@
  * erpnext/sweepCursor.ts (task 8.4, AC-ENA-071, FR-ENA-080..084) — the confined modified-poll
  * `listChanges` impl the convergence-authority sweep runs per (org × doctype). This is the ERP-side
  * `SweepListChangesDeps.listChanges` the hoisted `applyEngine.runSweep` consumes (slice 1.12): it
- * issues `GET /api/resource/<DocType>?filters=[["modified",">=",cursor]]&fields=[...]`, pages until a
- * short page, dedupes by ERP `name`, and returns `nextCursor = max modified` (monotonic, never
- * rewinds — FR-ENA-081). All Frappe vocabulary (doctype, `/api/resource`, `modified`, `docstatus`,
+ * pages the doctype by the composite `(modified, name)` keyset (`keysetScan.ts` — never an offset) until
+ * a short page, dedupes by ERP `name`, and returns `nextCursor` = the composite cursor of the last row
+ * read (monotonic, never rewinds — FR-ENA-081). All Frappe vocabulary (doctype, `/api/resource`, `modified`, `docstatus`,
  * `amended_from`) stays HERE in erpnext/** (confinement, FR-ENA-013/NFR-ENA-CONTRACT-001).
  *
  * Pure + Deno-importable (relative imports only); the ERP client is injected (`ErpClientDeps`, every
@@ -13,15 +13,17 @@
  * `erp_amended_from`) on its canonical record so the lineage-aware apply (8.5) can route
  * cancel/amend without re-fetching.
  *
- * The per-row `erp_modified >=` no-rewind guard (FR-ENA-053) is NOT applied here — `listChanges`
- * LISTS inclusively (a boundary row is always surfaced); the guard lives in `applyEngine.
+ * The per-row `erp_modified >=` no-rewind guard (FR-ENA-053) is NOT applied here — a legacy bare-timestamp
+ * cursor lists inclusively (a boundary row is always surfaced); the guard lives in `applyEngine.
  * applyInboundChange` (the shared upsert/adopt core) so the webhook and the sweep apply through the
  * SAME source-mod-guarded path (FR-ENA-083 "any apply"). A strictly-older row therefore flows as a
  * `SweepChange` whose `sourceModMs` the apply guard drops downstream (proven in sweepCursor.test.ts).
  */
 import type { SweepChange } from '../applyEngine.ts';
 import type { PmoRecord } from '../contract.ts';
+import { AppError } from '../../appError.ts';
 import { erpnextRequest, type ErpClientDeps, type ErpFilter } from './client.ts';
+import { scanByKeyset, type KeysetRow } from './keysetScan.ts';
 
 export interface SweepCursorDeps {
   client: ErpClientDeps;
@@ -60,13 +62,11 @@ export interface SweepCursorDeps {
    *  those kinds (the sweep's `KINDS_NEEDING_FULL_DOC`), so no other poll pays an extra round-trip.
    *  Applied AFTER dedupe + `filterRow`, so exactly the emitted rows are hydrated. */
   hydrateDoc?: (name: string) => Promise<Record<string, unknown>>;
-  /** #916: the page budget for ONE call — the walk stops starting new pages once this many pages have
-   *  been fetched, and `nextCursor` is the max `modified` SEEN so far. Because the listing order is the
-   *  total order `modified asc, name asc` and the caller's cursor filter is INCLUSIVE, the next call
-   *  (next tick) resumes exactly at that boundary: nothing after the cut is skipped, and the tied
-   *  boundary rows it re-delivers re-apply idempotently. This is what makes a full-year backfill
-   *  resumable instead of one CPU-limit-dying pass. Absent ⇒ UNBOUNDED (the pre-#916 behavior — the
-   *  sweep fn passes its shipped budget explicitly; the onboarding probe reads unbounded). */
+  /** #916: the page budget for ONE call — the walk stops starting new pages once this many data pages
+   *  have been read, and `nextCursor` is the composite cursor of the last row read. The keyset walk
+   *  resumes strictly after it, so nothing after the cut is skipped and a `modified` tie wider than the
+   *  budget drains across ticks (by `name`) instead of wedging. Absent ⇒ UNBOUNDED up to a safety cap
+   *  (the sweep fn passes its shipped budget explicitly; the onboarding probe reads unbounded). */
   maxPages?: number;
 }
 
@@ -76,108 +76,75 @@ const DEFAULT_PAGE_SIZE = 500;
  *  list endpoint must return these so each `SweepChange` carries them on its canonical record. */
 const REQUIRED_FIELDS = ['name', 'modified', 'docstatus', 'amended_from'] as const;
 
-/**
- * The DETERMINISTIC total order every page request carries (round-7 cross-family audit, SHOULD-FIX).
- *
- * Paging with `limit_start` against an UNSPECIFIED server order is unsound: rows tied on `modified` (a
- * bulk ERP write commits many documents at once) may come back in a different arbitrary sequence per
- * request, so a document that sat on page 2 for the first request can sit on page 1 for the second and
- * never be returned at all. `nextCursor` — the max `modified` OBSERVED, which the tied rows all share —
- * then advances past it and that document's revenue/payment change is omitted permanently.
- *
- * `name` is what makes the order TOTAL (it is the doctype's primary key, so no two rows tie on it), and
- * ASCENDING is what makes it skip-proof under concurrency: an ERP write sets `modified = now()`, so a
- * document created or updated while we are paging sorts to the END of the result set — at or after the
- * page pointer — and is therefore still listed. (Descending would prepend it and push unseen rows past
- * the pointer.) The worst case is that a row is listed TWICE, which the `byName` dedupe already absorbs.
- */
+/** The total order every page request carries: `name` is the doctype's primary key, so `modified asc,
+ *  name asc` never ties — what makes the `(modified, name)` keyset a stable resume point. */
 const SWEEP_ORDER_BY = 'modified asc,name asc';
+/** A pathological server that returns full pages forever cannot loop an unbounded walk indefinitely. */
+const UNBOUNDED_SAFETY_PAGES = 1000;
 
 function listPath(
   doctype: string,
   filters: unknown[],
   fields: readonly string[],
   pageSize: number,
-  limitStart: number,
 ): string {
   const encodedDoctype = encodeURIComponent(doctype);
   const f = encodeURIComponent(JSON.stringify(filters));
   const fld = encodeURIComponent(JSON.stringify(fields));
   const qs = `filters=${f}&fields=${fld}&order_by=${encodeURIComponent(SWEEP_ORDER_BY)}`
-    + `&limit_page_length=${pageSize}&limit_start=${limitStart}`;
+    + `&limit_page_length=${pageSize}`;
   return `/api/resource/${encodedDoctype}?${qs}`;
 }
 
+/** A list page must be `{data: [...]}` of rows carrying a string `name` and `modified`: anything else is
+ *  a malformed response, never "the end" — the walk throws so the cursor does not advance on it. */
+function decodePage(body: unknown, pageSize: number): Array<Record<string, unknown> & KeysetRow> {
+  const page = (body as { data?: unknown } | null)?.data;
+  if (!Array.isArray(page) || page.length > pageSize || !page.every((r) =>
+    r !== null && typeof r === 'object' && typeof (r as KeysetRow).name === 'string' && (r as KeysetRow).name !== ''
+    && typeof (r as KeysetRow).modified === 'string' && (r as KeysetRow).modified !== '')) {
+    throw new AppError('ERPNext list response was malformed', 'external-unreachable');
+  }
+  return page as Array<Record<string, unknown> & KeysetRow>;
+}
+
 /**
- * List ERP changes since the `modified >= cursor` watermark (inclusive). Pages until a short page;
- * dedupes by ERP `name` (a name surfacing on two pages is emitted exactly once — FR-ENA-081);
- * `nextCursor` = max `modified` observed; `listedCount` = rows FETCHED across pages (before dedupe
- * and before any `filterRow` drop — the walk's true cost, what a per-tick budget must count). A `null` cursor (fresh org) issues NO `modified` filter
- * (a full backfill). Each emitted `SweepChange` carries `erp_docstatus`/`erp_amended_from` on its
+ * List ERP changes after the `(modified, name)` cursor. Pages until a short page; dedupes by ERP `name`
+ * (FR-ENA-081); `nextCursor` = the composite cursor of the last row read; `listedCount` = rows FETCHED
+ * across pages (before dedupe and before any `filterRow` drop — the walk's true cost, what a per-tick
+ * budget must count). A `null` cursor (fresh org) issues NO `modified` filter (a full backfill). Each emitted `SweepChange` carries `erp_docstatus`/`erp_amended_from` on its
  * canonical record (enriched here) for the lineage apply to route cancel/amend.
  */
 export async function listErpChangesSinceWatermark(
   deps: SweepCursorDeps,
   cursor: string | null,
-): Promise<{ changes: SweepChange[]; nextCursor: string | null; listedCount: number }> {
+): Promise<{ changes: SweepChange[]; nextCursor: string | null; listedCount: number; caughtUp: boolean }> {
   const pageSize = deps.pageSize ?? DEFAULT_PAGE_SIZE;
   // Union the caller's fields with the routing-required ones (deduped, order-stable).
   const fields = Array.from(new Set([
     ...deps.fields,
     ...REQUIRED_FIELDS.filter(field => field !== 'amended_from' || (deps.includeAmendedFrom ?? true)),
   ]));
-  const filters: unknown[] = [];
-  if (cursor !== null && cursor !== '') filters.push(['modified', '>=', cursor]);
   // Luna BLOCK A1: conjoin the caller's discriminator filters (e.g. payment_type='Receive' for
   // incoming-payment) so a poll for one kind server-side excludes the other kind's docs.
-  if (deps.extraFilters) filters.push(...deps.extraFilters);
-
+  const filters: unknown[] = deps.extraFilters ? [...deps.extraFilters] : [];
+  const scan = await scanByKeyset({
+    since: cursor,
+    pageSize,
+    maxPages: deps.maxPages ?? UNBOUNDED_SAFETY_PAGES,
+    read: async (extra) => decodePage(
+      await erpnextRequest(deps.client, { method: 'GET', path: listPath(deps.doctype, [...filters, ...extra], fields, pageSize) }),
+      pageSize,
+    ),
+  });
+  // #916 budget: the number of rows FETCHED, before dedupe and before any `filterRow` drop — a row the
+  // walk listed costs the walk as much whether it applies, is filtered, or fails to apply.
+  const listedCount = scan.rows.length;
+  const nextCursor: string | null = scan.cursor;
   const byName = new Map<string, { row: Record<string, unknown>; modified: string }>();
-  let nextCursor: string | null = null;
-  // #916 budget undercount: the number of rows FETCHED, summed before dedupe and before any
-  // `filterRow` drop. The per-tick document budget counts this — a row the walk listed costs the
-  // walk exactly as much whether it applies, is filtered, or fails to apply.
-  let listedCount = 0;
-  let limitStart = 0;
-  const maxPages = deps.maxPages ?? Number.POSITIVE_INFINITY;
-  let pagesFetched = 0;
-  // #916 tie-wedge escape: the PERSISTED cursor is `modified` ONLY. A bulk ERP write can tie MORE
-  // rows on one `modified` than one tick's page budget reads; without the escape, every tick would
-  // re-issue `modified >= cursor`, re-read the same first rows, observe max-modified == cursor, and
-  // never advance — a permanent wedge. So when the budget is spent AND the max `modified` seen still
-  // equals the starting cursor (this tick would otherwise make ZERO cursor progress), keep paging
-  // PAST the budget until a row with a later `modified` appears (then the ordinary budget stop
-  // resumes) or the source drains (a short/empty page). Bounded: it fires only on the zero-progress
-  // path, and the safety counter below still caps the loop.
-  const startCursor = cursor !== null && cursor !== '' ? cursor : null;
-  // Guard: a pathological server that returns full pages forever cannot loop us indefinitely.
-  for (let safety = 0; safety < 1000; safety += 1) {
-    // #916 page budget: stop STARTING new pages once spent — UNLESS the tie-wedge escape above is
-    // holding (max modified read == the starting cursor: stopping would persist a cursor that makes
-    // no progress). The inclusive `modified >=` cursor makes the next call resume exactly at
-    // max-modified-seen (see `maxPages` above).
-    const budgetSpent = pagesFetched >= maxPages;
-    const tieWedged = budgetSpent && startCursor !== null && nextCursor === startCursor;
-    if (budgetSpent && !tieWedged) break;
-    const body = await erpnextRequest(deps.client, {
-      method: 'GET',
-      path: listPath(deps.doctype, filters, fields, pageSize, limitStart),
-    });
-    pagesFetched += 1;
-    const page = (body as { data?: Array<Record<string, unknown>> } | null)?.data;
-    if (!Array.isArray(page) || page.length === 0) break;
-    listedCount += page.length;
-    for (const row of page) {
-      const name = String(row.name);
-      const modified = String(row.modified);
-      // Dedupe by name (a re-surfaced boundary row on a later page is emitted once); a later page's
-      // row for an existing name keeps the FRESHER modified (max — the sweep is monotonic forward).
-      const existing = byName.get(name);
-      if (!existing || modified > existing.modified) byName.set(name, { row, modified });
-      if (nextCursor === null || modified > nextCursor) nextCursor = modified;
-    }
-    if (page.length < pageSize) break; // short page → done
-    limitStart += pageSize;
+  for (const row of scan.rows) {
+    const existing = byName.get(row.name);
+    if (!existing || row.modified > existing.modified) byName.set(row.name, { row, modified: row.modified });
   }
 
   const changes: SweepChange[] = [];
@@ -199,5 +166,5 @@ export async function listErpChangesSinceWatermark(
     };
     changes.push({ record: enriched, sourceModMs: Date.parse(modified) });
   }
-  return { changes, nextCursor, listedCount };
+  return { changes, nextCursor, listedCount, caughtUp: scan.caughtUp };
 }

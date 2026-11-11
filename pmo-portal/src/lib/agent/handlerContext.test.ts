@@ -214,7 +214,7 @@ it('AC-ATC-014 createRun with context.entity populates thread scope', async () =
       req,
       baseDeps({
         supabase,
-        persistence: { supabase, ownerId: 'user-1', orgId: 'org-1', now: () => new Date('2026-07-03T00:00:00Z') },
+        persistence: { supabase, now: () => new Date('2026-07-03T00:00:00Z') },
       }),
     ),
   );
@@ -237,7 +237,7 @@ it('AC-ATC-015 createRun with no entity writes scope null', async () => {
       req,
       baseDeps({
         supabase,
-        persistence: { supabase, ownerId: 'user-1', orgId: 'org-1', now: () => new Date('2026-07-03T00:00:00Z') },
+        persistence: { supabase, now: () => new Date('2026-07-03T00:00:00Z') },
       }),
     ),
   );
@@ -261,7 +261,7 @@ it('AC-ATC-015b createRun with context present but entity absent writes scope nu
       req,
       baseDeps({
         supabase,
-        persistence: { supabase, ownerId: 'user-1', orgId: 'org-1', now: () => new Date('2026-07-03T00:00:00Z') },
+        persistence: { supabase, now: () => new Date('2026-07-03T00:00:00Z') },
       }),
     ),
   );
@@ -288,7 +288,7 @@ it('AC-ATC-016 follow-up context does not overwrite existing scope', async () =>
       req,
       baseDeps({
         supabase,
-        persistence: { supabase, ownerId: 'user-1', orgId: 'org-1', now: () => new Date('2026-07-03T00:00:00Z') },
+        persistence: { supabase, now: () => new Date('2026-07-03T00:00:00Z') },
       }),
     ),
   );
@@ -316,7 +316,7 @@ it('SEC-2 oversized entity.label is truncated in the persisted thread scope', as
       req,
       baseDeps({
         supabase,
-        persistence: { supabase, ownerId: 'user-1', orgId: 'org-1', now: () => new Date('2026-07-03T00:00:00Z') },
+        persistence: { supabase, now: () => new Date('2026-07-03T00:00:00Z') },
       }),
     ),
   );
@@ -350,7 +350,7 @@ it('SEC-2 unknown keys on context.entity are stripped from the persisted scope',
       req,
       baseDeps({
         supabase,
-        persistence: { supabase, ownerId: 'user-1', orgId: 'org-1', now: () => new Date('2026-07-03T00:00:00Z') },
+        persistence: { supabase, now: () => new Date('2026-07-03T00:00:00Z') },
       }),
     ),
   );

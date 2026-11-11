@@ -9,7 +9,7 @@ import ProjectClassificationFilters from '../../components/ProjectClassification
 import type { ProjectClassificationFilters as FilterValues } from '@/src/lib/projectClassification';
 
 const { state } = vi.hoisted(() => ({ state: { data: [
-  { id: 'p1', name: 'Harbor Renewal Programme — Eastern Terminal Delivery', status: 'Ongoing Project', pmo_project_number: 'PMO-001', code: 'CLIENT-001', currency: 'USD', contract_value: 500000, service_line: 'Engineering', sector: 'Energy', award_type: 'tender', bidding_entity: 'alone', location: 'West Java', client: null, end_client: null, pm: null },
+  { id: 'p1', name: 'Harbor Renewal Programme — Eastern Terminal Delivery', status: 'Ongoing Project', pmo_project_number: 'PMO-001', code: 'CLIENT-001', currency: 'USD', contract_value: 500000, service_line: 'Engineering', sector: 'Energy', award_type: 'tender', bidding_entity: 'alone', location: 'West Java', client: null, end_client: null, project_manager_id: 'manager-1', pm: { full_name: 'Sample Manager' } },
   { id: 'p2', name: 'Harbor Renewal Programme — Western Terminal Delivery', status: 'Ongoing Project', pmo_project_number: 'PMO-002', currency: 'USD', contract_value: 250000, service_line: 'Advisory', client: null, end_client: null, pm: null },
 ], isPending: false, isError: false, refetch: vi.fn() } }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
@@ -30,6 +30,18 @@ function page(path = '/projects?view=table') {
 beforeEach(() => { sessionStorage.clear(); viewport(); state.isPending = false; state.isError = false; });
 
 describe('UIP-003 project recognition', () => {
+  it('AC-TBL-OVERFLOW-001 AC-TBL-001: the default columns and accessible manager avatar are available', () => {
+    page();
+    for (const name of ['Project', 'PM', 'Status', 'Contract', 'Actual']) {
+      expect(screen.getByRole('columnheader', { name })).toBeVisible();
+    }
+    const avatar = screen.getByRole('img', { name: 'Sample Manager' });
+    expect(avatar).toBeVisible();
+    expect(avatar).toHaveAttribute('title', 'Sample Manager');
+    expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Action' })).not.toBeInTheDocument();
+  });
+
   it('UIP-003 reserves desktop identity space and two-line titles while keeping numeric alignment', async () => {
     page();
     const title = screen.getByRole('button', { name: state.data[0].name });
@@ -44,24 +56,20 @@ describe('UIP-003 project recognition', () => {
   });
 });
 
-it.each([true, false])('UIP-004 Projects folds classification into its one collapsed Filters disclosure (desktop=%s) with URL-owned summary, count and clear', async (desktop) => {
+it.each([true, false])('UIP-004 Projects keeps classification in its one filter builder (desktop=%s) with URL-owned chips and clear', async (desktop) => {
   viewport(desktop);
   page('/projects?view=table&serviceLine=Engineering&sector=Energy');
   const user = userEvent.setup();
   expect(screen.queryByRole('button', { name: /^Classification/ })).not.toBeInTheDocument();
-  const trigger = screen.getByRole('button', { name: /^Filters\s*2/ });
-  expect(trigger).toHaveAttribute('aria-expanded', 'false');
-  expect(screen.queryByLabelText('Filter by service line')).not.toBeInTheDocument();
-  expect(screen.getByText('Service line: Engineering')).toBeVisible();
-  expect(screen.getByText('Sector: Energy')).toBeVisible();
+  const chips = screen.getByRole('toolbar', { name: /active filters/i });
+  expect(within(chips).getByRole('button', { name: 'Service line filter options' })).toBeVisible();
+  expect(within(chips).getByRole('button', { name: 'Sector filter options' })).toBeVisible();
+  expect(within(chips).getByText('Engineering')).toBeVisible();
+  expect(within(chips).getByText('Energy')).toBeVisible();
   expect(screen.queryByRole('button', { name: state.data[1].name })).not.toBeInTheDocument();
-  await user.click(trigger);
-  expect(screen.getByLabelText('Filter by service line')).toHaveValue('Engineering');
-  await user.keyboard('{Escape}');
-  expect(trigger).toHaveFocus();
-  await user.click(screen.getByRole('button', { name: 'Clear classifications' }));
+  await user.click(screen.getByRole('button', { name: 'Clear all' }));
   expect(screen.getByRole('button', { name: state.data[1].name })).toBeVisible();
-  expect(screen.getByRole('button', { name: /^Filters$/ })).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByRole('toolbar', { name: /active filters/i })?.querySelectorAll('[data-rule-id]') ?? []).toHaveLength(0);
 });
 
 it('UIP-004 shared classifications summarize all five selections, retain missing options, remove individually and clear a pending location', async () => {

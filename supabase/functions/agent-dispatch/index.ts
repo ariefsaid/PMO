@@ -27,22 +27,78 @@
 import { createClient } from '@supabase/supabase-js';
 import { runDispatchTick } from './dispatcher.ts';
 import { answerVerificationEnabled } from '../agent-chat/handler.ts';
-import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
+import { OpenRouterModelClient, providerPolicyFromEnv, fallbackModelsFromEnv } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
-import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
+import { createDispatchRateGuard } from '../_shared/creditRateGuard.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
 // Shared-module import of the SAME agent loop the interactive path uses (the fired run is an
 // ordinary run — no automation-only branch). This does NOT modify agent-chat source.
 import { agentChatHandler } from '../agent-chat/handler.ts';
-import {
-  AGENT_MASTER_DATA_ROLES,
-  AGENT_DELIVERY_WITH_ENGINEER_ROLES,
-} from '../../../pmo-portal/src/auth/agentRoles.ts';
+// #1315: the fired run's deputy preflight is THE SAME one check the interactive path uses
+// (../agent-chat/agentCan.ts) — never a dispatch-local copy. The copies had already drifted
+// (the interactive path admitted salesInvoice.create for Admin/Finance; this copy silently
+// denied it, so a fired automation could not raise an invoice its owner could). The shared
+// function is unit-tested (pmo-portal/src/lib/agent/agentCan.test.ts + agentRoles drift guard).
+import { agentCan } from '../agent-chat/agentCan.ts';
 
-serveWithErrorReporting('agent-dispatch', async (req: Request): Promise<Response> => {
+export const testSupabaseOptions = { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } };
+
+/** job_run summary (#1532 S3). The flag-off no-op tick is `skipped`, not `ok`; the tick returns no count, so items stay 0. */
+export function summarizeAgentDispatch(body: unknown): JobSummary {
+  return (body as { skipped?: unknown } | null)?.skipped ? { items: 0, skipped: true } : { items: 0 };
+}
+
+/**
+ * Model-client policy env for the dispatch tick (provider routing + model fallbacks + model
+ * ids). Same knobs the interactive paths (agent-chat, compose-view) read.
+ */
+export interface DispatchModelEnv {
+  AGENT_PROVIDER_ORDER?: string;
+  AGENT_PROVIDER_ONLY?: string;
+  AGENT_PROVIDER_IGNORE?: string;
+  AGENT_PROVIDER_SORT?: string;
+  AGENT_PROVIDER_ALLOW_FALLBACKS?: string;
+  AGENT_PROVIDER_DATA_COLLECTION?: string;
+  AGENT_MODEL_FALLBACKS?: string;
+  AGENT_MODEL_DEFAULT?: string;
+  AGENT_MODEL_CHEAP?: string;
+}
+
+/**
+ * Resolve the tick's model clients through the SAME deployment policy the interactive paths
+ * use: providerPolicyFromEnv + fallbackModelsFromEnv on BOTH the run client and the cheap-tier
+ * condition client. An operator's provider allow-list / data-collection limits therefore apply
+ * to automated runs exactly as they do to interactive chat and direct composition.
+ * Exported for the Deno unit test that pins the wiring against this real module.
+ */
+export function buildDispatchModelClients(apiKey: string, env: DispatchModelEnv): {
+  modelClient: OpenRouterModelClient;
+  conditionModel: OpenRouterModelClient;
+  model: string;
+  conditionModelId: string;
+} {
+  const provider = providerPolicyFromEnv({
+    AGENT_PROVIDER_ORDER: env.AGENT_PROVIDER_ORDER,
+    AGENT_PROVIDER_ONLY: env.AGENT_PROVIDER_ONLY,
+    AGENT_PROVIDER_IGNORE: env.AGENT_PROVIDER_IGNORE,
+    AGENT_PROVIDER_SORT: env.AGENT_PROVIDER_SORT,
+    AGENT_PROVIDER_ALLOW_FALLBACKS: env.AGENT_PROVIDER_ALLOW_FALLBACKS,
+    AGENT_PROVIDER_DATA_COLLECTION: env.AGENT_PROVIDER_DATA_COLLECTION,
+  });
+  const fallbackModels = fallbackModelsFromEnv(env.AGENT_MODEL_FALLBACKS);
+  const modelClient = new OpenRouterModelClient({ apiKey, provider, fallbackModels });
+  // Cheap-tier condition model (§4, FR-AAN-021) — same provider policy + fallback tier.
+  const conditionModel = new OpenRouterModelClient({ apiKey, provider, fallbackModels });
+  const model = resolveDefaultModel({ AGENT_MODEL_DEFAULT: env.AGENT_MODEL_DEFAULT });
+  const conditionModelId = env.AGENT_MODEL_CHEAP ?? model;
+  return { modelClient, conditionModel, model, conditionModelId };
+}
+
+serveWithErrorReporting('agent-dispatch', withJobRun('agent-dispatch', async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (the pg_cron tick) must present the DEDICATED dispatch
   // secret. Least-privilege (owner directive 2026-07-09): when AGENT_DISPATCH_SECRET is set,
   // the cron authenticates with THAT narrow secret (stored in Supabase Vault, read by the
@@ -100,7 +156,7 @@ serveWithErrorReporting('agent-dispatch', async (req: Request): Promise<Response
       // supabase-js client structurally satisfies ErrorEventSupabaseLike at
       // runtime but is not nominally assignable (thenable PostgrestFilterBuilder
       // vs a plain Promise).
-      void recordErrorEvent(createClient(supabaseUrl, serviceRoleKey) as never, { fn: 'agent-dispatch', errorCode });
+      void recordErrorEvent(createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions) as never, { fn: 'agent-dispatch', errorCode });
     }
     return new Response(JSON.stringify({ error: 'MISCONFIGURED' }), {
       status: 500,
@@ -109,37 +165,38 @@ serveWithErrorReporting('agent-dispatch', async (req: Request): Promise<Response
   }
 
   // ── 3. serviceClient (selection/watermark/last_fired_at metadata ONLY) + authAdmin (mint ONLY). ──
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
-  const authAdmin = createClient(supabaseUrl, serviceRoleKey).auth;
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
+  const authAdmin = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions).auth;
   // verifyOtp exchanges the generateLink hashed_token for an owner session (generateLink returns a
   // token_hash, NOT an access_token). Uses an anon-key client (the standard verify surface) — no
   // elevated privilege; the token_hash is the only capability and it targets exactly the owner.
-  const anonAuth = createClient(supabaseUrl, anonKey).auth;
+  const anonAuth = createClient(supabaseUrl, anonKey, testSupabaseOptions).auth;
 
   // buildClient: a caller-JWT-scoped client from a minted access token — the SAME anon-key +
   // Bearer client shape the interactive path uses. This is the ONLY business-data surface for a
   // fired run, and it is the minted OWNER identity, never service_role.
   const buildClient = (accessToken: string) =>
     createClient(supabaseUrl, anonKey, {
+      auth: testSupabaseOptions.auth,
       global: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
 
-  const modelClient = new OpenRouterModelClient({ apiKey });
-  const model = resolveDefaultModel({ AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined });
-  // Cheap-tier condition model (§4, FR-AAN-021) — the small model for NL condition evaluation.
-  const conditionModel = new OpenRouterModelClient({ apiKey });
-  const conditionModelId = Deno.env.get('AGENT_MODEL_CHEAP') ?? model;
+  // Same policy resolution as agent-chat/compose-view: env-configured provider routing +
+  // model fallbacks (see buildDispatchModelClients).
+  const { modelClient, conditionModel, model, conditionModelId } = buildDispatchModelClients(apiKey, {
+    AGENT_PROVIDER_ORDER: Deno.env.get('AGENT_PROVIDER_ORDER'),
+    AGENT_PROVIDER_ONLY: Deno.env.get('AGENT_PROVIDER_ONLY'),
+    AGENT_PROVIDER_IGNORE: Deno.env.get('AGENT_PROVIDER_IGNORE'),
+    AGENT_PROVIDER_SORT: Deno.env.get('AGENT_PROVIDER_SORT'),
+    AGENT_PROVIDER_ALLOW_FALLBACKS: Deno.env.get('AGENT_PROVIDER_ALLOW_FALLBACKS'),
+    AGENT_PROVIDER_DATA_COLLECTION: Deno.env.get('AGENT_PROVIDER_DATA_COLLECTION'),
+    AGENT_MODEL_FALLBACKS: Deno.env.get('AGENT_MODEL_FALLBACKS'),
+    AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT'),
+    AGENT_MODEL_CHEAP: Deno.env.get('AGENT_MODEL_CHEAP'),
+  });
 
-  // Same can() deputy re-auth as interactive (FR-AAN-017) — threaded to the fired run via extras.
-  const MASTER_DATA_SET = new Set(AGENT_MASTER_DATA_ROLES);
-  const DELIVERY_WITH_ENGINEER_SET = new Set(AGENT_DELIVERY_WITH_ENGINEER_ROLES);
-  const agentCan = (action: string, entity: string, ctx: { realRole: string | null }): boolean => {
-    const role = ctx.realRole;
-    if (!role) return false;
-    if (entity === 'contactActivity' && action === 'create') return MASTER_DATA_SET.has(role);
-    if (entity === 'taskStatus' && action === 'edit') return DELIVERY_WITH_ENGINEER_SET.has(role);
-    return false;
-  };
+  // Same can() deputy re-auth as interactive (FR-AAN-017) — the SHARED check (see import note),
+  // threaded to the fired run via extras.
 
   // ── ADR-0044 §6 / REC-4: credit-backed RateGuard, gated by the SAME AGENT_CREDITS_ENFORCED flag
   // as the interactive path (agent-chat/index.ts) — default OFF so a deployment with no seeded
@@ -147,13 +204,7 @@ serveWithErrorReporting('agent-dispatch', async (req: Request): Promise<Response
   // OWNER client (dispatcher.ts) and builds the credit-backed guard against it per-automation, so the
   // balance read runs under owner RLS — never service_role (NFR-AAN-SEC-002/SEC-006).
   const creditsEnforced = Deno.env.get('AGENT_CREDITS_ENFORCED') === 'true';
-  const rateGuard = {
-    check: async (orgId: string, mintedClient?: unknown) => {
-      if (!creditsEnforced || !mintedClient) return { exceeded: false, retryAfterSeconds: 0 };
-      const guard = createCreditRateGuard({ supabase: mintedClient as never });
-      return guard.check(orgId);
-    },
-  };
+  const rateGuard = createDispatchRateGuard(creditsEnforced);
 
   try {
     await runDispatchTick({
@@ -182,10 +233,8 @@ serveWithErrorReporting('agent-dispatch', async (req: Request): Promise<Response
       // FR-AAN-020: the fired run persists as an ordinary run under the MINTED OWNER client (owner
       // RLS — the deputy invariant, never service_role). auditMint already created the thread+run +
       // the seq-0 audit event, so this resumes that run: startSeq=1, no journaled writes yet.
-      buildPersistence: (mintedClient, ownerId, _runId) => ({
+      buildPersistence: (mintedClient, _ownerId, _runId) => ({
         supabase: mintedClient,
-        ownerId,
-        orgId: '',
         now: () => new Date(),
         startSeq: 1,
         journaledWrites: [],
@@ -215,4 +264,4 @@ serveWithErrorReporting('agent-dispatch', async (req: Request): Promise<Response
       headers: { 'Content-Type': 'application/json' },
     });
   }
-});
+}, { summarize: summarizeAgentDispatch }));

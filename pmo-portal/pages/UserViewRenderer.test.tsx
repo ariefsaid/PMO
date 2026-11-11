@@ -8,8 +8,10 @@
  * AC-VR-021 (ready state renders correctly after two-tick delay).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { screen, waitFor, within } from '@testing-library/react';
+// Panels run through usePanelQueries (react-query), so every render needs a client.
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 
 // ── Hoisted mocks ────────────────────────────────────────────────────────────
@@ -71,7 +73,9 @@ const mockExecute = executeCompiledQuery as ReturnType<typeof vi.fn>;
 function renderRenderer(viewId = 'abc') {
   return render(
     <MemoryRouter initialEntries={[`/views/${viewId}`]}>
-      <UserViewRenderer viewId={viewId} />
+      <Routes>
+        <Route path="/views/:viewId" element={<UserViewRenderer />} />
+      </Routes>
     </MemoryRouter>
   );
 }
@@ -181,8 +185,10 @@ describe('UserViewRenderer — guard states', () => {
     );
 
     render(
-      <MemoryRouter>
-        <FeatureRoute feature="userViews" element={<UserViewRenderer viewId="abc" />} />
+      <MemoryRouter initialEntries={['/views/abc']}>
+        <Routes>
+          <Route path="/views/:viewId" element={<FeatureRoute feature="userViews" element={<UserViewRenderer />} />} />
+        </Routes>
       </MemoryRouter>
     );
     // UserViewRenderer is NOT rendered when feature is off — no loading skeleton or not-found text
@@ -211,7 +217,6 @@ const COMPILED_KPITILE = [{
   id: 'p1', primitive: 'KPITile',
   compiledQuery: {
     entity: 'projects',
-    repositoryMethod: 'project.list',
     resolvedFilters: [],
     resolvedSelect: ['contract_value'],
     resolvedAggregate: { fn: 'sum', column: 'contract_value', alias: 'total' },
@@ -302,7 +307,7 @@ describe('UserViewRenderer — data states (AC-VR-006..010)', () => {
     mockUseUserView.mockReturnValue({ data: dtView, isPending: false, isError: false });
     mockCompile.mockReturnValue([{
       id: 'p1', primitive: 'DataTable',
-      compiledQuery: { entity: 'companies', repositoryMethod: 'company.list', resolvedFilters: [], resolvedSelect: ['id', 'name'] },
+      compiledQuery: { entity: 'companies', resolvedFilters: [], resolvedSelect: ['id', 'name'] },
       props: {},
     }]);
     mockExecute.mockResolvedValue([{ id: 'c1', name: 'Acme Corp' }, { id: 'c2', name: 'Globex' }]);
@@ -328,7 +333,7 @@ describe('UserViewRenderer — data states (AC-VR-006..010)', () => {
     });
     mockCompile.mockReturnValue([{
       id: 'p1', primitive,
-      compiledQuery: { entity: 'projects', repositoryMethod: 'project.list', resolvedFilters: [], resolvedSelect: ['status', 'cnt'], resolvedGroupBy: 'status', resolvedAggregate: { fn: 'count', column: 'id', alias: 'cnt' } },
+      compiledQuery: { entity: 'projects', resolvedFilters: [], resolvedSelect: ['status', 'cnt'], resolvedGroupBy: 'status', resolvedAggregate: { fn: 'count', column: 'id', alias: 'cnt' } },
       props,
     }]);
   }
@@ -351,13 +356,21 @@ describe('UserViewRenderer — data states (AC-VR-006..010)', () => {
     expect(screen.getByText('Won')).toBeInTheDocument();
   });
 
-  it('AC-VR-011d: StatusBarChart hydrates an aria summary + legend from grouped rows', async () => {
+  it('AC-VR-011d: StatusBarChart exposes a concise name, grouped data table, and legend', async () => {
     setupGrouped('StatusBarChart');
     mockExecute.mockResolvedValue([{ status: 'Open', cnt: 4 }, { status: 'Done', cnt: 6 }]);
     renderRenderer();
-    // figure role=img with the aria summary "<entity>, <total> records, most in <top>."
-    await waitFor(() => expect(screen.getByRole('img', { name: /10 records/i })).toBeInTheDocument());
-    expect(screen.getByRole('img', { name: /most in Done/i })).toBeInTheDocument();
+    const chart = await waitFor(() => screen.getByRole('img', { name: 'projects' }));
+    expect(chart).toHaveAccessibleDescription('The chart values are listed in the following data table.');
+
+    const table = screen.getByRole('table', { name: 'Data for projects' });
+    expect(within(table).getByRole('row', { name: 'Open 4' })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: 'Done 6' })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: 'Total 10' })).toBeInTheDocument();
+
+    const legend = screen.getByRole('group', { name: 'projects' });
+    expect(within(legend).getByText('Open')).toBeInTheDocument();
+    expect(within(legend).getByText('Done')).toBeInTheDocument();
   });
 
   it('AC-VR-011e: ProgressBar hydrates a scalar value from the first row', async () => {

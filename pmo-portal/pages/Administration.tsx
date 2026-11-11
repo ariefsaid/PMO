@@ -13,6 +13,8 @@ import AdminUsers from './AdminUsers';
 import AdministrationCredits from './AdministrationCredits';
 import { AdministrationUsage } from './AdministrationUsage';
 import AdministrationFeatures from './AdministrationFeatures';
+import YourPlan from './YourPlan';
+import { FeedbackSurveysSetting } from '@/src/components/feedback/FeedbackSurveysSetting';
 import AdministrationExchangeRates from './AdministrationExchangeRates';
 import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
@@ -21,8 +23,10 @@ import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
+import OrgProcurementGates from './admin/OrgProcurementGates';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
+import CostAttribution from './admin/CostAttribution';
 import ExpenseAccountMap from './admin/ExpenseAccountMap';
 import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 
@@ -31,15 +35,19 @@ export type AdministrationSection =
   | 'integrations'
   | 'accounting'
   | 'projects'
+  | 'plan'
   | 'credits'
   | 'exchange-rates'
+  | 'cost-attribution'
   | 'usage'
   | 'features';
 
 /** Canonical section order (Task 4/6): the four organization destinations, then the Operator-only pair. */
-const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'integrations', 'accounting', 'projects', 'credits', 'exchange-rates'];
+const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'integrations', 'accounting', 'projects', 'plan', 'credits', 'exchange-rates'];
 const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
-const ALL_SECTIONS: AdministrationSection[] = [...ORGANIZATION_SECTIONS, ...OPERATOR_SECTIONS];
+/** #1271: Finance's second destination, beside Exchange rates. Admin/Executive reach cost attribution inside Accounting setup, so it is not in their nav. */
+const FINANCE_SECTIONS: AdministrationSection[] = ['exchange-rates', 'cost-attribution'];
+const ALL_SECTIONS: AdministrationSection[] = [...ORGANIZATION_SECTIONS, 'cost-attribution', ...OPERATOR_SECTIONS];
 
 /** English defaults for the shell's labels — the translatable source (i18next-parser convention). */
 const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
@@ -47,8 +55,10 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   integrations: 'Organization integrations',
   accounting: 'Accounting setup',
   projects: 'Project setup',
+  plan: 'Your plan',
   credits: 'Credits',
   'exchange-rates': 'Exchange rates',
+  'cost-attribution': 'Cost attribution',
   usage: 'Usage',
   features: 'Features',
 };
@@ -63,8 +73,10 @@ const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string>
   integrations: t('admin.nav.integrations', SECTION_LABEL_DEFAULTS.integrations),
   accounting: t('admin.nav.accounting', SECTION_LABEL_DEFAULTS.accounting),
   projects: t('admin.nav.projects', SECTION_LABEL_DEFAULTS.projects),
+  plan: t('plans:yourPlan.navLabel', SECTION_LABEL_DEFAULTS.plan),
   credits: t('admin.nav.credits', SECTION_LABEL_DEFAULTS.credits),
   'exchange-rates': t('admin.nav.exchangeRates', SECTION_LABEL_DEFAULTS['exchange-rates']),
+  'cost-attribution': t('costAttribution:title', SECTION_LABEL_DEFAULTS['cost-attribution']),
   usage: t('admin.nav.usage', SECTION_LABEL_DEFAULTS.usage),
   features: t('admin.nav.features', SECTION_LABEL_DEFAULTS.features),
 });
@@ -103,7 +115,7 @@ const AdministrationNavigation: React.FC<{
   const { t } = useTranslation();
   const linkClass = (active: boolean) =>
     cn(
-      'touch-target flex min-h-11 min-w-0 items-center justify-center rounded-md px-2.5 py-1.5 text-center text-[13px] leading-tight transition-colors md:min-h-0',
+      'touch-target flex min-h-11 min-w-0 shrink-0 items-center justify-center rounded-md px-3 py-1.5 text-center text-[13px] leading-tight transition-colors md:min-h-0 md:shrink',
       'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
       active
         ? 'bg-background font-semibold text-nav-active-text shadow-sm'
@@ -123,12 +135,12 @@ const AdministrationNavigation: React.FC<{
     ));
 
   return (
-    <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="mb-6 min-w-0">
-      <div className="grid min-w-0 grid-cols-2 gap-1 rounded-lg bg-secondary p-1 md:flex md:flex-wrap">
-        {links(ORGANIZATION_SECTIONS.filter((id) => sections.includes(id)))}
+    <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="mb-4 min-w-0 md:mb-6">
+      <div className="flex min-w-0 max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-secondary p-1 md:flex-wrap">
+        {links([...ORGANIZATION_SECTIONS, 'cost-attribution' as const].filter((id) => sections.includes(id)))}
         {isOperator && (
           <>
-            <span className="col-span-2 px-2 pt-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground md:col-span-1 md:ml-1 md:self-center md:px-1 md:pt-0">
+            <span className="shrink-0 px-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground md:ml-1 md:self-center md:px-1">
               {t('admin.nav.platform', 'Platform')}
             </span>
             {links(OPERATOR_SECTIONS)}
@@ -159,10 +171,12 @@ const AccountingSectionNavigation: React.FC = () => {
     { id: 'org-tax-default', label: t('uxs31.accounting.taxDefault', 'Default tax treatment') },
     { id: 'spend-approvers', label: t('uxs31.accounting.spendApprovers', 'Spend approvers') },
     { id: 'withholding-account-heading', label: t('uxs31.accounting.withholding', 'Receipt withholding') },
-    { id: 'vendor-tax-accounts-heading', label: t('uxs31.accounting.vendorTax', 'Vendor bill tax accounts') },
+    { id: 'vendor-tax-accounts-heading', label: t('uxs31.accounting.vendorTax', 'Supplier bill tax accounts') },
     { id: 'down-payment-item-heading', label: t('uxs31.accounting.downPayments', 'Down payments') },
+    { id: 'procurement-gates-heading', label: t('procurement:gates.heading', 'Purchase rules') },
     { id: 'budget-account-map', label: t('uxs31.accounting.budgetMap', 'Budget account map') },
     { id: 'expense-account-map', label: t('uxs31.accounting.expenseMap', 'Expense account map') },
+    { id: 'cost-attribution', label: t('costAttribution:title', 'Cost attribution') },
   ];
   return (
     <nav aria-label={t('uxs31.accounting.sectionsLabel', 'Accounting setup sections')} className="mb-5">
@@ -225,6 +239,7 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-integrations" className="min-w-0">
           <SectionHeader title={label('integrations')} />
           <IntegrationsView />
+          <FeedbackSurveysSetting />
         </div>
       );
     case 'accounting':
@@ -238,9 +253,17 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgWithholdingAccount />
             <OrgVendorTaxAccounts />
             <OrgDownPaymentItem />
+            <OrgProcurementGates />
             <BudgetAccountMap />
             <ExpenseAccountMap />
+            <CostAttribution />
           </div>
+        </div>
+      );
+    case 'cost-attribution':
+      return (
+        <div data-testid="administration-panel-cost-attribution" className="min-w-0">
+          <CostAttribution />
         </div>
       );
     case 'projects':
@@ -251,6 +274,13 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
           </div>
+        </div>
+      );
+    case 'plan':
+      return (
+        <div data-testid="administration-panel-plan" className="min-w-0">
+          <SectionHeader title={label('plan')} />
+          <YourPlan />
         </div>
       );
     case 'credits':
@@ -292,15 +322,23 @@ const Administration: React.FC = () => {
   const section = administrationSectionForPath(pathname);
   const isAdminViewer = may('view', 'user');
   const canFx = may('view', 'fxRate');
+  const canManageCostAttribution = may('manage', 'costAttribution');
+  const canViewCostAttribution = isAdminViewer || canManageCostAttribution;
   const isFinance = realRole === 'Finance';
   const isOperator = operatorMembership.isOperator;
   const operatorRoute = section !== undefined && isOperatorSection(section);
   const fxRoute = section === 'exchange-rates';
-  const canEnterAdministration = isAdminViewer || isOperator || (fxRoute && isFinance && canFx);
+  const costAttributionRoute = section === 'cost-attribution';
+  const canEnterAdministration = isAdminViewer || isOperator || (fxRoute && isFinance && canFx) || (costAttributionRoute && isFinance && canManageCostAttribution);
   const needsOperatorCheck = operatorRoute || (!isAdminViewer && !isFinance);
   const navigationSections: AdministrationSection[] = isFinance
-    ? ['exchange-rates']
-    : ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx);
+    ? FINANCE_SECTIONS.filter((id) => id !== 'cost-attribution' || canManageCostAttribution)
+    : [
+      ...ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx)
+        // "Your plan" is the org Admin's read-only page (FR-PLN-014); an Operator reaches it too.
+        .filter((id) => id !== 'plan' || isAdminViewer || isOperator),
+      ...(canViewCostAttribution ? ['cost-attribution' as const] : []),
+    ];
   const sectionLabels = buildSectionLabels(t);
   const label = (id: AdministrationSection) => sectionLabels[id];
 
@@ -320,15 +358,9 @@ const Administration: React.FC = () => {
     return <Navigate to="/administration/projects#org-project-number-pattern" replace />;
   }
 
-  if (pathname === '/administration') {
-    const target = hash === '#budget-account-map'
-      ? '/administration/accounting#budget-account-map'
-      : isFinance
-        ? '/administration/exchange-rates'
-        : '/administration/users';
-    return <Navigate to={target} replace />;
-  }
-
+  // The bare `/administration` entry redirect lives ONLY in the route table (App's
+  // AdministrationEntryRedirect) — a section-less render here is otherwise unreachable, so it
+  // falls through to the same destination logic below without a competing redirect copy.
   if (!section) {
     return <Navigate to={isFinance ? '/administration/exchange-rates' : '/administration/users'} replace />;
   }

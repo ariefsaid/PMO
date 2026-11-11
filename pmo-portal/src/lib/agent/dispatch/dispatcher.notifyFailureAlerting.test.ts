@@ -9,6 +9,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { runDispatchTick } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import type { AutomationRow } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
+import { makeDispatcherTestRpc } from './dispatcherTestRpc';
 
 function makeScheduleAutomation(overrides: Partial<AutomationRow> = {}): AutomationRow {
   return {
@@ -50,7 +51,7 @@ function makeServiceClient(automations: AutomationRow[]) {
     return { select: selectMock, update: updateMock };
   });
 
-  return { client: { from }, errorEventsInsert };
+  return { client: { from, rpc: makeDispatcherTestRpc() }, errorEventsInsert };
 }
 
 /** A minted-client mock whose notifications insert FAILS (a resolved Postgres error). */
@@ -73,7 +74,7 @@ function makeMintedClientWithFailingNotify() {
   const from = vi.fn((table: string) => {
     tablesTouched.push(table);
     if (table === 'notifications') return { insert: notifInsert };
-    return { insert: auditInsert };
+    return { insert: auditInsert, update: () => ({ eq: () => Promise.resolve({ error: null }) }) };
   });
   return { client: { from }, notifInsert };
 }
@@ -147,10 +148,10 @@ describe('I5 — a failed owner notification is recorded to error_events (reache
     const scheduleIs = vi.fn().mockResolvedValue({ data: [], error: null });
     const triggerIs = vi.fn().mockResolvedValue({ data: [trigger], error: null });
     let automationSelectCall = 0;
-    const rpc = vi.fn().mockResolvedValue({
+    const rpc = makeDispatcherTestRpc(() => ({
       data: [{ id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-A' }],
       error: null,
-    });
+    }));
     const wmMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     const wmSelect = vi.fn().mockReturnValue({ eq: () => ({ maybeSingle: wmMaybeSingle }) });
     const wmUpsert = vi.fn().mockResolvedValue({ data: null, error: null });
@@ -165,7 +166,7 @@ describe('I5 — a failed owner notification is recorded to error_events (reache
         return { select: () => ({ eq: () => ({ eq: () => ({ is: isMock }) }) }) };
       }
       if (table === 'agent_dispatch_watermarks') return { select: wmSelect, upsert: wmUpsert };
-      if (table === 'agent_automation_fires') return { insert: firesInsert };
+      if (table === 'agent_automation_fires') return { update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }), }), }), insert: firesInsert };
       if (table === 'error_events') return { insert: errorEventsInsert };
       throw new Error(`service_role must never .from() business data; got: ${table}`);
     });

@@ -44,7 +44,7 @@
 -- activate_budget_version, create_procurement_invoice / capture_vendor_invoice, transition_project's
 -- win path, and transition_document_status' real SoD.
 begin;
-select plan(70);
+select plan(71);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — a BYPASSRLS authority, exempt from the origination guards by design).
@@ -415,11 +415,14 @@ select lives_ok(
                'RES Self-won deal','Leads', 99999999, 'exclusive', 0) $$,
   'AC-RES-032 a PM may still ORIGINATE a Lead at contract_value 99999999 — the opportunity value is theirs to propose');
 select lives_ok(
-  $$ select transition_project('01690000-0000-0000-0000-0000000000b3'::uuid,'PQ Submitted'::project_status) $$,
+  $$ select transition_project('01690000-0000-0000-0000-0000000000b3'::uuid,'Quotation Submitted'::project_status) $$,
   'AC-RES-032 …and still move it up the pipeline alone (the rule binds on the money, not on the pipeline)…');
 select lives_ok(
-  $$ select transition_project('01690000-0000-0000-0000-0000000000b3'::uuid,'Quotation Submitted'::project_status) $$,
+  $$ select transition_project('01690000-0000-0000-0000-0000000000b3'::uuid,'PQ Submitted'::project_status) $$,
   'AC-RES-032 …alone…');
+select lives_ok(
+  $$ select transition_project('01690000-0000-0000-0000-0000000000b3'::uuid,'Tender Submitted'::project_status) $$,
+  'AC-RES-032 …and reaches the legal win stage…');
 select throws_ok(
   $$ select transition_project('01690000-0000-0000-0000-0000000000b3'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-RES-2', '2026-03-02'::date) $$,
@@ -431,7 +434,7 @@ reset role;
 select is(
   (select status::text || ' | ' || contract_value::text
      from public.projects where id = '01690000-0000-0000-0000-0000000000b3'),
-  'Quotation Submitted | 99999999.00',
+  'Tender Submitted | 99999999.00',
   'AC-RES-032 CLOSED (0177): the self-set 99999999 never reached Won — see 0170 AC-PMS-013..021');
 
 -- ⚑ REWRITTEN with the pin above. This used to assert that the audit row for b3's Won transition
@@ -449,10 +452,10 @@ select is(
   'AC-RES-031 the REFUSED win wrote no transition audit row — a denial is not a half-recorded elevation');
 
 select is(
-  (select array_agg(detail ->> 'to' order by created_at) from public.audit_events
+  (select array_agg(detail ->> 'to' order by detail ->> 'to') from public.audit_events
      where action = 'project.transition' and entity_id = '01690000-0000-0000-0000-0000000000b3'),
-  array['PQ Submitted','Quotation Submitted'],
-  'AC-RES-031 …and the two transitions the PM IS allowed to make are still on the trail');
+  array['PQ Submitted','Quotation Submitted','Tender Submitted'],
+  'AC-RES-031 …and the pipeline transitions the PM IS allowed to make are still on the trail');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- E. budget_versions — the same class, untouched by slices 1-3.
@@ -528,9 +531,8 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01690000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
-  $$ update public.budget_versions set status = 'Archived'
-      where id = '01690000-0000-0000-0000-00000000a001' $$,
-  'AC-RES-042 CONTROL archiveVersion''s direct status UPDATE still works (the guard is INSERT-only)');
+  $$ select public.archive_budget_version_with_cancel_intent('01690000-0000-0000-0000-00000000a001', false) $$,
+  'AC-RES-042 CONTROL archiveVersion still works through the durable archive RPC');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- F. create_procurement_invoice — the RPC accepted the protected end state as a PARAMETER. Now that
@@ -716,8 +718,10 @@ select throws_ok(
 -- The trust boundary the whole class rests on stays exactly where it was put.
 reset role;
 select is(
+  -- 0407 added the caller-role overload (the definer-context entry point); this pins the CLIENT
+  -- form, so the subquery names the no-arg signature explicitly.
   (select proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls'),
+    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls' and p.pronargs = 0),
   array['search_path=pg_catalog, public'],
   'AC-RES-071 actor_bypasses_rls is unchanged — one definition of the trust boundary (ADR-0069)');
 

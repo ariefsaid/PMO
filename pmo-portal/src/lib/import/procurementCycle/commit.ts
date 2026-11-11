@@ -12,11 +12,8 @@
  *
  * org_id is NEVER client-supplied — RLS/RPC stamps it.
  *
- * Import idempotency (Deliverable 2, D-ONB-1/D-ONB-3): when `importBatchId` + `skipLookup`
- * are supplied, the case-header skip and each child record's skip are INDEPENDENT decisions
- * (FR-IDEM-003/005) — a header skip does not skip its still-missing children. NULL/absent
- * `importBatchId` preserves the legacy create-only behavior exactly (opt-in, never changes
- * existing non-import callers).
+ * Import mode resolves each case and record independently using a registered run and immutable
+ * creation facts. Without import options, the ordinary create-only path remains available.
  */
 import { classifyMutationError, trackBatchSaveFailed } from '@/src/lib/classifyMutationError';
 import type { FrictionClass } from '@/src/lib/classifyMutationError';
@@ -32,8 +29,10 @@ import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import type { RefLookup } from '@/src/lib/import/refLookup';
 import { refId } from '@/src/lib/import/refLookup';
 import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
-import type { ImportSkipLookup, RecordTableName } from '@/src/lib/db/procurementImportSkip';
-import { computeCaseImportKey, computeRecordImportKey } from './importKey';
+import type { ImportSkipLookup } from '@/src/lib/db/procurementImportSkip';
+import { caseDecider, recordDecider, TYPE_TO_TABLE, ambiguousIncomingCases, duplicateRecordRows } from './decisions';
+import type { ImportDecision } from './decisions';
+import { computeCaseImportKey, computeRecordImportKey, computeLegacyRecordImportKey, projectRecordFacts } from './importKey';
 import type {
   ValidatedGroup,
   CycleRow,
@@ -61,16 +60,6 @@ export interface CommitOptions {
   skipLookup?: ImportSkipLookup;
 }
 
-const TYPE_TO_TABLE: Record<CycleType, RecordTableName> = {
-  PR: 'purchase_requests',
-  RFQ: 'rfqs',
-  Quotation: 'procurement_quotations',
-  PO: 'purchase_orders',
-  GR: 'procurement_receipts',
-  VI: 'procurement_invoices',
-  Payment: 'payments',
-};
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -87,21 +76,11 @@ function parseAmount(raw: string | undefined): number | null {
   return n;
 }
 
-function parseDate(raw: string | undefined): string | null {
+function normalizeOptional(raw: string | undefined): string | null {
   return raw?.trim() || null;
 }
 
-function parseStatus(raw: string | undefined): string | null {
-  return raw?.trim() || null;
-}
-
-function parseRef(raw: string | undefined): string | null {
-  return raw?.trim() || null;
-}
-
-/** A4: the DB partial-unique index (0072) makes a duplicate (import_key, batch) insert raise
- *  23505. That is the TOCTOU-safe outcome of a race between two concurrent import runs — treat it
- *  as "already imported → skip", not a failure. */
+/** Unique violations require a fresh identity read before any retry can be classified. */
 function isUniqueViolation(err: unknown): boolean {
   return (
     typeof (err as { code?: unknown })?.code === 'string' &&
@@ -134,9 +113,9 @@ async function createRecord(
   importedAt?: string,
 ): Promise<{ id: string }> {
   const type = row.type as CycleType;
-  const ref = parseRef(row.externalRef);
-  const status = parseStatus(row.status);
-  const date = parseDate(row.date);
+  const ref = normalizeOptional(row.externalRef);
+  const status = normalizeOptional(row.status);
+  const date = normalizeOptional(row.date);
   const amount = parseAmount(row.amount);
 
   switch (type) {
@@ -280,9 +259,28 @@ async function commitCase(
   // once at the end preserves the PER-CLASSIFICATION reason distribution (RLS vs duplicates
   // stays answerable) instead of one lump total.
   classificationCounts: Partial<Record<FrictionClass, number>>,
+  decideHeader?: ReturnType<typeof caseDecider>,
 ): Promise<CommitCaseResult> {
   const { group, rows: validatedRows } = validated;
   const { attrs } = group;
+  const notAttemptedRows = (): CommitRecordResult[] => {
+    const validNumbers = new Set(validatedRows.filter(row => row.valid).map(row => row.rowNumber));
+    return group.rows.filter(row => validNumbers.has(row.rowNumber)).map(row => ({
+      rowNumber: row.rowNumber, type: row.type, status: 'failed',
+      error: 'not attempted because the case could not be resolved or created; retry this case.',
+    }));
+  };
+
+  if (importBatchId && skipLookup) {
+    const validNumbers = new Set(validatedRows.filter(row => row.valid).map(row => row.rowNumber));
+    const validRows = group.rows.filter(row => validNumbers.has(row.rowNumber));
+    const duplicates = duplicateRecordRows(validRows, vendorLookup);
+    if (duplicates.size) return {
+      caseRef: group.caseRef, headerStatus: 'failed', headerError: 'Duplicate source identities must be reconciled before import.',
+      records: validRows.map(row => ({ rowNumber: row.rowNumber, type: row.type, status: 'failed',
+        error: duplicates.has(row.rowNumber) ? 'Duplicate source identity in this case.' : 'Not attempted because this case contains duplicate identities.' })),
+    };
+  }
 
   // Resolve project and vendor for the header (vendor optional — may be null)
   const projectId = attrs.project ? refId(projectLookup, attrs.project) : null;
@@ -300,19 +298,24 @@ async function commitCase(
 
   if (importBatchId && skipLookup && caseImportKey) {
     // org_id is resolved server-side by the skip-lookup's RLS-scoped read (never client-supplied).
-    const existing = await skipLookup.findExistingCase(caseImportKey, importBatchId);
-    // FR-IDEM-006: a case with the same import_key from an EARLIER batch must be skipped, not
-    // duplicated. Checked only when the same-batch lookup missed (same-batch is the common path).
-    const collision = existing
-      ? null
-      : await skipLookup.findCrossBatchCollision('procurements', caseImportKey, importBatchId);
-    const priorCase = existing ?? collision;
-    if (priorCase) {
-      procurementId = priorCase.id;
+    let decision;
+    try {
+      decision = await decideHeader!(caseImportKey);
+      if (skipLookup.listCases) decision = await decideHeader!(caseImportKey, true);
+    } catch (err) {
+      const { headline, detail, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
+      classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
+      return { caseRef: group.caseRef, headerStatus: 'failed', headerError: `${headline}: ${detail}`, records: notAttemptedRows() };
+    }
+    if (decision.kind === 'ambiguous') {
+      return { caseRef: group.caseRef, headerStatus: 'failed', headerError: `Multiple cases match: ${decision.ids.join(', ')}. Reconcile these cases before import.`, records: notAttemptedRows() };
+    }
+    if (decision.kind !== 'new') {
+      procurementId = decision.id;
       headerStatus = 'skipped';
-      headerSkipReason = existing
+      headerSkipReason = decision.kind === 'same'
         ? `already imported (batch ${importBatchId})`
-        : `already imported by an earlier batch (${(collision as { import_batch_id: string }).import_batch_id})`;
+        : `already imported by an earlier batch (${decision.batch})`;
     } else {
       try {
         const header = await createProcurement(
@@ -332,10 +335,15 @@ async function commitCase(
         if (isUniqueViolation(err)) {
           // A concurrent run created this case between our skip-check and this insert. The row
           // now exists; re-resolve it so the still-missing children can proceed (FR-IDEM-004a).
-          const raced = caseImportKey
-            ? await skipLookup.findExistingCase(caseImportKey, importBatchId)
-            : null;
-          if (raced) {
+          let raced: ImportDecision;
+          try {
+            raced = await decideHeader!(caseImportKey, true);
+          } catch (probeError) {
+            const { headline, detail, classification } = classifyMutationError(probeError, undefined, { suppressCapture: true });
+            classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
+            return { caseRef: group.caseRef, headerStatus: 'failed', headerError: `${headline}: ${detail}`, records: notAttemptedRows() };
+          }
+          if (raced.kind === 'same') {
             procurementId = raced.id;
             headerStatus = 'skipped';
             headerSkipReason = `already imported concurrently (batch ${importBatchId})`;
@@ -352,7 +360,7 @@ async function commitCase(
               caseRef: group.caseRef,
               headerStatus: 'failed',
               headerError: `${headline}: ${detail}`,
-              records: [],
+              records: notAttemptedRows(),
             };
           }
         } else {
@@ -368,7 +376,7 @@ async function commitCase(
             caseRef: group.caseRef,
             headerStatus: 'failed',
             headerError: `${headline}: ${detail}`,
-            records: [],
+            records: notAttemptedRows(),
           };
         }
       }
@@ -392,7 +400,7 @@ async function commitCase(
         caseRef: group.caseRef,
         headerStatus: 'failed',
         headerError: `${headline}: ${detail}`,
-        records: [],
+        records: notAttemptedRows(),
       };
     }
   }
@@ -413,39 +421,47 @@ async function commitCase(
   let groupInvoiceId: string | null = null;
   const records: CommitRecordResult[] = [];
 
-  for (const row of validRows) {
-    const recordImportKey = importBatchId ? computeRecordImportKey(row) : null;
+  const decideRecord = importBatchId && skipLookup ? recordDecider(skipLookup, procurementId, importBatchId, validRows, vendorLookup) : null;
+
+  for (const [rowIndex, row] of validRows.entries()) {
+    const failRemaining = () => {
+      for (const remaining of validRows.slice(rowIndex + 1)) {
+        records.push({ rowNumber: remaining.rowNumber, type: remaining.type, status: 'failed', error: 'not attempted because an earlier lookup failed; retry this case.' });
+      }
+    };
+    if (row.type === 'Payment' && group.rows.some(item => item.type === 'VI') &&
+        (group.rows.filter(item => item.type === 'VI').length !== 1 || !groupInvoiceId)) {
+      records.push({ rowNumber: row.rowNumber, type: row.type, status: 'failed', error: 'The linked invoice could not be uniquely resolved.' });
+      continue;
+    }
+    const oldRecordKey = importBatchId ? computeLegacyRecordImportKey(row) : null;
+    const recordImportKey = importBatchId ? computeRecordImportKey(row, projectRecordFacts(row, row.vendor ? refId(vendorLookup, row.vendor) : null, groupInvoiceId)) : null;
 
     // ── Per-record: skip-if-exists, evaluated INDEPENDENTLY of the header decision (FR-IDEM-003/005) ──
     if (importBatchId && skipLookup && recordImportKey) {
       const table = TYPE_TO_TABLE[row.type as CycleType];
-      const existing = table
-        ? await skipLookup.findExistingRecord(table, procurementId, recordImportKey, importBatchId)
-        : null;
-      // FR-IDEM-006: a record with the same import_key from an EARLIER batch (under this case)
-      // must be skipped, not duplicated. Checked only when the same-batch lookup missed.
-      const collision =
-        table && !existing
-          ? await skipLookup.findCrossBatchCollision(
-              table,
-              recordImportKey,
-              importBatchId,
-              procurementId,
-            )
-          : null;
-      const priorRecord = existing ?? collision;
-      if (priorRecord) {
-        if (row.type === 'VI') groupInvoiceId = priorRecord.id; // preserve Payment FK settlement on skip
-        records.push({
-          rowNumber: row.rowNumber,
-          type: row.type,
-          id: priorRecord.id,
-          status: 'skipped',
-          skipReason: existing
-            ? `already imported (batch ${importBatchId})`
-            : `already imported by an earlier batch (${(collision as { import_batch_id: string }).import_batch_id})`,
-        });
-        continue;
+      try {
+        let decision: Exclude<ImportDecision, { kind: 'ambiguous' }> = table && decideRecord ? await decideRecord(table, row, false, groupInvoiceId) : { kind: 'new' };
+        if (table && decideRecord && skipLookup.listCaseRecords) {
+          decision = await decideRecord(table, row, true, groupInvoiceId);
+        }
+        if (decision.kind === 'other') {
+          records.push({ rowNumber: row.rowNumber, type: row.type, id: decision.id, status: 'failed',
+            error: 'Existing source requires reconciliation before import.' });
+          continue;
+        }
+        if (decision.kind === 'same') {
+          if (row.type === 'VI') groupInvoiceId = decision.id;
+          records.push({ rowNumber: row.rowNumber, type: row.type, id: decision.id, status: 'skipped',
+            skipReason: 'matching creation identity already imported' });
+          continue;
+        }
+      } catch (err) {
+        const { headline, detail, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
+        classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
+        records.push({ rowNumber: row.rowNumber, type: row.type, status: 'failed', error: `${headline}: ${detail}` });
+        failRemaining();
+        break;
       }
     }
 
@@ -469,24 +485,27 @@ async function commitCase(
         // The race path only runs in import mode: recordImportKey is only ever set when
         // importBatchId is set (line ~299), so this can't skip a genuinely-reachable case —
         // including importBatchId in the guard just makes that provable to the type checker.
-        const raced =
-          table && recordImportKey && importBatchId
-            ? await skipLookup?.findExistingRecord(
-                table,
-                procurementId,
-                recordImportKey,
-                importBatchId,
-              )
-            : null;
-        if (raced && row.type === 'VI') groupInvoiceId = raced.id;
-        records.push({
-          rowNumber: row.rowNumber,
-          type: row.type,
-          id: raced?.id,
-          status: 'skipped',
-          skipReason: `already imported concurrently (batch ${importBatchId})`,
-        });
-        continue;
+        try {
+          const raced = table && oldRecordKey && decideRecord && skipLookup?.listCaseRecords
+            ? await decideRecord(table, row, true, groupInvoiceId) : null;
+          if (raced?.kind === 'same') {
+            if (row.type === 'VI') groupInvoiceId = raced.id;
+            records.push({ rowNumber: row.rowNumber, type: row.type, id: raced.id, status: 'skipped',
+              skipReason: 'matching creation identity imported concurrently' });
+            continue;
+          }
+          if (raced?.kind === 'other') {
+            records.push({ rowNumber: row.rowNumber, type: row.type, id: raced.id, status: 'failed',
+              error: 'Existing source requires reconciliation before import.' });
+            continue;
+          }
+        } catch (probeError) {
+          const { headline, detail, classification } = classifyMutationError(probeError, undefined, { suppressCapture: true });
+          classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
+          records.push({ rowNumber: row.rowNumber, type: row.type, status: 'failed', error: `${headline}: ${detail}` });
+          failRemaining();
+          break;
+        }
       }
       // SECURITY (2026-07-27 review round 2 #2): suppressCapture — this runs inside commitGroups'
       // per-group/per-record loop; a bulk commit failing wholesale must not fire one
@@ -535,18 +554,31 @@ export async function commitGroups(
   // classification (not one lump total) matters.
   const classificationCounts: Partial<Record<FrictionClass, number>> = {};
 
+  let incomingConflicts = new Set<ValidatedGroup>();
+  let normalizationError: unknown;
+  if (options.importBatchId && options.skipLookup) {
+    try { incomingConflicts = await ambiguousIncomingCases(validatedGroups.filter(item => item.valid), options.skipLookup); }
+    catch (error) { normalizationError = error; }
+  }
+  const decideHeader = options.importBatchId && options.skipLookup
+    ? caseDecider(options.skipLookup, validatedGroups.filter(item => item.valid).map(item => computeCaseImportKey(item.group)), options.importBatchId)
+    : undefined;
   for (const validated of validatedGroups) {
     // Skip invalid groups entirely
     if (!validated.valid) continue;
 
-    const caseResult = await commitCase(validated, options, classificationCounts);
+    const blocked = normalizationError || incomingConflicts.has(validated);
+    const caseResult: CommitCaseResult = blocked ? {
+      caseRef: validated.group.caseRef, headerStatus: 'failed',
+      headerError: normalizationError ? 'Case normalization failed; retry the import.' : 'Case references are ambiguous; reconcile them before import.',
+      records: validated.group.rows.filter(row => validated.rows.some(item => item.valid && item.rowNumber === row.rowNumber))
+        .map(row => ({ rowNumber: row.rowNumber, type: row.type, status: 'failed', error: 'Not attempted because the case could not be resolved.' })),
+    } : await commitCase(validated, options, classificationCounts, decideHeader);
     cases.push(caseResult);
-    if (caseResult.headerStatus === 'created' || caseResult.headerStatus === 'skipped') {
-      for (const rec of caseResult.records) {
-        if (rec.status === 'created') created++;
-        else if (rec.status === 'failed') failed++;
-        // 'skipped' counts toward neither — surfaced via the per-case/per-record detail instead.
-      }
+    for (const rec of caseResult.records) {
+      if (rec.status === 'created') created++;
+      else if (rec.status === 'failed') failed++;
+      // 'skipped' counts toward neither — surfaced via the per-case/per-record detail instead.
     }
     // headerStatus === 'failed' is tallied by classifyMutationError inside commitCase itself
     // (classificationCounts, above) — no separate counter needed here.

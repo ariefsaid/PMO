@@ -4,7 +4,7 @@
  * AC: Given focus on a project tab, when the user presses ArrowRight, then focus
  * moves to the next tab and stays in the tab bar (also ArrowLeft, Home, End per the
  * WAI-ARIA tabs pattern). The journey runs through the real ProjectDetail wiring
- * (Tabs → setTab → navigate), with tab contents stubbed — we test focus, not panels.
+ * (Tabs → setArea → navigate), with tab contents stubbed — we test focus, not panels.
  *
  * AppShell's focus-on-route-change exemption is ALSO asserted at its owning layer
  * (AppShell.tabFocus.test.tsx); this journey renders the page inside the real AppShell —
@@ -14,7 +14,7 @@
  * Owning layer: Vitest/RTL — pure FE logic, no DB required.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -22,6 +22,8 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppShell } from '@/src/components/shell';
 import type { Role } from '@/src/auth/AuthContext';
 import React from 'react';
+vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
+vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinancesSection: () => null }));
 
 // ── Shared project fixture (on-hand, delivery stage) ──────────────────────────
@@ -38,6 +40,7 @@ const projData = [
     last_update: '',
     org_id: 'o1',
     contract_value: 200_000,
+    currency: 'USD',
     win_probability: 1,
     stage_id: null,
     code: null,
@@ -83,17 +86,11 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
 }));
 
 // Stub tab contents — we test which tab is focused/active, not what's inside them.
-vi.mock('../tabs/OverviewTab', () => ({ default: () => <div data-testid="tab-overview">Overview</div> }));
-// History renders RecordHistory directly (no tabs/HistoryTab); stub it the same way —
-// the Home/End journey activates it and its own data wiring is out of scope here.
-vi.mock('@/src/components/history/RecordHistory', () => ({
-  RecordHistory: () => <div data-testid="tab-history">History</div>,
-}));
 vi.mock('../tabs/BudgetTab', () => ({ default: () => <div data-testid="tab-budget">Budget</div> }));
 vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-procurement">Procurement</div> }));
 vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
 vi.mock('../tabs/DocumentsTab', () => ({ default: () => <div data-testid="tab-documents">Documents</div> }));
-vi.mock('../PipelineLens', () => ({ default: () => <div>Pipeline</div> }));
+vi.mock('../../sales/DealBand', () => ({ default: () => <div>Pipeline</div> }));
 vi.mock('@/src/hooks/useTasks', () => ({
   useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
@@ -110,6 +107,24 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectPosition', () => ({
+  useProjectAttention: () => ({ items: [], isPending: false }),
+  useOverdueReceivables: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));
+vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () => null, MoneyBlock: () => null }));
+vi.mock('../ProjectActivity', () => ({ ActivityFooter: () => null, MyOpenTasks: () => null, ProjectActivity: () => null }));
+vi.mock('../ProjectDrawdown', () => ({ default: () => null }));
+vi.mock('../ProjectSCurve', () => ({ default: () => null }));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
 }));
 vi.mock('../ProjectDetailHeader', () => ({
   default: () => <div data-testid="stubbed-header">Header</div>,
@@ -140,7 +155,13 @@ const renderAs = async (realRole: Role, path: string) => {
       </ToastProvider>
     </ImpersonationProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  // #1344: the old wait named project-detail-panel-loading, an id the demand-loading change
+  // (#1469) retired — it asserted nothing and returned before the panel's Suspense fallback
+  // cleared, racing the skeleton on a loaded machine (#1198 fixed the defaultTab fixture;
+  // same binding here). Tab surfaces are stubbed modules, so once the record lands the
+  // fallback clears in microtasks — the wait just refuses to assert before it has.
+  const panel = screen.getByRole('tabpanel');
+  await waitFor(() => expect(within(panel).queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
   return view;
 };
 
@@ -159,8 +180,8 @@ describe('#879: project tabs keep focus on arrow keys (WCAG 2.4.3)', () => {
     fireEvent.keyDown(overviewTab, { key: 'ArrowRight' });
 
     // Focus moved to the NEXT tab — not to the main content, not stuck on the old tab.
-    expect(await screen.findByTestId('tab-budget')).toBeInTheDocument();
     const budgetTab = screen.getByRole('tab', { name: 'Budget' });
+    await waitFor(() => expect(budgetTab).toHaveAttribute('aria-selected', 'true'));
     expect(budgetTab).toHaveFocus();
     expect(budgetTab).toHaveAttribute('aria-selected', 'true');
     expect(tablist()).toContainElement(activeEl());
@@ -175,8 +196,8 @@ describe('#879: project tabs keep focus on arrow keys (WCAG 2.4.3)', () => {
 
     fireEvent.keyDown(budgetTab, { key: 'ArrowLeft' });
 
-    expect(await screen.findByTestId('tab-overview')).toBeInTheDocument();
     const overviewTab = screen.getByRole('tab', { name: 'Overview' });
+    await waitFor(() => expect(overviewTab).toHaveAttribute('aria-selected', 'true'));
     expect(overviewTab).toHaveFocus();
     expect(overviewTab).toHaveAttribute('aria-selected', 'true');
     expect(tablist()).toContainElement(activeEl());
@@ -195,9 +216,10 @@ describe('#879: project tabs keep focus on arrow keys (WCAG 2.4.3)', () => {
     expect(main()).not.toHaveFocus();
 
     fireEvent.keyDown(overviewTab, { key: 'End' });
-    const historyTab = screen.getByRole('tab', { name: 'History' });
-    expect(historyTab).toHaveFocus();
+    const documentsTab = screen.getByRole('tab', { name: 'Documents' });
+    expect(documentsTab).toHaveFocus();
     expect(tablist()).toContainElement(activeEl());
+    await waitFor(() => expect(documentsTab).toHaveAttribute('aria-selected', 'true'));
     expect(main()).not.toHaveFocus();
   });
 });

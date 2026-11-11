@@ -34,10 +34,25 @@ const { listState, mutations } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/src/hooks/useUsers', () => ({
-  useUsers: () => listState,
-  useUserMutations: () => mutations,
-}));
+vi.mock('@/src/hooks/useUsers', () => {
+  const rows = () => listState.data as Array<{ id: string; full_name: string; email: string; role: string; status: string; org_id: string }>;
+  const counts = () => {
+    const out: Record<string, number> = {};
+    for (const u of rows()) {
+      if (out[u.org_id] === undefined) out[u.org_id] = 0;
+      if (u.role === 'Admin' && u.status === 'active') out[u.org_id] += 1;
+    }
+    return out;
+  };
+  return {
+    useUsers: () => listState,
+    useUsersPage: () => ({ data: { rows: rows(), total: rows().length }, isPending: false, isError: false, isFetching: false, refetch: listState.refetch }),
+    useActiveAdminCounts: () => ({ data: counts(), isPending: false, isError: false, refetch: vi.fn() }),
+    useUserFocusPage: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+    useManagerChoices: () => listState,
+    useUserMutations: () => mutations,
+  };
+});
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'self-admin', org_id: 'org-1' }, role: 'Admin' }),
 }));
@@ -80,14 +95,10 @@ const openRowMenu = async (name: string) => {
 };
 
 describe('AdminUsers — self-edit affordance gate (0179 profiles hierarchy write)', () => {
-  it('omits "Edit role" and "Change manager" on the signed-in caller\'s own row', async () => {
+  it('omits self-management actions on the signed-in caller’s row', () => {
     renderPage();
-    await openRowMenu('Sole Admin');
-    // The menu DID open — the own-row Disable (not a self-edit) stays present.
-    expect(await screen.findByRole('menuitem', { name: /^disable$/i })).toBeInTheDocument();
-    // The two self-edit affordances are NOT offered on the caller's own row.
-    expect(screen.queryByRole('menuitem', { name: /edit role/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: /change manager/i })).not.toBeInTheDocument();
+    const row = screen.getByText('Sole Admin').closest('tr') as HTMLElement;
+    expect(within(row).queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
   });
 
   it('still offers "Edit role" and "Change manager" on another user\'s row', async () => {

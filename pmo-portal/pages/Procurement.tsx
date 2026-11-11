@@ -1,19 +1,19 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ListPage,
   SearchMini,
   ViewToggle,
   ListState,
-  StatusPill,
-  LifecycleStepper,
   Button,
   Icon,
-  ProjectNameLink,
   MobileToolbarDisclosure,
+  Card,
+  Tabs,
   type Column,
 } from '@/src/components/ui';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
-import { ImportButton } from '@/src/components/import';
+import { ImportWizard } from '@/src/components/import/ImportWizard';
 import { ProcurementCycleImportWizard } from '@/src/components/import/procurementCycle/ProcurementCycleImportWizard';
 import { makeProcurementImportDescriptor, makeRefLookup } from '@/src/lib/import';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
@@ -24,9 +24,13 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
-import { trackProcurementDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
-import { ProcurementListColumns, ProcurementListRow } from './procurement/ProcurementListRow';
-import { formatCurrency } from '@/src/lib/format';
+import { useErpOrphans, useErpPurchases } from '@/src/hooks/useErpPurchases';
+import { withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
+import { useProjects } from '@/src/hooks/useProjects';
+import { trackProcurementDetailOpened, trackFilterApplied, trackEmptyStateSeen } from '@/src/lib/analytics';
+import { ProcurementBlock } from '@/src/components/procurement';
+import { ProcurementKpiRow, type ProcurementTab } from './procurement/list/ProcurementKpiRow';
+import { formatWeekdayMonthDay } from '@/src/lib/format';
 import { externalRefsOf, type ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import ProcurementBoard from '../components/ProcurementBoard';
@@ -34,81 +38,91 @@ import { readProcurementView, writeProcurementView } from '@/src/hooks/useProcur
 import type { ProcurementView } from '@/src/hooks/useProcurementView';
 import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import { useHasErpPurchases } from '@/src/hooks/useErpPurchases';
-import { Link } from 'react-router';
-import { parseListWorkingSet } from '@/src/lib/listWorkingSet';
-import { lifecycleSteps, pillVariantForStatus } from '../components/procurement';
+import { ErpOrphansSection } from './procurement/ErpOrphansSection';
+import { needsYou, type NeedsYouResult } from './procurement/blocks/needsYou';
+import type { StageKey } from '@/src/lib/procurement/stage';
+import { matchesSearch, matchesStage, orphanTotals, shortTotalsLabel, totalsByCurrency, type ProcurementListRole } from '@/src/lib/procurement/listModel';
+import { ProcurementGroupedView } from './procurement/list/ProcurementGroupedView';
+import { tabId, tabPanelId } from '@/src/components/ui/tabIds';
 
-/** Status filter segments (the IA-3 stage SegFilter; "All" + the four reporting buckets
- *  + the B-2 "Needs approval" segment for Finance/PM).
- *
- *  AC-IXD-DASH-W5-C2B / OD-C / review-I2: "Vendor Invoiced" is now a VISIBLE segment in the
- *  toolbar (not just a URL-param-only deep-link). This resolves review-I2 where arriving via
- *  /procurement?status=Vendor+Invoiced had no selected tab and appeared as the whole list.
- *  The segment is role-shaped: shown for Finance and Approver roles (the roles that act on VI
- *  rows), matching the "Needs approval" visibility pattern. Engineers and non-approvers do not
- *  see the VI segment since they don't process payments.
- *
- *  Role-shaping decision (noted in build report): Vendor Invoiced is shown for any role that
- *  can see the Finance dashboard "Ready to pay" table — Finance and Approver roles (canApprove).
- *  This matches the existing "Needs approval" segment gating pattern: Finance can Mark-as-Paid,
- *  approvers may need to review. All-roles access is not restricted server-side (RLS is org-wide);
- *  this is FE clarity, not a security boundary.
- */
 type StatusFilter = 'All' | 'Needs approval' | 'Open' | 'Ordered' | 'Vendor Invoiced' | 'Paid';
-const ALL_FILTERS: StatusFilter[] = ['All', 'Open', 'Ordered', 'Vendor Invoiced', 'Paid'];
-/** Roles that can approve procurement requests (Requested → Approved/Rejected per OD-PROC-1). */
-const APPROVAL_ROLES = new Set(['Admin', 'Executive', 'Project Manager', 'Finance']);
+type ProcurementRouteView = ProcurementView | 'grouped';
 
-const OPEN_STATUSES = new Set<string>([
-  'Draft',
-  'Requested',
-  'Approved',
-  'Vendor Quoted',
-  'Quote Selected',
-]);
+const OPEN_STATUSES = new Set<string>(['Draft', 'Requested', 'Approved', 'Vendor Quoted', 'Quote Selected']);
 const ORDERED_STATUSES = new Set<string>(['Ordered', 'Received', 'Vendor Invoiced']);
+const STATUS_FILTERS: StatusFilter[] = ['All', 'Needs approval', 'Open', 'Ordered', 'Vendor Invoiced', 'Paid'];
+const APPROVAL_ROLES = new Set(['Admin', 'Executive', 'Project Manager', 'Finance']);
+const STAGE_KEYS: StageKey[] = ['request', 'order', 'receive', 'pay'];
 
 function matchesFilter(status: string, filter: StatusFilter): boolean {
   switch (filter) {
-    case 'Needs approval':
-      // B-2 (D5): surface Requested PRs awaiting approval action.
-      return status === 'Requested';
-    case 'Open':
-      return OPEN_STATUSES.has(status);
-    case 'Ordered':
-      return ORDERED_STATUSES.has(status);
-    case 'Paid':
-      return status === 'Paid';
-    // AC-IXD-DASH-W5-C2A: direct Vendor Invoiced segment — the N16 drill destination.
-    // Accessed via ?status=Vendor+Invoiced from the Finance dashboard outstanding-invoices KPI.
-    case 'Vendor Invoiced':
-      return status === 'Vendor Invoiced';
-    case 'All':
-    default:
-      return true;
+    case 'Needs approval': return status === 'Requested';
+    case 'Open': return OPEN_STATUSES.has(status);
+    case 'Ordered': return ORDERED_STATUSES.has(status);
+    case 'Vendor Invoiced': return status === 'Vendor Invoiced';
+    case 'Paid': return status === 'Paid';
+    default: return true;
   }
 }
 
-/**
- * list-working-set-return (#682): the working set's `status` is either an exact lifecycle-status
- * drill (`statusMode: 'exact'` — a single reachable status like `Draft`, never widened into a
- * segment) or a broad segment (`statusMode: 'group'` — one of the six `StatusFilter` buckets
- * `matchesFilter` already knows). This preserves the codec's exact/group distinction
- * (`src/lib/listWorkingSet.ts`) at the row-filtering layer.
- */
-function matchesWorkingSetStatus(
-  status: string,
-  ws: { status: string; statusMode: 'exact' | 'group' },
-): boolean {
-  if (ws.statusMode === 'exact') return status === ws.status;
-  return matchesFilter(status, ws.status as StatusFilter);
+function matchesWorkingSetStatus(status: string, workingSet: { status: string; statusMode: 'exact' | 'group' }): boolean {
+  if (workingSet.statusMode === 'exact') return status === workingSet.status;
+  return matchesFilter(status, workingSet.status as StatusFilter);
+}
+
+function stageFromSearch(search: string): StageKey | null {
+  const value = new URLSearchParams(search).get('stage');
+  return STAGE_KEYS.includes(value as StageKey) ? value as StageKey : null;
+}
+
+function tabFromSearch(search: string, needsCount: number, canSeeOrphans: boolean): ProcurementTab {
+  const params = new URLSearchParams(search);
+  const requested = params.get('tab');
+  if (requested === 'all') return 'all';
+  if (requested === 'needs-you') return 'needs-you';
+  if (requested === 'orphans' && canSeeOrphans) return 'orphans';
+  // A status/stage dashboard drill must stay visible in All even when a separate queue has work.
+  if (requested === null && (params.has('status') || params.has('stage'))) return 'all';
+  return needsCount > 0 ? 'needs-you' : 'all';
+}
+
+function routeViewFromSearch(search: string, fallback: ProcurementView): ProcurementRouteView {
+  const value = new URLSearchParams(search).get('view');
+  return value === 'table' || value === 'board' || value === 'grouped' ? value : fallback;
+}
+
+function reasonCopy(result: NeedsYouResult, t: (key: string, options?: Record<string, unknown>) => string): string {
+  const days = Math.max(0, Math.floor((Date.now() - result.since.getTime()) / 86_400_000));
+  const age = days === 1
+    ? t('age.oneDay', { defaultValue: '1 day' })
+    : t('age.days', { count: days, defaultValue: '{{count}} days' });
+  if (result.reason === 'approve') return t('needsYou.approve', { age, defaultValue: 'Waiting for your approval · {{age}}' });
+  if (result.reason === 'pay') return t('needsYou.pay', { age, defaultValue: 'Unpaid · {{age}} outstanding' });
+  const orderedDate = formatWeekdayMonthDay(result.since);
+  return t('needsYou.receive', { date: orderedDate, age, defaultValue: 'Waiting for receipt · ordered {{date}} · {{age}}' });
+}
+
+/** The list renders through ProcurementBlock; these columns only describe the export, so they carry no cell. */
+const noCell = () => null;
+
+function distinctOptions<T extends string>(entries: Array<{ value: T | null; label: string | null | undefined }>) {
+  const options = new Map<T, string>();
+  for (const entry of entries) {
+    if (entry.value && entry.label) options.set(entry.value, entry.label);
+  }
+  return [...options].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
 }
 
 const ProcurementPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('procurementList');
   const navigate = useNavigate();
   const location = useLocation();
+  const statusLabel = useProcurementStatusLabel();
+  const { realRole } = useEffectiveRole();
+  const { currentUser } = useAuth();
+  const userId = currentUser?.id;
+  const may = usePermission();
+
   useEffect(() => {
     const query = new URLSearchParams(location.search);
     if (query.get('create') === '1') {
@@ -116,448 +130,450 @@ const ProcurementPage: React.FC = () => {
       navigate(`/procurement/new${query.size ? `?${query}` : ''}`, { replace: true });
     }
   }, [location.search, navigate]);
-  const { t: tf } = useTranslation('finance');
-  const statusLabel = useProcurementStatusLabel();
-  const { realRole } = useEffectiveRole();
-  const { currentUser } = useAuth();
-  const userId = currentUser?.id;
-  const may = usePermission();
 
-  // A-3 / OD-W2-1: an Engineer has no Procurement nav; when they reach /procurement the page is
-  // OWN-SCOPED. procurements_select RLS is org-wide (org_id = auth_org_id()), NOT requester-
-  // scoped, so the server returns every PR in the org; the FE narrows the cached list to rows
-  // the Engineer raised (requested_by_id === their uid) and reframes the copy to "your requests".
-  // This is FE clarity, not a security boundary (same tenant) — Raise request stays available
-  // (any member may raise; requester is server-stamped). Managers see the full org index.
-  const ownScoped = realRole === 'Engineer';
-  // B-2 (D5): Finance/PM/Exec/Admin can approve procurement requests (Requested → Approved).
-  // Show a "Needs approval" segment so they can quickly surface actionable Requested PRs.
+  const isEngineer = realRole === 'Engineer';
+  const isProjectManager = realRole === 'Project Manager';
+  const canSeeOrphans = realRole === 'Finance' || realRole === 'Admin';
   const canApprove = realRole != null && APPROVAL_ROLES.has(realRole);
-  const { data, isPending, isError, refetch } = useProcurements({ withRefs: true });
-  // FR-EPR-007: link the ERP-native purchases list only when the org has any to show.
-  const { data: hasErpPurchases } = useHasErpPurchases({ enabled: !ownScoped && may('view', 'procurement') });
-  const { data: projectOptions = [] } = useProjectOptions();
-  const { data: vendorOptions = [] } = useVendorOptions();
+  const canCreate = may('create', 'procurement');
+  const canViewOrphans = canSeeOrphans && may('view', 'procurement');
 
-  // E16: shared ref arrays used by both the single-header descriptor and cycle lookups.
-  const projectRefs = useMemo(
-    () => projectOptions.map((o) => ({ id: o.value, name: o.label })),
-    [projectOptions],
-  );
-  const vendorRefs = useMemo(
-    () => vendorOptions.map((o) => ({ id: o.value, name: o.label })),
-    [vendorOptions],
-  );
+  const { data, isPending, isError, refetch } = useProcurements({ withRefs: true, withSharedDetails: true });
+  const projectQuery = useProjectOptions();
+  const supplierQuery = useVendorOptions();
+  const [importRefs, setImportRefs] = useState<{ projects: { id: string; name: string }[]; suppliers: { id: string; name: string }[] }>({ projects: [], suppliers: [] });
+  const [importKind, setImportKind] = useState<'bulk' | 'cycle' | null>(null);
+  const [refreshingRefs, setRefreshingRefs] = useState(false);
+  const [refreshError, setRefreshError] = useState(false);
+  const refreshLock = useRef(false);
+  const toRefs = (options: { value: string; label: string }[]) => options.map((option) => ({ id: option.value, name: option.label }));
+  const sameRefs = (a: { id: string; name: string }[], b: { id: string; name: string }[]) => a.length === b.length && a.every((x, i) => x.id === b[i].id && x.name === b[i].name);
+  // Keep mounted wizards responsive to subsequent query refreshes as well as the opening refresh.
+  // The updater BAILS OUT (returns prev) only when the mapped id+name pairs are unchanged: a query
+  // refresh hands back a fresh array identity even when the options are identical, and mirroring
+  // that identity into state on every render would re-render → new identity → effect → setState
+  // forever. A RENAME with stable ids must flow through, so names are compared too — an open
+  // wizard's ref lookup would otherwise keep resolving the old name.
+  useEffect(() => { if (projectQuery.data) setImportRefs((prev) => { const next = toRefs(projectQuery.data); return sameRefs(prev.projects, next) ? prev : { ...prev, projects: next }; }); }, [projectQuery.data]);
+  useEffect(() => { if (supplierQuery.data) setImportRefs((prev) => { const next = toRefs(supplierQuery.data); return sameRefs(prev.suppliers, next) ? prev : { ...prev, suppliers: next }; }); }, [supplierQuery.data]);
+  const referencesPending = projectQuery.isPending || supplierQuery.isPending || refreshingRefs;
+  const referencesError = refreshError || projectQuery.isError || supplierQuery.isError || projectQuery.data === undefined || supplierQuery.data === undefined;
+  const refreshReferences = async () => {
+    if (refreshLock.current) return null;
+    refreshLock.current = true;
+    setRefreshingRefs(true);
+    try {
+      const [projects, suppliers] = await Promise.all([projectQuery.refetch(), supplierQuery.refetch()]);
+      if (projects.isError || projects.error || suppliers.isError || suppliers.error || !projects.data || !suppliers.data) throw new Error('Reference refresh failed');
+      const fresh = { projects: toRefs(projects.data), suppliers: toRefs(suppliers.data) };
+      setImportRefs(fresh);
+      setRefreshError(false);
+      return fresh;
+    } catch {
+      setRefreshError(true);
+      return null;
+    } finally {
+      refreshLock.current = false;
+      setRefreshingRefs(false);
+    }
+  };
+  const beginImport = async (kind: 'bulk' | 'cycle') => {
+    if (await refreshReferences()) setImportKind(kind);
+  };
+  const importDescriptor = useMemo(() => makeProcurementImportDescriptor(importRefs.projects, importRefs.suppliers, userId ?? ''), [importRefs, userId]);
+  const cycleProjectLookup = useMemo(() => makeRefLookup(importRefs.projects, 'Project'), [importRefs.projects]);
+  const cycleSupplierLookup = useMemo(() => makeRefLookup(importRefs.suppliers, 'Supplier'), [importRefs.suppliers]);
 
-  const importDescriptor = useMemo(
-    () => makeProcurementImportDescriptor(projectRefs, vendorRefs, userId ?? ''),
-    [projectRefs, vendorRefs, userId],
-  );
-
-  // M5 (ADR-0035): procurement-cycle import lookups (reuse the already-loaded FK options).
-  const cycleProjectLookup = useMemo(
-    () => makeRefLookup(projectRefs, 'Project'),
-    [projectRefs],
-  );
-  const cycleVendorLookup = useMemo(
-    () => makeRefLookup(vendorRefs, 'Vendor'),
-    [vendorRefs],
-  );
-
-  // list-working-set-return (#682): `status`/`q`/`view` are URL-owned. The codec's own
-  // exact/group status distinction (AC-IXD-DASH-W5-C2A dashboard drills) is preserved by
-  // `matchesWorkingSetStatus`; the role gate on which segments are OFFERED (FILTERS below)
-  // stays independent of the URL parse (a role sees only its own segment tabs regardless of
-  // what an out-of-role `?status=` link requests — a request from the wrong role's dashboard
-  // just shows no tab selected, the same as before this migration).
-  const { workingSet, setWorkingSet } = useListWorkingSet('procurement', {
-    sessionView: readProcurementView(),
-  });
-  const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) =>
-    setWorkingSet((ws) => ({ ...ws, q })),
-  );
+  const { workingSet, setWorkingSet } = useListWorkingSet('procurement', { sessionView: readProcurementView() });
+  const updateQuery = useCallback((updates: Record<string, string | null>) => {
+    const params = new URLSearchParams(location.search);
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    const next = params.toString();
+    navigate(`${location.pathname}${next ? `?${next}` : ''}`, { replace: true, state: location.state });
+  }, [location.pathname, location.search, location.state, navigate]);
+  const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) => updateQuery({ q: q || null }));
   const { openRecord } = useListReturn({ list: 'procurement', contentReady: !isPending && !isError });
 
-  const view = workingSet.view;
-  const onViewChange = (v: ProcurementView) => {
-    writeProcurementView(v);
-    setWorkingSet((ws) => ({ ...ws, view: v }));
-  };
-  const [showCycleImport, setShowCycleImport] = useState(false);
-
-  // B-2: "Needs approval" prepended for approver roles.
-  // AC-IXD-DASH-W5-C2B: "Vendor Invoiced" is in ALL_FILTERS for approver roles — they process
-  // payments. Non-approver roles (Engineer) see the base ALL_FILTERS without "Needs approval"
-  // but still see "Vendor Invoiced" since it is in the base list.
-  const FILTERS: StatusFilter[] = canApprove
-    ? ['All', 'Needs approval', ...ALL_FILTERS.slice(1)]
-    : ALL_FILTERS;
-
-  // Display labels for the status segments. The VALUES stay literal: they are `?status=` URL
-  // params, `matchesFilter` inputs and analytics dimensions. Only the segment label is translated.
-  const filterLabels: Record<StatusFilter, string> = {
-    All: t('procurement.filter.all', 'All'),
-    'Needs approval': t('procurement.filter.needsApproval', 'Needs approval'),
-    Open: t('procurement.filter.open', 'Open'),
-    Ordered: t('procurement.filter.ordered', 'Ordered'),
-    'Vendor Invoiced': t('procurement.filter.vendorInvoiced', 'Vendor invoiced'),
-    Paid: t('procurement.filter.paid', 'Paid'),
-  };
-
-  // Raise request is open to ANY member incl. Engineer (requester server-stamped).
-  const canCreate = may('create', 'procurement');
-
-  // Own-scope narrowing: an Engineer sees only the PRs they raised (see comment above). Applied
-  // to the base list so the table, board, and empty-state count all reflect the own-scoped view.
+  // L12: unpaid totals read each procurement's linked accounting documents, as the record does (Engineers see no money).
+  const linkedDocuments = useErpPurchases(undefined, { enabled: !isEngineer });
   const all = useMemo(() => {
-    const rows = data ?? [];
-    return ownScoped && userId ? rows.filter((p) => p.requested_by_id === userId) : rows;
-  }, [data, ownScoped, userId]);
+    const rows = withLinkedDocuments(data, linkedDocuments.data) ?? [];
+    if (isEngineer) return userId ? rows.filter((row) => row.requested_by_id === userId) : [];
+    // A PM sees projects they manage plus every request they raised themselves (incl. overhead).
+    if (isProjectManager) return userId ? rows.filter((row) => row.requested_by_id === userId || row.project?.project_manager_id === userId) : [];
+    return rows;
+  }, [data, linkedDocuments.data, isEngineer, isProjectManager, userId]);
 
-  // View-local filters (OD-7 search by title+code+record external refs; status SegFilter). Newest first.
+  const needsYouRows = useMemo(() => all.flatMap((row) => {
+    const result = needsYou(row, { role: realRole, userId });
+    return result ? [{ row, result }] : [];
+  }).sort((a, b) => a.result.since.getTime() - b.result.since.getTime()), [all, realRole, userId]);
+  const needsById = useMemo(() => new Map(needsYouRows.map((item) => [item.row.id, item])), [needsYouRows]);
+  const needsYouReasons = useMemo(() => new Map(needsYouRows.map(({ row, result }) => [
+    row.id,
+    { result: result.reason, text: reasonCopy(result, t) },
+  ])), [needsYouRows, t]);
+
+  const tab = tabFromSearch(location.search, needsYouRows.length, canSeeOrphans);
+  const selectedStage = stageFromSearch(location.search);
+  const currentView = routeViewFromSearch(location.search, workingSet.view);
+  const selectedStageLabel = selectedStage === null ? null : (() => {
+    switch (selectedStage) {
+      case 'request': return t('stage.request', 'Request');
+      case 'order': return t('stage.order', 'Order');
+      case 'receive': return t('stage.receive', 'Receive');
+      case 'pay': return t('stage.pay', 'Pay');
+    }
+  })();
+  const searchParams = new URLSearchParams(location.search);
+  const projectId = searchParams.get('project') ?? '';
+  const supplierId = searchParams.get('supplier') ?? '';
+  const raisedById = searchParams.get('raisedBy') ?? '';
+  const scopedIds = useMemo(() => new Set(all.map((row) => row.id)), [all]);
+  const rowFilter = useCallback((row: ProcurementWithRefs) => {
+    return scopedIds.has(row.id)
+      && (tab !== 'needs-you' || needsById.has(row.id))
+      && matchesWorkingSetStatus(row.status, workingSet)
+      && matchesSearch(row, search)
+      && (!projectId || row.project_id === projectId)
+      && (!supplierId || row.vendor_id === supplierId)
+      && (!raisedById || row.requested_by_id === raisedById)
+      && matchesStage(row, selectedStage);
+  }, [needsById, projectId, raisedById, scopedIds, search, selectedStage, supplierId, tab, workingSet]);
+  const needsYouOrder = useCallback((a: ProcurementWithRefs, b: ProcurementWithRefs) =>
+    (needsById.get(a.id)?.result.since.getTime() ?? 0) - (needsById.get(b.id)?.result.since.getTime() ?? 0),
+  [needsById]);
+
+  const setTab = useCallback((next: ProcurementTab) => updateQuery({ tab: next }), [updateQuery]);
+  const onViewChange = useCallback((next: ProcurementRouteView) => {
+    if (next === 'grouped') {
+      updateQuery({ view: next });
+      return;
+    }
+    writeProcurementView(next);
+    setWorkingSet((current) => ({ ...current, view: next }));
+  }, [setWorkingSet, updateQuery]);
+
+  // Memoised: `filtered` is a dependency of the export button and the memoised list block, and an
+  // inline `needsYouRows.map(...)` here gave it a fresh identity on every render — so every query
+  // settle re-filtered and re-sorted the whole list for nothing.
+  const tabRows = useMemo(() => (tab === 'needs-you' ? needsYouRows.map(({ row }) => row) : all), [all, needsYouRows, tab]);
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return all
-      .filter((p) => matchesWorkingSetStatus(p.status as string, workingSet))
-      .filter(
-        (p) =>
-          !q ||
-          p.title.toLowerCase().includes(q) ||
-          (p.code ?? '').toLowerCase().includes(q) ||
-          // #769 AC-EXT-001: a record's external reference finds its case.
-          externalRefsOf(p).some((ref) => ref.toLowerCase().includes(q)),
-      )
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [all, search, workingSet]);
+    return tabRows
+      .filter((row) => matchesWorkingSetStatus(row.status, workingSet))
+      .filter((row) => matchesSearch(row, search))
+      .filter((row) => !projectId || row.project_id === projectId)
+      .filter((row) => !supplierId || row.vendor_id === supplierId)
+      .filter((row) => !raisedById || row.requested_by_id === raisedById)
+      .filter((row) => matchesStage(row, selectedStage))
+      .sort((a, b) => tab === 'needs-you'
+        ? (needsById.get(a.id)?.result.since.getTime() ?? 0) - (needsById.get(b.id)?.result.since.getTime() ?? 0)
+        : new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [needsById, projectId, raisedById, search, selectedStage, supplierId, tab, tabRows, workingSet]);
 
-  // Board view opens a PR from a card-shaped surface; the table view's row click lives
-  // in ProcurementListRow (its own boundary — 'list' source), which threads the same
-  // `openRecord` (AC-LRC-005) rather than this page's own.
-  const onOpen = (p: ProcurementWithRefs) => {
+  const onOpen = useCallback((row: ProcurementWithRefs) => {
     trackProcurementDetailOpened('/procurement/:procurementId', 'card');
-    openRecord(`/procurement/${p.id}`);
-  };
+    openRecord(`/procurement/${row.id}`);
+  }, [openRecord]);
 
-  const columns: Column<ProcurementWithRefs>[] = [
-    {
-      key: 'request',
-      header: t('procurement.column.request', 'Request'),
-      cell: (r) => (
-        <div className="min-w-0">
-          <div className="truncate font-semibold" title={r.title}>
-            {r.title}
-          </div>
-          <div className="truncate font-mono text-[11px] text-muted-foreground">
-            {r.code ?? r.id.slice(0, 8)}
-          </div>
-        </div>
-      ),
-      exportValue: (r) => r.title,
-    },
-    {
-      key: 'project',
-      header: t('procurement.column.project', 'Project'),
-      cell: (r) => <ProjectNameLink projectId={r.project_id} name={r.project?.name} className="text-muted-foreground" />,
-      exportValue: (r) => r.project?.name ?? '',
-    },
-    {
-      key: 'requester',
-      header: t('procurement.column.requestedBy', 'Requested by'),
-      cell: (r) => (
-        <span className="flex items-center gap-2">
-          <span
-            aria-hidden
-            className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground"
-          >
-            {(r.requested_by?.full_name ?? '?').trim().charAt(0).toUpperCase() || '?'}
-          </span>
-          <span className="truncate">
-            {r.requested_by?.full_name ?? t('procurement.unknownRequester', 'Unknown')}
-          </span>
-        </span>
-      ),
-      exportValue: (r) => r.requested_by?.full_name ?? '',
-    },
-    {
-      key: 'value',
-      header: t('procurement.column.value', 'Value'),
-      align: 'num',
-      cell: (r) => formatCurrency(r.total_value, r.currency),
-      exportValue: (r) => r.total_value,
-    },
-    {
-      key: 'lifecycle',
-      header: t('procurement.column.lifecycle', 'Lifecycle'),
-      cell: (r) => (
-        <LifecycleStepper
-          variant="inline"
-          steps={lifecycleSteps(r.status as ProcurementStatus)}
-          aria-label={`${t('procurement.lifecycleLabel', 'Lifecycle')}: ${statusLabel(r.status as ProcurementStatus)}`}
-        />
-      ),
-      // Export the human-readable stage label (the stepper component can't be serialized)
-      exportValue: (r) => statusLabel(r.status as ProcurementStatus),
-    },
-    {
-      key: 'status',
-      header: t('procurement.column.status', 'Status'),
-      cell: (r) => (
-        <StatusPill variant={pillVariantForStatus(r.status as ProcurementStatus)}>
-          {statusLabel(r.status as ProcurementStatus)}
-        </StatusPill>
-      ),
-      exportValue: (r) => statusLabel(r.status as ProcurementStatus),
-    },
-  ];
+  // The list itself renders through ProcurementBlock; these columns only describe the export.
+  const exportColumns: Column<ProcurementWithRefs>[] = useMemo(() => [
+    ...withCurrencyColumn<ProcurementWithRefs>([
+      { key: 'request', header: t('column.procurement', 'Procurement'), cell: noCell, exportValue: (row) => row.title },
+      { key: 'project', header: t('column.project', 'Project'), cell: noCell, exportValue: (row) => row.project?.name ?? '' },
+      { key: 'requester', header: t('column.raisedBy', 'Raised by'), cell: noCell, exportValue: (row) => row.requested_by?.full_name ?? '' },
+      { key: 'value', header: t('column.value', 'Value'), align: 'num', cell: noCell, exportValue: (row) => row.total_value },
+      { key: 'lifecycle', header: t('column.lifecycle', 'Lifecycle'), cell: noCell, exportValue: (row) => statusLabel(row.status as ProcurementStatus) },
+      { key: 'status', header: t('column.status', 'Status'), cell: noCell, exportValue: (row) => statusLabel(row.status as ProcurementStatus) },
+    ], 'value', (row) => row.currency),
+    { key: 'external-refs', header: t('column.externalReferences', 'External references'), cell: noCell, exportValue: (row) => externalRefsOf(row).join(', ') },
+  ], [statusLabel, t]);
 
-  // AC-L10N-052: the download carries each row's own ISO code beside value (export-only).
-  const exportColumns: Column<ProcurementWithRefs>[] = [
-    ...withCurrencyColumn(columns, 'value', (r) => r.currency),
-    // #769 AC-EXT-002: export-only (FR-L10N-050 — export headers are literals, never t()).
-    {
-      key: 'external-refs',
-      // i18n-exempt: export-only column, never rendered.
-      header: 'External references',
-      cell: (r) => externalRefsOf(r).join(', '),
-      exportValue: (r) => externalRefsOf(r).join(', '),
-    },
-  ];
-
-  // ── States ────────────────────────────────────────────────────────────────
-  const state: 'loading' | 'empty' | 'error' | undefined = isPending
-    ? 'loading'
-    : isError || !data
-      ? 'error'
-      : all.length === 0
-        ? 'empty'
-        : undefined;
-
-  // AC-LRC-012: both zero-match branches below only render when `all.length > 0` (the genuine
-  // collection-empty case is `state === 'empty'` above), so a zero-match result here is always a
-  // filtered zero-match — clearing status + search is always safe.
-  const clearListFilters = () => {
+  const projectFilters = useMemo(() => distinctOptions(all.map((row) => ({ value: row.project_id, label: row.project ? projectDisplayName(row.project) : null }))), [all]);
+  const supplierFilters = useMemo(() => distinctOptions(all.map((row) => ({ value: row.vendor_id, label: row.vendor?.name }))), [all]);
+  const raisedByFilters = useMemo(() => distinctOptions(all.map((row) => ({ value: row.requested_by_id, label: row.requested_by?.full_name }))), [all]);
+  const statusOptions: Array<{ value: string; label: string }> = useMemo(() => {
+    const options = STATUS_FILTERS
+      .filter((filter) => filter !== 'Needs approval' || canApprove)
+      .map((filter) => ({
+        value: filter === 'Ordered' ? 'group:Ordered' : filter,
+        label: t(`statusFilter.${filter === 'Vendor Invoiced' ? 'supplierInvoiced' : filter === 'Needs approval' ? 'needsApproval' : filter.toLowerCase()}`, filter === 'Vendor Invoiced' ? 'Supplier invoiced' : filter),
+      }));
+    const selected = workingSet.statusMode === 'exact'
+      ? `exact:${workingSet.status}`
+      : workingSet.status === 'Ordered' ? 'group:Ordered' : workingSet.status;
+    // A working set restored from the session can name a status no longer offered (e.g. Needs approval for a
+    // role that lost approval rights); it still has to show as the selected option, so it is appended once.
+    if (workingSet.statusMode === 'exact' && !options.some(({ value }) => value === selected)) {
+      options.push({ value: selected, label: statusLabel(workingSet.status as ProcurementStatus) });
+    }
+    return options;
+  }, [canApprove, statusLabel, t, workingSet.status, workingSet.statusMode]);
+  const statusValue = workingSet.statusMode === 'exact'
+    ? `exact:${workingSet.status}`
+    : workingSet.status === 'Ordered' ? 'group:Ordered' : workingSet.status;
+  const clearFilters = useCallback(() => {
     setSearch('');
-    setWorkingSet(() => parseListWorkingSet('procurement', '', { sessionView: readProcurementView() }));
-  };
+    const params = new URLSearchParams(location.search);
+    for (const key of ['q', 'status', 'project', 'supplier', 'raisedBy', 'stage']) params.delete(key);
+    const next = params.toString();
+    navigate(`${location.pathname}${next ? `?${next}` : ''}`, { replace: true, state: location.state });
+  }, [location.pathname, location.search, location.state, navigate, setSearch]);
+  const changeStatusFilter = useCallback((value: string) => {
+    const status = value.startsWith('exact:') ? value.slice('exact:'.length) : value;
+    updateQuery({ status: status === 'All' ? null : status });
+    trackFilterApplied('status', statusOptions.length, 'procurement');
+  }, [statusOptions.length, updateQuery]);
 
-  // The SegFilter only ever highlights a GROUP-mode segment; an exact lifecycle-status drill
-  // (e.g. a `?status=Draft` dashboard link, statusMode 'exact') selects no visible tab — same as
-  // an out-of-role `?status=Needs+approval` request selecting no tab for a non-approver.
-  const filterValue: StatusFilter =
-    workingSet.statusMode === 'group' ? (workingSet.status as StatusFilter) : ('' as StatusFilter);
+  // Each filter control is its own memoised element, so a page re-render that changes none of them (a
+  // reference query settling, a wizard opening, a search keystroke elsewhere) hands ProcurementBlock
+  // the SAME `toolbarExtra` element identity and its memo boundary can bail.
+  const projectFilterSelect = useMemo(() => (
+    <>
+      <label className="sr-only" htmlFor="procurement-project-filter">{t('filter.project', 'Project')}</label>
+      <select id="procurement-project-filter" aria-label={t('filter.project', 'Project')} value={projectId} onChange={(event) => updateQuery({ project: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <option value="">{t('filter.project', 'Project')}</option>
+        {projectFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </>
+  ), [projectFilters, projectId, t, updateQuery]);
+  const supplierFilterSelect = useMemo(() => (
+    <>
+      <label className="sr-only" htmlFor="procurement-supplier-filter">{t('filter.supplier', 'Supplier')}</label>
+      <select id="procurement-supplier-filter" aria-label={t('filter.supplier', 'Supplier')} value={supplierId} onChange={(event) => updateQuery({ supplier: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <option value="">{t('filter.supplier', 'Supplier')}</option>
+        {supplierFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </>
+  ), [supplierFilters, supplierId, t, updateQuery]);
+  const raisedByFilterSelect = useMemo(() => (
+    <>
+      <label className="sr-only" htmlFor="procurement-raised-by-filter">{t('filter.raisedBy', 'Raised by')}</label>
+      <select id="procurement-raised-by-filter" aria-label={t('filter.raisedBy', 'Raised by')} value={raisedById} onChange={(event) => updateQuery({ raisedBy: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <option value="">{t('filter.raisedBy', 'Raised by')}</option>
+        {raisedByFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </>
+  ), [raisedByFilters, raisedById, t, updateQuery]);
+  const statusFilterSelect = useMemo(() => (
+    <>
+      <label className="sr-only" htmlFor="procurement-status-filter">{t('filter.status', 'Status')}</label>
+      <select id="procurement-status-filter" aria-label={t('filter.status', 'Status')} value={statusValue} onChange={(event) => changeStatusFilter(event.target.value)} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </>
+  ), [changeStatusFilter, statusOptions, statusValue, t]);
+  const filterControlsElement = useMemo(() => (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      {projectFilterSelect}
+      {supplierFilterSelect}
+      {raisedByFilterSelect}
+      {statusFilterSelect}
+    </div>
+  ), [projectFilterSelect, raisedByFilterSelect, statusFilterSelect, supplierFilterSelect]);
+  // Inside the list's own toolbar the Raised-by filter only appears once one is active (it is the
+  // list's "clear this" affordance there, not a third selector on every visit).
+  const blockFilterControlsElement = useMemo(() => (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      {projectFilterSelect}
+      {supplierFilterSelect}
+      {raisedById ? raisedByFilterSelect : null}
+      {statusFilterSelect}
+    </div>
+  ), [projectFilterSelect, raisedById, raisedByFilterSelect, statusFilterSelect, supplierFilterSelect]);
+
+  const orphanQuery = useErpOrphans(undefined, { enabled: canViewOrphans });
+  const projectQueryForOrphans = useProjects({ enabled: canViewOrphans && tab === 'orphans' });
+  const projectNames = useMemo(() => new Map((projectQueryForOrphans.data ?? []).map((project) => [project.id, project.name])), [projectQueryForOrphans.data]);
+  // Stable empty list: an inline `?? []` re-identified every render and knocked out the memo on the
+  // orphan money/count derived from it.
+  const orphanRows = useMemo(() => orphanQuery.data ?? [], [orphanQuery.data]);
+  const reasonText = useMemo(() => (tab === 'needs-you'
+    ? new Map([...needsYouReasons].map(([id, value]) => [id, value.text]))
+    : new Map<string, string>()), [needsYouReasons, tab]);
+
+  const title = isEngineer ? t('title.engineer', 'Your procurements') : t('title.default', 'Procurement');
+  const description = isEngineer
+    ? t('description.engineer', 'Track the procurements you raised, from request through payment.')
+    : isProjectManager
+      ? t('description.projectManager', 'Procurements for projects you manage, from request through payment.')
+      : t('description.default', 'Procurements across your organization, from request through payment.');
+  const primaryAction = (
+    <div className="flex shrink-0 items-center gap-2">
+      <MobileToolbarDisclosure
+        label={t('more', 'More')}
+        className="relative shrink-0"
+        panelClassName="absolute left-0 right-auto top-full z-30 sm:left-auto sm:right-0 mt-1 flex w-auto min-w-56 flex-col gap-1 rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-md"
+      >
+        {tab !== 'orphans' && <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" label={t('moreTools.exportList', 'Export list')} className="w-full justify-start" />}
+        {userId && canCreate && <Button variant="outline" disabled={referencesPending || referencesError} onClick={() => void beginImport('bulk')} className="w-full justify-start"><Icon name="upload" />{t('moreTools.importProcurements', 'Import procurements')}</Button>}
+        {userId && canCreate && <Button variant="outline" disabled={referencesPending || referencesError} onClick={() => void beginImport('cycle')} className="w-full justify-start"><Icon name="upload" />{t('moreTools.importCycle', 'Import cycle data')}</Button>}
+        {userId && canCreate && referencesPending && <div role="status">{t('references.loading', 'Loading references…')}</div>}
+        {userId && canCreate && !referencesPending && referencesError && <div role="status">{t('references.error', "Couldn't refresh references.")} <Button variant="outline" onClick={() => void refreshReferences()}>{t('references.retry', 'Retry references')}</Button></div>}
+      </MobileToolbarDisclosure>
+      {canCreate && <span className="hidden sm:block"><Button variant="primary" onClick={() => navigate('/procurement/new')}><Icon name="plus" />{t('newProcurement', 'New procurement')}</Button></span>}
+    </div>
+  );
+
+  const ready = !isPending && !isError && data !== undefined;
+  useEffect(() => {
+    if (ready && all.length === 0 && realRole) {
+      trackEmptyStateSeen('procurement-empty', realRole, 'procurement');
+    }
+  }, [all.length, ready, realRole]);
+  const routeViewOptions: Array<{ value: ProcurementRouteView; label: string; icon: 'table' | 'cols' | 'grid' }> = useMemo(() => [
+    { value: 'table', label: t('view.table', 'Table'), icon: 'table' },
+    { value: 'grouped', label: t('view.grouped', 'Grouped'), icon: 'grid' },
+    { value: 'board', label: t('view.board', 'Board'), icon: 'cols' },
+  ], [t]);
+  const currentNeedsReasons = useMemo(
+    () => (tab === 'needs-you' ? needsYouReasons : new Map<string, { result: NeedsYouResult['reason']; text: string }>()),
+    [needsYouReasons, tab],
+  );
+  // O7: the tabs are the one place the scope counts live, so the money they hold rides in the tab label.
+  const needsYouMoney = useMemo(() => shortTotalsLabel(totalsByCurrency(needsYouRows.map(({ row }) => row), realRole as ProcurementListRole, 'needs-you', new Map(needsYouRows.map(({ row, result }) => [row.id, result.reason])))), [needsYouRows, realRole]);
+  const orphanMoney = useMemo(() => (canViewOrphans ? shortTotalsLabel(orphanTotals(orphanRows)) : ''), [canViewOrphans, orphanRows]);
+  const tabs: Array<{ key: ProcurementTab; label: string; count: number; money: string }> = useMemo(() => [
+    { key: 'needs-you', label: t('tab.needsYou', 'Needs you'), count: needsYouRows.length, money: needsYouMoney },
+    { key: 'all', label: t('tab.all', 'All'), count: all.length, money: '' },
+    ...(canSeeOrphans ? [{ key: 'orphans' as const, label: t('tab.orphans', 'Not in a procurement'), count: orphanRows.length, money: orphanMoney }] : []),
+  ], [all.length, canSeeOrphans, needsYouMoney, needsYouRows.length, orphanMoney, orphanRows.length, t]);
 
   return (
+    // L6: the All tab carries the total, so the title has no second count.
     <ListPage
-      title={
-        ownScoped
-          ? t('procurement.title.ownScoped', 'Your purchase requests')
-          : t('procurement.title.orgWide', 'Procurement')
-      }
-      description={
-        ownScoped
-          ? t('uxs19.pageDescriptionOwnScoped', 'Track the requests you raised from approval through payment.')
-          : (
-            <>
-              {t('uxs19.pageDescriptionOrgWide', 'Raise requests and track approvals, orders and payments. Open a request for its full history.')}
-              {hasErpPurchases && (
-                <>
-                  {' '}
-                  <Link to="/erp-purchases" className="font-medium text-primary hover:underline">
-                    {tf('erpPurchases.title', 'Purchases recorded in ERPNext')}
-                  </Link>
-                </>
-              )}
-            </>
-          )
-      }
-      primaryAction={
-        canCreate && (
-          <Button variant="primary" onClick={() => navigate('/procurement/new')}>
-            <Icon name="plus" />
-            {t('procurement.raiseRequest', 'Raise request')}
-          </Button>
-        )
-      }
-      filters={
-        state !== 'loading' && (
-          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-            {/* AC-2 / AC-MOBILE-OVERFLOW-001: scrollable AND width-bounded so the tab
-                strip ("Vendor Invoiced" etc.) scrolls WITHIN the viewport instead of
-                bleeding off-screen at 390px. The parent needs `w-full min-w-0` or the
-                flex row grows to the strip's intrinsic ~498px and the scroller never
-                gets a bounded width to scroll against. */}
-            <div data-testid="status-filter-scroll" className="min-w-0 flex-1 overflow-x-auto scroll-fade-x">
-              <ViewToggle<StatusFilter>
-                options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
-                value={filterValue}
-                onChange={(v) => {
-                  setWorkingSet((ws) => ({ ...ws, status: v, statusMode: 'group' }));
-                  trackFilterApplied('status', FILTERS.length, 'procurement');
-                }}
-                ariaLabel={t('procurement.statusFilterLabel', 'Status filter')}
+      title={title}
+      count={ready ? (tab === 'orphans' ? orphanRows.length : filtered.length) : undefined}
+      total={ready ? (tab === 'orphans' ? orphanRows.length : tabRows.length) : undefined}
+      description={description}
+      primaryAction={primaryAction}
+    >
+      <div className="space-y-4 pb-20 sm:pb-0">
+        <Tabs
+          items={tabs.map(({ key, label, count, money }) => ({ value: key, label, count, detail: money || undefined }))}
+          value={tab}
+          onChange={setTab}
+          ariaLabel={t('tabs.label', 'Procurement lists')}
+          idBase="procurement-list-tabs"
+          className="mb-0 min-w-0 gap-5 scroll-fade-x"
+        />
+
+        {ready && (
+          <ProcurementKpiRow rows={all} role={realRole as ProcurementListRole} />
+        )}
+
+        {tab !== 'orphans' && ready && currentView === 'table' && (
+          <div className="flex justify-end">
+            <ViewToggle<ProcurementRouteView> options={routeViewOptions} value={currentView} onChange={onViewChange} ariaLabel={t('view.label', 'Procurement view')} />
+          </div>
+        )}
+
+        {tab !== 'orphans' && ready && currentView !== 'table' && (
+          <div className="space-y-3" data-testid="list-page-toolbar">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <SearchMini
+                placeholder={t('search.placeholder', 'Search title, number or reference…')}
+                aria-label={t('search.label', 'Search procurements')}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                searchSurface="procurement-list"
+                module="procurement"
+                resultCount={filtered.length}
+                containerClassName="min-w-[220px] flex-1 max-sm:basis-full max-sm:w-full max-sm:min-w-0"
+              />
+              <div className="hidden min-w-0 flex-wrap items-center gap-2 md:flex">{filterControlsElement}</div>
+              <MobileToolbarDisclosure
+                label={t('filter.filters', 'Filters')}
+                count={[projectId, supplierId, raisedById, statusValue !== 'All' ? statusValue : '', selectedStage ?? ''].filter(Boolean).length || undefined}
+                className="relative md:hidden"
+                panelClassName="absolute left-0 top-full z-30 mt-1 flex w-[min(330px,calc(100vw-2rem))] flex-col gap-2 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-md"
+              >
+                <div className="flex flex-col gap-2">{filterControlsElement}</div>
+              </MobileToolbarDisclosure>
+              <span aria-live="polite" className="ml-auto whitespace-nowrap text-[12px] text-muted-foreground">
+                {t(filtered.length === 1 ? 'result.one' : 'result.many', { count: filtered.length, defaultValue: `${filtered.length} ${filtered.length === 1 ? 'result' : 'results'}` })}
+              </span>
+              <ViewToggle<ProcurementRouteView>
+                options={routeViewOptions}
+                value={currentView}
+                onChange={onViewChange}
+                ariaLabel={t('view.label', 'Procurement view')}
               />
             </div>
-            {/* CW-6: the "Needs approval" segment is the toolbar's single approvals doorway.
-                The extra "See all approvals" link was removed to avoid three parallel entries
-                to the same workstream on compact widths. */}
+            {selectedStageLabel && <div className="flex items-center gap-2 text-[12px] text-muted-foreground">{t('stage.filterActive', { stage: selectedStageLabel, defaultValue: '{{stage}} stage' })}<Button variant="ghost" size="sm" onClick={() => updateQuery({ stage: null })}>{t('clear', 'Clear')}</Button></div>}
           </div>
-        )
-      }
-      search={
-        state !== 'loading' && (
-          <SearchMini
-            placeholder={t('procurement.search.placeholder', 'Filter requests or references…')}
-            aria-label={t('procurement.search.label', 'Filter requests')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            searchSurface="procurement-list"
-            module="procurement"
-            resultCount={filtered.length}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0"
-          />
-        )
-      }
-      exportAction={
-        state !== 'loading' && (
-          <MobileToolbarDisclosure
-            label={t('uxs19.more', 'More')}
-            className="relative shrink-0"
-            panelClassName="absolute right-0 top-full z-30 mt-1 flex w-auto min-w-48 flex-col gap-1 bg-popover p-2 text-popover-foreground shadow-md"
-          >
-            <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" className="w-full justify-start" />
-            {userId && (
-              <>
-                {/* ADR-0027: import remains gated by ImportButton's create permission check. */}
-                <ImportButton
-                  entity="procurement"
-                  descriptor={importDescriptor}
-                  onImported={() => void refetch()}
-                  className="w-full justify-start"
-                />
-                {/* ADR-0035: cycle import retains the page's existing create gate. */}
-                {canCreate && (
-                  <Button variant="outline" onClick={() => setShowCycleImport(true)} className="w-full justify-start">
-                    <Icon name="upload" />
-                    {t('procurement.importCycleData', 'Import cycle data')}
-                  </Button>
-                )}
-              </>
-            )}
-          </MobileToolbarDisclosure>
-        )
-      }
-      view={
-        state !== 'loading' && (
-          /* #715: the Table/Board switch stays reachable on phones (it drives the URL-owned view),
-             so a phone user is never stuck in the last-used view. Supersedes A-MIN-1. */
-          <ViewToggle<'table' | 'board'>
-            options={[
-              { value: 'table', label: t('procurement.view.table', 'Table'), icon: 'table' },
-              { value: 'board', label: t('procurement.view.board', 'Board'), icon: 'cols' },
-            ]}
-            value={view}
-            onChange={onViewChange}
-            ariaLabel={t('procurement.viewToggleLabel', 'Procurement view')}
-          />
-        )
-      }
-    >
-      {/* Body */}
-      {state === 'loading' && (
-        <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
-        </div>
-      )}
+        )}
 
-      {state === 'error' && (
-        <ListState
-          variant="error"
-          title={t('procurement.error.title', "Couldn't load procurements")}
-          sub={t('procurement.error.sub', 'Something went wrong fetching your requests.')}
-          onRetry={() => refetch()}
-        />
-      )}
+        <div id={tabPanelId('procurement-list-tabs', tab)} role="tabpanel" aria-labelledby={tabId('procurement-list-tabs', tab)}>
+          {isPending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" shape="table" columns={6} rows={6} /></div>}
 
-      {state === 'empty' && (
-        <ListState
-          variant="empty"
-          icon="cart"
-          title={
-            ownScoped
-              ? t('procurement.empty.ownScoped.title', "You haven't raised any requests yet")
-              : t('procurement.empty.orgWide.title', 'No purchase requests yet')
-          }
-          sub={t(
-            'uxs19.emptyScopeNote',
-            'PMO requests only; ERP-native purchases are not listed here.',
+          {(isError || (!isPending && !data)) && (
+            <ListState variant="error" title={t('error.title', "Couldn't load procurements")} sub={t('error.sub', 'Reload the list to try again.')} onRetry={() => void refetch()} />
           )}
-          stateId="procurement-empty"
-          role={realRole ?? undefined}
-          module="procurement"
-          action={
-            canCreate
-              ? { label: t('procurement.raiseRequest', 'Raise request'), onClick: () => navigate('/procurement/new') }
-              : undefined
-          }
-        />
-      )}
 
-      {state === undefined && view === 'board' && (
-        /* C-PR-1: guard filtered.length===0 before rendering the board. When a filter
-           yields zero results, show a single "No requests match your filters" empty state
-           instead of 7 empty stage columns (mirrors the Table view empty-filter branch). */
-        filtered.length === 0 ? (
-          <ListState
-            variant="empty"
-            title={t('procurement.noMatch.title', 'No requests match your filters')}
-            sub={t(
-              'procurement.noMatch.sub',
-              'Try a different status, search term, or clear the filters.',
-            )}
-            action={{ label: t('procurement.noMatch.clearFilters', 'Clear filters'), onClick: clearListFilters }}
+          {ready && tab === 'orphans' && (
+            orphanQuery.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" shape="table" rows={5} /></div>
+              : orphanQuery.isError ? <ListState variant="error" title={t('orphans.error', "Couldn't load documents not in a procurement")} onRetry={() => void orphanQuery.refetch()} />
+                : orphanRows.length === 0 ? <ListState variant="empty" icon="table" title={t('orphans.empty.title', 'Every accounting-system document is in a procurement')} sub={t('orphans.empty.sub', 'New documents appear here after the next sync.')} />
+                  : projectQueryForOrphans.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" shape="table" rows={5} /></div>
+                    : projectQueryForOrphans.isError || projectQueryForOrphans.data === undefined
+                      ? <ListState
+                        variant="error"
+                        title={t('orphans.projectsError', "Couldn't load project names")}
+                        sub={t('orphans.projectsErrorSub', 'Retry before reviewing project references.')}
+                        onRetry={() => void projectQueryForOrphans.refetch()}
+                      />
+                      : <Card className="overflow-hidden"><ErpOrphansSection rows={orphanRows} canLink={may('create', 'erpPurchaseLink')} projectNames={projectNames} /></Card>
+          )}
+
+          {ready && tab !== 'orphans' && all.length === 0 && (
+            <ListState
+              variant="empty"
+              icon="cart"
+              title={isEngineer ? t('empty.engineer.title', "You haven't raised any procurements yet") : t('empty.title', 'No procurements yet')}
+              sub={`${t('empty.sub', 'New procurements will appear here as they are raised.')} ${t('procurement:procurement.empty.scopeNote', 'Purchases recorded only in the accounting system are not listed here.')}`}
+              action={canCreate ? { label: t('newProcurement', 'New procurement'), onClick: () => navigate('/procurement/new') } : undefined}
+            />
+          )}
+
+          {ready && tab === 'needs-you' && all.length > 0 && tabRows.length === 0 && (
+            <ListState variant="empty" icon="check" title={t('needsYou.empty.title', 'Nothing needs your attention')} sub={t('needsYou.empty.sub', 'You are up to date on the procurements in your scope.')} action={{ label: t('tab.all', 'All procurements'), onClick: () => setTab('all') }} />
+          )}
+
+          {ready && tab !== 'orphans' && currentView !== 'table' && all.length > 0 && tabRows.length > 0 && filtered.length === 0 && (
+            <ListState variant="empty" title={t('noMatch.title', 'No procurements match these filters')} sub={t('noMatch.sub', 'Clear a filter or change the search to see more procurements.')} action={{ label: t('noMatch.clear', 'Clear filters'), onClick: clearFilters }} />
+          )}
+
+          {ready && tab !== 'orphans' && filtered.length > 0 && currentView === 'board' && (
+            <ProcurementBoard procurements={filtered} onOpen={onOpen} viewerRole={realRole as ProcurementListRole} needsYouReasons={currentNeedsReasons} />
+          )}
+
+          {ready && tab !== 'orphans' && filtered.length > 0 && currentView === 'grouped' && (
+            <ProcurementGroupedView rows={filtered} role={realRole as ProcurementListRole} reasonText={reasonText} />
+          )}
+
+          {ready && tab !== 'orphans' && tabRows.length > 0 && currentView === 'table' && (
+            <ProcurementBlock rowFilter={rowFilter} rowOrder={tab === 'needs-you' ? needsYouOrder : undefined} showCreate={false} toolbarExtra={blockFilterControlsElement} onClearFilters={clearFilters} />
+          )}
+        </div>
+
+        {importKind === 'bulk' && userId && canCreate && <ImportWizard descriptor={importDescriptor} onClose={(didImport) => { setImportKind(null); if (didImport) void refetch(); }} />}
+        {importKind === 'cycle' && userId && canCreate && (
+          <ProcurementCycleImportWizard
+            requestedById={userId}
+            projectLookup={cycleProjectLookup}
+            vendorLookup={cycleSupplierLookup}
+            onClose={(didImport) => {
+              setImportKind(null);
+              if (didImport) void refetch();
+            }}
           />
-        ) : (
-          <ProcurementBoard procurements={filtered} onOpen={onOpen} />
-        )
-      )}
-
-      {state === undefined && view === 'table' && (
-        /* Fix #5 (AC-FIX5-PREVIEW-*): inline expand/preview rows replace the opaque
-           DataTable so each row can expand in-place (the DecisionSupportPanel pattern
-           from ProcurementApprovalRow). Empty state mirrors the DataTable variant. */
-        filtered.length === 0 ? (
-          <ListState
-            variant="empty"
-            title={t('procurement.noMatch.title', 'No requests match your filters')}
-            sub={t(
-              'procurement.noMatch.sub',
-              'Try a different status, search term, or clear the filters.',
-            )}
-            action={{ label: t('procurement.noMatch.clearFilters', 'Clear filters'), onClick: clearListFilters }}
-          />
-        ) : (
-          <div className="rounded-lg border border-border bg-card" aria-label={t('procurement.listLabel', 'Procurement requests')}>
-            <ProcurementListColumns />
-            {filtered.map((r) => (
-              <ProcurementListRow key={r.id} row={r} />
-            ))}
-          </div>
-        )
-      )}
-
-
-      {/* ADR-0035: procurement-cycle bulk import wizard (PR→Payment, case-grouped). */}
-      {showCycleImport && userId && (
-        <ProcurementCycleImportWizard
-          requestedById={userId}
-          projectLookup={cycleProjectLookup}
-          vendorLookup={cycleVendorLookup}
-          onClose={(didImport) => {
-            setShowCycleImport(false);
-            if (didImport) void refetch();
-          }}
-        />
-      )}
+        )}
+      </div>
+      {canCreate && <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 p-3 shadow-sm sm:hidden"><Button variant="primary" className="w-full" onClick={() => navigate('/procurement/new')}><Icon name="plus" />{t('newProcurement', 'New procurement')}</Button></div>}
     </ListPage>
   );
 };

@@ -60,6 +60,10 @@ insert into procurement_quotations (id, org_id, procurement_id, vendor_id, total
 insert into external_domain_ownership (org_id, external_tier, domain)
 values ('00970000-0000-0000-0000-000000000001','erpnext','procurement');
 
+-- The case has an external document reference.
+insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id)
+values ('00970000-0000-0000-0000-000000000001', 'procurement', '00970000-0000-0000-0000-000000000120', 'erpnext', 'MAT-REQ-2026-00001');
+
 -- ── AC-ENA-003 core: the createPurchaseRequest RPC path (org B lives, org A denied) ──
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00970000-0000-0000-0000-0000000000b1","role":"authenticated"}';
@@ -79,11 +83,11 @@ select throws_ok(
 select throws_ok(
   $$ update procurement_items set quantity = 9 where id = '00970000-0000-0000-0000-000000000110' $$,
   '42501', null,
-  'procurement_items user native UPDATE to quantity denied while procurement externally-owned');
+  'procurement_items quantity remains read-only after external reference');
 select throws_ok(
   $$ update procurement_items set rate = 9 where id = '00970000-0000-0000-0000-000000000110' $$,
   '42501', null,
-  'procurement_items user native UPDATE to rate denied while procurement externally-owned');
+  'procurement_items rate remains read-only after external reference');
 select throws_ok(
   $$ update procurement_items set erp_line_amount = 9 where id = '00970000-0000-0000-0000-000000000110' $$,
   '42501', null,

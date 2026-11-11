@@ -31,9 +31,11 @@ import {
   handleIssueMicrosoftDocument,
   handleRefreshReferences,
 } from "./documentVerification.ts";
-import { handleEnsureRecordFolder } from "./recordFolders.ts";
+import { handleEnsureRecordFolder, parseEnsureRequest } from "./recordFolders.ts";
 import { handleLinkExistingRecordFolders } from "./recordFolderBackfill.ts";
-import { corsHeaders } from "./auth.ts";
+import { handlePreviewDocument } from "./documentPreview.ts";
+import { authorizeUploadCaller, handleUploadRecordFile, readUploadForm, UPLOAD_BODY_LIMIT } from "./recordFileUpload.ts";
+import { corsHeaders, resolveOrgOrResult } from "./auth.ts";
 import type {
   GraphProxyRequest,
   HandlerDeps,
@@ -161,6 +163,37 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
   const authed = await authedDeps(req, env, scope?.fetch);
   if (authed instanceof Response) return authed;
 
+  // Multipart POST: the one file-upload action (ADR-0095). Authenticated above, BEFORE the body is read.
+  if ((req.headers.get("content-type") ?? "").startsWith("multipart/form-data")) {
+    const featureOff = await requireM365Feature(authed);
+    if (featureOff) return toResponse(featureOff, env.allowedOrigin);
+    scope?.limit(30_000); // mutation-witness:upload-request-deadline
+    let uploaded: HandlerResult;
+    try {
+      // Cheap refusals first: an oversize declared length, then membership and role, all before any body byte is read.
+      const tooLarge = (): HandlerResult => ({ status: 413, body: { error: "BAD_REQUEST", message: "file too large" } satisfies M365ErrorResponse });
+      if (Number(req.headers.get("content-length")) > UPLOAD_BODY_LIMIT) return toResponse(tooLarge(), env.allowedOrigin); // mutation-witness:upload-body-cap-declared
+      const caller = await authorizeUploadCaller(authed); // mutation-witness:upload-auth-before-body
+      if ("status" in caller) return toResponse(caller, env.allowedOrigin);
+      const form = await readUploadForm(req);
+      if (form === "too_large") return toResponse(tooLarge(), env.allowedOrigin);
+      if (!form) {
+        return toResponse(
+          { status: 400, body: { error: "BAD_REQUEST", message: "invalid form body" } satisfies M365ErrorResponse },
+          env.allowedOrigin,
+        );
+      }
+      uploaded = await handleUploadRecordFile(form, authed, caller);
+    } catch (err) {
+      console.error("[m365-token-custody] unexpected error", {
+        errorCode: "INTERNAL_ERROR",
+        message: err instanceof Error ? err.name : "unknown",
+      });
+      uploaded = { status: 500, body: { error: "INTERNAL_ERROR", message: "unexpected error" } satisfies M365ErrorResponse };
+    }
+    return toResponse(uploaded, env.allowedOrigin);
+  }
+
   // POST: parse the {action} body, then route.
   let body: Omit<Partial<M365Request>, "action"> & {
     action?: M365Request["action"] | "refresh";
@@ -180,7 +213,13 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
     );
   }
 
+  if (requiresM365Feature(body.action, body)) {
+    const featureOff = await requireM365Feature(authed);
+    if (featureOff) return toResponse(featureOff, env.allowedOrigin);
+  }
+
   if (body?.action === "ensure_record_folder") scope?.limit(12_000); // mutation-witness:folder-request-deadline
+  if (body?.action === "preview_document") scope?.limit(12_000); // mutation-witness:preview-request-deadline
   let result: HandlerResult;
   try {
     switch (body.action) {
@@ -225,6 +264,10 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
         // ADR-0089: ensure + link the record's one reference-only folder. Typed kind + UUID only.
         result = await handleEnsureRecordFolder(body, authed);
         break;
+      case "preview_document":
+        // ADR-0095: typed document identity only; the server derives drive/item and previews with the caller's own connection.
+        result = await handlePreviewDocument(body, authed);
+        break;
       case "link_existing_record_folders":
         // ADR-0089 / FR-M365DOC-072: Admin, match-only, keyset-paged sweep. Never creates.
         result = await handleLinkExistingRecordFolders(body, authed);
@@ -260,6 +303,39 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
   }
 
   return toResponse(result, env.allowedOrigin);
+}
+
+const M365_FEATURE_ACTIONS = new Set([
+  "initiate_connect",
+  "initiate_org_approval",
+  "issue_document",
+  "refresh_references",
+  "ensure_record_folder",
+  "link_existing_record_folders",
+]);
+
+function requiresM365Feature(action: unknown, body: unknown): boolean {
+  if (typeof action !== "string" || !M365_FEATURE_ACTIONS.has(action)) return false;
+  // Keep malformed folder requests on their existing cheap typed-400 path, before authz RPCs.
+  if (action === "ensure_record_folder") return parseEnsureRequest(body) !== null;
+  return true;
+}
+
+/** New M365 setup and write actions stop before touching Microsoft or PMO state when switched off. */
+async function requireM365Feature(deps: HandlerDeps): Promise<HandlerResult | null> {
+  const org = await resolveOrgOrResult(deps);
+  if (typeof org !== "string") return org;
+  const { data, error } = await deps.serviceClient.rpc("service_feature_enabled", {
+    p_org_id: org,
+    p_key: "m365_integration",
+  });
+  if (error) {
+    return { status: 500, body: { error: "INTERNAL_ERROR", message: "could not resolve plan switch" } };
+  }
+  if (data !== true) {
+    return { status: 409, body: { error: "feature_off", message: "M365 integration is not enabled for this organization" } };
+  }
+  return null;
 }
 
 if (import.meta.main) serveWithErrorReporting("m365-token-custody", handler);

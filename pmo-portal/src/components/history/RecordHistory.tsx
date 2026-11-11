@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { ListState, Button } from '@/src/components/ui';
 import { useRecordHistory } from '@/src/hooks/useRecordHistory';
-import type { HistoryEvent, FieldChange, HistoryNameKind } from '@/src/lib/repositories/recordHistory';
+import type { HistoryEvent, FieldChange, HistoryNameKind } from '@/src/lib/repositories/types';
 import {
   formatCurrency, formatDateOnly, formatDateTime, formatMonthYear, formatNumber, formatRelativeTime,
 } from '@/src/lib/format';
@@ -22,15 +22,13 @@ import { useHistoryEnumLabel } from './useHistoryEnumLabel';
  */
 const HISTORY_BEGINS = new Date(2026, 9, 1);
 
-export interface RecordHistoryProps {
+interface RecordHistoryProps {
   entityType: string;
   entityId: string;
   /** Roll up child-record events (project only: children are filed under the project). */
   includeChildren?: boolean;
   /** Show the All / Project / Budget / … kind chips (project History, FR-CHG-012). */
   kindFilters?: boolean;
-  /** Lazy mount (collapsed sections): no fetch until true. */
-  enabled?: boolean;
 }
 
 type EnumLabel = ReturnType<typeof useHistoryEnumLabel>;
@@ -184,7 +182,8 @@ const HistoryEventGroup: React.FC<{
         onClick={() => setExpanded((open) => !open)}
         className="inline-flex h-8 w-fit items-center rounded-sm text-sm font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
-        {t('uxs23.history.groupSummary', '{{count}} system events', { count: events.length })}
+        {/* A group is one system save of one record kind: name what was created, not just "system events". */}
+        {t('uxs23.history.groupSummary', '{{what}} · {{count}} records', { what: historyEventSummary(t, events[0]!), count: events.length })}
       </button>
       <ul id={eventsId} hidden={!expanded} className="mt-1 pl-3">
         {events.map((ev) => (
@@ -219,12 +218,12 @@ function companyIdsOf(events: HistoryEvent[]): string[] {
  * record's own RLS (the RPC); the FE filters nothing on its behalf and sends no org_id.
  */
 export const RecordHistory: React.FC<RecordHistoryProps> = ({
-  entityType, entityId, includeChildren = false, kindFilters = false, enabled = true,
+  entityType, entityId, includeChildren = false, kindFilters = false,
 }) => {
   const { t } = useTranslation();
   const [kind, setKind] = useState('all');
   const entityTypes = KIND_FILTERS.find((k) => k.key === kind)?.types ?? null;
-  const q = useRecordHistory({ entityType, entityId, includeChildren, entityTypes, enabled });
+  const q = useRecordHistory({ entityType, entityId, includeChildren, entityTypes });
   const filters = useMemo(() => filterLabels(t), [t]);
   const events = useMemo(() => q.data?.pages.flatMap((p) => p.events) ?? [], [q.data]);
   const groups = useMemo(
@@ -259,7 +258,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
     return present.size;
   }, [events]);
   const showKindChips = kindFilters && (kind !== 'all' || kindsPresent >= 2);
-  const refs = useHistoryRefs({ entityType, entityId, enabled, companyIds, recordIdsByType });
+  const { refs, nameLookupFailed } = useHistoryRefs({ entityType, entityId, enabled: true, companyIds, recordIdsByType });
   const enumLabel = useHistoryEnumLabel();
   const loadingOlder = q.isFetchingNextPage;
 
@@ -310,6 +309,11 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
         />
       ) : (
         <>
+          {nameLookupFailed && (
+            <p role="alert" className="mb-2 text-[12.5px] text-muted-foreground">
+              {t('project:history.referenceNamesError', 'Some record names could not be loaded.')}
+            </p>
+          )}
           <ul>
             {groups.map((group) => group.events.length > 1 ? (
               <HistoryEventGroup
@@ -351,5 +355,3 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
     </div>
   );
 };
-
-export default RecordHistory;

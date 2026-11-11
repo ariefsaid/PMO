@@ -1,10 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
+import i18n from 'i18next';
+import idCatalogue from '@/public/locales/id/common.json';
 import { ME, REFERENCE, makeDoc, makeLinkedDoc } from './m365Fixtures';
 
 const h = vi.hoisted(() => ({
@@ -68,20 +70,20 @@ beforeEach(() => {
 const ACCESS = /Access depends on your Microsoft permissions/;
 
 describe('F1: register rows stay short', () => {
-  it('F1: a Microsoft row shows the compact cell in the table; the access sentence appears once, in the Drawer', async () => {
+  it('F1: a Microsoft row opens its full linked-document cell in the preview; the access sentence appears once', async () => {
     h.docs.data = [makeLinkedDoc({ id: 'a' }), makeLinkedDoc({ id: 'b', title: 'Second' })];
     renderTab();
     expect(screen.queryAllByText(ACCESS)).toHaveLength(0);
-    expect(screen.getAllByRole('button', { name: /^Open in SharePoint:/ })).toHaveLength(2);
-    expect(screen.queryByRole('button', { name: /^Versions of/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    expect(within(screen.getByRole('dialog')).getAllByText(ACCESS)).toHaveLength(1);
+    const preview = screen.getByRole('complementary');
+    expect(within(preview).getByRole('button', { name: /^Open in SharePoint:/ })).toBeEnabled();
+    expect(within(preview).getAllByText(ACCESS)).toHaveLength(1);
   });
 
   it('F1: the Date value never wraps mid-date', () => {
     h.docs.data = [makeLinkedDoc()];
     renderTab();
-    expect(screen.getAllByText('2026-06-01')[0]).toHaveClass('whitespace-nowrap');
+    expect(screen.getByText('Jun 1, 2026')).toHaveClass('whitespace-nowrap');
   });
 });
 
@@ -93,9 +95,33 @@ describe('F4/F17: header actions', () => {
     expect(link.parentElement).toBe(add.parentElement);
     expect(link.parentElement).toHaveClass('flex-wrap');
     expect(screen.queryByRole('button', { name: 'From Microsoft 365' })).not.toBeInTheDocument();
-    const headingRow = screen.getByRole('heading', { name: 'Document register' }).parentElement!.parentElement!;
-    expect(within(headingRow).queryByRole('button', { name: 'Create folder in SharePoint' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Create folder in SharePoint' })).toBeInTheDocument();
+    expect(link.parentElement).not.toBe(screen.getByRole('button', { name: 'Create folder in SharePoint' }).parentElement);
+  });
+});
+
+describe('F3: Bahasa', () => {
+  // The real app resolves namespaced keys through the common catalogue (fallbackNS); the bare test instance has none.
+  afterEach(async () => { i18n.options.fallbackNS = false; await i18n.changeLanguage('en'); });
+
+  it('F3: in Bahasa the Microsoft cell and the unlink confirmation are Indonesian, and dismissing writes nothing', async () => {
+    i18n.addResourceBundle('id', 'common', idCatalogue, true, true);
+    i18n.options.fallbackNS = ['common'];
+    await i18n.changeLanguage('id');
+    h.docs.data = [makeLinkedDoc()];
+    renderTab();
+    const user = userEvent.setup();
+    const row = screen.getByText('Foundation GA').closest('tr') as HTMLElement;
+    expect(within(row).getByText('File SharePoint')).toBeInTheDocument();
+    expect(within(row).queryByText('SharePoint file')).toBeNull();
+
+    await user.click(within(row).getByRole('button', { name: 'Tindakan baris' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Lepas tautan item Microsoft' }));
+    expect(await screen.findByText('Lepas tautan Foundation GA?')).toBeInTheDocument();
+    expect(screen.getByText('Hanya referensi PMO yang dihapus. Item Microsoft tidak berubah.')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByText('Lepas tautan Foundation GA?')).toBeNull());
+
+    expect(screen.getByRole('button', { name: 'Tautkan dari Microsoft 365' })).toBeInTheDocument();
   });
 });
 

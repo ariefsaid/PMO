@@ -10,7 +10,7 @@ describe('OD-BUDGET-6/DD-BUDGET-7 budget version activation policy (mirrors migr
   it('OD-BUDGET-6: a second person with a budget write role may activate another person\'s Draft', () => {
     const ctx = { currentUserId: 'u-me', record: draft('u-drafter') };
     expect(ROLES.filter((r) => can('transition', 'budgetVersion', { realRole: r, ...ctx })))
-      .toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+      .toEqual(['Admin', 'Executive', 'Finance']);
   });
 
   it('OD-BUDGET-6: the drafter may not activate their own version, whatever their role (Admin included)', () => {
@@ -21,6 +21,13 @@ describe('OD-BUDGET-6/DD-BUDGET-7 budget version activation policy (mirrors migr
   it('DD-BUDGET-7: a line editor cannot activate even when they are not the drafter', () => {
     expect(can('transition', 'budgetVersion', {
       realRole: 'Project Manager', currentUserId: 'u-me',
+      record: { ...draft('u-drafter'), editor_ids: ['u-drafter', 'u-me'] },
+    })).toBe(false);
+  });
+
+  it('DD-BUDGET-7: a Finance line editor cannot activate a version they did not draft', () => {
+    expect(can('transition', 'budgetVersion', {
+      realRole: 'Finance', currentUserId: 'u-me',
       record: { ...draft('u-drafter'), editor_ids: ['u-drafter', 'u-me'] },
     })).toBe(false);
   });

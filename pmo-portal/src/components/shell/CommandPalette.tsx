@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { cn } from '@/src/components/ui/cn';
+import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { filterAndCap } from '@/src/hooks/useRecordSearch';
 import { useReferenceRecordSearch } from '@/src/hooks/useReferenceRecordSearch';
@@ -23,7 +25,7 @@ export interface PaletteItem {
   run: () => void;
 }
 
-export interface CommandPaletteProps {
+interface CommandPaletteProps {
   open: boolean;
   items: PaletteItem[];
   onClose: () => void;
@@ -236,6 +238,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const showAskAi = !!onAskAi && !showLoading && flatItems.length === 0 && askAiQuery.length > 0;
   const resultCount = flatItems.length + (showAskAi ? 1 : 0);
 
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  useEffect(() => {
+    if (!open) return;
+    return acquireBackgroundInert();
+  }, [open]);
+
   // Reset + focus the input on open.
   useEffect(() => {
     if (open) {
@@ -283,9 +291,21 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         onClose();
       }
     } else if (e.key === 'Tab') {
-      // Trap focus inside the panel (single focusable: the input).
-      e.preventDefault();
-      inputRef.current?.focus();
+      const root = panelRef.current;
+      if (!root) return;
+      const focusables = root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   };
 
@@ -298,7 +318,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     return name;
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[950] flex items-start justify-center pt-[12vh]"
       onKeyDown={onKeyDown}
@@ -334,7 +354,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             onChange={(e) => setQuery(e.target.value)}
             className="flex-1 border-none bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <span className="rounded-[5px] border border-border bg-secondary px-[7px] py-0.5 text-[11px] font-semibold text-muted-foreground">
+          <span className="rounded-[5px] border border-border bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
             Esc
           </span>
         </div>
@@ -379,7 +399,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 <div
                   key={i}
                   data-testid="cmdk-skeleton-row"
-                  className="cmdk-row flex items-center gap-[11px] rounded-[7px] px-2.5 py-[9px]"
+                  className="cmdk-row flex items-center gap-3 rounded-[7px] px-3 py-2"
                 >
                   <span className="cmdk-skeleton size-7 shrink-0 rounded-[7px] bg-secondary" />
                   <span className="cmdk-skeleton h-3.5 flex-1 rounded-[4px] bg-secondary" />
@@ -412,7 +432,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                           onClose();
                         }}
                         className={cn(
-                          'cmdk-row flex cursor-pointer items-center gap-[11px] rounded-[7px] px-2.5 py-[9px] text-sm',
+                          'cmdk-row flex cursor-pointer items-center gap-3 rounded-[7px] px-3 py-2 text-sm',
                           isSel ? 'bg-primary/10 text-foreground' : 'hover:bg-accent'
                         )}
                       >
@@ -422,7 +442,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                         <span className="flex min-w-0 flex-1 flex-col gap-px">
                           <span className="truncate font-medium leading-tight">{item.title}</span>
                           {item.sub && (
-                            <span className="text-[11.5px] leading-tight text-muted-foreground">
+                            <span title={item.sub} className="truncate text-[11.5px] leading-tight text-muted-foreground">
                               {item.sub}
                             </span>
                           )}
@@ -437,7 +457,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   })}
                   {group.overflow > 0 && (
                     <div className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
-                      {t('shell.palette.moreResults', '+{{count}} more — refine your search', { count: group.overflow })}
+                      {t('shell.palette.moreResults', '+{{count}} more: refine your search', { count: group.overflow })}
                     </div>
                   )}
                   {group.name === 'Records' && referenceQuerySettled && referenceSearch.data?.hasMore && (
@@ -459,7 +479,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                       onClose();
                     }}
                     className={cn(
-                      'cmdk-row flex cursor-pointer items-center gap-[11px] rounded-[7px] px-2.5 py-[9px] text-sm',
+                      'cmdk-row flex cursor-pointer items-center gap-3 rounded-[7px] px-3 py-2 text-sm',
                       isSel ? 'bg-primary/10 text-foreground' : 'hover:bg-accent'
                     )}
                   >
@@ -481,6 +501,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

@@ -11,8 +11,14 @@ import {
 import { listErpItems } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/itemCatalog.ts';
 import { listPurchaseTaxTemplates } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/erpPurchaseTaxRows.ts';
 import { fetchStatementAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountFetch.ts';
+import { listOdooItems } from '../../../pmo-portal/src/lib/adapterSeam/odoo/itemCatalog.ts';
+import { readExternalItemCatalog } from '../../../pmo-portal/src/lib/adapterSeam/externalItemCatalog.ts';
+import { bindCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { erpClientForOrg } from '../_shared/erpClientForOrg.ts';
+import { odooClientForOrg } from '../_shared/odooClientForOrg.ts';
+import { fetchAllPages } from '../../../pmo-portal/src/lib/pagedRead.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { isValidProjectDateBasis, readProjectFiscalCalendar } from './projectFiscalCalendar.ts';
 
 let jwks: JwksResolver | null = null;
 export function setTestJwks(resolver: JwksResolver): void {
@@ -29,6 +35,10 @@ function json(body: unknown, status = 200): Response {
       'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     },
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 export async function handleItemsRequest(req: Request): Promise<Response> {
@@ -64,17 +74,61 @@ export async function handleItemsRequest(req: Request): Promise<Response> {
     .eq('id', userId)
     .maybeSingle();
   if (profileError || !profile?.org_id) return json({ error: 'FORBIDDEN' }, 403);
-  let purpose: unknown;
+  let body: unknown;
   try {
-    purpose = (await req.json()).purpose;
+    body = await req.json();
   } catch {
     return json({ error: 'BAD_REQUEST' }, 400);
   }
-  if (purpose !== 'sales' && purpose !== 'purchase' && purpose !== 'purchase-tax-templates' && purpose !== 'budget-accounts')
+  if (!isRecord(body)) return json({ error: 'BAD_REQUEST' }, 400);
+  const purpose = body.purpose;
+  if (purpose !== 'sales' && purpose !== 'purchase' && purpose !== 'purchase-tax-templates' && purpose !== 'budget-accounts' && purpose !== 'budget-project-calendar')
     return json({ error: 'BAD_REQUEST' }, 400);
 
+  if (purpose === 'budget-project-calendar') {
+    if (Object.keys(body).length !== 2 || typeof body.projectId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.projectId)) {
+      return json({ error: 'BAD_REQUEST' }, 400);
+    }
+    const { data: project, error: projectError } = await caller
+      .from('projects')
+      .select('id,org_id,start_date,end_date')
+      .eq('id', body.projectId)
+      .maybeSingle();
+    if (projectError) return json({ error: 'PROJECT_LOOKUP_FAILED' }, 500);
+    if (!project || project.org_id !== profile.org_id) return json({ error: 'FORBIDDEN' }, 404);
+    // Budgets are readable by any active member of the org; a deactivated member gets nothing.
+    const actor = createClient(url, key, clientOptions);
+    const { data: actorState, error: actorError } = await actor.rpc('actor_authorization_state', {
+      p_org_id: profile.org_id,
+      p_user_id: userId,
+    });
+    if (actorError || !(actorState as { active: boolean } | null)?.active) return json({ error: 'FORBIDDEN' }, 403);
+    const projectDates = { start: project.start_date ?? null, end: project.end_date ?? null };
+    if (!isValidProjectDateBasis(projectDates.start, projectDates.end)) {
+      return json({ status: 'bad-project-dates', project: projectDates });
+    }
+
+    // The caller-JWT project read above is the authority for the service binding and all ERP access.
+    const service = createClient(url, key, clientOptions);
+    const connection = await erpClientForOrg(service, profile.org_id, { requireCompany: true });
+    if ('refusal' in connection || (connection.client.versionMajor !== 15 && connection.client.versionMajor !== 16)) {
+      return json({ status: 'binding-unavailable', project: projectDates });
+    }
+    const company = connection.config?.company;
+    if (typeof company !== 'string' || company.trim() === '') {
+      return json({ status: 'binding-unavailable', project: projectDates });
+    }
+    return json(await readProjectFiscalCalendar(connection.client, company, projectDates.start, projectDates.end));
+  }
+
+  const service = createClient(url, key, clientOptions);
+
   if (purpose === 'budget-accounts') {
-    const { data: actorState, error: actorError } = await caller.rpc('actor_authorization_state', {
+    // The lookup runs with the service client, keyed to the verified caller: an OAuth API client (the CLI) is not allowed
+    // to call actor_authorization_state through PostgREST, and the answer is the same either way (the profile above was
+    // read under the caller's JWT, and the ids come from the verified token, never the request).
+    const { data: actorState, error: actorError } = await service.rpc('actor_authorization_state', {
       p_org_id: profile.org_id,
       p_user_id: userId,
     });
@@ -83,7 +137,6 @@ export async function handleItemsRequest(req: Request): Promise<Response> {
       return json({ error: 'FORBIDDEN' }, 403);
   }
 
-  const service = createClient(url, key, clientOptions);
   if (purpose === 'budget-accounts') {
     const { data: binding, error: bindingError } = await service
       .from('external_org_bindings')
@@ -98,14 +151,23 @@ export async function handleItemsRequest(req: Request): Promise<Response> {
     if (typeof company !== 'string' || !company)
       return json({ error: 'config-rejected', message: 'ERPNext company is not set' }, 422);
 
-    const { data: mirror, error: mirrorError } = await service
-      .from('erp_account_mirror')
-      .select('erp_name, account_name, account_number, parent_account, root_type, is_group, disabled')
-      .eq('org_id', profile.org_id)
-      .eq('company', company)
-      .order('lft');
-    if (mirrorError) return json({ error: 'external-unreachable', message: 'Could not load the ERP account chart. Try again.' }, 502);
-    if (mirror?.length) {
+    // Offset-paged past PostgREST's 1000-row cap; (lft, erp_name) is a stable total order, and a failed page fails the read.
+    let mirror: Array<Record<string, unknown>>;
+    try {
+      mirror = await fetchAllPages((from, to) =>
+        service
+          .from('erp_account_mirror')
+          .select('erp_name, account_name, account_number, parent_account, root_type, is_group, disabled')
+          .eq('org_id', profile.org_id)
+          .eq('company', company)
+          .order('lft')
+          .order('erp_name')
+          .range(from, to) as never
+      );
+    } catch {
+      return json({ error: 'external-unreachable', message: 'Could not load the ERP account chart. Try again.' }, 502);
+    }
+    if (mirror.length) {
       return json({
         accounts: mirror.map((row) => ({
           account: row.erp_name,
@@ -146,39 +208,77 @@ export async function handleItemsRequest(req: Request): Promise<Response> {
       return json({ error: 'external-unreachable', message: 'Could not load the ERP account chart. Try again.' }, 502);
     }
   }
-  const connection = await erpClientForOrg(service, profile.org_id, {
-    requireCompany: purpose === 'purchase-tax-templates',
-  });
-  if ('refusal' in connection) {
-    if (connection.refusal === 'company-not-set')
-      return json({ error: 'config-rejected', message: 'ERPNext company is not set' }, 422);
-    if (connection.refusal === 'not-found') return json({ error: 'BINDING_NOT_FOUND' }, 404);
-    if (connection.refusal === 'inactive')
-      return json({ error: 'config-rejected', message: 'ERPNext binding is not active' }, 422);
-    if (connection.refusal === 'invalid-site')
-      return json({ error: 'config-rejected', message: 'ERPNext site URL is not permitted' }, 422);
-    return json({ error: 'external-unreachable', message: purpose === 'purchase-tax-templates' ? 'Could not load ERP tax templates. Try again.' : 'Could not load ERP items. Try again.' }, 502);
+
+  let ownerTier: unknown = purpose === 'purchase-tax-templates' ? 'erpnext' : null;
+  if (purpose === 'sales' || purpose === 'purchase') {
+    const domain = purpose === 'sales' ? 'revenue' : 'procurement';
+    const { data: owner, error: ownerError } = await service
+      .from('external_domain_ownership')
+      .select('external_tier')
+      .eq('org_id', profile.org_id)
+      .eq('domain', domain)
+      .in('external_tier', ['erpnext', 'odoo'])
+      .maybeSingle();
+    if (ownerError) return json({ error: 'external-unreachable', message: 'Could not resolve the item catalogue owner. Try again.' }, 502);
+    ownerTier = (owner as { external_tier?: unknown } | null)?.external_tier ?? null;
+    if (ownerTier === null) return json({ error: 'config-rejected', message: 'No external item catalogue owns this domain' }, 409);
   }
-  const company = connection.config?.company;
-  try {
-    const client = connection.client;
-    if (purpose === 'purchase-tax-templates')
-      return json({ templates: await listPurchaseTaxTemplates(client, company as string) });
-    const items = await listErpItems(client, purpose);
-    return json({ items });
-  } catch {
-    // Stable public error; upstream text may contain private ERP document details.
-    return json(
-      {
-        error: 'external-unreachable',
-        message:
-          purpose === 'purchase-tax-templates'
-            ? 'Could not load ERP tax templates. Try again.'
-            : 'Could not load ERP items. Try again.',
-      },
-      502,
-    );
-  }
+
+  const readOdooCatalogue = async () => {
+    const connection = await odooClientForOrg(service, profile.org_id, { requireActivated: true, requireCompany: true });
+    if ('refusal' in connection) {
+      if (connection.refusal === 'not-found') return json({ error: 'BINDING_NOT_FOUND' }, 404);
+      if (connection.refusal === 'inactive') return json({ error: 'config-rejected', message: 'Odoo binding is not active' }, 422);
+      if (connection.refusal === 'company-not-set') return json({ error: 'config-rejected', message: 'Odoo company is not set' }, 422);
+      if (connection.refusal === 'invalid-site') return json({ error: 'config-rejected', message: 'Odoo site URL is not permitted' }, 422);
+      return json({ error: 'external-unreachable', message: 'Could not load Odoo items. Try again.' }, 502);
+    }
+    if (connection.companyId === null) return json({ error: 'config-rejected', message: 'Odoo company is not set' }, 422);
+    try {
+      return json({ items: await listOdooItems(bindCall(connection.client), connection.companyId, purpose === 'sales' ? 'sales' : 'purchase') });
+    } catch {
+      return json({ error: 'external-unreachable', message: 'Could not load Odoo items. Try again.' }, 502);
+    }
+  };
+
+  const readErpnextCatalogue = async () => {
+    const connection = await erpClientForOrg(service, profile.org_id, {
+      requireCompany: purpose === 'purchase-tax-templates',
+    });
+    if ('refusal' in connection) {
+      if (connection.refusal === 'company-not-set')
+        return json({ error: 'config-rejected', message: 'ERPNext company is not set' }, 422);
+      if (connection.refusal === 'not-found') return json({ error: 'BINDING_NOT_FOUND' }, 404);
+      if (connection.refusal === 'inactive')
+        return json({ error: 'config-rejected', message: 'ERPNext binding is not active' }, 422);
+      if (connection.refusal === 'invalid-site')
+        return json({ error: 'config-rejected', message: 'ERPNext site URL is not permitted' }, 422);
+      return json({ error: 'external-unreachable', message: purpose === 'purchase-tax-templates' ? 'Could not load ERP tax templates. Try again.' : 'Could not load ERP items. Try again.' }, 502);
+    }
+    const company = connection.config?.company;
+    try {
+      const client = connection.client;
+      if (purpose === 'purchase-tax-templates')
+        return json({ templates: await listPurchaseTaxTemplates(client, company as string) });
+      const items = await listErpItems(client, purpose as 'sales' | 'purchase');
+      return json({ items });
+    } catch {
+      // Stable public error; upstream text may contain private ERP document details.
+      return json(
+        {
+          error: 'external-unreachable',
+          message:
+            purpose === 'purchase-tax-templates'
+              ? 'Could not load ERP tax templates. Try again.'
+              : 'Could not load ERP items. Try again.',
+        },
+        502,
+      );
+    }
+  };
+
+  return await readExternalItemCatalog(ownerTier, { erpnext: readErpnextCatalogue, odoo: readOdooCatalogue })
+    ?? json({ error: 'config-rejected', message: 'This item catalogue is not available for the owning external system' }, 422);
 }
 
 if (import.meta.main) serveWithErrorReporting('external-items', handleItemsRequest);

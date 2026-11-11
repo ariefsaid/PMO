@@ -1,5 +1,11 @@
 import { AppError } from '../appError.ts';
-import type { ServiceRoleTableClient } from './watermarks.ts';
+
+/** Structural service-role table client seam (matches supabase-js): `.from(t).upsert(rows, {onConflict})`. */
+export interface ServiceRoleTableClient {
+  from(table: string): {
+    upsert(rows: unknown, options: { onConflict: string }): Promise<{ error: { message: string; code?: string } | null }>;
+  };
+}
 
 export interface ExternalRefRecord {
   orgId: string;
@@ -21,6 +27,23 @@ export async function recordExternalRef(client: ServiceRoleTableClient, input: E
     },
     { onConflict: 'org_id,domain,pmo_record_id' },
   );
+  if (error) throw new AppError(error.message, error.code);
+}
+
+/** Insert-only `external_refs` link: refuses (23505) when the PMO record OR the external record is already
+ *  linked, instead of `recordExternalRef`'s upsert, which would silently re-point a PMO record that is
+ *  already linked to another external record. Used where a first-time link claims an existing PMO row. */
+export interface ExternalRefInsertClient {
+  from(table: string): { insert(row: unknown): PromiseLike<{ error: { message: string; code?: string } | null }> };
+}
+export async function insertExternalRef(client: ExternalRefInsertClient, input: ExternalRefRecord): Promise<void> {
+  const { error } = await client.from('external_refs').insert({
+    org_id: input.orgId,
+    domain: input.domain,
+    pmo_record_id: input.pmoRecordId,
+    external_tier: input.externalTier,
+    external_record_id: input.externalRecordId,
+  });
   if (error) throw new AppError(error.message, error.code);
 }
 

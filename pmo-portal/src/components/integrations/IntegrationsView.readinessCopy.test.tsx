@@ -80,14 +80,14 @@ describe('AC-IRUX-010 readiness copy in English and Bahasa (with role gates)', (
 
   it('renders English readiness copy for an Admin on an unactivated ERPNext binding', async () => {
     await wrapWithRoleAndLocale('Admin', 'en', <IntegrationsView />);
-    expect(await screen.findByText('Awaiting activation — select a Company to activate')).toBeInTheDocument();
+    expect(await screen.findByText('Awaiting activation: select a Company to activate')).toBeInTheDocument();
     expect(screen.getByText(/ERP sync is paused until a Company is selected/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Select Company$/i })).toBeInTheDocument();
   });
 
   it('renders Bahasa readiness copy for an Admin on an unactivated ERPNext binding', async () => {
     await wrapWithRoleAndLocale('Admin', 'id', <IntegrationsView />);
-    expect(await screen.findByText('Menunggu aktivasi — pilih Perusahaan untuk mengaktifkan')).toBeInTheDocument();
+    expect(await screen.findByText('Menunggu aktivasi: pilih Perusahaan untuk mengaktifkan')).toBeInTheDocument();
     expect(screen.getByText(/Sinkronisasi ERP dijeda sampai sebuah Perusahaan dipilih/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Pilih Perusahaan$/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^Pilih Perusahaan$/i }));
@@ -118,7 +118,7 @@ describe('AC-IRUX-010 readiness copy in English and Bahasa (with role gates)', (
 
   it('a read-only viewer in Bahasa sees the truthful state text but no mutation controls', async () => {
     await wrapWithRoleAndLocale('Engineer', 'id', <IntegrationsView />);
-    expect(await screen.findByText('Menunggu aktivasi — pilih Perusahaan untuk mengaktifkan')).toBeInTheDocument();
+    expect(await screen.findByText('Menunggu aktivasi: pilih Perusahaan untuk mengaktifkan')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Pilih Perusahaan$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Aktifkan$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Connect ERPNext$/i })).not.toBeInTheDocument();

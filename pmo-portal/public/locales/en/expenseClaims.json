@@ -8,5 +8,21 @@
     "discardLeave": "Leave",
     "discardStay": "Stay",
     "saving": "Saving…"
+  },
+  "postings": {
+    "recordedBeforeConnection": "Recorded before the ERP connection"
+  },
+  "advances": {
+    "loadError": "Couldn't load your advances. Saving is paused so this claim isn't filed without its advance.",
+    "loading": "Loading your advances…",
+    "retry": "Retry"
+  },
+  "projects": {
+    "loadError": "Couldn't load projects. Saving is paused so this claim isn't filed under the wrong project.",
+    "loading": "Loading projects…",
+    "retry": "Retry projects"
+  },
+  "accountMap": {
+    "projectDirectCost": "Project direct cost"
   }
 }

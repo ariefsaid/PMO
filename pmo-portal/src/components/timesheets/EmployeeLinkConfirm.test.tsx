@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axeViolations } from '../__tests__/axe';
-import { EmployeeLinkConfirm } from './EmployeeLinkConfirm';
+import { EmployeeLinkConfirm, type EmployeeProfileOption } from './EmployeeLinkConfirm';
 import type { ProposedEmployeeLink } from '@/src/lib/db/timesheetPush';
 
 /**
@@ -23,12 +23,12 @@ const LINK: ProposedEmployeeLink = {
 };
 
 const ACTIVE_PROFILE_OPTIONS = [
-  { value: 'profile-a', label: 'Casey Reviewer · candidate-a@example.test', email: 'candidate-a@example.test' },
-  { value: 'profile-b', label: 'Casey Reviewer · candidate-b@example.test', email: 'candidate-b@example.test' },
+  { value: 'profile-a', name: 'Casey Reviewer', email: 'candidate-a@example.test' },
+  { value: 'profile-b', name: 'Casey Reviewer', email: 'candidate-b@example.test' },
 ];
 
 type EmployeeLinkConfirmWithOptionsProps = React.ComponentProps<typeof EmployeeLinkConfirm> & {
-  profileOptions: typeof ACTIVE_PROFILE_OPTIONS;
+  profileOptions: EmployeeProfileOption[];
 };
 const EmployeeLinkConfirmWithOptions = EmployeeLinkConfirm as React.ComponentType<EmployeeLinkConfirmWithOptionsProps>;
 
@@ -371,6 +371,42 @@ describe('EmployeeLinkConfirm deliberate alternate identity (AC-S30-001/002)', (
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
+  it('AC-S30-002 (+#1226): re-choosing a profile after a failed save clears the save error and retries with the new identity', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn()
+      .mockRejectedValueOnce(new Error('synthetic conflict'))
+      .mockResolvedValueOnce(undefined);
+    render(
+      <EmployeeLinkConfirmWithOptions
+        links={[unlinked]}
+        canConfirm
+        profileOptions={ACTIVE_PROFILE_OPTIONS}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    await chooseProfile(user, 'Casey Reviewer · candidate-a@example.test');
+    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm link' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn't confirm this employee link/i);
+
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    // Choosing a different profile is a new decision: the old failure must not still be on screen.
+    await chooseProfile(user, 'Casey Reviewer · candidate-b@example.test');
+    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    const reopened = screen.getByRole('dialog');
+    expect(within(reopened).queryByRole('alert')).not.toBeInTheDocument();
+
+    await user.click(within(reopened).getByRole('button', { name: 'Confirm link' }));
+    await waitFor(() => expect(onConfirm).toHaveBeenLastCalledWith(expect.objectContaining({
+      profile_id: 'profile-b',
+      profile_name: 'Casey Reviewer',
+      profile_email: 'candidate-b@example.test',
+    })));
+  });
+
   it('AC-S30-004: retains the draft and lets the Admin choose again in the open dialog', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn(async (_link: ProposedEmployeeLink) => {});
@@ -458,5 +494,83 @@ describe('EmployeeLinkConfirm — an identity is stated once (NEW-7/NEW-8)', () 
     fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
     const dialog = screen.getByRole('dialog');
     expect(dialog.textContent ?? '').toContain('Jane Doe (HR-EMP-00087)');
+  });
+});
+
+/**
+ * ⚑ #1226 (follow-up from the #1224 review) — the destination's identity was RE-DERIVED from the
+ * caller's display label by stripping a trailing ` · email`. A display name that itself ends in its
+ * own email was therefore silently shortened in the very sentence that names whose hours are being
+ * re-pointed, and the confirmed `profile_name` was shortened with it. The dialog now receives the
+ * identity (name + email) and states it verbatim.
+ */
+describe('EmployeeLinkConfirm — the destination identity comes from the caller, not from its label (#1226)', () => {
+  const UNLINKED: ProposedEmployeeLink = {
+    ...LINK,
+    id: 'emp-unlinked-1226',
+    employee_name: 'Synthetic ERP Worker',
+    employee_number: 'WORKER-026',
+    work_email: 'worker-026@example.test',
+    link_proposed_reason: 'No confident PMO match was found',
+    profile_id: null,
+    profile_name: null,
+    profile_email: null,
+  };
+
+  it('#1226 names a display name that ends in its own email exactly, and confirms that exact name', async () => {
+    const user = userEvent.setup();
+    const selfSuffixed = [{ value: 'profile-self', label: 'Rina · rina@example.test', email: 'rina@example.test' }];
+    const onConfirm = vi.fn(async (_link: ProposedEmployeeLink) => {});
+    render(
+      <EmployeeLinkConfirmWithOptions
+        links={[UNLINKED]}
+        canConfirm
+        profileOptions={selfSuffixed}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    await chooseProfile(user, 'Rina · rina@example.test');
+    expect(screen.getByText(/Hours would be attributed to/)).toHaveTextContent('Rina · rina@example.test');
+
+    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    const dialog = screen.getByRole('dialog');
+    // The identity is stated in full (never chiselled back to "Rina") and its email is not repeated.
+    expect(dialog).toHaveTextContent("Attribute Synthetic ERP Worker's hours to Rina · rina@example.test?");
+    expect(dialog).not.toHaveTextContent('Rina · rina@example.test (rina@example.test)');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm link' }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      profile_id: 'profile-self',
+      profile_name: 'Rina · rina@example.test',
+      profile_email: 'rina@example.test',
+    })));
+  });
+
+  it('#1226 falls back to the email rather than rendering a blank destination from a whitespace name', async () => {
+    const user = userEvent.setup();
+    const blankName = [{ value: 'profile-blank', name: '   ', email: 'blank-name@example.test' }];
+    const onConfirm = vi.fn(async (_link: ProposedEmployeeLink) => {});
+    render(
+      <EmployeeLinkConfirmWithOptions
+        links={[UNLINKED]}
+        canConfirm
+        profileOptions={blankName}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    await chooseProfile(user, 'blank-name@example.test');
+    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent("Attribute Synthetic ERP Worker's hours to blank-name@example.test?");
+    expect(dialog).not.toHaveTextContent('blank-name@example.test (blank-name@example.test)');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm link' }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      profile_id: 'profile-blank',
+      profile_name: 'blank-name@example.test',
+      profile_email: 'blank-name@example.test',
+    })));
   });
 });

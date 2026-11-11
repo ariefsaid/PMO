@@ -125,7 +125,7 @@ async function push(record: Row = {}, templates?: Row[]) {
   return { body: erp.writes[0] ?? {}, command: cmd, ...erp };
 }
 
-describe('vendor invoice purchase tax template (#520)', () => {
+describe('supplier invoice purchase tax template (#520)', () => {
   it('AC-520-1 a chosen template is sent by name with its explicit rows', async () => {
     const { body, command: cmd } = await push({ taxTemplate: 'Synthetic Input VAT' });
     expect(body.taxes_and_charges).toBe('Synthetic Input VAT');
@@ -221,7 +221,7 @@ describe('vendor invoice purchase tax template (#520)', () => {
   });
 });
 
-describe('vendor invoice default purchase tax template (#915)', () => {
+describe('supplier invoice default purchase tax template (#915)', () => {
   it('AC-520-2 the company\'s default template is resolved through the same validator as a chosen one and sent exactly as if chosen', async () => {
     const { body, command: cmd, writes } = await push({}, [{ ...STANDARD, is_default: 1 }, FOREIGN, DISABLED]);
     expect(writes).toHaveLength(1);
@@ -289,7 +289,7 @@ describe('vendor withholding templates (#876)', () => {
 // never to mutate: the persisted body, its digest and the command stay byte-identical — a valid
 // default is ERPNext's to apply at POST time, not PMO's to inline.
 
-describe('vendor invoice default purchase tax template — replay of a marker-less create (#915 fix round)', () => {
+describe('supplier invoice default purchase tax template — replay of a marker-less create (#915 fix round)', () => {
   /** First attempt with no default at all: the bill posted untaxed and the command stored no marker. */
   async function markerlessCreate() {
     const first = await push();

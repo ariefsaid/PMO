@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -28,11 +29,15 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
     {projects.map((p, i) => {
       const contract = p.contract_value;
       const actualComplete = isActualComplete({ basis: 'erp', readSucceeded: p.spent !== null, complete: p.actual_complete,
-        coverageCount: p.actual_coverage_count, coverageTotal: p.actual_coverage_total });
+        coverageCount: p.actual_coverage_count, coverageTotal: p.actual_coverage_total })
+        && p.committed_complete !== false;
+      // #1739: the risk signal is budget CONSUMPTION — PMO spent + open commitment (the whole order total, once);
+      // a ledger org's `committed` is null, so consumption is its ledger Actual. Never spent alone.
+      const consumed = p.spent === null || p.spent === undefined ? null : p.spent + (p.committed ?? 0);
       const pct = contract !== null && contract > 0 && actualComplete && (p.actual_currency ?? p.currency) === p.currency
         ? Math.round(((p.spent ?? 0) / contract) * 100) : null;
       const atRisk = isMoneyAtRisk({ status: p.status, budget: p.budget, budgetCurrency: p.budget_currency ?? p.currency, projectCurrency: p.currency,
-        spent: p.spent, actualCurrency: p.actual_currency ?? p.currency, actualComplete });
+        spent: consumed, actualCurrency: p.actual_currency ?? p.currency, actualComplete });
       const dot = chartTheme.categorical[i % chartTheme.categorical.length];
 
       return (
@@ -50,9 +55,10 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
             />
             <Link
               to={`/projects/${p.id}`}
+              title={projectDisplayName(p) !== p.name ? p.name : undefined}
               className="min-w-0 truncate text-[13px] font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
-              {p.name}
+              {projectDisplayName(p)}
             </Link>
             {atRisk && <StatusPill variant="warn">{t('dashboard.bva.atRisk', 'At risk')}</StatusPill>}
             <span className="ml-auto shrink-0 text-[12px] tabular text-muted-foreground">
@@ -65,12 +71,24 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
           </div>
           {/* widthless: no outer min-w so the bar fills the flex row at any viewport width.
               [&>span:first-child]:flex-1 ensures the track expands in the flex container. */}
-          {pct !== null && <ProgressBar
-            value={pct}
-            widthless
-            className="w-full [&>span:first-child]:flex-1"
-            aria-label={t('uxs03.spendingContractBar', '{{name}}: {{percent}}% of contract', { name: p.name, percent: pct })}
-          />}
+          {pct !== null && (
+            <div className="flex items-center gap-3">
+              <ProgressBar
+                value={pct}
+                widthless
+                className="min-w-0 flex-1 [&>span:first-child]:flex-1"
+                aria-label={t('uxs03.spendingContractBar', '{{name}}: {{percent}}% of contract', { name: projectDisplayName(p), percent: pct })}
+              />
+              <span className="shrink-0 text-[11.5px] tabular text-muted-foreground">
+                {t('dashboard:executive.spendingContractPercent', '{{percent}}% of contract', { percent: pct })}
+              </span>
+            </div>
+          )}
+          <span className="text-[12px] text-muted-foreground">
+            {p.budget === null
+              ? t('dashboard:executive.noActiveBudget', 'No active budget')
+              : t('dashboard:executive.activeBudgetAmount', 'Active budget: {{amount}}', { amount: money(p.budget, p.budget_currency ?? p.currency) })}
+          </span>
           {p.actual_coverage_total != null && p.actual_coverage_total > (p.actual_coverage_count ?? 0) && (
             <span className="text-[12px] text-muted-foreground">
               {t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {

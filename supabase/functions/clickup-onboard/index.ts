@@ -56,7 +56,10 @@ import {
   mapsFromBindingConfig,
   createClickUpMirrorCallbacks,
 } from '../_shared/clickupMirrorDeps.ts';
+import { resolveClickUpOrgToken } from '../_shared/clickupOrgSecret.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+
+export const testSupabaseOptions = { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } };
 
 // Shared across invocations of this isolate — the token bucket's budget is real only if it persists
 // across requests (NFR-CUA-PERF-003). Bulk lane: onboarding yields to interactive writes.
@@ -157,12 +160,26 @@ serveWithErrorReporting('clickup-onboard', async (req: Request): Promise<Respons
     return json({ error: 'BAD_REQUEST', message: 'operation, orgId, and projectId are required' }, 400);
   }
 
-  const token = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
-  const clientDeps = { fetchImpl: fetch, token, rateLimiter };
   // Cast: see adapter-dispatch/index.ts — the real supabase-js client structurally satisfies the
   // pure modules' service-client seams at runtime but is not nominally assignable (thenable
   // PostgrestFilterBuilder vs a plain Promise).
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
+  const { data: clickupSyncOn, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
+    p_org_id: orgId,
+    p_key: 'clickup_sync',
+  });
+  if (featureError) return json({ error: 'INTERNAL', message: 'could not resolve the plan switch' }, 500);
+  if (clickupSyncOn !== true) return json({ error: 'feature_off', message: 'ClickUp sync is not enabled for this organization' }, 409);
+
+  // The org's own ClickUp credential; an org with no binding fails closed.
+  let token: string;
+  try {
+    token = await resolveClickUpOrgToken(serviceClient, orgId);
+  } catch (err) {
+    const notConnected = err instanceof AppError && err.code === 'config-rejected';
+    return json({ error: notConnected ? 'NOT_CONNECTED' : 'CREDENTIAL_UNAVAILABLE', message: err instanceof Error ? err.message : 'ClickUp credential unavailable' }, notConnected ? 409 : 503);
+  }
+  const clientDeps = { fetchImpl: fetch, token, rateLimiter };
 
   // Load the bound List + maps for a project (push-seed/pull-adopt run after provision). A closure
   // capturing serviceClient so the overloaded `createClient` generic is inferred exactly once.
@@ -230,9 +247,10 @@ serveWithErrorReporting('clickup-onboard', async (req: Request): Promise<Respons
     // push-seed + pull-adopt both need the resolved binding.
     const binding = await resolveBinding();
     // Shared mirror-callback bag (review fix #3): push-seed + pull-adopt both reuse its recordExternalRef
-    // (and pull-adopt reuses readWatermark/advanceWatermark/resolvePmoRecordId too). No projectId —
-    // pull-adopt overrides mintMirror/updateMirror (no per-row source-mod); push-seed doesn't mint.
-    const mirrorCallbacks = createClickUpMirrorCallbacks({ serviceClient, orgId });
+    // (and pull-adopt reuses readWatermark/advanceWatermark/resolvePmoRecordId too). The project IS bound
+    // here so pull-adopt's CLAIM-FIRST mint (`adoptAtomically.mintWithId`) lands in this project; the
+    // pull-adopt mintMirror/updateMirror overrides stay (no per-row source-mod), and push-seed doesn't mint.
+    const mirrorCallbacks = createClickUpMirrorCallbacks({ serviceClient, orgId, projectId });
 
     // ── push-seed ──
     if (operation === 'push-seed') {

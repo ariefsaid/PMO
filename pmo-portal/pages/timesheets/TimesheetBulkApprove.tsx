@@ -1,6 +1,6 @@
 /* Shared controller and controls intentionally live together so responsive queues cannot diverge. */
 /* eslint-disable react-refresh/only-export-components */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button, Checkbox, ConfirmDialog, Icon, useToast } from '@/src/components/ui';
@@ -18,15 +18,17 @@ export function weekLabel(weekStart: string, t: TFunction): string {
   return `${t('approvals.weekOf', 'Week of')} ${formatMonthDay(new Date(y, (m ?? 1) - 1, d ?? 1))}`;
 }
 
-export function useTimesheetBulkApprove(sheets: TimesheetAwaitingApproval[]) {
+export function useTimesheetBulkApprove(sheets: TimesheetAwaitingApproval[], eligibleFromQueue = false) {
   const { t } = useTranslation();
-  const { approve } = useTimesheetMutations();
+  const { approve, settleBatch } = useTimesheetMutations();
   const { toast } = useToast();
-  const isApprover = usePermission()('transition', 'approval');
+  const may = usePermission();
+  const isApprover = eligibleFromQueue || may('transition', 'approval');
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [running, setRunning] = useState(false);
+  const [failedIds, setFailedIds] = useState<string[]>([]);
 
   const approvableIds = useMemo(
     () => new Set(sheets.filter((sheet) => timesheetActions(sheet.status as TimesheetStatus, false, isApprover).approve).map((sheet) => sheet.id)),
@@ -36,11 +38,21 @@ export function useTimesheetBulkApprove(sheets: TimesheetAwaitingApproval[]) {
     () => new Set([...selected].filter((id) => approvableIds.has(id))),
     [selected, approvableIds],
   );
+  useEffect(() => {
+    setSelected((previous) => {
+      const next = new Set([...previous].filter((id) => approvableIds.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [approvableIds]);
+  useEffect(() => {
+    if (confirmOpen && effectiveSelected.size === 0) setConfirmOpen(false);
+  }, [confirmOpen, effectiveSelected]);
   const allSelected = approvableIds.size > 0 && effectiveSelected.size === approvableIds.size;
   const someSelected = effectiveSelected.size > 0 && !allSelected;
   const exitSelection = () => {
     setSelecting(false);
     setSelected(new Set());
+    setFailedIds([]);
   };
   const toggleSelected = (id: string) => setSelected((previous) => {
     const next = new Set(previous);
@@ -52,12 +64,25 @@ export function useTimesheetBulkApprove(sheets: TimesheetAwaitingApproval[]) {
     const ids = sheets.filter((sheet) => effectiveSelected.has(sheet.id)).map((sheet) => sheet.id);
     if (ids.length === 0) { setConfirmOpen(false); return; }
     setRunning(true);
-    const results = await Promise.allSettled(ids.map((id) => approve.mutateAsync({ id })));
-    const ok = results.filter((result) => result.status === 'fulfilled').length;
-    const failed = results.length - ok;
-    setRunning(false);
-    setConfirmOpen(false);
-    exitSelection();
+    const results = await Promise.allSettled(ids.map((id) => approve.mutateAsync({ id, batch: true })));
+    const okIds = ids.filter((_, i) => results[i].status === 'fulfilled');
+    const failedNow = ids.filter((_, i) => results[i].status === 'rejected');
+    const ok = okIds.length;
+    const failed = failedNow.length;
+    try {
+      await settleBatch(okIds);
+    } catch {
+      // Cache refresh is best-effort; the outcome toast below must still show.
+    } finally {
+      setRunning(false);
+      setConfirmOpen(false);
+    }
+    if (failed === 0) exitSelection();
+    else {
+      // Keep only the failed weeks selected so one more Approve retries them, not the successes.
+      setFailedIds(failedNow);
+      setSelected(new Set(failedNow));
+    }
     if (failed === 0) {
       toast(
         t('approvals.bulk.toast.allOk.headline', 'Timesheets approved'),
@@ -78,7 +103,7 @@ export function useTimesheetBulkApprove(sheets: TimesheetAwaitingApproval[]) {
       );
     }
   };
-  return { total: sheets.length, selecting, setSelecting, selected, effectiveSelected, approvableIds, allSelected, someSelected, toggleSelected, toggleSelectAll, exitSelection, confirmOpen, setConfirmOpen, running, commit };
+  return { total: sheets.length, selecting, setSelecting, selected, effectiveSelected, approvableIds, allSelected, someSelected, failedIds, toggleSelected, toggleSelectAll, exitSelection, confirmOpen, setConfirmOpen, running, commit };
 }
 
 export function TimesheetBulkSelect({ controller }: { controller: BulkController }) {
@@ -92,11 +117,12 @@ export function TimesheetBulkSelect({ controller }: { controller: BulkController
   );
 }
 
-export function TimesheetBulkToolbar({ controller }: { controller: BulkController }) {
+export function TimesheetBulkToolbar({ controller, sheets }: { controller: BulkController; sheets: TimesheetAwaitingApproval[] }) {
   const { t } = useTranslation();
   if (!controller.selecting) return null;
   const n = controller.effectiveSelected.size;
   const eligible = controller.approvableIds.size;
+  const failedShown = sheets.filter((sheet) => controller.failedIds.includes(sheet.id) && controller.effectiveSelected.has(sheet.id));
   const scope = eligible === controller.total
     ? (eligible === 1
       ? t('uxs18.bulk.scopeOne', 'The 1 timesheet in this queue can be approved.')
@@ -105,6 +131,16 @@ export function TimesheetBulkToolbar({ controller }: { controller: BulkControlle
   return (
     <div role="group" aria-label={t('approvals.bulk.groupLabel', 'Bulk approve')} className="mb-3 flex flex-wrap items-center gap-2.5 rounded-lg bg-primary/[0.06] px-3 py-2.5">
       <p className="basis-full text-[13px] text-muted-foreground">{scope}</p>
+      {failedShown.length > 0 && (
+        <div role="alert" aria-label={t('timesheets:approvalQueue.bulkFailedLabel', 'These weeks could not be approved')} className="basis-full text-[13px] text-destructive">
+          <p>{t('timesheets:approvalQueue.bulkFailedLead', 'These weeks could not be approved (separation of duties or stale). They stay selected so you can retry.')}</p>
+          <ul>
+            {failedShown.map((sheet) => (
+              <li key={sheet.id}>{sheet.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')} · {weekLabel(sheet.week_start_date, t)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <Checkbox
         checked={controller.allSelected ? true : controller.someSelected ? 'mixed' : false}
         onChange={controller.toggleSelectAll}
@@ -127,7 +163,7 @@ export function TimesheetBulkToolbar({ controller }: { controller: BulkControlle
 
 export function TimesheetBulkConfirm({ controller, sheets }: { controller: BulkController; sheets: TimesheetAwaitingApproval[] }) {
   const { t } = useTranslation();
-  if (!controller.confirmOpen) return null;
+  if (!controller.confirmOpen || controller.effectiveSelected.size === 0) return null;
   const n = controller.effectiveSelected.size;
   const title = n === 1
     ? t('approvals.bulk.confirmTitleOne', 'Approve 1 timesheet?')
@@ -139,7 +175,7 @@ export function TimesheetBulkConfirm({ controller, sheets }: { controller: BulkC
       title={title}
       description={(
         <span className="block">
-          {t('approvals.bulk.confirmDescription', "This approves the selected weeks. You can't approve your own timesheet — separation of duties is enforced.")}
+          {t('approvals.bulk.confirmDescription', "This approves the selected weeks. You can't approve your own timesheet. Separation of duties is enforced.")}
           <span className="mt-2 block space-y-0.5">
             {sheets.filter((sheet) => controller.effectiveSelected.has(sheet.id)).map((sheet) => (
               <span key={sheet.id} className="block text-[13px]">
@@ -158,5 +194,5 @@ export function TimesheetBulkConfirm({ controller, sheets }: { controller: BulkC
 }
 
 export function TimesheetBulkControls({ controller, sheets }: { controller: BulkController; sheets: TimesheetAwaitingApproval[] }) {
-  return <><TimesheetBulkSelect controller={controller} /><TimesheetBulkToolbar controller={controller} /><TimesheetBulkConfirm controller={controller} sheets={sheets} /></>;
+  return <><TimesheetBulkSelect controller={controller} /><TimesheetBulkToolbar controller={controller} sheets={sheets} /><TimesheetBulkConfirm controller={controller} sheets={sheets} /></>;
 }

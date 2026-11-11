@@ -27,8 +27,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const EXEMPT: Record<string, string> = {
   'src/components/m365/LinkedDocumentVersions.tsx':
     'Read-only list of Microsoft file versions in a modal — Done/Close only; nothing is saved, so no save can reject.',
-  'src/components/integrations/IntegrationsView.tsx':
-    'Same as ProjectIntegrationsCard — connectError/setCompanyError already drive a persistent in-dialog errorSummary.',
+  'src/components/integrations/ConnectCredentialsModal.tsx':
+    'Same as ProjectIntegrationsCard — connectError already drives a persistent in-dialog errorSummary.',
+  'src/components/integrations/ErpCompanyModal.tsx':
+    'Same as ProjectIntegrationsCard — setCompanyError already drives a persistent in-dialog errorSummary.',
   'src/components/NewRevisionModal.tsx':
     'Presentational — the parent owns both the mutation and its rejection, and passes the outcome down.',
   'src/components/builder/PanelEditorForm.tsx':

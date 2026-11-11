@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, CardHead, CardPad, ListState, RecordHeader, StatusPill } from '@/src/components/ui';
@@ -6,14 +7,15 @@ import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectChoices } from './expenses/useProjectChoices';
 import {
   useExpenseAdvanceOutstanding, useExpenseClaim, useExpenseClaimLines, useExpenseClaimMutations, useExpenseClaimRoute,
 } from '@/src/hooks/useExpenseClaims';
+import { useImprestFloat } from '@/src/hooks/useImprest';
 import { availableExpenseActions, settlementPreview } from '@/src/lib/expenses/expenseRules';
 import { approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { ExpenseDecisionBar } from './expenses/ExpenseDecisionBar';
 import { ExpenseLinesCard } from './expenses/ExpenseLinesCard';
@@ -37,9 +39,9 @@ const ExpenseClaimDetail: React.FC = () => {
   const routeQuery = useExpenseClaimRoute(claimId, claim?.status);
   const outstandingQuery = useExpenseAdvanceOutstanding(claim?.kind === 'advance' ? claim.id : claim?.advance_id ?? null);
   const { update } = useExpenseClaimMutations();
-  const { data: projects } = useProjects();
-  const advanceOptions = useOwnAdvanceOptions(claim?.advance_id ?? null);
-  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: p.name })), [projects]);
+  const float = useImprestFloat(claim?.imprest_float_id);
+  const projectChoices = useProjectChoices();
+  const ownAdvances = useOwnAdvanceOptions(claim?.advance_id ?? null);
   const [editOpen, setEditOpen] = useState(false);
   const backLabel = t('expenses.detail.back', 'Expenses');
   const goBack = () => navigate('/expenses');
@@ -67,10 +69,15 @@ const ExpenseClaimDetail: React.FC = () => {
   }
 
   const route = routeQuery.data ?? null;
-  const outstanding = outstandingQuery.data ?? null;
-  const actions = availableExpenseActions({
+  const outstanding = outstandingQuery.isError ? null : outstandingQuery.data ?? null;
+  const floatPending = Boolean(claim.imprest_float_id) && float.isPending;
+  const allActions = availableExpenseActions({
     claim, userId, realRole, route, advanceOutstanding: claim.kind === 'advance' ? outstanding : null,
+    // DD-IMP-7: the float's custodian (null when this float is not visible to the viewer: the ordinary rule shows, the RPC decides).
+    floatCustodianId: claim.imprest_float_id ? float.data?.custodian_id ?? null : null,
   });
+  // Until the float is read its custodian is unknown: withhold Pay rather than show the off-float rule (the RPC decides).
+  const actions = floatPending ? allActions.filter((a) => a !== 'pay') : allActions;
   const canEdit = may('edit', 'expenseClaim', { currentUserId: userId, record: { claimant_id: claim.claimant_id, status: claim.status } });
   const showRouteNote = claim.status === 'Submitted' && route !== null && route.route !== 'flat'
     && claim.claimant_id !== userId && !actions.includes('approve');
@@ -94,7 +101,7 @@ const ExpenseClaimDetail: React.FC = () => {
             <span>{expenseKindLabel(claim.kind, t)}</span>
             <span>{claim.claimant?.full_name ?? '—'}</span>
             {claim.project_id ? (
-              <Link to={`/projects/${claim.project_id}`} className="text-primary-text hover:underline">{claim.project?.name ?? '—'}</Link>
+              <Link to={`/projects/${claim.project_id}`} className="text-primary-text hover:underline" title={claim.project?.name}>{claim.project ? projectDisplayName(claim.project) : '—'}</Link>
             ) : (
               <span>{t('expenses.overhead', 'Overhead')}</span>
             )}
@@ -110,24 +117,24 @@ const ExpenseClaimDetail: React.FC = () => {
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
               <dt className="text-xs text-muted-foreground">{t('expenses.detail.amount', 'Amount')}</dt>
-              <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrencyCents(amount, claim.currency)}</dd>
+              <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrency(amount, claim.currency)}</dd>
             </div>
             {claim.kind === 'claim' && claim.status === 'Paid' && (
               <>
                 <div>
                   <dt className="text-xs text-muted-foreground">{t('expenses.detail.advanceApplied', 'Advance applied')}</dt>
-                  <dd className="tabular-nums">{formatCurrencyCents(paidSplit.applied, claim.currency)}</dd>
+                  <dd className="tabular-nums">{formatCurrency(paidSplit.applied, claim.currency)}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground">{t('expenses.detail.cashPaid', 'Cash paid')}</dt>
-                  <dd className="tabular-nums">{formatCurrencyCents(paidSplit.cash, claim.currency)}</dd>
+                  <dd className="tabular-nums">{formatCurrency(paidSplit.cash, claim.currency)}</dd>
                 </div>
               </>
             )}
             {claim.kind === 'advance' && claim.status === 'Paid' && (
               <div>
                 <dt className="text-xs text-muted-foreground">{t('expenses.detail.outstanding', 'Outstanding')}</dt>
-                <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrencyCents(outstanding, claim.currency)}</dd>
+                <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrency(outstanding, claim.currency)}</dd>
               </div>
             )}
             {claim.payment_reference && (
@@ -157,6 +164,15 @@ const ExpenseClaimDetail: React.FC = () => {
         <p data-testid="approval-route-note" className="mb-4 text-sm">{approvalRouteNote(route, claim.budget_category, t, realRole)}</p>
       )}
 
+      {((claim.is_plan_exception && claim.status !== 'Draft') || route?.isException) && (
+        <p data-testid="imprest-exception-note" role="note" className="mb-4 text-sm">
+          <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>{' '}
+          {route === null ? t('imprest:exception.noRoute', 'This is outside the approved site cash plan, so a senior approver decides it.')
+            : route.route === 'admin' ? t('imprest:exception.admin', 'This is outside the approved site cash plan. No senior approver can act on it, so an Admin decides it.')
+            : t('imprest:exception.deciders', 'This is outside the approved site cash plan. Decided by: {{names}}.', { names: route.approvers.map((a) => a.fullName).join(t('imprest:exception.joiner', ', ')) })}
+        </p>
+      )}
+
       <ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding} />
 
       {claim.kind === 'claim' && (
@@ -169,11 +185,13 @@ const ExpenseClaimDetail: React.FC = () => {
       {editOpen && (
         <ExpenseClaimFormModal
           kind={claim.kind}
-          projectOptions={projectOptions}
-          advanceOptions={advanceOptions}
+          projectOptions={projectChoices.options}
+          projectLoad={projectChoices}
+          advanceOptions={ownAdvances.options}
+          advanceLoad={ownAdvances}
           initial={{
             title: claim.title, projectId: claim.project_id, budgetCategory: claim.budget_category,
-            purpose: claim.purpose, amount, advanceId: claim.advance_id,
+            purpose: claim.purpose, amount, advanceId: claim.advance_id, imprestFloatId: claim.imprest_float_id,
           }}
           onClose={() => setEditOpen(false)}
           onSubmit={async (input) => {
@@ -181,7 +199,7 @@ const ExpenseClaimDetail: React.FC = () => {
               id: claim.id, kind: claim.kind,
               patch: {
                 title: input.title, purpose: input.purpose, projectId: input.projectId, budgetCategory: input.budgetCategory,
-                amount: input.amount, advanceId: input.advanceId ?? null,
+                amount: input.amount, advanceId: input.advanceId ?? null, imprestFloatId: input.imprestFloatId ?? null,
               },
             });
             setEditOpen(false);

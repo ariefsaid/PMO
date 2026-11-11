@@ -47,6 +47,7 @@ vi.mock('@/src/lib/repositories', async (orig) => {
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Acme Energy', sub: 'Client' }] }),
+  useInvoiceProjectOptions: () => ({ data: [] }),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
 vi.mock('@/src/auth/useAuth', () => ({

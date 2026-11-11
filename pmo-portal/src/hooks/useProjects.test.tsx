@@ -6,25 +6,31 @@ import React from 'react';
 vi.mock('@/src/lib/db/projects', () => ({
   listProjects: vi.fn().mockResolvedValue([{ id: 'p1', name: 'X', client: null, pm: null }]),
 }));
-vi.mock('@/src/lib/db/companies', () => ({
-  listClientCompanies: vi.fn().mockResolvedValue([{ id: 'c1', name: 'Acme', type: 'Client' }]),
-}));
-vi.mock('@/src/lib/db/profiles', () => ({
-  listProjectManagers: vi.fn().mockResolvedValue([{ id: 'u1', full_name: 'Alice Manager', role: 'Project Manager' }]),
-}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-const { milestoneDatesForProjects, repoCreate, repoUpdateHeader } = vi.hoisted(() => ({
+const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList, repoListPicker, repoListNumbers, repoGetWithRefs, listClientCompanies, listProjectManagers } = vi.hoisted(() => ({
+  listClientCompanies: vi.fn().mockResolvedValue([{ id: 'c1', name: 'Acme', type: 'Client' }]),
+  listProjectManagers: vi.fn().mockResolvedValue([{ id: 'u1', full_name: 'Alice Manager', role: 'Project Manager' }]),
   milestoneDatesForProjects: vi.fn().mockResolvedValue([]),
+  repoList: vi.fn().mockResolvedValue([{ id: 'p1', name: 'X', client: null, pm: null }]),
+  repoListPicker: vi.fn().mockResolvedValue([{ id: 'p1', name: 'X' }]),
+  repoListNumbers: vi.fn().mockResolvedValue([{ id: 'p1', pmo_project_number: 'PMO-1' }]),
+  repoGetWithRefs: vi.fn().mockResolvedValue({ id: 'p1', name: 'X', client: null, pm: null }),
   repoCreate: vi.fn().mockResolvedValue({ id: 'new' }),
   repoUpdateHeader: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     milestone: { milestoneDatesForProjects },
+    company: { listClients: listClientCompanies },
+    profile: { listProjectManagers },
     project: {
+      list: repoList,
+      listPickerOptions: repoListPicker,
+      listNumbers: repoListNumbers,
+      getWithRefs: repoGetWithRefs,
       create: repoCreate,
       updateHeader: repoUpdateHeader,
       archive: vi.fn(),
@@ -36,14 +42,16 @@ vi.mock('@/src/lib/repositories', () => ({
 
 import {
   useProjects,
+  useProjectPickerOptions,
+  useProject,
+  usePrefetchProject,
   useClientCompanies,
   useProjectManagers,
+  useProjectNumbers,
   useProjectsMilestoneDates,
   useProjectMutations,
 } from './useProjects';
-import { listProjects } from '@/src/lib/db/projects';
-import { listClientCompanies } from '@/src/lib/db/companies';
-import { listProjectManagers } from '@/src/lib/db/profiles';
+import { projectKeys } from './projectQueryKeys';
 
 /** Fresh QueryClient per test to avoid cross-test cache bleed. */
 const makeWrapper = () => {
@@ -59,7 +67,17 @@ describe('useProjects', () => {
     const { result } = renderHook(() => useProjects(), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.[0].name).toBe('X');
-    expect(listProjects).toHaveBeenCalled();
+    expect(repoList).toHaveBeenCalled();
+  });
+});
+
+describe('useProjectNumbers', () => {
+  it('makes one narrow batched lookup for the stable unique card ids', async () => {
+    const { result } = renderHook(() => useProjectNumbers(['p2', 'p1', 'p2']), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(repoListNumbers).toHaveBeenCalledTimes(1);
+    expect(repoListNumbers).toHaveBeenCalledWith(['p1', 'p2']);
+    expect(result.current.data).toEqual({ p1: 'PMO-1' });
   });
 });
 
@@ -125,6 +143,8 @@ describe('useProjectMutations — cache invalidation (AC-EC-003)', () => {
   it('AC-EC-003: a project create invalidates sales-pipeline and lost-deals (plus projects/opportunity)', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const spy = vi.spyOn(qc, 'invalidateQueries');
+    qc.setQueryData(['won-deals', 'org-1'], 'old');
+    qc.setQueryData(['won-deals', 'org-2'], 'other');
     const Wrapper = ({ children }: { children: React.ReactNode }) => (
       <QueryClientProvider client={qc}>{children}</QueryClientProvider>
     );
@@ -139,6 +159,8 @@ describe('useProjectMutations — cache invalidation (AC-EC-003)', () => {
     expect(keys).toContain('opportunity');
     expect(keys).toContain('sales-pipeline');
     expect(keys).toContain('lost-deals');
+    expect(qc.getQueryState(['won-deals', 'org-1'])?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(['won-deals', 'org-2'])?.isInvalidated).toBe(false);
   });
 
   it('AC-EC-003: a header update invalidates sales-pipeline and lost-deals too', async () => {
@@ -159,5 +181,91 @@ describe('useProjectMutations — cache invalidation (AC-EC-003)', () => {
     const keys = spy.mock.calls.flatMap((c) => (c[0]?.queryKey ?? []) as string[]);
     expect(keys).toContain('sales-pipeline');
     expect(keys).toContain('lost-deals');
+  });
+});
+
+describe('projectKeys.detail', () => {
+  it('returns org-scoped project query key matching useProject', () => {
+    expect(projectKeys.detail('org-1', 'p1')).toEqual(['project', 'org-1', 'p1']);
+  });
+});
+
+describe('useProject', () => {
+  it("keys by ['project', orgId, id] and loads project with refs", async () => {
+    const { result } = renderHook(() => useProject('p1'), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.name).toBe('X');
+    expect(repoGetWithRefs).toHaveBeenCalledWith('p1');
+  });
+
+  it('is disabled when id is undefined', () => {
+    const { result } = renderHook(() => useProject(undefined), { wrapper: makeWrapper() });
+    expect(result.current.isPending).toBe(true);
+    expect(repoGetWithRefs).not.toHaveBeenCalled();
+  });
+});
+
+describe('usePrefetchProject', () => {
+  it('prefetches project record using exact org-scoped useProject key', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const prefetchSpy = vi.spyOn(qc, 'prefetchQuery');
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => usePrefetchProject(), { wrapper: Wrapper });
+    result.current('p1');
+
+    expect(prefetchSpy).toHaveBeenCalledTimes(1);
+    expect(prefetchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: ['project', 'org-1', 'p1'],
+        staleTime: 30_000,
+      }),
+    );
+  });
+
+  it('dedupes repeated prefetch triggers for the same project', () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const prefetchSpy = vi.spyOn(qc, 'prefetchQuery');
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => usePrefetchProject(), { wrapper: Wrapper });
+    // Simulate hover, focus, and click in rapid succession
+    result.current('p1');
+    result.current('p1');
+    result.current('p1');
+
+    expect(prefetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing when id is undefined', () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const prefetchSpy = vi.spyOn(qc, 'prefetchQuery');
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => usePrefetchProject(), { wrapper: Wrapper });
+    result.current(undefined);
+
+    expect(prefetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('useProjectPickerOptions', () => {
+  it('reads the narrow picker list and a project write refetches it (key under projectKeys.all)', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProjectPickerOptions(), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.data).toEqual([{ id: 'p1', name: 'X' }]));
+    expect(repoList).not.toHaveBeenCalled();
+    repoListPicker.mockClear();
+    await qc.invalidateQueries({ queryKey: projectKeys.all('org-1') });
+    await waitFor(() => expect(repoListPicker).toHaveBeenCalledTimes(1));
   });
 });

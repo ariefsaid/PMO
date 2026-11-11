@@ -6,39 +6,40 @@
  *
  * Flow:
  * 1. Verify caller JWT locally (ES256, JWKS) → get `sub` (user id)
- * 2. Load profile (role, org_id) via service-role client
- * 3. Role gate: Admin of the org OR platform Operator (direct platform_operators check)
- * 4. Load ERPNext binding for this org
- * 5. Resolve credentials from Vault via read_vault_secret RPC
- * 6. Fetch Company list from ERPNext (SSRF-guarded exactly like external-connect)
- * 7. Return { companies: [{ name }] }
- * 8. Audit log via log_audit
+ * 2. Load profile (role, org_id, status) via service-role client
+ * 3. Standing gate: the caller must be an active org member right now (actor_authorization_state;
+ *    fail closed if it cannot be resolved)
+ * 4. Role gate: Admin of the org OR platform Operator (direct platform_operators check)
+ * 5. Load ERPNext binding for this org
+ * 6. Resolve credentials from Vault via read_vault_secret RPC
+ * 7. Fetch Company list from ERPNext (SSRF-guarded exactly like external-connect)
+ * 8. Return { companies: [{ name }] } (audit follows)
+ * 9. Audit log via log_audit
  *
  * Errors:
  * - 401: missing/invalid JWT
- * - 403: not Admin of org and not Operator
+ * - 403: caller lacks active membership standing, or is not Admin of org and not Operator
  * - 404: no ERPNext binding found for this org
  * - 422: binding not active / Vault secret missing
  * - 500: internal/upstream error
  */
 
+import { splitAuthPair } from '../_shared/erpAuthPair.ts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   verifyCallerJwt,
   JwtVerifyError,
   jwksFromUrl,
   type JwksResolver,
+  bearerToken,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { guardedErpFetch, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
+import { hasActiveStanding } from '../_shared/adminOrOperator.ts';
 
 interface CompaniesBody {
   tier: 'erpnext';
-}
-
-interface CompaniesResponse {
-  companies: Array<{ name: string }>;
 }
 
 // Memoized JWKS resolver (same pattern as agent-chat, adapter-dispatch, external-connect)
@@ -63,16 +64,10 @@ export const testSupabaseOptions = {
   },
 };
 
-function bearerTokenFromHeader(authHeader: string | null): string | null {
-  if (!authHeader) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(authHeader);
-  return m ? m[1] : null;
-}
-
-function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', ...headers }, // #641: every answer is CORS-readable
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }, // #641: every answer is CORS-readable
   });
 }
 
@@ -95,6 +90,8 @@ interface ErpCompanyDeps {
   apiSecret: string;
 }
 
+const COMPANY_PAGE_SIZE = 200;
+const MAX_COMPANY_PAGES = 25; // ponytail: 5000 companies; beyond that the list fails loudly instead of truncating
 async function fetchErpNextCompanies(deps: ErpCompanyDeps): Promise<string[]> {
   let parsedUrl: URL;
   try {
@@ -113,20 +110,27 @@ async function fetchErpNextCompanies(deps: ErpCompanyDeps): Promise<string[]> {
   }
 
   try {
-    const url = `${deps.siteUrl.replace(/\/$/, '')}/api/resource/Company?fields=["name"]&limit_page_length=200`;
-    const res = await deps.fetchImpl(url, {
-      headers: { Authorization: `token ${deps.apiKey}:${deps.apiSecret}` },
-      redirect: 'manual',
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) {
-      if (res.status === 404) {
-        throw new AppError('ERPNext site not found', 'NOT_FOUND');
+    // Paged by name until a short page; a failed page fails the whole list rather than returning a partial one.
+    const names: string[] = [];
+    for (let page = 0; page < MAX_COMPANY_PAGES; page++) {
+      const url = `${deps.siteUrl.replace(/\/$/, '')}/api/resource/Company?fields=["name"]&limit_page_length=${COMPANY_PAGE_SIZE}&limit_start=${page * COMPANY_PAGE_SIZE}&order_by=name%20asc`;
+      const res = await deps.fetchImpl(url, {
+        headers: { Authorization: `token ${deps.apiKey}:${deps.apiSecret}` },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) {
+        if (res.status === 404) {
+          throw new AppError('ERPNext site not found', 'NOT_FOUND');
+        }
+        throw new AppError('Failed to fetch ERPNext companies', 'external-unreachable');
       }
-      throw new AppError('Failed to fetch ERPNext companies', 'external-unreachable');
+      const data = (await res.json()) as { data?: Array<{ name: string }> };
+      const rows = data.data ?? [];
+      names.push(...rows.map((c) => c.name));
+      if (rows.length < COMPANY_PAGE_SIZE) return names;
     }
-    const data = (await res.json()) as { data?: Array<{ name: string }> };
-    return (data.data ?? []).map((c) => c.name);
+    throw new AppError('Failed to fetch ERPNext companies', 'external-unreachable');
   } catch (err) {
     if (err instanceof AppError) throw err;
     throw new AppError('Failed to fetch ERPNext companies', 'external-unreachable');
@@ -149,7 +153,7 @@ export async function handleCompaniesRequest(req: Request): Promise<Response> {
   }
 
   // 1. Extract and verify caller JWT (ADR-0057)
-  const jwt = bearerTokenFromHeader(req.headers.get('Authorization'));
+  const jwt = bearerToken(req.headers.get('Authorization'));
   if (!jwt) {
     return errorResponse('Missing Authorization header', 'UNAUTHORIZED', 401);
   }
@@ -176,15 +180,26 @@ export async function handleCompaniesRequest(req: Request): Promise<Response> {
   // 2. Service-role client for admin lookups
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
-  // 3. Load caller profile (role + org_id)
+  // 3. Load caller profile (role + org_id + status)
   const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
-    .select('org_id, role')
+    .select('org_id, role, status')
     .eq('id', userId)
     .single();
 
   if (profileError || !profile) {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
+  }
+
+  // 3b. Standing gate: the role gate below authorizes only while the membership is active NOW. A
+  // deactivated or banned caller with an unexpired JWT stops here, before any Vault read.
+  if (!(await hasActiveStanding({
+    stateClient: serviceClient,
+    orgId: profile.org_id,
+    userId,
+    profileStatus: profile.status,
+  }))) {
+    return errorResponse('Active organization member required', 'FORBIDDEN', 403);
   }
 
   // 4. Role gate: Admin of this org OR platform Operator
@@ -241,11 +256,13 @@ export async function handleCompaniesRequest(req: Request): Promise<Response> {
     return errorResponse('ERPNext credentials not found in Vault', 'CONFIG_REJECTED', 422);
   }
 
-  const stored = (vaultSecret as string).split(':');
-  if (stored.length !== 2) {
+  let apiKey: string;
+  let apiSecret: string;
+  try {
+    ({ apiKey, apiSecret } = splitAuthPair(vaultSecret as string));
+  } catch {
     return errorResponse('Invalid ERPNext credential format in Vault', 'CONFIG_REJECTED', 422);
   }
-  const [apiKey, apiSecret] = stored;
 
   // 8. Fetch Company list from ERPNext (SSRF-guarded)
   let companies: string[];
@@ -283,8 +300,6 @@ export async function handleCompaniesRequest(req: Request): Promise<Response> {
 }
 
 // Export validation function for testing
-export { fetchErpNextCompanies, isPrivateOrReservedHost };
-export type { ErpCompanyDeps };
 
 // Deno.serve entry point (only runs when module is main)
 if (import.meta.main) {

@@ -23,7 +23,7 @@ describe('AC-M365DOC-071/072 — m365RecordFolders repository', () => {
 
   it('linkExisting goes through the custody transport', async () => {
     invoke.mockResolvedValueOnce({
-      data: { scanned: 0, linked: 0, needs_choice: 0, missing: 0, failed: 0, skipped: 0, next: null },
+      data: { scanned: 0, linked: 0, needs_choice: 0, missing: 0, failed: 0, skipped: 0, unmatched: [], next: null },
       error: null,
     });
     await repositories.m365RecordFolders.linkExisting();

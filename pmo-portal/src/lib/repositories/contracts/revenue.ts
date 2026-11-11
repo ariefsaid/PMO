@@ -1,0 +1,93 @@
+/** Revenue (sales invoices / incoming payments) repository contract. */
+import type { CommandIntent } from './commandIntent';
+import type {
+  SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow, OverdueInvoiceFact, PaidPaymentFact,
+  InvoicePairProposal, UnpairedNativeInvoice, AcceptedInvoicePair,
+} from '@/src/lib/db/revenue';
+import type { ProjectFinances } from '@/src/lib/projectFinances';
+import type { BillingKind } from '@/src/lib/billingKind';
+
+export interface RevenueRepository {
+  /** Create a Sales Invoice (Draft) — mints a PMO id, dispatches when revenue is externally-owned. The number is null
+   *  for a PMO Draft (#784 DD-NAR-9 mints it on approval). */
+  createInvoice(input: {
+    customerId: string;
+    projectId?: string | null;
+    items: Array<{ item_code: string; qty: number; rate: number; description?: string }>;
+    /** OD-BILL-1: the work order this invoice bills ("Invoice this work order"). */
+    workOrderId?: string | null;
+    /** #1471: how the project attribution counts; omitted = Contract billing. PMO metadata, never an ERP field. */
+    billingKind?: BillingKind;
+  }, intent?: CommandIntent): Promise<{ id: string; si_number: string | null }>;
+  /** Create an Incoming Payment — mints a PMO id, dispatches when revenue is externally-owned. The number is null for a
+   *  PMO receipt (#784: the RPC returns only the id; the list read carries its PMO number). */
+  createPayment(input: {
+    customerId: string;
+    salesInvoiceId?: string | null;
+    paidAmount: number;
+    receivedAmount?: number;
+    withheldAmount?: number;
+    withholdingSlipNumber?: string | null;
+    /** #1275: the tax article the client withheld under; null/absent = not stated. External (ERP) receipts only. */
+    withholdingArticle?: 'pph23' | 'pph4_2' | null;
+    /** Odoo mirrored journal selected for this receipt, when set. */
+    journalId?: string;
+    date: string;
+  }, intent?: CommandIntent): Promise<{ id: string; ip_number: string | null }>;
+  /** #767: record/clear the date the client received the invoice (Admin/Finance, RPC-enforced). */
+  setReceivedDate(siId: string, receivedDate: string | null): Promise<void>;
+  /** DD-EFK-1: edit the PMO-owned sales e-Faktur facts through the guarded setter RPC. */
+  setEfaktur(siId: string, values: { efakturNumber: string | null; efakturDate: string | null }): Promise<void>;
+  /** Submit a Sales Invoice (docstatus 0→1) — SoD-gated at RPC layer (slice 3). */
+  submitInvoice(siId: string, intent?: CommandIntent): Promise<void>;
+  /** Cancel a Sales Invoice (docstatus 1→2) — mirrors ERP cancel. */
+  cancelInvoice(siId: string, intent?: CommandIntent): Promise<void>;
+  /** #912: the ERP's own print-format PDF of a SUBMITTED, ERP-owned invoice (Admin/Finance; the edge
+   *  function `external-invoice-pdf` enforces role, tenancy and docstatus). */
+  downloadInvoicePdf(siId: string): Promise<Blob>;
+  /** Cancel an Incoming Payment (docstatus 1→2) — mirrors ERP cancel. */
+  cancelPayment(ipId: string, intent?: CommandIntent): Promise<void>;
+  /** #1415: apply a PMO receipt across one or more invoices (org without an ERP). `requestId` makes a retry a replay. */
+  applyReceipt(input: { receiptId: string; allocations: Array<{ invoiceId: string; amount: number }>; requestId: string }): Promise<string[]>;
+  /** #1415: reverse one allocation of a PMO receipt (the invoice is restated). */
+  unapplyAllocation(allocationId: string): Promise<void>;
+  /** List sales invoices in the caller's org (RLS scopes org). */
+  listInvoices(params?: { projectId?: string; status?: SalesInvoiceRow['status']; nativeOnly?: boolean }): Promise<SalesInvoiceRow[]>;
+  /** Count overdue open client invoices from a narrow projection for the navigation rail. */
+  countOverdueInvoices(today: string): Promise<number>;
+  /** Dashboard: open client invoices, only the columns the overdue tile reads. */
+  listOverdueInvoiceFacts(): Promise<OverdueInvoiceFact[]>;
+  /** Dashboard: Paid receipts, only the columns the collected figure reads. */
+  listPaidPaymentFacts(): Promise<PaidPaymentFact[]>;
+  /** Dashboard empty-state evidence: whether the org holds ANY client invoice, any status. */
+  hasAnySalesInvoice(): Promise<boolean>;
+  /** Dashboard empty-state evidence: whether the org holds ANY incoming payment, any status. */
+  hasAnyIncomingPayment(): Promise<boolean>;
+  /** Get a single sales invoice by id. */
+  getInvoice(id: string): Promise<SalesInvoiceRow | null>;
+  /** List incoming payments in the caller's org (RLS scopes org). */
+  listPayments(params?: { customerId?: string; salesInvoiceId?: string }): Promise<IncomingPaymentRow[]>;
+  /** Get a single incoming payment by id. */
+  getPayment(id: string): Promise<IncomingPaymentRow | null>;
+  /** Revenue rollup per project — SUM(amount) grouped by project_id. */
+  getRevenueByProject(): Promise<RevenueByProjectRow[]>;
+  /** PMO attribution for an existing adopted invoice; does not dispatch an ERP write. */
+  setProject(siId: string, projectId: string, billingKind?: BillingKind): Promise<void>;
+  /** #1471 FR-004: PMO-only billing-kind correction of an already-linked invoice; does not dispatch an ERP write. */
+  setBillingKind(siId: string, billingKind: BillingKind): Promise<void>;
+  /** Checked project-scoped finance payload from the invoker read RPC. */
+  getProjectFinances(projectId: string): Promise<ProjectFinances>;
+  /** Server-authoritative, caller-org ERP ledger basis signal. */
+  getOrgReadsErpLedger(): Promise<boolean>;
+  /** ECA-5 FR-ECA-040: PMO-raised invoices that match an ERP invoice already in PMO (Admin/Finance, RPC-enforced). */
+  proposeInvoicePairs(): Promise<InvoicePairProposal[]>;
+  /** ECA-5: accept pairs in bulk; the PMO copy stops counting and the ERP invoice counts once. Returns how many applied. */
+  acceptInvoicePairs(pairs: Array<{ pmoInvoiceId: string; erpInvoiceId: string }>): Promise<number>;
+  /** ECA-5: undo one accepted pair; the PMO copy counts again. */
+  unpairInvoice(pmoInvoiceId: string): Promise<void>;
+  /** ECA-5: PMO invoices that keep counting as they are, with the reason they were not paired. */
+  listUnpairedNativeInvoices(): Promise<UnpairedNativeInvoice[]>;
+  /** ECA-5: PMO invoices already counted as an ERP invoice. */
+  listAcceptedInvoicePairs(): Promise<AcceptedInvoicePair[]>;
+
+}

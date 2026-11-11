@@ -1,22 +1,50 @@
 import { supabase } from '@/src/lib/supabase/client';
+import type { Json } from '@/src/lib/supabase/database.types';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 
-export async function getOrgWithholdingAccount(): Promise<string | null> {
-  const { data, error } = await supabase.from('organizations').select('tax_prepaid_account').limit(1);
-  if (error) throw new Error(error.message);
-  return data?.[0]?.tax_prepaid_account ?? null;
+/** #1275: the receipt-withholding prepaid accounts — the default plus one per tax article (PPh 23, PPh 4(2)). */
+export interface OrgWithholdingAccounts {
+  defaultAccount: string | null;
+  pph23Account: string | null;
+  pph42Account: string | null;
 }
 
-export async function setOrgWithholdingAccount(account: string | null): Promise<void> {
-  const value = account?.trim() || null;
-  if (value && value.length > 140) throw new Error('Tax-prepaid account must be at most 140 characters.');
+export async function getOrgWithholdingAccounts(): Promise<OrgWithholdingAccounts> {
+  const { data, error } = await supabase.from('organizations')
+    .select('tax_prepaid_account,pph23_prepaid_account,pph4_2_prepaid_account').limit(1);
+  if (error) throw new Error(error.message);
+  const row = data?.[0];
+  return {
+    defaultAccount: row?.tax_prepaid_account ?? null,
+    pph23Account: row?.pph23_prepaid_account ?? null,
+    pph42Account: row?.pph4_2_prepaid_account ?? null,
+  };
+}
+
+export async function setOrgWithholdingAccounts(input: OrgWithholdingAccounts): Promise<void> {
+  const clean = (value: string | null) => value?.trim() || null;
+  const patch = {
+    tax_prepaid_account: clean(input.defaultAccount),
+    pph23_prepaid_account: clean(input.pph23Account),
+    pph4_2_prepaid_account: clean(input.pph42Account),
+  };
+  if (Object.values(patch).some((value) => value !== null && value.length > 140)) {
+    throw new Error('Tax-prepaid account must be at most 140 characters.');
+  }
   const { data, error } = await supabase.from('organizations').select('id');
   if (error) throw new Error(error.message);
-  if (data?.length !== 1) throw new Error('Exactly one organization must be readable before changing its tax-prepaid account.');
-  const { error: updateError } = await supabase.from('organizations').update({ tax_prepaid_account: value }).eq('id', data[0].id);
-  if (updateError) throw new Error(updateError.message);
+  if (data?.length !== 1) throw new Error('Exactly one organization must be readable before changing its tax-prepaid accounts.');
+  // The UPDATE selects the changed row and verifies it landed: PostgREST reports no error when an
+  // UPDATE policy filters the target out, so a silent no-op must be surfaced as a refusal.
+  const { data: changed, error: updateError } = await supabase
+    .from('organizations')
+    .update(patch)
+    .eq('id', data[0].id)
+    .select('id');
+  if (updateError) throw new AppError(updateError.message, updateError.code);
+  assertWriteLanded(changed, 'You do not have permission to change the tax-prepaid accounts.');
 }
 
 /**
@@ -196,11 +224,15 @@ export async function setOrgTaxDefault(value: TaxTreatment): Promise<void> {
   }
   const orgId = data?.[0]?.id;
   if (!orgId) throw new Error('No organization is readable for the current user');
-  const { error: updateError } = await supabase
+  // The UPDATE selects the changed row and verifies it landed: PostgREST reports no error when an
+  // UPDATE policy filters the target out, so a silent no-op must be surfaced as a refusal.
+  const { data: changed, error: updateError } = await supabase
     .from('organizations')
     .update({ default_tax_treatment: value })
-    .eq('id', orgId);
-  if (updateError) throw new Error(updateError.message);
+    .eq('id', orgId)
+    .select('id');
+  if (updateError) throw new AppError(updateError.message, updateError.code);
+  assertWriteLanded(changed, 'You do not have permission to change the default tax treatment.');
 }
 
 export interface ProjectClassificationOptions { serviceLines: string[]; sectors: string[] }
@@ -278,4 +310,25 @@ export async function setOrgVendorTaxAccounts(input: OrgVendorTaxAccounts): Prom
   const { data: updated, error: updateError } = await supabase.from('organizations').update(patch).eq('id', data[0].id).select('id');
   if (updateError) throw new Error(updateError.message);
   assertWriteLanded(updated, 'Only an Admin can change the tax accounts.');
+}
+
+/** FR-PFE-011 — the org's purchase rules (all OFF by default). */
+export interface ProcurementGates {
+  request_before_order: boolean;
+  approval_before_order: boolean;
+  approval_before_payment: boolean;
+  receipt_before_invoice: boolean;
+}
+
+export async function getOrgProcurementGates(): Promise<ProcurementGates> {
+  const { data, error } = await supabase.rpc('get_procurement_gates');
+  if (error) throw new AppError(error.message, error.code);
+  return data as unknown as ProcurementGates;
+}
+
+/** Admin-only, audited server-side (set_procurement_gates). */
+export async function setOrgProcurementGates(patch: Partial<ProcurementGates>): Promise<ProcurementGates> {
+  const { data, error } = await supabase.rpc('set_procurement_gates', { p_gates: patch as unknown as Json });
+  if (error) throw new AppError(error.message, error.code);
+  return data as unknown as ProcurementGates;
 }

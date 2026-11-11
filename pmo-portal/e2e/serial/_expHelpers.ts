@@ -3,7 +3,8 @@
 // map, plus the Engineer's confirmed ERP Employee link. The org row itself is NEVER touched — the claims, the
 // advance and the project state their currency (IDR, the bench company's books) explicitly instead.
 import { type SupabaseClient } from '@supabase/supabase-js';
-import { benchGet, benchPost, createErpProject, ERP_COMPANY, ERPNEXT_SITE_URL, ORG_ID } from './_tspHelpers';
+import { benchDelete, benchGet, benchPost, createErpProject, ERP_COMPANY, ERPNEXT_SITE_URL, ORG_ID } from './_tspHelpers';
+import { remoteErpAllowed } from './_benchGuard';
 import { SAR_CURRENCY } from './_sarHelpers';
 
 export const ENGINEER_ID = '00000000-0000-0000-0000-0000000000a4'; // engineer@acme.test — the claimant
@@ -15,6 +16,9 @@ export const EMPLOYEE_PAYABLE = 'PMO E2E Employee Payable - PSC';
 /** Bench Standard-COA account, re-typed Asset/Payable by the 2026-10-07 spike (§2 accounts table). */
 export const EMPLOYEE_ADVANCE = 'Employee Advances - PSC';
 export const TRAVEL_ACCOUNT = 'Travel Expenses - PSC';
+/** The bench Standard-COA `Cost of Goods Sold` ledger (root Expense, a leaf) — the journey's project direct-cost
+ *  account (OD-EXP-PB-1, FR-EXP-119). Already on the bench; nothing is created. */
+export const DIRECT_COST_ACCOUNT = 'Cost of Goods Sold - PSC';
 export const CASH_ACCOUNT = 'Cash - PSC';
 const CLAIMANT_FIRST_NAME = 'PMO E2E Expense Claimant';
 
@@ -112,6 +116,7 @@ export async function seedExp(admin: SupabaseClient, suffix: string): Promise<Ex
     { org_id: ORG_ID, account_key: 'employee_payable', erp_account: EMPLOYEE_PAYABLE },
     { org_id: ORG_ID, account_key: 'employee_advance', erp_account: EMPLOYEE_ADVANCE },
     { org_id: ORG_ID, account_key: 'Travel', erp_account: TRAVEL_ACCOUNT },
+    { org_id: ORG_ID, account_key: 'project_direct_cost', erp_account: DIRECT_COST_ACCOUNT },
   ]);
   if (mapErr) throw new Error(`seed expense_account_map failed: ${mapErr.message}`);
 
@@ -153,4 +158,14 @@ export async function cleanupExp(admin: SupabaseClient, seed: ExpSeed, claimIds:
     await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
   }
   await admin.from('projects').delete().eq('id', seed.projectId);
+  // #1359: ONLY under the remote-bench opt-in — the local bench is disposable (no behaviour change
+  // for local runs), while a remote bench is shared, so this run's ERP Project must not linger
+  // there. Best effort: teardown must never mask the test's own result.
+  if (remoteErpAllowed()) {
+    try {
+      await benchDelete('Project', seed.erpProject);
+    } catch {
+      // best effort
+    }
+  }
 }

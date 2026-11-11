@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import type { ProjectClassificationOptions } from '@/src/lib/db/orgs';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 export const PROJECT_CLASSIFICATION_OPTIONS_KEY = 'project-classification-options';
 export function useProjectClassificationOptions() {
@@ -10,6 +11,6 @@ export function useProjectClassificationOptions() {
     queryKey: [PROJECT_CLASSIFICATION_OPTIONS_KEY, currentUser?.org_id],
     queryFn: () => repositories.orgSettings.getProjectClassificationOptions(),
     enabled: Boolean(currentUser?.org_id),
-    staleTime: Infinity,
+    ...SESSION_QUERY_OPTIONS,
   });
 }

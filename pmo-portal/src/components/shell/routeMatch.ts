@@ -5,6 +5,8 @@ import { projectStatusGroup, type ProjectStatusGroup } from '@/src/lib/db/projec
 import type { RunContext } from '@/src/lib/agent/runtime/port';
 import type { ListReturnNavigation } from '@/src/lib/listReturnContext';
 import { UserRole } from '../../../types';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import type { OrgFeatureKey } from '@/src/lib/features';
 
 export interface ModuleDef {
   module: string;
@@ -23,6 +25,10 @@ export interface ModuleDef {
   roles?: UserRole[];
   /** Canonical shell copy key shared by rail, palette, and breadcrumbs. */
   labelKey?: string;
+  /** Optional organization entitlement needed to expose this destination in navigation. */
+  feature?: OrgFeatureKey;
+  /** Show this destination only while the entitlement is OFF (e.g. the Suppliers doorway). */
+  unlessFeature?: OrgFeatureKey;
 }
 
 /** The module IA — the index + detail routes the rail and ⌘K palette read. */
@@ -39,6 +45,7 @@ export const MODULES: ModuleDef[] = [
     detail: { pattern: '/sales/:opportunityId', param: 'opportunityId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Sales nav — rbac-visibility §C).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+    feature: 'sales_pipeline',
   },
   {
     module: 'procurement',
@@ -49,6 +56,7 @@ export const MODULES: ModuleDef[] = [
     detail: { pattern: '/procurement/:procurementId', param: 'procurementId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Procurement nav — rbac-visibility §E).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+    feature: 'procurement',
   },
   {
     module: 'projects',
@@ -60,6 +68,16 @@ export const MODULES: ModuleDef[] = [
     // Projects: all roles (every role has the Projects nav item — rbac-visibility §B).
   },
   {
+    module: 'stock',
+    icon: 'grid',
+    label: 'Stock', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'shell.nav.stock',
+    path: '/stock',
+    detail: { pattern: '/stock/documents/:documentId', param: 'documentId' },
+    // Mirror Rail: every role (quantities are visible to all active members; the Engineer is the interim storekeeper).
+    feature: 'stock',
+  },
+  {
     module: 'timesheets',
     icon: 'clock',
     label: 'Timesheets', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
@@ -67,6 +85,7 @@ export const MODULES: ModuleDef[] = [
     path: '/timesheets',
     // Mirror Rail: Exec·PM·Engineer·Admin (Finance excluded from Workforce surface).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin],
+    feature: 'timesheets',
   },
   // B-7 (AC-W2-IA-002): Companies + Incidents are full CRUD pages — promoted to MODULES so the
   // breadcrumb resolves via the module path and ⌘K Navigate includes them.
@@ -81,6 +100,7 @@ export const MODULES: ModuleDef[] = [
     detail: { pattern: '/companies/:companyId', param: 'companyId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Companies nav — rbac-visibility §D).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+    feature: 'crm',
   },
   {
     module: 'vendors',
@@ -89,6 +109,9 @@ export const MODULES: ModuleDef[] = [
     labelKey: 'shell.nav.vendors',
     path: '/companies?type=Vendor',
     roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+    // Mirror Rail: the Suppliers doorway shows only while CRM is OFF (its job is done by the
+    // Companies directory once CRM ships — parity guard, navigationRegistryParity.test).
+    unlessFeature: 'crm',
   },
   {
     module: 'contacts',
@@ -101,6 +124,7 @@ export const MODULES: ModuleDef[] = [
     detail: { pattern: '/contacts/:contactId', param: 'contactId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no CRM nav — master-data, like Companies).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+    feature: 'crm',
   },
   {
     module: 'incidents',
@@ -112,6 +136,7 @@ export const MODULES: ModuleDef[] = [
     // detail pattern makes the breadcrumb drill [Incidents > <record>] and lets ⌘K open one.
     detail: { pattern: '/incidents/:incidentId', param: 'incidentId' },
     // Incidents: visible to every role (any member may file — rbac-visibility §A/§G).
+    feature: 'incidents',
   },
   // #526: Meetings — visible to EVERY role (any member may minute a meeting, OD-MTG-1; reads are
   // RLS-scoped to attendance ∪ author ∪ grant ∪ Admin, so the nav item is safe for all).
@@ -126,7 +151,16 @@ export const MODULES: ModuleDef[] = [
   // #775: Expenses — every role (own claims); RLS scopes reads.
   { module: 'expenses', icon: 'expenses', label: 'Expenses', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
-  // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Engineers and Admins.
+  // #1515: Site cash — floats visible to approval rank (RLS); the rail hides it from Engineers,
+  // so the palette Navigate group must too (parity guard: mirror Rail's role gate).
+  { module: 'imprest', icon: 'expenses', label: 'Site cash', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'imprest:nav.siteCash', path: '/imprest', detail: { pattern: '/imprest/:floatId', param: 'floatId' },
+    feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // #1519: Equipment usage — every role logs; the Approvals view and amounts gate inside the pages.
+  { module: 'equipment', icon: 'clock', label: 'Equipment', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'equipment:nav.equipment', path: '/equipment', detail: { pattern: '/equipment/assets/:assetId', param: 'assetId' } },
+  // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Finance, Engineers and Admins
+  // (Finance works assigned tasks like an Engineer, owner 2026-10-23).
   // Project-level Tasks remain available for oversight; Executive navigation is unchanged.
   {
     module: 'my-tasks',
@@ -134,7 +168,15 @@ export const MODULES: ModuleDef[] = [
     label: 'My Tasks', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.myTasks',
     path: '/my-tasks',
-    roles: [UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin],
+    roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin],
+  },
+  // #1982: Calendar — every role (reads are RLS-scoped); mirrors the rail item.
+  {
+    module: 'calendar',
+    icon: 'cal',
+    label: 'Calendar', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'shell.nav.calendar',
+    path: '/calendar',
   },
   // Fix #7 (AC-FIX7-CMDK-*): Approvals — promoted from PLACEHOLDER_TITLES to MODULES
   // so it appears in the ⌘K Navigate group for roles that can approve (mirrors Rail).
@@ -147,15 +189,35 @@ export const MODULES: ModuleDef[] = [
     path: '/approvals',
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
-  // Administration: Exec·Admin (shown in Rail's foot section for those roles only).
   {
-    module: 'financial-statements',
-    icon: 'table',
-    label: 'Financial statements', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
-    labelKey: 'shell.nav.financialStatements',
-    path: '/financial-statements',
-    roles: [UserRole.Admin, UserRole.Executive, UserRole.Finance],
+    module: 'finance',
+    icon: 'dollar',
+    label: 'Finance', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'financeHub:nav.finance',
+    path: '/finance',
+    roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
+  {
+    module: 'finance-receivables', icon: 'invoices', label: 'Receivables', // i18n-exempt: translated at render via labelKey
+    labelKey: 'financeHub:hub.receivables', feature: 'revenue',
+    path: '/finance/receivables', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
+  },
+  {
+    module: 'finance-payables', icon: 'procurement', label: 'Payables', // i18n-exempt: translated at render via labelKey
+    labelKey: 'financeHub:hub.payables', feature: 'procurement',
+    path: '/finance/payables', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
+  },
+  {
+    module: 'finance-reports', icon: 'reports', label: 'Reports', // i18n-exempt: translated at render via labelKey
+    labelKey: 'financeHub:hub.reports', feature: 'management_pack',
+    path: '/finance/reports', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
+  },
+  {
+    module: 'finance-statements', icon: 'reports', label: 'Statements', // i18n-exempt: translated at render via labelKey
+    labelKey: 'financeHub:hub.statements', feature: 'financial_statements',
+    path: '/finance/statements', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
+  },
+  // Administration: Exec·Admin (shown in Rail's foot section for those roles only).
   {
     module: 'administration',
     icon: 'admin',
@@ -237,6 +299,49 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/sales-invoices': 'Sales Invoices',
   '/incoming-payments': 'Incoming Payments',
   '/revenue-by-project': 'Revenue by Project',
+  // #1512: the Stock module's sub-pages that are not detail records.
+  '/stock/setup': 'Stock setup',
+};
+
+/**
+ * Routes that belong to a rail module without living under its URL. The rail highlights the parent
+ * item, and the breadcrumb reads `<parent> > <page>` instead of falling through to "Not found".
+ */
+export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
+  // FR-PFE-041: the org-wide list of ERPNext documents not yet in a purchase is part of Procurement.
+  '/erp-purchases': '/procurement',
+  // #1512: Stock's sub-pages read [Stock > <page>] and keep the Stock rail item lit.
+  '/stock/documents': '/stock',
+  '/stock/ledger': '/stock',
+  '/stock/reorder': '/stock',
+  '/stock/new/receive': '/stock',
+  '/stock/new/transfer': '/stock',
+  '/stock/new/issue': '/stock',
+  '/stock/new/return': '/stock',
+  '/stock/new/count': '/stock',
+  '/stock/new/adjustment': '/stock',
+  // #1519: the asset reference list is part of Equipment.
+  '/equipment/assets': '/equipment',
+};
+
+/** Finance record routes remain addressable while their list parent is the Receivables area. */
+export function railParentForPath(pathname: string): string | undefined {
+  if (/^\/(sales-invoices|incoming-payments)\/[^/]+$/.test(pathname)) return '/finance/receivables';
+  return RAIL_PARENT_FOR_PATH[pathname];
+}
+
+const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
+  '/erp-purchases': { label: 'ERPNext documents not in a purchase', i18nKey: 'finance:erpLinks.orphansTitle' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/documents': { label: 'Documents', i18nKey: 'stock:tabs.documents' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/ledger': { label: 'Ledger', i18nKey: 'stock:tabs.ledger' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/reorder': { label: 'Reorder', i18nKey: 'stock:tabs.reorder' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/receive': { label: 'Receive', i18nKey: 'stock:kinds.receive' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/transfer': { label: 'Transfer', i18nKey: 'stock:kinds.transfer' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/issue': { label: 'Issue to project', i18nKey: 'stock:kinds.issue' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/return': { label: 'Return from project', i18nKey: 'stock:kinds.return' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/count': { label: 'Stock count', i18nKey: 'stock:kinds.count' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/adjustment': { label: 'Adjustment', i18nKey: 'stock:kinds.adjustment' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/equipment/assets': { label: 'Assets', i18nKey: 'equipment:nav.assets' }, // i18n-exempt: fallback label is replaced from i18nKey at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
@@ -245,10 +350,12 @@ export const ADMINISTRATION_SECTION_LABELS = {
   integrations: 'Organization integrations',
   accounting: 'Accounting setup',
   projects: 'Project setup',
+  plan: 'Your plan',
   credits: 'Credits',
   usage: 'Usage',
   features: 'Features',
   'exchange-rates': 'Exchange rates',
+  'cost-attribution': 'Cost attribution',
 } as const;
 
 /**
@@ -265,10 +372,12 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   integrations: 'admin.nav.integrations',
   accounting: 'admin.nav.accounting',
   projects: 'admin.nav.projects',
+  plan: 'plans:yourPlan.navLabel',
   credits: 'admin.nav.credits',
   usage: 'admin.nav.usage',
   features: 'admin.nav.features',
   'exchange-rates': 'admin.nav.exchangeRates',
+  'cost-attribution': 'costAttribution:title',
 };
 
 const administrationBreadcrumbForPath = (
@@ -286,7 +395,7 @@ const administrationBreadcrumbForPath = (
   const sectionKey =
     ADMINISTRATION_SECTION_I18N_KEY[section as keyof typeof ADMINISTRATION_SECTION_I18N_KEY] ??
     ADMINISTRATION_SECTION_I18N_KEY.users;
-  const parentPath = section === 'exchange-rates' ? '/administration/exchange-rates' : '/administration/users';
+  const parentPath = section === 'exchange-rates' || section === 'cost-attribution' ? '/administration/exchange-rates' : '/administration/users';
   return [
     {
       label: parentLabel,
@@ -323,28 +432,81 @@ const administrationBreadcrumbForPath = (
  * a link. `recordResolved` defaults to false (still loading) so callers that
  * don't pass it keep the prior cold-deep-link "Loading…" behavior.
  *
- * Model B (ADR-0020, AC-IXD-PROJ-005): `/projects/:id` is the ONE canonical detail route for
- * every project/opportunity, so its breadcrumb ancestry follows the record's STAGE rather than
- * the URL prefix — a `pipeline | lost` record reads `Sales Pipeline > <name>` (and links back
- * to `/sales`), an `onHand | internal` record reads `Projects > <name>`. The caller resolves
- * the record's status group from the cached lists (`recordStatusForPath`) and threads it in via
- * `recordStatusGroup`; when omitted it defaults to the module's own ancestry (back-compat).
+ * Model B (ADR-0020, AC-IXD-PROJ-005, FIX-2): `/projects/:id` is the ONE canonical detail route for
+ * every project/opportunity, so its breadcrumb ancestry is ALWAYS the module's own "Projects"
+ * ancestry — a pipeline/lost record reads `Projects > <name>` exactly like an onHand/internal
+ * one. The stage group is deliberately NOT an input: the rail's stage-aware highlight is
+ * derived separately (`recordStatusGroupForPath` + `deriveRailActiveOverride` in App.tsx).
  */
 export function breadcrumbForPath(
   pathname: string,
   recordLabel?: string,
   navigate?: (target: string | ListReturnNavigation) => void,
   recordResolved = false,
-  // FIX-2: the stage group is no longer used to change the breadcrumb ancestry for
-  // /projects/:id — that ancestry is always "Projects" so breadcrumb + rail agree.
-  // The param is kept in the signature so App.tsx callers don't need updating.
-  _recordStatusGroup?: ProjectStatusGroup,
   /** Same-owner return descriptor, minted only by `contextualListReturnNavigation`. */
   contextualParent?: ListReturnNavigation,
   routeSearch = '',
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
   if (administrationBreadcrumb) return administrationBreadcrumb;
+
+  if (pathname === '/finance') {
+    return [{ label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+      i18nKey: 'financeHub:nav.finance' }];
+  }
+  const invoiceRecord = /^\/sales-invoices\/[^/]+$/.test(pathname);
+  const paymentRecord = /^\/incoming-payments\/[^/]+$/.test(pathname);
+  if (invoiceRecord || paymentRecord) {
+    return [
+      { label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:nav.finance', href: '/finance', onClick: () => navigate?.('/finance') },
+      { label: 'Receivables', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:hub.receivables', href: paymentRecord ? '/finance/receivables?view=payments' : '/finance/receivables', onClick: () => navigate?.(paymentRecord ? '/finance/receivables?view=payments' : '/finance/receivables') },
+      { label: paymentRecord ? 'Payment record' : 'Invoice record', i18nKey: paymentRecord ? 'financeHub:nav.paymentRecord' : 'shell.nav.invoiceRecord' },
+    ];
+  }
+  const financeArea = pathname.match(/^\/finance\/(receivables|payables|reports|statements)$/)?.[1];
+  if (financeArea) {
+    const labels: Record<string, string> = {
+      receivables: 'Receivables',
+      payables: 'Payables',
+      reports: 'Reports',
+      statements: 'Statements',
+    };
+    return [
+      {
+        label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:nav.finance',
+        href: '/finance',
+        onClick: () => navigate?.('/finance'),
+      },
+      { label: labels[financeArea], i18nKey: `financeHub:hub.${financeArea}` },
+    ];
+  }
+
+  if (/^\/master-data\/[^/]+$/.test(pathname)) {
+    // Reached from the Odoo card on Organization integrations, so the trail is its parent trail.
+    return [
+      { label: 'Administration', i18nKey: 'shell.nav.administration', href: '/administration/users', onClick: () => navigate?.('/administration/users') }, // i18n-exempt: translated from i18nKey by Breadcrumb
+      { label: ADMINISTRATION_SECTION_LABELS.integrations, i18nKey: ADMINISTRATION_SECTION_I18N_KEY.integrations, href: '/administration/integrations', onClick: () => navigate?.('/administration/integrations') },
+      { label: 'Odoo directories', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'administration:odoo.master.title' },
+    ];
+  }
+
+  const childCrumb = CHILD_PAGE_CRUMB[pathname];
+  const childParent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[pathname]);
+  if (childCrumb && childParent) {
+    return [
+      {
+        label: childParent.label,
+        ...(childParent.labelKey ? { i18nKey: childParent.labelKey } : {}),
+        href: childParent.path,
+        onClick: () => navigate?.(childParent.path),
+      },
+      childCrumb,
+    ];
+  }
 
   // Placeholder routes win first — they are not tracked modules, so they would
   // otherwise fall through to the Dashboard fallback (AC-NAV-005).
@@ -362,6 +524,7 @@ export function breadcrumbForPath(
       '/incoming-payments': 'shell.nav.incomingPayments',
       '/revenue-by-project': 'shell.nav.revenueByProject',
       '/my-tasks': 'shell.nav.myTasks',
+      '/stock/setup': 'stock:setup.title',
     };
     const i18nKey = PLACEHOLDER_I18N_KEY[pathname];
     return i18nKey
@@ -369,13 +532,10 @@ export function breadcrumbForPath(
       : [{ label: placeholderTitle }];
   }
 
-  // User-view detail route → [My Views (link to /) > <view.name>] (OD-4, FR-VR-053)
-  // OD-4 note: 'My Views' currently links to '/' (Dashboard) because there is no
-  // /views index route yet. The label is accurate (the section IS called My Views) but
-  // the destination is unexpected for a screen-reader user — WCAG 2.4.6 (descriptive
-  // link labels). To mitigate the mismatch the crumb carries an aria-label spelling out
-  // the destination, consistent with option (a) of OD-4. When a /views index route ships
-  // (I4/I5), update onClick to navigate('/views') and drop the aria-label override.
+  // User-view detail route → [My Views (link to /views) > <view.name>] (OD-4, FR-VR-053)
+  // OD-4 follow-up: the /views index route (MyViewsPage) has shipped, so the parent crumb now
+  // leads to the user's own view list instead of Dashboard, and the interim "back to Dashboard"
+  // aria-label override is gone — the visible label IS the accurate accessible name.
   if (pathname.startsWith('/views/')) {
     // The pending/not-found state crumbs share the shell vocabulary keys so the
     // states localize like every other breadcrumb label (UXS-006).
@@ -385,11 +545,14 @@ export function breadcrumbForPath(
     return [
       {
         label: 'My Views', // i18n-exempt: /views breadcrumb is outside the AC-UXA-017 invoice route scope
-        href: '/',
-        onClick: () => navigate?.('/'),
-        ariaLabel: 'My Views — back to Dashboard',
+        href: '/views',
+        onClick: () => navigate?.('/views'),
       },
-      viewCrumb,
+      // The create route is not a record deep-link: it renders the working New View form
+      // (tidy audit TA-012) — never the record Loading/Not-found crumbs.
+      ...(pathname === '/views/new'
+        ? [{ label: 'New View', i18nKey: 'viewBuilder.newView' }] // i18n-exempt: fallback label is replaced from i18nKey at render
+        : [viewCrumb]),
     ];
   }
 
@@ -419,9 +582,17 @@ export function breadcrumbForPath(
           ? { label: recordLabel }
           : pathname === '/projects/new'
             ? { label: 'New project', i18nKey: 'projectForm.title.create' } // i18n-exempt: fallback label is replaced from i18nKey at render
-          : recordResolved
-            ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
-            : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render
+            // Create routes render their working forms, never a record — the crumb names the
+            // form instead of a stuck "Loading…" (tidy audit TA-015/018/019).
+            : pathname === '/procurement/new'
+              ? { label: 'New procurement', i18nKey: 'projectDetail.procurement.newRequest' } // i18n-exempt: fallback label is replaced from i18nKey at render
+              : pathname === '/meetings/new'
+                ? { label: 'New meeting', i18nKey: 'meetings.form.newTitle' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                : pathname === '/expenses/new'
+                  ? { label: 'New expense claim', i18nKey: 'expenses.form.claimTitle' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                  : recordResolved
+                    ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                    : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render
         // FIX-2 (coherence): /projects/:id ALWAYS roots at "Projects", regardless of the
         // record's pipeline status. "Sales Pipeline" is a filter lens, not the record's home —
         // the breadcrumb and rail must agree: the rail highlights "Projects" for /projects/:id,
@@ -457,8 +628,8 @@ export function breadcrumbForPath(
 
 /** Cached index lists the breadcrumb reads to resolve a detail route's name. */
 export interface RecordLists {
-  projects?: { id: string; name: string }[];
-  opportunities?: { id: string; name: string }[];
+  projects?: { id: string; name: string; short_name?: string | null }[];
+  opportunities?: { id: string; name: string; short_name?: string | null }[];
   procurements?: { id: string; title: string }[];
   /** CW-4a: incidents — the record "name" is its `type` (there is no title column). */
   incidents?: { id: string; type: string }[];
@@ -470,8 +641,14 @@ export interface RecordLists {
   meetings?: { id: string; title: string }[];
   /** Expense claims resolve from the detail query cache; no additional list read. */
   expenses?: { id: string; claim_number?: string | null; title?: string | null }[];
+  /** #1515: site floats resolve from the cached float list; the label is the project name. */
+  imprestFloats?: { id: string; name: string }[];
+  /** #1519: equipment assets resolve from the cached asset list; the label is the asset name. */
+  equipmentAssets?: { id: string; name: string }[];
   /** I3: user views — the record "name" is view.name, resolved from the useUserViews() cache. */
   userViews?: { id: string; name: string }[];
+  /** #1512: stock documents resolve from the detail query cache; the label is the document number. */
+  stockDocuments?: { id: string; number: string }[];
 }
 
 /** Cached lists carrying a status (for stage-aware breadcrumb ancestry, Model B). */
@@ -560,25 +737,10 @@ export function recordLabelForPath(
   pathname: string,
   lists: RecordLists,
 ): string | undefined {
-  const idFrom = (prefix: string): string | undefined => {
-    if (!pathname.startsWith(`${prefix}/`)) return undefined;
-    // segment after the module prefix, dropping any trailing `/budget` etc.
-    return pathname.slice(prefix.length + 1).split('/')[0] || undefined;
-  };
+  const idFrom = (prefix: string): string | undefined => routeIdFrom(pathname, prefix);
 
-  const projectId = idFrom('/projects');
-  if (projectId) {
-    // Model B (ADR-0020): /projects/:id is the canonical route for EVERY stage. An on-hand /
-    // internal record is in the active projects list; a pre-win / lost record is in the
-    // pipeline (opportunities) list only — fall back to it so the crumb resolves either way.
-    return (
-      lists.projects?.find((p) => p.id === projectId)?.name ??
-      lists.opportunities?.find((o) => o.id === projectId)?.name
-    );
-  }
-
-  const salesId = idFrom('/sales');
-  if (salesId) return lists.opportunities?.find((o) => o.id === salesId)?.name;
+  const project = projectIdentityForPath(pathname, lists);
+  if (project) return projectDisplayName(project);
 
   const procurementId = idFrom('/procurement');
   if (procurementId) return lists.procurements?.find((p) => p.id === procurementId)?.title;
@@ -605,11 +767,42 @@ export function recordLabelForPath(
     return claim?.claim_number || claim?.title || undefined;
   }
 
+  const equipmentAssetId = idFrom('/equipment/assets');
+  if (equipmentAssetId) return lists.equipmentAssets?.find((a) => a.id === equipmentAssetId)?.name;
+
+  const imprestFloatId = idFrom('/imprest');
+  if (imprestFloatId) return lists.imprestFloats?.find((f) => f.id === imprestFloatId)?.name;
+
   // I3: user views — resolve view name from the useUserViews() cache (FR-VR-082).
   const viewId = idFrom('/views');
   if (viewId) return lists.userViews?.find((v) => v.id === viewId)?.name;
 
+  const stockDocumentId = idFrom('/stock/documents');
+  if (stockDocumentId) return lists.stockDocuments?.find((d) => d.id === stockDocumentId)?.number;
+
   return undefined;
+}
+
+/** Segment after the module prefix, dropping any trailing `/budget` etc. */
+function routeIdFrom(pathname: string, prefix: string): string | undefined {
+  if (!pathname.startsWith(`${prefix}/`)) return undefined;
+  return pathname.slice(prefix.length + 1).split('/')[0] || undefined;
+}
+
+function projectIdentityForPath(pathname: string, lists: RecordLists) {
+  // Model B (ADR-0020): /projects/:id is the canonical route for EVERY stage. An on-hand /
+  // internal record is in the active projects list; a pre-win / lost record is in the
+  // pipeline (opportunities) list only — fall back to it so the crumb resolves either way.
+  const projectId = routeIdFrom(pathname, '/projects');
+  if (projectId) return lists.projects?.find((p) => p.id === projectId) ?? lists.opportunities?.find((o) => o.id === projectId);
+  const salesId = routeIdFrom(pathname, '/sales');
+  if (salesId) return lists.opportunities?.find((o) => o.id === salesId);
+  return undefined;
+}
+
+/** Contractual project title for hover disclosure on project and pipeline detail crumbs. */
+export function recordContractualNameForPath(pathname: string, lists: RecordLists): string | undefined {
+  return projectIdentityForPath(pathname, lists)?.name;
 }
 
 /**

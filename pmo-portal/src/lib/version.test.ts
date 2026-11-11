@@ -23,16 +23,4 @@ describe('lib/version', () => {
     expect(mod.GIT_SHA).toBe('abc1234');
     expect(mod.BUILD_TIME).toBe('2026-07-08T12:00:00.000Z');
   });
-
-  it('VERSION_LABEL formats as v<version> · <sha>', async () => {
-    const mod = await import('./version');
-    expect(mod.VERSION_LABEL).toBe('v9.9.9 · abc1234');
-  });
-
-  it('reflects a different build without cross-test bleed (re-evaluates globals)', async () => {
-    vi.stubGlobal('__APP_VERSION__', '0.4.2');
-    vi.stubGlobal('__GIT_SHA__', 'deadbee');
-    const mod = await import('./version');
-    expect(mod.VERSION_LABEL).toBe('v0.4.2 · deadbee');
-  });
 });

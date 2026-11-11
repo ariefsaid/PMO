@@ -6,10 +6,12 @@ const h = vi.hoisted(() => {
     rows: { data: null as unknown, error: null as unknown },
     tables: {} as Record<string, { data: unknown; error: unknown }>,
     rpc: { data: null as unknown, error: null as unknown },
+    // when set, work_order_billing answers by .range() window over this full list
+    paged: null as null | unknown[],
   };
   const calls = {
     from: [] as string[], select: [] as string[], eq: [] as unknown[][], in: [] as unknown[][], is: [] as unknown[][],
-    limit: [] as number[], rpc: [] as unknown[][],
+    limit: [] as number[], rpc: [] as unknown[][], range: [] as number[][],
   };
   const from = vi.fn((t: string) => {
     calls.from.push(t);
@@ -19,7 +21,12 @@ const h = vi.hoisted(() => {
     builder.in = (...a: unknown[]) => { calls.in.push([t, ...a]); return builder; };
     builder.is = (...a: unknown[]) => { calls.is.push([t, ...a]); return builder; };
     builder.limit = (n: number) => { calls.limit.push(n); return builder; };
-    builder.then = (resolve: (v: unknown) => unknown) => resolve(state.tables[t] ?? state.rows);
+    // #1774: the billing-lines diagnostic read pages (order by record_id, then a range window).
+    builder.order = () => builder;
+    let win: [number, number] | null = null;
+    builder.range = (a: number, b: number) => { calls.range.push([a, b]); win = [a, b]; return builder; };
+    builder.then = (resolve: (v: unknown) => unknown) => resolve(
+      t === 'work_order_billing' && state.paged && win ? { data: state.paged.slice(win[0], win[1] + 1), error: null } : (state.tables[t] ?? state.rows));
     return builder;
   });
   const rpc = vi.fn((n: string, a: unknown) => { calls.rpc.push([n, a]); return Promise.resolve(state.rpc); });
@@ -27,7 +34,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
-import { getUnbilledWorkOrders, listWorkOrderBilling } from './workOrderBilling';
+import { getUnbilledWorkOrders, listWorkOrderAcceptanceAge, listWorkOrderBilling, parseUnbilledWorkOrders } from './workOrderBilling';
 
 const ROW = {
   work_order_id: 'wo-1', project_id: 'p1', status: 'Issued', currency: 'USD', order_net: 500000, invoiced: '330000.00',
@@ -38,6 +45,7 @@ beforeEach(() => {
   h.state.rows = { data: null, error: null };
   h.state.tables = {};
   h.state.rpc = { data: null, error: null };
+  h.state.paged = null;
   for (const k of Object.keys(h.calls) as Array<keyof typeof h.calls>) h.calls[k].length = 0;
 });
 
@@ -71,7 +79,7 @@ describe('work-order billing DAL (OD-BILL-1)', () => {
     }, error: null };
     expect(await getUnbilledWorkOrders(8)).toEqual({
       totals: [{ currency: 'USD', remaining: 1300, count: 2 }], incompleteCount: 1,
-      rows: [{ workOrderId: 'wo-2', woNumber: null, title: 'Fit-out', projectId: 'p2', projectName: 'Annex', status: 'Closed', currency: 'USD', remaining: 300, daysSinceClosed: 3, clientPoNumber: null }],
+      rows: [{ workOrderId: 'wo-2', woNumber: null, title: 'Fit-out', projectId: 'p2', projectName: 'Annex', status: 'Closed', currency: 'USD', remaining: 300, daysSinceClosed: 3, daysSinceAcceptance: null, clientPoNumber: null }],
       incomplete: [],
     });
     expect(h.calls.rpc).toEqual([['get_unbilled_work_orders', { p_limit: 8 }]]);
@@ -135,10 +143,46 @@ describe('work-order billing DAL (OD-BILL-1)', () => {
     expect(h.calls.eq).toContainEqual(['figures_complete', false]);
     expect(h.calls.is).toContainEqual(['projects', 'archived_at', null]);
   });
+  it('DAL03-004 archived-project rows ahead of the cap do not hide live incomplete work orders', async () => {
+    h.state.rpc = { data: { totals: [], incomplete_count: 3, rows: [] }, error: null };
+    // 120 archived-project rows sort first; the 2 live ones come after the first page.
+    h.state.paged = [
+      ...Array.from({ length: 120 }, (_, i) => ({ work_order_id: `old-${i}`, wo_number: null, title: 'Old', project_id: 'p-archived' })),
+      { work_order_id: 'wo-a', wo_number: 'WO-A', title: 'A', project_id: 'p2' },
+      { work_order_id: 'wo-b', wo_number: 'WO-B', title: 'B', project_id: 'p2' },
+    ];
+    h.state.tables = {
+      projects: { data: [{ id: 'p2', name: 'Annex' }], error: null },
+      work_orders: { data: [], error: null },
+    };
+    const doc = await getUnbilledWorkOrders(2);
+    expect(doc.incomplete.map((r) => r.workOrderId)).toEqual(['wo-a', 'wo-b']);
+  });
   it('AC-UNB-005 with everything totalled the dashboard asks for no list', async () => {
     h.state.rpc = { data: { totals: [], incomplete_count: 0, rows: [] }, error: null };
     const doc = await getUnbilledWorkOrders(8);
     expect(doc.incomplete).toEqual([]);
     expect(h.calls.from).toEqual([]);
+  });
+});
+
+describe('work-order acceptance age DAL (#1640)', () => {
+  it('AC-WOMS-011 listWorkOrderAcceptanceAge reads the view for one project, figures validated', async () => {
+    h.state.rows = { data: [{ work_order_id: 'wo-1', anchor_date: '2026-10-22', days: 10 }], error: null };
+    expect(await listWorkOrderAcceptanceAge('p1')).toEqual([{ workOrderId: 'wo-1', anchorDate: '2026-10-22', days: 10 }]);
+    expect(h.calls.from).toEqual(['work_order_uninvoiced_acceptance']);
+    expect(h.calls.eq).toEqual([['project_id', 'p1']]);
+    expect(h.calls.limit).toEqual([501]);
+  });
+  it('AC-WOMS-011 a missing day count is an error, never a plausible 0', async () => {
+    h.state.rows = { data: [{ work_order_id: 'wo-1', anchor_date: '2026-10-22', days: null }], error: null };
+    await expect(listWorkOrderAcceptanceAge('p1')).rejects.toMatchObject({ code: 'malformed-billing' });
+  });
+  it('AC-WOMS-009 parseUnbilledWorkOrders carries days since acceptance, null when absent', () => {
+    const doc = parseUnbilledWorkOrders({ totals: [], incomplete_count: 0, rows: [
+      { work_order_id: 'wo-1', wo_number: 'WO-1', title: 'A', project_id: 'p1', project_name: 'P', status: 'Issued', currency: 'USD', remaining: 5, days_since_closed: null, days_since_acceptance: 12 },
+      { work_order_id: 'wo-2', wo_number: 'WO-2', title: 'B', project_id: 'p1', project_name: 'P', status: 'Closed', currency: 'USD', remaining: 5, days_since_closed: 3 },
+    ] });
+    expect(doc.rows.map((r) => r.daysSinceAcceptance)).toEqual([12, null]);
   });
 });

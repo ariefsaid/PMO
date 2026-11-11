@@ -3,7 +3,9 @@
  * ERPNext. One row per intent (label, state text, ERP name, reason); nothing at all for a claim with no postings.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import i18next from 'i18next';
+import idExpenseClaims from '../../public/locales/id/expenseClaims.json';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -127,5 +129,40 @@ describe('ExpensePostingsCard (AC-EXP-131)', () => {
       expect(await screen.findByText('JV-1')).toBeInTheDocument();
       expect(screen.queryByText(/Not posted to accounting/)).toBeNull();
     });
+  });
+});
+
+// FR-ECA-030 / FR-EXP-110, Q8: a claim approved before the ERP connection has no approval entry; its payment still posts.
+describe('ExpensePostingsCard — a claim approved before the ERP connection (FR-ECA-030)', () => {
+  const row = (posting: string, id: string) => ({ id, posting, pushState: 'pending', pushError: null, erpName: null, erpCancelledAt: null, createdAt: id });
+
+  it('says "Recorded before the ERP connection" when a payment or settlement posts with no approval entry', async () => {
+    listMock.mockResolvedValue([row('claim-payment', 'm1')]);
+    renderCard();
+    expect(await screen.findByTestId('expense-recorded-before-connection')).toHaveTextContent('Recorded before the ERP connection');
+  });
+
+  it('shows no such note when the approval entry exists, or when only an approval is queued', async () => {
+    listMock.mockResolvedValue([row('approval', 'm1'), row('claim-payment', 'm2')]);
+    const first = renderCard();
+    expect(await screen.findByRole('heading', { name: 'Ledger postings' })).toBeInTheDocument();
+    expect(screen.queryByTestId('expense-recorded-before-connection')).toBeNull();
+    first.unmount();
+    listMock.mockResolvedValue([row('approval', 'm1')]);
+    renderCard();
+    expect(await screen.findByRole('heading', { name: 'Ledger postings' })).toBeInTheDocument();
+    expect(screen.queryByTestId('expense-recorded-before-connection')).toBeNull();
+  });
+
+  it('says it in Bahasa Indonesia', async () => {
+    i18next.addResourceBundle('id', 'expenseClaims', idExpenseClaims, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    try {
+      listMock.mockResolvedValue([row('settlement', 'm1')]);
+      renderCard();
+      expect(await screen.findByTestId('expense-recorded-before-connection')).toHaveTextContent('Dicatat sebelum terhubung ke ERP');
+    } finally {
+      await act(async () => { await i18next.changeLanguage('en'); });
+    }
   });
 });

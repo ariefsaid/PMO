@@ -3,7 +3,7 @@
  * Approve/Reject on a Requested request, and the one-line note naming who decides and why.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
@@ -21,6 +21,9 @@ const detailState = {
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
@@ -57,7 +60,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: vi.fn(), isPending: false },
     deleteDocument: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProcurementDocuments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
@@ -98,6 +100,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -174,7 +178,7 @@ describe('AC-APR-031 approval routing on the request page', () => {
     detailState.data = { ...base, status: 'Requested', budget_category: 'Materials', approvalRoute: routedTo('u-pm2', 'Pia Approver') };
     renderPage();
     expect(screen.getByTestId('approval-route-note').textContent).toBe(
-      "Approval for this request is routed to Pia Approver: it is within the project's Materials budget.",
+      "Approval for this procurement is routed to Pia Approver: it is within the project's Materials budget.",
     );
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument();
@@ -185,7 +189,7 @@ describe('AC-APR-031 approval routing on the request page', () => {
     mockUserId = 'u-finance';
     detailState.data = { ...base, status: 'Requested', budget_category: 'Materials', approvalRoute: routedTo('u-finance', 'Fay Finance') };
     renderPage();
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header')).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
     expect(screen.queryByTestId('approval-route-note')).not.toBeInTheDocument();
   });
 
@@ -194,7 +198,7 @@ describe('AC-APR-031 approval routing on the request page', () => {
     mockUserId = 'u-finance';
     detailState.data = { ...base, status: 'Requested' };
     renderPage();
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header')).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
   });
 
   it('AC-APR-031: an Admin who is not named keeps break-glass', () => {
@@ -202,10 +206,13 @@ describe('AC-APR-031 approval routing on the request page', () => {
     mockUserId = 'u-admin';
     detailState.data = { ...base, status: 'Requested', budget_category: 'Materials', approvalRoute: routedTo('u-pm2', 'Pia Approver') };
     renderPage();
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header')).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
   });
 });
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useErpJournalLines', () => import('@/pages/__tests__/helpers/erpJournalLinesMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

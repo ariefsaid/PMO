@@ -27,16 +27,14 @@ import {
   JwtVerifyError,
   jwksFromUrl,
   type JwksResolver,
+  bearerToken,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { hasActiveStanding } from '../_shared/adminOrOperator.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 interface DisconnectBody {
-  tier: 'clickup' | 'erpnext';
-}
-
-interface DisconnectResponse {
-  ok: true;
+  tier: 'clickup' | 'erpnext' | 'odoo';
 }
 
 // Memoized JWKS resolver (same pattern as agent-chat, adapter-dispatch)
@@ -61,16 +59,10 @@ export const testSupabaseOptions = {
   },
 };
 
-function bearerTokenFromHeader(authHeader: string | null): string | null {
-  if (!authHeader) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(authHeader);
-  return m ? m[1] : null;
-}
-
-function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', ...headers }, // #641: every answer is CORS-readable
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }, // #641: every answer is CORS-readable
   });
 }
 
@@ -90,7 +82,7 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
   }
 
   // 1. Extract and verify caller JWT (ADR-0057)
-  const jwt = bearerTokenFromHeader(req.headers.get('Authorization'));
+  const jwt = bearerToken(req.headers.get('Authorization'));
   if (!jwt) {
     return errorResponse('Missing Authorization header', 'UNAUTHORIZED', 401);
   }
@@ -128,6 +120,17 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
   }
 
+  // Standing gate: the role below authorizes only while the membership is active NOW (not just
+  // a profile row with an unexpired JWT). Stops before any Vault or external call.
+  if (!(await hasActiveStanding({
+    stateClient: serviceClient,
+    orgId: profile.org_id,
+    userId,
+    profileStatus: profile.status,
+  }))) {
+    return errorResponse('Active organization member required', 'FORBIDDEN', 403);
+  }
+
   // 4. Role gate: Admin of this org OR platform Operator
   //    Direct check on platform_operators (service-role bypasses RLS) —
   //    NOT is_operator() which uses auth.uid() and fails under service_role.
@@ -142,10 +145,9 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
     return errorResponse('Internal error', 'INTERNAL', 500);
   }
 
-  const isActiveProfile = profile.status === 'active';
   const isAdmin = profile.role === 'Admin';
   const isPlatformOperator = !!isOperator;
-  if (!isActiveProfile || (!isAdmin && !isPlatformOperator)) {
+  if (!isAdmin && !isPlatformOperator) {
     return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);
   }
 
@@ -158,12 +160,12 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
   }
 
   const { tier } = body;
-  if (tier !== 'clickup' && tier !== 'erpnext') {
-    return errorResponse('Unknown tier (must be clickup or erpnext)', 'BAD_REQUEST', 400);
+  if (tier !== 'clickup' && tier !== 'erpnext' && tier !== 'odoo') {
+    return errorResponse('Unknown tier (must be clickup, erpnext or odoo)', 'BAD_REQUEST', 400);
   }
 
   // 6. The definer transaction re-checks actor standing and role before touching either credential or binding.
-  const { data: touched, error: disconnectError } = await serviceClient.rpc('disconnect_external_integration', {
+  const { data: touched, error: disconnectError } = await serviceClient.rpc('disconnect_external_integration_audited', {
     p_org_id: profile.org_id,
     p_external_tier: tier,
     p_actor_id: userId,
@@ -175,20 +177,7 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
   }
   if (touched === 0) return errorResponse('No binding found for this tier', 'NOT_FOUND', 404);
 
-  // 7. Emit audit event for the disconnect
-  const { error: auditError } = await serviceClient.rpc('log_audit', {
-    p_action: 'integration.disconnect',
-    p_org_id: profile.org_id,
-    // ⚑ log_audit is (p_action, p_org_id, p_actor_id, p_entity_id, p_detail) — mig 0076. The previous
-    // call passed `p_entity_type` (no such parameter) and omitted `p_actor_id`, so no overload matched
-    // and this audit event was never written.
-    p_actor_id: userId,
-    p_entity_id: null,
-    p_detail: { tier, actor: userId },
-  });
-  if (auditError) {
-    console.error('log_audit failed', auditError);
-  }
+  // 7. The disconnect audit event is written by the RPC in the same transaction.
 
   // 11. Return success
   return json({ ok: true });

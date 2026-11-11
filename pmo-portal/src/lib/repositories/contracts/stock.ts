@@ -1,0 +1,78 @@
+/** Stock repository contract (#1512 S1). */
+import type {
+  StockItemInput, StockItemRow, StockKeeperRow, StockUnitInput, StockUnitRow, StockWarehouseInput, StockWarehouseRow,
+} from '@/src/lib/db/stockMaster';
+import type {
+  IssuableWorkItem, IssueLineRow, StockDocumentDetail, StockDocumentFilters, StockDocumentInput, StockDocumentListRow, StockLineCost,
+} from '@/src/lib/db/stockDocuments';
+import type { ProjectConsumption, StockLedgerFilters, StockLedgerPage, StockLedgerRow, StockOnHandRow } from '@/src/lib/db/stockReports';
+import type { MaterialAllowance, MaterialAllowanceInput } from '@/src/lib/db/stockAllowances';
+import type { BelowReorderRow, ReorderSuggestion } from '@/src/lib/db/stockReorder';
+
+/** Stock master data (#1512 S1): units, items, warehouses and keepers.  */
+export interface StockMasterRepository {
+  listUnits(includeArchived?: boolean): Promise<StockUnitRow[]>;
+  listItems(includeArchived?: boolean): Promise<StockItemRow[]>;
+  listWarehouses(includeArchived?: boolean): Promise<StockWarehouseRow[]>;
+  listKeepers(): Promise<StockKeeperRow[]>;
+  createUnit(input: StockUnitInput): Promise<StockUnitRow>;
+  updateUnit(id: string, input: StockUnitInput): Promise<void>;
+  createItem(input: StockItemInput): Promise<StockItemRow>;
+  updateItem(id: string, input: StockItemInput): Promise<void>;
+  createWarehouse(input: StockWarehouseInput): Promise<StockWarehouseRow>;
+  updateWarehouse(id: string, input: StockWarehouseInput): Promise<void>;
+  archive(table: 'stock_units' | 'stock_items' | 'stock_warehouses', id: string, archived: boolean): Promise<void>;
+  /** Admin only (`set_stock_warehouse_keeper`); the keeper table has no client write grant. */
+  setKeeper(a: { warehouseId: string; userId: string; assigned: boolean }): Promise<void>;
+}
+
+/** Stock documents (#1512 S3): the posting RPCs and the document reads. No client write grant exists; every write is an RPC. */
+export interface StockDocumentsRepository {
+  list(f?: StockDocumentFilters): Promise<StockDocumentListRow[]>;
+  get(id: string): Promise<StockDocumentDetail | null>;
+  create(input: StockDocumentInput, opts: { post: boolean; clientRequestId: string }): Promise<string>;
+  saveDraft(id: string, input: StockDocumentInput): Promise<void>;
+  /** `revision`: the one the approver reviewed (FR-STK-062). */
+  post(id: string, revision?: number): Promise<void>;
+  /** Line unit costs, the cost itself only at rank >= 20 (FR-STK-063). */
+  costs(id: string): Promise<StockLineCost[]>;
+  cancel(id: string): Promise<void>;
+  issuableWorkItems(projectId: string): Promise<IssuableWorkItem[]>;
+  /** Posted issue lines of a project: what a Return may cite. */
+  issueLines(projectId: string): Promise<IssueLineRow[]>;
+}
+
+/** Stock reads (#1512 S3): cost keys are absent from the data below Project Manager rank. */
+export interface StockReportsRepository {
+  onHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }): Promise<StockOnHandRow[]>;
+  ledgerPage(f: StockLedgerFilters & { beforeSeq?: number; limit?: number }): Promise<StockLedgerPage>;
+  ledgerAll(f: StockLedgerFilters): Promise<StockLedgerRow[]>;
+}
+
+/** Project consumption vs allowance (#1512 S5): aggregated in SQL; value keys absent below Project Manager rank. */
+export interface StockConsumptionRepository {
+  report(projectId: string, from: string, to: string): Promise<ProjectConsumption>;
+}
+
+/** Material allowances on BoQ lines (#1512 S5). RLS decides who writes (PQ-7). */
+export interface StockAllowancesRepository {
+  list(projectId: string): Promise<MaterialAllowance[]>;
+  set(input: MaterialAllowanceInput): Promise<void>;
+  clear(id: string): Promise<void>;
+}
+
+/** Reorder levels (#1512 S6): the suggestion changes nothing; `setLevel` with a null level clears (FR-STK-051/053/054). */
+export interface StockReorderRepository {
+  suggestion(warehouseId: string, itemId: string): Promise<ReorderSuggestion>;
+  worklist(): Promise<BelowReorderRow[]>;
+  setLevel(a: { warehouseId: string; itemId: string; level: string | null; quantity?: string | null }): Promise<void>;
+}
+
+export interface StockRepository {
+  master: StockMasterRepository;
+  documents: StockDocumentsRepository;
+  reports: StockReportsRepository;
+  consumption: StockConsumptionRepository;
+  allowances: StockAllowancesRepository;
+  reorder: StockReorderRepository;
+}

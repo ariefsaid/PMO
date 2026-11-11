@@ -1,10 +1,36 @@
 # PMO Portal — live backlog (status + what's next)
 
+> **⚑ 2026-10-31: what's next now lives in the pinned GitHub issue "Roadmap: vision, the maps, and what's next" (#1571).**
+> Every open issue is triaged under a map there. The status below is historical (last refreshed 2026-10-19, v0.22.0);
+> for current versions run the four commands in CURRENT STATE.
+
 **This is the living status doc — read it first.** Shipped-program *history* lives in
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
 ### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
+
+**2026-11-05 — Odoo P9/C9 evidence (#1505/#1506):** `purchase.link-existing`, `cutover.purchase`, and
+`cutover.activation` are supported. **2026-11-07 update:** `purchase.push`, `bill.push`, `vendor-payment.push`,
+`purchase-order.revise` and `receipt.read` are now supported too: Odoo procurement runs the shared link check
+before adapter selection and the shared push suites' link cases run against that production resolver. `invoice.push` is supported;
+`invoice.pair-existing` and `tax-document.read` remain pending under #1506, while `cutover.revenue`
+remains pending under #1602. The vocabulary guard covers the purchase and revenue model and field terms.
+The P9 composite Odoo bed run covers order/revision, receipt, VAT/PPh bill, payment recovery and the
+different-Finance-user gate. Receipt interruption is covered by `odooReceipt.bed.test.ts`; bill and payment
+interruption are covered by `odooPayment.bed.test.ts`, through adapter/recovery calls. The P9 browser journey
+proves replay after a lost browser response. AC-OPP-062's sweep bed proves a lost bill-post response is
+linked and confirmed by one sweep tick with exactly one Odoo bill for that command, while an edited anchor
+remains held; the recovery round adds the same outbox proof for a payment create response lost after Odoo
+accepted it, including refusal of a second in-flight intent for that bill. Order, receipt and revision
+recovery remain covered by adapter and recovery unit tests, not by this sweep bed. Deno coverage also proves
+recorded-actor reauthorization, candidate reservation before dispatch, PO-family ownership handling and
+bounded order-composite adoption; amount-only adoption is refused. This is scoped implementation evidence,
+not a release-readiness decision. The C9 live
+Odoo bed composite passed both tests; its served AC-OCI-100 browser journey passed one Chromium journey plus
+ten setup checks, with persisted invoice/receipt rows and rendered e-Faktur, project, amounts, withholding
+and statuses. The shared-money-outbox behavior is already on `dev` from P6. This status does not make a
+release-to-`main` recommendation; that remains the owner's decision.
 
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
 **Dev gate:** regression #1182 is fixed in PR #1183 (`90fba37e`). The full dev browser run
@@ -337,7 +363,7 @@ git fetch -q origin && for b in production main dev; do \
   printf '%-11s %s %s\n' "$b" "$(git rev-parse --short origin/$b)" "$(git log -1 --format=%cs origin/$b)"; done
 git rev-list --count origin/production..origin/main   # what is on main and NOT deployed
 git rev-list --count origin/main..origin/dev          # what is on dev and NOT promoted
-supabase migration list --linked                      # the CLOUD DB's real migration level
+scripts/prod-read.sh -c "select max(version) from supabase_migrations.schema_migrations"   # the CLOUD DB's real migration level
 ```
 
 ⚑ **`main` → `production` needs an EXPLICIT, per-instance owner instruction naming production**
@@ -1180,7 +1206,7 @@ segment is in front of us.
 > **No longer a candidate.** The wayfinder route map (GitHub #459, charted 2026-08-18) places this
 > program inside milestone 1 (first client live). The batches and the OD-CR-* decisions below stand;
 > the **sequence at the bottom of this section was revised** — read that, not the July one.
-Source: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md)
+Source: (a competitor review, kept private)
 (four-way comparison: PMO main+dev vs our own RIS-portal-2 vs KANNA-recheck vs Cicle; moat thesis §1).
 **Prereq (SATISFIED 2026-08-18):** the integrations program had to land on `main` first. It was
 blocked in a three-way loop — parity waited on integrations, integrations' M365 acceptance was parked

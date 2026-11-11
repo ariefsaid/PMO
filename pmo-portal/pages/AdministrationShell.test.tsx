@@ -85,10 +85,37 @@ vi.mock('@/src/auth/useIsOperator', () => ({
     };
   },
 }));
-vi.mock('@/src/hooks/useUsers', () => ({
-  useUsers: () => listState,
-  useUserMutations: () => mutations,
-}));
+vi.mock('@/src/hooks/useUsers', () => {
+  type MockUser = { full_name: string; email: string; org_id: string; role: string; status: string };
+  type MockState = { data?: readonly unknown[] | null; isPending?: boolean; isError?: boolean; refetch?: () => unknown };
+  const directoryPage = (state: MockState, input: { pageSize?: number; page?: number; search?: string } = {}) => {
+    const size = input.pageSize || 50;
+    const pageNo = input.page || 1;
+    const term = String(input.search || '').trim().toLowerCase();
+    const all = (state.data || []) as MockUser[];
+    const matched = term ? all.filter((u) => u.full_name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term)) : all;
+    return {
+      data: { rows: matched.slice((pageNo - 1) * size, pageNo * size), total: matched.length },
+      isPending: state.isPending, isError: state.isError, isFetching: false, refetch: state.refetch,
+    };
+  };
+  const adminCounts = (state: MockState) => {
+    const out: Record<string, number> = {};
+    for (const u of (state.data || []) as MockUser[]) {
+      if (out[u.org_id] === undefined) out[u.org_id] = 0;
+      if (u.role === 'Admin' && u.status === 'active') out[u.org_id] += 1;
+    }
+    return { data: out, isPending: false, isError: false };
+  };
+  return {
+    useUsers: () => listState,
+    useUsersPage: (input: { page?: number; pageSize?: number; search?: string }) => directoryPage(listState, input),
+    useActiveAdminCounts: () => adminCounts(listState),
+    useUserFocusPage: () => ({ data: null, isPending: false, isError: false }),
+    useManagerChoices: () => listState,
+    useUserMutations: () => mutations,
+  };
+});
 vi.mock('@/src/hooks/useUsage', () => ({
   useUsage: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useAgentRunStats: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -155,14 +182,16 @@ vi.mock('./admin/OrgProjectClassificationOptions', () => ({ default: () => <div>
 vi.mock('./admin/OrgTaxDefault', () => ({ default: () => <div id="org-tax-default" tabIndex={-1}>Tax default panel</div> }));
 vi.mock('./admin/SpendApprovers', () => ({ default: () => <div id="spend-approvers" tabIndex={-1} /> }));
 vi.mock('./admin/OrgWithholdingAccount', () => ({ default: () => <h2 id="withholding-account-heading" tabIndex={-1}>Receipt withholding</h2> }));
-vi.mock('./admin/OrgVendorTaxAccounts', () => ({ default: () => <h2 id="vendor-tax-accounts-heading" tabIndex={-1}>Vendor bill tax accounts</h2> }));
+vi.mock('./admin/OrgVendorTaxAccounts', () => ({ default: () => <h2 id="vendor-tax-accounts-heading" tabIndex={-1}>Supplier bill tax accounts</h2> }));
 vi.mock('./admin/OrgDownPaymentItem', () => ({ default: () => <h2 id="down-payment-item-heading" tabIndex={-1}>Down payments</h2> }));
+vi.mock('./admin/OrgProcurementGates', () => ({ default: () => <h2 id="procurement-gates-heading" tabIndex={-1}>Purchase rules</h2> }));
 vi.mock('./admin/BudgetAccountMap', () => ({ default: () => {
   panelMounts.accounting += 1;
   return <div id="budget-account-map" tabIndex={-1}>Budget account map panel</div>;
 } }));
 // #775 phase B — proven by its own test (AC-EXP-130); kept off the network here like its BudgetAccountMap sibling.
 vi.mock('./admin/ExpenseAccountMap', () => ({ default: () => <div id="expense-account-map" tabIndex={-1} /> }));
+vi.mock('./admin/CostAttribution', () => ({ default: () => <div id="cost-attribution" tabIndex={-1}>Cost attribution panel</div> }));
 vi.mock('@/src/components/admin/AgentCostMetrics', () => ({
   AgentCostMetrics: () => <div>Agent cost metrics</div>,
 }));
@@ -243,9 +272,12 @@ describe('Administration route-backed shell', () => {
   it('AC-ADMIA-001/002: an org Admin starts on Users with only the Users panel mounted', async () => {
     renderShell('/administration');
 
-    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'));
+    // The Administration chunk now also carries the read-only Your plan page (S3), so the first
+    // navigation under a loaded machine needs more than the 1s default.
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'), { timeout: 5000 });
     expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getAllByRole('link')).toHaveLength(6);
+    // Seven organisation sections + Your plan (S3) for an Admin viewer.
+    expect(screen.getAllByRole('link')).toHaveLength(8);
     expect(screen.getByTestId('administration-panel-users')).toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-integrations')).not.toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
@@ -259,6 +291,29 @@ describe('Administration route-backed shell', () => {
     expect(panelMounts.features).toBe(0);
   });
 
+  it('AC-ACD-010: an Operator opens Usage from Administration', async () => {
+    renderShell('/administration', 'Admin', true);
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'));
+    await userEvent.click(screen.getByRole('link', { name: 'Usage' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/usage'));
+    expect(screen.getByTestId('administration-panel-usage')).toBeInTheDocument();
+  });
+
+  it('AC-CAT-018: an Admin can open Cost attribution from the Administration section navigation', async () => {
+    renderShell('/administration/cost-attribution');
+    const nav = await screen.findByRole('navigation', { name: 'Administration sections' });
+    const link = within(nav).getByRole('link', { name: 'Cost attribution' });
+    expect(link).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByTestId('administration-panel-cost-attribution')).toHaveTextContent('Cost attribution panel');
+  });
+
+  it('AC-CAT-019: an Executive sees Cost attribution as the current Administration destination', async () => {
+    renderShell('/administration/cost-attribution', 'Executive');
+    const nav = await screen.findByRole('navigation', { name: 'Administration sections' });
+    expect(within(nav).getByRole('link', { name: 'Cost attribution' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByTestId('administration-panel-cost-attribution')).toHaveTextContent('Cost attribution panel');
+  });
+
   it('Finance entering Administration still lands on Exchange rates', async () => {
     renderShell('/administration', 'Finance');
 
@@ -267,11 +322,33 @@ describe('Administration route-backed shell', () => {
     expect(screen.getByTestId('administration-panel-exchange-rates')).toHaveTextContent('Exchange rates panel');
   });
 
-  it('AC-ADMIA-002: an Operator sees all eight destinations and only mounts the requested panel', async () => {
+  it('AC-CAT-017: Finance sees Cost attribution beside Exchange rates, can open it, and sees no other Accounting setup', async () => {
+    renderShell('/administration/exchange-rates', 'Finance');
+    const nav = await screen.findByRole('navigation', { name: 'Administration sections' });
+    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual([
+      '/administration/exchange-rates',
+      '/administration/cost-attribution',
+    ]);
+    await userEvent.click(within(nav).getByRole('link', { name: 'Cost attribution' }));
+    await waitFor(() => expect(screen.getByTestId('administration-panel-cost-attribution')).toHaveTextContent('Cost attribution panel'));
+    expect(screen.getByRole('link', { name: 'Cost attribution' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
+    expect(panelMounts.accounting).toBe(0);
+  });
+
+  it('AC-CAT-017: Finance is still refused the rest of Accounting setup', async () => {
+    renderShell('/administration/accounting', 'Finance');
+    expect(await screen.findByText(/You don't have access/)).toBeInTheDocument();
+    expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('administration-panel-cost-attribution')).not.toBeInTheDocument();
+    expect(panelMounts.accounting).toBe(0);
+  });
+
+  it('AC-ADMIA-002: an Operator sees all ten destinations and only mounts the requested panel', async () => {
     const usageView = renderShell('/administration/usage', 'Admin', true);
 
     await waitFor(() => expect(screen.getByTestId('administration-panel-usage')).toBeInTheDocument());
-    expect(screen.getAllByRole('link')).toHaveLength(8);
+    expect(screen.getAllByRole('link')).toHaveLength(10);
     expect(screen.getByRole('link', { name: 'Usage' })).toHaveAttribute('aria-current', 'page');
     expect(screen.queryByTestId('administration-panel-users')).not.toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-features')).not.toBeInTheDocument();
@@ -301,6 +378,15 @@ describe('Administration route-backed shell', () => {
     renderShell('/administration/users', 'Executive');
 
     expect(screen.getByText(/only an Admin can add, edit, or disable users/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /invite user/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-AU-002b: an Engineer reaching /administration sees the Administration gate, not the directory', async () => {
+    renderShell('/administration', 'Engineer');
+
+    expect(await screen.findByText(/Administration is an Admin, Executive, or platform Operator area/i)).toBeVisible();
+    expect(screen.queryByTestId('administration-panel-users')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /invite user/i })).not.toBeInTheDocument();
   });
 
@@ -342,8 +428,9 @@ describe('Administration route-backed shell', () => {
       ['Default tax treatment', 'org-tax-default'],
       ['Spend approvers', 'spend-approvers'],
       ['Receipt withholding', 'withholding-account-heading'],
-      ['Vendor bill tax accounts', 'vendor-tax-accounts-heading'],
+      ['Supplier bill tax accounts', 'vendor-tax-accounts-heading'],
       ['Down payments', 'down-payment-item-heading'],
+      ['Purchase rules', 'procurement-gates-heading'],
       ['Budget account map', 'budget-account-map'],
       ['Expense account map', 'expense-account-map'],
     ] as const;
@@ -436,7 +523,7 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const links = within(nav).getAllByRole('link');
 
-    expect(links).toHaveLength(6);
+    expect(links).toHaveLength(8);
     for (const link of links) {
       // Native deep links: real href, keyboard-focusable (never tabindex=-1), never a button.
       expect(link.getAttribute('href')).toMatch(/^\/administration\//);
@@ -478,8 +565,10 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
       '/administration/integrations',
       '/administration/accounting',
       '/administration/projects',
+      '/administration/plan',
       '/administration/credits',
       '/administration/exchange-rates',
+      '/administration/cost-attribution',
     ]);
 
     // Focus the first section link, then Tab to each subsequent destination.
@@ -517,7 +606,7 @@ describe('AC-ADMIA-005 — Administration section touch targets (phone)', () => 
     renderShell('/administration/usage', 'Admin', true);
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const links = within(nav).getAllByRole('link');
-    expect(links).toHaveLength(8);
+    expect(links).toHaveLength(10);
     for (const link of links) {
       expect(link.className).toContain('touch-target');
     }

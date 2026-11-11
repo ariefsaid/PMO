@@ -8,15 +8,17 @@ const labels: ManagementPackExportLabels = {
   taxBasis: 'Tax basis', planned: 'Planned', recognised: 'Recognised', invoiced: 'Invoiced',
   recognisedToDate: 'Recognised to date', invoicedToDate: 'Invoiced to date', unbilled: 'Unbilled',
   backlog: 'Backlog', basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
-  basisInvoiced: 'Invoiced', basisProgress: 'Progress',
+  basisInvoiced: 'Invoiced', basisProgress: 'Progress', basisEarned: 'Earned value',
+};
+
+const contractProject = {
+  id: 'p1', name: 'Alpha', short_name: 'North Terminal', pmo_project_number: 'PRJ-26-0001', code: null, status: 'Ongoing Project',
+  currency: 'IDR', contract_net: 1_000, start_date: null, end_date: null, project_manager_id: null, client_name: 'Client A',
 };
 
 const facts: ManagementPackFacts = {
   from: '2026-01-01', to: '2026-02-01', timezone: 'Asia/Jakarta', org_currency: 'IDR', undated_invoice_count: 0,
-  projects: [{
-    id: 'p1', name: 'Alpha', pmo_project_number: 'PRJ-26-0001', code: null, status: 'Ongoing Project',
-    currency: 'IDR', contract_net: 1_000, start_date: null, end_date: null, project_manager_id: null, client_name: 'Client A',
-  }],
+  projects: [contractProject],
   invoiced: [
     { project_id: 'p1', currency: 'IDR', month: '2026-01-01', net: 100.5, invoice_count: 1 },
     { project_id: null, currency: 'IDR', month: '2026-02-01', net: 7, invoice_count: 1 },
@@ -32,6 +34,11 @@ describe('AC-MMP-011 management pack export', () => {
   const pack = buildManagementPack(facts);
   const table = buildManagementPackExport(pack, labels);
   const col = (name: string) => table.header.indexOf(name);
+
+  it('AC-003 #1325: workbook project cells use the contractual name, not the alias', () => {
+    expect(table.body[0][col('Project')]).toBe('Alpha');
+    expect(table.body[0][col('Project')]).not.toBe('North Terminal');
+  });
 
   it('AC-MMP-011: one row per pack row per month, then a total row per currency per month', () => {
     expect(table.body).toHaveLength(2 * 2 + 1 * 2);
@@ -82,6 +89,23 @@ describe('AC-MMP-011 management pack export', () => {
     expect(contractRows.map((row) => row[backlog])).toEqual(['', '']);
     expect(idrTotals.map((row) => row[backlog])).toEqual(['', '']);
     expect(contractRows[1][invoicedToDate]).toBe(100.5);
+  });
+
+  it('AC-831-2: a project billed in two currencies exports each row with its own currency and numeric money, never summed', () => {
+    const twoCurrencies = buildManagementPack({
+      ...facts,
+      invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-02-01', net: 250.5, invoice_count: 1 }],
+    });
+    const exported = buildManagementPackExport(twoCurrencies, labels);
+    const at = (name: string) => exported.header.indexOf(name);
+    const feb = exported.body.filter((row) => row[at('Month')] === '2026-02' && row[at('Project number')] === 'PRJ-26-0001');
+    const usd = feb.find((row) => row[at('Currency')] === 'USD');
+    const idr = feb.find((row) => row[at('Currency')] === 'IDR');
+    expect(usd?.[at('Invoiced to date')]).toBe(250.5);
+    expect(idr?.[at('Invoiced to date')]).toBe(100.5);
+    const totals = exported.body.filter((row) => row[at('Project')] === 'Total' && row[at('Month')] === '2026-02');
+    expect(totals.map((row) => row[at('Currency')]).sort()).toEqual(['IDR', 'USD']);
+    expect(totals.find((row) => row[at('Currency')] === 'USD')?.[at('Invoiced to date')]).toBe(250.5);
   });
 
   it('AC-MMP-011: the file name carries the as-at month', () => {

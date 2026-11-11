@@ -1,4 +1,4 @@
-import { expect, request as pwRequest, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { expect, request as pwRequest, test as playwrightTest, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +25,22 @@ export function visibleToast(page: Page, text: string | RegExp): Locator {
   return page.locator('[data-toast="visible"]').filter({ hasText: text });
 }
 
+/** Keep project-create journeys independent of the seeded ERP host; native project persistence remains real. */
+export async function stubErpProjectSync(page: Page): Promise<void> {
+  await page.route('**/functions/v1/external-set-company', async (route) => {
+    const body = route.request().postDataJSON() as { setupAction?: string } | null;
+    if (body?.setupAction === 'ensure-project') {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'ERP setup is unavailable for this project-create journey.' }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -33,6 +49,45 @@ export const AUTH_DIR = path.join(__dirname, '.auth');
 
 interface CapturedStorageState {
   origins: { origin: string; localStorage?: { name: string; value: string }[] }[];
+}
+
+const appOriginByPage = new WeakMap<Page, string>();
+
+/** Materialize the app origin without booting the SPA before its captured session is installed. */
+async function ensureAppOrigin(page: Page): Promise<void> {
+  const configuredBaseURL = playwrightTest.info().project.use.baseURL;
+  if (typeof configuredBaseURL !== 'string') {
+    throw new Error('signIn: Playwright project must configure baseURL before replaying captured storage.');
+  }
+  const appOrigin = new URL(configuredBaseURL).origin;
+  const knownOrigin = appOriginByPage.get(page);
+  const currentUrl = page.url();
+  if (knownOrigin === appOrigin && currentUrl !== 'about:blank' && new URL(currentUrl).origin === appOrigin) return;
+
+  const isRootDocument = (url: URL) =>
+    url.origin === appOrigin && url.pathname === '/' && !url.search && !url.hash;
+  const serveEmptyOriginDocument = async (route: Route) => {
+    const request = route.request();
+    if (!request.isNavigationRequest() || request.frame() !== page.mainFrame()) {
+      await route.continue();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<!doctype html><html><head></head><body></body></html>',
+    });
+  };
+
+  await page.route(isRootDocument, serveEmptyOriginDocument);
+  try {
+    await page.goto('/');
+  } finally {
+    await page.unroute(isRootDocument, serveEmptyOriginDocument);
+  }
+
+  appOriginByPage.set(page, new URL(page.url()).origin);
 }
 
 /**
@@ -94,9 +149,11 @@ export async function signIn(page: Page, email: string, password = SEED_PASSWORD
     throw new Error(`signIn: captured session fixture for "${email}" at ${statePath} has no localStorage entries.`);
   }
 
-  // First nav may land on /login (localStorage still empty on the first signIn of a fresh
-  // context) — that's fine, it just gives us the app origin to write localStorage against.
-  await page.goto('/');
+  // A fresh page needs the app origin before localStorage can be written. A temporary empty
+  // document provides that origin without paying for an unauthenticated SPA boot; later actor
+  // switches reuse the page's known app origin. The route is removed before the authenticated app
+  // navigation so it cannot affect the spec's own routes, filters, locale, or later user switches.
+  await ensureAppOrigin(page);
   await page.evaluate((items: { name: string; value: string }[]) => {
     localStorage.clear();
     for (const { name, value } of items) localStorage.setItem(name, value);
@@ -113,12 +170,12 @@ export async function signIn(page: Page, email: string, password = SEED_PASSWORD
 /**
  * Wait for web fonts to settle before a spec MEASURES layout (#713).
  *
- * The app's Inter faces use `font-display: swap`: text is first laid out in the fallback face and
- * re-laid-out when Inter arrives, so a `boundingBox()` / `getBoundingClientRect()` / `scrollWidth`
- * read in that window can see a different text width than the settled page and flip a result that
- * sits at a column boundary. Call this AFTER the content under test is visible (a face is only
- * requested once text using it is laid out — `document.fonts.ready` resolves immediately when
- * nothing has been requested yet) and BEFORE the first measurement.
+ * The app's Hanken Grotesk faces use `font-display: swap`: text is first laid out in the fallback
+ * face and re-laid-out when the webfont arrives, so a `boundingBox()` / `getBoundingClientRect()` /
+ * `scrollWidth` read in that window can see a different text width than the settled page and flip a
+ * result that sits at a column boundary. Call this AFTER the content under test is visible (a face
+ * is only requested once text using it is laid out — `document.fonts.ready` resolves immediately
+ * when nothing has been requested yet) and BEFORE the first measurement.
  * `scripts/check-e2e-fonts-ready.mjs` fails verify for a geometry-measuring spec that omits it.
  */
 export async function waitForFonts(page: Page): Promise<void> {
@@ -129,6 +186,35 @@ export async function waitForFonts(page: Page): Promise<void> {
 
 /** Alias for signIn — used by data-layer e2e specs (AC-4xx). */
 export const login = signIn;
+
+/**
+ * Pin the interface language WITHOUT a persisted profile write (one shared helper for the
+ * English-pinned shell journeys — AC-1201 / AC-AUTH-003 / UIP-002 lineage, #994; same
+ * technique as UXS-006).
+ *
+ * I18nProvider resolves the language ONLY from the signed-in profile (FR-L10N-003), so this
+ * rewrites the profile row the AuthProvider reads (`select=*&id=eq.<uid>`) to carry
+ * `locale: 'en'`. Read-only + parallel-safe, and immune to another session having drifted the
+ * shared local profile's saved locale. Install it BEFORE sign-in/sign-out (signIn/login/goto)
+ * so no DOM label ever observes the drifted locale.
+ */
+export async function pinEnglishLocale(page: Page): Promise<void> {
+  await page.route('**/rest/v1/profiles?*', async (route) => {
+    const url = route.request().url();
+    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
+    const response = await route.fetch({ maxRetries: 2 });
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      return route.fulfill({ response });
+    }
+    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
+      return route.fulfill({ response, json: { ...body, locale: 'en', number_locale: 'en-US' } });
+    }
+    return route.fulfill({ response, json: body });
+  });
+}
 
 /**
  * Robustly pick an option from one of the app's async FK Comboboxes (src/components/ui/Combobox.tsx).
@@ -276,6 +362,9 @@ export async function openPipelineCard(page: Page, dealName: string, within?: Lo
   await expect(card).toBeVisible({ timeout: 15_000 });
   await expect(async () => {
     await card.click();
+    // Desktop: a card opens the quick view; "Open deal" goes to the record. Phone goes straight there.
+    const openDeal = page.getByRole('button', { name: 'Open deal' });
+    if (await openDeal.isVisible().catch(() => false)) await openDeal.click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/, { timeout: 3_000 });
   }).toPass({ timeout: 30_000 });
 }
@@ -291,7 +380,7 @@ export async function openPipelineCard(page: Page, dealName: string, within?: Lo
  */
 export async function grantM365EntitlementFixture(page: Page): Promise<void> {
   await page.route('**/rest/v1/org_features*', async (route) => {
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     if (!response.ok()) {
       await route.fulfill({ response });
       return;
@@ -331,4 +420,13 @@ export async function stubM365StatusUnavailable(page: Page): Promise<void> {
       body: JSON.stringify({ error: 'INTERNAL_ERROR', message: 'stubbed' }),
     });
   });
+}
+
+/** Row action on an ERPNext document not in a purchase. Works whether the actions are two buttons or one "Link…" menu. */
+export async function clickOrphanAction(page: Page, row: Locator, action: 'Link to purchase' | 'New purchase from this') {
+  await expect(row).toBeVisible();
+  const direct = row.getByRole('button', { name: new RegExp(`^${action}`) });
+  if (await direct.count()) { await direct.first().click(); return; }
+  await row.getByRole('button', { name: /^Link\b/ }).click();
+  await page.getByRole('menuitem', { name: new RegExp(`^${action}`) }).click();
 }

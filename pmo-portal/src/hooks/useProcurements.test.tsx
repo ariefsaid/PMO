@@ -5,20 +5,36 @@ import React from 'react';
 
 const { ownershipState, ledgerSignal } = vi.hoisted(() => ({ ownershipState: { data: [] as { id: string; orgId: string; externalTier: string; domain: string }[] | undefined, isPending: false, isError: false }, ledgerSignal: vi.fn().mockResolvedValue(false) }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ownershipState }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { revenue: { getOrgReadsErpLedger: () => ledgerSignal() } } }));
 vi.mock('@/src/lib/db/procurements', () => ({ 
   listProcurements: vi.fn().mockResolvedValue([
     { id: 'pc1', title: 'Workstations & AV', project: null, vendor: null, requested_by: null },
   ]),
   listProcurementsByProject: vi.fn().mockResolvedValue([{ id: 'pc9', project_id: 'proj-1' }]),
-  getProjectCommittedSpend: vi.fn().mockResolvedValue(200000),
+  getProjectCommittedSpend: vi.fn().mockResolvedValue({ amount: 200000, otherCurrencies: [{ currency: 'EUR', amount: 900 }] }),
+  getProjectReservedSpend: vi.fn().mockResolvedValue({ amount: 100, projectCurrency: 'USD', budgetCurrency: 'USD', otherCurrencies: [{ currency: 'EUR', amount: 20 }] }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-import { procurementsKey, useProcurements, useProjectProcurements, useProjectCommittedSpend } from './useProcurements';
-import { listProcurements, listProcurementsByProject, getProjectCommittedSpend } from '@/src/lib/db/procurements';
+// The procurement repository methods delegate to the mocked DAL, so every assertion below stays on the DAL calls.
+vi.mock('@/src/lib/repositories', async () => {
+  const dal = await import('@/src/lib/db/procurements');
+  return {
+    repositories: {
+      revenue: { getOrgReadsErpLedger: () => ledgerSignal() },
+      procurement: {
+        list: (opts?: Parameters<typeof dal.listProcurements>[0]) => dal.listProcurements(opts),
+        listByProject: (id: string) => dal.listProcurementsByProject(id),
+        getProjectCommittedSpend: (id: string) => dal.getProjectCommittedSpend(id),
+        getProjectReservedSpend: (id: string) => dal.getProjectReservedSpend(id),
+      },
+    },
+  };
+});
+
+import { procurementsKey, useProcurements, useProjectProcurements, useProjectCommittedSpend, useProjectReservedSpend } from './useProcurements';
+import { listProcurements, listProcurementsByProject, getProjectCommittedSpend, getProjectReservedSpend } from '@/src/lib/db/procurements';
 
 const wrap = ({ children }: { children: React.ReactNode }) => (
   <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
@@ -36,6 +52,66 @@ describe('useProcurements', () => {
     expect(listProcurements).toHaveBeenCalled();
     expect(client.getQueryData(procurementsKey('org-1'))).toBe(result.current.data);
   });
+
+  it('keeps the shared list shape in its own cache entry and requests its batch detail inputs', async () => {
+    vi.mocked(listProcurements).mockClear();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProcurements({ withRefs: true, withSharedDetails: true }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(listProcurements).toHaveBeenCalledWith({ withRefs: true, withSharedDetails: true });
+    expect(client.getQueryData(procurementsKey('org-1', true, true))).toBe(result.current.data);
+  });
+});
+
+describe('useProcurements lean', () => {
+  it('PERF-DASH-1: the lean list has its own cache entry and asks the DAL for the lean select', async () => {
+    vi.mocked(listProcurements).mockClear();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProcurements({ lean: true }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(listProcurements).toHaveBeenCalledWith({ lean: true });
+    expect(client.getQueryData(['procurements', 'org-1', 'lean-list'])).toBe(result.current.data);
+  });
+});
+
+describe('useProcurements lean without routes', () => {
+  it('PERF-FIN-1: asks the DAL to skip approval routes, under its own cache entry', async () => {
+    vi.mocked(listProcurements).mockClear();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProcurements({ lean: true, withoutRoutes: true }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(listProcurements).toHaveBeenCalledWith({ lean: true, withoutRoutes: true });
+    expect(client.getQueryData(['procurements', 'org-1', 'lean-list-no-routes'])).toBe(result.current.data);
+  });
+});
+
+describe('useProcurements requested-only (approvals queue)', () => {
+  it('PERF-APPR-1: reads only Requested rows under its own key inside the list prefix, so an approve refetches the queue', async () => {
+    vi.mocked(listProcurements).mockClear();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProcurements({ status: 'Requested' }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(listProcurements).toHaveBeenCalledWith({ status: 'Requested' });
+    expect(client.getQueryData(['procurements', 'org-1', 'requested'])).toBe(result.current.data);
+    expect(client.getQueryData(procurementsKey('org-1'))).toBeUndefined();
+
+    // The transition's own invalidation (prefix ['procurements', orgId]) must reach the queue key.
+    vi.mocked(listProcurements).mockClear();
+    await client.invalidateQueries({ queryKey: ['procurements', 'org-1'] });
+    await waitFor(() => expect(listProcurements).toHaveBeenCalledWith({ status: 'Requested' }));
+  });
 });
 
 describe('useProjectCommittedSpend (AC-IXD-PROC-W5-2, DD-MONEY-3)', () => {
@@ -50,6 +126,8 @@ describe('useProjectCommittedSpend (AC-IXD-PROC-W5-2, DD-MONEY-3)', () => {
     const { result } = renderHook(() => useProjectCommittedSpend('proj-1', true), { wrapper: wrap });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toBe(200000);
+    // 0373: other currencies travel beside the project-currency figure, never inside it.
+    expect(result.current.otherCurrencies).toEqual([{ currency: 'EUR', amount: 900 }]);
     expect(result.current.commitmentSource).toBe('pmo');
     expect(getProjectCommittedSpend).toHaveBeenCalledWith('proj-1');
   });
@@ -111,5 +189,24 @@ describe('useProjectProcurements (AC-OVERFETCH-002)', () => {
     const { result } = renderHook(() => useProjectProcurements(undefined), { wrapper: wrap });
     expect(result.current.fetchStatus).toBe('idle');
     expect(listProcurementsByProject).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('useProjectReservedSpend', () => {
+  it('carries the project and budget currencies alongside separate positions', async () => {
+    const { result } = renderHook(() => useProjectReservedSpend('proj-1'), { wrapper: wrap });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBe(100);
+    expect(result.current.projectCurrency).toBe('USD');
+    expect(result.current.budgetCurrency).toBe('USD');
+    expect(result.current.otherCurrencies).toEqual([{ currency: 'EUR', amount: 20 }]);
+    expect(getProjectReservedSpend).toHaveBeenCalledWith('proj-1');
+  });
+  it('does not fetch without a project', () => {
+    vi.mocked(getProjectReservedSpend).mockClear();
+    const { result } = renderHook(() => useProjectReservedSpend(null), { wrapper: wrap });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(getProjectReservedSpend).not.toHaveBeenCalled();
   });
 });

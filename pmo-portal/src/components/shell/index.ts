@@ -1,8 +1,8 @@
-export { AppShell, type AppShellProps } from './AppShell';
+export { AppShell } from './AppShell';
 export { Rail } from './Rail';
-export { ContextBar, type ContextBarProps } from './ContextBar';
-export { CommandPalette, type PaletteItem, type CommandPaletteProps } from './CommandPalette';
-export { Breadcrumb, type BreadcrumbPart, type BreadcrumbProps } from './Breadcrumb';
+export { ContextBar } from './ContextBar';
+export { CommandPalette, type PaletteItem } from './CommandPalette';
+export { Breadcrumb, type BreadcrumbPart } from './Breadcrumb';
 export { BackBar, type BackBarProps } from './BackBar';
 export {
   MODULES,
@@ -11,6 +11,7 @@ export {
   agentEntityForPath,
   breadcrumbForPath,
   recordLabelForPath,
+  recordContractualNameForPath,
   recordStatusForPath,
   recordStatusGroupForPath,
   deriveRailActiveOverride,

@@ -35,6 +35,7 @@ const TONE_CLASS: Record<ProgressTone, string> = {
   warning: 'bg-warning',
   destructive: 'bg-destructive',
   primary: 'bg-primary',
+  neutral: 'bg-muted-foreground/55',
 };
 
 /**
@@ -59,7 +60,8 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   'aria-label': ariaLabel,
 }) => {
   const over = value > 100;
-  const width = Math.max(0, Math.min(100, value));
+  const clampedValue = Math.max(0, Math.min(100, value));
+  const width = clampedValue;
   const resolvedTone: ProgressTone = over ? 'destructive' : (tone ?? thresholdTone(value));
 
   const wrapperCls = widthless
@@ -73,9 +75,10 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
       <span
         role="progressbar"
         aria-label={ariaLabel}
-        aria-valuenow={value}
+        aria-valuenow={clampedValue}
         aria-valuemin={0}
         aria-valuemax={100}
+        aria-valuetext={`${value}%`}
         className={cn('h-[7px] flex-1 overflow-hidden rounded-full bg-secondary', !widthless && (compact ? 'min-w-[48px]' : 'min-w-[70px]'))}
       >
         <span

@@ -4,13 +4,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // (the awaited one) resolves the queued result; we assert the recorded calls.
 // Mirrors src/lib/db/companies.test.ts (the reference template).
 const h = vi.hoisted(() => {
-  const result = { value: { data: null as unknown, error: null as unknown } };
+  const result = { value: { data: null as unknown, error: null as unknown, count: undefined as number | null | undefined } as { data: unknown; error: unknown; count?: number | null } };
   const calls = {
     from: [] as unknown[],
     select: [] as unknown[],
     eq: [] as unknown[],
     is: [] as unknown[],
     order: [] as unknown[],
+    or: [] as unknown[],
+    range: [] as unknown[],
     insert: [] as unknown[],
     update: [] as unknown[],
     delete: 0,
@@ -30,6 +32,8 @@ const h = vi.hoisted(() => {
   builder.eq = chain('eq');
   builder.is = chain('is');
   builder.order = chain('order');
+  builder.or = chain('or');
+  builder.range = chain('range');
   builder.insert = chain('insert');
   builder.update = chain('update');
   builder.delete = chain('delete');
@@ -47,6 +51,8 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 
 import {
   listIncidents,
+  listIncidentsPage,
+  countIncidents,
   getIncident,
   createIncident,
   updateIncident,
@@ -61,7 +67,7 @@ beforeEach(() => {
     if (typeof h.calls[k] === 'number') (h.calls[k] as unknown) = 0;
     else (h.calls[k] as unknown[]).length = 0;
   }
-  h.result.value = { data: null, error: null };
+  h.result.value = { data: null, error: null, count: undefined };
 });
 
 describe('AC-IN-001 listIncidents (org-scoped, newest first)', () => {
@@ -94,6 +100,57 @@ describe('AC-IN-001 listIncidents (org-scoped, newest first)', () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(listIncidents()).rejects.toMatchObject({ message: 'denied', code: '42501' });
     await expect(listIncidents()).rejects.toBeInstanceOf(AppError);
+  });
+});
+
+describe('#1991 listIncidentsPage (server-side status filter, search, paging)', () => {
+  it('requests one exact-counted page: range, newest first with a total order, no org_id', async () => {
+    h.result.value = { data: [{ id: 'i1' }], error: null, count: 120 };
+    const page = await listIncidentsPage({ page: 3, pageSize: 50 });
+    expect(h.calls.select).toContainEqual(['*', { count: 'exact' }]);
+    expect(h.calls.range).toContainEqual([100, 149]);
+    expect(h.calls.order).toContainEqual(['incident_date', { ascending: false }]);
+    expect(h.calls.order).toContainEqual(['id', { ascending: true }]);
+    expect(JSON.stringify(h.calls)).not.toContain('org_id');
+    expect(page).toEqual({ rows: [{ id: 'i1' }], total: 120 });
+  });
+
+  it('applies the status filter and the escaped type/location search on the server', async () => {
+    h.result.value = { data: [], error: null, count: 0 };
+    await listIncidentsPage({ page: 1, pageSize: 50, status: 'Closed', search: ' 100%_"x ' });
+    expect(h.calls.eq).toContainEqual(['status', 'Closed']);
+    expect(h.calls.or).toContainEqual('type.ilike."%100\\%\\_\\"x%",location.ilike."%100\\%\\_\\"x%"');
+  });
+
+  it('sends no status or search clause when unfiltered', async () => {
+    h.result.value = { data: [], error: null, count: 0 };
+    await listIncidentsPage({ page: 1, pageSize: 50 });
+    expect(h.calls.eq).toEqual([]);
+    expect(h.calls.or).toEqual([]);
+  });
+
+  it('throws AppError (code kept) on a read error and when the total is unresolved', async () => {
+    h.result.value = { data: null, error: { message: 'denied', code: '42501' }, count: null };
+    await expect(listIncidentsPage({ page: 1, pageSize: 50 })).rejects.toMatchObject({ code: '42501' });
+    h.result.value = { data: [], error: null, count: null };
+    await expect(listIncidentsPage({ page: 1, pageSize: 50 })).rejects.toMatchObject({ code: 'COUNT_UNRESOLVED' });
+  });
+});
+
+describe('#1991 listIncidents (full set for export, honours status + search)', () => {
+  it('applies the status filter and the escaped search to the full read', async () => {
+    h.result.value = { data: [{ id: 'i1' }], error: null };
+    await listIncidents({ status: 'Closed', search: ' 100% ' });
+    expect(h.calls.eq).toContainEqual(['status', 'Closed']);
+    expect(h.calls.or).toContainEqual('type.ilike."%100\\%%",location.ilike."%100\\%%"');
+  });
+});
+
+describe('#1991 countIncidents (unfiltered total, head count, no row bodies)', () => {
+  it('reads an exact head count', async () => {
+    h.result.value = { data: null, error: null, count: 7 };
+    await expect(countIncidents()).resolves.toBe(7);
+    expect(h.calls.select).toContainEqual(['id', { count: 'exact', head: true }]);
   });
 });
 

@@ -1,0 +1,201 @@
+/** People, operator, usage, views and org-settings contracts. */
+import type { OrgVendorTaxAccounts, OrgWithholdingAccounts, ProjectClassificationOptions, OrgLifecycleState, OrgLocaleDefaultsRow } from '@/src/lib/db/orgs';
+import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
+import type { ProcurementGates } from '@/src/lib/db/orgs';
+import type { ProfileRow } from '@/src/lib/db/profiles';
+import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput, UserDirectoryPage, UserFocusLocation, UserManagerChoice } from '@/src/lib/db/adminUsers';
+import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
+import type { UserViewRow, UserViewListRow, UserViewInput } from '@/src/lib/db/userViews';
+import type {
+  UsageSummaryRow,
+  OperatorUsageSummaryRow,
+  OperatorOrgRow,
+  RunStatsRow,
+  OperatorRunStatsRow,
+} from '@/src/lib/db/usage';
+import type { OrgFeatureKey, ResolvedFeatureSet } from '@/src/lib/features';
+import type { PlanCatalogue, PlanRow } from '@/src/lib/db/orgFeatures';
+import type { OrgPlan } from '@/src/lib/db/orgPlan';
+import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
+
+export interface ProfileRepository {
+  listProjectManagers(): Promise<ProfileRow[]>;
+  /** All profiles in the org — the Tasks assignee picker source. */
+  listOrgProfiles(): Promise<ProfileRow[]>;
+  /** All profiles in the caller's org — the Administration › Users directory + manager FK picker. */
+  listUsers(): Promise<UserRow[]>;
+  /**
+   * ONE server page of the Administration › Users directory (explicit directory projection,
+   * exact whole-org total, server name/email search, total order). The full `listUsers()` above
+   * stays the picker source: a picker must never see only the visible page.
+   */
+  listUsersPage(input: { page: number; pageSize: number; search?: string }): Promise<UserDirectoryPage>;
+  /**
+   * The change-manager picker's COMPLETE choice set (id, full name, role only) across all pages —
+   * read lazily when the dialog opens, never on a directory visit. The whole `listUsers()` above
+   * stays the picker source for other screens.
+   */
+  listManagerChoices(): Promise<UserManagerChoice[]>;
+  /** Active Admins per org (HEAD counts) — the sole-Admin lockout predicate. `null` = unresolved. */
+  countActiveAdminsByOrg(orgIds: readonly string[]): Promise<Record<string, number | null>>;
+  /** The bounded page of ONE person in the directory order (manager jump), or null if unreadable. */
+  findUserPage(input: { userId: string; pageSize: number }): Promise<UserFocusLocation | null>;
+  /** Change a user's role (Admin-only via profiles_admin_write RLS). */
+  updateUserRole(id: string, role: UserRole): Promise<void>;
+  /** Assign (or clear, with null) a user's line manager (Admin-only via profiles_admin_write RLS). */
+  assignUserManager(id: string, managerId: string | null): Promise<void>;
+  /** Invite a new user via the admin-invite-user edge fn (Admin-in-org OR Operator). */
+  inviteUser(input: InviteUserInput): Promise<void>;
+  /** Disable/re-enable a user via the admin_set_user_status RPC (Admin-in-org OR Operator). */
+  setUserStatus(input: SetUserStatusInput): Promise<void>;
+}
+
+export interface OperatorRepository {
+  /** Clarity projection ONLY (ADR-0049) — every Operator power is re-asserted server-side. */
+  isOperator(): Promise<boolean>;
+}
+
+export interface UsageRepository {
+  /** The caller's own-org usage aggregate (org-Admin path). Aggregates ONLY — NFR-PRIV-001. */
+  getOrgUsageSummary(): Promise<UsageSummaryRow[]>;
+  /** The Operator's usage aggregate — all orgs when orgId is omitted, one org when supplied. */
+  getOperatorUsageSummary(orgId?: string | null): Promise<OperatorUsageSummaryRow[]>;
+  /** Directory columns ONLY (FR-OPR-004) — the Operator org-switcher source. */
+  listOperatorOrgs(): Promise<OperatorOrgRow[]>;
+  /** The caller's own-org per-run cost/latency stats (org-Admin path). Aggregates ONLY — NFR-PRIV-001. */
+  getOrgAgentRunStats(): Promise<RunStatsRow[]>;
+  /** The Operator's per-run cost/latency stats — all orgs when orgId is omitted, one org when supplied. */
+  getOperatorAgentRunStats(orgId?: string | null): Promise<OperatorRunStatsRow[]>;
+}
+
+export interface UserViewRepository {
+  /** The caller's non-archived visible views (owner + shared_org in-org), newest write first. */
+  list(): Promise<UserViewListRow[]>;
+  /** A single view by id, or null when not found / not readable (RLS-scoped out). */
+  get(id: string): Promise<UserViewRow | null>;
+  /** Create a view (org_id + user_id stamped by RLS, never sent; spec is opaque). */
+  create(input: UserViewInput): Promise<UserViewRow>;
+  /** Update a view's editable fields (owner or Admin at the RLS layer). */
+  update(id: string, input: UserViewInput): Promise<void>;
+  /** Soft-archive a view (stamps archived_at; ADR-0018). */
+  archive(id: string): Promise<void>;
+  /** Hard-delete a view (owner or Admin at the RLS layer). */
+  delete(id: string): Promise<void>;
+}
+
+/**
+ * Org accounting settings (`OD-TAX-1`, migration 0207). Read is own-org (RLS-scoped, every member
+ * needs it to pre-select a form control); the write is Admin-only, enforced by an RLS policy plus a
+ * column-scoped UPDATE grant so `default_tax_treatment` is the only column a client can move.
+ *
+ * ⛔ `getTaxDefault` returns a form-time hint and nothing else. It must never be consulted to
+ * decide what a STORED figure means — see `src/lib/db/orgs.ts` for why that inference is
+ * unrecoverable.
+ */
+export interface OrgSettingsRepository {
+  /** The org's default currency code (own-org read). */
+  getDefaultCurrency(): Promise<string>;
+  /** The org's locale/timezone defaults used to resolve a user's effective locale. */
+  getLocaleDefaults(): Promise<OrgLocaleDefaultsRow>;
+  /** The org lifecycle state, or null when unreadable. */
+  getLifecycleState(): Promise<OrgLifecycleState | null>;
+  /** The stored PMO project-number pattern; null is the system default. */
+  getProjectNumberPattern(): Promise<string | null>;
+  /** Strict own-org timezone read for the project-number business-year preview. */
+  getProjectNumberTimezone(): Promise<{ timezone: string | null }>;
+  /** Admin-only: set the PMO project-number pattern; the system default normalizes to null. */
+  setProjectNumberPattern(value: string | null): Promise<void>;
+  getWithholdingAccounts(): Promise<OrgWithholdingAccounts>;
+  setWithholdingAccounts(input: OrgWithholdingAccounts): Promise<void>;
+  /** #876 slice 2: the ERPNext accounts a vendor bill's entered VAT / PPh post to (Admin writes). */
+  getVendorTaxAccounts(): Promise<OrgVendorTaxAccounts>;
+  setVendorTaxAccounts(input: OrgVendorTaxAccounts): Promise<void>;
+  getDownPaymentItem(): Promise<string | null>;
+  getProcurementGates(): Promise<ProcurementGates>;
+  setProcurementGates(patch: Partial<ProcurementGates>): Promise<ProcurementGates>;
+  setDownPaymentItem(item: string | null): Promise<void>;
+  getProjectClassificationOptions(): Promise<ProjectClassificationOptions>;
+  setProjectClassificationOptions(options: ProjectClassificationOptions): Promise<void>;
+  /** The org's pre-selection for a NEW row's tax treatment; null when it cannot be read. */
+  getTaxDefault(): Promise<TaxTreatment | null>;
+  /** Admin-only: change the org's pre-selection. Does not touch a single existing row. */
+  setTaxDefault(value: TaxTreatment): Promise<void>;
+  /** #803: the org's spend approvers (senior set + project approvers); every active member reads. */
+  listSpendApprovers(): Promise<SpendApproverRow[]>;
+  /** #803, Admin-only (RLS): name an approver — `projectId` null = the overhead/over-budget set. */
+  addSpendApprover(profileId: string, projectId: string | null): Promise<void>;
+  /** #803, Admin-only (RLS): remove one approver row. */
+  removeSpendApprover(id: string): Promise<void>;
+}
+
+/**
+ * org_features repository (ops-admin-surface S6, FR-ENT-001..004). Read is own-org (RLS-scoped);
+ * toggle is the Operator-only `operator_toggle_feature` RPC (rejects core keys with `P0001`).
+ */
+export interface OrgFeatureRepository {
+  /**
+   * The caller's own-org resolved set — ONE call to the database projection (FR-PLN-005): the
+   * display map navigation/routes read plus the per-key state/source the console and Your plan read.
+   */
+  listOwn(): Promise<ResolvedFeatureSet>;
+  /** The resolved set of one organisation (Operator console; the RPC re-asserts the Operator). */
+  listForOrg(orgId: string): Promise<ResolvedFeatureSet>;
+  /**
+   * Operator console: the override keys that EXIST for one org, independently of whether an
+   * all-orgs off currently outranks them (so a dormant override stays clearable).
+   */
+  listOverrides(orgId: string): Promise<OrgFeatureKey[]>;
+  /** Operator console: every plan, its limits, the plan matrix and the all-orgs flags. */
+  getPlanCatalogue(): Promise<PlanCatalogue>;
+  /** Operator console: the plan assigned to one org (null = unassigned, resolves as Enterprise). */
+  getOrgPlan(orgId: string): Promise<string | null>;
+  /** Read-only Admin page: the caller's own plan and limits (FR-PLN-014). */
+  getOwnPlan(): Promise<PlanRow | null>;
+  /** Set (upsert) a per-org override via the Operator-only RPC. */
+  toggle(args: { orgId: string; key: OrgFeatureKey; enabled: boolean }): Promise<void>;
+  /** Remove a per-org override so the key falls back to the plan. */
+  clearOverride(args: { orgId: string; key: OrgFeatureKey }): Promise<void>;
+  /** Assign a plan to an org. */
+  setOrgPlan(args: { orgId: string; planId: string }): Promise<void>;
+  /** Flip one key for every org (a global off outranks any override). */
+  setGlobal(args: { key: OrgFeatureKey; enabled: boolean }): Promise<void>;
+  /** Flip one key inside one plan's default set. */
+  setPlanFeature(args: { planId: string; key: OrgFeatureKey; enabled: boolean }): Promise<void>;
+  /** Replace a plan's limits (null = unlimited / per contract). */
+  setPlanLimits(args: {
+    planId: string;
+    seatLimit: number | null;
+    projectLimit: number | null;
+    aiMonthlyMessages: number | null;
+  }): Promise<void>;
+  /** Admin-only: switch feedback and surveys for the caller's own org (migration 0419). */
+  setFeedbackSurveys(enabled: boolean): Promise<void>;
+  /**
+   * Plans S4 (FR-PLN-016) / S3: the caller's own org plan via the member-scoped `resolved_org_plan()`
+   * projection (migration 0537 — own org, active member). `null` when it cannot be resolved (the RPC is
+   * not deployed yet, no session, transport error); never throws — a plan read is analytics and UI only.
+   */
+  currentPlan(): Promise<OrgPlan | null>;
+}
+
+/**
+ * Credits repository (ops-admin-surface S6). Balance read is own-org via the security-definer
+ * `org_credit_balance` RPC (FR-CRE-002); grant is the Operator-only `operator_grant_credits`
+ * RPC (FR-CRE-005, rejects `amount <= 0` with errcode `23514`).
+ */
+export interface CreditsRepository {
+  /** The org's credit-pool balance (grants − usage). */
+  getOrgBalance(orgId: string): Promise<number>;
+  /** Operator-only credit grant into the org pool. */
+  grant(args: { orgId: string; amount: number; note: string }): Promise<void>;
+}
+
+/**
+ * external_domain_ownership repository (ADR-0055 P0, FR-EAS-007, AC-EAS-015). READ ONLY by
+ * design — the caller's own-org employed external tiers + externally-owned domains (the
+ * read-only Integrations view source). No write method exists here: writes are Operator-only
+ * via the `operator_set_domain_ownership` RPC, never a client-side repository writer.
+ */
+export interface ExternalDomainOwnershipRepository {
+  listOwn(): Promise<ExternalDomainOwnershipRow[]>;
+}

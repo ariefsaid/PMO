@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { StatTiles, type StatTile } from '../StatTiles';
 
 // ---------------------------------------------------------------------------
@@ -12,7 +12,8 @@ import { StatTiles, type StatTile } from '../StatTiles';
 //
 // AC-METRIC-TILE-CLIP-001 (metric-tile-clip-mobile fix): when tile count is odd,
 // the last tile spans the full 2-col width on mobile (col-span-2) so the bottom
-// row is never a half-empty visual "clipped" cell. sm:col-span-1 resets at tablet+.
+// row is never a half-empty visual "clipped" cell. The span reset applies once the N-col
+// container layout activates (tidy sweep: container queries, not viewport breakpoints).
 // ---------------------------------------------------------------------------
 
 const tiles: StatTile[] = [
@@ -32,13 +33,12 @@ describe('StatTiles', () => {
     expect(screen.getByText('$1,200,000', { selector: '.sr-only' })).toBeInTheDocument();
   });
 
-  it('AC-RD-UNAVAIL-001: unavailable stat shows a dash whose reason opens on focus, never as prose in the figure', () => {
+  it('AC-MONEY-DISPLAY: unknown stat omits the amount and shows the reason once', () => {
     render(<StatTiles tiles={[{ label: 'Contract', value: 'Unavailable', unavailableReason: 'Budget not loaded' }]} />);
-    const dash = screen.getByRole('button', { name: 'Budget not loaded' });
-    expect(dash).toHaveTextContent('—');
+    expect(screen.getByRole('status')).toHaveTextContent('Budget not loaded');
+    expect(screen.queryByText('—')).not.toBeInTheDocument();
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
-    act(() => dash.focus());
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Budget not loaded');
+    expect(screen.queryByRole('button', { name: 'Budget not loaded' })).not.toBeInTheDocument();
   });
 
   it('renders every tile (label + value)', () => {
@@ -72,11 +72,13 @@ describe('StatTiles', () => {
     expect(strip.className).not.toContain('overflow-x-auto');
   });
 
-  it('respects the columns prop for the sm+ grid layout (sm:grid-cols-{n} class)', () => {
+  it('respects the columns prop for the wide-container grid layout (@3xl:grid-cols-4 class)', () => {
     const { container } = render(<StatTiles tiles={tiles} columns={4} />);
     const strip = container.querySelector('[data-testid="stat-tiles"]') as HTMLElement;
-    // The sm:grid-cols-4 class drives the equal-width grid at tablet/desktop
-    expect(strip.className).toContain('sm:grid-cols-4');
+    // The @3xl:grid-cols-4 container class drives the equal-width grid once the strip's own
+    // container fits four tiles (tidy sweep: container queries, not viewport sm:)
+    expect(strip.className).toContain('@3xl:grid-cols-4');
+    expect(strip.className).toContain('@container');
   });
 
   it('renders a tile sub-text when provided', () => {
@@ -91,16 +93,18 @@ describe('StatTiles', () => {
   // Given: a StatTiles strip with an odd number of tiles (5 or 3)
   // When: rendered in a 2-col mobile grid
   // Then: the last tile spans both columns (col-span-2) so the bottom row is
-  //       never a half-empty visual "clipped" cell; sm:col-span-1 resets at sm+.
+  //       never a half-empty visual "clipped" cell; the span reset applies once the N-col
+  //       container layout activates.
 
-  it('AC-METRIC-TILE-CLIP-001: odd tile count (5) — last tile has col-span-2 + sm:col-span-1', () => {
+  it('AC-METRIC-TILE-CLIP-001: odd tile count (5) — spans mobile rows, resets at the 5-col container', () => {
     const { container } = render(<StatTiles tiles={tiles} columns={5} />);
     const allTiles = container.querySelectorAll('[data-testid="stat-tile"]');
     expect(allTiles).toHaveLength(5);
     const lastTile = allTiles[allTiles.length - 1] as HTMLElement;
-    // Must carry col-span-2 for mobile (fills the bottom row) + sm:col-span-1 reset
+    // col-span-2 fills the mobile bottom row; the reset applies once the 5-col container
+    // layout activates (@5xl), after the intermediate 3-col stage keeps it spanning.
     expect(lastTile.className).toContain('col-span-2');
-    expect(lastTile.className).toContain('sm:col-span-1');
+    expect(lastTile.className).toContain('@5xl:col-span-1');
   });
 
   it('AC-METRIC-TILE-CLIP-001: even tile count (4) — no tile carries col-span-2', () => {
@@ -129,7 +133,7 @@ describe('StatTiles', () => {
     expect(allTiles).toHaveLength(3);
     const lastTile = allTiles[allTiles.length - 1] as HTMLElement;
     expect(lastTile.className).toContain('col-span-2');
-    expect(lastTile.className).toContain('sm:col-span-1');
+    expect(lastTile.className).toContain('@xl:col-span-1');
   });
 
   // ── content-over-containers (monochrome-calm reskin, L2-RECORD) ──────────
@@ -144,9 +148,9 @@ describe('StatTiles', () => {
     expect(strip.className).not.toContain('border-border');
     expect(strip.className).not.toContain('bg-border');
     expect(strip.className).not.toContain('rounded-lg');
-    // Responsive layout preserved (mobile 2-col + sm:grid-cols-5)
+    // Responsive layout preserved (mobile 2-col + the 5-col container layout)
     expect(strip.className).toContain('grid-cols-2');
-    expect(strip.className).toContain('sm:grid-cols-5');
+    expect(strip.className).toContain('@5xl:grid-cols-5');
     // Cells are borderless too — no card fill, no end-cap rounding
     const firstCell = container.querySelector('[data-testid="stat-tile"]') as HTMLElement;
     expect(firstCell.className).not.toContain('bg-card');
@@ -158,6 +162,6 @@ describe('StatTiles', () => {
     const allTiles = container.querySelectorAll('[data-testid="stat-tile"]');
     const lastTile = allTiles[allTiles.length - 1] as HTMLElement;
     expect(lastTile.className).toContain('col-span-2');
-    expect(lastTile.className).toContain('sm:col-span-1');
+    expect(lastTile.className).toContain('@5xl:col-span-1');
   });
 });

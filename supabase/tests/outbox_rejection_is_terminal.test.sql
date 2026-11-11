@@ -26,8 +26,8 @@ insert into external_command_outbox (id, org_id, domain, pmo_record_id, idempote
 values
   -- 1: a rejected CANCEL (transition) — never auto-reissued, at any age/attempt count.
   ('00d10000-0000-0000-0000-0000000000f1','00d10000-0000-0000-0000-000000000001','revenue','si-1','k-f1','erpnext','transition','failed',1, now(), now()),
-  -- 2: a rejected CREATE within budget + age — still auto-recoverable (the transport-class retry).
-  ('00d10000-0000-0000-0000-0000000000f2','00d10000-0000-0000-0000-000000000001','revenue','si-2','k-f2','erpnext','create','failed',1, now(), now()),
+  -- 2: a rejected CREATE within budget + age, past its 0357 retry delay — still auto-recoverable.
+  ('00d10000-0000-0000-0000-0000000000f2','00d10000-0000-0000-0000-000000000001','revenue','si-2','k-f2','erpnext','create','failed',1, now(), now() - interval '3 minutes'),
   -- 3: a rejected CREATE past the attempt budget — abandoned to an operator.
   ('00d10000-0000-0000-0000-0000000000f3','00d10000-0000-0000-0000-000000000001','revenue','si-3','k-f3','erpnext','create','failed',9, now(), now()),
   -- 4: a rejected CREATE past the max row age — abandoned to an operator.

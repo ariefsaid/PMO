@@ -16,7 +16,7 @@ export function nativeRevenueHeadlines(t: T): Record<NativeRevenueRefusal, strin
     'vat-rate-missing': t('financeCopy.vatRateMissing', 'This project has no VAT rate recorded'),
     'not-pmo-native': t('financeCopy.notPmoNative', 'This invoice belongs to the ERP'),
     'erp-owns-revenue': t('financeCopy.erpOwnsRevenue', 'The connected ERP now raises and settles invoices'),
-    'pmo-native': t('financeCopy.pmoNative', "This invoice was raised in PMO \u2014 approve it from Approvals"),
+    'pmo-native': t('financeCopy.pmoNative', "This invoice was raised in PMO. Approve it from Approvals"),
     'withheld-amount-invalid': t('financeCopy.withheldAmountRefused', "Check the withheld tax amount."),
     'receipt-split-mismatch': t('financeCopy.receiptSplitMismatch', "Cash received plus withheld tax must equal the amount paid."),
     'withholding-slip-missing': t('financeCopy.withholdingSlipMissing', "Enter the withholding-slip number."),
@@ -28,9 +28,22 @@ export function nativeRevenueHeadlines(t: T): Record<NativeRevenueRefusal, strin
     'invoice-has-receipts': t('financeCopy.invoiceHasReceipts', "Cancel this invoice's receipts first"),
     'receipt-already-cancelled': t('financeCopy.receiptAlreadyCancelled', "This receipt is already cancelled"),
     'illegal-transition': t('financeCopy.invoiceIllegalTransition', "That change isn't allowed from the invoice's current status."),
-    'sod-self-approval': t('financeCopy.sodSelfApproval', "You raised this invoice \u2014 a different person must approve it"),
+    'sod-self-approval': t('financeCopy.sodSelfApproval', "You raised this invoice. A different person must approve it"),
     'sod-author-missing': t('financeCopy.sodAuthorMissing', "This invoice has no recorded author, so it cannot be approved"),
     'native-drafts-open': t('financeCopy.nativeDraftsOpen', "Invoices raised in PMO are still in draft"),
+    // #1415: applying a payment to invoices.
+    'allocation-exceeds-unapplied': t('finance:receipts.refusal.allocationExceedsUnapplied', 'This is more than the payment has left to apply.'),
+    'allocation-exceeds-balance': t('finance:receipts.refusal.allocationExceedsBalance', 'This is more than the invoice still owes.'),
+    'allocation-amount-invalid': t('finance:receipts.refusal.allocationAmountInvalid', 'Check the amounts: each one must be above zero, with no more than 2 decimals.'),
+    'allocation-duplicate-invoice': t('finance:receipts.refusal.allocationDuplicateInvoice', 'An invoice can be listed only once.'),
+    'allocation-client-mismatch': t('finance:receipts.refusal.allocationClientMismatch', 'That invoice belongs to a different client.'),
+    'allocation-currency-mismatch': t('finance:receipts.refusal.allocationCurrencyMismatch', 'That invoice is in a different currency.'),
+    'allocation-already-reversed': t('finance:receipts.refusal.allocationAlreadyReversed', 'This part of the payment was already taken off the invoice.'),
+    'receipt-not-applicable': t('finance:receipts.refusal.receiptNotApplicable', 'This payment can no longer be applied. It may have been cancelled.'),
+    'request-id-reused': t('finance:receipts.refusal.requestIdReused', 'This request was already used for a different payment. Close this window and start again.'),
+    'claim-already-invoiced': t('project:projectDetail.billing.claims.errors.alreadyInvoiced', "This claim already has an invoice."),
+    'no-client': t('project:projectDetail.billing.claims.errors.noClient', "This project has no client to invoice. Set the client on the project first."),
+    'claim-total-mismatch': t('project:projectDetail.billing.claims.errors.totalMismatch', "This claim's lines do not add up to its total. Withdraw it and assemble it again."),
   };
 }
 

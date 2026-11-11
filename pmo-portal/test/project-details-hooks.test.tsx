@@ -49,6 +49,7 @@ vi.mock('@/src/hooks/useRevenue', async (orig) => ({
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
+  useProjectWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [project], isPending: false, isError: false, refetch: vi.fn() }),
@@ -79,7 +80,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetMutations: () => ({
-    createVersion: { mutateAsync: vi.fn() }, activate: { mutateAsync: vi.fn() },
+    createVersion: { mutateAsync: vi.fn() }, returnVersion: { mutateAsync: vi.fn(), isPending: false }, resubmitVersion: { mutateAsync: vi.fn(), isPending: false }, activate: { mutateAsync: vi.fn() },
     archive: { mutateAsync: vi.fn() }, cloneVersion: { mutateAsync: vi.fn() },
     deleteDraft: { mutateAsync: vi.fn() }, createLineItem: { mutateAsync: vi.fn() },
     deleteLineItem: { mutateAsync: vi.fn() },
@@ -98,6 +99,9 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
     error: null,
     isPending: false,
   }),
+  // ProjectStatusControl composes the win-eligibility preflight (3700397d9); this hooks-order test
+  // stubs it so the render needs no QueryClient.
+  useProjectWinEligibility: () => ({ data: 'allowed' }),
 }));
 // Model B: ProjectDetail falls back to a by-id opportunity fetch for records not in the active
 // projects cache. The seed here is on-hand (cached), so it is disabled — stub it so the test

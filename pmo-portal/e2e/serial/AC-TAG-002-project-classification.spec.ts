@@ -1,6 +1,7 @@
 // @e2e-isolation: serial — temporarily adds options to the org-wide project setup lists and restores them.
 import { test, expect } from '@playwright/test';
-import { login, pickComboboxOption, visibleToast } from '../helpers';
+import { login, pickComboboxOption, stubErpProjectSync, visibleToast } from '../helpers';
+import { addBuilderFilter } from '../support/filter-builder';
 
 test.setTimeout(120_000);
 test('AC-TAG-002 classifications persist through form, detail editing, Projects and Pipeline filters', async ({ page }) => {
@@ -9,7 +10,12 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
   const sector = `Sector-${suffix}`;
   const deal = `Classification deal ${suffix}`;
   const internal = `Classification internal ${suffix}`;
+  const openProjectDetails = async () => {
+    await page.getByLabel('More actions', { exact: true }).click();
+    await page.getByRole('button', { name: 'Project details', exact: true }).click();
+  };
   await login(page, 'admin@acme.test');
+  await stubErpProjectSync(page);
   await page.goto('/administration/projects');
   const lines = page.getByLabel('Service lines');
   const sectors = page.getByLabel('Sectors');
@@ -51,10 +57,12 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await expect(dealRow).toHaveCount(1);
     await expect(dealRow).toBeVisible();
     await dealRow.click();
+    // The pipeline row opens the deal preview first (#1426); the user continues with "Open deal".
+    await page.getByRole('dialog').getByRole('button', { name: 'Open deal' }).click();
     await expect(page.getByTestId('record-header')).toContainText(deal);
-    // SUB-I: pre-win classification lives in the rail's closed details disclosure, with the codes.
+    // SUB-I: pre-win classification lives in the current Project details menu section, with the codes.
     const rail = page.getByTestId('project-detail-rail');
-    await rail.locator('summary').click();
+    await openProjectDetails();
     for (const value of [serviceLine, sector, 'West Java', 'Tender', 'Consortium']) await expect(rail.getByText(value, { exact: true })).toBeVisible();
     await page.getByRole('button', { name: /^Edit$/ }).click();
     const edit = page.getByRole('dialog');
@@ -63,14 +71,13 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await edit.getByRole('button', { name: 'Save project' }).click();
     await expect(edit).not.toBeVisible();
     await page.reload();
-    await rail.locator('summary').click();
+    await openProjectDetails();
     await expect(rail.getByText('Bali', { exact: true })).toBeVisible();
     await expect(rail.getByText('Direct award', { exact: true })).toBeVisible();
     await page.goto('/projects?view=table');
-    await page.getByRole('button', { name: /^Filters/ }).click();
-    await page.getByLabel('Filter by service line').last().selectOption(serviceLine);
+    await addBuilderFilter(page, 'Service line', { option: serviceLine });
     await expect(page.getByText(internal, { exact: true })).toBeVisible();
-    await page.getByLabel('Filter by location').last().fill('Bali');
+    await addBuilderFilter(page, 'Location', { operator: 'contains', text: 'Bali' });
     await expect.poll(() => new URL(page.url()).searchParams.get('location')).toBe('Bali');
     await expect(page.getByText(internal, { exact: true })).toHaveCount(0);
   } finally {
@@ -83,7 +90,9 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     for (const name of created) {
       await page.goto(name === deal ? '/sales?view=table' : '/projects?view=table');
       await page.getByText(name, { exact: true }).click();
-      await page.getByRole('button', { name: /Archive/ }).click();
+      if (name === deal) await page.getByRole('dialog').getByRole('button', { name: 'Open deal' }).click();
+      await page.getByLabel('More actions', { exact: true }).click();
+      await page.getByRole('button', { name: 'Archive', exact: true }).click();
       await page.getByRole('alertdialog').getByRole('button', { name: /archive project/i }).click();
       await expect(page.getByRole('alertdialog')).not.toBeVisible();
     }

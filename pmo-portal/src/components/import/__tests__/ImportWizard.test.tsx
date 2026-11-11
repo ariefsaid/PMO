@@ -44,10 +44,30 @@ describe('ImportWizard', () => {
   // Decision (ADR-0027): the wizard is a dedicated portal dialog (role="dialog" aria-modal)
   // with its own focus-trap + per-step footer — NOT EntityFormModal, whose single-<form>-submit
   // contract fights a multi-step footer. This test pins that contract.
+  it('CMP-009: acquires background inert on the app shell while open and releases on close', () => {
+    const shell = document.createElement('div');
+    shell.setAttribute('data-app-shell', 'root');
+    document.body.appendChild(shell);
+    try {
+      const { unmount } = render(<ImportWizard descriptor={descriptor} onClose={vi.fn()} />);
+      expect(shell).toHaveAttribute('inert');
+      unmount();
+      expect(shell).not.toHaveAttribute('inert');
+    } finally {
+      shell.remove();
+    }
+  });
+
   it('AC-IMP-009: wizard renders the upload step with an xlsx file input and a "≤ 500 rows" hint, focus-trapped', () => {
     render(<ImportWizard descriptor={descriptor} onClose={vi.fn()} />);
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
+    const [header, body, footer] = Array.from(dialog.children) as HTMLElement[];
+    for (const region of [header, body, footer]) {
+      expect(region.className.split(/\s+/)).toContain('px-[var(--space-content-inset)]');
+    }
+    expect(header.className.split(/\s+/)).toContain('gap-2');
+    expect(footer.className.split(/\s+/)).toContain('py-3');
     // xlsx file input
     const input = screen.getByLabelText(/choose an \.xlsx file/i) as HTMLInputElement;
     expect(input.type).toBe('file');

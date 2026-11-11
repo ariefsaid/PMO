@@ -1,0 +1,32 @@
+# Local stock Odoo Community dev bed (docs/environments.md). Throwaway: no volumes
+# worth keeping, localhost-only, credentials from the untracked .env.odoo.local.
+name: pmo-odoo
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: ${ODOO_DB_PASSWORD:?run scripts/odoo-dev-bed.sh up}
+      POSTGRES_DB: postgres
+    volumes: [pgdata:/var/lib/postgresql/data]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo"]
+      interval: 3s
+      retries: 20
+  odoo:
+    image: ${ODOO_IMAGE:-odoo:20.0}
+    depends_on:
+      db: {condition: service_healthy}
+    ports: ["127.0.0.1:${ODOO_PORT:-8069}:8069"]
+    environment:
+      HOST: db
+      USER: odoo
+      PASSWORD: ${ODOO_DB_PASSWORD}
+    # --workers 0 = threaded single process (small RAM); db list/filter pinned to the demo db
+    command: ["odoo", "--workers=0", "--max-cron-threads=1", "--database=${ODOO_DB:-pmo_demo}", "--no-database-list"]
+    volumes: [odoodata:/var/lib/odoo]
+    mem_limit: 1536m
+volumes:
+  pgdata:
+  odoodata:

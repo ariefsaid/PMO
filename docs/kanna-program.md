@@ -7,7 +7,7 @@ under the project's quality bar. It is the program-level intake artifact — agr
 any fan-out.
 
 Distinct from its sibling docs (don't duplicate them here):
-- [`docs/reviews/2026-06-11-kanna-gap-analysis.md`](reviews/2026-06-11-kanna-gap-analysis.md) — **what** is
+- (a competitor review, kept private) — **what** is
   missing (the analysis + per-gap effort/priority). The source for the wave table below.
 - [`docs/roadmap-spines.md`](roadmap-spines.md) — the 9-spine business model (the strategic frame).
 - [`docs/backlog.md`](backlog.md) — **live status**; its "ACTIVE PROGRAM" section points here.
@@ -22,11 +22,11 @@ The coverage, typecheck/lint, and CI e2e/pgTAP gates are binding.
 ## 1. Operating model — parallel build, serialized human
 
 > **⚑ This is an OPT-IN, TRANSIENT mode — not the default SOP.** The default is **series**: one issue at a
-> time, role work dispatched via **pi** (`docs/director-playbook.md` §2 + `docs/pi-delegation.md`). This
+> time, role work dispatched via **pi** (`docs/director-playbook.md` §2 + `docs/archive/pi-delegation.md`). This
 > wave/parallel mode is switched on *deliberately* to exploit a window of abundant **Claude weekly quota**
 > (active 2026-06-13, ~2 days). **Executor flips by mode:** series → **pi** (spares the Claude 5h quota);
 > the parallel burst → **Claude `Task` subagents** (pi hits its 5h limits fast under parallel load, so the
-> burst spends the abundant weekly Claude quota instead). `docs/pi-delegation.md` stays unchanged — it is the
+> burst spends the abundant weekly Claude quota instead). `docs/archive/pi-delegation.md` stays unchanged — it is the
 > series executor. When the quota window closes, **revert to series + pi.** Everything below describes the
 > parallel mode only.
 >

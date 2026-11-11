@@ -21,7 +21,12 @@
 
 import { createHash } from 'node:crypto';
 import type { AgentEvent, AgentRunStatus } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
-import type { HandlerSupabaseLike } from './handler.ts';
+import type { HandlerSupabaseLike, PersistenceDeps, JournaledWrite, ToolJournal } from './handlerTypes.ts';
+
+// Compatibility re-exports: the shapes are DEFINED in handlerTypes.ts (the leaf contract
+// module — XA-003) so the handler/persistence graph stays one-directional. Existing
+// callers/tests keep importing them from persistence.ts.
+export type { HandlerSupabaseLike, PersistenceDeps, JournaledWrite, ToolJournal };
 
 // ── hashToolArgs — sha-256 hex of canonicalized (sorted-key) JSON ────────────
 
@@ -77,24 +82,6 @@ export function hashToolArgs(validatedArgs: unknown): string {
  */
 const MAX_RUN_EVENTS_READ = 1000;
 
-// ── PersistenceDeps ───────────────────────────────────────────────────────────
-
-/**
- * The single persistence-dep shape passed from index.ts (bound to callerClient) and consumed
- * by handler.ts. Constructs no client, takes no service_role parameter, by construction.
- */
-export interface PersistenceDeps {
-  supabase: HandlerSupabaseLike;
-  ownerId: string;
-  orgId: string;
-  now: () => Date;
-}
-
-export interface JournaledWrite {
-  toolName: string;
-  argsHash: string;
-  payload: unknown;
-}
 
 // ── runExists — FR-AGP-010 (contract fix 2026-07-08) ──────────────────────────
 
@@ -179,16 +166,6 @@ export async function createThreadAndRun(
 }
 
 // ── insertEvent — FR-AGP-011/012 ──────────────────────────────────────────────
-
-/**
- * Optional tool-call journal fields (FR-AGP-012), populated in the SAME insert as the event
- * row on a `type==='tool'` event (review round item 5 — see the docstring below).
- */
-export interface ToolJournal {
-  toolName: string;
-  argsHash: string;
-  status: 'completed' | 'errored';
-}
 
 /**
  * Insert one agent_events row mirroring a streamed AgentEvent, with the assigned monotonic

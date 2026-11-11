@@ -21,4 +21,17 @@ describe('DeliveryPctChip (AC-DEL-013)', () => {
     render(<DeliveryPctChip pct={67.7} />);
     expect(screen.getByText('68%')).toBeInTheDocument();
   });
+
+  it('an unfinished project never reads as 100% complete (99.6 shows 99%, primary bar)', () => {
+    const { container } = render(<DeliveryPctChip pct={99.6} />);
+    expect(screen.getByText('99%')).toBeInTheDocument();
+    expect(screen.getByLabelText('Delivery 99%')).toBeInTheDocument();
+    expect(container.querySelector('.bg-success')).toBeNull();
+  });
+
+  it('a finished project shows 100% in the success tone', () => {
+    const { container } = render(<DeliveryPctChip pct={100} />);
+    expect(screen.getByText('100%')).toBeInTheDocument();
+    expect(container.querySelector('.bg-success')).not.toBeNull();
+  });
 });

@@ -4,6 +4,13 @@ import userEvent from '@testing-library/user-event';
 import { BackBar } from '../BackBar';
 
 describe('BackBar', () => {
+  it('DS-SPACING: uses the shared compact control spacing', () => {
+    render(<BackBar label="Projects" onBack={() => {}} />);
+    const button = screen.getByRole('button', { name: /back to projects/i });
+    expect(button.className.split(/\s+/)).toContain('gap-2');
+    expect(button.className.split(/\s+/)).toContain('pr-3');
+  });
+
   it('#707: default renders an always-visible bar (no responsive hide classes)', () => {
     render(<BackBar label="Projects" onBack={() => {}} />);
     const bar = screen.getByRole('button', { name: /back to projects/i }).parentElement!;

@@ -1,0 +1,37 @@
+{
+  "viewer": {
+    "loading": "Loading preview…",
+    "retry": "Retry",
+    "retryIn": "Retry in {{seconds}}s",
+    "download": "Download",
+    "downloadFailed": "The file could not be downloaded.",
+    "openInSource": "Open in {{place}}",
+    "latestNotice": "Latest in {{place}}. This is not the approved version.",
+    "officeBlankHint": "If the preview stays blank, download the file.",
+    "openIntegrations": "Open My integrations",
+    "sourceLabel": "Source: {{place}}",
+    "preview": "Preview",
+    "previewNamed": "Preview {{name}}"
+  },
+  "failure": {
+    "accessDenied": "Your Microsoft account can't open this file. Ask the owner for access, or open it in {{place}}.",
+    "notConnected": "Connect your Microsoft account to preview this file.",
+    "consentNeeded": "Reconnect your Microsoft account to preview this file.",
+    "notFound": "This file is not available. It may have been moved or deleted.",
+    "unsupported": "Preview isn't available for this file type.",
+    "unavailable": "The preview couldn't be loaded. Try again.",
+    "noFile": "No file is attached.",
+    "rateLimited": "Microsoft is busy right now. Try again in a moment."
+  },
+  "upload": {
+    "folderUnavailable": "This record has no SharePoint folder yet. Create the folder, then upload again. Nothing was saved.",
+    "connectionNeeded": "Connect your Microsoft account, then upload again. Nothing was saved.",
+    "consentNeeded": "Uploading to SharePoint needs one more permission from Microsoft. Reconnect, then upload again. Nothing was saved.",
+    "accessDenied": "Microsoft refused the upload. Check your access to the record folder. Nothing was saved.",
+    "unavailable": "Microsoft could not store the file. Try again. Nothing was saved.",
+    "linkLater": "The file is in SharePoint but could not be attached here. Link it from the Microsoft picker.",
+    "linkLaterPurchase": "The file is in SharePoint but was not recorded here. Tell an administrator or attach it again.",
+    "invalidFile": "This file is too large or its type is not accepted. Choose another file. Nothing was saved.",
+    "entitlement": "Your organisation isn't set up for Microsoft documents. Nothing was saved."
+  }
+}

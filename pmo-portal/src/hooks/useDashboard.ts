@@ -1,14 +1,13 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { useQuery } from '@tanstack/react-query';
 import {
-  getExecutiveDashboard, type ExecutiveDashboard,
-  getPMDashboardProjects, type PMDashboardProject,
-  getWinRate, type WinRate,
-  getSalesPipeline, type SalesPipeline, type PipelineProject,
-  getFinanceBudgetReview, type BudgetReviewRow,
-} from '@/src/lib/db/dashboard';
-import { repositories } from '@/src/lib/repositories';
+  repositories,
+  type ExecutiveDashboard, type PMDashboardProject, type WinRate, type LossBreakdown, type SalesPipeline,
+  type PipelineProject, type BudgetReviewRow, type ProjectWithRefs, type ProjectStatus,
+} from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
+import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
+import { MONEY_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 /** Org-scoped executive dashboard aggregates. queryKey includes org_id so cache is tenant-scoped
  * (FR-QRY-DASH-001). Aggregates are computed in SQL (RPC) and RLS-scoped to the caller's org. */
@@ -17,8 +16,9 @@ export function usePMDashboardProjects() {
   const orgId = currentUser?.org_id;
   return useQuery<PMDashboardProject[]>({
     queryKey: ['pm-dashboard-projects', orgId, currentUser?.id],
-    queryFn: getPMDashboardProjects,
+    queryFn: () => repositories.dashboard.pmProjects(),
     enabled: Boolean(orgId && currentUser?.id),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -27,8 +27,9 @@ export function useDashboard() {
   const orgId = currentUser?.org_id;
   return useQuery<ExecutiveDashboard>({
     queryKey: ['dashboard', orgId],
-    queryFn: () => getExecutiveDashboard(),
+    queryFn: () => repositories.dashboard.executive(),
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -53,8 +54,21 @@ export function useWinRate(range: WinRateRange) {
   const orgId = currentUser?.org_id;
   return useQuery<WinRate>({
     queryKey: ['win-rate', orgId, range.key],
-    queryFn: () => getWinRate(range.from, range.to),
+    queryFn: () => repositories.dashboard.winRate(range.from, range.to),
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
+  });
+}
+
+/** Loss breakdown for the tile's period (#1577); same cache-key shape as useWinRate, own query. */
+export function useLossBreakdown(range: WinRateRange) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<LossBreakdown>({
+    queryKey: ['loss-breakdown', orgId, range.key],
+    queryFn: () => repositories.dashboard.lossBreakdown(range.from, range.to),
+    enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -67,9 +81,51 @@ export function useSalesPipeline(opts?: { enabled?: boolean }) {
   const orgId = currentUser?.org_id;
   return useQuery<SalesPipeline>({
     queryKey: ['sales-pipeline', orgId],
-    queryFn: () => getSalesPipeline(),
+    queryFn: () => repositories.dashboard.salesPipeline(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
+    ...MONEY_QUERY_OPTIONS,
   });
+}
+
+/** Keep terminal rows aligned with the pipeline RPC projection when they come from the project DAL. */
+function toPipelineProject(row: ProjectWithRefs, winProbability: number): PipelineProject {
+  // Once a won opportunity enters delivery, its stage is still an on-hand won outcome.
+  // Its legacy stage default is irrelevant; keep the pipeline projection at 100% Go/Get.
+  const isWon = ON_HAND_STATUSES.includes(row.status);
+  const isLost = row.status === 'Loss Tender' || row.status === 'Declined';
+  const goProbability = isWon || isLost ? 1 : winProbability;
+  const getProbability = isWon ? 1 : row.get_probability ?? (isLost ? 0 : 0.25);
+  return {
+    service_line: row.service_line,
+    sector: row.sector,
+    location: row.location,
+    award_type: row.award_type,
+    bidding_entity: row.bidding_entity,
+    id: row.id,
+    name: row.name,
+    short_name: row.short_name,
+    pmo_project_number: row.pmo_project_number,
+    code: row.code,
+    client_name: row.client ? companyDisplayName(row.client) : null,
+    client_legal_name: row.client?.name ?? null,
+    status: row.status,
+    contract_value: row.contract_value,
+    currency: row.currency,
+    tax_treatment: row.tax_treatment,
+    tax_rate: row.tax_rate,
+    tax_base_numerator: row.tax_base_numerator,
+    tax_base_denominator: row.tax_base_denominator,
+    go_probability: goProbability,
+    get_probability: getProbability,
+    win_probability: goProbability * getProbability,
+    end_client_id: row.end_client_id,
+    end_client_name: row.end_client ? companyDisplayName(row.end_client) : null,
+    end_client_legal_name: row.end_client?.name ?? null,
+    last_update: row.last_update,
+    contract_date: row.contract_date,
+    decided_at: row.decided_at,
+    pm_name: row.pm?.full_name ?? null,
+  };
 }
 
 /**
@@ -84,8 +140,9 @@ export function useFinanceBudgetReview() {
   const orgId = currentUser?.org_id;
   return useQuery<BudgetReviewRow[]>({
     queryKey: ['finance-budget-review', orgId],
-    queryFn: () => getFinanceBudgetReview(),
+    queryFn: () => repositories.dashboard.financeBudgetReview(),
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -105,29 +162,33 @@ export function useLostDeals() {
       // 'Declined' is a terminal pre-award outcome that lives in the same Lost column/scope (#774).
       const rows = [...(await repositories.project.list({ statuses: ['Loss Tender', 'Declined'] }))];
       rows.sort((a, b) => (b.last_update ?? '').localeCompare(a.last_update ?? '')); // most recent first
-      return rows.map((r): PipelineProject => ({
-        service_line: r.service_line, sector: r.sector, location: r.location, award_type: r.award_type, bidding_entity: r.bidding_entity,
-        id: r.id,
-        name: r.name,
-        client_name: r.client ? companyDisplayName(r.client) : null,
-        client_legal_name: r.client?.name ?? null,
-        status: r.status,
-        contract_value: r.contract_value,
-        currency: r.currency,
-        tax_treatment: r.tax_treatment,
-        tax_rate: r.tax_rate, tax_base_numerator: r.tax_base_numerator, tax_base_denominator: r.tax_base_denominator,
-        win_probability: 0,
-        // #758: the end customer rides the full row into the lost scope so the pipeline's
-        // end-customer column/search stay consistent across open and lost deals.
-        end_client_id: r.end_client_id,
-        end_client_name: r.end_client ? companyDisplayName(r.end_client) : null,
-        end_client_legal_name: r.end_client?.name ?? null,
-        // Pass through the full-row fields that the RPC omits (available here because
-        // repositories.project.list returns ProjectWithRefs with the full projects row).
-        last_update: r.last_update,
-        pm_name: r.pm?.full_name ?? null,
-      }));
+      return rows.map((row) => toPipelineProject(row, 0));
     },
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
+  });
+}
+
+/**
+ * On-hand projects that represent won bids, read through the same RLS-backed project repository
+ * used for the terminal Lost column. The win-rate RPC supplies aggregate outcomes; this read makes
+ * the existing Won pipeline column actionable and links each card to its canonical project page.
+ */
+export function useWonDeals() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<PipelineProject[]>({
+    queryKey: ['won-deals', orgId],
+    queryFn: async () => {
+      const rows = [
+        ...(await repositories.project.list({
+          statuses: [...ON_HAND_STATUSES] as ProjectStatus[],
+        })),
+      ];
+      rows.sort((a, b) => (b.last_update ?? '').localeCompare(a.last_update ?? ''));
+      return rows.map((row) => toPipelineProject(row, 1));
+    },
+    enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }

@@ -8,15 +8,13 @@
  *
  * FR-AR-009: the schema constrains the model's tool inputs; the action validates them.
  * FR-CV-001 / Task 5 NOTE: the compose_view TOOL input schema is { prompt: string }
- * (what the model fills in when it calls the tool). COMPOSITION_SPEC_SCHEMA is the
- * schema the model uses INSIDE composeSpec when tool-forcing the inner compose call.
+ * (what the model fills in when it calls the tool). COMPOSITION_SPEC_SCHEMA — defined in
+ * compose-view/schema.ts — is the schema the model uses INSIDE composeSpec when tool-forcing
+ * the inner compose call; import it from its defining module.
  * Both reuse the same compileCompositionSpec compiler — the boundary is unchanged (D-A4-1).
  */
 
 import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, AGENT_AGGREGATE_ROW_CAP } from './readEntities.ts';
-
-// Re-export COMPOSITION_SPEC_SCHEMA so agent-chat code can reach it without a second import path.
-export { COMPOSITION_SPEC_SCHEMA } from '../compose-view/schema.ts';
 
 // ── Write action schemas (A3) ─────────────────────────────────────────────────
 
@@ -214,6 +212,73 @@ export const WHATS_OVERDUE_SCHEMA = {
   properties: {},
 };
 
+/**
+ * QUERY_STOCK_SCHEMA (#1721) — JSON Schema for the query_stock tool input.
+ * One read tool for the two stock surfaces the generic query_entity path cannot serve (0413 leaves
+ * stock_balances/stock_ledger without a client SELECT grant): on-hand balances and the movement
+ * ledger. `item`/`warehouse` accept a name fragment (resolved server-side under the caller's RLS)
+ * or a raw id — the demo question names both.
+ */
+export const QUERY_STOCK_SCHEMA = {
+  type: 'object' as const,
+  required: ['topic'] as string[],
+  additionalProperties: false,
+  properties: {
+    topic: {
+      type: 'string' as const,
+      enum: ['on_hand', 'movements'] as string[],
+      description:
+        '"on_hand" = current stock on hand per item × warehouse (the "what is in stock?" question). "movements" = the stock ledger: what moved in/out, when, and the running quantity after.',
+    },
+    item: {
+      type: 'string' as const,
+      maxLength: 200,
+      description: 'Stock item: its name (a fragment like "solar panel" works) or its id. Omit for all items.',
+    },
+    warehouse: {
+      type: 'string' as const,
+      maxLength: 200,
+      description: 'Warehouse/store: its name (a fragment like "central" works) or its id. Omit for all warehouses.',
+    },
+    includeZero: {
+      type: 'boolean' as const,
+      description: 'topic "on_hand" only: include rows with zero on hand (default false).',
+    },
+    projectId: {
+      type: 'string' as const,
+      description: 'topic "movements" only: a project id to scope the movements to.',
+    },
+    documentId: {
+      type: 'string' as const,
+      description: 'topic "movements" only: a stock document id to scope the movements to.',
+    },
+    from: {
+      type: 'string' as const,
+      description: 'topic "movements" only: YYYY-MM-DD lower bound on the movement date.',
+    },
+    to: {
+      type: 'string' as const,
+      description: 'topic "movements" only: YYYY-MM-DD upper bound on the movement date.',
+    },
+    limit: {
+      type: 'integer' as const,
+      minimum: 1,
+      maximum: 200,
+      description: 'topic "movements" only: maximum movements to return (1–200, default 100).',
+    },
+  },
+};
+
+/** remind_overdue (#1639) — the model's REQUEST; the server resolves recipients from the caller's overdue tasks. */
+export const REMIND_OVERDUE_SCHEMA = {
+  type: 'object' as const,
+  required: [] as string[],
+  additionalProperties: false,
+  properties: {
+    task: { type: 'string', maxLength: 200, description: 'Optional: the overdue task the user named. Omit to remind everyone whose overdue task is shown.' },
+  },
+};
+
 /** draft_invoice (#787, ADR-0079) — the model's REQUEST; the server resolves it before the chip. */
 export const DRAFT_INVOICE_SCHEMA = {
   type: 'object' as const,
@@ -224,6 +289,6 @@ export const DRAFT_INVOICE_SCHEMA = {
     milestone: { type: 'string' as const, maxLength: 100, description: 'Milestone name, or its number within the project (e.g. "2"). Give this OR workOrder.' },
     project: { type: 'string' as const, maxLength: 200, description: 'Project id, number, code or name. Use the context-hint id when the user is on a project page.' },
     amount: { type: 'number' as const, exclusiveMinimum: 0, description: 'Amount to invoice BEFORE tax — only if the user stated it. Needed for a milestone.' },
-    itemCode: { type: 'string' as const, maxLength: 140, description: 'ERPNext item code — only if the user named or picked one.' },
+    itemCode: { type: 'string' as const, maxLength: 140, description: 'ERPNext item code (organisations connected to ERPNext only) — only if the user named or picked one.' },
   },
 };

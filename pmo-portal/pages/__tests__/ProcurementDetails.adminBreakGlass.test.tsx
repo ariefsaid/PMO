@@ -29,6 +29,9 @@ const detailState = {
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
@@ -54,7 +57,6 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     setEfaktur: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
-const docsState = { data: [] as Record<string, unknown>[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useProcurementCrudMutations: () => ({
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -65,7 +67,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: vi.fn(), isPending: false },
     deleteDocument: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),
@@ -101,6 +102,9 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
+import { headerActions, openMoreActions } from '@/pages/__tests__/helpers/procurementHeader';
 import ProcurementDetails from '../ProcurementDetails';
 
 const base = {
@@ -130,6 +134,11 @@ const base = {
   quotations: [],
   receipts: [],
   invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
 const renderPage = () =>
@@ -153,38 +162,47 @@ beforeEach(() => {
 // A8 — Admin break-glass header edit while Draft / Rejected
 // ─────────────────────────────────────────────────────────────────────────────
 describe('AC-IXD-PROC-A8: Admin break-glass header edit', () => {
-  it('AC-IXD-PROC-A8: an Admin who is NOT the requester sees Edit-header on a Draft PR', () => {
+  it('AC-IXD-PROC-A8: an Admin who is NOT the requester sees Edit-header on a Draft PR', async () => {
     auth.realRole = 'Admin';
     auth.currentUserId = 'u-admin';
     detailState.data = { ...base, status: 'Draft' };
     renderPage();
-    expect(screen.getByTestId('edit-header')).toBeInTheDocument();
+    // Edit lives in the header's "More procurement actions" menu since the restructure (#1404).
+    const header = await openMoreActions();
+    expect(header.getByTestId('edit-header')).toBeInTheDocument();
   });
 
-  it('AC-IXD-PROC-A8: an Admin who is NOT the requester sees Edit-header on a Rejected PR', () => {
+  it('AC-IXD-PROC-A8: an Admin who is NOT the requester sees Edit-header on a Rejected PR', async () => {
     auth.realRole = 'Admin';
     auth.currentUserId = 'u-admin';
     detailState.data = { ...base, status: 'Rejected' };
     renderPage();
-    expect(screen.getByTestId('edit-header')).toBeInTheDocument();
+    // Edit lives in the header's "More procurement actions" menu since the restructure (#1404).
+    const header = await openMoreActions();
+    expect(header.getByTestId('edit-header')).toBeInTheDocument();
   });
 
-  it('AC-IXD-PROC-A8: a non-Admin, non-requester (Finance) does NOT see Edit-header on a Draft PR', () => {
+  it('AC-IXD-PROC-A8: a non-Admin, non-requester (Finance) does NOT see Edit-header on a Draft PR', async () => {
     // Record-scoped gate: Edit visible only to requester or Admin while Draft/Rejected.
     // Finance is neither the requester nor an Admin, so Edit must be hidden.
     auth.realRole = 'Finance';
     auth.currentUserId = 'u-finance';
     detailState.data = { ...base, status: 'Draft' };
     renderPage();
+    // Open the menu first: a closed menu would make the absence assertion vacuous.
+    const header = await openMoreActions();
+    expect(header.getByRole('menuitem', { name: 'Full history' })).toBeInTheDocument();
     expect(screen.queryByTestId('edit-header')).toBeNull();
   });
 
-  it('AC-IXD-PROC-A8: the requester still sees Edit-header (no regression)', () => {
+  it('AC-IXD-PROC-A8: the requester still sees Edit-header (no regression)', async () => {
     auth.realRole = 'Engineer';
     auth.currentUserId = 'u-requester';
     detailState.data = { ...base, status: 'Draft', requested_by_id: 'u-requester' };
     renderPage();
-    expect(screen.getByTestId('edit-header')).toBeInTheDocument();
+    // Edit lives in the header's "More procurement actions" menu since the restructure (#1404).
+    const header = await openMoreActions();
+    expect(header.getByTestId('edit-header')).toBeInTheDocument();
   });
 });
 
@@ -192,25 +210,31 @@ describe('AC-IXD-PROC-A8: Admin break-glass header edit', () => {
 // B3 — Admin break-glass transitions, SoD preserved (characterization)
 // ─────────────────────────────────────────────────────────────────────────────
 describe('AC-IXD-PROC-B3: Admin break-glass transitions with SoD preserved', () => {
-  it('AC-IXD-PROC-B3: Admin who is NOT the requester sees Approve + Reject on a Requested PR', () => {
+  it('AC-IXD-PROC-B3: Admin who is NOT the requester sees Approve + Reject on a Requested PR', async () => {
     auth.realRole = 'Admin';
     auth.currentUserId = 'u-admin';
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-requester' };
     renderPage();
-    expect(screen.getByRole('button', { name: /^Approve$/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Reject$/ })).toBeInTheDocument();
+    // Approve is the one primary action; Reject sits in the header's "More procurement actions" menu.
+    expect(headerActions().getByRole('button', { name: /^Approve$/ })).toBeInTheDocument();
+    const header = await openMoreActions();
+    expect(header.getByRole('menuitem', { name: /^Reject$/ })).toBeInTheDocument();
   });
 
-  it('AC-IXD-PROC-B3: Admin who IS the requester does NOT see Approve/Reject on a Requested PR (SoD-a)', () => {
+  it('AC-IXD-PROC-B3: Admin who IS the requester does NOT see Approve/Reject on a Requested PR (SoD-a)', async () => {
     auth.realRole = 'Admin';
     auth.currentUserId = 'u-admin';
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-admin' };
     renderPage();
     expect(screen.queryByRole('button', { name: /^Approve$/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Reject$/ })).toBeNull();
+    // Open the menu first so the absence of Reject is not vacuous (it lives in "More procurement actions").
+    const header = await openMoreActions();
+    expect(header.getByRole('menuitem', { name: 'Full history' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^Reject$/ })).toBeNull();
   });
 
   it('AC-IXD-PROC-B3: Admin (not the approver) sees Mark as Paid on a Vendor Invoiced PR', () => {
+    // "Mark as Paid" is the header's "Record payment" action since the restructure (#1404).
     auth.realRole = 'Admin';
     auth.currentUserId = 'u-admin';
     detailState.data = {
@@ -223,7 +247,7 @@ describe('AC-IXD-PROC-B3: Admin break-glass transitions with SoD preserved', () 
       ],
     };
     renderPage();
-    expect(screen.getByRole('button', { name: /Mark as Paid/i })).toBeInTheDocument();
+    expect(headerActions().getByRole('button', { name: 'Record payment' })).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-B3: Admin who APPROVED the PR does NOT see Mark as Paid (SoD-b)', () => {
@@ -239,10 +263,13 @@ describe('AC-IXD-PROC-B3: Admin break-glass transitions with SoD preserved', () 
       ],
     };
     renderPage();
-    expect(screen.queryByRole('button', { name: /Mark as Paid/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Record payment' })).toBeNull();
   });
 });
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useErpJournalLines', () => import('@/pages/__tests__/helpers/erpJournalLinesMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

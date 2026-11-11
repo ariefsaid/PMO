@@ -1,5 +1,5 @@
 /**
- * #876 slice 2 (OD-VWH-1, DD-VWH-13..17) — the "Record vendor invoice" form starts from the vendor's default tax
+ * #876 slice 2 (OD-VWH-1, DD-VWH-13..17) — the "Record supplier invoice" form starts from the vendor's default tax
  * treatment, keeps every amount editable, labels each pre-filled amount with its rate and base, and stages exactly what
  * the user submits: a standalone org stages `withheldAmount` + `withheldPphType` (OQ-VWH-6: the type is stored on every
  * bill that withholds); an ERP-connected org stages `erpTaxAmounts` (or a template) and asks no amount (OQ-VWH-8).
@@ -25,6 +25,15 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => undefined };
 });
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: { procurement: true, procurement_full: true },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -34,8 +43,8 @@ import { RecordCaptureForm } from './RecordCaptureForm';
 import { queryClient } from '@/src/lib/queryClient';
 import { formatMoneyInputValue } from '@/src/lib/format';
 import * as ownership from '@/src/lib/adapterSeam/ownershipCache';
-import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
-import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
 function renderVI(props: { vendorId?: string | null; itemsNet?: number | null } = {}, onStage = vi.fn()) {
   render(
@@ -68,8 +77,8 @@ describe('standalone bill (PMO authors the tax) — AC-VWH-030', () => {
     await waitFor(() => expect(screen.getByTestId('vi-withheld-input')).toHaveValue(formatMoneyInputValue(20000)));
     expect(screen.getByTestId('vi-pph-type-select')).toHaveValue('pph23');
     expect(screen.getAllByTestId('vi-tax-suggested-from').map((n) => n.textContent)).toEqual([
-      `Vendor default 11% of ${formatMoneyInputValue(1000000)}`,
-      `Vendor default 2% of ${formatMoneyInputValue(1000000)}`,
+      `Supplier default 11% of ${formatMoneyInputValue(1000000)}`,
+      `Supplier default 2% of ${formatMoneyInputValue(1000000)}`,
     ]);
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     expect(onStage).toHaveBeenCalledWith(expect.objectContaining({
@@ -160,7 +169,7 @@ describe('standalone bill (PMO authors the tax) — AC-VWH-030', () => {
   it('explains why a default withholding cannot be saved before a bill amount is entered', async () => {
     renderVI({ vendorId: 'vendor-1' });
     await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
-    expect(await screen.findByText('Enter the bill amount to calculate the vendor withholding.')).toHaveAttribute('role', 'status');
+    expect(await screen.findByText('Enter the bill amount to calculate the supplier withholding.')).toHaveAttribute('role', 'status');
     expect(screen.getByTestId('btn-save-vi')).toBeDisabled();
   });
 
@@ -183,7 +192,7 @@ describe('standalone bill (PMO authors the tax) — AC-VWH-030', () => {
   });
 });
 
-describe('vendor invoice Bahasa copy (PR-2/PR-3)', () => {
+describe('supplier invoice Bahasa copy (PR-2/PR-3)', () => {
   beforeEach(() => { vi.spyOn(ownership, 'routeDomainWrite').mockReturnValue('pmo'); });
 
   it('shows localized invoice, status, tax treatment, and helper copy', async () => {
@@ -195,11 +204,11 @@ describe('vendor invoice Bahasa copy (PR-2/PR-3)', () => {
     expect(screen.getByRole('option', { name: 'Dijadwalkan' })).toBeInTheDocument();
     expect(screen.getByLabelText('Tanggal faktur')).toBeInTheDocument();
     expect(screen.getByLabelText('Perlakuan pajak')).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Inklusif — termasuk PPN' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Eksklusif — PPN ditambahkan' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Inklusif: termasuk PPN' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Eksklusif: PPN ditambahkan' })).toBeInTheDocument();
     expect(screen.getByText(/Inklusif: PPN sudah termasuk dalam jumlah tagihan/)).toBeInTheDocument();
     expect(screen.getByText('Jumlah pajak')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Simpan VI' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Simpan faktur pemasok' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Batal' })).toBeInTheDocument();
   });
 });
@@ -286,8 +295,8 @@ describe('ERP-connected bill (amounts sent as fixed rows) — AC-VWH-031', () =>
     expect(screen.getByRole('option', { name: 'Diterima' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Dijadwalkan' })).toBeInTheDocument();
     expect(screen.getByLabelText('Tanggal faktur')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Simpan VI' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Simpan faktur pemasok' })).toBeInTheDocument();
     expect(screen.getByTestId('vi-items-net').textContent).toMatch(/^Total item, sebelum pajak: /);
-    await waitFor(() => expect(screen.getAllByTestId('vi-tax-suggested-from')[0].textContent).toMatch(/^Default vendor 11% dari /));
+    await waitFor(() => expect(screen.getAllByTestId('vi-tax-suggested-from')[0].textContent).toMatch(/^Default pemasok 11% dari /));
   });
 });

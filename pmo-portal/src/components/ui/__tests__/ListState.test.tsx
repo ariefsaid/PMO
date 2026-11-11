@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 
-type Analytics = typeof import('@/src/lib/analytics');
-const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn<Analytics['trackEmptyStateSeen']>() }));
-vi.mock('@/src/lib/analytics', async importOriginal => ({
-  ...await importOriginal<Analytics>(),
-  trackEmptyStateSeen: analytics.trackEmptyStateSeen,
-} satisfies Analytics));
+const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn() }));
+vi.mock('@/src/lib/analytics', () => ({ trackEmptyStateSeen: analytics.trackEmptyStateSeen }));
 
 import { ListState } from '../ListState';
 
@@ -19,10 +18,73 @@ describe('ListState', () => {
     expect(region.querySelectorAll('.skel').length).toBeGreaterThan(0);
   });
 
+  it('loading renders while the locale provider is not initialized yet', () => {
+    const uninitializedI18n = createInstance();
+    render(
+      <I18nextProvider i18n={uninitializedI18n}>
+        <React.Suspense fallback={<div data-testid="i18n-suspended">Waiting for locale</div>}>
+          <ListState
+            variant="loading"
+            loadingRole="status"
+            loadingAriaLabel="Authenticating…"
+            loadingLabel="Authenticating…"
+          />
+        </React.Suspense>
+      </I18nextProvider>,
+    );
+
+    expect(screen.queryByTestId('i18n-suspended')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Authenticating…' })).toHaveAttribute('aria-busy', 'true');
+  });
+
   it('loading: testId prop overrides the default liststate-loading testid', () => {
     render(<ListState variant="loading" testId="milestone-strip-skeleton" />);
     expect(screen.getByTestId('milestone-strip-skeleton')).toHaveAttribute('aria-busy', 'true');
     expect(screen.queryByTestId('liststate-loading')).toBeNull();
+  });
+
+  it.each(['lines', 'table', 'cards', 'detail', 'chart'] as const)(
+    'loading shape=%s keeps its busy announcement',
+    (shape) => {
+      render(<ListState variant="loading" shape={shape} />);
+      const region = screen.getByTestId('liststate-loading');
+      expect(region).toHaveAttribute('aria-busy', 'true');
+      expect(region).toHaveAttribute('aria-live', 'polite');
+      expect(screen.getByText('Loading…')).toBeInTheDocument();
+    },
+  );
+
+  it('loadingRole=status keeps one busy status region that announces its loading copy', () => {
+    render(
+      <ListState
+        variant="loading"
+        shape="cards"
+        loadingLabel="Loading files…"
+        loadingRole="status"
+      />,
+    );
+    const status = screen.getByRole('status');
+    expect(status).toHaveAttribute('aria-busy', 'true');
+    expect(status).toHaveTextContent('Loading files…');
+    expect(status).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('loadingAriaLabel preserves an explicit status name while retaining the loading copy', () => {
+    render(
+      <ListState
+        variant="loading"
+        loadingLabel="Loading…"
+        loadingRole="status"
+        loadingAriaLabel="Authenticating…"
+      />,
+    );
+    expect(screen.getByRole('status', { name: 'Authenticating…' })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+  });
+
+  it('loading: loadingLabel replaces the announced copy for page/section loads', () => {
+    render(<ListState variant="loading" loadingLabel="Loading project finances…" />);
+    expect(screen.getByText('Loading project finances…')).toBeInTheDocument();
   });
 
   it('empty: renders icon tile, title, sub, and a LIVE (never disabled) populating action', async () => {
@@ -80,7 +142,7 @@ describe('ListState: empty_state_seen analytics (2026-07-13 wiring plan)', () =>
     analytics.trackEmptyStateSeen.mockClear();
   });
 
-  it('fires empty_state_seen via the facade on mount when stateId+role+module are all given', () => {
+  it('fires empty_state_seen via the lazy facade on mount when stateId+role+module are all given', async () => {
     render(
       <ListState
         variant="empty"
@@ -90,8 +152,10 @@ describe('ListState: empty_state_seen analytics (2026-07-13 wiring plan)', () =>
         module="companies"
       />
     );
-    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith('companies-empty', 'Admin', 'companies');
-    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith('companies-empty', 'Admin', 'companies');
+      expect(analytics.trackEmptyStateSeen).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('does NOT fire empty_state_seen when stateId/role/module are omitted (opt-in tracking)', () => {
@@ -111,5 +175,10 @@ describe('ListState: empty_state_seen analytics (2026-07-13 wiring plan)', () =>
       />
     );
     expect(analytics.trackEmptyStateSeen).not.toHaveBeenCalled();
+  });
+
+  it('O18: an error that is the whole page can carry the level-one heading', () => {
+    render(<ListState variant="error" titleAsPageHeading title="Couldn't load this project" />);
+    expect(screen.getByRole('heading', { level: 1, name: "Couldn't load this project" })).toBeInTheDocument();
   });
 });

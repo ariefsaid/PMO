@@ -22,6 +22,9 @@ const detailState = {
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
@@ -47,7 +50,6 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     setEfaktur: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
-const docsState = { data: [] as Record<string, unknown>[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useProcurementCrudMutations: () => ({
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -58,11 +60,10 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: vi.fn(), isPending: false },
     deleteDocument: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),
-  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Apex Supply', sub: 'Vendor' }] }),
+  useVendorOptions: () => ({ data: [{ value: 'v-apex', label: 'Apex Supply', sub: 'Vendor' }, { value: 'v-beta', label: 'Beta Traders', sub: 'Vendor' }] }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Finance' }),
@@ -94,6 +95,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 const selectedQuote = {
@@ -147,6 +150,11 @@ const base = {
   quotations: [otherQuote, selectedQuote],
   receipts: [],
   invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
 // The page is a tabbed shell (`/procurement/:id/:tab?`, default Overview). `tab`
@@ -162,31 +170,42 @@ const renderPage = (tab?: string) =>
     </MemoryRouter>,
   );
 
-/** The stat tile whose label matches; returns its container element. */
-function tile(label: string): HTMLElement {
-  const labelEl = screen.getByText(label);
-  return labelEl.closest('[data-testid="stat-tile"]') as HTMLElement;
-}
-
 beforeEach(() => {
   detailState.isPending = false;
   detailState.isError = false;
   detailState.error = null;
 });
 
+// Locate rows by the immutable quote identity. The value-status cell now renders separate badges.
+const quoteRow = (quoteNumber: string): HTMLElement => {
+  const section = screen.getByTestId('vendor-quotes');
+  const row = Array.from(section.querySelectorAll('tr')).find((candidate) =>
+    candidate.textContent?.includes(quoteNumber),
+  );
+  if (!row) throw new Error(`Expected vendor quote row ${quoteNumber}`);
+  return row;
+};
+const selectedQuoteRow = (quoteNumber: string): HTMLElement => {
+  const row = quoteRow(quoteNumber);
+  expect(within(row).getByText('Selected')).toBeInTheDocument();
+  expect(within(row).getByText('Lowest price')).toBeInTheDocument();
+  return row;
+};
+
 describe('AC-IXD-PROC-004: the Selected-quote summary binds to the chosen quotation', () => {
-  it('AC-IXD-PROC-004: at Quote Selected the tile shows the selected amount + vendor (not "Pending")', () => {
+  it('AC-IXD-PROC-004: at Quote Selected the chosen quote row shows the selected amount + vendor (not the other bid)', () => {
     detailState.data = { ...base, status: 'Quote Selected' };
-    renderPage();
-    const t = tile('Selected quote');
+    renderPage('quotes');
+    const row = selectedQuoteRow('VQ-2606040001');
     // formatCurrency(48000) = "$48,000" (the selected quote's amount)
-    expect(t).toHaveTextContent('$48,000');
-    // names the selected vendor — not the raw "N received" pending sub
-    expect(t).toHaveTextContent('Apex Supply');
-    expect(t).not.toHaveTextContent('Pending');
+    expect(row).toHaveTextContent('$48,000');
+    // names the selected vendor, not the rejected bid
+    expect(row).toHaveTextContent('Apex Supply');
+    expect(row).not.toHaveTextContent('Beta Traders');
+    expect(row).not.toHaveTextContent('$52,000');
   });
 
-  it('AC-IXD-PROC-004: the selected amount persists through to Paid (not reverting to Pending)', () => {
+  it('AC-IXD-PROC-004: the selected quote persists through to Paid (not reverting to unselected)', () => {
     detailState.data = {
       ...base,
       status: 'Paid',
@@ -198,24 +217,30 @@ describe('AC-IXD-PROC-004: the Selected-quote summary binds to the chosen quotat
         { id: 'i-1', procurement_id: 'proc-001', vi_number: 'VI-1', status: 'Paid', invoice_date: '2026-06-06', org_id: 'org-1', created_at: '2026-06-06T00:00:00Z' },
       ],
     };
-    renderPage();
-    const t = tile('Selected quote');
-    expect(t).toHaveTextContent('$48,000');
-    expect(t).not.toHaveTextContent('Pending');
+    renderPage('quotes');
+    const row = selectedQuoteRow('VQ-2606040001');
+    expect(row).toHaveTextContent('$48,000');
+    expect(row).toHaveTextContent('Apex Supply');
   });
 
-  it('AC-IXD-PROC-004: the chosen quotation row is marked "Selected · best value"', () => {
+  it('AC-IXD-PROC-004: selected and lowest-price badges stay on the chosen lowest quote only', () => {
     detailState.data = { ...base, status: 'Quote Selected' };
     renderPage('quotes');
-    // VendorQuotesTab (Slice 3) replaced QuotationsSection — testid is now vendor-quotes.
-    const section = screen.getByTestId('vendor-quotes');
-    // Both desktop + mobile branches render the pill so at least one match expected.
-    expect(within(section).getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
-    // its vq number is shown alongside (may appear in both branches)
-    expect(within(section).getAllByText('VQ-2606040001').length).toBeGreaterThanOrEqual(1);
+    const chosenRow = quoteRow('VQ-2606040001');
+    expect(chosenRow).toHaveTextContent('VQ-2606040001');
+    expect(within(chosenRow).getByText('Selected')).toBeInTheDocument();
+    expect(within(chosenRow).getByText('Lowest price')).toBeInTheDocument();
+
+    const otherBidRow = quoteRow('VQ-2606040002');
+    expect(otherBidRow).toHaveTextContent('VQ-2606040002');
+    expect(within(otherBidRow).queryByText('Selected')).not.toBeInTheDocument();
+    expect(within(otherBidRow).queryByText('Lowest price')).not.toBeInTheDocument();
   });
 });
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useErpJournalLines', () => import('@/pages/__tests__/helpers/erpJournalLinesMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

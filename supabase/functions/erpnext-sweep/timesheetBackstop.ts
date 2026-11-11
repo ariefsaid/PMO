@@ -54,6 +54,8 @@ export interface TimesheetMirrorCandidateRow {
   timesheet_id: string;
   push_state: string;
   erp_cancelled_at?: string | null;
+  /** The fair-queue order key (0427); null = never attempted. */
+  last_attempt_at?: string | null;
 }
 
 /**
@@ -95,6 +97,10 @@ export interface TimesheetBackstopDeps {
    *  ATTRIBUTED outbox row (actor = the sheet's own `approved_by`) when the foreground never reached the
    *  outbox at all. */
   driveTimesheetPush(row: TimesheetMirrorCandidateRow, approvedAt: string, subject?: TimesheetPushSubject): Promise<void>;
+  /** Stamp the listed rows' last attempt BEFORE any is driven (THEME-BACK-06): the queue serves
+   *  never-attempted rows first, then the longest-waiting, so a page of refused / failing sheets rotates
+   *  behind the rest. The live implementation skips synthetic `absent` rows (no mirror row to stamp). */
+  markAttempted?(orgId: string, rows: TimesheetMirrorCandidateRow[]): Promise<void>;
 }
 
 export interface ReconcileOrgTimesheetPushesResult {
@@ -118,6 +124,7 @@ export async function reconcileOrgTimesheetPushes(
   org: { orgId: string },
 ): Promise<ReconcileOrgTimesheetPushesResult> {
   const candidates = await deps.listPendingTimesheetPushes(org.orgId, TIMESHEET_BACKSTOP_TICK_LIMIT);
+  if (candidates.length > 0) await deps.markAttempted?.(org.orgId, candidates);
   let driven = 0;
   let skipped = 0;
   const errors: Array<{ timesheetId: string; error: string }> = [];

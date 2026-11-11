@@ -6,6 +6,9 @@ interface ProcFileRow {
   id: string;
   file_path: string | null;
   title: string | null;
+  source?: 'upload' | 'onedrive' | null;
+  ms_web_url?: string | null;
+  ms_item_name?: string | null;
 }
 
 const hookState = vi.hoisted(() => ({
@@ -19,6 +22,7 @@ const hookState = vi.hoisted(() => ({
   download: vi.fn(async () => 'https://signed/dl'),
   cancelUpload: vi.fn(),
   clearUploadError: vi.fn(),
+  toast: vi.fn(),
 }));
 
 vi.mock('@/src/hooks/useProcurementFiles', () => ({
@@ -37,10 +41,12 @@ vi.mock('@/src/hooks/useProcurementFiles', () => ({
 // useToast is provided by a global ToastProvider in the app; stub it for the unit test.
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = await orig<typeof import('@/src/components/ui')>();
-  return { ...actual, useToast: () => ({ toast: vi.fn() }) };
+  return { ...actual, useToast: () => ({ toast: hookState.toast }) };
 });
 
 import { ProcurementFilesSubsection } from './ProcurementFilesSubsection';
+import { UploadFailure } from '@/src/lib/m365/uploadClient';
+import { renderViewer } from '@/src/components/documents/testkit';
 
 beforeEach(() => {
   hookState.files = [];
@@ -51,6 +57,7 @@ beforeEach(() => {
   hookState.upload = { mutate: vi.fn(), isPending: false };
   hookState.archive = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false };
   hookState.download = vi.fn(async () => 'https://signed/dl');
+  hookState.toast = vi.fn();
 });
 
 function renderSub(props?: Partial<React.ComponentProps<typeof ProcurementFilesSubsection>>) {
@@ -148,18 +155,23 @@ describe('AC-PF-013 ProcurementFilesSubsection list + archive confirm', () => {
     expect(screen.getByRole('alert')).toBeTruthy();
   });
 
-  it('AC-PF-013: a previewable file shows a Preview affordance that opens inline (download:false)', async () => {
+  it('AC-PF-013: a viewable file shows a Preview affordance that opens the side-panel viewer with a fresh inline URL', async () => {
     hookState.files = [{ id: 'f1', file_path: 'org-1/proc-1/quotation/file-1/scan.png', title: null }];
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
-    renderSub({ canWrite: false });
+    renderViewer(<ProcurementFilesSubsection phase="quotation" parentId="q1" procurementId="proc-1" canWrite={false} uploadedById="user-9" />);
     fireEvent.click(screen.getByRole('button', { name: /preview file/i }));
-    await waitFor(() =>
-      expect(hookState.download).toHaveBeenCalledWith(
-        'org-1/proc-1/quotation/file-1/scan.png',
-        { download: false },
-      ),
-    );
+    expect(await screen.findByRole('dialog', { name: 'scan.png' })).toBeTruthy();
+    await waitFor(() => expect(hookState.download).toHaveBeenCalledWith('org-1/proc-1/quotation/file-1/scan.png', undefined));
+    expect(openSpy).not.toHaveBeenCalled();
     openSpy.mockRestore();
+  });
+
+  it('document-preview AC-001: a SharePoint-backed attachment previews through custody and has no stored download', () => {
+    hookState.files = [{ id: 'f9', file_path: null, title: null, source: 'onedrive', ms_web_url: 'https://tenant.sharepoint.com/sites/x/Quote.pdf', ms_item_name: 'Quote.pdf' }];
+    renderViewer(<ProcurementFilesSubsection phase="quotation" parentId="q1" procurementId="proc-1" canWrite={false} uploadedById="user-9" />);
+    expect(screen.getByText('Quote.pdf')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /preview file Quote\.pdf/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /download file/i })).toBeNull();
   });
 
   it('AC-PF-013: a download failure surfaces a warning toast (does not throw)', async () => {
@@ -183,5 +195,21 @@ describe('AC-PF-013 ProcurementFilesSubsection list + archive confirm', () => {
     const f = new File(['data'], 'spec.pdf', { type: 'application/pdf' });
     fireEvent.change(input, { target: { files: [f] } });
     expect(hookState.upload.mutate).toHaveBeenCalled();
+  });
+
+  it('document-preview AC-008: a typed SharePoint failure is shown once, inline, with no second generic toast', () => {
+    hookState.upload.mutate = vi.fn((_args, opts?: { onError?: (e: unknown) => void }) => opts?.onError?.(new UploadFailure('folder')));
+    renderSub({ canWrite: true });
+    const input = screen.getByLabelText(/attach a file/i) as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['data'], 'spec.pdf', { type: 'application/pdf' })] } });
+    expect(hookState.toast).not.toHaveBeenCalled();
+  });
+
+  it('AC-PF-013: any other upload error still raises the warning toast', () => {
+    hookState.upload.mutate = vi.fn((_args, opts?: { onError?: (e: unknown) => void }) => opts?.onError?.(new Error('boom')));
+    renderSub({ canWrite: true });
+    const input = screen.getByLabelText(/attach a file/i) as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['data'], 'spec.pdf', { type: 'application/pdf' })] } });
+    expect(hookState.toast).toHaveBeenCalledWith(expect.any(String), expect.anything(), 'warning');
   });
 });

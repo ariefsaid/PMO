@@ -20,12 +20,24 @@ export default runEvalSuite(
         expect: [
           usesTool('whats_overdue'),
           contains(/\]\(\/projects\/[0-9a-f-]{36}\/tasks\)/i),
-          contains(/\]\(\/sales-invoices\?q=[^)]+\)/),
+          contains(/\]\(\/finance\/receivables\?q=[^)]+\)/),
         ],
       },
       {
         name: 'AC-AIN-003 AC-AIN-002 "invoice work order WO-EVAL-0001" → proposes the Draft at its value before tax',
         prompt: 'Invoice work order WO-EVAL-0001.',
+        runs: RUNS,
+        minPasses: MIN_PASSES,
+        expect: [
+          proposesAction('draft_invoice', (a) =>
+            a.kind === 'prepared-draft-invoice' && (a.items as Array<{ rate: number }>)[0]?.rate === 1_000_000),
+        ],
+      },
+      {
+        // #1595: the reel's own wording (no "work order" word) reaches the tool. The route (ERP or native) is decided by the
+        // server, so this proves only the proposal, not `path: 'native'`: that is unit-tested (draftInvoice.prepare/run).
+        name: 'AC-AIN-003 "Invoice WO-EVAL-0001" (the reel prompt) → proposes the Draft at its value before tax',
+        prompt: 'Invoice WO-EVAL-0001',
         runs: RUNS,
         minPasses: MIN_PASSES,
         expect: [

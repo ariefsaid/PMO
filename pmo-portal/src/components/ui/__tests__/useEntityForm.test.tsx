@@ -147,6 +147,33 @@ describe('useEntityForm: validate-on-blur (not per keystroke)', () => {
     }
   });
 
+  it('CMP-014: live-updates error message when an invalid field receives a different validation error', () => {
+    vi.useFakeTimers();
+    try {
+      const dynamicValidate = (values: { email: string }) => {
+        if (!values.email.trim()) return { email: 'Email is required.' };
+        if (!values.email.includes('@')) return { email: 'Enter a valid email address.' };
+        return {};
+      };
+      const { result } = renderHook(() =>
+        useEntityForm({ initialValues: { email: '' }, validate: dynamicValidate })
+      );
+      act(() => {
+        vi.runAllTimers();
+      });
+      // Surface required error via blur
+      act(() => result.current.handleBlur('email'));
+      expect(result.current.errors.email).toBe('Email is required.');
+
+      // Change value to invalid non-empty string
+      act(() => result.current.setValue('email', 'not-an-email'));
+      // Should show the new live error ("Enter a valid email address.") instead of the stale "Email is required."
+      expect(result.current.errors.email).toBe('Enter a valid email address.');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('setValue updater is PURE — no React warning under StrictMode (no setState inside a setState updater)', () => {
     // StrictMode double-invokes updaters; a setState nested inside another
     // setState's updater surfaces as a console.error here. A pure updater stays clean.

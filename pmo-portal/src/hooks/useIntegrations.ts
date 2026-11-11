@@ -34,12 +34,18 @@ export function useIntegrations() {
     enabled: Boolean(orgId),
   });
 
+  // The list, the single-tier binding (useErpnextBinding) and the health family all describe the same connection.
+  const invalidateBindingCaches = () => {
+    qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
+    qc.invalidateQueries({ queryKey: ['integrations', 'binding', orgId] });
+    qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId] });
+  };
+
   // Mutation: connect
   const connect = useMutation({
     mutationFn: (credential: ConnectCredential) => repositories.integrations.connectIntegration(orgId!, credential),
     onSuccess: (_data, _vars) => {
-      qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
-      qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId] });
+      invalidateBindingCaches();
     },
   });
 
@@ -47,8 +53,7 @@ export function useIntegrations() {
   const disconnect = useMutation({
     mutationFn: (tier: ExternalTier) => repositories.integrations.disconnectIntegration(orgId!, tier),
     onSuccess: (_data, _tier) => {
-      qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
-      qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId] });
+      invalidateBindingCaches();
     },
   });
 
@@ -106,8 +111,7 @@ export function useIntegrations() {
   const setCompany = useMutation({
     mutationFn: (companyId: string) => repositories.integrations.setCompany(orgId!, 'erpnext', companyId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
-      qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId] });
+      invalidateBindingCaches();
     },
   });
 

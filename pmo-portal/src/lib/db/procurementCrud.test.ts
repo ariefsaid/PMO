@@ -101,6 +101,7 @@ describe('vendor recovery writes only vendor_id', () => {
     await expect(updateProcurementVendor('pr1', 'vendor-1')).rejects.toMatchObject({
       code: 'VENDOR_ALREADY_SET',
       name: 'ProcurementVendorAlreadySetError',
+      message: 'A supplier was already set.',
     });
   });
 });
@@ -154,20 +155,21 @@ describe('AC-PROC-001 createProcurement (New PR header → Draft, requester stam
 
 describe('AC-PROC-002 updateProcurementHeader (requester edits while Draft, no org_id)', () => {
   it('AC-PROC-002: updates only the editable header fields by id, never org_id', async () => {
-    h.result.value = { data: [{ id: 'pr1' }], error: null };
+    h.rpcResult.value = { data: true, error: null };
     await updateProcurementHeader('pr1', { title: 'New title', projectId: 'p2', vendorId: 'v2' });
-    expect(h.calls.from).toContain('procurements');
-    const patch = h.calls.update[0] as Record<string, unknown>;
+    const [name, args] = h.calls.rpc[0] as [string, { p_id: string; p_patch: Record<string, unknown> }];
+    expect(name).toBe('update_procurement_header');
+    const patch = args.p_patch;
     expect(patch.title).toBe('New title');
     expect(patch.project_id).toBe('p2');
     expect(patch.vendor_id).toBe('v2');
     expect(JSON.stringify(patch)).not.toContain('org_id');
     expect(JSON.stringify(patch)).not.toContain('"status"');
-    expect(h.calls.eq).toContainEqual(['id', 'pr1']);
+    expect(args.p_id).toBe('pr1');
   });
 
   it('AC-PROC-002: throws ProcurementError with code on a denied update', async () => {
-    h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
+    h.rpcResult.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(
       updateProcurementHeader('pr1', { title: 'x', projectId: null, vendorId: null }),
     ).rejects.toMatchObject({ code: '42501' });
@@ -333,6 +335,15 @@ describe('AC-M365DOC-051/062 procurement Microsoft references', () => {
     expect(JSON.stringify(h.calls.insert)).not.toMatch(/org_id|ms_linked_by|ms_linked_at/);
   });
 
+  it('AC-PFE-009: a reference attached to a document carries its record kind and id; none without a target', async () => {
+    h.result.value = { data: { id: 'doc-1' }, error: null };
+    await createMicrosoftProcurementDocument('case-1', reference, undefined, { recordKind: 'erp_document', recordId: 'd1' });
+    expect(h.calls.insert.at(-1)).toMatchObject({ procurement_id: 'case-1', record_kind: 'erp_document', record_id: 'd1' });
+    await createMicrosoftProcurementDocument('case-1', reference);
+    expect(h.calls.insert.at(-1)).not.toHaveProperty('record_kind');
+    expect(h.calls.insert.at(-1)).not.toHaveProperty('record_id');
+  });
+
   it('links/unlinks a row with single canonical updates and does not overwrite unrelated metadata', async () => {
     h.result.value = { data: [{ id: 'doc-1' }], error: null };
     await linkMicrosoftProcurementDocument('doc-1', reference);
@@ -417,19 +428,19 @@ describe('AC-PROC-005 procurement documents metadata CRUD (procurement_documents
 
 describe('#541 procurement CRUD writes reject a using-denied 0-row no-op', () => {
   it('#541: updateProcurementHeader resolves when the row comes back (positive control)', async () => {
-    h.result.value = { data: [{ id: 'pr1' }], error: null };
+    h.rpcResult.value = { data: true, error: null };
     await expect(
       updateProcurementHeader('pr1', { title: 'x', projectId: null, vendorId: null }),
     ).resolves.toBeUndefined();
   });
 
   it('#541: updateProcurementHeader rejects 42501 when 0 rows matched and no error was reported', async () => {
-    h.result.value = { data: [], error: null };
+    h.rpcResult.value = { data: false, error: null };
     const err = await updateProcurementHeader('pr1', { title: 'x', projectId: null, vendorId: null })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('42501');
-    expect(h.calls.update.length).toBeGreaterThan(0);
+    expect(h.calls.rpc.length).toBeGreaterThan(0);
   });
 
   it('#541: updateProcurementItem resolves when the row comes back (positive control)', async () => {

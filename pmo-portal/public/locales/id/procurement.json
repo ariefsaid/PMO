@@ -1,4 +1,8 @@
 {
+  "quoteComparison": {
+    "selected": "Dipilih",
+    "lowestPrice": "Harga terendah"
+  },
   "lineItems": {
     "erpItem": "Item ERP",
     "itemDescription": "Item / deskripsi",
@@ -24,43 +28,678 @@
     "newLineTotal": "Total baris baru",
     "addLineItem": "Tambah item",
     "add": "Tambah",
-    "removeDescription": "Item ini akan dihapus dari permintaan. Anda dapat menambahkannya kembali selama permintaan masih berupa draf.",
+    "removeDescription": "Item ini akan dihapus dari pengadaan. Anda dapat menambahkannya kembali selama pengadaan masih berupa draf.",
     "removeItem": "Hapus item",
     "searchItem": "Cari kode atau nama item…"
   },
   "create": {
-    "heading": "Permintaan pembelian baru",
+    "heading": "Pengadaan baru",
     "save": "Simpan",
-    "draftNote": "Permintaan ini tetap berstatus Draf sampai Anda mengirimkannya.",
-    "requestDetails": "Rincian permintaan",
+    "draftNote": "Pengadaan ini tetap berstatus Draf sampai Anda mengirimkannya.",
+    "requestDetails": "Rincian pengadaan",
     "titleField": "Judul",
-    "titleRequired": "Judul permintaan wajib diisi.",
-    "linesFailed": "Permintaan tersimpan, tetapi beberapa baris belum tersimpan. Simpan lagi untuk mencoba kembali.",
+    "titleRequired": "Judul pengadaan wajib diisi.",
+    "linesFailed": "Pengadaan tersimpan, tetapi beberapa baris belum tersimpan. Simpan lagi untuk mencoba kembali.",
     "project": "Proyek",
     "selectProject": "Pilih proyek…",
     "vendor": "Pemasok",
-    "selectVendor": "Opsional — pilih pemasok…",
+    "selectVendor": "Opsional: pilih pemasok…",
     "budgetCategory": "Kategori anggaran",
-    "denied": "Anda tidak memiliki izin untuk membuat permintaan pembelian.",
+    "denied": "Anda tidak memiliki izin untuk membuat kasus pengadaan.",
     "unsaved": {
-      "title": "Permintaan belum disimpan",
-      "description": "Permintaan ini belum disimpan. Tinggalkan halaman dan buang?",
-      "partialDescription": "Permintaan Anda sudah tersimpan. Item yang belum tersimpan akan hilang jika Anda meninggalkan halaman ini.",
+      "title": "Pengadaan belum disimpan",
+      "description": "Pengadaan ini belum disimpan. Tinggalkan halaman dan buang?",
+      "partialDescription": "Pengadaan Anda sudah tersimpan. Item yang belum tersimpan akan hilang jika Anda meninggalkan halaman ini.",
       "leave": "Tinggalkan",
       "stay": "Tetap di sini"
     }
   },
   "ceiling": {
+    "checking": "Memeriksa kelayakan persetujuan…",
+    "unavailable": "Kelayakan persetujuan tidak tersedia. Muat ulang halaman ini dan coba lagi.",
     "exceeds": "Jumlah tagihan melebihi jumlah yang disetujui sebesar {{amount}}. Pemberi persetujuan harus menyetujui jumlah yang lebih tinggi.",
     "approveHigher": "Setujui jumlah lebih tinggi",
-    "confirmBody": "Jumlah yang disetujui menjadi {{billed}} (saat ini {{approved}}). Anda tidak dapat membayar permintaan ini sendiri.",
+    "confirmBody": "Jumlah yang disetujui menjadi {{billed}} (saat ini {{approved}}). Anda tidak dapat membayar pengadaan ini sendiri.",
     "confirm": "Setujui",
-    "approved": "Jumlah lebih tinggi disetujui"
+    "approved": "Jumlah lebih tinggi disetujui",
+    "billRecorder": "Orang yang mencatat tagihan tidak dapat menyetujui jumlah yang lebih tinggi.",
+    "quoteSelector": "Orang yang memilih penawaran tidak dapat menyetujui jumlah yang lebih tinggi.",
+    "requester": "Pemohon tidak dapat menyetujui jumlah yang lebih tinggi.",
+    "routing": "Pemberi persetujuan yang ditunjuk harus menyetujui jumlah yang lebih tinggi."
   },
   "quoteSelection": {
-    "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga permintaan dikembalikan untuk persetujuan."
+    "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga pengadaan dikembalikan untuk persetujuan."
   },
   "ledger": {
-    "billsHiddenForRole": "Tagihan vendor dan pembayaran tidak ditampilkan untuk peran Anda."
+    "paymentInErp": "Catat pembayaran di ERPNext; akan tertaut di sini pada sinkronisasi berikutnya.",
+    "billsHiddenForRole": "Tagihan pemasok dan pembayaran tidak ditampilkan untuk peran Anda.",
+    "awaitingApproval": "Menunggu persetujuan. Dokumen dapat dicatat setelah disetujui.",
+    "approveToStart": "Setujui untuk mulai mencatat dokumen.",
+    "emptyTitle": "Belum ada dokumen",
+    "waitingApproval": "Menunggu persetujuan.",
+    "recordFirst": "Catat dokumen pertama di bawah.",
+    "nothingRecorded": "Tidak ada yang dicatat untuk pembelian ini.",
+    "first": {
+      "label": "Catat dokumen pertama",
+      "helper": "Mulai dari dokumen yang sudah Anda miliki. Aturan pembelian organisasi Anda tetap berlaku.",
+      "request": "Permintaan",
+      "rfq": "Permintaan penawaran",
+      "order": "Pesanan",
+      "receipt": "Penerimaan barang",
+      "invoice": "Faktur pemasok",
+      "payment": "Pembayaran",
+      "needsRequest": "perlu permintaan pembelian dulu",
+      "needsApproval": "perlu persetujuan dulu",
+      "needsReceipt": "perlu penerimaan barang dulu"
+    },
+    "paymentNeedsBillOdoo": "Catat faktur pemasok di sini terlebih dahulu; setelah itu Anda dapat membayarnya dari sini.",
+    "preCutover": "Dicatat sebelum terhubung ke ERP, tidak dikirim",
+    "notSent": "Tidak dikirim",
+    "notSentReason": "Tidak dikirim: pembelian ini dimulai sebelum terhubung ke ERP"
+  },
+  "gates": {
+    "heading": "Aturan pembelian",
+    "intro": "Semua mati: pembelian dapat dimulai dari langkah mana pun. Aktifkan aturan hanya bila akuntansi Anda membutuhkannya.",
+    "loadError": "Aturan pembelian tidak dapat dimuat",
+    "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
+    "request_before_order": "Wajib permintaan sebelum pesanan",
+    "approval_before_order": "Wajib persetujuan sebelum pesanan",
+    "receipt_before_invoice": "Wajib penerimaan barang sebelum faktur",
+    "approval_before_payment": "Wajib persetujuan sebelum pembayaran",
+    "saving": "Menyimpan…",
+    "saved": "Tersimpan",
+    "request_before_orderHelp": "Jika aktif, pesanan memerlukan permintaan pembelian lebih dulu.",
+    "approval_before_orderHelp": "Jika aktif, pesanan memerlukan permintaan yang disetujui lebih dulu.",
+    "receipt_before_invoiceHelp": "Jika aktif, faktur pemasok memerlukan penerimaan barang lebih dulu.",
+    "approval_before_paymentHelp": "Jika aktif, pembayaran memerlukan jumlah yang disetujui lebih dulu."
+  },
+  "documents": {
+    "attachTo": "Lampirkan ke",
+    "thisPurchase": "Pembelian ini",
+    "openFolder": "Buka folder",
+    "attachTitle": "Lampirkan tautan ini",
+    "attachConfirm": "Tautkan",
+    "type": {
+      "pr": "Permintaan pembelian",
+      "rfq": "Permintaan penawaran",
+      "quote": "Penawaran",
+      "po": "Pesanan pembelian",
+      "gr": "Penerimaan barang",
+      "invoice": "Faktur pemasok",
+      "payment": "Pembayaran"
+    }
+  },
+  "detail": {
+    "paidNeedsValue": "Tambahkan item baris atau dokumen bernilai sebelum menandai lunas."
+  },
+  "projectDetail": {
+    "procurement": {
+      "stageBand": {
+        "request": "Permintaan",
+        "order": "Pesan",
+        "receive": "Terima",
+        "pay": "Bayar",
+        "invoiced": "Ditagih",
+        "invoicedNotPaid": "Ditagih, belum dibayar",
+        "paid": "Dibayar",
+        "approved": "Disetujui",
+        "label": "Tahapan pengadaan"
+      },
+      "nextStep": {
+        "approveOrReturn": "Setujui atau kembalikan",
+        "waitingOnApprover": "Menunggu pemberi persetujuan",
+        "approved": "Minta penawaran atau pesan",
+        "delivered": "Catat faktur pemasok",
+        "draft": "Ajukan untuk persetujuan",
+        "gettingQuotes": "Pilih penawaran",
+        "ordered": "Catat pengiriman",
+        "quoteChosen": "Ajukan pesanan",
+        "supplierInvoiced": "Bayar"
+      },
+      "noNextStep": "—",
+      "document": {
+        "purchaseRequest": "Permintaan pembelian",
+        "quotation": "Penawaran",
+        "purchaseOrder": "Pesanan pembelian",
+        "receipt": "Penerimaan",
+        "supplierInvoice": "Faktur pemasok",
+        "payment": "Pembayaran"
+      },
+      "detail": {
+        "budgetLeftTooltip": "Anggaran kategori aktif dikurangi pengeluaran aktual terpetakan dan nilai pengadaan ini. Sumber: anggaran aktif dan pengeluaran proyek.",
+        "budgetLoading": "Memuat anggaran…",
+        "budgetLeft": "Sisa anggaran kategori",
+        "title": "Detail pengadaan",
+        "openFullRecord": "Buka halaman lengkap",
+        "category": "Kategori",
+        "value": "Nilai",
+        "owner": "Pemilik",
+        "timeline": "Linimasa langkah",
+        "timelineHint": "Langkah dapat dilakukan dalam urutan apa pun; langkah yang dilewati tidak dicatat.",
+        "notRecorded": "Belum dicatat",
+        "documents": "Dokumen",
+        "loadingDocuments": "Memuat dokumen tertaut…",
+        "documentsError": "Dokumen tertaut tidak dapat dimuat.",
+        "noDocuments": "Belum ada dokumen tertaut."
+      },
+      "uncategorized": "Tanpa kategori",
+      "unassigned": "Belum ditugaskan",
+      "toast": {
+        "approved": "Pengadaan disetujui",
+        "returned": "Pengadaan dikembalikan",
+        "cancelled": "Pengadaan dibatalkan",
+        "completedMany": "{{count}} catatan diperbarui.",
+        "partial": "Beberapa catatan diperbarui",
+        "partialDetail": "{{updated}} diperbarui; {{failed}} perlu ditinjau.",
+        "linkCopied": "Tautan disalin",
+        "linkCopyFailed": "Tautan tidak dapat disalin"
+      },
+      "rowMenu": {
+        "open": "Buka pengadaan",
+        "approve": "Setujui",
+        "return": "Kembalikan",
+        "copyLink": "Salin tautan",
+        "cancel": "Batalkan pengadaan"
+      },
+      "exportEntity": "Pengadaan",
+      "table": {
+        "value": "Nilai",
+        "procurement": "Pengadaan",
+        "category": "Kategori",
+        "stage": "Tahap",
+        "nextStep": "Langkah berikutnya",
+        "accessibleName": "Pengadaan proyek"
+      },
+      "noSupplier": "Tidak ada pemasok",
+      "ownerTooltip": "Diminta oleh {{name}}. Sumber: kasus pengadaan.",
+      "stageCountTooltip": "Jumlah pengadaan yang saat ini berada di tahap {{stage}}. Sumber: kasus pengadaan proyek.",
+      "forYou": "{{count}} untuk Anda",
+      "selection": {
+        "selectRow": "Pilih {{name}}",
+        "count": "{{count}} dipilih",
+        "clearVisible": "Hapus yang terlihat",
+        "selectVisible": "Pilih yang terlihat",
+        "clear": "Hapus pilihan"
+      },
+      "empty": {
+        "title": "Belum ada pengadaan di proyek ini.",
+        "engineerTitle": "Anda belum mengajukan pengadaan di proyek ini."
+      },
+      "emptyFiltered": {
+        "title": "Tidak ada pengadaan yang cocok dengan filter ini.",
+        "sub": "Sesuaikan pencarian atau filter, lalu coba lagi.",
+        "clear": "Hapus filter"
+      },
+      "bulk": {
+        "approve": "Setujui",
+        "return": "Kembalikan",
+        "export": "Ekspor"
+      },
+      "searchLabel": "Cari pengadaan",
+      "search": "Cari pengadaan…",
+      "filter": {
+        "category": "Filter berdasarkan kategori",
+        "allCategories": "Kategori",
+        "owner": "Filter berdasarkan pemilik",
+        "allOwners": "Pemilik",
+        "clearStage": "Hapus filter tahap"
+      },
+      "confirm": {
+        "approveTitle": "Setujui pengadaan ini?",
+        "approveManyTitle": "Setujui {{count}} pengadaan?",
+        "approveDescription": "{{title}} · {{amount}}. Persetujuan mengizinkan pesanan berjalan.",
+        "approveManyDescription": "Persetujuan mengizinkan setiap pesanan berjalan.",
+        "cancelManyTitle": "Batalkan pengadaan ini?",
+        "cancelTitle": "Batalkan pengadaan ini?",
+        "returnManyTitle": "Kembalikan pengadaan ini?",
+        "returnTitle": "Kembalikan pengadaan ini?",
+        "cancelDescription": "Pengadaan ini akan ditandai sebagai dibatalkan.",
+        "returnDescription": "Pengadaan ini akan dikembalikan kepada pengajunya.",
+        "returnComment": "Komentar pengembalian",
+        "returnCommentHelp": "Jelaskan apa yang perlu diubah pengaju."
+      },
+      "stage": {
+        "cancelled": "Dibatalkan",
+        "rejected": "Ditolak"
+      }
+    }
+  },
+  "procurement": {
+    "moneyBasis": {
+      "paid": "Dibayar",
+      "invoiced": "Ditagih",
+      "ordered": "Dipesan",
+      "requested": "Diajukan"
+    },
+    "needsYou": {
+      "none": "—",
+      "approve": "Setujui pengadaan",
+      "receive": "Catat pengiriman",
+      "pay": "Bayar faktur",
+      "column": "Alasan perlu tindakan Anda"
+    },
+    "rowMenu": {
+      "nextAction": "Tindakan berikutnya",
+      "recordDocument": "Catat dokumen lain",
+      "linkFile": "Tautkan file",
+      "export": "Ekspor"
+    },
+    "moneyTooltip": "Jumlah tercatat terbesar: dibayar, difakturkan, dipesan, lalu diminta. Sumber: catatan pengadaan.",
+    "moneyUnknown": "Belum dicatat",
+    "unpaidTooltip": "Jumlah faktur dikurangi pembayaran tercatat, atau saldo terutang di ERP.",
+    "unpaidLine": "Belum dibayar {{amount}}",
+    "unpaidInFull": "Belum dibayar seluruhnya",
+    "unpaidUnknown": "Saldo belum dibayar belum dicatat",
+    "noStepDates": "Belum ada tanggal langkah yang dicatat.",
+    "moreActions": "Tindakan pengadaan lainnya",
+    "settlementTooltip": "Jumlah pembayaran yang tercatat dibandingkan dengan faktur yang tercatat.",
+    "settlement": "Dibayar / difakturkan",
+    "nextStepLabel": "Langkah berikutnya",
+    "lineItems": "Item permintaan",
+    "lineItemsUnavailable": "Baris item tidak dapat dimuat.",
+    "noLineItems": "Belum ada baris item yang dicatat.",
+    "openDrawer": "Buka pengadaan",
+    "needsYouTooltip": "Tindakan yang disarankan berdasarkan peran dan status catatan saat ini. Aturan server tetap menjadi acuan.",
+    "ageInStageTooltip": "Jumlah hari sejak pengadaan terakhir kali memasuki tahap saat ini.",
+    "ageInStage": "Lama di tahap",
+    "ageShort": "Umur",
+    "ageInStageDays": "{{count}} hari",
+    "raisedBy": "Dibuat oleh",
+    "stageCountTooltip": "Jumlah pengadaan yang saat ini berada di tahap {{stage}}. Sumber: kasus pengadaan perusahaan.",
+    "table": {
+      "accessibleName": "Pengadaan"
+    },
+    "empty": {
+      "title": "Belum ada pengadaan.",
+      "scopeNote": "Pembelian yang hanya tercatat di sistem akuntansi tidak tercantum di sini."
+    }
+  },
+  "common": {
+    "loading": "Memuat…",
+    "retry": "Coba lagi"
+  },
+  "quotes": {
+    "compareHint": "Bandingkan dan pilih penawaran pemasok",
+    "supplierColumn": "Pemasok / No. penawaran",
+    "supplierQuoteFallback": "Penawaran pemasok",
+    "tableName": "Perbandingan penawaran pemasok",
+    "selectSupplier": "Pilih pemasok…",
+    "selectionDescription": "Penawaran yang dipilih menetapkan nilai pengadaan dan pemasok. Jika melebihi jumlah yang disetujui, pengadaan akan kembali untuk persetujuan."
+  },
+  "approvalRow": {
+    "approve": "Setujui",
+    "rejectShort": "Tolak",
+    "unknownRequester": "Pemohon tidak diketahui",
+    "loadErrorSub": "Dampak anggaran dan rincian barang gagal dimuat.",
+    "lineItems": "Rincian barang",
+    "requestedBy": "Diminta oleh",
+    "project": "Proyek",
+    "requested": "Diminta",
+    "totalValue": "Nilai total",
+    "noProject": "Tidak ada proyek terkait",
+    "approveTitle": "Setujui {{title}}?",
+    "rejectTitle": "Tolak {{title}}?",
+    "approvedDetail": "{{title}} telah disetujui",
+    "rejectedDetail": "{{title}} telah ditolak",
+    "open": "Buka pengadaan",
+    "details": "Rincian pengadaan",
+    "loadError": "Rincian pengadaan gagal dimuat",
+    "approved": "Pengadaan disetujui",
+    "rejected": "Pengadaan ditolak",
+    "reject": "Tolak pengadaan",
+    "approveDescription": "Setujui {{title}} ({{amount}})? Pengadaan ini akan dilanjutkan ke tahap pemesanan.",
+    "rejectDescription": "Tolak {{title}}? Pemohon akan diberi tahu dan dapat memperbaiki lalu mengajukan ulang.",
+    "rejectionComment": "Komentar penolakan",
+    "rejectionCommentHelp": "Tambahkan komentar untuk pemohon sebelum menolak pengadaan ini."
+  },
+  "decisionSupport": {
+    "thisProcurement": "Pengadaan ini",
+    "notCompared": "Mata uang berbeda: tidak dibandingkan dengan anggaran",
+    "afterThisProcurement": "Setelah pengadaan ini",
+    "overBudgetLead": "Pengadaan ini melebihi anggaran yang tersedia sebesar"
+  },
+  "headerEdit": {
+    "heading": "Edit rincian pengadaan",
+    "titlePlaceholder": "Judul pengadaan",
+    "titleRequired": "Judul pengadaan wajib diisi.",
+    "save": "Simpan pengadaan"
+  },
+  "preview": {
+    "loadErrorTitle": "Gagal memuat detail pengadaan"
+  },
+  "procurementDetail": {
+    "readyHint": {
+      "draftOther": "Siap mengajukan pengadaan ini untuk disetujui.",
+      "requested": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengajuannya sendiri. Pemisahan tugas memerlukan peninjau lain.",
+      "vendorInvoicedApprover": "Pembayaran harus dirilis oleh pengguna keuangan lain. Penyetuju tidak dapat sekaligus membayar pengadaan ini.",
+      "vendorInvoiced": "Untuk merilis pembayaran, penyetuju tidak boleh sekaligus menjadi pembayar (pemisahan tugas). Anda dapat menandai pengadaan ini sebagai lunas di bawah.",
+      "default": "Siap melanjutkan. Pilih tindakan di bawah untuk memindahkan pengadaan ini ke tahap berikutnya."
+    },
+    "sodPreannounce": "Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui kasus pengadaan Anda sendiri."
+  },
+  "subcontract": {
+    "form": {
+      "noLines": "Isi kuantitas untuk minimal satu baris",
+      "quantity": "Kuantitas harus lebih dari 0 dengan maksimal 3 desimal"
+    },
+    "editor": {
+      "title": "Atur baris BoQ",
+      "subtitle": "Baris kontrak yang dicakup PO ini, dengan harga BoQ. Menyimpan mengganti draf; menerbitkan membekukannya.",
+      "save": "Simpan baris",
+      "legend": "Kuantitas per baris",
+      "noBoq": "Proyek ini belum punya item BoQ.",
+      "line": "{{item}} ({{unit}})",
+      "rate": "Harga {{rate}}"
+    },
+    "attribute": {
+      "title": "Atribusikan baris ke tagihan {{number}}",
+      "subtitle": "Tagihan {{amount}} ini dicatat tanpa kuantitas baris. Nyatakan cakupannya, dengan harga PO.",
+      "save": "Atribusikan baris",
+      "legend": "Kuantitas ditagih per baris",
+      "helper": "PO {{po}}, terverifikasi {{verified}}, harga {{rate}}"
+    },
+    "lines": {
+      "title": "Baris BoQ subkontrak",
+      "loadError": "Posisi subkontrak tidak dapat dimuat.",
+      "retry": "Coba lagi",
+      "setLines": "Atur baris BoQ",
+      "empty": "Belum ada baris BoQ yang diterbitkan",
+      "draftCount": "{{count}} baris draf, belum diterbitkan. Menerbitkan membekukan revisi 1.",
+      "issue": "Terbitkan baris",
+      "emptyHint": "Atur baris BoQ yang dicakup PO ini, lalu terbitkan untuk membekukan revisi 1.",
+      "billedTotal": "Nilai ditagih",
+      "billLinesTotal": "Total baris tagihan",
+      "issueTitle": "Terbitkan baris BoQ?",
+      "issueBody": "Menerbitkan membekukan revisi 1 PO ini. Perubahan berikutnya melalui variasi.",
+      "issueConfirm": "Terbitkan",
+      "issued": "Baris BoQ diterbitkan",
+      "notOnPoAge_one": "terverifikasi, di luar PO selama {{count}} hari",
+      "notOnPoAge_other": "terverifikasi, di luar PO selama {{count}} hari"
+    },
+    "exceptions": {
+      "reason": {
+        "no_lines": "ditagih tanpa kuantitas baris",
+        "other": "tidak dapat diperiksa terhadap batas ({{reason}})"
+      },
+      "title": "Tagihan yang tidak dapat diperiksa terhadap batas",
+      "attribute": "Atribusikan baris"
+    },
+    "acceptance": {
+      "record": "Catat penerimaan",
+      "title": "Penerimaan",
+      "loadError": "Penerimaan tidak dapat dimuat.",
+      "empty": "Belum ada penerimaan tercatat",
+      "document": "Dokumen bertanda tangan: {{title}}",
+      "noDocument": "Belum ada dokumen bertanda tangan",
+      "soleOperator": "Dikonfirmasi oleh satu-satunya anggota aktif",
+      "review": "Tinjau draf",
+      "prepared": "Penerimaan disimpan sebagai draf",
+      "confirmed": "Penerimaan dikonfirmasi",
+      "withdrawn": "Penerimaan ditarik",
+      "form": {
+        "errors": {
+          "date": "Isi tanggal penerimaan",
+          "quantity": "Isi 0 atau lebih dengan maksimal 3 desimal",
+          "belowConfirmed": "Ini kumulatif dan tidak boleh kurang dari yang terakhir dikonfirmasi {{qty}}",
+          "noLines": "Isi kuantitas terverifikasi untuk minimal satu baris"
+        },
+        "noDocument": "Belum ada",
+        "titleEdit": "Ubah penerimaan",
+        "titleNew": "Catat penerimaan",
+        "subtitle": "Pekerjaan yang diverifikasi di lapangan, sebagai kuantitas kumulatif sampai saat ini. Orang lain mengonfirmasinya dengan dokumen bertanda tangan; ini tidak membuat tagihan.",
+        "save": "Simpan penerimaan",
+        "prepare": "Siapkan penerimaan",
+        "details": "Penerimaan",
+        "date": "Tanggal periode",
+        "document": "Dokumen penerimaan bertanda tangan",
+        "noEligibleDocument": "Unggah dan terbitkan dokumen bertanda tangan di register proyek dahulu. Diperlukan untuk konfirmasi.",
+        "documentHelp": "Dari register proyek ini: terbit atau disetujui, dengan berkas. Diperlukan untuk konfirmasi.",
+        "quantities": "Terverifikasi sampai saat ini",
+        "quantityLine": "{{item}}: terverifikasi sampai saat ini ({{unit}})",
+        "ordered": "PO {{qty}} {{unit}}{{confirmed}}",
+        "lastConfirmed": ", terakhir dikonfirmasi {{qty}}",
+        "overPo": "{{item}}: {{qty}} {{unit}} melebihi PO, ditampilkan sebagai terverifikasi, di luar PO.",
+        "noteLegend": "Catatan",
+        "note": "Catatan (opsional)",
+        "decide": "Putuskan",
+        "confirm": "Konfirmasi penerimaan",
+        "withdraw": "Tarik draf"
+      },
+      "selfConfirmHint": "Anda yang menyiapkan ini. Admin atau Finance lain harus mengonfirmasinya, kecuali Anda satu-satunya anggota aktif.",
+      "status": {
+        "Draft": "Draf",
+        "Confirmed": "Dikonfirmasi",
+        "Withdrawn": "Ditarik"
+      }
+    },
+    "col": {
+      "line": "Baris",
+      "unit": "Satuan",
+      "rate": "Harga",
+      "po": "Kuantitas PO",
+      "verified": "Terverifikasi",
+      "billed": "Ditagih",
+      "payable": "Dapat dibayar",
+      "notOnPo": "Terverifikasi, di luar PO",
+      "disputed": "Disengketakan"
+    },
+    "cap": {
+      "capRefused": "Tagihan ini melebihi pekerjaan yang diterima",
+      "linesRequired": "Pembelian ini tidak punya baris BoQ terbit untuk ditagih",
+      "nothingPayable": "{{code}}: tidak ada yang dapat dibayar — {{verified}} terverifikasi, {{po}} di PO, {{billed}} sudah ditagih"
+    },
+    "bill": {
+      "clamped": "{{code}} dibatasi ke {{max}}, jumlah terbesar yang masih dapat dibayar",
+      "loading": "Memuat baris BoQ…",
+      "title": "Tagih baris BoQ ini (sebatas yang masih dapat dibayar)",
+      "payable": "dapat dibayar {{max}} dengan harga {{rate}}",
+      "amountFromLines": "Jumlah dari baris yang dapat ditagih"
+    },
+    "variations": {
+      "title": "Variasi biaya",
+      "loadError": "Variasi biaya tidak dapat dimuat.",
+      "empty": "Belum ada variasi biaya",
+      "request": "Ajukan variasi",
+      "preWorkAction": "Sebelum kerja",
+      "postWorkAction": "Setelah kerja",
+      "newTitle": "Ajukan variasi PO",
+      "newSubtitle": "{{item}} · {{unit}} · harga PO {{rate}}",
+      "details": "Rincian variasi",
+      "quantity": "Kuantitas tambahan ({{unit}})",
+      "quantityError": "Isi kuantitas di atas 0 dengan maksimal 3 desimal.",
+      "maxError": "Kuantitas tidak boleh melebihi {{max}} yang terverifikasi dan belum masuk PO.",
+      "preWorkHelper": "Sebelum pekerjaan selesai, ajukan kuantitas tambahan yang dibutuhkan.",
+      "postWorkHelper": "Maksimum terverifikasi yang belum masuk PO: {{max}} {{unit}}",
+      "amount": "Nilai variasi",
+      "reason": "Alasan",
+      "reasonRequired": "Berikan alasan untuk variasi ini.",
+      "routeLegend": "Rute persetujuan",
+      "routeLoading": "Memuat rute persetujuan…",
+      "routeUnavailable": "Rute persetujuan tidak dapat dimuat.",
+      "noRoute": "Belum ada rute persetujuan untuk pengajuan ini.",
+      "seniorRoute": "Memerlukan pemberi persetujuan senior",
+      "decidedBy": "Diputuskan oleh {{names}}",
+      "projectApprovers": "pemberi persetujuan proyek",
+      "done": "Selesai",
+      "status": { "Requested": "Diajukan", "Approved": "Disetujui", "Revised": "Direvisi", "Rejected": "Ditolak", "Disputed": "Disengketakan" },
+      "postWork": "Setelah kerja",
+      "preWork": "Sebelum kerja",
+      "approve": "Setujui",
+      "reject": "Tolak",
+      "issueRevision": "Terbitkan revisi",
+      "approved": "Variasi disetujui",
+      "rejected": "Variasi ditolak",
+      "revised": "Revisi PO diterbitkan",
+      "reviseNotSentHeadline": "Tidak dikirim: rute revisi ERP belum tersedia",
+      "reviseNotSentDetail": "Variasi yang disetujui tetap di PMO. Tidak ada revisi pesanan pembelian yang diterbitkan.",
+      "refusal": {
+        "revision_superseded": {
+          "headline": "Revisi telah digantikan",
+          "detail": "Revisi yang lebih baru sudah ada untuk pesanan pembelian ini. Lihat revisi terbaru."
+        },
+        "po_has_submitted_bill": {
+          "headline": "Tidak dapat merevisi pesanan tertagih",
+          "detail": "Pesanan pembelian ini memiliki tagihan pemasok yang sudah diajukan di ERP dan tidak dapat direvisi."
+        },
+        "revision_not_issued": {
+          "headline": "Revisi belum diterbitkan",
+          "detail": "Revisi pesanan pembelian ini belum diterbitkan di PMO."
+        },
+        "po_not_found": {
+          "headline": "Pesanan pembelian tidak ditemukan",
+          "detail": "Pesanan pembelian tidak dapat ditemukan."
+        },
+        "below-received": {
+          "headline": "Jumlah di bawah yang diterima",
+          "detail": "Jumlah pesanan tidak dapat dikurangi di bawah jumlah yang sudah diterima atau ditagihkan."
+        }
+      },
+      "chooseWorkOrder": "Pilih perintah kerja",
+      "notPassed": "Tidak diteruskan",
+      "linkLabel": "Perintah kerja klien",
+      "notPassedReason": "Alasan tidak diteruskan",
+      "notPassedRequired": "Berikan alasan variasi ini tidak diteruskan.",
+      "saveLink": "Simpan tautan",
+      "linked": "Tautan variasi disimpan",
+      "linkedReadOnly": "Ditautkan ke perintah kerja klien",
+      "notPassedReadOnly": "Tidak diteruskan: {{reason}}",
+      "workOrdersLoading": "Memuat perintah kerja proyek…",
+      "workOrdersLoadError": "Perintah kerja proyek tidak dapat dimuat.",
+      "workOrderHeading": "Variasi biaya",
+      "workOrderLoadError": "Variasi biaya tidak dapat dimuat.",
+      "workOrderEmpty": "Belum ada variasi biaya tertaut",
+      "approveTitle": "Setujui variasi ini?",
+      "rejectTitle": "Tolak variasi ini?",
+      "approveBody": "Persetujuan meningkatkan komitmen pembelian sebesar nilai ini.",
+      "rejectBody": "Variasi ini akan ditolak atau disengketakan dan tidak meningkatkan PO.",
+      "reviseTitle": "Terbitkan revisi PO baru?",
+      "reviseBody": "Ini menerapkan perubahan kuantitas yang disetujui ke pesanan pembelian."
+    }
+  },
+  "procurementBulk": {
+    "approveN": "Setujui {{count}}",
+    "clear": "Hapus pilihan",
+    "confirmDescription": "Setiap pengadaan disetujui secara terpisah. Jika satu permintaan tidak dapat disetujui, permintaan lain tetap dapat diproses.",
+    "confirmMore": "{{count}} pilihan lainnya",
+    "confirmTitleMany": "Setujui {{count}} permintaan pengadaan?",
+    "confirmTitleOne": "Setujui 1 permintaan pengadaan?",
+    "groupLabel": "Setujui pengadaan secara massal",
+    "rowSelect": "Pilih {{title}}",
+    "scopeAll": "Semua {{count}} permintaan pengadaan dalam antrean ini dapat disetujui.",
+    "scopeOne": "1 permintaan pengadaan dalam antrean ini dapat disetujui.",
+    "scopeSome": "{{eligible}} dari {{total}} permintaan pengadaan dalam antrean ini dapat disetujui.",
+    "select": "Pilih pengadaan",
+    "selectAll": "Pilih semua permintaan pengadaan",
+    "selectedCount": "{{count}} dipilih",
+    "toast": {
+      "allOk": {
+        "detail": "{{count}} disetujui",
+        "headline": "Pengadaan disetujui"
+      },
+      "failureRows": "Tidak dapat menyetujui: {{titles}}{{more}}",
+      "more": " dan {{count}} lainnya",
+      "noneOk": {
+        "detail": "{{count}} gagal. {{rows}}",
+        "headline": "Pengadaan tidak dapat disetujui"
+      },
+      "partial": {
+        "detail": "{{ok}} disetujui, {{failed}} gagal. {{rows}}",
+        "headline": "Disetujui sebagian"
+      }
+    }
+  },
+  "odoo": {
+    "outcome": {
+      "confirmed": "Ada di Odoo",
+      "pending": "Terkirim, menunggu Odoo",
+      "held": "Perlu keputusan",
+      "attention": "Periksa di Odoo",
+      "approval": "Menunggu persetujuan di Odoo",
+      "refused": "Odoo tidak menerimanya",
+      "reason": {
+        "revision_superseded": "Revisi yang lebih baru sudah ada untuk pesanan pembelian ini.",
+        "po_has_submitted_bill": "Pesanan pembelian ini memiliki tagihan yang sudah diajukan di ERP.",
+        "revision_not_issued": "Revisi pesanan pembelian ini belum diterbitkan.",
+        "po_not_found": "Pesanan pembelian tidak ditemukan.",
+        "below-received": "Jumlah tidak dapat dikurangi di bawah jumlah yang sudah diterima atau ditagihkan."
+      },
+      "next": {
+        "pending": "Odoo belum mengonfirmasi. PMO memeriksa lagi sendiri; tidak ada yang perlu dilakukan.",
+        "held": "PMO tidak dapat memastikan apakah Odoo sudah membuatnya. Admin atau Keuangan memeriksa Odoo lalu memutuskan.",
+        "attention": "Odoo menunjukkan total yang berbeda dari yang dikirim PMO. Periksa tagihan di Odoo sebelum membayarnya.",
+        "approval": "Penyetuju di Odoo perlu menyetujui pesanan ini. Tidak ada yang perlu dilakukan di PMO.",
+        "refused": "Periksa yang Anda masukkan, lalu catat lagi."
+      },
+      "read": "Dibaca {{age}}",
+      "sent": "Dikirim {{age}}"
+    },
+    "unreachable": "Odoo tidak dapat dijangkau. Menampilkan data terakhir yang dibaca PMO, {{age}}. Coba lagi setelah Odoo kembali.",
+    "billCheckFirst": "periksa di Odoo dulu",
+    "readFailed": "Hal yang belum diselesaikan Odoo tidak dapat dibaca. Coba lagi sebentar lagi.",
+    "unreachableAction": "Odoo tidak dapat dijangkau, coba lagi.",
+    "nothingSent": "Tidak ada yang dikirim.",
+    "kind": {
+      "purchase-order": "Pesanan",
+      "goods-receipt": "Penerimaan barang",
+      "purchase-invoice": "Faktur pemasok",
+      "payment": "Pembayaran",
+      "sales-invoice": "Faktur pelanggan",
+      "incoming-payment": "Kuitansi pelanggan"
+    },
+    "waiting": {
+      "title": "Menunggu Odoo"
+    },
+    "held": {
+      "adopt": "Sudah ada di Odoo",
+      "absent": "Tidak ada di Odoo",
+      "adoptTitle": "Tautkan pembayaran ini ke Odoo?",
+      "adoptRevenueTitle": "Tautkan dokumen ini ke Odoo?",
+      "adoptRevenueBody": "Masukkan nomor dokumen Odoo. PMO memeriksa bahwa dokumen tersebut milik catatan ini sebelum menautkannya.",
+      "absentRevenueTitle": "Konfirmasi dokumen ini tidak ada di Odoo?",
+      "absentRevenueBody": "PMO akan mencarinya sekali lagi dan, jika tidak menemukan apa pun, dapat mengirim dokumen lagi. Konfirmasi hanya setelah memeriksa Odoo.",
+      "adoptBody": "Masukkan nomor pembayaran Odoo yang akan ditautkan. PMO memeriksa bahwa pembayaran itu milik tagihan ini sebelum menganggapnya sebagai pembayaran.",
+      "adoptField": "Nomor pembayaran Odoo",
+      "adoptHint": "Nomor yang ditampilkan Odoo untuk pembayaran itu, misalnya 123.",
+      "documentField": "Nomor dokumen Odoo",
+      "documentHint": "Nomor yang ditampilkan Odoo untuk dokumen ini, misalnya 123.",
+      "absentTitle": "Konfirmasi tidak ada pembayaran di Odoo?",
+      "absentBody": "PMO akan mencarinya sekali lagi dan, jika tidak menemukan apa pun, dapat mengirim pembayaran lagi. Konfirmasi hanya setelah memeriksa Odoo.",
+      "confirm": "Konfirmasi",
+      "cancel": "Batal",
+      "done": "Keputusan dicatat.",
+      "failed": "Keputusan tidak dapat dicatat.",
+      "ownCommand": "Anda yang mengirim pembayaran ini, jadi orang lain harus memutuskan.",
+      "ownRevenueCommand": "Anda yang mengirim dokumen ini, jadi orang lain harus memutuskan."
+    },
+    "taxes": {
+      "label": "Pajak",
+      "defaultHint": "Biarkan semua tidak dicentang untuk memakai pajak bawaan organisasi Anda.",
+      "emptyReason": "Belum ada pajak yang dibaca dari Odoo.",
+      "staleReason": "Daftar pajak terakhir dibaca {{age}}; segarkan koneksi Odoo terlebih dahulu."
+    },
+    "journal": {
+      "label": "Bayar dari",
+      "default": "Jurnal bawaan",
+      "emptyReason": "Belum ada jurnal pembayaran yang dibaca dari Odoo.",
+      "staleReason": "Daftar jurnal terakhir dibaca {{age}}; segarkan koneksi Odoo terlebih dahulu."
+    },
+    "accounts": {
+      "choose": "Pilih akun",
+      "emptyReason": "Belum ada akun yang dibaca dari Odoo.",
+      "staleReason": "Daftar akun terakhir dibaca {{age}}; segarkan koneksi Odoo terlebih dahulu.",
+      "saved": "Akun tersimpan {{id}}"
+    },
+    "booked": "Diterima di Odoo: {{qty}}",
+    "entered": "dimasukkan {{qty}}",
+    "paymentAwaiting": "Pembayaran terkirim, menunggu Odoo",
+    "receipt": {
+      "title": "Jumlah diterima",
+      "hint": "Kosongkan untuk menerima semua yang masih terbuka. Odoo menolak jumlah di atas yang masih terbuka.",
+      "line": "{{name}} (dipesan {{qty}})",
+      "invalid": "Masukkan jumlah di atas nol dan tidak lebih dari yang dipesan untuk {{name}}.",
+      "fullUnavailable": "Jumlah per baris disimpan, tetapi tidak dapat dikirim selama penerimaan tingkat baris tidak tersedia. Kosongkan untuk menerima semua yang masih terbuka.",
+      "retry": "Coba lagi",
+      "clearAll": "Kosongkan jumlah dan terima semua yang masih terbuka"
+    }
   }
 }

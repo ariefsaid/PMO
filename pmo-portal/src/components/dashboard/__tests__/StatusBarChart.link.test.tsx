@@ -3,7 +3,7 @@
  * Plan: docs/plans/2026-06-15-jtbd-remediation.md W1-T05
  */
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { StatusBarChart } from '../StatusBarChart';
@@ -52,9 +52,10 @@ describe('StatusBarChart hrefFor prop (AC-JR-W1-10)', () => {
     );
     // No links should be rendered when hrefFor is not provided
     expect(screen.queryByRole('link')).toBeNull();
-    // The status text should still be present (as plain text)
-    expect(screen.getByText('Requested')).toBeInTheDocument();
-    expect(screen.getByText('Draft')).toBeInTheDocument();
+    // Status labels remain plain text in the visible legend, alongside the table copy.
+    const legend = screen.getByRole('group', { name: 'Procurement by status' });
+    expect(within(legend).getByText('Requested')).toBeInTheDocument();
+    expect(within(legend).getByText('Draft')).toBeInTheDocument();
   });
 
   it('AC-JR-W1-10: each legend link contains the dot + count (color-not-only is preserved)', () => {

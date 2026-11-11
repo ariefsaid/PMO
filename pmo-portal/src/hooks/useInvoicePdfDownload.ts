@@ -19,14 +19,14 @@ const FAILURE_COPY: Record<string, FailureCopy> = {
     ? t('financeCopy.invoicePdf.notPermittedAdmin', 'The ERP refused to print this invoice. Open Administration → Integrations to check the connection, and in ERPNext give the integration user Print access to Sales Invoices.')
     : t('financeCopy.invoicePdf.notPermitted', 'The ERP refused to print this invoice. Ask your administrator to give the integration user Print access to Sales Invoices.'),
   ERP_DOCUMENT_MISSING: (t) => t('financeCopy.invoicePdf.documentMissing', 'The ERP no longer has this invoice.'),
-  NOT_SUBMITTED: (t) => t('financeCopy.invoicePdf.notSubmitted', 'Only a submitted invoice can be downloaded — this invoice may have been cancelled.'),
+  NOT_SUBMITTED: (t) => t('financeCopy.invoicePdf.notSubmitted', 'Only a submitted invoice can be downloaded. This invoice may have been cancelled.'),
   NOT_ERP_INVOICE: (t) => t('financeCopy.invoicePdf.notErpInvoice', 'This invoice was not issued through the ERP, so there is no ERP PDF.'),
   ERP_NOT_CONNECTED: (t, admin) => admin
     ? t('financeCopy.invoicePdf.notConnectedAdmin', 'The ERP connection is not active. Open Administration → Integrations and reconnect the ERP.')
     : t('financeCopy.invoicePdf.notConnected', 'The ERP connection is not active. Ask your administrator to check Integrations.'),
   NOT_FOUND: (t) => t('financeCopy.invoicePdf.notFound', 'This invoice is no longer available.'),
   FORBIDDEN: (t) => t('financeCopy.invoicePdf.forbidden', 'You do not have access to download this invoice.'),
-  UNAUTHORIZED: (t) => t('financeCopy.invoicePdf.sessionExpired', 'Your session expired — sign in again.'),
+  UNAUTHORIZED: (t) => t('financeCopy.invoicePdf.sessionExpired', 'Your session expired. Sign in again.'),
 };
 const unreachableCopy = (t: TFunction) => t('financeCopy.invoicePdf.unreachable', 'PMO could not reach the download service. Try again in a moment.');
 
@@ -60,7 +60,7 @@ export function useInvoicePdfDownload() {
         const pdf = await repositories.revenue.downloadInvoicePdf(invoice.id);
         const name = safePdfFilename(invoice.si_number ?? '');
         triggerBlobDownload(pdf, name);
-        toast(t('financeCopy.invoicePdf.downloaded', 'PDF downloaded — {{name}}', { name }), undefined, 'success');
+        toast(t('financeCopy.invoicePdf.downloaded', 'PDF downloaded: {{name}}', { name }), undefined, 'success');
       } catch (err) {
         const code = (err as { code?: unknown } | null)?.code;
         const copy = typeof code === 'string' && Object.hasOwn(FAILURE_COPY, code) ? FAILURE_COPY[code] : unreachableCopy;

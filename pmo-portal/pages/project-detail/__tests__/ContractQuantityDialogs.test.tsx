@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
@@ -202,6 +202,33 @@ describe('AC-CQ-014 WorkOrderLinesModal allocation editor', () => {
     expect(screen.queryByText(/Over-ordered/)).not.toBeInTheDocument();
   });
 
+  const withAccepted = (accepted: number | null) => [
+    { ...facts('b1', 900), allocations: [{ workOrderId: 'wo-1', boqItemId: 'b1', quantity: 1000, claimedQuantity: 0, acceptedQuantity: accepted, final: false }] },
+    facts('b2', 5),
+  ];
+
+  it('XP4R-001 a quantity below the latest confirmed acceptance is refused without a call; equal is allowed', async () => {
+    const { onUpdate, user } = renderModal({ contractLines: withAccepted(400) });
+    const survey = screen.getByLabelText(/SURVEY —/);
+    await user.clear(survey);
+    await user.type(survey, '399');
+    await user.click(screen.getByRole('button', { name: 'Save SURVEY' }));
+    expect(await screen.findByText(/already accepted 400 km/)).toBeInTheDocument();
+    expect(onUpdate).not.toHaveBeenCalled();
+    await user.clear(survey);
+    await user.type(survey, '400');
+    await user.click(screen.getByRole('button', { name: 'Save SURVEY' }));
+    expect(onUpdate).toHaveBeenCalledWith('l1', 400);
+  });
+
+  it('XP4R-001 an allocation with a confirmed acceptance cannot be removed; without one it can', async () => {
+    renderModal({ contractLines: withAccepted(400) });
+    expect(screen.getByRole('button', { name: 'Remove SURVEY' })).toBeDisabled();
+    cleanup();
+    renderModal({ contractLines: withAccepted(null) });
+    expect(screen.getByRole('button', { name: 'Remove SURVEY' })).toBeEnabled();
+  });
+
   it.each(['0', '1.2345', ''])('AC-CQ-014 a quantity of "%s" is refused without a call', async (value) => {
     const { onCreate, onUpdate, user } = renderModal();
     const station = screen.getByLabelText(/STATION —/);
@@ -301,7 +328,7 @@ describe('AC-CQ-014 WorkOrderAcceptanceModal (BAST preparation)', () => {
     await user.click(screen.getByLabelText('This is the final BAST'));
     await user.type(screen.getByLabelText(/SURVEY/), '997');
     await submit(user);
-    expect((await screen.findAllByText('A final BAST states every ordered line — enter a quantity, even 0')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('A final BAST states every ordered line. Enter a quantity, even 0')).length).toBeGreaterThan(0);
     expect(onSave).not.toHaveBeenCalled();
     await user.type(screen.getByLabelText(/MOBILISE/), '100');
     await submit(user);

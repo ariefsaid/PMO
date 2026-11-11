@@ -3,43 +3,44 @@ export { cn } from './cn';
 export { useIsNarrow } from './useIsNarrow';
 export { Icon, type IconProps } from './icons';
 export { ICON_PATHS, type IconName } from './iconPaths';
-export { chartTheme, type ChartTheme } from './chartTheme';
+export { chartTheme } from './chartTheme';
 
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button';
 export { buttonClasses } from './buttonClasses';
 export { Checkbox, type CheckboxProps } from './Checkbox';
+export { Switch, type SwitchProps } from './Switch';
 export { TaxBasisLabel, type TaxBasisLabelProps } from './TaxBasisLabel';
 export { StatusPill, Badge, type StatusVariant, type StatusPillProps, type BadgeProps } from './StatusPill';
-export { Card, CardHead, CardPad, type CardProps, type CardHeadingLevel } from './Card';
-export { KPITile, type KPITileProps, type KPITone, type KPIDelta, type KPIDualLens } from './KPITile';
+export { Card, CardHead, CardPad, CardFoot, type CardProps, type CardHeadingLevel } from './Card';
+export { KPITile, KPIRow, type KPIRowProps, type KPITileProps, type KPITone, type KPIDelta, type KPIDualLens } from './KPITile';
 export {
   DataTable,
+  MenuButton,
   Toolbar,
   SearchMini,
-  TableFoot,
   type Column,
   type ColumnKind,
   type ColAlign,
   type SortState,
   type RowMenuItem,
+  type DataTableSelection,
   type DataTableProps,
 } from './DataTable';
 export { ViewToggle, type ViewOption, type ViewToggleProps } from './ViewToggle';
 export { ProgressBar, type ProgressBarProps, type ProgressTone } from './ProgressBar';
 export { ListState, type ListStateProps } from './ListState';
+export { WhenNearViewport, type WhenNearViewportProps } from './WhenNearViewport';
 export { Tooltip, type TooltipProps } from './Tooltip';
 export { ToastProvider, ToastView, useToast, type ToastKind } from './Toast';
 export {
   ConfirmDialog,
   type ConfirmDialogProps,
   type ConfirmTone,
-  type ConfirmSurface,
 } from './ConfirmDialog';
-export { ReceiptPreview, type ReceiptPreviewProps } from './ReceiptPreview';
 export { DecisionContextSummary, type DecisionContextSummaryProps } from './DecisionContextSummary';
 export { Drawer, type DrawerProps } from './Drawer';
 
-export { Kanban, KanbanColumn, KanbanCard, type KanbanColumnProps, type KanbanCardProps } from './Kanban';
+export { Kanban, KanbanColumn, KanbanCard, type KanbanColumnProps, type KanbanCardProps, type DropState } from './Kanban';
 export { KanbanStageIndicator, type KanbanStageItem, type KanbanStageIndicatorProps } from './KanbanStageIndicator';
 export {
   LifecycleStepper,
@@ -83,7 +84,6 @@ export {
   NumberField,
   TextArea,
   SelectField,
-  FormRow,
   FormGrid,
   FormSection,
   FormActions,

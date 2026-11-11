@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 import { axe, toHaveNoViolations } from 'jest-axe';
+import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
 expect.extend(toHaveNoViolations);
 vi.mock('@/src/hooks/useOrgTaxDefault', () => ({ useOrgTaxDefault: () => undefined, useTaxTreatmentPreselect: () => undefined }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
@@ -59,4 +60,21 @@ it('AC-TAG-002 a location over 140 characters is refused inline and not submitte
   await user.click(screen.getByRole('button', { name: 'Create project' }));
   expect(await screen.findByText('Use 140 characters or fewer.')).toBeVisible();
   expect(onSubmit).not.toHaveBeenCalled();
+});
+it("AC-WHA-007: editing a project's header sets its default receipt withholding article", async () => {
+  const user = userEvent.setup(); const onSave = vi.fn().mockResolvedValue(undefined);
+  const initial = { id: 'p1', name: 'Classified project', code: null, client_id: 'c1', project_manager_id: null, receipt_withholding_article: null };
+  render(<ToastProvider><ProjectFormModal mode="editHeader" initial={initial} onClose={vi.fn()} onSave={onSave} onError={vi.fn()} /></ToastProvider>);
+  await user.selectOptions(screen.getByLabelText('Client withholding article'), 'pph4_2');
+  await user.click(screen.getByRole('button', { name: 'Save project' }));
+  await waitFor(() => expect(onSave).toHaveBeenCalledWith('p1', expect.objectContaining({ receipt_withholding_article: 'pph4_2' })));
+});
+it('AC-WHA-007: a host that does not supply the default article neither shows nor writes it', async () => {
+  const user = userEvent.setup(); const onSave = vi.fn().mockResolvedValue(undefined);
+  const initial = { id: 'p1', name: 'Classified project', code: null, client_id: 'c1', project_manager_id: null };
+  render(<ToastProvider><ProjectFormModal mode="editHeader" initial={initial} onClose={vi.fn()} onSave={onSave} onError={vi.fn()} /></ToastProvider>);
+  expect(screen.queryByLabelText('Client withholding article')).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Save project' }));
+  await waitFor(() => expect(onSave).toHaveBeenCalled());
+  expect(onSave.mock.calls[0][1]).not.toHaveProperty('receipt_withholding_article');
 });

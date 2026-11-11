@@ -1,5 +1,5 @@
 /**
- * RecordCaptureForm — Goods Receipt + Vendor Invoice folding (refactor:
+ * RecordCaptureForm — Goods Receipt + Supplier Invoice folding (refactor:
  * procurement-detail-dedup). These specs lock the BEHAVIORAL CONTRACT the GR/VI
  * standalone forms previously hand-rolled inline in ProcurementDetails.tsx:
  *   - the `onStage` path stages (does NOT create directly) — no toast, no onCreate
@@ -18,10 +18,25 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };
 });
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: { procurement: true, procurement_full: true },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
+
+const subcontractPosition = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
+vi.mock('@/src/hooks/useSubcontract', () => ({ usePoPosition: () => subcontractPosition }));
 
 beforeEach(() => {
   orgDefault.value = 'exclusive';
   setActiveLocale(EN_LOCALE);
+  subcontractPosition.data = [];
+  subcontractPosition.isPending = false;
+  subcontractPosition.isError = false;
 });
 afterEach(() => resetActiveLocale());
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -46,6 +61,8 @@ function renderForm(props: Partial<React.ComponentProps<typeof RecordCaptureForm
         onStage={props.onStage}
         busy={props.busy}
         invoices={props.invoices}
+        subcontractPoId={props.subcontractPoId}
+        currency={props.currency}
       />
     </ToastProvider>,
   );
@@ -59,7 +76,6 @@ describe('RecordCaptureForm — Goods Receipt kind', () => {
     expect(within(form).getByTestId('gr-ref-input')).toHaveAttribute('placeholder', 'e.g. DN-44120');
     const status = within(form).getByTestId('gr-status-select') as HTMLSelectElement;
     expect(status.value).toBe('Complete');
-    expect(status).toHaveClass('h-8');
     // GR options are exactly Partial + Complete
     expect(Array.from(status.options).map((o) => o.value)).toEqual(['Partial', 'Complete']);
     expect(within(form).getByTestId('gr-date-input')).toBeInTheDocument();
@@ -99,7 +115,7 @@ describe('RecordCaptureForm — Goods Receipt kind', () => {
   });
 });
 
-describe('RecordCaptureForm — Vendor Invoice kind', () => {
+describe('RecordCaptureForm — Supplier Invoice kind', () => {
   it('exposes the PRESERVED VI data-testids (form/ref/amount/status/date/save), default status Received, options exclude Paid', () => {
     renderForm({ kind: 'vendor_invoice' });
     const form = screen.getByTestId('form-create-vi');
@@ -107,7 +123,6 @@ describe('RecordCaptureForm — Vendor Invoice kind', () => {
     expect(within(form).getByTestId('vi-amount-input')).toBeInTheDocument();
     const status = within(form).getByTestId('vi-status-select') as HTMLSelectElement;
     expect(status.value).toBe('Received');
-    expect(status).toHaveClass('h-8');
     expect(Array.from(status.options).map((o) => o.value)).toEqual(['Received', 'Scheduled']);
     expect(within(form).getByTestId('vi-date-input')).toBeInTheDocument();
     expect(within(form).getByTestId('btn-save-vi')).toBeInTheDocument();
@@ -118,7 +133,7 @@ describe('RecordCaptureForm — Vendor Invoice kind', () => {
     const { onCreate } = renderForm({ kind: 'vendor_invoice', onStage });
     await userEvent.type(screen.getByTestId('vi-ref-input'), 'INV-7');
     await userEvent.type(screen.getByTestId('vi-amount-input'), '1,250.50');
-    // #505: the tax facts are now part of recording a vendor invoice — a deliberate step added to
+    // #505: the tax facts are now part of recording a supplier invoice — a deliberate step added to
     // the journey, not a workaround. The GOAL oracle below is unchanged.
     await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '123.95');
@@ -135,6 +150,28 @@ describe('RecordCaptureForm — Vendor Invoice kind', () => {
         taxAmount: 123.95,
       }),
     );
+  });
+
+  it('FR-SCA-051 uses payable BoQ lines and stages them for the capped subcontract RPC', async () => {
+    subcontractPosition.data = [{
+      boq_item_id: 'boq-1', item_code: 'L1', description: 'Concrete', unit: 'm3', rate: 100,
+      po_qty: 100, revision: 1, verified: 100, verified_not_on_po: 0, verified_at: null,
+      disputed: 0, billed: 0, payable: 100,
+    }];
+    const onStage = vi.fn();
+    renderForm({ kind: 'vendor_invoice', onStage, subcontractPoId: 'po-1', currency: 'IDR' });
+    const line = screen.getByRole('textbox', { name: 'L1 Concrete' });
+    await waitFor(() => expect(line).toHaveValue('100'));
+    await waitFor(() => expect(screen.getByTestId('vi-amount-input')).not.toHaveValue(''));
+    expect(screen.getByTestId('vi-amount-input')).toHaveAttribute('readonly');
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    expect(onStage).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'createVI',
+      amount: 10000,
+      lines: [{ boqItemId: 'boq-1', quantity: 100, rate: 100 }],
+    }));
   });
 
   it('AC-PLC-009: rejects an en-US invoice amount with excess precision before staging', async () => {
@@ -273,10 +310,10 @@ describe('RecordCaptureTrigger — GR/VI label + testid overrides', () => {
     expect(trigger.className).not.toContain('bg-primary');
   });
 
-  it('VI trigger uses btn-create-vi + "Record vendor invoice"', () => {
+  it('VI trigger uses btn-create-vi + "Record supplier invoice"', () => {
     render(<RecordCaptureTrigger kind="vendor_invoice" open={false} onOpen={() => {}} />);
     const trigger = screen.getByTestId('btn-create-vi');
-    expect(trigger).toHaveTextContent(/record vendor invoice/i);
+    expect(trigger).toHaveTextContent(/record supplier invoice/i);
     expect(trigger.className).not.toContain('bg-primary');
   });
 });

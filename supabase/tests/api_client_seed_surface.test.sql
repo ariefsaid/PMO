@@ -6,7 +6,7 @@
 -- Mutation checks: make the Admin conditional `if true` and the non-Admin rows must go red; delete the
 -- `resolution=` refusal and the two Prefer rows must go red.
 begin;
-select plan(39);
+select plan(43);
 
 insert into auth.users (id, email) values
   ('07960000-0000-0000-0000-0000000000a1', 'load-admin@example.com'),
@@ -33,6 +33,10 @@ select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'POST', '/rpc/set_pro
 select lives_ok('select public.api_client_request_guard()', 'AC-CSD-013 active Admin client: POST set_project_contract_value');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'POST', '/rpc/transition_project');
 select lives_ok('select public.api_client_request_guard()', 'AC-CSD-013 active Admin client: POST transition_project');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'POST', '/rpc/redate_stage_entry');
+select lives_ok('select public.api_client_request_guard()', 'AC-1835-DB-003 active Admin client: POST redate_stage_entry');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'GET', '/project_stage_entries');
+select lives_ok('select public.api_client_request_guard()', 'AC-1835-DB-003 active Admin client: GET project_stage_entries');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'GET', '/budget_versions');
 select lives_ok('select public.api_client_request_guard()', 'AC-CSD-013 active Admin client: GET budget_versions');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'POST', '/budget_versions');
@@ -76,8 +80,12 @@ select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'POST', '/rpc/set_pro
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: set_project_contract_value refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'POST', '/rpc/transition_project');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: transition_project refused');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'POST', '/rpc/redate_stage_entry');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-1835-DB-003 Project Manager client: redate_stage_entry refused');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'GET', '/project_stage_entries');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-1835-DB-003 Project Manager client: project_stage_entries refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'GET', '/budget_versions');
-select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: GET budget_versions refused');
+select lives_ok('select public.api_client_request_guard()', 'AC-CSD-013 Project Manager client: GET budget_versions allowed — operator reads (#1270), rows still scoped by RLS');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'GET', '/boq_items');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CQ-018 Project Manager client: GET contract lines refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'POST', '/boq_items');
@@ -85,7 +93,7 @@ select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'POST', '/budget_versions');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: POST budget_versions refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'GET', '/budget_line_items');
-select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: GET budget_line_items refused');
+select lives_ok('select public.api_client_request_guard()', 'AC-CSD-013 Project Manager client: GET budget_line_items allowed — operator reads (#1270), rows still scoped by RLS');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'POST', '/budget_line_items');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: POST budget_line_items refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'PATCH', '/budget_versions');

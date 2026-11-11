@@ -3,9 +3,28 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const catalogues = {
-  en: JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8')),
-  id: JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8')),
+  en: catalogue('en'),
+  id: catalogue('id'),
 };
+
+function catalogue(locale: 'en' | 'id') {
+  const common = JSON.parse(readFileSync(join(process.cwd(), `public/locales/${locale}/common.json`), 'utf8'));
+  const project = JSON.parse(readFileSync(join(process.cwd(), `public/locales/${locale}/project.json`), 'utf8'));
+  return {
+    ...common,
+    ...project,
+    // The app resolves `common` and `project` as separate i18next namespaces; this flat merge is a
+    // test-harness simplification. The audit-added `project:history.referenceNamesError` key must
+    // not shadow `common:history` (the audit-trail copy these assertions read), so un-shadow it.
+    history: common.history,
+    projectDetail: {
+      ...common.projectDetail,
+      ...project.projectDetail,
+      gantt: common.projectDetail.gantt,
+      tasks: { ...common.projectDetail.tasks, ...project.projectDetail.tasks },
+    },
+  };
+}
 
 const surfaceCopy = {
   en: {

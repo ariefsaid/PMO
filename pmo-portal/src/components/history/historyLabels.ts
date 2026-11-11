@@ -48,7 +48,7 @@ export function fieldLabels(t: TFunction): Record<string, string> {
     pr_number: t('history.field.pr_number', 'PR number'),
     po_number: t('history.field.po_number', 'PO number'),
     requested_by_id: t('history.field.requested_by_id', 'Requested by'),
-    vendor_id: t('history.field.vendor_id', 'Vendor'),
+    vendor_id: t('history.field.vendor_id', 'Supplier'),
     budget_category: t('history.field.budget_category', 'Budget category'),
     total_value: t('history.field.total_value', 'Total value'),
     procurement_id: t('history.field.procurement_id', 'Procurement'),
@@ -82,6 +82,7 @@ export function fieldLabels(t: TFunction): Record<string, string> {
     pmo_native: t('history.field.pmo_native', 'PMO-created'),
     pmo_number: t('history.field.pmo_number', 'PMO invoice number'),
     native_lines: t('history.field.native_lines', 'Invoice lines'),
+    billing_kind: t('finance:billingKind.label', 'Billing kind'),
     withheld_amount: t('history.field.withheld_amount', 'Tax withheld'),
     withheld_pph_type: t('history.field.withheld_pph_type', 'Withholding tax type'),
     slip_number: t('history.field.slip_number', 'Slip number'),
@@ -97,6 +98,10 @@ export function fieldLabels(t: TFunction): Record<string, string> {
     pph_type_at_record: t('history.field.pph_type_at_record', 'PPh type at record'),
     type_source: t('history.field.type_source', 'Type source'),
     released_at: t('history.field.released_at', 'Released at'),
+    stage: t('history.field.stage', 'Stage'),
+    entered_on: t('history.field.entered_on', 'Stage date'),
+    source: t('history.field.source', 'Source'),
+    redated_at: t('history.field.redated_at', 'Date changed at'),
   };
 }
 
@@ -115,9 +120,10 @@ export function kindLabels(t: TFunction): Record<string, string> {
     company: t('history.kind.company', 'Company'),
     contact: t('history.kind.contact', 'Contact'),
     sales_invoice: t('history.kind.sales_invoice', 'Sales invoice'),
-    procurement_invoice: t('history.kind.procurement_invoice', 'Vendor bill'),
+    procurement_invoice: t('history.kind.procurement_invoice', 'Supplier invoice'),
     vendor_withholding_slip: t('history.kind.vendor_withholding_slip', 'Bukti potong'),
     vendor_withholding_slip_bill: t('history.kind.vendor_withholding_slip_bill', 'Bukti potong bill link'),
+    project_stage_entry: t('history.kind.project_stage_entry', 'Stage entry'),
   };
 }
 
@@ -171,7 +177,7 @@ export function auditActionLabels(t: TFunction): Record<string, string> {
     'progress_claim.create': t('history.action.progress_claim_create', 'Progress claim created'),
     'progress_claim.withdraw': t('history.action.progress_claim_withdraw', 'Progress claim withdrawn'),
     'progress_claim.evidence.attach': t('history.action.progress_claim_evidence_attach', 'Progress claim evidence attached'),
-    'procurement_invoice.create': t('history.action.procurement_invoice_create', 'Vendor invoice created'),
+    'procurement_invoice.create': t('history.action.procurement_invoice_create', 'Supplier invoice created'),
     'procurement.approval_route': t('history.action.procurement_approval_route', 'Approval route recorded'),
     'incoming_payment.create': t('history.action.incoming_payment_create', 'Incoming payment recorded'),
     'incoming_payment.cancel': t('history.action.incoming_payment_cancel', 'Incoming payment cancelled'),
@@ -185,11 +191,13 @@ export function auditActionLabels(t: TFunction): Record<string, string> {
     'credits.grant': t('history.action.credits_grant', 'Credits granted'),
     'company.tax_defaults.change': t('history.action.company_tax_defaults_change', 'Company tax defaults changed'),
     'org.withholding_account.change': t('history.action.org_withholding_account_change', 'Withholding accounts changed'),
-    'org.vendor_tax_accounts.change': t('history.action.org_vendor_tax_accounts_change', 'Vendor tax accounts changed'),
+    'org.vendor_tax_accounts.change': t('history.action.org_vendor_tax_accounts_change', 'Supplier tax accounts changed'),
     'org.tax_default.change': t('history.action.org_tax_default_change', 'Tax defaults changed'),
     'org.down_payment_item.change': t('history.action.org_down_payment_item_change', 'Down-payment items changed'),
     'meeting.grant.create': t('history.action.meeting_grant_create', 'Meeting access granted'),
     'meeting.grant.revoke': t('history.action.meeting_grant_revoke', 'Meeting access revoked'),
+    'project.stage_entry.redate': t('history.action.project_stage_entry_redate', 'Stage date changed'),
+    'project.stage_entry.add': t('history.action.project_stage_entry_add', 'Skipped stage added'),
   };
 }
 

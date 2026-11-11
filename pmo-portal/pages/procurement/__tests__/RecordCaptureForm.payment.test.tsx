@@ -9,11 +9,27 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
+// The real dispatch client runs; only the transport is stubbed (the edge function's 409 body).
+const h = vi.hoisted(() => ({ invoke: vi.fn() }));
+vi.mock('@/src/lib/supabase/client', async (orig) => {
+  const actual = (await orig()) as { supabase: { functions: unknown } };
+  return { ...actual, supabase: { ...actual.supabase, functions: { invoke: h.invoke } } };
+});
+
 // The org-tax read is unrelated to this kind; stub it like the groupRef/taxTemplate specs do.
 vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => undefined };
 });
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: { procurement: true, procurement_full: true },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -21,10 +37,11 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { RecordCaptureForm, type CreatePaymentInput } from '../RecordCaptureForm';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
-import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
-import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 import { formatMoneyInputValue } from '@/src/lib/format';
+import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 
 afterEach(() => clearOwnershipCache());
 
@@ -53,7 +70,7 @@ describe('RecordCaptureForm — payment capture on a FLIPPED org (#910)', () => 
   beforeEach(async () => {
     await financeTestI18nReady;
     await financeTestI18n.changeLanguage('en');
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
   });
 
   it('no status select is offered (DD-VPAY-8)', () => {
@@ -73,7 +90,7 @@ describe('RecordCaptureForm — payment capture on a FLIPPED org (#910)', () => 
     renderPayment();
     await userEvent.type(screen.getByTestId('payment-amount-input'), '1090000');
     await userEvent.click(screen.getByTestId('payment-save-btn'));
-    expect(await screen.findByText('Pilih faktur vendor yang ditutup oleh pembayaran ini.')).toBeInTheDocument();
+    expect(await screen.findByText('Pilih faktur pemasok yang ditutup oleh pembayaran ini.')).toBeInTheDocument();
   });
 
   it('prefills and submits the exact outstanding amount in Indonesian number format', async () => {
@@ -99,6 +116,26 @@ describe('RecordCaptureForm — payment capture on a FLIPPED org (#910)', () => 
     await waitFor(() => expect(onCreate).toHaveBeenCalled());
     const input = onCreate.mock.calls[0][0] as CreatePaymentInput;
     expect(input).toMatchObject({ invoiceId: 'inv-1', amount: 1090000, status: null });
+  });
+
+  it.each([
+    ['en', 'A payment for this bill is already in progress. Wait for it to finish before paying again.'],
+    ['id', 'Pembayaran untuk tagihan ini sedang berlangsung. Tunggu hingga selesai sebelum membayar lagi.'],
+  ] as const)('explains a per-bill payment conflict in %s', async (locale, message) => {
+    await financeTestI18n.changeLanguage(locale);
+    const onCreate = renderPayment();
+    h.invoke.mockResolvedValueOnce({
+      data: null,
+      error: {
+        message: 'Edge Function returned a non-2xx status code',
+        context: { clone: () => ({ json: async () => ({ error: 'payment-in-flight-for-bill', message: 'A payment for this bill is already in progress. Wait for it to finish' }) }) },
+      },
+    });
+    onCreate.mockImplementationOnce(() => dispatchDomainCommand('procurement', 'create', { id: 'pay-1' }, { idempotencyKey: 'k1' }));
+    await userEvent.selectOptions(screen.getByTestId('payment-invoice-select'), 'inv-1');
+    await userEvent.click(screen.getByTestId('payment-save-btn'));
+    expect(await screen.findByText(locale === 'en' ? 'Payment already in progress' : 'Pembayaran sedang berlangsung')).toBeInTheDocument();
+    expect(await screen.findByText(message)).toBeInTheDocument();
   });
 
   it('the optional PMO-side reference still rides along (OQ-VPAY-4: PMO-side only, the dispatch drops it)', async () => {

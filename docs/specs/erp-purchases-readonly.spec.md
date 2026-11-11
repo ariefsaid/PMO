@@ -55,6 +55,10 @@ they are **read, never adopted** (`DD-XING-2`). This list is visibility only.
   no `authenticated` role can insert, update, delete or execute the upsert function.
 - **AC-EPR-006** (pgTAP) Given a project with mirrored ERP purchases, Then `project_mapped_actuals` is
   unchanged by them, and no view or function other than the upsert reads `erp_purchase_documents`.
+- **AC-EPR-008** (unit `purchaseMirrorFeed.test.ts`, pgTAP `erp_po_item_projects.test.sql`; #1276) Given a PO whose item
+  lines name projects `ERP-A` and `ERP-B`, Then the feed sends `item_projects` and the upsert stamps `project_ids` with
+  both mapped projects (the header project is unioned in; items with no project keep header attribution). Amounts are
+  not split: a split PO lists under each project at its full total.
 - **AC-EPR-007** (unit, `ErpPurchasesSection.test.tsx`) Given a project with two ERP invoices (one
   paid, one overdue) and one shared invoice, Then the section lists all three with paid/unpaid, states
   "already counted in Actuals", and the aging buckets total only the unshared outstanding.

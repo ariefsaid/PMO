@@ -1,7 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { Session } from '@supabase/supabase-js';
 import { MemoryRouter } from 'react-router';
+import { I18nextProvider } from 'react-i18next';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -12,6 +15,7 @@ import { repositories } from '@/src/lib/repositories';
 import FinancialStatements from '../FinancialStatements';
 
 const projectId = '11111111-1111-4111-8111-111111111111';
+const otherProjectId = '22222222-2222-4222-8222-222222222222';
 const generation = {
   snapshotId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   sourceGeneration: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -37,7 +41,7 @@ function catalogue(scopesProject = true): FinancialStatementCatalogue {
     periods: pairs,
     scopes: [
       { scopeKind: 'company', projectId: null, statements: ['trial_balance', 'profit_and_loss', 'balance_sheet'], viewKinds: ['account_breakdown'] },
-      ...(scopesProject ? [{ scopeKind: 'project' as const, projectId, statements: ['profit_and_loss' as const], viewKinds: ['account_breakdown' as const] }] : []),
+      ...(scopesProject ? [projectId, otherProjectId].map((id) => ({ scopeKind: 'project' as const, projectId: id, statements: ['profit_and_loss' as const], viewKinds: ['account_breakdown' as const] })) : []),
     ],
   };
 }
@@ -121,14 +125,14 @@ const authValue = (role: string): AuthContextValue => ({
   refreshCurrentUser: vi.fn(),
 });
 
-function renderPage(role = 'Finance') {
+function renderPage(role = 'Finance', localized = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const view = render(
     <QueryClientProvider client={client}>
       <AuthContext.Provider value={authValue(role)}>
         <ImpersonationProvider realRole={role as AuthContextValue['role']}>
           <MemoryRouter>
-            <FinancialStatements />
+            {localized ? <I18nextProvider i18n={financeTestI18n}><FinancialStatements /></I18nextProvider> : <FinancialStatements />}
           </MemoryRouter>
         </ImpersonationProvider>
       </AuthContext.Provider>
@@ -149,11 +153,12 @@ let companyListSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   catalogueSpy = vi.spyOn(repositories.financialStatements, 'catalogue').mockResolvedValue(catalogue());
   readSpy = vi.spyOn(repositories.financialStatements, 'get').mockImplementation(async (input) => read(input));
-  projectGetSpy = vi.spyOn(repositories.project, 'get').mockImplementation(async (id) => ({
+  projectGetSpy = vi.spyOn(repositories.project, 'getMany').mockImplementation(async (ids) => ids.map((id) => ({
     id,
     name: id === projectId ? 'Named delivery project' : 'Other admitted project',
+    short_name: id === projectId ? 'North Terminal' : null,
     code: id === projectId ? 'PRJ-42' : 'PRJ-84',
-  } as never));
+  } as never)));
   companyListSpy = vi.spyOn(repositories.company, 'list').mockResolvedValue([]);
 });
 
@@ -185,8 +190,9 @@ describe('Financial statements company scope (AC-007)', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Statement' }), { target: { value: 'profit_and_loss' } });
     expect(await screen.findByRole('combobox', { name: 'Scope' })).toBeInTheDocument();
     await waitFor(() => expect(projectGetSpy).toHaveBeenCalledTimes(1));
-    expect(projectGetSpy).toHaveBeenCalledWith(projectId);
-    expect(screen.getByRole('option', { name: /PRJ-42 · Named delivery project/ })).toBeInTheDocument();
+    // one batched label read for every admitted project, not one request per project
+    expect(projectGetSpy).toHaveBeenCalledWith([projectId, otherProjectId]);
+    expect(screen.getByRole('option', { name: 'PRJ-42 · North Terminal' })).toBeInTheDocument();
     expect(companyListSpy).not.toHaveBeenCalled();
 
     const firstInput = readSpy.mock.calls[0]?.[0];
@@ -199,7 +205,7 @@ describe('Financial statements company scope (AC-007)', () => {
     const { client } = renderPage();
     await screen.findByText('Current native row');
     fireEvent.change(screen.getByRole('combobox', { name: 'Statement' }), { target: { value: 'profit_and_loss' } });
-    await screen.findByRole('option', { name: /PRJ-42 · Named delivery project/ });
+    await screen.findByRole('option', { name: /PRJ-42 · North Terminal/ });
     fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), { target: { value: projectId } });
     await waitFor(() => expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ projectId, statement: 'profit_and_loss' })));
     expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue(projectId);
@@ -217,6 +223,140 @@ describe('Financial statements company scope (AC-007)', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), { target: { value: 'company' } });
     expect(await screen.findByText('Current native row')).toBeInTheDocument();
     expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ statement: 'profit_and_loss' }));
+  });
+
+  // #1930: an accepted "Refresh now" must refetch the statement read so republished figures
+  // replace the stale ones without a manual reload; non-accepted responses must not refetch.
+  it('#1930: an accepted Refresh now refetches the statement read and renders the republished figure', async () => {
+    vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('accepted');
+    renderPage();
+    expect(await screen.findByText('Current native row')).toBeInTheDocument();
+    const callsBeforeRefresh = readSpy.mock.calls.length;
+
+    // The sweep published new figures while the screen was showing the stale read.
+    readSpy.mockImplementation(async (input: GetFinancialStatementInput) => {
+      const next = read(input) as FinancialStatementRead & {
+        result: { payload: { current: { rows: Array<Record<string, string>> } } };
+      };
+      next.result.payload.current.rows = [{ account: 'Republished native row', closing_debit: '7654321.00' }];
+      return next;
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+    await waitFor(() => expect(readSpy).toHaveBeenCalledTimes(callsBeforeRefresh + 1));
+    expect(await screen.findByText('Republished native row')).toBeVisible();
+    expect(screen.queryByText('Current native row')).not.toBeInTheDocument();
+    expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({
+      periodKind: 'month', periodStart: '2026-09-01', statement: 'trial_balance', viewKind: 'account_breakdown',
+    }));
+  });
+
+  it('#1930: a coalesced Refresh now leaves the statement read untouched', async () => {
+    vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('coalesced');
+    renderPage();
+    expect(await screen.findByText('Current native row')).toBeInTheDocument();
+    const callsBeforeRefresh = readSpy.mock.calls.length;
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+    expect(await screen.findByText('A refresh was requested recently.')).toBeVisible();
+    expect(readSpy).toHaveBeenCalledTimes(callsBeforeRefresh);
+    expect(screen.getByText('Current native row')).toBeVisible();
+  });
+
+  // The acceptance only bumps the org's refresh intent (available_at is +5 minutes); the sweep
+  // republishes later, so the page polls the statement read until the published generation
+  // changes or the ~10-minute cap passes. 30s interval, 10-minute cap.
+  function republishedRead(input: GetFinancialStatementInput): FinancialStatementRead {
+    const next = read(input) as FinancialStatementRead & {
+      generation: { asOf: string; snapshotId: string };
+      result: { payload: { current: { rows: Array<Record<string, string>> } } };
+    };
+    next.generation.asOf = '2026-10-17T14:00:00.000Z';
+    next.generation.snapshotId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    next.result.payload.current.rows = [{ account: 'Republished native row', closing_debit: '7654321.00' }];
+    return next;
+  }
+
+  it('#1930: an accepted Refresh now polls the read and stops once the republished figure renders', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('accepted');
+      renderPage();
+      expect(await screen.findByText('Current native row')).toBeInTheDocument();
+      const callsAfterLoad = readSpy.mock.calls.length;
+
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+      expect(await screen.findByText('Refresh requested. New figures appear shortly.')).toBeInTheDocument();
+      // Accepted refetches immediately, but the sweep has not republished yet.
+      await waitFor(() => expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad + 1));
+      expect(screen.getByText('Current native row')).toBeInTheDocument();
+
+      // First poll tick: same published generation, so the screen keeps the old figure and keeps polling.
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad + 2);
+      expect(screen.getByText('Current native row')).toBeInTheDocument();
+
+      // The sweep publishes; the next poll renders the new figure and stops polling.
+      readSpy.mockImplementation(async (input: GetFinancialStatementInput) => republishedRead(input));
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad + 3);
+      expect(await screen.findByText('Republished native row')).toBeInTheDocument();
+      expect(screen.queryByText('Current native row')).not.toBeInTheDocument();
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad + 3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('#1930: statement polling after an accepted Refresh now stops at the cap even when nothing changed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.spyOn(repositories.financialStatements, 'refreshNow').mockResolvedValue('accepted');
+      renderPage();
+      expect(await screen.findByText('Current native row')).toBeInTheDocument();
+      const callsAfterLoad = readSpy.mock.calls.length;
+
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+      await waitFor(() => expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad + 1));
+
+      // The whole 10-minute window polls (immediate refetch plus one per 30s tick), then stops.
+      await act(async () => { await vi.advanceTimersByTimeAsync(600_000); });
+      const callsAtCap = readSpy.mock.calls.length;
+      expect(callsAtCap).toBeGreaterThan(callsAfterLoad + 1);
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+      expect(readSpy).toHaveBeenCalledTimes(callsAtCap);
+      expect(screen.getByText('Current native row')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('#1930: coalesced and unavailable Refresh now responses never poll the statement read', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const refreshNowSpy = vi.spyOn(repositories.financialStatements, 'refreshNow');
+      refreshNowSpy.mockResolvedValue('coalesced');
+      renderPage();
+      expect(await screen.findByText('Current native row')).toBeInTheDocument();
+      const callsAfterLoad = readSpy.mock.calls.length;
+
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+      expect(await screen.findByText('A refresh was requested recently.')).toBeInTheDocument();
+      await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
+      expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad);
+
+      refreshNowSpy.mockResolvedValue('unavailable');
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+      expect(await screen.findByText('Refresh is not available yet.')).toBeInTheDocument();
+      await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
+      expect(readSpy).toHaveBeenCalledTimes(callsAfterLoad);
+      expect(screen.getByText('Current native row')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('AC-007: quarter and fiscal-year selections use catalogue ranges and BS as-at ends without deriving dates', async () => {
@@ -265,6 +405,52 @@ describe('Financial statements company scope (AC-007)', () => {
       periodKind: 'month', periodStart: '2026-09-01', statement: 'trial_balance', viewKind: 'account_breakdown',
     }));
     expect(screen.queryByText('private refresh failure')).not.toBeInTheDocument();
+  });
+
+  it('AC-008 support: company profit and loss preserves both native sides and source labels in Bahasa', async () => {
+    await financeTestI18nReady;
+    await financeTestI18n.changeLanguage('id');
+    try {
+      catalogueSpy.mockResolvedValue(catalogue(false));
+      renderPage('Finance', true);
+      await screen.findByText('Current native row');
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Laporan' }), 'profit_and_loss');
+      expect(await screen.findByText('Prior native row')).toBeVisible();
+      expect(screen.getAllByRole('table')).toHaveLength(1);
+      expect(screen.getAllByText('Current native row')).toHaveLength(1);
+      expect(screen.getByText('Current native row')).toBeVisible();
+      expect(screen.getByRole('columnheader', { name: /Periode berjalan/ })).toBeVisible();
+      expect(screen.getByRole('columnheader', { name: /Periode sebelumnya/ })).toBeVisible();
+      expect(screen.queryByRole('combobox', { name: 'Cakupan' })).not.toBeInTheDocument();
+    } finally {
+      await financeTestI18n.changeLanguage('en');
+    }
+  });
+
+  it('AC-008 support: initial read error hides backend detail and Retry restores the report', async () => {
+    readSpy.mockRejectedValueOnce(new Error('Private backend details must stay hidden.'));
+    renderPage();
+    expect(await screen.findByText("Couldn't load financial statements")).toBeVisible();
+    expect(screen.queryByText('Private backend details must stay hidden.')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Current native row')).toBeVisible();
+    expect(readSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('AC-008 support: keyboard order stays period kind, period, statement, then Retry', async () => {
+    readSpy.mockRejectedValue(new Error('Read failed'));
+    catalogueSpy.mockResolvedValue(catalogue(false));
+    renderPage();
+    const statement = await screen.findByRole('combobox', { name: 'Statement' });
+    await userEvent.selectOptions(statement, 'profit_and_loss');
+    await screen.findByRole('button', { name: 'Retry' });
+    screen.getByRole('combobox', { name: 'Period type' }).focus();
+    await userEvent.tab();
+    expect(screen.getByRole('combobox', { name: /^Period$/ })).toHaveFocus();
+    await userEvent.tab();
+    expect(statement).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole('button', { name: 'Retry' })).toHaveFocus();
   });
 
   it('AC-007: switching mapped-project P&L to TB atomically returns to Company and never requests project TB', async () => {

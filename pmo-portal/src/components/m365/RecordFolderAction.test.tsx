@@ -5,8 +5,9 @@
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
@@ -34,8 +35,10 @@ function mount(ui: React.ReactElement, role: Role = 'Project Manager', viewAs?: 
   const result = render(
     <QueryClientProvider client={qc}>
       <ImpersonationProvider realRole={role} demoEligibility="eligible">
-        {viewAs ? <ViewAs role={viewAs} /> : null}
-        {ui}
+        <MemoryRouter>
+          {viewAs ? <ViewAs role={viewAs} /> : null}
+          {ui}
+        </MemoryRouter>
       </ImpersonationProvider>
     </QueryClientProvider>,
   );
@@ -280,5 +283,26 @@ describe('F14: failure banner', () => {
     await userEvent.setup().click(createBtn()[0]);
     await screen.findByTestId('record-folder-failure');
     expect((createBtn()[0] as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+describe('#1320 AC-3 — the default-library notice links Admins to the setting', () => {
+  const unset = async (role: Role) => {
+    ensure.mockResolvedValue({ state: 'default_unset' });
+    mount(<RecordFolderAction target={project} hasFolder={false} />, role);
+    await userEvent.setup().click(createBtn()[0]);
+    return screen.findByTestId('record-folder-failure');
+  };
+
+  it('AC-3: an Admin gets a link straight to the default document library setting', async () => {
+    const region = await unset('Admin');
+    const link = within(region).getByRole('link', { name: 'Choose the default document library' });
+    expect(link).toHaveAttribute('href', '/administration/integrations#m365-default-library');
+  });
+
+  it('AC-3: a non-Admin keeps the plain text and gets no link', async () => {
+    const region = await unset('Project Manager');
+    expect(region.textContent).toContain('Ask an Admin to choose the default document library.');
+    expect(within(region).queryByRole('link')).not.toBeInTheDocument();
   });
 });

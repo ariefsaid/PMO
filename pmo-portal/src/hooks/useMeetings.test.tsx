@@ -11,6 +11,7 @@ const { repoMock } = vi.hoisted(() => ({
       create: vi.fn(),
       update: vi.fn(),
       archive: vi.fn(),
+      restore: vi.fn(),
       delete: vi.fn(),
       listAttendees: vi.fn(),
       addAttendee: vi.fn(),
@@ -56,6 +57,30 @@ describe('useMeetings', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(repoMock.meeting.list).toHaveBeenCalledWith({ projectId: 'p1', search: 'pipeline' });
   });
+
+  it('requests the full set, including archived rows, through a distinct repository query', async () => {
+    repoMock.meeting.list.mockResolvedValue([]);
+    const { result } = renderHook(() => useMeetings({ includeArchived: true }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(repoMock.meeting.list).toHaveBeenCalledWith({ includeArchived: true });
+  });
+});
+
+describe('useMeetingMutations.restore', () => {
+  it('restores through the repository and invalidates meeting queries', async () => {
+    repoMock.meeting.restore.mockResolvedValue(undefined);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(['meetings', 'org-1', 'all', '', 'archived'], ['stale']);
+    const localWrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useMeetingMutations(), { wrapper: localWrapper });
+
+    await result.current.restore.mutateAsync('m1');
+
+    expect(repoMock.meeting.restore).toHaveBeenCalledWith('m1');
+    expect(client.getQueryState(['meetings', 'org-1', 'all', '', 'archived'])?.isInvalidated).toBe(true);
+  });
 });
 
 describe('useMeetingMutations.createActionItem — the /action seam (FR-MTG-017 / DD-MTG-2)', () => {
@@ -98,6 +123,8 @@ describe('useMeetingMutations.createActionItem — the /action seam (FR-MTG-017 
     repoMock.task.create.mockResolvedValue({ id: 't3' });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const spy = vi.spyOn(client, 'invalidateQueries');
+    const keysBefore = [['meeting-action-items', 'org-1', 'm1'], ['tasks', 'org-1', 'p1'], ['my-tasks', 'org-1', 'u1'], ['projects-delivery', 'pct', 'org-1', 'p1']];
+    for (const key of keysBefore) client.setQueryData(key, 'old');
     const localWrapper = ({ children }: { children: React.ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );
@@ -109,9 +136,10 @@ describe('useMeetingMutations.createActionItem — the /action seam (FR-MTG-017 
       assigneeId: null,
       endDate: null,
     });
-    const keys = spy.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey[0]);
+    const keys = spy.mock.calls.map((c) => (c[0] as { queryKey?: unknown[] }).queryKey?.[0]);
     expect(keys).toContain('meeting-action-items');
     expect(keys).toContain('tasks'); // project Tasks tab cache
     expect(keys).toContain('my-tasks'); // the IC's cross-project list cache
+    for (const key of keysBefore) expect(client.getQueryState(key)?.isInvalidated).toBe(true);
   });
 });

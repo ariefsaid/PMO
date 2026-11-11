@@ -34,7 +34,6 @@ import { executeCompiledQuery } from './executor';
 
 const BASE_COMPILED: CompiledQuery = {
   entity: 'companies',
-  repositoryMethod: 'company.list',
   resolvedFilters: [],
   resolvedSelect: ['id', 'name', 'type'],
 };
@@ -129,7 +128,6 @@ describe('executeCompiledQuery — AC-VR-013', () => {
     mockChain.limit.mockResolvedValue({ data: rows, error: null });
     const compiled: CompiledQuery = {
       entity: 'projects',
-      repositoryMethod: 'project.list',
       resolvedFilters: [],
       resolvedSelect: ['contract_value'],
       resolvedAggregate: { fn: 'sum', column: 'contract_value', alias: 'total' },
@@ -144,7 +142,6 @@ describe('executeCompiledQuery — AC-VR-013', () => {
     mockChain.limit.mockResolvedValue({ data: [], error: null });
     const compiled: CompiledQuery = {
       entity: 'projects',
-      repositoryMethod: 'project.list',
       resolvedFilters: [{ column: 'created_at', op: 'date-range', value: ['2026-01-01', '2026-12-31'] }],
       resolvedSelect: ['id'],
       limit: 10,
@@ -160,5 +157,21 @@ describe('executeCompiledQuery — AC-VR-013', () => {
     mockChain.limit.mockResolvedValue({ data: [], error: null });
     await executeCompiledQuery({ ...BASE_COMPILED, limit: 5 });
     expect(mockFrom).toHaveBeenCalledTimes(1); // exactly one client call, not two
+  });
+});
+
+describe('compiled projection for aggregates', () => {
+  it.each([false, true])('fetches aggregate inputs for grouped=%s', async (grouped) => {
+    const { compileQuerySpec } = await import('./compiler');
+    const source = [
+      { name: 'One', status: 'Ongoing Project', contract_value: 100 },
+      { name: 'Two', status: 'Completed', contract_value: 200 },
+    ];
+    let selected: string[] = [];
+    mockChain.select.mockImplementation((value: string) => { selected = value.split(','); return mockChain; });
+    mockChain.limit.mockImplementation(async () => ({ data: source.map(row => Object.fromEntries(selected.map(key => [key, row[key as keyof typeof row]]))), error: null }));
+    const compiled = compileQuerySpec({ entity: 'projects', select: ['name'], ...(grouped ? { groupBy: 'status' } : {}), aggregate: { fn: 'sum', column: 'contract_value', alias: 'total' } }, { userId: 'u', orgId: 'o' });
+    const result = await executeCompiledQuery(compiled);
+    expect(result).toEqual(grouped ? [{ status: 'Ongoing Project', total: 100 }, { status: 'Completed', total: 200 }] : [{ total: 300 }]);
   });
 });

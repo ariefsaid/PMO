@@ -1,0 +1,9 @@
+{
+  "textSize": {
+    "label": "Ukuran teks",
+    "default": "Bawaan",
+    "large": "Besar",
+    "larger": "Lebih besar",
+    "help": "Langsung diterapkan pada perangkat ini."
+  }
+}

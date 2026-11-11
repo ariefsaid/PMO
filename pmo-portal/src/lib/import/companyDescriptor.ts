@@ -1,3 +1,4 @@
+import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { repositories } from '@/src/lib/repositories';
 import type { CompanyInput, CompanyType } from '@/src/lib/db/companies';
 import type { ImportDescriptor } from './types';
@@ -26,10 +27,10 @@ export const companyImportDescriptor: ImportDescriptor<CompanyInput> = {
       key: 'type',
       label: 'Type',
       required: true,
-      validate: (raw) =>
-        COMPANY_TYPES.includes(raw.trim() as CompanyType)
-          ? null
-          : `Type must be one of: ${COMPANY_TYPES.join(', ')}.`,
+      validate: (raw) => {
+        const allowed = routeDomainWrite('companies') === 'external' ? COMPANY_TYPES.filter((type) => type !== 'Internal') : COMPANY_TYPES;
+        return allowed.includes(raw.trim() as CompanyType) ? null : `Type must be one of: ${allowed.join(', ')}.`;
+      },
     },
   ],
   toInput: (cells) => ({ name: cells.name.trim(), type: cells.type.trim() as CompanyType, ...(cells.short_name?.trim() ? { short_name: cells.short_name.trim() } : {}) }),

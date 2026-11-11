@@ -7,12 +7,13 @@
 import { cronMatches } from './cron.ts';
 import { readWatermark, advanceWatermark } from './watermark.ts';
 import { isAllowedTriggerSource } from './triggerSources.ts';
-import { mintOwnerJwt, auditMint, type AuthAdminLike } from './mint.ts';
+import { mintOwnerJwt, auditMint, type AuthAdminLike, type MintedSession } from './mint.ts';
 import { fireAutomation, type FireHandler } from './fire.ts';
-import { evaluateCondition, makeConditionMemo, type ConditionMemo } from './condition.ts';
+import { evaluateCondition, makeConditionMemo, peekConditionVerdict, type ConditionMemo } from './condition.ts';
 import type { ModelClient } from '../_shared/modelClient.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
+import { recordTrustedUsage } from '../_shared/usage.ts';
 
 /** The minimal automation-row shape the dispatcher's selection queries need. */
 export interface AutomationRow {
@@ -143,6 +144,20 @@ export interface TriggerMatch {
  * silently cross-match. The gate is now redundant WITH a correct RPC, but cheap and load-bearing if
  * the RPC ever changed — so it stays.
  */
+/**
+ * Events judged per source per tick. A burst costs a condition model call, a mint and a credit hold per
+ * event, serially; the cap keeps one tick inside its wall clock. The rest is picked up by the next tick:
+ * the watermark only advances to the last event attempted.
+ */
+export const MAX_TRIGGER_EVENTS_PER_TICK = 20;
+
+/**
+ * How long a claim may stay unsettled before another tick may take it over. A tick killed between the claim
+ * and the fire leaves the event claimed; once the lease has passed, one tick re-claims it. Covers the
+ * pre-fire stages only (mint, audit, credit hold, condition call): the claim is settled when the fire starts.
+ */
+export const TRIGGER_CLAIM_LEASE_MS = 5 * 60_000;
+
 export async function selectTriggerMatches(
   sb: ServiceClientLike,
   _now: Date,
@@ -191,8 +206,13 @@ export async function selectTriggerMatches(
       p_last_seen_id: lastSeenId,
       p_filters: filters,
     });
-    if (error || !data) continue;
-    const events = data as StatusEventRow[];
+    if (error) {
+      logStructuredError({ fn: 'agent-dispatch', errorCode: 'SELECT_TRIGGER_EVENTS_FAILED', contextId: source });
+      continue;
+    }
+    if (!data) continue;
+    // ponytail: relies on the RPC's (created_at,id) order; slice keeps the earliest events.
+    const events = (data as StatusEventRow[]).slice(0, MAX_TRIGGER_EVENTS_PER_TICK);
 
     for (const event of events) {
       for (const automation of automations) {
@@ -209,6 +229,26 @@ export async function selectTriggerMatches(
   }
 
   return matches;
+}
+
+/** Filter the org-scoped automation metadata through the shared entitlement resolver before
+ * polling events, claiming fires, minting owners, or advancing trigger watermarks. */
+async function enabledFeatureAutomations(
+  sb: ServiceClientLike,
+  automations: AutomationRow[],
+): Promise<AutomationRow[]> {
+  if (typeof sb.rpc !== 'function') return [];
+  const orgIds = [...new Set(automations.map((automation) => automation.org_id).filter(Boolean))];
+  const enabledOrgs = new Set<string>();
+  for (const orgId of orgIds) {
+    const { data, error } = await sb.rpc('service_feature_enabled', { p_org_id: orgId, p_key: 'agent_assistant' });
+    if (error) {
+      logStructuredError({ fn: 'agent-dispatch', errorCode: 'FEATURE_SWITCH_UNREADABLE' });
+      continue;
+    }
+    if (data === true) enabledOrgs.add(orgId);
+  }
+  return automations.filter((automation) => enabledOrgs.has(automation.org_id));
 }
 
 /** Dedupe the (org_id, trigger_on.event) filter pairs across a source's automations for the RPC. */
@@ -240,7 +280,9 @@ function dedupeFilters(automations: AutomationRow[]): TriggerFilter[] {
  * Structurally compatible with handler.ts's interactive `RateGuard`.
  */
 export interface DispatchRateGuard {
-  check(orgId: string, mintedClient?: unknown): Promise<{ exceeded: boolean; retryAfterSeconds?: number; reason?: 'out_of_credits' | 'meter_error' }>;
+  /** `reservationId` selects the atomic reserve path (a unique id per unit of work); `release` drops it. */
+  check(orgId: string, mintedClient?: unknown, reservationId?: string): Promise<{ exceeded: boolean; retryAfterSeconds?: number; reason?: 'out_of_credits' | 'meter_error' }>;
+  release?(mintedClient: unknown, reservationId: string): Promise<void>;
 }
 
 /**
@@ -361,44 +403,114 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
   // separate ticks, or a condition verdict from a prior tick's TTL window could stale-serve into a
   // new tick and suppress a legitimate re-evaluation.
   const memo = deps.conditionMemo ?? makeConditionMemo();
-  const rateGuard = deps.rateGuard ?? { check: async () => ({ exceeded: false }) };
+  const rateGuard: DispatchRateGuard = deps.rateGuard ?? { check: async () => ({ exceeded: false }) };
 
   // ── Selection (service_role, metadata enumeration ONLY — FR-AAN-014) ──
-  const dueSchedules = await selectDueSchedules(deps.serviceClient, now);
+  const selectedSchedules = await selectDueSchedules(deps.serviceClient, now);
 
   // Trigger automations: enumerate enabled/live kind='trigger' rows, then poll-since-watermark.
-  const triggerAutomations = await selectEnabledTriggers(deps.serviceClient);
+  const selectedTriggers = await selectEnabledTriggers(deps.serviceClient);
+  // Resolve each org once across both kinds. A disabled or unreadable entitlement must leave its
+  // schedules unclaimed and its trigger watermark untouched so work resumes after re-enable.
+  const eligibleAutomations = await enabledFeatureAutomations(
+    deps.serviceClient,
+    [...selectedSchedules, ...selectedTriggers],
+  );
+  const eligibleIds = new Set(eligibleAutomations.map((automation) => automation.id));
+  const dueSchedules = selectedSchedules.filter((automation) => eligibleIds.has(automation.id));
+  const triggerAutomations = selectedTriggers.filter((automation) => eligibleIds.has(automation.id));
   const triggerMatches = await selectTriggerMatches(deps.serviceClient, now, triggerAutomations);
 
   // Track the max-ATTEMPTED event per source to advance the watermark AFTER the batch (item 4/2:
   // "attempted", not "matched-and-succeeded" — a unit that throws mid-fire was still attempted
   // against its event, so the watermark must still advance past it, or the same event re-matches
   // and double-fires next tick. Tracked as attempts are made, in the fire loop below.
-  const maxAttemptedBySource = new Map<string, { id: string; at: string }>();
+  // An event whose claim failed operationally (not a duplicate) was NOT attempted: the watermark must stop
+  // before the earliest such event so a recovered database re-selects it (existing claims keep it at-most-once).
+  const attemptedBySource = new Map<string, Array<{ id: string; at: string }>>();
+  const earliestUnclaimedBySource = new Map<string, { id: string; at: string }>();
+  const isAfter = (a: { id: string; at: string }, b: { id: string; at: string }) =>
+    a.at > b.at || (a.at === b.at && a.id > b.id);
   function markAttempted(source: string, event: StatusEventRow): void {
-    const prev = maxAttemptedBySource.get(source);
-    if (!prev || event.created_at > prev.at || (event.created_at === prev.at && event.id > prev.id)) {
-      maxAttemptedBySource.set(source, { id: event.id, at: event.created_at });
-    }
+    const list = attemptedBySource.get(source) ?? [];
+    list.push({ id: event.id, at: event.created_at });
+    attemptedBySource.set(source, list);
+  }
+  function markUnclaimed(source: string, event: StatusEventRow): void {
+    const prev = earliestUnclaimedBySource.get(source);
+    const cur = { id: event.id, at: event.created_at };
+    if (!prev || isAfter(prev, cur)) earliestUnclaimedBySource.set(source, cur);
   }
 
   // ── Fire each due automation through the minted-owner deputy path ──
   const scheduleUnits = dueSchedules.map((automation) => ({ automation, event: undefined as StatusEventRow | undefined }));
   const triggerUnits = triggerMatches.map(({ automation, event }) => ({ automation, event: event as StatusEventRow | undefined }));
 
+  // A silent condition-false skip opened an audit thread/run (the mint must be audited before the
+  // hold). Archive the thread so the owner's history stays clean and close the run; a failed close is
+  // reported, never swallowed.
+  const closeSilentAudit = async (audited: { minted: MintedSession; runId: string; threadId: string }, automation: AutomationRow): Promise<void> => {
+    type Writer = { from(t: string): { update(p: object): { eq(c: string, v: string): PromiseLike<{ error: unknown }> } } };
+    const sb = audited.minted.client as Writer;
+    let failed: boolean;
+    try {
+      const thread = await sb.from('agent_threads').update({ archived_at: now.toISOString() }).eq('id', audited.threadId);
+      const run = await sb.from('agent_runs').update({ status: 'completed' }).eq('id', audited.runId);
+      failed = Boolean(thread.error || run.error);
+    } catch {
+      failed = true;
+    }
+    if (failed) {
+      void recordErrorEvent(deps.serviceClient as never, {
+        fn: 'agent-dispatch',
+        errorCode: 'AUTOMATION_AUDIT_CLOSE_FAILED',
+        contextId: automation.id,
+        orgId: automation.org_id,
+      });
+    }
+  };
+
+  // A minted audit run that will never start (credit refused, condition unevaluable, audit write failed)
+  // is closed 'errored' so the owner never sees a run stuck 'running'. Best-effort: a failed close is reported.
+  const failRun = async (client: unknown, runId: string, automation: AutomationRow): Promise<void> => {
+    type Writer = { from(t: string): { update(p: object): { eq(c: string, v: string): PromiseLike<{ error: unknown }> } } };
+    let failed: boolean;
+    try {
+      failed = Boolean((await (client as Writer).from('agent_runs').update({ status: 'errored' }).eq('id', runId)).error);
+    } catch {
+      failed = true;
+    }
+    if (failed) {
+      void recordErrorEvent(deps.serviceClient as never, {
+        fn: 'agent-dispatch',
+        errorCode: 'AUTOMATION_AUDIT_CLOSE_FAILED',
+        contextId: automation.id,
+        orgId: automation.org_id,
+      });
+    }
+  };
+
+  // Automations whose credit hold was refused this tick: the owner is told ONCE, and the rest of that
+  // automation's events are skipped before they mint a session or take a hold.
+  const creditBlocked = new Set<string>();
+
   // Item 2 (reliability): each unit runs in its own try/catch — one automation's throw must
   // neither kill the batch (the loop continues to the next unit) nor rewind/block the watermark
   // for events already attempted (markAttempted runs unconditionally once selection has committed
   // to attempting a trigger unit, BEFORE any step that can throw).
   for (const { automation, event } of [...scheduleUnits, ...triggerUnits]) {
-    if (automation.kind === 'trigger' && event) {
-      markAttempted(automation.trigger_on!.source, event);
-    }
 
     // Tracks which phase of the unit is in flight so the catch below can log a DISTINCT
     // errorCode per failure phase (claim vs mint vs audit vs fire) without changing any
     // control flow — set immediately before the call that can throw for that phase.
-    let stage: 'claim' | 'condition' | 'mint' | 'audit' | 'fire' = 'claim';
+    // (cast: the helper closures below assign `stage`, which control-flow narrowing cannot see)
+    let stage = 'claim' as 'claim' | 'condition' | 'mint' | 'audit' | 'fire';
+    // The unit's mint (shared by audit, notify, credit hold and fire) and its credit hold id; the
+    // finally below releases the hold whichever way the unit ends.
+    let session: { minted: MintedSession; runId: string; threadId: string } | undefined;
+    let holdId: string | undefined;
+    // Set once this unit holds the (automation,event) claim; settled when the fire starts or the unit ends.
+    let claimedFire: { automationId: string; eventId: string } | undefined;
 
     try {
       // ── AUDIT-M2 (2026-07-04 audit): schedule fires are CLAIMED atomically before any other
@@ -420,45 +532,120 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // key. Claim-then-fire = at-most-once per (automation, event). A fire that then throws
       // still counts as claimed (it won't re-fire for that event), matching the schedule posture.
       if (automation.kind === 'trigger' && event) {
-        const claimed = await claimTriggerFire(deps.serviceClient, automation.id, event.id);
-        if (!claimed) continue;
+        const source = automation.trigger_on!.source;
+        const claim = await claimTriggerFire(deps.serviceClient, automation.id, event.id, now);
+        // 'busy' = another tick holds an unsettled claim inside its lease: not ours to fire, and not yet
+        // settled, so the cursor must stop before it (it may need re-claiming once the lease passes).
+        if (claim === 'error' || claim === 'busy') {
+          markUnclaimed(source, event);
+          if (claim === 'error') logStructuredError({ fn: 'agent-dispatch', errorCode: 'AUTOMATION_CLAIM_FAILED', contextId: automation.id });
+          continue;
+        }
+        markAttempted(source, event);
+        if (claim === 'claimed') claimedFire = { automationId: automation.id, eventId: event.id };
+        if (claim === 'duplicate') continue;
       }
-      stage = 'condition';
-      // ── Trigger + NL condition FIRST — BEFORE the mint (gpt-5.5 audit #3). Condition eval uses the
-      // CHEAP MODEL + the event, never the minted client, so a silent condition-false skip (the common
-      // case) never mints at all — no audit run, no minted-client write, nothing to leak. This is the
-      // "move condition eval before mint" resolution: the ONLY minted-client use for an unevaluable
-      // condition is its warning notify, which is deferred below to AFTER mint+audit. ──
+      if (creditBlocked.has(automation.id)) continue;
+      // Mint ONCE per candidate — shared by audit, notify, credit reservation, and fire (one mint per
+      // candidate, never a fresh mint per branch). A conditional trigger whose verdict is not memoized
+      // mints BEFORE its condition is evaluated: the condition is a metered model call, so the org's
+      // credit must be held first and that hold needs the owner's identity. A memoized verdict costs
+      // no model call, so it mints only when it will fire or warn. Everything else mints only when it
+      // will fire or notify.
+      const ensureMinted = async (): Promise<{ minted: MintedSession; runId: string; threadId: string }> => {
+        if (session) return session;
+        stage = 'mint';
+        const minted = await mintOwnerJwt(deps, automation);
+        // ── Audit EVERY mint FIRST — before ANY other minted-client DB use (gpt-5.5 audit #3,
+        // AC-AAN-017). Fail-closed — auditMint throws on failure, so a candidate whose audit cannot
+        // be written never notifies, credits, or fires. ──
+        const runId = newRunId();
+        stage = 'audit';
+        let threadId: string;
+        try {
+          threadId = await auditMint(minted.client, automation, runId, newMintedAt());
+        } catch (err) {
+          await failRun(minted.client, runId, automation); // no-op when the run row was never written
+          throw err;
+        }
+        session = { minted, runId, threadId };
+        return session;
+      };
+
+      // ── Credit reservation (ADR-0044 §6, FR-AAN-032/033). Held atomically under the MINTED OWNER
+      // CLIENT against a fresh id and released in the finally below, whichever way the unit ends.
+      // Over ⇒ warning notification, no fire, no agent_runs row reaches 'running'. A meter that
+      // itself fails is reported as such (still fail-closed), never as an exhausted balance. ──
+      const reserveCredit = async (mintedClient: unknown): Promise<boolean> => {
+        const id = genId();
+        const credit = await rateGuard.check(automation.org_id, mintedClient, id);
+        if (!credit.exceeded) {
+          holdId = id;
+          return true;
+        }
+        creditBlocked.add(automation.id);
+        if (session) await failRun(mintedClient, session.runId, automation);
+        const meterDown = credit.reason === 'meter_error';
+        const notified = await notifyOwner(
+          mintedClient,
+          'warning',
+          meterDown ? 'Automation skipped — credit metering unavailable' : `Automation skipped — out of credits`,
+          meterDown
+            ? `Automation ${automation.id} did not run because credit metering is temporarily unavailable.`
+            : `Automation ${automation.id} did not run because the balance was exceeded.`,
+          { source: 'automation', automation_id: automation.id },
+          automation.id,
+        );
+        if (!notified) {
+          void recordErrorEvent(deps.serviceClient as never, {
+            fn: 'agent-dispatch',
+            errorCode: 'NOTIFY_INSERT_FAILED',
+            contextId: automation.id,
+            orgId: automation.org_id,
+          });
+        }
+        return false; // no fire, no last_fired_at stamp.
+      };
+
+      // ── Trigger + NL condition FIRST — a silent condition-false skip (the common case) fires and
+      // notifies nothing and leaves nothing in the owner's history. A memoized verdict is read before
+      // anything is minted; otherwise the cheap-model call is credit-held before it is made and
+      // recorded as trusted usage afterwards, whatever the verdict. ──
       let conditionWarning: string | null = null;
       if (automation.kind === 'trigger' && automation.condition && event) {
-        const verdict = await evaluateCondition(
-          { model: deps.conditionModel, modelId: deps.conditionModelId, now: () => now.getTime(), memo },
-          automation,
-          event,
-        );
-        if (!verdict.fire) {
-          // Condition false ⇒ silent no-fire, NEVER mint (nothing to notify, nothing to audit).
-          if (!verdict.warning) continue;
-          // Unevaluable ⇒ we must warn the owner; that needs the minted client, so we fall through to
-          // mint + audit and notify below. Recorded here so the post-audit block emits it.
-          conditionWarning = verdict.warning;
+        let verdict = peekConditionVerdict(memo, now.getTime(), automation, event);
+        if (!verdict) {
+          const audited = await ensureMinted();
+          stage = 'condition';
+          if (!(await reserveCredit(audited.minted.client))) continue;
+          verdict = await evaluateCondition(
+            {
+              model: deps.conditionModel,
+              modelId: deps.conditionModelId,
+              now: () => now.getTime(),
+              memo,
+              onResponse: (response) =>
+                recordTrustedUsage(
+                  { serviceClient: deps.serviceClient, userId: automation.owner_id, orgId: automation.org_id, runId: audited.runId },
+                  response,
+                  'automation',
+                ),
+            },
+            automation,
+            event,
+          );
+          if (!verdict.fire && !verdict.warning) {
+            await closeSilentAudit(audited, automation);
+            continue;
+          }
+        } else if (!verdict.fire && !verdict.warning) {
+          continue; // memo hit, condition false: nothing was minted, held or written.
         }
+        // Unevaluable ⇒ we must warn the owner; recorded here so the block below emits it.
+        if (!verdict.fire) conditionWarning = verdict.warning ?? null;
       }
 
-      // Mint ONCE per candidate — shared by audit, notify, credit preflight, and fire (one mint per
-      // candidate, never a fresh mint per branch). Reached only when the automation will either fire
-      // or produce an owner notification (unevaluable condition / over-credit).
-      stage = 'mint';
-      const minted = await mintOwnerJwt(deps, automation);
-
-      // ── Audit EVERY mint FIRST — before ANY other minted-client DB use (gpt-5.5 audit #3,
-      // AC-AAN-017). mint.ts's invariant ("audit is the first minted-client use") now holds on the
-      // skip paths too: an unevaluable-condition or over-credit candidate that mints still leaves an
-      // audit trail BEFORE its warning notification. Fail-closed — auditMint throws on failure, so a
-      // candidate whose audit cannot be written never notifies, credits, or fires. ──
-      const runId = newRunId();
-      stage = 'audit';
-      await auditMint(minted.client, automation, runId, newMintedAt());
+      const { minted, runId } = await ensureMinted();
       stage = 'fire';
 
       // Deferred unevaluable-condition warning (the mint is already audited above, so this notify is
@@ -481,32 +668,13 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
             orgId: automation.org_id,
           });
         }
+        await failRun(minted.client, runId, automation);
         continue;
       }
 
-      // ── Credit preflight (ADR-0044 §6, FR-AAN-032/033). Balance is computed under the MINTED
-      // OWNER CLIENT (for interactive usage calls; trusted metering uses service_role after verification) — the preflight runs strictly
-      // BEFORE any fire. Over ⇒ warning notification, no fire, no agent_runs row reaches 'running'. ──
-      const credit = await rateGuard.check(automation.org_id, minted.client);
-      if (credit.exceeded) {
-        const notified = await notifyOwner(
-          minted.client,
-          'warning',
-          `Automation skipped — out of credits`,
-          `Automation ${automation.id} did not run because the balance was exceeded.`,
-          { source: 'automation', automation_id: automation.id },
-          automation.id,
-        );
-        if (!notified) {
-          void recordErrorEvent(deps.serviceClient as never, {
-            fn: 'agent-dispatch',
-            errorCode: 'NOTIFY_INSERT_FAILED',
-            contextId: automation.id,
-            orgId: automation.org_id,
-          });
-        }
-        continue; // no fire, no last_fired_at stamp.
-      }
+      // A conditional trigger already holds credit (taken before its condition ran); the rest hold it
+      // here, strictly BEFORE any fire.
+      if (holdId === undefined && !(await reserveCredit(minted.client))) continue;
 
       // ── Fire (the SAME loop) → stamp last_fired_at. The run was already audited above. ──
 
@@ -523,6 +691,14 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // Item 3 (reliability): timeout_s → an AbortController per automation. A coarse wall-clock
       // deadline on top of MAX_TOOL_ROUNDS — each automation gets its OWN controller so one fire's
       // timeout can never abort a sibling's in-flight run.
+      // From here the event must never fire again: settle the claim BEFORE the fire. If that write fails the
+      // fire does not start (fail-closed), and the lease lets a later tick retry the whole unit.
+      if (claimedFire) {
+        if (!(await settleTriggerFire(deps.serviceClient, claimedFire.automationId, claimedFire.eventId, now))) {
+          throw new Error('claim settle failed');
+        }
+        claimedFire = undefined;
+      }
       const timeoutMs = (automation.timeout_s ?? 120) * 1000;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -547,7 +723,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       if (automation.kind === 'trigger') {
         await stampLastFired(deps.serviceClient, automation.id, now.toISOString());
       }
-    } catch (err) {
+    } catch {
       // Item 2 (reliability): isolate this unit's failure — log code-only (NFR-AAN-SEC-007/008,
       // never the prompt/condition text), continue to the next unit. The watermark for an
       // attempted trigger event has already been recorded above (markAttempted), independent of
@@ -577,6 +753,15 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         contextId: automation.id,
         orgId: automation.org_id,
       });
+    } finally {
+      // A unit that ended without firing (condition false, credit refused, a throw) is decided: settle it so
+      // it is not re-claimed. Best-effort; a lost write only means one re-evaluation after the lease.
+      if (claimedFire) await settleTriggerFire(deps.serviceClient, claimedFire.automationId, claimedFire.eventId, now);
+      if (holdId !== undefined && session) {
+        try {
+          await rateGuard.release?.(session.minted.client, holdId);
+        } catch { /* a failed release only leaves the conservative hold; never kills the batch */ }
+      }
     }
   }
 
@@ -584,8 +769,11 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
   // watermark advances over events whose automations were ALL attempted this tick, regardless of
   // whether the fire ultimately succeeded, threw, or was skipped (condition/credit) — an
   // attempted-but-failed event must never be re-selected and re-attempted next tick. ──
-  for (const [source, seen] of maxAttemptedBySource) {
-    await advanceWatermark(deps.serviceClient, source, seen);
+  for (const [source, attempted] of attemptedBySource) {
+    const stop = earliestUnclaimedBySource.get(source);
+    const safe = stop ? attempted.filter((a) => isAfter(stop, a)) : attempted;
+    if (safe.length === 0) continue;
+    await advanceWatermark(deps.serviceClient, source, safe.reduce((m, a) => (isAfter(a, m) ? a : m)));
   }
 }
 
@@ -655,7 +843,10 @@ export async function claimScheduleFire(sb: ServiceClientLike, automationId: str
     .eq('id', automationId)
     .or(`last_fired_at.is.null,last_fired_at.lt."${minuteFloor}"`)
     .select('id');
-  if (error) return false;
+  if (error) {
+    logStructuredError({ fn: 'agent-dispatch', errorCode: 'SCHEDULE_CLAIM_FAILED', contextId: automationId });
+    return false;
+  }
   return (data ?? []).length > 0;
 }
 
@@ -663,21 +854,73 @@ export async function claimScheduleFire(sb: ServiceClientLike, automationId: str
  * CRITICAL fix (2026-07-07): atomically claim a trigger automation's fire for a specific event.
  * The agent_automation_fires table (migration 0078) enforces at-most-once via its UNIQUE
  * (automation_id, event_id) primary key — the INSERT itself is the mutual exclusion: of N
- * overlapping ticks exactly one INSERT succeeds and fires; the losers hit a 23505 unique-violation
- * (surfaced as `error`) and skip. Fail-closed on ANY error (conflict OR a real query failure):
- * return false = do not fire — a duplicate must never fire, and an unreachable bookkeeping table
- * must never produce an unclaimed fire. (service_role, agent_automation_fires metadata — within
- * quarantine.)
+ * overlapping ticks exactly one INSERT succeeds and fires; the losers hit a 23505 unique-violation.
+ * Results: 'claimed' (fire it) · 'duplicate' (settled: already decided, skip) · 'busy' (someone's unsettled
+ * claim is still inside its lease) · 'error' (outage; caller keeps the event retryable).
+ *
+ * Lease (migration 0683): a 23505 whose row is still unsettled after TRIGGER_CLAIM_LEASE_MS belongs to a tick
+ * that died before firing. One conditional UPDATE (unsettled AND stale) takes it over and renews the lease, so
+ * of N racing ticks exactly one wins; a settled claim (fire started, or unit decided) never matches.
+ * (service_role, agent_automation_fires metadata — within quarantine.)
  */
-export async function claimTriggerFire(sb: ServiceClientLike, automationId: string, eventId: string): Promise<boolean> {
+export async function claimTriggerFire(
+  sb: ServiceClientLike,
+  automationId: string,
+  eventId: string,
+  now: Date,
+): Promise<'claimed' | 'duplicate' | 'busy' | 'error'> {
   const builder = sb.from('agent_automation_fires') as {
     insert: (row: Record<string, unknown>) => {
       select: (cols: string) => Promise<{ data: unknown[] | null; error: unknown }>;
     };
   };
-  const { data, error } = await builder
-    .insert({ automation_id: automationId, event_id: eventId })
-    .select('automation_id');
-  if (error) return false;
-  return (data ?? []).length > 0;
+  try {
+    const { data, error } = await builder
+      .insert({ automation_id: automationId, event_id: eventId })
+      .select('automation_id');
+    // Only a unique-violation means "already claimed"; anything else is an outage and must stay retryable.
+    if (!error) return (data ?? []).length > 0 ? 'claimed' : 'duplicate';
+    if ((error as { code?: string }).code !== '23505') return 'error';
+
+    const table = sb.from('agent_automation_fires') as {
+      update: (patch: Record<string, unknown>) => {
+        eq: (c: string, v: string) => { eq: (c: string, v: string) => { is: (c: string, v: null) => { lt: (c: string, v: string) => {
+          select: (cols: string) => Promise<{ data: unknown[] | null; error: unknown }>;
+        } } } };
+      };
+      select: (cols: string) => {
+        eq: (c: string, v: string) => { eq: (c: string, v: string) => {
+          maybeSingle: () => Promise<{ data: { settled_at: string | null } | null; error: unknown }>;
+        } };
+      };
+    };
+    const cutoff = new Date(now.getTime() - TRIGGER_CLAIM_LEASE_MS).toISOString();
+    const won = await table
+      .update({ fired_at: now.toISOString() })
+      .eq('automation_id', automationId).eq('event_id', eventId)
+      .is('settled_at', null).lt('fired_at', cutoff)
+      .select('automation_id');
+    if (won.error) return 'error';
+    if ((won.data ?? []).length > 0) return 'claimed';
+    const row = await table.select('settled_at').eq('automation_id', automationId).eq('event_id', eventId).maybeSingle();
+    if (row.error) return 'error';
+    return row.data && row.data.settled_at === null ? 'busy' : 'duplicate';
+  } catch {
+    return 'error';
+  }
+}
+
+/** Mark a claim decided (fire starting, or unit ended without firing); a settled claim is never re-claimed. */
+export async function settleTriggerFire(sb: ServiceClientLike, automationId: string, eventId: string, now: Date): Promise<boolean> {
+  try {
+    const table = sb.from('agent_automation_fires') as {
+      update: (patch: Record<string, unknown>) => {
+        eq: (c: string, v: string) => { eq: (c: string, v: string) => PromiseLike<{ error: unknown }> };
+      };
+    };
+    const { error } = await table.update({ settled_at: now.toISOString() }).eq('automation_id', automationId).eq('event_id', eventId);
+    return !error;
+  } catch {
+    return false;
+  }
 }

@@ -7,7 +7,9 @@
  * so both belong in one tested function rather than two hand-written ladders in two components.
  */
 import { describe, it, expect } from 'vitest';
-import { describePushError, RAW_ADAPTER_TOKEN } from './pushErrorCopy';
+import { describePushError, describePushMutationError } from './pushErrorCopy';
+import { AppError } from '../appError';
+import { RAW_ADAPTER_TOKEN } from '../testing/rawAdapterToken';
 
 /** Every code that any writer can persist into `*_erp_mirror.push_error` today. */
 const ALL_CODES = [
@@ -24,6 +26,9 @@ const ALL_CODES = [
   'command-held',
   'external-unreachable',
   'DISPATCH_FAILED',
+  // rm-1472 / M-2 — the two reasons a parked replacement push is held once the fence settles.
+  'budget-archive-cancellation-held',
+  'budget-archive-resume-actor-unauthorized',
 ] as const;
 
 describe('describePushError — no raw adapter token may reach the DOM (I-5/I-15)', () => {
@@ -170,5 +175,159 @@ describe('describePushError — the recovery hold reasons are classified + NOT r
     expect(copy.message).not.toMatch(/could not be classified/i);
     expect(copy.message).toMatch(/[.!]$/);
     expect(copy.retryable).toBe(true);
+  });
+});
+
+describe('FR-ECA-030 a step on a purchase ordered before the ERP connection', () => {
+  it('FR-ECA-030 pre-cutover reads as information, never an error, and offers no retry', () => {
+    const copy = describePushError('pre-cutover');
+    expect(copy).toMatchObject({
+      code: 'pre-cutover',
+      message: 'Not sent: this purchase started before the ERP connection',
+      severity: 'info',
+      retryable: false,
+      transport: false,
+    });
+    expect(copy.remedy, 'a withheld button still names where the work goes').toBeTruthy();
+    expect(copy.remedy, 'nothing was saved, and the copy says so').toMatch(/nothing was saved/i);
+    expect(copy.message).not.toMatch(/error|fail|refus|reject/i);
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+  });
+
+  it('classifies a live rejection by its code, not its prose', () => {
+    expect(describePushMutationError(new AppError('not sent: this purchase started before the ERP connection', 'pre-cutover')).severity).toBe('info');
+  });
+
+  it('no other code is marked as information', () => {
+    for (const code of ALL_CODES) expect(describePushError(code).severity).toBeUndefined();
+  });
+});
+
+describe('#1364 — a refusal before writing tells the user what to fix', () => {
+  it.each([
+    ['budget-project-start-date-missing', /start and end dates/i],
+    ['budget-fiscal-year-unresolved', /fiscal year/i],
+    ['budget-fiscal-year-ambiguous', /overlap/i],
+    ['budget-multi-fiscal-year-unphased', /fiscal year on every budget line/i],
+  ])('%s: names the fix and withholds a Retry that cannot succeed', (code, remedy) => {
+    const copy = describePushError(code);
+    expect(copy.code).toBe(code);
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).toMatch(remedy);
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+  });
+
+  it('a finalize that kept refusing reads as a classified sentence and withholds a Retry that meets the same rule', () => {
+    const copy = describePushError('outbox-finalize-refused');
+    expect(copy.code).toBe('outbox-finalize-refused');
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).toBeTruthy();
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+  });
+});
+
+describe('describePushError — the refusals Odoo sends raise (#1504 S8-T6)', () => {
+  const cases: Array<[string, RegExp, boolean]> = [
+    ['validation', /refused/i, true],
+    ['ambiguous', /two .*match/i, false],
+    ['unit-unmapped', /unit/i, false],
+    ['analytic-plan-unset', /plan/i, false],
+  ];
+  it.each(cases)('%s is classified in plain words, with no token or model name', (code, words, retryable) => {
+    const copy = describePushError(code);
+    expect(copy.code).toBe(code);
+    expect(copy.message).toMatch(words);
+    expect(copy.retryable).toBe(retryable);
+    expect(copy.message).not.toMatch(/odoo|res\.|account\.|product\./i);
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+  });
+
+  it('a held send says a person decides, and offers no retry', () => {
+    const copy = describePushError('command-held');
+    expect(copy.retryable).toBe(false);
+    expect(copy.message).toMatch(/person/i);
+  });
+
+  it('a live mutation error carrying the token classifies the same', () => {
+    expect(describePushMutationError(new Error('ambiguous')).code).toBe('ambiguous');
+  });
+});
+
+describe('describePushError — PO revise push refusal reason codes (#1998)', () => {
+  const REVISE_CODES = [
+    'revision_superseded',
+    'revision-superseded',
+    'po_has_submitted_bill',
+    'revision_not_issued',
+    'po_not_found',
+    'below-received',
+  ] as const;
+
+  it.each(REVISE_CODES)('%s renders as plain words sentence with remedy, not raw token or unclassified fallback', (code) => {
+    const copy = describePushError(code);
+    expect(copy.code).toBe(code);
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+    expect(copy.message).not.toMatch(/could not be classified|unrecognised|unexpected/i);
+    expect(copy.message.length).toBeGreaterThan(15);
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).not.toBeNull();
+    expect(copy.remedy).not.toMatch(RAW_ADAPTER_TOKEN);
+  });
+
+  it('classifies commit-rejected prefixed revise refusals', () => {
+    const copy = describePushError('commit-rejected: po_has_submitted_bill');
+    expect(copy.code).toBe('po_has_submitted_bill');
+    expect(copy.message).not.toContain('commit-rejected');
+    expect(copy.message).not.toMatch(/could not be classified/i);
+    expect(copy.retryable).toBe(false);
+  });
+
+  it('classifies below-received with line item details', () => {
+    const copy = describePushError('commit-rejected: below-received: Cable tray');
+    expect(copy.code).toBe('below-received');
+    expect(copy.message).not.toContain('below-received');
+    expect(copy.message).not.toMatch(/could not be classified/i);
+    expect(copy.retryable).toBe(false);
+  });
+});
+
+describe('describePushError — the register and maintenance refusals (#1511 F4)', () => {
+  it('names an asset that is not in the Odoo register, with the route out, and no retry', () => {
+    const copy = describePushError('equipment-not-linked');
+    expect(copy.code).toBe('equipment-not-linked');
+    expect(copy.message).toBe('This asset is not linked to the Odoo register yet.');
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).toMatch(/match/i);
+  });
+
+  it('names a vehicle/equipment mix-up in the record kind', () => {
+    const copy = describePushError('equipment-kind-mismatch');
+    expect(copy.message).toBe('A vehicle takes a service log; equipment takes a maintenance request.');
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).not.toBeNull();
+  });
+
+  it('names the register role rule, and says who can change the register', () => {
+    const copy = describePushError('register-role');
+    expect(copy.message).toBe('Only an Admin or Project Manager can change the register.');
+    expect(copy.retryable).toBe(false);
+    expect(copy.remedy).toMatch(/Admin|Project Manager/);
+  });
+
+  it('the three codes reach the DOM as sentences, never as tokens', () => {
+    for (const code of ['equipment-not-linked', 'equipment-kind-mismatch', 'register-role']) {
+      expect(describePushError(code).message).not.toMatch(RAW_ADAPTER_TOKEN);
+    }
+  });
+
+  it('names a reused asset identity, and each unresolvable picker, as a sentence with a route out and no retry', () => {
+    for (const code of ['record-id-invalid', 'vehicle-model-invalid', 'stage-invalid', 'service-type-invalid', 'vendor-invalid']) {
+      const copy = describePushError(code);
+      expect(copy.code).toBe(code);
+      expect(copy.message).not.toMatch(/could not be classified/i);
+      expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+      expect(copy.retryable).toBe(false);
+      expect(copy.remedy).not.toBeNull();
+    }
   });
 });

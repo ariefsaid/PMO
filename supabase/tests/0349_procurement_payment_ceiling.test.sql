@@ -1,7 +1,7 @@
 -- 0349 — the payment ceiling compares pre-tax billed amounts to the pre-tax approved amount, counts live
 -- bills once, refuses foreign-currency bills, and offers an approval path for a higher billed amount.
 begin;
-select plan(50);
+select plan(59);
 
 insert into organizations(id,name,default_currency) values
  ('03492000-0000-0000-0000-000000000001','Payment Ceiling Org','IDR'),
@@ -123,9 +123,11 @@ reset role;
 -- ── Overage approval: SoD exclusions, floor, then payment ──────────────────────────────────────────
 set local role authenticated;
 set local request.jwt.claims='{"sub":"03492000-0000-0000-0000-000000000011","role":"authenticated"}';
+select is(public.procurement_amount_eligibility('03492000-0000-0000-0000-000000000103', 1200), 'requester', 'AC-SEC-211: eligibility reflects requester');
 select throws_ok($$select approve_procurement_amount('03492000-0000-0000-0000-000000000103',1200)$$,
   '42501','separation of duties: requester cannot approve the procurement amount','AC-SEC-211: the requester cannot approve the higher amount');
 set local request.jwt.claims='{"sub":"03492000-0000-0000-0000-000000000014","role":"authenticated"}';
+select is(public.procurement_amount_eligibility('03492000-0000-0000-0000-000000000103', 1200), 'bill_recorder', 'AC-SEC-211: eligibility reflects bill recorder');
 select throws_ok($$select approve_procurement_amount('03492000-0000-0000-0000-000000000103',1200)$$,
   '42501','separation of duties: the bill recorder cannot approve the billed amount','AC-SEC-211: the actor who recorded the bill cannot approve the higher amount');
 set local request.jwt.claims='{"sub":"03492000-0000-0000-0000-000000000015","role":"authenticated"}';
@@ -133,6 +135,7 @@ select throws_ok($$select approve_procurement_amount('03492000-0000-0000-0000-00
   '23514','the approved amount cannot be below the billed amount','AC-SEC-211: the approved amount is never set below the billed net');
 select throws_ok($$select approve_procurement_amount('03492000-0000-0000-0000-000000000101',2000)$$,
   'P0001',null,'AC-SEC-211: only a procurement awaiting payment takes a higher approved amount');
+select is(public.procurement_amount_eligibility('03492000-0000-0000-0000-000000000103', 1200), 'allowed', 'AC-SEC-211: eligibility reflects eligible actor');
 select lives_ok($$select approve_procurement_amount('03492000-0000-0000-0000-000000000103',1200)$$,
   'AC-SEC-211: an eligible approver who is neither requester nor bill recorder approves the higher amount');
 reset role;
@@ -223,6 +226,7 @@ insert into procurement_invoices(id,org_id,procurement_id,status,amount,tax_trea
  ('03492000-0000-0000-0000-000000000602','03492000-0000-0000-0000-000000000001','03492000-0000-0000-0000-000000000106','Received',1700,'exclusive',0);
 set local role authenticated;
 set local request.jwt.claims='{"sub":"03492000-0000-0000-0000-000000000016","role":"authenticated"}';
+select is(public.procurement_amount_eligibility('03492000-0000-0000-0000-000000000106', 1700), 'quote_selector', 'AC-SEC-211: eligibility reflects quote selector');
 select throws_ok($$select approve_procurement_amount('03492000-0000-0000-0000-000000000106',1700)$$,
   '42501','separation of duties: quote selector cannot approve the revised amount','AC-SEC-212: the quote selector cannot approve a later higher amount');
 reset role;
@@ -270,9 +274,11 @@ insert into procurement_invoices(id,org_id,procurement_id,status,amount,tax_trea
  ('03492000-0000-0000-0000-000000000901','03492000-0000-0000-0000-000000000001','03492000-0000-0000-0000-000000000109','Received',1500,'exclusive',0);
 set local role authenticated;
 set local request.jwt.claims='{"sub":"03492000-0000-0000-0000-000000000018","role":"authenticated"}';
+select is(public.procurement_amount_eligibility('03492000-0000-0000-0000-000000000109', 1500), 'routing', 'AC-SEC-211: eligibility reflects unrouted actor');
 select throws_ok($$select approve_procurement_amount('03492000-0000-0000-0000-000000000109',1500)$$,
   '42501','approval routing: no_project requires a named approver','AC-SEC-215: a caller the approval route does not name cannot approve the higher amount');
 set local request.jwt.claims='{"sub":"03492000-0000-0000-0000-000000000012","role":"authenticated"}';
+select is(public.procurement_amount_eligibility('03492000-0000-0000-0000-000000000109', 1500), 'allowed', 'AC-SEC-211: eligibility reflects routed actor');
 select lives_ok($$select approve_procurement_amount('03492000-0000-0000-0000-000000000109',1500)$$,
   'AC-SEC-215: the approver the route names approves the higher amount');
 reset role;
@@ -312,6 +318,13 @@ select lives_ok($$select create_payment('03492000-0000-0000-0000-000000000112',n
 reset role;
 select is((select billed_net from procurement_payment_within_ceiling('03492000-0000-0000-0000-000000000112')),1000::numeric,
   'AC-SEC-209: a cancelled bill without a replacement is not counted');
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"03492000-0000-0000-0000-000000000019","role":"authenticated"}';
+select is(public.procurement_amount_eligibility('03492000-0000-0000-0000-000000000103',1200), null::text, 'cross-organization amount eligibility reveals no detail');
+select is(public.procurement_amount_eligibility('03492000-0000-0000-0000-000000009999',1200), null::text, 'missing amount eligibility reveals no detail');
+reset role;
+select ok(not has_function_privilege('anon','public.procurement_amount_eligibility(uuid,numeric)','EXECUTE'), 'anonymous callers cannot read amount eligibility');
 
 select finish();
 rollback;

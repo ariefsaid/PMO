@@ -70,6 +70,8 @@ interface FakeRow {
   claim_generation: number;
   last_error: string | null;
   payload_digest?: string | null;
+  payload?: unknown;
+  updated_at?: string;
 }
 
 function makeFakeClient(seed: FakeRow[] = []) {
@@ -217,7 +219,7 @@ Deno.test('readOutbox: null when no row for the 4-tuple; maps a found row to cam
     {
       id: 'outbox-1', org_id: 'org-1', domain: 'procurement', pmo_record_id: 'pmo-1', idempotency_key: 'key-1',
       external_tier: 'erpnext', operation: 'create', state: 'pending', external_record_id: null, canonical: null,
-      claim_generation: 0, last_error: null, payload_digest: null,
+      claim_generation: 0, last_error: null, payload_digest: null, payload: null,
     },
   ]);
   const deps = createDbMoneyOutboxDeps({ serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null });
@@ -451,6 +453,34 @@ Deno.test('claimOutboxForCommit: claims a pending row (bumps claim_generation), 
   assertEquals(second, null, 'a second claim on an already-committing row must return null');
 });
 
+Deno.test('a claim refused by the purchase rules is recorded through fail_refused_payment_claim (the database fences the row and spends its automatic attempts)', async () => {
+  const base = {
+    org_id: 'org-1', domain: 'procurement', pmo_record_id: 'pmo-1', external_tier: 'erpnext', operation: 'create',
+    external_record_id: null, canonical: null, last_error: null,
+  };
+  const { client, rows } = makeFakeClient([
+    { ...base, id: 'outbox-1', idempotency_key: 'key-1', state: 'pending', claim_generation: 0 },
+    { ...base, id: 'outbox-2', idempotency_key: 'key-2', state: 'failed', claim_generation: 1, last_error: 'earlier' },
+  ]);
+  const refusal = 'procurement-payment-refused: exceeds_approved_amount';
+  const refusalWrites: Array<Record<string, unknown>> = [];
+  const refusing: OutboxServiceClient = {
+    ...client,
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      if (fn === 'fail_refused_payment_claim') { refusalWrites.push(args); return { data: null, error: null }; }
+      return { data: null, error: { message: refusal, code: 'P0001' } };
+    },
+  } as OutboxServiceClient;
+  const deps = createDbMoneyOutboxDeps({ serviceClient: refusing, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null });
+  for (const id of ['outbox-1', 'outbox-2']) {
+    let err: unknown;
+    try { await deps.claimOutboxForCommit(id); } catch (e) { err = e; }
+    assertEquals((err as { code?: string }).code, 'commit-rejected', 'the refusal still surfaces to the caller');
+  }
+  assertEquals(refusalWrites, [{ p_id: 'outbox-1', p_error: refusal }, { p_id: 'outbox-2', p_error: refusal }]);
+  assertEquals(rows.get('outbox-1')?.state, 'pending', 'no direct table write: the function owns state, last_error and the attempt cap');
+});
+
 Deno.test('quarantineCommitting: transitions a committing row -> quarantined, bumps the fencing token', async () => {
   const { client, rows } = makeFakeClient([
     {
@@ -506,6 +536,22 @@ Deno.test('markOutboxCommitted/Failed: guarded write-backs affect 1 row when the
 
   const failedStaleCount = await deps.markOutboxFailed('outbox-1', 'boom', 2);
   assertEquals(failedStaleCount, 1, 'the current token marks failed');
+});
+
+Deno.test('AC-ENA-CAD-004 markOutboxFailed stamps updated_at — the 0357 retry delay runs from the failure, not the claim', async () => {
+  const claimedAt = '2026-10-23T07:00:00.000Z';
+  const { client, rows } = makeFakeClient([
+    {
+      id: 'outbox-1', org_id: 'org-1', domain: 'procurement', pmo_record_id: 'pmo-1', idempotency_key: 'key-1',
+      external_tier: 'erpnext', operation: 'create', state: 'committing', external_record_id: null, canonical: null,
+      claim_generation: 1, last_error: null, updated_at: claimedAt,
+    },
+  ]);
+  const deps = createDbMoneyOutboxDeps({ serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: () => Promise.resolve(null) });
+  const before = Date.now();
+  assertEquals(await deps.markOutboxFailed('outbox-1', 'rejected', 1), 1);
+  const stamped = Date.parse(String(rows.get('outbox-1')?.updated_at));
+  assert(stamped >= before && stamped <= Date.now(), `updated_at was not stamped at the failure: ${rows.get('outbox-1')?.updated_at}`);
 });
 
 Deno.test('H-1 recordOutboxRef + confirmOutbox: fenced ref upsert then confirm, only for the current token (0 when superseded)', async () => {
@@ -699,4 +745,33 @@ Deno.test('AC-TSC-R2 — non-timesheets domains take the generic insert path byt
   assert(!rpcCalled, 'a non-timesheets domain must NOT call the timesheets RPC');
   assertEquals(row.state, 'pending');
   assertEquals(inserted.length, 1, 'the generic .insert() path ran once');
+});
+
+Deno.test('procurement case snapshots enter the atomic enqueue RPC', async () => {
+  const { client, rpcCalls, inserted } = makeFakeClient();
+  const originalRpc = client.rpc.bind(client);
+  client.rpc = async (fn, args) => {
+    if (fn !== 'insert_procurement_outbox_pending') return originalRpc(fn, args);
+    rpcCalls.push({ fn, args });
+    return { data: { id: 'row-1', domain: 'procurement', pmo_record_id: 'record-1', idempotency_key: 'key-1', state: 'pending', external_record_id: null, canonical: null, claim_generation: 0, payload_digest: 'digest' }, error: null };
+  };
+  const opts = {
+    serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create',
+    payload: { procurementId: 'case-1', erp_doc_kind: 'purchase-order' }, payloadDigest: 'digest', actorUserId: 'actor-1',
+    procurementSnapshot: { caseId: 'case-1', lines: [{ name: 'Item', description: null, quantity: 2, rate: 10 }] },
+  } as unknown as Parameters<typeof createDbMoneyOutboxDeps>[0];
+  const deps = createDbMoneyOutboxDeps(opts);
+  await deps.insertOutboxPending('procurement', 'record-1', 'key-1');
+  assertEquals(inserted.length, 0, 'a case snapshot must use the atomic path');
+  assertEquals(rpcCalls[0]?.fn, 'insert_procurement_outbox_pending');
+  assertEquals(rpcCalls[0]?.args.p_snapshot, [{ name: 'Item', description: null, quantity: 2, rate: 10 }]);
+});
+
+Deno.test('a server-observed receipt input witness is persisted with an explicit-item command', async () => {
+  const { client, inserted } = makeFakeClient();
+  const deps = createDbMoneyOutboxDeps({ serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create',
+    probeByRemarksKey: async () => null, procurementInputDigest: 'a'.repeat(64),
+    payload: { procurementId: 'case-1', erp_doc_kind: 'goods-receipt' } });
+  await deps.insertOutboxPending('procurement', 'record-1', 'key-1');
+  assertEquals((inserted[0] as Record<string, unknown>).procurement_input_digest, 'a'.repeat(64));
 });

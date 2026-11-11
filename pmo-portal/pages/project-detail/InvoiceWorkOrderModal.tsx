@@ -49,7 +49,7 @@ function workOrderInvoiceDescription(wo: Pick<WorkOrderRow, 'wo_number' | 'title
 const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
   workOrder, projectId, clientId, remaining, onClose, onCreated,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   // #913: the query-derived mode must agree with the synced repository route. Stay fail-closed if the cache
   // is not ready or changes while this dialog is open.
   const revenueMode = useRevenueMode();

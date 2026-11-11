@@ -1,14 +1,88 @@
 {
   "coverage": {
+    "readError": "Project spending could not be read.",
+    "unknown": "Actual is unknown on {{count}} of {{total}} projects.",
     "partial": "Actual is partial on {{partial}} of {{total}} projects.",
     "partialUpdated": "Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}."
   },
+  "moneyFiguresUnavailable": "Some project financial figures are still being confirmed.",
   "actual": {
     "restrictedTag": "Restricted excluded"
   },
   "create": {
     "accessDenied": "You can't create projects",
     "leave": "Leave",
-    "stay": "Stay"
+    "stay": "Stay",
+    "limitReached": "You've reached your plan's active-project limit",
+    "limitReachedDetail": "Nothing was created. Archive a project you no longer need, or ask your Operator to upgrade the plan."
+  },
+  "erpLink": {
+    "createdSyncing": "{{name}} saved. ERP linking is running in the background; the PMO project is ready to use."
+  },
+  "revive": {
+    "limitReached": "You've reached your plan's active-project limit",
+    "limitReachedDetail": "This project was not restored. Archive an active project you no longer need, or ask your Operator to upgrade the plan, then try again."
+  },
+  "shortName": {
+    "label": "Short name (optional)",
+    "hint": "Shown in lists. Contract name is unchanged.",
+    "searchProject": "Project · {{name}}",
+    "searchPipeline": "Project · Pipeline · {{name}}",
+    "contractName": "Contract name",
+    "duplicate": "Another project already uses this short name"
+  },
+  "committed": {
+    "otherCurrencies": "Plus amounts in other currencies: {{amounts}}"
+  },
+  "table": {
+    "selectRow": "Select {{row}}",
+    "selectAllRows": "Select all rows"
+  },
+  "budgetConsumption": "{{used}} of {{budget}} Active budget",
+  "filterBuilder": {
+    "addFilter": "Add filter",
+    "clearAll": "Clear all",
+    "searchFields": "Search filters…",
+    "searchOperators": "Search conditions…",
+    "searchOptions": "Search…",
+    "back": "Back",
+    "clear": "Clear",
+    "apply": "Apply",
+    "discard": "Discard",
+    "empty": "No results",
+    "loading": "Loading…",
+    "error": "Couldn't load",
+    "retry": "Retry",
+    "remove": "Remove filter",
+    "filtersLabel": "Active filters",
+    "selectCondition": "Condition",
+    "selectPlaceholder": "Select…",
+    "valuePlaceholder": "Value",
+    "noValue": "Any",
+    "incomplete": "Incomplete",
+    "rangeSeparator": "to",
+    "rangeFrom": "{{field}} from",
+    "rangeTo": "{{field}} to",
+    "valueCount": "{{count}} selected",
+    "itemCount": "{{count}} items",
+    "onOrAfter": "is on or after",
+    "onOrBefore": "is on or before",
+    "between": "is between",
+    "is": "is",
+    "isAnyOf": "is any of",
+    "contains": "contains",
+    "atLeast": "is at least",
+    "atMost": "is at most",
+    "status": "Status",
+    "customer": "Customer",
+    "endCustomer": "End customer",
+    "manager": "Project manager",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "contractValue": "Contract value"
+  },
+  "receiptWithholding": {
+    "article": "Client withholding article",
+    "articleHelper": "Pre-fills new receipts. Each receipt can change it."
   }
 }

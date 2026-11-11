@@ -13,6 +13,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { Button } from '@/src/components/ui/Button';
+import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import { useAIComposer } from '@/src/hooks/useAIComposer';
 import type { CompositionSpec } from '@/src/lib/viewspec/types';
 
@@ -37,21 +38,10 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [prompt, setPrompt] = useState('');
-  const [localError, setLocalError] = useState<string | null>(null);
-  // Incrementing this forces a re-render so the live hookError value is picked up
-  // after compose() resolves null (hookError is read fresh on each render cycle).
-  const [, setErrorTick] = useState(0);
 
   const { compose, status, error: hookError } = useAIComposer();
 
   const isLoading = status === 'loading';
-
-  // Display hook error in local state for the live region
-  useEffect(() => {
-    if (hookError) {
-      setLocalError(hookError);
-    }
-  }, [hookError]);
 
   // Escape key handler
   useEffect(() => {
@@ -65,6 +55,12 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [open, isLoading, onClose]);
+
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  useEffect(() => {
+    if (!open) return;
+    return acquireBackgroundInert();
+  }, [open]);
 
   // Focus management: move focus in on open; restore on close
   useEffect(() => {
@@ -99,35 +95,29 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
   };
 
   const handleGenerate = async () => {
-    setLocalError(null);
+    // compose() clears the hook's own error at start and sets it on failure — the
+    // live region renders hookError directly (no mirrored local copy).
     const spec = await compose(prompt);
     if (spec !== null) {
       onComposed(spec);
       onClose();
-    } else {
-      // Trigger a re-render so the live hookError value (set by the hook during compose)
-      // is picked up by the displayError = localError ?? hookError expression.
-      // The useEffect(hookError) will then sync it into localError for subsequent renders.
-      setErrorTick((t) => t + 1);
     }
   };
 
   const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setPrompt(e.target.value.slice(0, MAX_PROMPT_LENGTH));
-    setLocalError(null);
   };
 
   // Reset state when modal closes
   useEffect(() => {
     if (!open) {
       setPrompt('');
-      setLocalError(null);
     }
   }, [open]);
 
   if (!open) return null;
 
-  const displayError = localError ?? hookError;
+  const displayError = hookError;
 
   const textareaLabelId = `${titleId}-label`;
 

@@ -9,9 +9,11 @@ import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQu
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { listState, mutations } = vi.hoisted(() => ({
+const { listState, mutations, pageCalls, exportAll } = vi.hoisted(() => ({
+  exportAll: vi.fn(),
+  pageCalls: [] as Array<{ page: number; pageSize: number; status?: string; search?: string }>,
   listState: {
-    data: [] as unknown[],
+    data: [] as Array<Record<string, unknown>>,
     isPending: false,
     isError: false,
     refetch: vi.fn(),
@@ -24,8 +26,27 @@ const { listState, mutations } = vi.hoisted(() => ({
   },
 }));
 
+// #1991: the status filter + search + paging run on the server; this stub plays the server so the
+// page journeys assert the goal (the user sees the narrowed rows) and the args the page sends.
 vi.mock('@/src/hooks/useIncidents', () => ({
-  useIncidents: () => listState,
+  useIncidentsPage: (args: { page: number; pageSize: number; status?: string; search?: string }) => {
+    pageCalls.push(args);
+    const all = listState.data;
+    const q = args.search?.toLowerCase();
+    const rows = all
+      .filter((i) => !args.status || i.status === args.status)
+      .filter((i) => !q || String(i.type).toLowerCase().includes(q) || String(i.location ?? '').toLowerCase().includes(q));
+    return {
+      list: {
+        data: listState.isError ? undefined : { rows, total: rows.length },
+        isPending: listState.isPending,
+        isError: listState.isError,
+        refetch: listState.refetch,
+      },
+      allTotal: all.length,
+    };
+  },
+  useIncidentsExportAll: () => ({ mutateAsync: exportAll, isPending: false }),
   useIncidentMutations: () => mutations,
 }));
 
@@ -97,6 +118,7 @@ beforeEach(() => {
   listState.isPending = false;
   listState.isError = false;
   listState.refetch.mockClear();
+  pageCalls.length = 0;
   Object.values(mutations).forEach((m) => {
     m.mutateAsync.mockReset();
     m.mutateAsync.mockResolvedValue(undefined);
@@ -152,34 +174,70 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
   it('AC-IN-001: search filters rows by type/location', async () => {
     renderPage();
     await userEvent.type(screen.getByLabelText(/Search incidents/i), 'spill');
-    expect(screen.queryByText('Near Miss')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Near Miss')).not.toBeInTheDocument());
     expect(screen.getByText('Spill')).toBeInTheDocument();
   });
 
-  it('AC-IN-001: each severity renders a DISTINCT dot + label (Low/High/Critical differentiated)', () => {
+  it('#1991: the status and the (debounced) search go to the server, and a new filter starts at page 1', async () => {
     renderPage();
-    // S1 (ADR-0068): status is a quiet dot + label, no tint slab — severity is
-    // differentiated by the DOT hue (+ the label), so measure the dot background.
-    const dotBg = (label: string, rowType: string) => {
+    expect(pageCalls.at(-1)).toMatchObject({ page: 1, pageSize: 50, status: undefined, search: undefined });
+    await userEvent.click(screen.getByRole('tab', { name: /^Closed$/ }));
+    expect(pageCalls.at(-1)).toMatchObject({ page: 1, status: 'Closed' });
+    await userEvent.type(screen.getByLabelText(/Search incidents/i), 'spill');
+    await waitFor(() => expect(pageCalls.at(-1)).toMatchObject({ page: 1, status: 'Closed', search: 'spill' }));
+  });
+
+  it('#1991: the header keeps the "Showing x of y" count against the unfiltered total', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Investigating$/ }));
+    expect(screen.getByTestId('list-page-count')).toHaveTextContent('Showing 1 of 3');
+  });
+
+  it('#1991: Export reads EVERY incident matching the status + search, not just the shown page', async () => {
+    listState.data = Array.from({ length: 120 }, (_, n) => ({ ...seed[0], id: `p${n}`, type: `Row ${n}` }));
+    exportAll.mockResolvedValue([]);
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Open$/ }));
+    await userEvent.type(screen.getByLabelText(/Search incidents/i), 'Row 1');
+    await waitFor(() => expect(pageCalls.at(-1)).toMatchObject({ search: 'Row 1' }));
+    await userEvent.click(screen.getByRole('button', { name: /export/i }));
+    await waitFor(() => expect(exportAll).toHaveBeenCalledWith({ status: 'Open', search: 'Row 1' }));
+  });
+
+  it('#1991: more than one page shows a pager that asks the server for the next page', async () => {
+    listState.data = Array.from({ length: 120 }, (_, n) => ({ ...seed[0], id: `p${n}`, type: `Row ${n}` }));
+    renderPage();
+    expect(screen.getByText('1–50 of 120')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(pageCalls.at(-1)).toMatchObject({ page: 2 });
+  });
+
+  it('AC-IN-001: each severity renders a DISTINCT paired label treatment (Low/High/Critical differentiated)', () => {
+    renderPage();
+    // S1 (ADR-0068) as amended 2026-10-29 (decorative dot ban): severity is
+    // differentiated by the paired AA label token (+ the label word) on the pale
+    // status surface — no tint slab, no leading dot.
+    const pillCls = (label: string, rowType: string) => {
       const row = screen.getByText(rowType).closest('tr')!;
       const pill = within(row).getByText(label).closest('span')!;
-      return (pill.querySelector('[data-pill-dot]') as HTMLElement).style.background;
+      return { cls: pill.className, style: pill.getAttribute('style') ?? '' };
     };
-    const low = dotBg('Low', 'Near Miss');
-    const high = dotBg('High', 'Equipment Damage');
-    const critical = dotBg('Critical', 'Spill');
-    // High = warn (amber); Critical = destructive (red); Low = quiet muted — all distinct.
-    expect(high).toBe('hsl(var(--warning))');
-    expect(critical).toBe('hsl(var(--destructive))');
-    expect(low).not.toBe(high);
-    expect(high).not.toBe(critical);
-    expect(low).not.toBe(critical);
+    const low = pillCls('Low', 'Near Miss');
+    const high = pillCls('High', 'Equipment Damage');
+    const critical = pillCls('Critical', 'Spill');
+    // High = warn (amber label); Critical = destructive (red label); Low = quiet muted — all distinct.
+    expect(high.cls).toContain('text-warning-foreground');
+    expect(critical.style).toContain('--status-lost-text');
+    expect(low.cls).toContain('text-count-foreground');
+    expect(high.cls).not.toEqual(critical.cls);
+    expect(low.cls).not.toEqual(high.cls);
     // Freed-Blue Status Rule (CW-2): neither severity NOR workflow status renders the
-    // action-blue. "Open" status is the neutral grey `progress` treatment (muted dot).
-    const openDot = dotBg('Open', 'Near Miss');
-    [low, high, critical, openDot].forEach((d) =>
-      expect(d).not.toBe('hsl(var(--primary))'),
-    );
+    // action-blue. "Open" status is the neutral grey `progress` treatment.
+    const open = pillCls('Open', 'Near Miss');
+    [low, high, critical, open].forEach((p) => {
+      expect(p.cls).not.toContain('bg-primary');
+      expect(p.style).not.toContain('--primary');
+    });
   });
 });
 

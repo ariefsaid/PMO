@@ -16,8 +16,9 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { trackComingSoonClicked } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrencyAuto, formatDateOnly, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatDateOnly, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ProcurementFilesSubsection, type EmbeddedProcurementFile } from './ProcurementFilesSubsection';
 import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
@@ -91,8 +92,7 @@ function isRowSelected(q: QuotationRow, selectedId: string | null | undefined): 
   return selectedId != null ? q.id === selectedId : q.is_selected;
 }
 
-/** Sort quotations: selected first, then ascending total_amount (best value
- *  at the top of the non-selected rows). Stable across re-renders. */
+/** Sort quotations: selected first, then ascending total amount. */
 function sortedQuotes(quotes: QuotationRow[], selectedId: string | null | undefined): QuotationRow[] {
   return [...quotes].sort((a, b) => {
     const aSelected = isRowSelected(a, selectedId);
@@ -102,16 +102,12 @@ function sortedQuotes(quotes: QuotationRow[], selectedId: string | null | undefi
   });
 }
 
-/**
- * Find the id of the lowest-amount quote among all quotes (the "best value"
- * candidate shown WHILE the buyer is deciding, i.e. when canSelect=true).
- * Returns null when there are no quotes.
- */
-function bestValueId(quotes: QuotationRow[]): string | null {
-  if (quotes.length === 0) return null;
-  return quotes.reduce((best, q) =>
-    (q.total_amount ?? 0) < (best.total_amount ?? 0) ? q : best,
-  ).id;
+/** Only compare two or more prices when every quote has a valid amount in the same currency. */
+function lowestPrice(quotes: QuotationRow[]): number | null {
+  if (quotes.length < 2 || !quotes[0].currency || quotes.some((q) =>
+    q.currency !== quotes[0].currency || q.total_amount == null || !Number.isFinite(Number(q.total_amount)) || Number(q.total_amount) <= 0,
+  )) return null;
+  return Math.min(...quotes.map((q) => Number(q.total_amount)));
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -132,7 +128,8 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
   vendorMap = {},
   currency,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'procurement']);
+  const today = useOrgToday();
   const [adding, setAdding] = useState(false);
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [total, setTotal] = useState('');
@@ -172,7 +169,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       await onAdd({
         vendorId,
         totalAmount: parsed,
-        receivedDate: new Date().toISOString().slice(0, 10),
+        receivedDate: today,
         intent: quoteIntents.intentFor(ADD_QUOTE_INTENT_KEY),
       });
       resetAdd();
@@ -195,10 +192,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
 
   const sorted = sortedQuotes(quotations, selectedId);
 
-  // Best-value id: shown as a "Best value" pill while the buyer is deciding
-  // (canSelect=true / Vendor Quoted status). Once a quote is selected, the
-  // "Selected · best value" pill on the chosen row serves the same role.
-  const bestId = canSelect ? bestValueId(quotations) : null;
+  const lowest = lowestPrice(quotations);
 
   return (
     <Card data-testid="vendor-quotes">
@@ -214,7 +208,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       >
         Bid comparison
         <span className="ml-2 text-[13px] font-normal text-muted-foreground">
-          Compare and select a vendor quote
+          {t('procurement:quotes.compareHint', 'Compare and select a supplier quote')}
         </span>
       </CardHead>
 
@@ -222,7 +216,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       {quotations.length === 0 && (
         <ListState
           variant="empty"
-          title={t('procurementDetail.quotes.emptyTitle', 'No quotes recorded. Add a vendor quote to compare bids.')}
+          title={t('procurementDetail.quotes.emptyTitle', 'No quotes recorded. Add a supplier quote to compare bids.')}
         />
       )}
 
@@ -230,13 +224,13 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       {quotations.length > 0 && (() => {
         const columns: Column<QuotationRow>[] = [
           {
-            key: 'vendor', header: 'Vendor / Quote #', kind: 'primary', size: 320, minSize: 240,
-            primaryTitle: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? 'Vendor quote',
-            cell: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? 'Vendor quote',
+            key: 'vendor', header: 'Supplier / Quote #', kind: 'primary', size: 320, minSize: 240,
+            primaryTitle: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? 'Supplier quote',
+            cell: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? 'Supplier quote',
             secondaryCell: (q) => <span>{q.reference && <span className="mr-1">{q.reference}</span>}{q.vq_number}</span>,
           },
-          { key: 'valueStatus', header: 'Value status', kind: 'status', size: 160, cell: (q) => isRowSelected(q, selectedId) ? <StatusPill variant="won">Selected · best value</StatusPill> : bestId === q.id ? <StatusPill variant="won">Best value</StatusPill> : null },
-          { key: 'amount', header: 'Amount', kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{formatCurrencyAuto(Number(q.total_amount), q.currency)}</span> },
+          { key: 'valueStatus', header: 'Value status', kind: 'status', size: 160, cell: (q) => <div className="flex flex-wrap gap-1">{isRowSelected(q, selectedId) && <StatusPill variant="won">{t('procurement:quoteComparison.selected', 'Selected')}</StatusPill>}{lowest !== null && Number(q.total_amount) === lowest && <StatusPill variant="won">{t('procurement:quoteComparison.lowestPrice', 'Lowest price')}</StatusPill>}</div> },
+          { key: 'amount', header: 'Amount', kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{formatCurrency(Number(q.total_amount), q.currency)}</span> },
           { key: 'validUntil', header: 'Valid until', kind: 'date', size: 160, cell: (q) => <span className="text-muted-foreground">{formatDateOnly(q.valid_until)}</span> },
           { key: 'attachments', header: 'Attachments', kind: 'text', size: 240, minSize: 180, cell: (q) => <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} /> }, 
           { key: 'select', header: '', kind: 'select', size: 40, minSize: 40, maxSize: 40, cell: (q) => {
@@ -245,7 +239,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
           } },
         ];
         return <>
-          <DataTable rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName="Vendor bid comparison" selectedKey={selectedId ?? undefined} />
+          <DataTable rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName="Supplier bid comparison" selectedKey={selectedId ?? undefined} />
         </>;
       })()}
 
@@ -258,10 +252,10 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
           >
             <div className="min-w-[200px] flex-1">
               <Combobox
-                label="Vendor"
+                label="Supplier"
                 noun="vendor"
                 required
-                placeholder="Select a vendor…"
+                placeholder="Select a supplier…"
                 value={vendorId}
                 onChange={(v) => setVendorId(v)}
                 loadOptions={loadVendors}
@@ -316,7 +310,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
         open={!!selectTarget}
         tone="default"
         title="Select this quote?"
-        description="The selected quote sets the purchase-request value and vendor. If it is above the approved amount, the request goes back for approval."
+        description="The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval."
         confirmLabel="Select quote"
         loading={selectBusy}
         onConfirm={() => void confirmSelect()}

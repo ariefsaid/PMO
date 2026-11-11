@@ -3,12 +3,14 @@ import type { ProjectClassification } from '@/src/lib/projectClassification';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
+import { initials } from '@/src/lib/initials';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { TFunction } from 'i18next';
 import {
   EntityFormModal,
+  TextArea,
   TextField,
   NumberField,
   SelectField,
@@ -60,17 +62,13 @@ import {
 // ---------------------------------------------------------------------------
 
 /** A two-letter avatar for a combobox option (client / PM chips). */
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
+const initialsOf = (name: string): string => initials(name, { style: 'tile' });
 
 /** Pre-filled values when editing an existing project header. */
 export interface ProjectFormInitial extends ProjectClassification {
   id: string;
   name: string;
+  short_name?: string | null;
   code: string | null;
   client_id: string | null;
   project_manager_id: string | null;
@@ -81,15 +79,19 @@ export interface ProjectFormInitial extends ProjectClassification {
   pmName?: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  /** #1275: when the host supplies it (even null) the header form shows and writes the default receipt article. */
+  receipt_withholding_article?: 'pph23' | 'pph4_2' | null;
 }
 
 interface FormValues {
+  receiptWithholdingArticle: string;
   serviceLine: string;
   sector: string;
   location: string;
   awardType: string;
   biddingEntity: string;
   name: string;
+  shortName: string;
   code: string;
   pmoProjectNumber: string;
   clientId: string | null;
@@ -140,7 +142,7 @@ function moneyError(raw: string, t: TFunction, locale = getNumberLocale()): stri
   if (moneyInputErrorKind(raw, 2, locale) === 'format') {
     const { decimal, group } = numberSymbols(locale);
     return t('projectForm.value.formatError', {
-      defaultValue: 'Use "{{group}}" to group thousands and "{{decimal}}" for decimals — for example {{example}}.',
+      defaultValue: 'Use "{{group}}" to group thousands and "{{decimal}}" for decimals (for example {{example}}).',
       group,
       decimal,
       example: formatMoneyInputValue(1234.56, locale),
@@ -195,7 +197,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 }) => {
   const classificationOptions = useProjectClassificationOptions();
   const isEdit = mode === 'editHeader';
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'projects']);
   const statusLabel = useProjectStatusLabel();
   const originationOptions = PROJECT_ORIGINATION_STATUSES.map((s) => ({ value: s, label: statusLabel(s) }));
   const validate = useMemo(() => makeValidate(t), [t]);
@@ -208,12 +210,14 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
   const form = useEntityForm<FormValues>({
     initialValues: {
+      receiptWithholdingArticle: initial?.receipt_withholding_article ?? '',
       serviceLine: initial?.service_line ?? '',
       sector: initial?.sector ?? '',
       location: initial?.location ?? '',
       awardType: initial?.award_type ?? '',
       biddingEntity: initial?.bidding_entity ?? '',
       name: initial?.name ?? '',
+      shortName: initial?.short_name ?? '',
       code: initial?.code ?? '',
       pmoProjectNumber: '',
       clientId: initial?.client_id ?? null,
@@ -240,6 +244,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const numberProposal = useProjectNumberProposal(form.values.clientId, !isEdit);
   const appliedProposal = useRef<string | null>(null);
   const [numberConflict, setNumberConflict] = useState(false);
+  const [shortNameConflict, setShortNameConflict] = useState(false);
   useEffect(() => {
     if (!isEdit && numberProposal.status === 'success' && numberProposal.number !== appliedProposal.current) {
       form.setValue('pmoProjectNumber', numberProposal.number);
@@ -250,6 +255,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const [endClientLabel, setEndClientLabel] = useState<string | null>(initial?.endClientName ?? null);
 
   const nameField = form.fieldProps('name');
+  const shortNameField = form.fieldProps('shortName');
   const codeField = form.fieldProps('code');
   const pmoNumberField = form.fieldProps('pmoProjectNumber');
   const statusField = form.fieldProps('status');
@@ -325,10 +331,12 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   // F8 (AC-IXD-FORM-F8): the value (estimated contract) field can carry a FORMAT
   // error (non-blank but unparseable) — it is anchored here so a still-invalid
   // submit moves focus to it (the completeness gate cannot block a non-blank field).
+  const shortNameDuplicate = t('projects:shortName.duplicate', 'Another project already uses this short name');
   const errorSummary = [
     form.errors.name ? { fieldId: nameField.id, message: form.errors.name } : null,
     form.errors.clientId ? { fieldId: nameField.id, message: form.errors.clientId } : null,
     form.errors.value ? { fieldId: valueField.id, message: form.errors.value } : null,
+    shortNameConflict ? { fieldId: shortNameField.id, message: shortNameDuplicate } : null,
     numberConflict ? { fieldId: pmoNumberField.id, message: t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.') } : null,
   ].filter((x): x is { fieldId: string; message: string } => x != null);
 
@@ -336,7 +344,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   // so a pristine page must not count as dirty (it would ask before leaving an empty form).
   const v = form.values;
   const hasEntries = v.status !== 'Leads' || [
-    v.name, v.code, v.clientId, v.endClientId, v.pmId, v.value, v.startDate, v.endDate,
+    v.name, v.shortName, v.code, v.clientId, v.endClientId, v.pmId, v.value, v.startDate, v.endDate,
     v.serviceLine, v.sector, v.location, v.awardType, v.biddingEntity,
   ].some(Boolean);
   useEffect(() => {
@@ -358,12 +366,16 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           const input: ProjectHeaderInput = {
             ...classification,
             name: values.name.trim(),
+            short_name: values.shortName.trim() || null,
             code: values.code.trim() || null,
             client_id: values.clientId,
             end_client_id: values.endClientId,
             project_manager_id: values.pmId,
             start_date: values.startDate || null,
             end_date: values.endDate || null,
+            ...(initial.receipt_withholding_article !== undefined
+              ? { receipt_withholding_article: values.receiptWithholdingArticle === 'pph23' || values.receiptWithholdingArticle === 'pph4_2' ? values.receiptWithholdingArticle : null }
+              : {}),
           };
           await onSave(initial.id, input);
         } else if (onSubmit) {
@@ -371,6 +383,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           const base = {
             ...classification,
             name: values.name.trim(),
+            short_name: values.shortName.trim() || null,
             code: values.code.trim() || null,
             pmo_project_number: values.pmoProjectNumber.trim(),
             status: values.status,
@@ -410,7 +423,9 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
         }
       } catch (err) {
         const failure = err as { code?: string; message?: string };
-        if (failure.code === '23505' && (!failure.message || failure.message.includes('pmo_project_number'))) {
+        if (failure.code === '23505' && failure.message?.includes('projects_org_short_name_uidx')) {
+          setShortNameConflict(true);
+        } else if (failure.code === '23505' && (!failure.message || failure.message.includes('pmo_project_number'))) {
           setNumberConflict(true);
         }
         onError(err);
@@ -422,16 +437,33 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     <>
       <FormSection legend={t('projectForm.section.project', 'Project')}>
         <FormGrid>
-          <TextField
+          <TextArea
             id={nameField.id}
             label={t('projectForm.name.label', 'Project name')}
             required
+            rows={2}
             value={nameField.value}
-            onChange={nameField.onChange}
+            // #1339: the contractual name is long, so the field wraps instead of hiding its head
+            // behind a single-line scroll. A newline is a line break in the FIELD, never in the
+            // stored name — pasted multi-line text is flattened back to one line here.
+            onChange={(value) => nameField.onChange(value.replace(/\s*[\r\n]+\s*/g, ' '))}
             onBlur={nameField.onBlur}
             error={nameField.error}
-            placeholder={t('projectForm.name.placeholder', 'e.g. Harborside Terminal — Civil Works')}
+            placeholder={t('projectForm.name.placeholder', 'e.g. Harborside Terminal: Civil Works')}
             fullWidth
+          />
+
+          <TextField
+            id={shortNameField.id}
+            label={t('projects:shortName.label', 'Short name (optional)')}
+            value={shortNameField.value}
+            onChange={(value) => {
+              shortNameField.onChange(value);
+              setShortNameConflict(false);
+            }}
+            onBlur={shortNameField.onBlur}
+            error={shortNameConflict ? shortNameDuplicate : undefined}
+            helper={t('projects:shortName.hint', 'Shown in lists. Contract name is unchanged.')}
           />
 
           <Combobox
@@ -636,6 +668,16 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             value={form.values.biddingEntity} onChange={(value) => form.setValue('biddingEntity', value)}
             options={[{ value: '', label: t('projectClassification.notSet', 'Not set') }, ...classificationValueOptions(t, BIDDING_ENTITIES)]} />
           <TextField {...form.fieldProps('location')} id="project-classification-location" label={t('projectClassification.location', 'Location')} fullWidth />
+          {isEdit && initial?.receipt_withholding_article !== undefined && (
+            <SelectField id="project-receipt-withholding-article" label={t('projects:receiptWithholding.article', 'Client withholding article')}
+              value={form.values.receiptWithholdingArticle} onChange={(value) => form.setValue('receiptWithholdingArticle', value)}
+              helper={t('projects:receiptWithholding.articleHelper', 'Pre-fills new receipts. Each receipt can change it.')}
+              options={[
+                { value: '', label: t('projectClassification.notSet', 'Not set') },
+                { value: 'pph23', label: t('finance:financeCopy.withholdingArticlePph23', 'PPh 23') },
+                { value: 'pph4_2', label: t('finance:financeCopy.withholdingArticlePph42', 'PPh 4(2)') },
+              ]} />
+          )}
         </FormGrid>
       </FormSection>
 

@@ -38,7 +38,18 @@ select set_eq(
       where c.contype = 'f' and n.nspname = 'public'
       group by src.relname, tgt.relname
      having count(*) > 1 $$,
-  $$ values ('credits -> profiles'),
+  $$ values -- 0792 (#1413): budget_versions gained returned_by beside 0271's created_by, both -> profiles.
+            -- CHECKED BEFORE ADDING: no DAL, repository, edge-function or e2e code embeds profiles from
+            -- budget_versions (the returned-draft banner renders returned_at/return_reason only; the
+            -- drafter's name resolves through the profiles directory by id in pages/ProjectBudget.tsx),
+            -- so nothing broke. Whatever ships first MUST qualify it with !constraint_name
+            -- (e.g. profiles!budget_versions_returned_by_fkey).
+            ('budget_versions -> profiles'),
+            -- 0515 (T&M rates): contract_rate_assignees has user_id AND created_by, both -> profiles.
+            -- Checked before adding: no DAL, repository, edge fn or e2e spec embeds profiles from
+            -- it (only database.types.ts mentions the table), so no unqualified embed exists.
+            ('contract_rate_assignees -> profiles'),
+            ('credits -> profiles'),
             ('erp_employees -> profiles'),
             -- 0291 (#1012): fx_rates carries created_by AND updated_by, both -> profiles. Checked
             -- before adding: neither src/lib/db/fxRates.ts nor the fx repository embeds profiles
@@ -54,6 +65,9 @@ select set_eq(
             -- any future parent-document embed must name the intended constraint.
             ('project_documents -> project_documents'),
             ('task_dependencies -> tasks'),
+            -- 0516 (T&M claims): tm_claims has prepared_by AND confirmed_by, both -> profiles. Checked before
+            -- adding: nothing embeds profiles from it yet (only database.types.ts mentions the table).
+            ('tm_claims -> profiles'),
             -- 0204 (#551, DD-TASK-8): tasks gained `created_by` alongside `assignee_id`, so this
             -- pair is new. ⚑ CHECKED BEFORE ADDING, as this assertion's own message demands: the
             -- only embed of profiles from tasks is `src/lib/db/tasks.ts:77`, and it is ALREADY
@@ -77,6 +91,15 @@ select set_eq(
             -- 0337: work_order_acceptances carries prepared_by and confirmed_by -> profiles. No DAL code embeds
             -- profiles from it; whatever ships first MUST qualify it with !constraint_name.
             ('work_order_acceptances -> profiles'),
+            -- 0447 (#1519): equipment_usage_entries carries author_id and approver_id -> profiles. No DAL code embeds
+            -- profiles from it yet; whatever ships first MUST qualify it with !constraint_name.
+            ('equipment_usage_entries -> profiles'),
+            -- 0470 (#1513 S2): subcontract_acceptances carries prepared_by and confirmed_by -> profiles (the ADR-0091 shape). No DAL
+            -- code embeds profiles from it yet; whatever ships first MUST qualify it with !constraint_name.
+            ('subcontract_acceptances -> profiles'),
+            -- 0474 (#1513 S4): po_variations carries requested_by, approved_by, decided_by and linked_by -> profiles. No DAL code
+            -- embeds profiles from it yet; whatever ships first MUST qualify it with !constraint_name.
+            ('po_variations -> profiles'),
             -- 0243 (#803): spend_approvers carries profile_id AND created_by, both -> profiles. The one
             -- embed (src/lib/db/spendApprovers.ts) is qualified: profiles!spend_approvers_profile_id_fkey.
             ('spend_approvers -> profiles'),
@@ -99,7 +122,45 @@ select set_eq(
             ('sales_invoices -> users'),
             -- 0281 (#911): a slip header references profiles as both creator and void actor. The new slip
             -- repository must qualify profile embeds with the intended constraint name.
-            ('vendor_withholding_slips -> profiles') $$,
+            ('vendor_withholding_slips -> profiles'),
+            -- 0364 (#1319 AC-13): erp_purchase_document_marks carries set_aside_by and updated_by -> profiles.
+            -- No DAL code embeds profiles from it; whatever ships first MUST qualify it with !constraint_name.
+            ('erp_purchase_document_marks -> profiles'),
+            -- 0409 (#1474): the seven purchase attachment tables gained ms_linked_by -> profiles beside
+            -- their existing uploaded_by_id. CHECKED BEFORE ADDING: no DAL, repository, edge-function or
+            -- e2e code embeds profiles from any of them (procurementFiles.ts reads select('*'); the
+            -- procurementLifecycle.ts file sub-selects list scalar columns only), so nothing broke.
+            -- Whatever ships first MUST qualify it with !constraint_name.
+            ('procurement_receipt_files -> profiles'),
+            ('rfq_files -> profiles'),
+            ('procurement_quotation_files -> profiles'),
+            ('purchase_request_files -> profiles'),
+            ('purchase_order_files -> profiles'),
+            ('payment_files -> profiles'),
+            ('procurement_invoice_files -> profiles'),
+            -- 0413 (#1512 S2a): stock_documents carries created_by, posted_by and cancelled_by -> profiles and
+            -- warehouse_id + to_warehouse_id -> stock_warehouses; stock_ledger carries line_id + source_line_id ->
+            -- stock_document_lines. CHECKED BEFORE ADDING: no DAL code reads these tables yet (S3 ships it); whatever
+            -- ships first MUST qualify each embed with !constraint_name.
+            ('stock_documents -> profiles'),
+            ('stock_documents -> stock_warehouses'),
+            ('stock_ledger -> stock_document_lines'),
+            -- 0422 (#1515 S1): imprest_floats, imprest_replenishments, imprest_plans and imprest_float_changes each
+            -- carry custodian/author/decider person columns -> profiles. The custodian FK stays (integrity). CHECKED
+            -- BEFORE ADDING: no DAL, repository or edge-function code reads these tables (only database.types.ts
+            -- mentions them); whatever ships first MUST qualify each profiles embed with !constraint_name.
+            ('imprest_floats -> profiles'),
+            ('imprest_replenishments -> profiles'),
+            ('imprest_plans -> profiles'),
+            ('imprest_float_changes -> profiles'),
+            -- 0442 (#1639 S1): task_reminders carries sender_id AND recipient_id -> profiles. CHECKED BEFORE ADDING:
+            -- no DAL, repository or edge-function code embeds profiles from it; whatever ships first MUST qualify
+            -- it with !constraint_name.
+            ('task_reminders -> profiles'),
+            -- 0731: incoming_payment_allocations carries created_by AND reversed_by -> profiles. CHECKED BEFORE ADDING:
+            -- the only DAL embed of the table is from incoming_payments (revenue.ts, no profiles embed); nothing embeds
+            -- profiles from it. Whatever ships first MUST qualify it with !constraint_name.
+            ('incoming_payment_allocations -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

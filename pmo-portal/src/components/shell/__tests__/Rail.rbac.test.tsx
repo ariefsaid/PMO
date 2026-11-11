@@ -65,6 +65,24 @@ const renderRailAs = (role: string) => {
   );
 };
 
+describe('Rail — Site cash (FR-IMP-074)', () => {
+  it.each(['Finance', 'Project Manager', 'Admin', 'Executive'])('FR-IMP-074: %s sees the Site cash item', (role) => {
+    renderRailAs(role);
+    expect(screen.getByRole('link', { name: 'Site cash' })).toHaveAttribute('href', '/imprest');
+  });
+  it('FR-IMP-074: an Engineer does not see Site cash (no float is visible to them)', () => {
+    renderRailAs('Engineer');
+    expect(screen.queryByRole('link', { name: 'Site cash' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Rail — Equipment (#1519)', () => {
+  it.each(['Finance', 'Project Manager', 'Admin', 'Executive', 'Engineer'])('AC-EQU-017: %s sees the Equipment item', (role) => {
+    renderRailAs(role);
+    expect(screen.getByRole('link', { name: 'Equipment' })).toHaveAttribute('href', '/equipment');
+  });
+});
+
 describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
   it('AC-W2-IXD-003: a PM sees the Approvals nav item (authorized approver)', () => {
     renderRailAs('Project Manager');
@@ -97,14 +115,19 @@ describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
     expect(within(link).queryByText('Your assigned work across projects')).not.toBeInTheDocument();
   });
 
+  it('AC-TASK-FIN-001: Finance gets the My Tasks doorway in the rail', () => {
+    renderRailAs('Finance');
+    expect(screen.getByRole('link', { name: /^My Tasks$/ })).toHaveAttribute('href', '/my-tasks');
+  });
+
   it('UXS-007: the personal task doorway does not change Executive navigation', () => {
     renderRailAs('Executive');
     expect(screen.queryByRole('link', { name: 'My Tasks' })).not.toBeInTheDocument();
   });
 
-  it('FIN-S9: there is no Vendors rail item (Companies carries the Vendor filter) and no My integrations item', () => {
+  it('FIN-S9: there is no Suppliers rail item when CRM is enabled and no My integrations item', () => {
     renderRailAs('Admin');
-    expect(screen.queryByRole('link', { name: 'Vendors' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Suppliers' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /my integrations/i })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Companies' })).toHaveAttribute('href', '/companies');
   });

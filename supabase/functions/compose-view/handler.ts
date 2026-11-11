@@ -23,7 +23,8 @@
 // Relative imports so this module resolves under both Deno and Node/Vitest (Option B).
 // No .ts extension: Vite/Node resolves TypeScript modules without extensions.
 import { composeSpec, ComposeSpecError } from './composeSpec.ts';
-import { insertUsageRow } from '../_shared/usage.ts';
+import { clampUsageValue, insertUsageRow } from '../_shared/usage.ts';
+import { emitAiGeneration } from '../_shared/posthogAi.ts';
 import type { ComposeViewRequest, ComposeViewResponse, ComposeViewError } from '../../../pmo-portal/src/lib/agent/types.ts';
 
 // Re-export MAX_REPAIR_ATTEMPTS so any external importer doesn't need to change (AC-CV-005 regression).
@@ -61,7 +62,9 @@ export interface SupabaseLike {
  * RPC failure. Injected as a testable interface so enabling it later is config, not a rewrite.
  */
 export interface RateGuard {
-  check(orgId: string): Promise<{ exceeded: boolean; retryAfterSeconds: number; reason: 'out_of_credits' | 'meter_error' }>;
+  /** `runId` selects the atomic reserve path (creditRateGuard); `release` drops that hold. */
+  check(orgId: string, runId?: string): Promise<{ exceeded: boolean; retryAfterSeconds: number; reason: 'out_of_credits' | 'meter_error' }>;
+  release?(runId: string): Promise<void>;
 }
 
 export interface HandlerDeps {
@@ -93,7 +96,37 @@ type HandlerResult =
   | { status: 401; body: ComposeViewError }
   | { status: 422; body: ComposeViewError }
   | { status: 429; body: ComposeViewError }
-  | { status: 502; body: ComposeViewError };
+  | { status: 502; body: ComposeViewError }
+  | { status: 503; body: ComposeViewError };
+
+// ── Usage recording (the single compose-view choke point) ───────────────────────
+
+/**
+ * Write the compose attempt's metered usage: one agent_usage row via the configured usage
+ * dep. Used by BOTH outcomes — a successful compose, and a failed one whose model calls
+ * still consumed provider tokens (the tokens/cost ride the thrown ComposeSpecError).
+ */
+async function recordComposeUsage(
+  deps: HandlerDeps,
+  userId: string,
+  orgId: string,
+  model: string,
+  tokensUsed: number,
+  providerCost: number,
+): Promise<void> {
+  if (deps.usage?.serviceClient) {
+    const { recordTrustedUsage } = await import('../_shared/usage.ts');
+    await recordTrustedUsage({ serviceClient: deps.usage.serviceClient, userId, orgId, runId: null }, {
+      model, finish_reason: 'stop', message: { role: 'assistant', content: null },
+      usage: { prompt_tokens: 0, completion_tokens: tokensUsed, total_tokens: tokensUsed, total_cost: providerCost },
+    }, 'compose');
+  } else if (deps.usage?.supabase) {
+    await insertUsageRow(
+      { supabase: deps.usage.supabase as unknown as import('../_shared/usage.ts').UsageDeps['supabase'], runId: null },
+      { model, prompt_tokens: 0, completion_tokens: tokensUsed, cost: 0, action: 'compose' },
+    );
+  }
+}
 
 // ── Main handler ───────────────────────────────────────────────────────────────
 
@@ -104,7 +137,7 @@ type HandlerResult =
  *   (1) 401 — userId empty (AC-AS-004)
  *   (2) 400 — prompt empty or > 2000 chars (AC-AS-006)
  *   (3) 400 — org mismatch via profiles lookup (AC-AS-005, Recon #4)
- *   (4) 429 — rate guard exceeded (AC-AS-008, optional)
+ *   (4) 429 — rate guard exceeded (AC-AS-008, optional); 503 METER_UNAVAILABLE — the meter itself failed
  *   (5) composeSpec() → 200 / 422 (REPAIR_EXHAUSTED) (AC-AS-001,002,003)
  *   (6) 502 — upstream error, raw SDK error scrubbed (AC-AS-007)
  *
@@ -114,6 +147,19 @@ type HandlerResult =
 export async function composeViewHandler(
   req: ComposeViewRequest,
   deps: HandlerDeps,
+): Promise<HandlerResult> {
+  const holds: string[] = [];
+  try {
+    return await composeViewHandlerInner(req, deps, holds);
+  } finally {
+    for (const id of holds) await deps.rateGuard?.release?.(id);
+  }
+}
+
+async function composeViewHandlerInner(
+  req: ComposeViewRequest,
+  deps: HandlerDeps,
+  holds: string[],
 ): Promise<HandlerResult> {
   const { modelClient, model, supabase, userId, rateGuard } = deps;
 
@@ -126,13 +172,18 @@ export async function composeViewHandler(
   }
 
   // ── Gate (2): input validation — prompt (AC-AS-006, FR-AS-012) ─────────────
-  if (!req.prompt || req.prompt.length === 0) {
+  // The body must be an object carrying a string prompt: a non-string prompt value that
+  // passed a truthy/.length probe used to flow straight into the model request payload,
+  // and a non-object body (JSON null) crashed on property access before any gate. Both
+  // read as the typed 400 the wrapper reserves for a malformed body — never a thrown
+  // TypeError, never a non-string reaching the model payload.
+  if (!req || typeof req !== 'object' || typeof req.prompt !== 'string' || req.prompt.length === 0) {
     return {
       status: 400,
       body: { status: 400, error: 'BAD_REQUEST', detail: 'prompt' },
     };
   }
-  if (req.prompt.length > 2000) {
+  if (req.prompt.length > 2000) { // narrowed: req.prompt is a string here
     return {
       status: 400,
       body: { status: 400, error: 'BAD_REQUEST', detail: 'prompt' },
@@ -172,9 +223,19 @@ export async function composeViewHandler(
   }
 
   // ── Gate (4): rate guard (AC-AS-008, AS-OD-002 — disabled by default) ───────
+  // The hold is placed under a fresh id (atomic reserve_credits — concurrent requests cannot both
+  // spend the same balance); composeViewHandler's finally releases it on every exit path.
   if (rateGuard) {
-    const rateResult = await rateGuard.check(profileOrgId);
+    const holdId = crypto.randomUUID();
+    const rateResult = await rateGuard.check(profileOrgId, holdId);
     if (rateResult.exceeded) {
+      // A failing meter is not an exhausted balance: still fail closed, but say so honestly.
+      if (rateResult.reason === 'meter_error') {
+        return {
+          status: 503,
+          body: { status: 503, error: 'METER_UNAVAILABLE', detail: 'credit metering unavailable' },
+        };
+      }
       return {
         status: 429,
         body: {
@@ -184,10 +245,23 @@ export async function composeViewHandler(
         },
       };
     }
+    holds.push(holdId);
   }
 
   // ── Gate (5): compose+repair via composeSpec() (AC-AS-001,002,003) ──────────
   // composeSpec throws ComposeSpecError on exhaustion or upstream error.
+  const composeStartedAt = Date.now();
+  // #1532 S1: numbers and codes only (no prompt/spec text); fire-and-forget, never alters the response.
+  const aiGeneration = (isError: boolean, outputTokens: number, costUsd: number) => {
+    try {
+      void emitAiGeneration('compose-view', {
+        traceId: crypto.randomUUID(), spanId: crypto.randomUUID(), model, inputTokens: 0, outputTokens,
+        costUsd, latencySeconds: (Date.now() - composeStartedAt) / 1000, isError,
+        httpStatus: isError ? 502 : 200, action: 'compose', orgId: profileOrgId as string,
+        errorCode: isError ? 'UPSTREAM_ERROR' : undefined,
+      }).catch(() => undefined);
+    } catch { /* NFR-PHO-REL-001: telemetry never alters the response */ }
+  };
   try {
     const { spec, repairAttempts, tokensUsed, providerCost } = await composeSpec(
       req.prompt,
@@ -198,28 +272,31 @@ export async function composeViewHandler(
     // FR-AUC-002/015: one agent_usage row per compose-view invocation (the single choke
     // point — composeSpec() has already resolved, meaning at least one modelClient.create()
     // call succeeded). tokensUsed → completion_tokens is a coarse proxy: composeSpec/
-    // ComposeViewResponse does not surface a prompt/completion split or a total_cost today
-    // (see docs/plans/2026-07-03-agent-usage-credits.md Open Question 2) — cost stays the
+    // ComposeViewResponse does not surface a prompt/completion split (see
+    // docs/plans/2026-07-03-agent-usage-credits.md Open Question 2) — cost stays the
     // FR-AUC-001-sanctioned default 0 when the provider does not report cost.
-    if (deps.usage?.serviceClient) {
-      const { recordTrustedUsage } = await import('../_shared/usage.ts');
-      await recordTrustedUsage({ serviceClient: deps.usage.serviceClient, userId, orgId: profileOrgId, runId: null }, {
-        model, finish_reason: 'stop', message: { role: 'assistant', content: null },
-        usage: { prompt_tokens: 0, completion_tokens: tokensUsed, total_tokens: tokensUsed, total_cost: providerCost },
-      }, 'compose');
-    } else if (deps.usage?.supabase) {
-      await insertUsageRow(
-        { supabase: deps.usage.supabase as unknown as import('../_shared/usage.ts').UsageDeps['supabase'], runId: null },
-        { model, prompt_tokens: 0, completion_tokens: tokensUsed, cost: 0, action: 'compose' },
-      );
-    }
+    await recordComposeUsage(deps, userId, profileOrgId, model, tokensUsed, providerCost ?? 0);
 
+    aiGeneration(false, tokensUsed, clampUsageValue(providerCost));
     return {
       status: 200,
       body: { spec, repairAttempts, tokensUsed },
     };
   } catch (err) {
     if (err instanceof ComposeSpecError) {
+      // The failed attempt's model calls still consumed provider tokens; meter them like a
+      // success (the tokens/cost ride the error). A metering failure here is logged by code
+      // and never masks the compose outcome — the client still gets the honest 422/502.
+      if (err.tokensUsed > 0 || err.providerCost > 0) {
+        try {
+          await recordComposeUsage(deps, userId, profileOrgId, model, err.tokensUsed, err.providerCost);
+        } catch (meterErr) {
+          console.error('[compose-view] FAILED_COMPOSE_USAGE_UNRECORDED', {
+            errorCode: 'FAILED_COMPOSE_USAGE_UNRECORDED',
+            code: meterErr instanceof Error ? meterErr.name : 'unknown',
+          });
+        }
+      }
       if (err.code === 'REPAIR_EXHAUSTED') {
         // 422 REPAIR_EXHAUSTED (AC-AS-003)
         return {
@@ -243,6 +320,7 @@ export async function composeViewHandler(
       tokensUsed: err instanceof ComposeSpecError ? err.tokensUsed : 0,
     });
 
+    aiGeneration(true, 0, 0);
     return {
       status: 502,
       body: {

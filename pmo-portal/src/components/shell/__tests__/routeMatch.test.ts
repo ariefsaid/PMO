@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { breadcrumbForPath, recordLabelForPath, MODULES } from '../routeMatch';
+import { breadcrumbForPath, recordLabelForPath, recordContractualNameForPath, MODULES, RAIL_PARENT_FOR_PATH, railParentForPath } from '../routeMatch';
 import {
   createListReturnContext,
   LIST_RETURN_CONTEXT_KEY,
@@ -49,6 +49,14 @@ describe('UXS-007 shell label consistency', () => {
   });
 });
 
+describe('stock setup breadcrumb (#1512)', () => {
+  it('FR-STK-007 /stock/setup resolves its own title instead of falling through to Not found', () => {
+    const crumbs = breadcrumbForPath('/stock/setup');
+    expect(crumbs.map((c) => c.label)).toEqual(['Stock setup']);
+    expect(crumbs[0].i18nKey).toBe('stock:setup.title');
+  });
+});
+
 describe('UXS-006 shared route vocabulary', () => {
   it('every navigable module owns the translation key used across shell surfaces', () => {
     expect(MODULES.every((module) => typeof module.labelKey === 'string')).toBe(true);
@@ -65,7 +73,7 @@ describe('UXS-006 shared route vocabulary', () => {
   });
 
   it('keeps the filtered Vendors doorway vocabulary on its canonical breadcrumb', () => {
-    expect(breadcrumbForPath('/companies', undefined, undefined, false, undefined, undefined, '?type=Vendor')).toEqual([
+    expect(breadcrumbForPath('/companies', undefined, undefined, false, undefined, '?type=Vendor')).toEqual([
       { label: 'Vendors', i18nKey: 'shell.nav.vendors' },
     ]);
   });
@@ -269,7 +277,6 @@ describe('breadcrumbForPath — contextual list return', () => {
       'Example project',
       navigate,
       true,
-      undefined,
       contextualParent,
     );
 
@@ -315,6 +322,26 @@ describe('breadcrumbForPath — contextual list return', () => {
 // ── /views/:viewId breadcrumb and recordLabel (FR-VR-053, FR-VR-082) ─────────
 import { vi } from 'vitest';
 
+describe('AC-002 #1325 project breadcrumb identities', () => {
+  const lists = {
+    projects: [{ id: 'delivery-1', name: 'Contractual Delivery', short_name: 'Site North' }],
+    opportunities: [{ id: 'pipeline-1', name: 'Contractual Pipeline', short_name: 'Tender West' }],
+  };
+
+  it('shows cached short names and resolves contractual titles for canonical and legacy detail paths', () => {
+    expect(recordLabelForPath('/projects/delivery-1', lists)).toBe('Site North');
+    expect(recordContractualNameForPath('/projects/delivery-1/budget', lists)).toBe('Contractual Delivery');
+    expect(recordLabelForPath('/projects/pipeline-1', lists)).toBe('Tender West');
+    expect(recordContractualNameForPath('/sales/pipeline-1', lists)).toBe('Contractual Pipeline');
+  });
+
+  it('falls back to the legal name and keeps cold details free of a foreign identity', () => {
+    const noAlias = { projects: [{ id: 'plain', name: 'Contractual Only', short_name: '  ' }] };
+    expect(recordLabelForPath('/projects/plain', noAlias)).toBe('Contractual Only');
+    expect(recordContractualNameForPath('/projects/missing', noAlias)).toBeUndefined();
+  });
+});
+
 describe('routeMatch — /views/:viewId (FR-VR-053, FR-VR-082)', () => {
   const navigate = vi.fn();
 
@@ -330,11 +357,15 @@ describe('routeMatch — /views/:viewId (FR-VR-053, FR-VR-082)', () => {
     expect(label).toBeUndefined();
   });
 
-  it('breadcrumbForPath for /views/:viewId returns [My Views, <name>]', () => {
+  it('breadcrumbForPath for /views/:viewId returns [My Views, <name>] linked to the /views index', () => {
     const crumbs = breadcrumbForPath('/views/v1', 'Revenue View', navigate);
     expect(crumbs).toHaveLength(2);
     expect(crumbs[0].label).toBe('My Views');
+    // The parent crumb leads to the /views index (the shipped My Views list), not Dashboard.
+    expect(crumbs[0].href).toBe('/views');
     expect(typeof crumbs[0].onClick).toBe('function');
+    crumbs[0].onClick?.();
+    expect(navigate).toHaveBeenCalledWith('/views');
     expect(crumbs[1].label).toBe('Revenue View');
   });
 
@@ -346,5 +377,73 @@ describe('routeMatch — /views/:viewId (FR-VR-053, FR-VR-082)', () => {
   it('breadcrumbForPath shows Not found when resolved but absent', () => {
     const crumbs = breadcrumbForPath('/views/v1', undefined, navigate, true);
     expect(crumbs[1].label).toBe('Not found');
+  });
+});
+
+describe('review 7: /erp-purchases breadcrumb', () => {
+  it('reads Procurement (link) > ERPNext documents not in a purchase, never "Not found"', () => {
+    const navigate = vi.fn();
+    const parts = breadcrumbForPath('/erp-purchases', undefined, navigate);
+    expect(parts.map((p) => p.label)).toEqual(['Procurement', 'ERPNext documents not in a purchase']);
+    expect(parts[0]).toMatchObject({ href: '/procurement', i18nKey: 'shell.nav.procurement' });
+    expect(parts[1].i18nKey).toBe('finance:erpLinks.orphansTitle');
+    parts[0].onClick?.();
+    expect(navigate).toHaveBeenCalledWith('/procurement');
+  });
+
+  it('maps /erp-purchases to the Procurement rail item', () => {
+    expect(RAIL_PARENT_FOR_PATH['/erp-purchases']).toBe('/procurement');
+  });
+});
+
+
+describe('breadcrumbForPath: Stock module (#1512 S3)', () => {
+  it('/stock reads [Stock]', () => {
+    const crumbs = breadcrumbForPath('/stock');
+    expect(crumbs).toHaveLength(1);
+    expect(crumbs[0].label).toBe('Stock');
+  });
+  it('/stock/documents/:id reads [Stock > <record>]', () => {
+    const crumbs = breadcrumbForPath('/stock/documents/d1', 'ISS-1');
+    expect(crumbs).toHaveLength(2);
+    expect(crumbs[0].label).toBe('Stock');
+    expect(crumbs[1].label).toBe('ISS-1');
+  });
+  it.each([['/stock/ledger', 'Ledger'], ['/stock/reorder', 'Reorder'], ['/stock/documents', 'Documents'], ['/stock/new/issue', 'Issue to project'], ['/stock/new/receive', 'Receive'], ['/stock/new/count', 'Stock count'], ['/stock/new/adjustment', 'Adjustment']])('%s reads [Stock > %s]', (p, label) => {
+    const crumbs = breadcrumbForPath(p);
+    expect(crumbs.map((c) => c.label)).toEqual(['Stock', label]);
+  });
+  it('/stock/setup is never "Not found" or "Dashboard"', () => {
+    const labels = breadcrumbForPath('/stock/setup').map((c) => c.label);
+    expect(labels).not.toContain('Not found');
+    expect(labels).not.toContain('Dashboard');
+  });
+});
+
+describe('#1519 equipment routes', () => {
+  it('AC-EQU-017 /equipment, /equipment/assets and /equipment/assets/:id read Equipment > Assets > the asset name', () => {
+    expect(breadcrumbForPath('/equipment')).toEqual([{ label: 'Equipment', i18nKey: 'equipment:nav.equipment' }]);
+    expect(breadcrumbForPath('/equipment/assets')).toEqual([
+      { label: 'Equipment', i18nKey: 'equipment:nav.equipment', href: '/equipment', onClick: expect.any(Function) },
+      { label: 'Assets', i18nKey: 'equipment:nav.assets' },
+    ]);
+    expect(breadcrumbForPath('/equipment/assets/a1', 'Loader 1')).toEqual([
+      { label: 'Equipment', i18nKey: 'equipment:nav.equipment', href: '/equipment', onClick: expect.any(Function) },
+      { label: 'Loader 1' },
+    ]);
+    expect(recordLabelForPath('/equipment/assets/a1', { equipmentAssets: [{ id: 'a1', name: 'Loader 1' }] })).toBe('Loader 1');
+    expect(railParentForPath('/equipment/assets')).toBe('/equipment');
+  });
+});
+
+describe('FR-IMP-074 site cash routes', () => {
+  it('FR-IMP-074 /imprest and /imprest/:id map to the Site cash module with the project name as the record crumb', () => {
+    expect(breadcrumbForPath('/imprest')).toEqual([{ label: 'Site cash', i18nKey: 'imprest:nav.siteCash' }]);
+    expect(breadcrumbForPath('/imprest/f1', 'Site Alpha')).toEqual([
+      { label: 'Site cash', i18nKey: 'imprest:nav.siteCash', href: '/imprest', onClick: expect.any(Function) },
+      { label: 'Site Alpha' },
+    ]);
+    expect(recordLabelForPath('/imprest/f1', { imprestFloats: [{ id: 'f1', name: 'Site Alpha' }] })).toBe('Site Alpha');
+    expect(MODULES.find((m) => m.path === '/imprest')?.icon).toBe('expenses');
   });
 });

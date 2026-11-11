@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { computeRecordImportKey as tsRecordKey } from '../importKey';
+import { computeLegacyRecordImportKey as tsRecordKey } from '../importKey';
 import type { CycleRow } from '../types';
 // The Node-side mirror consumed by scripts/import-historical.mjs. Byte-identical OUTPUT is the
 // contract (FR-IDEM-002 / A5): the in-app commit path (.ts) and the operator loader (.mjs) must
 // write the SAME import_key for the same row, or a case imported by one path is invisible to the
 // other's skip lookup.
-import { computeRecordImportKey as mjsRecordKey } from '../../../../../../scripts/lib/historicalImportKey.mjs';
+import { computeLegacyRecordImportKey as mjsRecordKey } from '../../../../../../scripts/lib/historicalImportKey.mjs';
 
 const baseRow: CycleRow = {
   caseRef: 'CASE-1', type: 'PO', project: undefined, title: undefined, caseStatus: undefined,

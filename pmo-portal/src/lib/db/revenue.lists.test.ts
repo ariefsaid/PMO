@@ -5,8 +5,7 @@
  * `page`/`pageSize`, and the pages call them with NOTHING — so PostgREST silently capped the
  * response at `max_rows` (1000, `supabase/config.toml`). Past 1000 invoices the list AND its
  * client-side search see only the newest 1000: searching an invoice that EXISTS answers
- * "No invoices match your filters". These tests drive the exhaustive paged scan that closes it,
- * while keeping the explicit-page opt-in behaviour byte-for-byte.
+ * "No invoices match your filters". These tests drive the exhaustive paged scan that closes it.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -19,6 +18,7 @@ interface Call {
   or: string[];
   neq: Array<[string, unknown]>;
   is: Array<[string, unknown]>;
+  in: Array<[string, unknown[]]>;
 }
 
 const h = vi.hoisted(() => {
@@ -29,13 +29,14 @@ const h = vi.hoisted(() => {
   };
 
   function builder(table: string) {
-    const call: Call = { table, columns: '', orders: [], range: null, eq: [], or: [], neq: [], is: [] };
+    const call: Call = { table, columns: '', orders: [], range: null, eq: [], or: [], neq: [], is: [], in: [] };
     const b = {
       select(columns: string) { call.columns = columns; return b; },
       eq(column: string, value: unknown) { call.eq.push([column, value]); return b; },
       or(filters: string) { call.or.push(filters); return b; },
       neq(column: string, value: unknown) { call.neq.push([column, value]); return b; },
       is(column: string, value: unknown) { call.is.push([column, value]); return b; },
+      in(column: string, values: unknown[]) { call.in.push([column, values]); return b; },
       order(column: string, opts?: { ascending?: boolean }) {
         call.orders.push({ column, ascending: opts?.ascending });
         return b;
@@ -110,15 +111,6 @@ describe('db/revenue listSalesInvoices — the list must not silently stop at Po
     expect(h.state.calls).toHaveLength(1);
   });
 
-  it('honours an explicit page/pageSize as ONE bounded request (the opt-in contract is unchanged)', async () => {
-    h.state.pages.sales_invoices = [invoiceRows(50)];
-
-    const rows = await listSalesInvoices({ page: 1, pageSize: 50 });
-
-    expect(rows).toHaveLength(50);
-    expect(h.state.calls).toHaveLength(1);
-    expect(h.state.calls[0].range).toEqual([50, 99]);
-  });
 
   it('still filters to one project and flattens the customer payment terms + name', async () => {
     h.state.pages.sales_invoices = [invoiceRows(1)];
@@ -141,7 +133,7 @@ describe('db/revenue listSalesInvoices — the list must not silently stop at Po
     const rows = await listSalesInvoices();
 
     expect(h.state.calls[0].columns).toBe(
-      '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id)',
+      '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat,receipt_withholding_article)',
     );
     expect(rows[0].customer_name).toBe('Acme');
   });
@@ -188,10 +180,41 @@ describe('db/revenue listIncomingPayments — same cap, same fix', () => {
 
     await listIncomingPayments({ salesInvoiceId: 'inv-123' });
 
-    expect(h.state.calls).toHaveLength(1);
-    expect(h.state.calls[0].or).toEqual(['sales_invoice_id.eq.inv-123,allocation_details.cs.[{"invoice_id":"inv-123"}]']);
-    expect(h.state.calls[0].neq).toContainEqual(['status', 'Scheduled']);
-    expect(h.state.calls[0].is).toEqual([['erp_cancelled_at', null], ['cancelled_at', null]]);
+    // #1415: the live allocations on the invoice are read first (own request), then the receipts.
+    const receiptRead = h.state.calls.find((c) => c.table === 'incoming_payments')!;
+    expect(h.state.calls.map((c) => c.table)).toEqual(['incoming_payment_allocations', 'incoming_payments']);
+    expect(receiptRead.or).toEqual(['and(sales_invoice_id.eq.inv-123,pmo_native.eq.false),allocation_details.cs.[{"invoice_id":"inv-123"}]']);
+    expect(receiptRead.neq).toContainEqual(['status', 'Scheduled']);
+    expect(receiptRead.is).toEqual([['erp_cancelled_at', null], ['cancelled_at', null]]);
+  });
+
+  it('AC-NPA-008 (#1415) a PMO receipt reaches an invoice through its live allocations, not its own invoice pointer', async () => {
+    h.state.pages.incoming_payment_allocations = [[{ incoming_payment_id: 'rc-1' }, { incoming_payment_id: 'rc-2' }, { incoming_payment_id: 'rc-1' }]];
+    h.state.pages.incoming_payments = [paymentRows(1)];
+
+    await listIncomingPayments({ salesInvoiceId: 'inv-123' });
+
+    const allocationRead = h.state.calls.find((c) => c.table === 'incoming_payment_allocations')!;
+    expect(allocationRead.eq).toEqual([['sales_invoice_id', 'inv-123']]);
+    expect(allocationRead.is).toEqual([['reversed_at', null]]);
+    const receiptRead = h.state.calls.find((c) => c.table === 'incoming_payments')!;
+    expect(receiptRead.or).toEqual([
+      'and(sales_invoice_id.eq.inv-123,pmo_native.eq.false),allocation_details.cs.[{"invoice_id":"inv-123"}],id.in.(rc-1,rc-2)',
+    ]);
+  });
+
+  it('AC-NPA-008 (#1415) the embed carries only LIVE allocations into the row; a reversed one never settles anything', async () => {
+    h.state.pages.incoming_payments = [[{
+      id: 'ip-1', customer: null,
+      allocations: [
+        { id: 'a1', sales_invoice_id: 'si-1', amount: 60, cash_amount: 60, withheld_amount: 0, currency: 'IDR', reversed_at: null },
+        { id: 'a2', sales_invoice_id: 'si-2', amount: 40, cash_amount: 40, withheld_amount: 0, currency: 'IDR', reversed_at: '2026-11-07T00:00:00Z' },
+      ],
+    }]];
+
+    const rows = await listIncomingPayments();
+
+    expect(rows[0].allocations).toEqual([{ id: 'a1', sales_invoice_id: 'si-1', amount: 60, cash_amount: 60, withheld_amount: 0, currency: 'IDR' }]);
   });
 
   it('returns EVERY payment past the 1000-row cap', async () => {
@@ -214,14 +237,6 @@ describe('db/revenue listIncomingPayments — same cap, same fix', () => {
     }
   });
 
-  it('honours an explicit page/pageSize as ONE bounded request', async () => {
-    h.state.pages.incoming_payments = [paymentRows(10)];
-
-    await listIncomingPayments({ page: 0, pageSize: 10 });
-
-    expect(h.state.calls).toHaveLength(1);
-    expect(h.state.calls[0].range).toEqual([0, 9]);
-  });
 
   // #781 (AC-FIN-001): incoming payments must ALSO resolve the customer company name in the SAME
   // read. PostgREST embeds break when the target gains a second FK, so the customer embed is
@@ -233,7 +248,7 @@ describe('db/revenue listIncomingPayments — same cap, same fix', () => {
 
     const rows = await listIncomingPayments();
 
-    expect(h.state.calls[0].columns).toBe('*, customer:companies!incoming_payments_customer_id_fkey(name)');
+    expect(h.state.calls[0].columns).toBe('*, customer:companies!incoming_payments_customer_id_fkey(name), allocations:incoming_payment_allocations(id,sales_invoice_id,amount,cash_amount,withheld_amount,currency,reversed_at)');
     expect(rows[0].customer_name).toBe('Acme Co');
   });
 
@@ -241,5 +256,64 @@ describe('db/revenue listIncomingPayments — same cap, same fix', () => {
     h.state.pages.incoming_payments = [[{ id: 'ip-2', ip_number: 'ACC-PAY-2', customer: null }]];
     const rows = await listIncomingPayments();
     expect(rows[0].customer_name).toBeNull();
+  });
+
+  it('AC-OCI-054 selects the Odoo receipt command timestamp needed to show an invoice awaiting its next ERP read', async () => {
+    h.state.pages.incoming_payments = [[{
+      id: 'ip-1', status: 'Paid', sales_invoice_id: 'si-1', customer: { name: 'Acme Co' },
+    }]];
+    h.state.pages.external_command_outbox = [[{
+      pmo_record_id: 'ip-1', state: 'confirmed', created_at: '2026-11-02T09:00:00.000Z', updated_at: '2026-11-02T09:01:00.000Z',
+      external_record_id: 'account.payment:42', canonical: { id: 'ip-1', odoo_matched_payment_refs: ['account.payment:42'] },
+    }]];
+
+    const rows = await listIncomingPayments();
+
+    expect(rows[0].push_command_state).toBe('confirmed');
+    expect(rows[0].push_command_created_at).toBe('2026-11-02T09:00:00.000Z');
+    expect(rows[0].push_command_updated_at).toBe('2026-11-02T09:01:00.000Z');
+    // #1825: the receipt's own Odoo reference and the read-back evidence its committed command recorded.
+    expect(rows[0].push_command_external_record_id).toBe('account.payment:42');
+    expect(rows[0].push_command_matched_payment_refs).toEqual(['account.payment:42']);
+    const commandRead = h.state.calls.find((call) => call.table === 'external_command_outbox');
+    expect(commandRead?.columns).toBe('pmo_record_id, state, created_at, updated_at, external_record_id, canonical');
+    expect(commandRead?.eq).toEqual([['domain', 'revenue'], ['external_tier', 'odoo']]);
+    expect(commandRead?.in).toContainEqual(['pmo_record_id', ['ip-1']]);
+    expect(commandRead?.in[1][0]).toBe('state');
+  });
+
+  it('#1825 a command row without a reference or canonical maps the evidence fields to null, never to a guessed value', async () => {
+    h.state.pages.incoming_payments = [[{ id: 'ip-2', status: 'Paid', sales_invoice_id: 'si-1', customer: { name: 'Acme Co' } }]];
+    h.state.pages.external_command_outbox = [[{
+      pmo_record_id: 'ip-2', state: 'held', created_at: '2026-11-02T09:00:00.000Z', updated_at: '2026-11-02T09:01:00.000Z',
+      external_record_id: null, canonical: null,
+    }]];
+
+    const rows = await listIncomingPayments();
+
+    expect(rows[0].push_command_external_record_id).toBeNull();
+    expect(rows[0].push_command_matched_payment_refs).toBeNull();
+  });
+
+  it('#1825 a malformed canonical never masquerades as read-back evidence', async () => {
+    h.state.pages.incoming_payments = [[{ id: 'ip-3', status: 'Paid', sales_invoice_id: 'si-1', customer: { name: 'Acme Co' } }]];
+    h.state.pages.external_command_outbox = [[{
+      pmo_record_id: 'ip-3', state: 'confirmed', created_at: '2026-11-02T09:00:00.000Z', updated_at: '2026-11-02T09:01:00.000Z',
+      external_record_id: 'account.payment:43', canonical: { odoo_matched_payment_refs: 'account.payment:43' },
+    }]];
+
+    const rows = await listIncomingPayments();
+
+    expect(rows[0].push_command_matched_payment_refs).toBeNull();
+  });
+
+  it('AC-ECA-030 the invoice list leaves out a PMO copy paired to an ERP invoice, unless a caller asks for paired rows', async () => {
+    h.state.pages.sales_invoices = [invoiceRows(1), invoiceRows(1)];
+
+    await listSalesInvoices();
+    await listSalesInvoices({ includePaired: true });
+
+    expect(h.state.calls[0].is).toContainEqual(['paired_erp_invoice_id', null]);
+    expect(h.state.calls[1].is).not.toContainEqual(['paired_erp_invoice_id', null]);
   });
 });

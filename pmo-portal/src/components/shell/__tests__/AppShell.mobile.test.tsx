@@ -14,16 +14,25 @@
  *   C3-10 Breadcrumb mobile truncation — at narrow width only current crumb shown
  *   C3-11 Touch targets — hamburger and ⌘K trigger have .touch-target
  *   C3-12 Safe-area — drawer panel has safe-area padding class
- *   C3-13 Content gutter — main content div has max-md:px-4
+ *   C3-13 Content gutter — main content uses the responsive page-gutter token
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, act, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { AppShell } from '../AppShell';
 import { Breadcrumb } from '../Breadcrumb';
 import { BackBar } from '../BackBar';
+import { ContextBar } from '../ContextBar';
+import { Rail } from '../Rail';
+
+vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive', canImpersonate: false, viewAs: vi.fn() }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1' }, role: 'Executive', signOut: vi.fn() }) }));
+vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: { crm: true, procurement: true, timesheets: true }, isPending: false }) }));
+vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('@/src/components/shell/NotificationBell', () => ({ NotificationBell: () => null }));
 
 const wrap = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
@@ -245,6 +254,31 @@ describe('AC-IXD-MOBILE-W4-C3 C3-6: focus management', () => {
   });
 });
 
+it('UIP-002: the menu glyph opens navigation, a route closes it, and Escape returns focus', async () => {
+  function Harness() {
+    const [open, setOpen] = React.useState(false);
+    const location = useLocation();
+    return <AppShell
+      rail={<Rail onNavigate={() => setOpen(false)} />}
+      header={<ContextBar breadcrumb={[{ label: 'Dashboard' }]} onOpenPalette={() => {}} onToggleRail={() => setOpen((value) => !value)} />}
+      railOpen={open}
+      onCloseRail={() => setOpen(false)}
+    ><h1>{location.pathname === '/projects' ? 'Projects' : 'Dashboard'}</h1></AppShell>;
+  }
+  const user = userEvent.setup();
+  wrap(<Harness />);
+  const trigger = screen.getByRole('button', { name: 'Open navigation menu' });
+  expect(trigger.querySelector('svg')).toHaveAttribute('data-icon', 'menu');
+  await user.click(trigger);
+  const drawer = screen.getByRole('dialog', { name: 'Navigation menu' });
+  await user.click(within(drawer).getByRole('link', { name: 'Projects' }));
+  expect(screen.queryByRole('dialog', { name: 'Navigation menu' })).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
+  await user.click(trigger);
+  await user.keyboard('{Escape}');
+  await waitFor(() => expect(trigger).toHaveFocus());
+});
+
 // ---------------------------------------------------------------------------
 // C3-7: inert on background when drawer is open
 // ---------------------------------------------------------------------------
@@ -267,6 +301,25 @@ describe('AC-IXD-MOBILE-W4-C3 C3-7: background content is inert while drawer is 
     );
     const main = screen.getByRole('main');
     expect(main).toHaveAttribute('inert');
+  });
+
+  it('CMP-027: header and assistant are inert while the drawer is open', () => {
+    const { container } = wrap(
+      <AppShell
+        rail={<div>nav</div>}
+        header={<header data-testid="test-header">Header</header>}
+        assistant={<div data-testid="test-assistant">Assistant</div>}
+        railOpen
+        onCloseRail={vi.fn()}
+      >
+        <div>x</div>
+      </AppShell>
+    );
+    const headerWrapper = container.querySelector('.shell-header');
+    expect(headerWrapper).toHaveAttribute('inert');
+    const assistantEl = screen.getByTestId('test-assistant');
+    expect(assistantEl.parentElement).toHaveAttribute('inert');
+    expect(screen.getByText('Skip to main content').closest('.shell-header')).toBe(headerWrapper);
   });
 
   it('background is NOT inert when drawer is closed', () => {
@@ -410,10 +463,10 @@ describe('AC-IXD-MOBILE-W4-C3 C3-12: drawer has safe-area-inset padding', () => 
 });
 
 // ---------------------------------------------------------------------------
-// C3-13: Content gutter uses max-md:px-4
+// C3-13: Content gutter uses the shared responsive page-gutter token
 // ---------------------------------------------------------------------------
-describe('AC-IXD-MOBILE-W4-C3 C3-13: content gutter has max-md:px-4', () => {
-  it('the inner content wrapper in main carries max-md:px-4', () => {
+describe('AC-IXD-MOBILE-W4-C3 C3-13: content gutter uses the page-gutter token', () => {
+  it('the inner content wrapper in main uses the shared responsive page gutter', () => {
     wrap(
       <AppShell rail={null} header={null}>
         <div data-testid="child">content</div>
@@ -423,7 +476,6 @@ describe('AC-IXD-MOBILE-W4-C3 C3-13: content gutter has max-md:px-4', () => {
     // Find the direct padded div inside main
     const contentDiv = main.querySelector('div');
     expect(contentDiv).not.toBeNull();
-    // Should have the mobile gutter class
-    expect(contentDiv!.className).toMatch(/max-\[921px\]:px-4/);
+    expect(contentDiv!.className).toContain('px-[var(--space-page-gutter)]');
   });
 });

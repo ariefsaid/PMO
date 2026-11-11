@@ -185,10 +185,24 @@ it('AC-AS-002 returns repairAttempts:1 and feeds the attempt-1 ValidationError c
   }
   expect(_createFn).toHaveBeenCalledTimes(2);
 
-  // The SECOND call's messages array must include the error code in the last user message
+  // The SECOND call's messages array must feed the attempt-1 error back to the model:
+  // the model's own failed compose_view tool call is echoed, and the matching tool-result
+  // turn carries the validation code (the repair-history contract; the goal oracle — the
+  // error reaches the model — is unchanged).
   const secondCallArgs = _createFn.mock.calls[1][0];
-  const userMessages = secondCallArgs.messages.filter((m: { role: string }) => m.role === 'user');
-  const errorMessage = userMessages[userMessages.length - 1];
+  const msgs = secondCallArgs.messages as Array<{
+    role: string;
+    content: string | null;
+    tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>;
+    tool_call_id?: string;
+  }>;
+  const echoIdx = msgs.findIndex(
+    (m) => m.role === 'assistant' && m.tool_calls?.some((tc) => tc.function.name === 'compose_view'),
+  );
+  expect(echoIdx).toBeGreaterThan(0);
+  const errorMessage = msgs[echoIdx + 1];
+  expect(errorMessage.role).toBe('tool');
+  expect(errorMessage.tool_call_id).toBe(msgs[echoIdx].tool_calls?.[0]?.id);
   expect(errorMessage.content).toContain('MISSING_REQUIRED_FILTER');
 });
 

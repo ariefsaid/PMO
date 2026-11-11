@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveActualPosition, deriveContractRemainingAfterCost, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseProjectReceiptCash } from './projectFinances';
+import { deriveActualPosition, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseContractExcess, parseProjectReceiptCash } from './projectFinances';
 import { isMoneyAtRisk } from './dashboardConstants';
 
 describe('project receipt cash parser', () => {
@@ -145,13 +145,11 @@ describe('exact project-finance money', () => {
   });
 
   it('DD-MONEY-2 derives contract remaining after cost with exact minor-unit arithmetic', () => {
-    const actuals = { currency: 'USD', as_of: null, total: '0.10', excludes_restricted_rows: false,
-      categories: [{ category: 'Labor', mapped: true, amount: '0.10' }] };
-    const remaining = deriveContractRemainingAfterCost(0.30, actuals, 'USD');
+    const remaining = deriveContractRemainingFromPosition(0.30, { amount: '0.10', currency: 'USD' }, 'USD');
     expect(remaining).toBe('0.20');
-    expect(formatSignedExactMoney(deriveContractRemainingAfterCost(0.10, { ...actuals, total: '0.30' }, 'USD')!, 'USD', 'en-US'))
-      .toBe('−$0.20');
-    expect(deriveContractRemainingAfterCost(0.30, { ...actuals, total: null }, 'USD')).toBeNull();
+    expect(formatSignedExactMoney(deriveContractRemainingFromPosition(0.10, { amount: '0.30', currency: 'USD' }, 'USD')!, 'USD', 'en-US'))
+      .toBe('$0');
+    expect(deriveContractRemainingFromPosition(0.30, { amount: null, currency: 'USD' }, 'USD')).toBeNull();
   });
 
   it('UX-023 treats known zero as complete but rejects missing, partial, or restricted Actuals', () => {
@@ -167,20 +165,32 @@ describe('exact project-finance money', () => {
   it('DD-MONEY-1 selects Actual from ledger ownership, independent of procurement ownership', () => {
     const actuals = { currency: 'USD', as_of: '2026-10-01T00:00:00Z', total: '50.00',
       excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] };
-    expect(deriveActualPosition({ ledgerBasis: 'erp', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+    expect(deriveActualPosition({ ledgerBasis: 'erp', pmoSpent: 125, pmoSpentPending: false, pmoSpentError: false, projectCurrency: 'IDR', actuals }))
       .toMatchObject({ amount: '50.00', currency: 'USD', basis: 'erp' });
-    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', pmoSpent: 125, pmoSpentPending: false, pmoSpentError: false, projectCurrency: 'IDR', actuals }))
       .toMatchObject({ amount: '125.00', currency: 'IDR', basis: 'pmo' });
-    expect(deriveActualPosition({ ledgerBasis: 'erp', committedSpend: undefined, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+    expect(deriveActualPosition({ ledgerBasis: 'erp', pmoSpent: undefined, pmoSpentPending: false, pmoSpentError: false, projectCurrency: 'IDR', actuals }))
       .toMatchObject({ amount: '50.00', basis: 'erp' });
     expect(deriveContractRemainingFromPosition(100, { amount: '50.00', currency: 'USD' }, 'IDR')).toBeNull();
   });
 
+  it('keeps a currency-incomplete PMO position unavailable for comparisons', () => {
+    expect(isActualComplete({ basis: 'pmo', readSucceeded: true, complete: false })).toBe(false);
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', pmoSpent: 100, pmoSpentPending: false,
+      pmoSpentError: false, pmoSpentComplete: false, projectCurrency: 'USD', actuals: undefined }))
+      .toMatchObject({ amount: null, complete: false });
+  });
+
+  it('preserves exact project-currency totals from the collection', () => {
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', pmoSpent: '90071992547409.91', pmoSpentPending: false,
+      pmoSpentError: false, projectCurrency: 'USD', actuals: undefined }).amount).toBe('90071992547409.91');
+  });
+
   it('DD-MONEY-1 withholds Actual while its selected source is loading or failed', () => {
     const actuals = { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] };
-    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: undefined, commitmentPending: true, commitmentError: false, projectCurrency: 'IDR', actuals }).amount).toBeNull();
-    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: undefined, commitmentPending: false, commitmentError: true, projectCurrency: 'IDR', actuals }).amount).toBeNull();
-    expect(deriveActualPosition({ ledgerBasis: 'unavailable', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', pmoSpent: undefined, pmoSpentPending: true, pmoSpentError: false, projectCurrency: 'IDR', actuals }).amount).toBeNull();
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', pmoSpent: undefined, pmoSpentPending: false, pmoSpentError: true, projectCurrency: 'IDR', actuals }).amount).toBeNull();
+    expect(deriveActualPosition({ ledgerBasis: 'unavailable', pmoSpent: 125, pmoSpentPending: false, pmoSpentError: false, projectCurrency: 'IDR', actuals }))
       .toMatchObject({ amount: null, basis: 'unavailable', complete: false });
   });
 
@@ -225,5 +235,90 @@ describe('exact project-finance money', () => {
     expect(isProjectFinances({ ...valid, invoices: [{ ...valid.invoices[0], invoice_count: 1.5 }] })).toBe(false);
     expect(isProjectFinances({ ...valid, invoices: [{ ...valid.invoices[0], invoiced: 10 }] })).toBe(false);
     expect(isProjectFinances({ ...valid, actuals: { ...valid.actuals, categories: [{ category: 1, mapped: true, amount: null }] } })).toBe(false);
+  });
+});
+
+describe('attributedSplit (#1271 AC-3)', () => {
+  it('returns nothing when there is no attributed cost, so screens without rules stay unchanged', async () => {
+    const { attributedSplit } = await import('./projectFinances');
+    expect(attributedSplit({ tagged: '100.00', attributed: '0.00' })).toBeNull();
+    expect(attributedSplit({ tagged: '100.00' })).toBeNull();
+    expect(attributedSplit({ tagged: '100.00', attributed: null })).toBeNull();
+    expect(attributedSplit({ attributed: 'abc' })).toBeNull();
+  });
+
+  it('returns the attributed amount and the tagged remainder when attributed is nonzero', async () => {
+    const { attributedSplit } = await import('./projectFinances');
+    expect(attributedSplit({ tagged: '100.00', attributed: '40.50' })).toEqual({ attributed: '40.50', tagged: '100.00' });
+    expect(attributedSplit({ tagged: null, attributed: '40.50' })).toEqual({ attributed: '40.50', tagged: null });
+  });
+});
+
+describe('parseContractExcess (FR-009/FR-010)', () => {
+  const contributor = (id: string, contribution: string) => ({ invoice_id: id, invoice_number: `SI-${id}`, invoice_date: '2026-02-01', contribution });
+  it('FR-009 is null while remaining is zero, positive or unknown', () => {
+    for (const remaining of ['0.00', '400.00', null]) expect(parseContractExcess(null, remaining)).toBeNull();
+  });
+  it('FR-009 is known when the contributors reconcile exactly to the contract billing', () => {
+    const raw = { amount: '100.00', contract_billing: '1100.00', contributors: [contributor('a', '700.00'), contributor('b', '400.00')] };
+    expect(parseContractExcess(raw, '-100.00')).toEqual({ state: 'known', amount: '100.00', contractBilling: '1100.00',
+      contributors: raw.contributors });
+  });
+  it('FR-009 derives the excess from remaining and says the detail is incomplete when contributors do not reconcile', () => {
+    const raw = { amount: '100.00', contract_billing: '1100.00', contributors: [contributor('a', '700.00')] };
+    expect(parseContractExcess(raw, '-100.00')).toEqual({ state: 'incomplete', amount: '100.00' });
+  });
+  it('FR-009 never shows a bare negative: a missing or malformed object still yields the derived excess', () => {
+    expect(parseContractExcess(undefined, '-100.00')).toEqual({ state: 'incomplete', amount: '100.00' });
+    expect(parseContractExcess({ amount: 'x' }, '-100.00')).toEqual({ state: 'incomplete', amount: '100.00' });
+  });
+  it('FR-009 refuses an excess whose amount disagrees with remaining', () => {
+    const raw = { amount: '50.00', contract_billing: '1050.00', contributors: [contributor('a', '1050.00')] };
+    expect(parseContractExcess(raw, '-100.00')).toEqual({ state: 'incomplete', amount: '100.00' });
+  });
+});
+
+describe('equipment charge fields (#1519 S5; 0473 adds them to get_project_finances)', () => {
+  const base = {
+    project_id: '02900000-0000-0000-0000-000000000001',
+    contract_invoiced: '1000.00',
+    remaining_to_invoice: '420.00',
+    invoices: [],
+    budget: null,
+    actuals: {
+      currency: 'IDR', as_of: '2026-09-30T00:00:00Z', total: '580.00', tagged_total: '0.00', attributed_total: '580.00',
+      excludes_restricted_rows: false,
+      categories: [{ category: 'Equipment', mapped: true, amount: '580.00' }],
+    },
+  };
+  /** Compiles ONLY with the S5.5 type additions, and reads them off a payload the guard has accepted. */
+  const readCharge = (value: unknown): { total: string | null | undefined; perCategory: string | null | undefined } => {
+    if (!isProjectFinances(value)) throw new Error('not project finances');
+    return { total: value.actuals.equipment_charge_total, perCategory: value.actuals.categories[0]?.equipment_charge_amount };
+  };
+
+  it('AC-EQU-012 reads equipment_charge_total when present and tolerates its absence', () => {
+    const withCharge = {
+      ...base,
+      actuals: {
+        ...base.actuals,
+        equipment_charge_total: '580.00',
+        categories: [{ category: 'Equipment', mapped: true, amount: '580.00', equipment_charge_amount: '580.00' }],
+      },
+    };
+    expect(isProjectFinances(withCharge)).toBe(true);
+    expect(readCharge(withCharge)).toEqual({ total: '580.00', perCategory: '580.00' });
+    // a payload from before 0473: both fields absent, still a valid reading, and the split reads as "none stated"
+    expect(isProjectFinances(base)).toBe(true);
+    expect(readCharge(base)).toEqual({ total: undefined, perCategory: undefined });
+  });
+
+  it('AC-EQU-012 a stated unknown charge (null) is preserved, never read as zero', () => {
+    const withNull = {
+      ...base,
+      actuals: { ...base.actuals, equipment_charge_total: null, categories: [{ category: 'Equipment', mapped: true, amount: null, equipment_charge_amount: null }] },
+    };
+    expect(isProjectFinances(withNull)).toBe(true);
+    expect(readCharge(withNull)).toEqual({ total: null, perCategory: null });
   });
 });

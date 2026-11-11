@@ -21,7 +21,7 @@ const { mutations, permission } = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/useMeetings', () => ({ useMeetingMutations: () => mutations }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => permission.allowed }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade' }] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Admin', effectiveRole: 'Admin' }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { profile: { listOrgProfiles: vi.fn().mockResolvedValue([{ id: 'u2', full_name: 'Sam Member' }]) } } }));
@@ -54,6 +54,11 @@ beforeEach(() => {
 });
 
 describe('AC-MTG1-001 one-page meeting creation', () => {
+  it('AC-002 #1325: new meeting project option shows the short name only on its stable UUID', () => {
+    renderPage();
+    expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
+  });
+
   it('AC-MTG1-001: shows inline header, minutes and attendees, but no saved-only sections', () => {
     renderPage();
     expect(screen.getByLabelText(/Title/)).toBeInTheDocument();
@@ -103,6 +108,46 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(mutations.update.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
       patch: { notes: expect.arrayContaining([expect.objectContaining({ content: [{ text: 'Pending minutes' }] })]) },
     }));
+  });
+
+  it('saves a typed guest when the meeting form is submitted', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.type(screen.getByLabelText(/External guest/), 'Guest One');
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledWith({
+      meetingId: 'meeting-new',
+      identity: { display_name: 'Guest One' },
+    });
+  });
+
+  it('retains a typed-but-not-added guest after failure and retries it once on the same meeting', async () => {
+    mutations.addAttendee.mutateAsync.mockRejectedValueOnce(new Error('attendee write failed'));
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.type(screen.getByLabelText(/External guest/), 'Guest One');
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    expect(await screen.findByText(/some details were not saved/i)).toHaveAttribute('role', 'alert');
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+    expect(screen.getByText('Guest One')).toBeVisible();
+    expect(mutations.create.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.create.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(mutations.addAttendee.mutateAsync.mock.calls[0][0]).toEqual({
+      meetingId: 'meeting-new', identity: { display_name: 'Guest One' },
+    });
+    expect(mutations.addAttendee.mutateAsync.mock.calls[1][0]).toEqual({
+      meetingId: 'meeting-new', identity: { display_name: 'Guest One' },
+    });
   });
 
   it('AC-MTG1-002 keeps meeting editors disabled while attendee writes are pending', async () => {

@@ -477,6 +477,26 @@ describe('AC-PR-LEDGER-019: fileTitle and fileCount from embedded file arrays', 
     expect(grRow?.fileHref).toBe('org-1/proc-1/receipt/f1/dn.pdf');
   });
 
+  it('counts a SharePoint-backed attachment and carries the reference the viewer needs', () => {
+    const web = 'https://tenant.sharepoint.com/sites/x/DN.pdf';
+    const gr = {
+      id: 'gr-1', org_id: 'org-1', procurement_id: 'proc-1',
+      gr_number: 'GR-001', status: 'Complete',
+      receipt_date: '2026-05-11', created_at: '2026-05-11T08:00:00Z', po_id: null,
+      reference_number: null,
+      files: [
+        { id: 'f9', title: null, file_path: null, source: 'onedrive', ms_web_url: web, ms_item_name: 'DN.pdf', archived_at: null },
+        { id: 'f8', title: 'Old', file_path: 'org-1/proc-1/receipt/f8/old.pdf', archived_at: null },
+        { id: 'f7', title: 'Gone', file_path: null, source: 'onedrive', ms_web_url: web, ms_item_name: 'Gone.pdf', archived_at: '2026-05-12T00:00:00Z' },
+      ],
+    };
+    const grRow = buildLedgerRows(makeDetail({ receipts: [gr as unknown] })).find((r) => r.type === 'GR');
+    expect(grRow?.fileCount).toBe(2);
+    expect(grRow?.fileHref).toBe(web);
+    expect(grRow?.fileTitle).toBe('DN.pdf');
+    expect(grRow?.fileRef).toEqual({ id: 'f9', source: 'onedrive', ms_web_url: web, ms_item_name: 'DN.pdf' });
+  });
+
   it('sets fileCount=2 when a record has two non-archived files', () => {
     const po = {
       id: 'po-1', org_id: 'org-1', procurement_id: 'proc-1',
@@ -564,7 +584,7 @@ describe('AC-PR-LEDGER-017: VI externalRef + amount from procurement_invoices', 
 });
 
 describe('AC-EFK-005 vendor e-Faktur ledger projection', () => {
-  it('projects e-Faktur values only from vendor invoice rows and leaves other record types empty', () => {
+  it('projects e-Faktur values only from supplier invoice rows and leaves other record types empty', () => {
     const vi: VIRow = {
       id: 'vi-efaktur', org_id: 'org-1', procurement_id: 'proc-1', vi_number: 'VI-001', status: 'Paid',
       invoice_date: '2026-10-01', created_at: '2026-10-01T00:00:00Z', po_id: null,
@@ -584,7 +604,7 @@ describe('AC-EFK-005 vendor e-Faktur ledger projection', () => {
     expect(prRow).not.toHaveProperty('efakturLocked');
   });
 
-  it('locks e-Faktur editing on a cancelled vendor invoice (docstatus 2 or a cancel stamp)', () => {
+  it('locks e-Faktur editing on a cancelled supplier invoice (docstatus 2 or a cancel stamp)', () => {
     const base: VIRow = {
       id: 'vi-docstatus', org_id: 'org-1', procurement_id: 'proc-1', vi_number: 'VI-002', status: 'Paid',
       invoice_date: '2026-10-01', created_at: '2026-10-01T00:00:00Z', po_id: null,
@@ -720,7 +740,7 @@ describe('FR-L10N-020: LedgerRow.currency — each source record stamps its own 
   });
 });
 
-describe('AC-VWH-011: a vendor invoice row carries its VAT and tax withheld (#876)', () => {
+describe('AC-VWH-011: a supplier invoice row carries its VAT and tax withheld (#876)', () => {
   it('AC-VWH-011 the Invoice row carries tax_amount and withheld_amount; a bill with nothing withheld shows no breakdown', () => {
     const vi = {
       id: 'vi-876', org_id: 'org-1', procurement_id: 'proc-1', vi_number: 'VI-2026-0876', status: 'Received',

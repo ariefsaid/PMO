@@ -3,6 +3,11 @@ import { classifyMutationError, isMeetingReadDenied } from './classifyMutationEr
 import { AppError } from './appError';
 
 describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', () => {
+  it('22023 rejection comment required → plain sentence (#1578)', () => {
+    const e = Object.assign(new Error('rejection comment required'), { code: '22023' });
+    expect(classifyMutationError(e).headline).toBe('Add a rejection comment');
+  });
+
   it('P0001 → illegal-stage headline, verbatim message as detail', () => {
     const e = Object.assign(new Error('illegal transition Requested→Approved'), { code: 'P0001' });
     expect(classifyMutationError(e)).toEqual({
@@ -21,6 +26,13 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     expect(out.rawDetail).toBe('permission denied for transition_procurement');
   });
 
+  it('#1607: the ERP-owned order refusal reads as a pointer to the purchase order, not a permission error', () => {
+    const msg = 'This purchase is managed in your connected system. Record the purchase order to place the order there.';
+    const out = classifyMutationError(Object.assign(new Error(msg), { code: '42501' }));
+    expect(out.headline).toBe('Record the purchase order instead');
+    expect(out.detail).toBe(msg);
+  });
+
   it('23505 → duplicate headline', () => {
     const e = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
     const out = classifyMutationError(e);
@@ -35,6 +47,23 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
       detail: 'This entry already has a file or link; refresh and clear it before relinking.',
       rawDetail: 'opaque database error',
     });
+  });
+
+  it.each([
+    ['gate_request_before_order', 'Your organization requires a purchase request before an order.'],
+    ['gate_approval_before_order', 'Your organization requires an approval before an order.'],
+    ['gate_receipt_before_invoice', 'Your organization requires a goods receipt before a supplier invoice.'],
+    ['gate_approval_before_payment', 'Your organization requires an approval before payment.'],
+    ['purchase-move-has-journal-lines', 'A purchase with attached journal lines cannot move to another project. Ask Finance or an Admin to detach the lines first.'],
+  ])('AC-PFE-003 a purchase-rule refusal (%s) shows the server rule message, not the generic conflict text', (gate, message) => {
+    const { headline, detail } = classifyMutationError(new AppError(message, '23514', gate));
+    expect(detail).toBe(message);
+    expect(headline).toBe('A purchase rule applies');
+  });
+
+  it('a 23514 whose detail merely starts like a rule name but is not one keeps the generic copy', () => {
+    const { detail } = classifyMutationError(new AppError('internal text', '23514', 'gate_something_else'));
+    expect(detail).toBe('This change conflicts with the current document state. Refresh and try again.');
   });
 
   it('AC-M365DOC-062 unknown 23514 check detail is replaced with safe generic copy', () => {
@@ -119,6 +148,22 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
   it('AC-INV: an unmatched code falls through to the generic headline even with overrides present', () => {
     const e = Object.assign(new Error('boom'), { code: 'UNKNOWN_ONE' });
     expect(classifyMutationError(e, { DUPLICATE_EMAIL: 'x' }).headline).toBe('Update failed');
+  });
+
+  it('AC-PLN-009/010: the plan-limit codes are classified by their own SQLSTATE with localised copy', () => {
+    const seat = new AppError('seat_limit_reached: the starter plan allows 10 seats', 'PL001');
+    expect(classifyMutationError(seat, { PL001: 'No seats left' }, {
+      module: 'administration', operation: 'create',
+      detailOverrides: { PL001: 'Ask your Operator to upgrade the plan.' },
+    })).toMatchObject({
+      headline: 'No seats left',
+      detail: 'Ask your Operator to upgrade the plan.',
+      rawDetail: 'seat_limit_reached: the starter plan allows 10 seats',
+      classification: 'override',
+    });
+    const project = new AppError('project_limit_reached: the starter plan allows 25 active projects', 'PL002');
+    expect(classifyMutationError(project, { PL002: 'Project limit reached' }).headline)
+      .toBe('Project limit reached');
   });
 });
 

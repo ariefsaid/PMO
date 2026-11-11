@@ -1,4 +1,4 @@
-import { parseISO } from 'date-fns';
+import { parseISO } from 'date-fns/parseISO';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import { formatUtcDayMonthYear } from '../format';
 
@@ -76,12 +76,10 @@ export const isoToTs = (iso: string): number => parseISO(`${iso}T00:00:00Z`).get
 
 /**
  * Inverse of `isoToTs`: convert epoch-ms (UTC midnight) back to a 'YYYY-MM-DD' string.
- * Uses UTC date methods so the result is TZ-agnostic and round-trips exactly with `isoToTs`.
+ * `toISOString()` already yields the UTC date prefix, so the result is TZ-agnostic and
+ * round-trips exactly with `isoToTs`.
  */
-export const tsToIso = (ts: number): string => {
-  const d = new Date(ts);
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-};
+export const tsToIso = (ts: number): string => new Date(ts).toISOString().slice(0, 10);
 
 /**
  * Clamp an ISO date string (either 'YYYY-MM-DD' or timestamptz ISO) to be ≤ asOf.

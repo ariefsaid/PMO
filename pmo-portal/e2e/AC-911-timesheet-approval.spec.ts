@@ -122,7 +122,7 @@ test.describe('AC-911: a dedicated sheet is submitted by its owner, then approve
     await expect(submitDialog).not.toBeVisible({ timeout: 15_000 });
 
     // StatusPill shows exactly "Submitted" once the real RPC resolves.
-    // exact:true avoids matching "Draft — not submitted" or the toast "Timesheet submitted".
+    // exact:true avoids matching "Draft: not submitted" or the toast "Timesheet submitted".
     await expect(page.getByText('Submitted', { exact: true })).toBeVisible({ timeout: 15_000 });
 
     // Submit button should no longer be present (status is Submitted, not Draft).

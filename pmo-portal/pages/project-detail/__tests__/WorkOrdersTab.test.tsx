@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 import type { Role } from '@/src/auth/AuthContext';
@@ -21,13 +22,17 @@ import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const { listState, drawdownState, mutations } = vi.hoisted(() => ({
+const { listState, drawdownState, mutations, lineState, boqState, quantityMutations } = vi.hoisted(() => ({
   listState: {
     data: [] as unknown[],
     isPending: false,
+    isFetching: false,
     isError: false,
     refetch: vi.fn(),
   },
+  boqState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  quantityMutations: { createLine: { mutateAsync: vi.fn() }, updateLine: { mutateAsync: vi.fn() }, deleteLine: { mutateAsync: vi.fn() } },
+  lineState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   drawdownState: {
     data: { committed: 0, draft: 0, ceiling: 1_000_000, currency: 'USD', basis: 'net' } as unknown,
     isPending: false,
@@ -42,28 +47,40 @@ const { listState, drawdownState, mutations } = vi.hoisted(() => ({
   },
 }));
 
+// #1457: the invoice-overdue figure is bounded by the org's business day (fixed here per test file).
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-06-01', isPending: false, isError: false, retry: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectWorkOrders: () => listState,
   useProjectDrawdown: () => drawdownState,
   useWorkOrderMutations: () => mutations,
 }));
+vi.mock('@/src/hooks/useSubcontract', () => ({
+  useWorkOrderCostVariations: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 // OD-BILL-1: the tab now reads work-order billing through react-query. These specs predate it and mount without a
 // QueryClientProvider, so the hook is held in its loading state and contributes no figures; billing is covered in
 // WorkOrdersTab.billing.test.tsx.
 vi.mock('@/src/hooks/useProgressBilling', () => ({
-  useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useBoqItems: () => boqState,
   useProjectBilling: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectClaims: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProgressBillingMutations: () => ({}),
 }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useProjectWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectWorkOrderLines: () => lineState,
   useWorkOrderAcceptances: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useWorkOrderAcceptanceMutations: () => ({}),
+  useWorkOrderAcceptanceMutations: () => quantityMutations,
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useWorkOrderBilling: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
+  useWorkOrderAcceptanceAge: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true }) }));
 // #913: the Invoice gate reads the revenue mode through a hook. These specs predate it and mount without a
 // QueryClientProvider; the revenue-mode gating is covered in WorkOrdersTab.billing.test.tsx. 'erp' is the mode these
 // specs were written under.
@@ -101,6 +118,7 @@ const row = (over: Partial<WorkOrderRow> = {}): WorkOrderRow =>
     start_date: null,
     end_date: null,
     order_value_set_by: 'u-2',
+    issue_eligibility: 'allowed',
     value_author: { role: 'Finance', manager_id: null, status: 'active' },
     order_value_set_at: '2026-08-01T00:00:00Z',
     issued_by: null,
@@ -116,15 +134,18 @@ const row = (over: Partial<WorkOrderRow> = {}): WorkOrderRow =>
 const renderTab = (role: Role = 'Project Manager') => {
   realRole = role;
   return render(
-    <ToastProvider>
-      <WorkOrdersTab projectId="p1" currency="USD" />
-    </ToastProvider>,
+    <MemoryRouter>
+      <ToastProvider>
+        <WorkOrdersTab projectId="p1" currency="USD" />
+      </ToastProvider>
+    </MemoryRouter>,
   );
 };
 
 beforeEach(() => {
   listState.data = [];
   listState.isPending = false;
+  listState.isFetching = false;
   listState.isError = false;
   listState.refetch.mockClear();
   for (const m of Object.values(mutations)) {
@@ -133,20 +154,48 @@ beforeEach(() => {
     m.isPending = false;
   }
   realRole = 'Project Manager';
+  boqState.data = []; boqState.isPending = false; boqState.isError = false; boqState.refetch.mockClear();
+  Object.values(quantityMutations).forEach((m) => { m.mutateAsync.mockReset(); m.mutateAsync.mockResolvedValue(undefined); });
+  lineState.data = []; lineState.isPending = false; lineState.isError = false; lineState.refetch.mockClear();
 });
 
 // ── List states ───────────────────────────────────────────────────────────────
 
 describe('list states', () => {
-  it('renders the empty state when the project has no work orders yet', () => {
+  it('M17 explains client-PO drawdown in the empty register', () => {
     renderTab();
-    expect(screen.getByText('No work orders on this project yet')).toBeInTheDocument();
+    expect(screen.getByText(/No customer orders yet\. Client purchase orders/)).toBeInTheDocument();
+  });
+
+  it('shows quantity source failure and retry even when no orders or lines loaded', async () => {
+    lineState.isError = true;
+    renderTab();
+    expect(screen.getByText(/couldn.t load the contract/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+    expect(lineState.refetch).toHaveBeenCalled();
+  });
+
+  it('shows a retry for unavailable quantities even with a draft order', async () => {
+    listState.data = [row()];
+    lineState.isError = true;
+    renderTab();
+    expect(screen.getByText(/couldn.t load the contract/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+    expect(lineState.refetch).toHaveBeenCalled();
+  });
+
+  it('withholds the allocation editor until its source reads are confirmed', async () => {
+    listState.data = [row()];
+    lineState.isPending = true;
+    renderTab();
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
+    expect(screen.queryByRole('menuitem', { name: 'Allocate contract lines' })).not.toBeInTheDocument();
   });
 
   it('renders a loading state, not an empty one, while the list is in flight', () => {
     listState.isPending = true;
     renderTab();
-    expect(screen.queryByText('No work orders on this project yet')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No customer orders yet\. Client purchase orders/)).not.toBeInTheDocument();
   });
 
   it('renders an error with a retry when the list fails', async () => {
@@ -161,32 +210,117 @@ describe('list states', () => {
 // ── The rows ──────────────────────────────────────────────────────────────────
 
 describe('the rows', () => {
-  it('OD-TAX-1: an order value never renders bare — it carries its tax basis', () => {
+  it('OD-TAX-1: an order value in the customer-order drawer carries its tax basis', async () => {
     listState.data = [
-      row({ id: 'wo-1', tax_treatment: 'exclusive' }),
+      row({ id: 'wo-1', status: 'Issued', tax_treatment: 'exclusive' }),
       row({ id: 'wo-2', tax_treatment: 'inclusive', order_value: 111_000, wo_number: 'WO-0001', status: 'Issued' }),
     ];
-    renderTab();
-    expect(screen.getByTestId('wo-value-wo-1')).toHaveTextContent('$250,000 excl. PPN');
-    expect(screen.getByTestId('wo-value-wo-2')).toHaveTextContent('$111,000 incl. PPN');
+    const user = userEvent.setup();
+    renderTab('Finance');
+    await user.click(screen.getByRole('button', { name: 'View details for Phase 1 fabrication' }));
+    const firstDrawer = screen.getByRole('dialog');
+    expect(firstDrawer).toHaveTextContent('$250,000 · excl. PPN');
+    await user.click(within(firstDrawer).getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: 'View details for WO-0001' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('$111,000 · incl. PPN');
   });
 
-  it('SUB-C: rate and DPP are shown only when DPP is not 1/1 or the rate is missing', () => {
+  it('SUB-C: rate and DPP details remain available in the customer-order drawer', async () => {
     listState.data = [
-      row({ id: 'wo-1', tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1 }),
-      row({ id: 'wo-2', tax_rate: 11, tax_base_numerator: 11, tax_base_denominator: 12 }),
-      row({ id: 'wo-3', tax_rate: null }),
+      row({ id: 'wo-1', title: 'Standard tax', status: 'Issued', tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1 }),
+      row({ id: 'wo-2', title: 'Reduced tax base', status: 'Issued', wo_number: 'WO-2', tax_rate: 11, tax_base_numerator: 11, tax_base_denominator: 12 }),
+      row({ id: 'wo-3', title: 'Unknown tax rate', status: 'Issued', tax_rate: null }),
     ];
-    renderTab();
-    expect(screen.getByTestId('wo-value-wo-1')).toHaveTextContent(/^\$250,000\s*excl\. PPN$/);
-    expect(screen.getByTestId('wo-value-wo-2')).toHaveTextContent('excl. PPN 11% · DPP 11/12');
-    expect(screen.getByTestId('wo-value-wo-3')).toHaveTextContent('rate not recorded');
+    const user = userEvent.setup();
+    renderTab('Finance');
+    await user.click(screen.getByRole('button', { name: 'View details for Standard tax' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('excl. PPN');
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('11%');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: 'View details for WO-2' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('excl. PPN 11% · DPP 11/12');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: 'View details for Unknown tax rate' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('rate not recorded');
   });
 
-  it('says a draft has no WO number yet rather than showing an empty cell', () => {
+  it('AC-1402 keeps draft orders in their quiet section with the order title', () => {
     listState.data = [row({ wo_number: null })];
     renderTab();
-    expect(screen.getByText('Not issued yet')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Draft orders' })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Draft orders' })).getByRole('button', { name: 'View details for Phase 1 fabrication' })).toBeInTheDocument();
+    expect(screen.queryByText('Not issued yet')).not.toBeInTheDocument();
+  });
+
+  it('M15 shows the order date on a draft order card and in its details drawer', async () => {
+    listState.data = [row({ order_date: '2026-08-01' })];
+    const user = userEvent.setup();
+    renderTab();
+    expect(screen.getByText(/Order date.*Aug 1, 2026/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'View details for Phase 1 fabrication' }));
+    expect(within(screen.getByRole('dialog')).getByText('Aug 1, 2026')).toBeInTheDocument();
+  });
+
+  it('retains an allocation draft while a required source fails and recovers', async () => {
+    listState.data = [row()];
+    boqState.data = [{ id: 'b1', item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: 10, earning_basis: 'unit_rate' }];
+    const user = userEvent.setup();
+    const tree = () => <MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
+    const view = render(tree());
+    await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Allocate contract lines' }));
+    await user.type(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/), '3.5');
+    lineState.isPending = true;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('3.5');
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save SURVEY' })).toBeDisabled();
+    lineState.isPending = false;
+    lineState.isError = true;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('3.5');
+    expect(within(screen.getByRole('dialog')).getByText(/couldn.t load order allocations/i)).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save SURVEY' })).toBeDisabled();
+    expect(quantityMutations.createLine.mutateAsync).not.toHaveBeenCalled();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /retry/i }));
+    expect(lineState.refetch).toHaveBeenCalled();
+    lineState.isError = false;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('3.5');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save SURVEY' }));
+    expect(quantityMutations.createLine.mutateAsync).toHaveBeenCalledWith({ workOrderId: 'wo-1', boqItemId: 'b1', quantity: 3.5 });
+  });
+
+  it('blocks removing an allocation when a source fails while confirmation is open', async () => {
+    listState.data = [row()];
+    boqState.data = [{ id: 'b1', item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: 10, earning_basis: 'unit_rate' }];
+    lineState.data = [{ id: 'allocation-1', work_order_id: 'wo-1', boq_item_id: 'b1', quantity: 2 }];
+    const user = userEvent.setup();
+    const tree = () => <MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
+    const view = render(tree());
+    await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Allocate contract lines' }));
+    await user.click(within(screen.getByRole('dialog', { name: /Contract lines/ })).getByRole('button', { name: 'Remove SURVEY' }));
+    lineState.isError = true;
+    view.rerender(tree());
+    const confirmation = screen.getByRole('alertdialog', { name: 'Remove this allocation?' });
+    expect(within(confirmation).getByRole('button', { name: 'Remove allocation' })).toBeDisabled();
+    expect(quantityMutations.deleteLine.mutateAsync).not.toHaveBeenCalled();
+    lineState.isError = false;
+    view.rerender(tree());
+    await user.click(within(screen.getByRole('alertdialog', { name: 'Remove this allocation?' })).getByRole('button', { name: 'Remove allocation' }));
+    expect(quantityMutations.deleteLine.mutateAsync).toHaveBeenCalledWith('allocation-1');
+  });
+
+  it('M16 lets Admin, Project Manager, and Finance allocate lines on a Draft work order', async () => {
+    listState.data = [row({ status: 'Draft' })];
+    for (const role of ['Admin', 'Project Manager', 'Finance'] as const) {
+      const user = userEvent.setup();
+      const view = renderTab(role);
+      await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
+      await user.click(screen.getByRole('menuitem', { name: 'Allocate contract lines' }));
+      expect(screen.getByRole('dialog', { name: 'Contract lines: Phase 1 fabrication' })).toBeInTheDocument();
+      view.unmount();
+    }
   });
 });
 
@@ -194,7 +328,7 @@ describe('the rows', () => {
 
 describe('authorization (UX gate; the RPCs are the authority)', () => {
   it('AC-UXS-010 blocks only a positive-value self-authored issue for a below-Finance issuer', () => {
-    listState.data = [row({ order_value: 250_000, order_value_set_by: 'u-1' })];
+    listState.data = [row({ order_value: 250_000, order_value_set_by: 'u-1', issue_eligibility: 'self' })];
     renderTab('Project Manager');
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
     // SUB-C: the blocked-draft notice is the sentence alone — no bold restating title.
@@ -205,7 +339,7 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
   });
 
   it('blocks a positive-value draft with no value-set stamp, matching the RPC gate', () => {
-    listState.data = [row({ order_value_set_at: null })];
+    listState.data = [row({ order_value_set_at: null, issue_eligibility: 'missing_witness' })];
     renderTab('Project Manager');
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
     expect(screen.getByText('The value must be set by an authorized reviewer before this order can be issued.')).toBeInTheDocument();
@@ -231,19 +365,71 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
   it('blocks a PM when a peer author does not outrank them per the server predicate', () => {
     listState.data = [row({
       order_value_set_by: 'u-2',
+      issue_eligibility: 'reviewer_required',
       value_author: { role: 'Project Manager', manager_id: null, status: 'active' },
     })];
     renderTab('Project Manager');
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
     const issueGate = screen.getAllByRole('alert').find((el) => el.textContent?.includes('your supervisor'));
-    expect(issueGate).toHaveTextContent('The value must be set by your supervisor or a more senior active reviewer before this order can be issued.');
+    expect(issueGate).toHaveTextContent('The value must be set by your supervisor or a more senior active reviewer before it can be issued.');
+  });
+
+  it('requires a current decision while an issue confirmation is open', async () => {
+    listState.data = [row()];
+    const user = userEvent.setup();
+    const view = renderTab();
+    await user.click(screen.getByRole('button', { name: /^Issue$/i }));
+    const refresh = () => view.rerender(<MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>);
+    listState.isFetching = true; refresh();
+    expect(screen.getByText('Checking issue eligibility…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Issue work order/i })).toBeDisabled();
+    listState.isFetching = false; listState.isError = true; refresh();
+    expect(screen.getByRole('button', { name: /Issue work order/i })).toBeDisabled();
+    listState.isError = false; listState.data = [row({ issue_eligibility: 'self' })]; refresh();
+    expect(screen.getByRole('button', { name: /Issue work order/i })).toBeDisabled();
+    expect(mutations.transition.mutateAsync).not.toHaveBeenCalled();
+    listState.data = [row()]; refresh();
+    await user.click(screen.getByRole('button', { name: /Issue work order/i }));
+    expect(mutations.transition.mutateAsync).toHaveBeenCalledOnce();
+  });
+
+  it('offers issue when the server authorizes the manager-authored order', () => {
+    listState.data = [row({ issue_eligibility: 'allowed' })];
+    renderTab('Project Manager');
+    expect(screen.getByRole('button', { name: 'Issue' })).toBeInTheDocument();
+  });
+
+  it('hides issue when the server denies a report-authored order', () => {
+    listState.data = [row({ issue_eligibility: 'reviewer_required' })];
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
+  });
+
+  it('does not offer issue when the server reports an inactive witness', () => {
+    listState.data = [row({ issue_eligibility: 'inactive_reviewer' })];
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
+    expect(screen.getByText('The value must be set by your supervisor or a more senior active reviewer before it can be issued.')).toBeInTheDocument();
+  });
+
+  it('does not offer issue when eligibility is unavailable', () => {
+    listState.data = [row({ issue_eligibility: null })];
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
+    expect(screen.getByText('Issue eligibility could not be checked. Refresh this page and try again.')).toBeInTheDocument();
+  });
+
+  it('blocks an inactive senior value author', () => {
+    listState.data = [row({ issue_eligibility: 'inactive_reviewer', value_author: { role: 'Finance', manager_id: null, status: 'disabled' } })];
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
   });
 
   it('a PM gets create, edit, set-value, issue and cancel on a draft set by a senior user', () => {
     listState.data = [row({ order_value_set_by: 'u-2' })];
     renderTab('Project Manager');
-    expect(screen.getByRole('button', { name: 'New work order' })).toBeInTheDocument();
-    for (const name of ['Edit', 'Set value', 'Issue', 'Cancel']) {
+    expect(screen.getByRole('button', { name: 'Add customer order' })).toBeInTheDocument();
+    for (const name of ['Edit order', 'Set value', 'Issue', 'Cancel']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument();
     }
   });
@@ -275,29 +461,40 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
   it('an Engineer may READ work orders but gets no write affordance anywhere', () => {
     listState.data = [row()];
     renderTab('Engineer');
-    expect(screen.getByText('Phase 1 fabrication')).toBeInTheDocument();
-    for (const name of ['New work order', 'Edit', 'Set value', 'Issue', 'Cancel']) {
+    expect(screen.getByRole('button', { name: 'View details for Phase 1 fabrication' })).toBeInTheDocument();
+    for (const name of ['Add customer order', 'Edit order', 'Set value', 'Issue', 'Cancel']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
   });
 
-  it('an ISSUED row offers Close and Cancel but neither Edit nor Set value (the body freezes)', () => {
+  it('an ISSUED row offers Close and Cancel in its action menu but neither Edit nor Set value (the body freezes)', async () => {
     listState.data = [row({ status: 'Issued', wo_number: 'WO-0001' })];
     renderTab('Project Manager');
-    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for WO-0001' }));
+    expect(screen.getByRole('menuitem', { name: 'Close order' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Cancel order' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit order' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Set value' })).not.toBeInTheDocument();
+    // The frozen body offers neither edit nor value change from the action menu either.
+    expect(screen.queryByRole('menuitem', { name: /^Edit/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Set value/ })).not.toBeInTheDocument();
   });
 
-  it('a terminal row offers nothing — Closed and Cancelled are the end of the line', () => {
+  it('a terminal row keeps only the view-only customer-PO action', async () => {
     listState.data = [
       row({ id: 'wo-1', status: 'Closed', wo_number: 'WO-0001' }),
       row({ id: 'wo-2', status: 'Cancelled', wo_number: 'WO-0002' }),
     ];
+    const user = userEvent.setup();
     renderTab('Project Manager');
-    for (const name of ['Edit', 'Set value', 'Issue', 'Close', 'Cancel']) {
-      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    for (const id of ['wo-1', 'wo-2']) {
+      const order = within(screen.getByTestId(`customer-order-${id}`));
+      await user.click(order.getByRole('button', { name: /Actions for/ }));
+      const menu = screen.getByRole('menu');
+      expect(within(menu).getByRole('menuitem', { name: 'View customer PO' })).toBeInTheDocument();
+      for (const label of ['Close order', 'Cancel order', 'Edit order', 'Set value']) {
+        expect(within(menu).queryByRole('menuitem', { name: label })).not.toBeInTheDocument();
+      }
     }
   });
 });
@@ -397,6 +594,26 @@ describe('over-commitment: the server refuses, the human answers, nothing auto-r
         overCommitAck: true,
       }),
     );
+  });
+
+  it('requires the current decision before acknowledging an over-ceiling issue', async () => {
+    mutations.transition.mutateAsync.mockRejectedValueOnce(OVER_COMMIT_REFUSAL);
+    const user = userEvent.setup();
+    const view = renderTab();
+    await user.click(screen.getByRole('button', { name: 'Issue' }));
+    await user.click(screen.getByRole('button', { name: 'Issue work order' }));
+    await screen.findByRole('button', { name: 'Acknowledge and issue' });
+    const refresh = () => view.rerender(<MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>);
+    listState.isFetching = true; refresh();
+    expect(screen.getByRole('button', { name: 'Acknowledge and issue' })).toBeDisabled();
+    listState.isFetching = false; listState.isError = true; refresh();
+    expect(screen.getByRole('button', { name: 'Acknowledge and issue' })).toBeDisabled();
+    listState.isError = false; listState.data = [row({ issue_eligibility: 'self' })]; refresh();
+    expect(screen.getByRole('button', { name: 'Acknowledge and issue' })).toBeDisabled();
+    expect(mutations.transition.mutateAsync).toHaveBeenCalledTimes(1);
+    listState.data = [row()]; refresh();
+    await user.click(screen.getByRole('button', { name: 'Acknowledge and issue' }));
+    expect(mutations.transition.mutateAsync).toHaveBeenLastCalledWith({ id: 'wo-1', to: 'Issued', overCommitAck: true });
   });
 
   it('declining the acknowledgement issues nothing', async () => {

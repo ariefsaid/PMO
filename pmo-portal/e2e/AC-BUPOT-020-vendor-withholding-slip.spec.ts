@@ -16,7 +16,8 @@ const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const serviceKey = requireServiceRoleKey();
 const localized = (en: string, id: string) => new RegExp(`(?:${en}|${id})`, 'i');
-const localizedExact = (en: string, id: string) => new RegExp(`^(?:${en}|${id})$`, 'i');
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const localizedExact = (en: string, id: string) => new RegExp(`^(?:${escapeRegExp(en)}|${escapeRegExp(id)})$`, 'i');
 test.skip(!serviceKey, 'AC-BUPOT-020 requires service-role access for isolated fixture setup and cleanup.');
 test.setTimeout(120_000);
 
@@ -109,7 +110,7 @@ SELECT
 }
 
 async function openDocuments(page: import('@playwright/test').Page, caseId: string) {
-  await page.goto(`/procurement/${caseId}/documents`);
+  await page.goto(`/procurement/${caseId}/files`);
   await expect(page.getByTestId('procurement-loading')).toBeHidden({ timeout: 20_000 });
   await expect(page.getByTestId('procurement-ledger')).toBeVisible({ timeout: 20_000 });
 }
@@ -148,8 +149,8 @@ test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked 
     await expect(page.getByLabel(localized('Bukti potong details', 'Detail bukti potong'))).toBeVisible({ timeout: 20_000 });
     const details = page.getByLabel(localized('Bukti potong details', 'Detail bukti potong'));
     await expect(details.getByText(slipNumber)).toBeVisible();
-    await expect(details.getByText(localizedExact(`System VI number: ${viA}`, `Nomor VI sistem: ${viA}`))).toBeVisible();
-    await expect(details.getByText(localizedExact(`System VI number: ${viB}`, `Nomor VI sistem: ${viB}`))).toBeVisible();
+    await expect(details.getByText(localizedExact(`Supplier invoice no. (accounting): ${viA}`, `No. faktur pemasok (akuntansi): ${viA}`))).toBeVisible();
+    await expect(details.getByText(localizedExact(`Supplier invoice no. (accounting): ${viB}`, `No. faktur pemasok (akuntansi): ${viB}`))).toBeVisible();
     await expect(details.getByText(localizedExact(`Bukti potong bill link · ${viA}`, `Tautan tagihan bukti potong · ${viA}`))).toBeVisible();
     await expect(details.getByText(localizedExact(`Bukti potong bill link · ${viB}`, `Tautan tagihan bukti potong · ${viB}`))).toBeVisible();
     const { data: recorded, error: recordedError } = await admin.from('vendor_withholding_slips').select('id,slip_number,withheld_amount,revision,status').eq('slip_number', slipNumber).single();
@@ -201,14 +202,14 @@ test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked 
     await expect(page.locator('tr').filter({ hasText: viA }).getByText(localizedExact('Not recorded', 'Belum dicatat'))).toBeVisible({ timeout: 20_000 });
     await openDocuments(page, ids.caseB);
     await expect(page.locator('tr').filter({ hasText: viB }).getByText(localizedExact('Not recorded', 'Belum dicatat'))).toBeVisible({ timeout: 20_000 });
-    await page.goto(`/procurement/${ids.caseA}/documents?bupot=${encodeURIComponent(slipId)}`);
+    await page.goto(`/procurement/${ids.caseA}/files?bupot=${encodeURIComponent(slipId)}`);
     await expect(page.getByLabel(localized('Bukti potong details', 'Detail bukti potong'))).toBeVisible({ timeout: 20_000 });
     await expect(page.getByLabel(localized('Bukti potong details', 'Detail bukti potong')).getByText(slipNumber)).toBeVisible();
     await expect(page.getByLabel(localized('Bukti potong details', 'Detail bukti potong')).getByText(localized('Voided in PMO', 'Dibatalkan di PMO'))).toHaveCount(2);
 
     const retainedDetails = page.getByLabel(localized('Bukti potong details', 'Detail bukti potong'));
     await retainedDetails.getByRole('button', { name: new RegExp(`(?:Open bill .*${viB}.* in case BUPOT case B ${suffix}|Buka tagihan .*${viB}.* di kasus BUPOT case B ${suffix})`, 'i') }).click();
-    await expect(page).toHaveURL(new RegExp(`/procurement/${ids.caseB}/documents\\?bupot=${slipId}&bupotBill=${ids.billB}`));
+    await expect(page).toHaveURL(new RegExp(`/procurement/${ids.caseB}/files\\?bupot=${slipId}&bupotBill=${ids.billB}`));
     const destinationRow = page.locator(`#invoice-${ids.billB}`);
     await expect(destinationRow).toBeVisible({ timeout: 20_000 });
     await expect.poll(() => destinationRow.evaluate((row) => row === document.activeElement), { timeout: 10_000 }).toBe(true);

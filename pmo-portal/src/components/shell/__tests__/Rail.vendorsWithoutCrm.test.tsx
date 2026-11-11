@@ -17,6 +17,6 @@ describe('Rail without CRM', () => {
   it('FIN-S9: a PM in an org without CRM still reaches vendors from the rail', () => {
     render(<MemoryRouter><Rail /></MemoryRouter>);
     expect(screen.queryByRole('link', { name: 'Companies' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Vendors' })).toHaveAttribute('href', '/companies?type=Vendor');
+    expect(screen.getByRole('link', { name: 'Suppliers' })).toHaveAttribute('href', '/companies?type=Vendor');
   });
 });

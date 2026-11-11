@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 
 const h = vi.hoisted(() => ({
   createPaymentMutate: vi.fn(async (_input: unknown): Promise<{ id: string }> => ({ id: 'ip-new' })),
@@ -25,7 +26,10 @@ vi.mock('@/src/hooks/useRevenue', () => ({
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },
   }),
 }));
-vi.mock('@/src/hooks/useFkOptions', () => ({ useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Acme Energy', sub: 'Client' }] }) }));
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Acme Energy', sub: 'Client' }] }),
+  useInvoiceProjectOptions: () => ({ data: [] }),
+}));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string, entity: string) => {
   if (action === 'create' && entity === 'incomingPayment') return h.role === 'Finance';
   return true;
@@ -42,8 +46,9 @@ vi.mock('@/src/components/ui', async (importOriginal) => {
 });
 
 import IncomingPayments from '../IncomingPayments';
-import { FinanceI18nTestProvider } from './financeI18nTestProvider';
-import { financeTestI18n } from './financeI18nTestInstance';
+import { receiptColumns } from '../incoming-payments/receiptColumns';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const openInvoice = {
@@ -59,6 +64,8 @@ async function pickInvoice(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('option', { name: /INV-2610070001/ }));
 }
 
+// A native receipt's applications are its live allocations (#1415), not the ERP's allocation_details.
+const alloc = (amount: number) => ({ id: `al-${amount}`, sales_invoice_id: 'si-1', amount, cash_amount: amount, withheld_amount: 0, currency: 'IDR', reversed_at: null });
 const receipt = (over: Partial<IncomingPaymentRow> = {}): IncomingPaymentRow => ({
   id: 'ip-1', org_id: 'org-1', customer_id: 'cust-1', customer_name: 'Acme Energy', sales_invoice_id: 'si-1',
   ip_number: null, pmo_number: 'RCV-2610070001', pmo_native: true, cancelled_at: null, reference_number: null,
@@ -101,6 +108,32 @@ beforeEach(async () => {
 const columnHeaders = () => screen.getAllByRole('columnheader').map((th) => th.textContent?.trim()).filter((name) => name && name !== 'Actions');
 
 describe('FIN-S5: receipts list', () => {
+  it('filters ERP receipts by their displayed cancellation status', async () => {
+    h.route = 'external';
+    h.payments.data = [receipt({ id: 'cancelled', pmo_native: false, pmo_number: null, ip_number: 'ERP-CANCELLED', status: 'Scheduled', erp_cancelled_at: '2026-10-07' }), receipt({ id: 'live', pmo_native: false, pmo_number: null, ip_number: 'ERP-LIVE', status: 'Scheduled' })];
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('tab', { name: 'Expected' }));
+    expect(screen.getByText('ERP-LIVE')).toBeInTheDocument();
+    expect(screen.queryByText('ERP-CANCELLED')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Cancelled' }));
+    expect(screen.getByText('ERP-CANCELLED')).toBeInTheDocument();
+    expect(screen.queryByText('ERP-LIVE')).not.toBeInTheDocument();
+  });
+
+  it('exports the same cancellation status shown in the receipt list', () => {
+    const { exportColumns } = receiptColumns({
+      t: financeTestI18n.t,
+      embedded: false,
+      location: { pathname: '/incoming-payments', search: '', hash: '', state: null, key: 'test' },
+      invoiceNumberById: new Map(),
+    });
+    const status = exportColumns.find((column) => column.key === 'status');
+    expect(status?.exportValue?.(receipt({ status: 'Scheduled', pmo_native: false, erp_cancelled_at: '2026-10-07' }))).toBe('Cancelled');
+    expect(status?.exportValue?.(receipt({ status: 'Scheduled', pmo_native: false }))).toBe('Expected');
+    expect(status?.exportValue?.(receipt())).toBe('Received');
+  });
+
   it('shows seven columns and keeps cash received, tax withheld, not-yet-applied and slip out of the default list', () => {
     h.payments.data = [receipt({ withheld_amount: 5_000, withholding_slip_number: 'SLIP-9' })];
     renderPage();
@@ -116,7 +149,7 @@ describe('FIN-S5: receipt record', () => {
   const open = () => renderPage('/incoming-payments/ip-1');
 
   it('shows only the receipt total when cash equals it and nothing is withheld or unapplied', () => {
-    h.payments.data = [receipt({ allocation_details: [{ invoice_id: 'si-1', invoice_number: 'INV-1', amount: '500000.00', currency: 'IDR' }] } as Partial<IncomingPaymentRow>)];
+    h.payments.data = [receipt({ allocations: [alloc(500_000)] } as Partial<IncomingPaymentRow>)];
     open();
     expect(screen.getByText('Receipt total')).toBeInTheDocument();
     for (const gone of ['Cash received', 'Tax withheld', 'Not yet applied']) expect(screen.queryByText(gone)).not.toBeInTheDocument();
@@ -126,7 +159,7 @@ describe('FIN-S5: receipt record', () => {
   it('adds cash received, tax withheld and the slip beside it when they differ or are non-zero', () => {
     h.payments.data = [receipt({
       received_amount: 450_000, withheld_amount: 50_000, withholding_slip_number: 'SLIP-9',
-      allocation_details: [{ invoice_id: 'si-1', invoice_number: 'INV-1', amount: '500000.00', currency: 'IDR' }],
+      allocations: [alloc(500_000)],
     } as Partial<IncomingPaymentRow>)];
     open();
     expect(screen.getByText('Cash received')).toBeInTheDocument();
@@ -144,7 +177,7 @@ describe('FIN-S5: receipt record', () => {
   });
 
   it('shows not-yet-applied cash as a fact, with no extra sentence below', () => {
-    h.payments.data = [receipt({ allocation_details: [{ invoice_id: 'si-1', invoice_number: 'INV-1', amount: '400000.00', currency: 'IDR' }] } as Partial<IncomingPaymentRow>)];
+    h.payments.data = [receipt({ allocations: [alloc(400_000)] } as Partial<IncomingPaymentRow>)];
     open();
     expect(within(screen.getByTestId('receipt-unapplied')).getByText(/100,000/)).toBeInTheDocument();
     expect(screen.queryByText(/is not yet applied to an invoice/)).not.toBeInTheDocument();

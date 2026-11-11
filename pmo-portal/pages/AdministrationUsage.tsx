@@ -34,7 +34,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
   if (isPending) {
     return (
       <div className="rounded-lg border border-border bg-card">
-        <ListState variant="loading" rows={4} />
+        <ListState variant="loading" shape="table" rows={4} />
       </div>
     );
   }
@@ -93,7 +93,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
           } as Column<UsageRow>,
         ]
       : []),
-    { key: 'cost', header: 'Credits spent', cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
+    { key: 'cost', header: 'Cost (USD)', cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
     ...(hasMargin
       ? [{ key: 'margin', header: 'Margin', cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
       : []),

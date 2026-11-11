@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { axe } from 'jest-axe';
+import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
 import { render, screen, within } from '@testing-library/react';
 import { ProjectStatementTotals } from './ProjectStatementTotals';
 import type { NativeProjectStatementTotals, StatementReportPeriod } from '@/src/lib/adapterSeam/erpnext/statementReports';

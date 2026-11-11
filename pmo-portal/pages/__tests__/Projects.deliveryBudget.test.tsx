@@ -133,8 +133,8 @@ describe('Projects delivery progress + budget used', () => {
     expect(screen.getAllByText(/Actual is partial on/)).toHaveLength(1);
     expect(screen.getByText('Actual is partial on 1 of 25 projects.')).toBeInTheDocument();
     expect(screen.queryByText('Incomplete source coverage')).not.toBeInTheDocument();
-    expect(screen.getByText('$1,234,568.00')).toBeInTheDocument();
-    expect(document.querySelectorAll('tbody tr')[1].querySelector('[title*="$7,654,321.00"]')).not.toBeNull();
+    expect(screen.getByText('$1,234,568')).toBeInTheDocument();
+    expect(document.querySelectorAll('tbody tr')[1].querySelector('[title*="$7,654,321"]')).not.toBeNull();
     expect(screen.queryByText(/\$1\.2M of \$7\.7M/)).not.toBeInTheDocument();
   });
 
@@ -143,20 +143,20 @@ describe('Projects delivery progress + budget used', () => {
 
     expect(screen.getAllByLabelText('Delivery 50%')).toHaveLength(1);
     expect(screen.getByText('Budget used')).toBeInTheDocument();
-    expect(screen.getByLabelText('53% of Active budget').closest('[title]')).toHaveAttribute('title', '$2,000,000.00 of $3,800,000.00 Active budget');
+    expect(screen.getByLabelText('53% of Active budget').closest('[title]')).toHaveAttribute('title', '$2,000,000 of $3,800,000 Active budget');
     expect(screen.getByText('53%')).toBeInTheDocument();
     // PL-A: a project without phases shows a dash (its reason is the title), not prose.
     expect(screen.queryByText('No phases yet')).not.toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'No phases yet' })).toHaveTextContent('—');
 
-    // Freed-Blue Status Rule (CW-2) + S1 (ADR-0068): on-hand "Ongoing Project" is the
-    // neutral grey `progress` treatment — a muted dot + muted label, NO tint slab and
-    // NOT the action-blue (the LABEL carries identity).
+    // Freed-Blue Status Rule (CW-2) + S1 (ADR-0068) as amended 2026-10-29 (decorative
+    // dot ban): on-hand "Ongoing Project" is the neutral grey `progress` treatment —
+    // a muted label on the pale neutral surface, NO tint slab and NOT the action-blue
+    // (the LABEL carries identity).
     const ongoingStatus = screen.getByText('Ongoing Project').closest('span');
     expect(ongoingStatus?.className).not.toContain('bg-primary');
-    expect(ongoingStatus?.className).toContain('text-muted-foreground');
-    const ongoingDot = ongoingStatus?.querySelector('[data-pill-dot]') as HTMLElement;
-    expect(ongoingDot.style.background).toBe('hsl(var(--muted-foreground))');
+    expect(ongoingStatus?.className).toContain('text-count-foreground');
+    expect(ongoingStatus?.className).toContain('bg-status-neutral-surface');
 
     const deliveryCell = screen.getByLabelText('Delivery 50%').closest('td')!;
     expect(within(deliveryCell).getByText('50%')).toBeInTheDocument();
@@ -183,7 +183,7 @@ describe('Projects delivery progress + budget used', () => {
     const noMilestonesRow = screen.getByText('No Milestones Yet').closest('tr')!;
     const budgetColumn = screen.getAllByRole('columnheader').findIndex((header) => header.textContent === 'Budget used');
     const budgetCell = within(noMilestonesRow).getAllByRole('cell')[budgetColumn];
-    expect(within(budgetCell).getByText('Unavailable')).toBeInTheDocument();
+    expect(budgetCell).toBeEmptyDOMElement();
     expect(within(budgetCell).queryByText(/\$0 of \$0/i)).not.toBeInTheDocument();
   });
 });

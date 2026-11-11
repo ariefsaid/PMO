@@ -3,7 +3,7 @@
 # with-db-lock.sh — mutual exclusion for the SINGLE local Supabase stack across
 # parallel agents. The local stack is one machine-global Docker stack (one DB);
 # two agents running `supabase db reset` / `supabase test db` / Playwright e2e at
-# once corrupt each other (docs/pi-delegation.md §3b). Wrap EVERY DB-driving
+# once corrupt each other (docs/orca-dispatch.md "Shared local database"). Wrap EVERY DB-driving
 # command in this so only one runs at a time; others block until it frees.
 #
 #   scripts/with-db-lock.sh supabase db reset --yes
@@ -23,7 +23,7 @@
 # clean up. macOS has no flock(1), hence python3 (stdlib fcntl; always present).
 # The flock core lives in scripts/lib/flock-run.sh.
 #
-# ── ACQUISITION ORDER (machine-global, outermost first): erpnext -> db -> test ──
+# ── ACQUISITION ORDER (machine-global, outermost first): odoo -> erpnext -> db -> test ──
 # This is the MIDDLE lock — acquire it after ERPNext and before the test lock
 # when all are needed (see scripts/lib/flock-run.sh).
 #

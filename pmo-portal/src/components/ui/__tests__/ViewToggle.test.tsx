@@ -31,6 +31,12 @@ describe('ViewToggle (segmented control)', () => {
     expect(active.className).toContain('font-semibold');
   });
 
+  it('keeps compact labels in the accessible name when they are visually hidden', () => {
+    render(<ViewToggle options={opts} value="table" onChange={() => {}} ariaLabel="View" labelClassName="max-sm:sr-only" />);
+    expect(screen.getByRole('tab', { name: 'Table' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Table' }).querySelector('span')).toHaveClass('max-sm:sr-only');
+  });
+
   it('calls onChange with the clicked value', async () => {
     const onChange = vi.fn();
     render(<ViewToggle options={opts} value="table" onChange={onChange} ariaLabel="View" />);
@@ -38,13 +44,15 @@ describe('ViewToggle (segmented control)', () => {
     expect(onChange).toHaveBeenCalledWith('cards');
   });
 
-  it('ArrowRight moves selection to the next option', async () => {
+  it('ArrowRight moves selection to the next option and moves focus', async () => {
     const onChange = vi.fn();
     render(<ViewToggle options={opts} value="table" onChange={onChange} ariaLabel="View" />);
     const first = screen.getByRole('tab', { name: 'Table' });
     first.focus();
     await userEvent.keyboard('{ArrowRight}');
     expect(onChange).toHaveBeenCalledWith('kanban');
+    const second = screen.getByRole('tab', { name: 'Board' });
+    expect(second).toHaveFocus();
   });
 
   it('renders a trailing count badge when provided', () => {
@@ -56,7 +64,9 @@ describe('ViewToggle (segmented control)', () => {
         ariaLabel="Mode"
       />
     );
-    expect(screen.getByText('4')).toBeInTheDocument();
+    const count = screen.getByText('4');
+    expect(count).toBeInTheDocument();
+    expect(count).toHaveClass('text-muted-foreground');
   });
 
   it('wrapperClassName wraps the option button without adding display to the button (A-MIN-1 clsx-safe hide)', () => {
@@ -85,5 +95,12 @@ describe('ViewToggle (segmented control)', () => {
     // The button's parent must not be the tablist itself.
     const tablist = screen.getByRole('tablist', { name: 'View' });
     expect(wrapper).not.toBe(tablist);
+  });
+
+  it('#1461: a value with no tab (URL-only drill filter) leaves the first tab keyboard-reachable', () => {
+    render(<ViewToggle options={opts} value="on-hand" onChange={() => {}} ariaLabel="View" />);
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((t) => t.getAttribute('tabindex'))).toEqual(['0', '-1', '-1']);
+    expect(tabs.some((t) => t.getAttribute('aria-selected') === 'true')).toBe(false);
   });
 });

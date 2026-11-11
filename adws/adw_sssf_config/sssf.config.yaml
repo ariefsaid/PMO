@@ -1,11 +1,11 @@
 # sssf.config.yaml — the factory's agent roster. One agent, one prompt, one purpose.
 # v1 runs the Pi coding agent only; coding_agent: claude_code arrives in v2.
-# PMO substrate ruling (owner 2026-07-30, docs/pi-delegation.md §2): pi runs on z.ai GLM with
+# PMO substrate ruling (owner 2026-07-30, docs/archive/pi-delegation.md §2): pi runs on z.ai GLM with
 # openai-codex (OAuth) as the cross-family lane — openrouter is banned, fireworks/NIM/requesty are out.
 # `claude -p` stays the last-resort rung of pi-dispatch only: SSSF v1 is pi-only (claude_code is
 # stubbed until v2), so there is no claude fallback rung here — if both substrates are down, wait.
 # ⚑ Owner 2026-08-20: BUILDERS RUN ON BITDEER DeepSeek-V4-Flash (`bitdeer/deepseek-ai/DeepSeek-V4-Flash`,
-# registered in ~/.pi/agent/models.json, docs/pi-delegation.md §2a). Plan on GLM/terra → build on
+# registered in ~/.pi/agent/models.json, docs/archive/pi-delegation.md §2a). Plan on GLM/terra → build on
 # deepseek-flash → review on GLM/luna/terra by availability. Side effect worth having: the build/review
 # boundary is CROSS-FAMILY again (deepseek vs codex), which the all-codex roster had given up.
 defaults:
@@ -175,7 +175,7 @@ agents:
     fallbacks: [zai/glm-5.3-flash]
     thinking: xhigh
                                                  # its self-check is the a11y tree / DOM via agent-browser
-                                                 # (pi-delegation §3a); pixel judgment stays with fe_reviewer
+                                                 # (docs/archive/pi-delegation.md §3a); pixel judgment stays with fe_reviewer
     color: "#34d399"
     purpose: Implement one FE/UI slice strictly to DESIGN.md tokens; self-verify rendered states via agent-browser.
     contract: .claude/agents/ui-implementer.md

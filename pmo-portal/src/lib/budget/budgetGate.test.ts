@@ -156,12 +156,19 @@ describe('runBudgetGate', () => {
     expect(result).toEqual({
       versionId: 'ver-1',
       projectId: 'proj-1',
+      budgetMode: 'per_year',
       activatedAt: '2026-07-16T10:00:00Z',
       plan: [{ fiscal_year: '2026', line_items: DEFAULT_LINE_ITEMS }],
       projectStartDate: '2026-01-01',
       projectEndDate: '2026-12-31',
       categoryMap: DEFAULT_MAP,
+      sourceLineItems: DEFAULT_LINE_ITEMS,
       inSpanFiscalYears: ['2026'],
+      fiscalYears: [
+        { name: '2025', start: '2025-01-01', end: '2025-12-31' },
+        { name: '2026', start: '2026-01-01', end: '2026-12-31' },
+        { name: '2027', start: '2027-01-01', end: '2027-12-31' },
+      ],
     });
   });
 });

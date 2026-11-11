@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { assertNoBinary, type NoteBlock } from '@/src/lib/meetingNotes';
@@ -6,6 +7,14 @@ import type { Json, Tables, TablesInsert, TablesUpdate } from '@/src/lib/supabas
 export type MeetingRow = Tables<'meetings'>;
 export type MeetingAttendeeRow = Tables<'meeting_attendees'>;
 export type MeetingGrantRow = Tables<'meeting_access_grants'>;
+
+/** The list needs meeting identity, header and archive fields, never the potentially large minutes. */
+export type MeetingListItem = Pick<
+  MeetingRow,
+  'id' | 'title' | 'occurred_at' | 'location' | 'project_id' | 'created_by_id' | 'archived_at'
+> & {
+  project: { id: string; name: string; short_name: string | null } | null;
+};
 
 /**
  * A meeting row joined with its project (name + PM) for the list/detail surfaces. The PM ride-along
@@ -16,6 +25,7 @@ export type MeetingWithRefs = MeetingRow & {
   project: {
     id: string;
     name: string;
+    short_name?: string | null;
     project_manager_id: string | null;
     pm: { id: string; full_name: string } | null;
   } | null;
@@ -47,22 +57,6 @@ export type MeetingGrantWithRefs = MeetingGrantRow & {
 export interface MeetingNoteBlock {
   type: 'p';
   text: string;
-}
-
-/**
- * Coerce a stored `notes` JSON value into the v1 block array, defensively: the schema asserts
- * only "array" (FR-MTG-002), so unknown block shapes flatten to their `text` (or '') rather than
- * crashing the page — a forward-compatibility guard, not a validation layer.
- */
-export function parseNoteBlocks(notes: Json): MeetingNoteBlock[] {
-  if (!Array.isArray(notes)) return [];
-  return notes.map((b) => {
-    if (b && typeof b === 'object' && !Array.isArray(b)) {
-      const text = (b as { text?: unknown }).text;
-      return { type: 'p' as const, text: typeof text === 'string' ? text : '' };
-    }
-    return { type: 'p' as const, text: typeof b === 'string' ? b : '' };
-  });
 }
 
 /** The fields a create form supplies. org_id / created_by_id are NEVER among them — RLS + the
@@ -103,12 +97,16 @@ function throwWrite(error: PostgrestErrorLike): never {
  *  and the nested `pm` embed MUST be qualified: profiles is reachable from projects via more than
  *  one FK). */
 const SELECT =
-  '*, project:projects!meetings_project_id_fkey(id, name, project_manager_id, pm:profiles!projects_project_manager_id_fkey(id, full_name))';
+  '*, project:projects!meetings_project_id_fkey(id, name, short_name, project_manager_id, pm:profiles!projects_project_manager_id_fkey(id, full_name))';
+const LIST_SELECT =
+  'id, title, occurred_at, location, project_id, created_by_id, archived_at, project:projects!meetings_project_id_fkey(id, name, short_name)';
 
 export interface MeetingListParams {
   projectId?: string;
   /** Free-text search over `notes_search` (title + notes projection, FR-MTG-011/012). */
   search?: string;
+  /** Include archived meetings alongside active meetings. */
+  includeArchived?: boolean;
 }
 
 /**
@@ -153,14 +151,14 @@ function ilikeAnyOf(columns: readonly string[], term: string): string {
  * `?q=` list URL — so it is built with `ilikeAnyOf`, which PostgREST-quotes each value. The term can
  * never close its value and add a condition to the `or` filter.
  */
-export async function listMeetings(params?: MeetingListParams): Promise<MeetingWithRefs[]> {
+export async function listMeetings(params?: MeetingListParams): Promise<MeetingListItem[]> {
   const q = params?.search?.trim();
   const build = (leg?: 'fts' | 'substring') => {
     let query = supabase
       .from('meetings')
-      .select(SELECT)
-      .eq('is_template', false)
-      .is('archived_at', null);
+      .select(LIST_SELECT)
+      .eq('is_template', false);
+    if (!params?.includeArchived) query = query.is('archived_at', null);
     if (params?.projectId) query = query.eq('project_id', params.projectId);
     if (q && leg === 'fts') {
       query = query.textSearch('notes_search', q, { type: 'websearch', config: 'simple' });
@@ -173,7 +171,7 @@ export async function listMeetings(params?: MeetingListParams): Promise<MeetingW
   if (!q) {
     const { data, error } = await build();
     if (error) throwWrite(error);
-    return (data ?? []) as unknown as MeetingWithRefs[];
+    return (data ?? []) as unknown as MeetingListItem[];
   }
 
   // A term of only wildcard / escape symbols leaves nothing to match; its substring leg would be
@@ -181,16 +179,16 @@ export async function listMeetings(params?: MeetingListParams): Promise<MeetingW
   if (!substringText(q)) {
     const { data, error } = await build('fts');
     if (error) throwWrite(error);
-    return (data ?? []) as unknown as MeetingWithRefs[];
+    return (data ?? []) as unknown as MeetingListItem[];
   }
 
   const [fts, substring] = await Promise.all([build('fts'), build('substring')]);
   if (substring.error) throwWrite(substring.error);
-  const substringRows = (substring.data ?? []) as unknown as MeetingWithRefs[];
+  const substringRows = (substring.data ?? []) as unknown as MeetingListItem[];
   if (fts.error) return substringRows;
 
-  const byId = new Map<string, MeetingWithRefs>();
-  for (const row of [...((fts.data ?? []) as unknown as MeetingWithRefs[]), ...substringRows]) {
+  const byId = new Map<string, MeetingListItem>();
+  for (const row of [...((fts.data ?? []) as unknown as MeetingListItem[]), ...substringRows]) {
     if (!byId.has(row.id)) byId.set(row.id, row);
   }
   return [...byId.values()]
@@ -262,6 +260,18 @@ export async function archiveMeeting(id: string): Promise<void> {
   assertWriteLanded(data, 'Meeting not found or you do not have permission to archive it.');
 }
 
+/** Restore an archived meeting through the same author/Admin RLS authority as its archive. */
+export async function restoreMeeting(id: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('meetings')
+    .update({ archived_at: null })
+    .eq('id', id)
+    .not('archived_at', 'is', null)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Meeting not found or you do not have permission to restore it.');
+}
+
 /**
  * Hard-delete a meeting (Admin-only at RLS). A meeting referenced by tasks FK-blocks with 23503
  * (FR-MTG-016 — the 0206 FK carries no cascade on purpose), surfaced as "in use".
@@ -287,15 +297,16 @@ export interface ContactMeetingRef {
  * state, not an error. The reverse embed is constraint-qualified per the house rule.
  */
 export async function listMeetingsForContact(contactId: string): Promise<ContactMeetingRef[]> {
-  const { data, error } = await supabase
+  const data = await fetchAllPages((from, to) => supabase
     .from('meetings')
     .select(
       'id, title, occurred_at, attendees:meeting_attendees!meeting_attendees_meeting_id_fkey!inner(contact_id)',
     )
     .eq('attendees.contact_id', contactId)
     .is('archived_at', null)
-    .order('occurred_at', { ascending: false });
-  if (error) throwWrite(error);
+    .order('occurred_at', { ascending: false })
+    .order('id', { ascending: true })
+    .range(from, to));
   return (data ?? []).map((m) => ({
     id: (m as { id: string }).id,
     title: (m as { title: string }).title,
@@ -314,14 +325,15 @@ export interface MeetingAttendeeInput {
 
 /** List a meeting's attendees (visible iff the meeting is), oldest-first (insertion order). */
 export async function listMeetingAttendees(meetingId: string): Promise<MeetingAttendeeWithRefs[]> {
-  const { data, error } = await supabase
+  const data = await fetchAllPages((from, to) => supabase
     .from('meeting_attendees')
     .select(
       '*, profile:profiles!meeting_attendees_profile_id_fkey(id, full_name), contact:contacts!meeting_attendees_contact_id_fkey(id, full_name)',
     )
     .eq('meeting_id', meetingId)
-    .order('created_at', { ascending: true });
-  if (error) throwWrite(error);
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to));
   return (data ?? []) as unknown as MeetingAttendeeWithRefs[];
 }
 
@@ -362,14 +374,15 @@ export async function removeMeetingAttendee(id: string): Promise<void> {
 
 /** List a meeting's grants — see MeetingGrantWithRefs for why the embeds are qualified. */
 export async function listMeetingGrants(meetingId: string): Promise<MeetingGrantWithRefs[]> {
-  const { data, error } = await supabase
+  const data = await fetchAllPages((from, to) => supabase
     .from('meeting_access_grants')
     .select(
       '*, user:profiles!meeting_access_grants_user_id_fkey(id, full_name), granter:profiles!meeting_access_grants_granted_by_fkey(id, full_name)',
     )
     .eq('meeting_id', meetingId)
-    .order('granted_at', { ascending: true });
-  if (error) throwWrite(error);
+    .order('granted_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to));
   return (data ?? []) as unknown as MeetingGrantWithRefs[];
 }
 

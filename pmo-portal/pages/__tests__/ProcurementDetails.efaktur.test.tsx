@@ -25,6 +25,9 @@ const detailState = {
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
@@ -64,7 +67,6 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     setEfaktur: { mutateAsync: spies.setEfaktur, isPending: false },
   }),
 }));
-const docsState = { data: [], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useProcurementCrudMutations: () => ({
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -75,7 +77,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: vi.fn(), isPending: false },
     deleteDocument: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [] }),
@@ -111,6 +112,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 const orderedProcurement = {
@@ -171,7 +174,7 @@ const renderAt = (path: string) =>
     </MemoryRouter>,
   );
 
-describe('ProcurementDetails — e-Faktur on the Documents tab', () => {
+describe('ProcurementDetails — e-Faktur on the Files tab (the case ledger)', () => {
   beforeEach(() => {
     detailState.data = orderedProcurement;
     mockEffectiveRole = 'Finance';
@@ -181,9 +184,9 @@ describe('ProcurementDetails — e-Faktur on the Documents tab', () => {
 
   it('AC-EFK-005 Finance records a vendor e-Faktur from the ledger and sees a success toast', async () => {
     const user = userEvent.setup();
-    renderAt('/procurement/proc-001/documents');
+    renderAt('/procurement/proc-001/files');
     const row = screen.getByText('VI-2601100001').closest('tr');
-    if (!row) throw new Error('no ledger row for the vendor invoice');
+    if (!row) throw new Error('no ledger row for the supplier invoice');
     await user.click(within(row).getByRole('button', { name: 'Row actions' }));
     await user.click(screen.getByRole('menuitem', { name: 'Record e-Faktur' }));
     await user.type(screen.getByLabelText('e-Faktur number'), '010.001-26.12345678');
@@ -200,5 +203,8 @@ describe('ProcurementDetails — e-Faktur on the Documents tab', () => {
 });
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useErpJournalLines', () => import('@/pages/__tests__/helpers/erpJournalLinesMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

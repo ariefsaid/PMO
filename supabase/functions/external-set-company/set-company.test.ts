@@ -15,9 +15,9 @@
  * - Audit asserted on success only
  */
 
-import { describe, it, beforeAll, afterAll } from '@std/testing/bdd';
-import { assertEquals, assertRejects, assert } from '@std/assert';
-import { handleSetCompanyRequest, setTestJwks, testSupabaseOptions } from './index.ts';
+import { describe, it, afterAll } from '@std/testing/bdd';
+import { assertEquals, assert } from '@std/assert';
+import { handleSetCompanyRequest, setTestJwks } from './index.ts';
 import {
   createJwtAuthority,
   installEdgeEnv,
@@ -31,6 +31,7 @@ import {
   createTestJwksResolver,
   erp,
   type FetchCall,
+  type MockRoute,
 } from '../_shared/testing/edgeTestKit.ts';
 
 // One stable authority + env per test module (see TEST-ARCH.md _jwks memoization nuance)
@@ -47,6 +48,13 @@ const auth = await createJwtAuthority(env.SUPABASE_URL);
 setTestJwks(createTestJwksResolver(auth));
 
 afterAll(() => { env.restore(); Deno.resolveDns = originalResolveDns; });
+
+function withFeatureEnabled<T>(routes: MockRoute[], run: (ctx: { calls: FetchCall[] }) => Promise<T>): Promise<T> {
+  return withFetchMock([
+    supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
+    ...routes,
+  ], run);
+}
 
 /** The org's ERPNext domain ownership (#656 — the probe scope) + every probed doctype readable. The
  *  probe paths are `/api/resource/<DocType>` (one segment), so the Company lookup never matches here. */
@@ -97,7 +105,7 @@ async function authed(body: unknown, sub = 'user-1') {
 
 describe('external-set-company — ERPNext branch', () => {
   it('Admin OK — sets config.company', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -126,17 +134,63 @@ describe('external-set-company — ERPNext branch', () => {
 
         // FR-EAC-106 (#650): the write moved into the activation RPC so company/version/stamp cannot
         // land partially. Goal oracle unchanged — the selected Company is persisted for this org.
-        supabaseRpc('activate_external_binding', (call) => {
+        supabaseRpc('activate_external_binding_audited', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
           assertEquals(body.p_company, 'ACME Corp');
           return jsonResponse('2026-09-14T00:00:00+00:00');
         }),
 
-        supabaseRpc('log_audit', (call) => {
+      ],
+      async ({ calls }) => {
+        const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME Corp' }));
+        assertEquals(res.status, 200);
+        assertEquals(await res.json(), {
+          ok: true, companyId: 'ACME Corp', versionMajor: 15, activatedAt: '2026-09-14T00:00:00+00:00',
+        });
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 1);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0); // written inside the RPC
+      },
+    );
+  });
+
+  it('a vault secret whose secret half contains a colon authenticates as the whole pair', async () => {
+    let companyAuth: string | null = null;
+    await withFeatureEnabled(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        activeMemberRoute(),
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('key1:sec:ret')),
+
+        erp('erp.example.com', '/api/resource/Company/ACME%20Corp', (call) => {
+          companyAuth = call.headers.get('authorization');
+          return jsonResponse({ data: { name: 'ACME Corp' } });
+        }),
+
+        erp('erp.example.com', '/api/method/frappe.utils.change_log.get_versions',
+          () => jsonResponse({ erpnext: { version: '15.94.3' } })),
+        // #656: the read-permission probe runs between the handshake and the activation RPC.
+        ...activationProbeRoutes(),
+
+        // FR-EAC-106 (#650): the write moved into the activation RPC so company/version/stamp cannot
+        // land partially. Goal oracle unchanged — the selected Company is persisted for this org.
+        supabaseRpc('activate_external_binding_audited', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
-          assertEquals(body.p_action, 'integration.set_company');
-          assertEquals((body.p_detail as Record<string, unknown>).company_id, 'ACME Corp');
-          return jsonResponse(null);
+          assertEquals(body.p_company, 'ACME Corp');
+          return jsonResponse('2026-09-14T00:00:00+00:00');
         }),
       ],
       async ({ calls }) => {
@@ -145,14 +199,14 @@ describe('external-set-company — ERPNext branch', () => {
         assertEquals(await res.json(), {
           ok: true, companyId: 'ACME Corp', versionMajor: 15, activatedAt: '2026-09-14T00:00:00+00:00',
         });
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 1);
-        assertEquals(rpcCall(calls, 'log_audit').length, 1);
+        assertEquals(companyAuth, 'token key1:sec:ret');
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 1);
       },
     );
   });
 
   it('Operator OK', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Engineer' }, {
@@ -181,25 +235,24 @@ describe('external-set-company — ERPNext branch', () => {
 
         // FR-EAC-106 (#650): the config write moved into the activation RPC (mechanism change; the
         // goal oracle — the selected Company is what gets written — is asserted on the RPC args).
-        supabaseRpc('activate_external_binding', (call) => {
+        supabaseRpc('activate_external_binding_audited', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
           assertEquals(body.p_company, 'ACME');
           return jsonResponse('2026-09-14T00:00:00+00:00');
         }),
 
-        supabaseRpc('log_audit', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
         assertEquals(res.status, 200);
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 1);
-        assertEquals(rpcCall(calls, 'log_audit').length, 1);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 1);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0); // written inside the RPC
       },
     );
   });
 
   it('Engineer 403', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Engineer' }, {
@@ -222,7 +275,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('missing binding 404', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -249,7 +302,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('inactive binding 422', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -276,7 +329,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('Vault secret missing 422', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -305,7 +358,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('company not found in ERP 404', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -336,7 +389,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('ERP network/non-404 failure → 502', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -367,7 +420,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('invalid companyId 400', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -396,7 +449,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('no PATCH on 4xx/5xx preconditions', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Engineer' }, {
@@ -418,9 +471,8 @@ describe('external-set-company — ERPNext branch', () => {
     );
   });
 
-  it('audit event logged on success', async () => {
-    let auditCalled = false;
-    await withFetchMock(
+  it('activation is audited inside the RPC, not by a separate log_audit call', async () => {
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -449,30 +501,23 @@ describe('external-set-company — ERPNext branch', () => {
 
         // FR-EAC-106 (#650): the config write moved into the activation RPC; the audit test now
         // asserts the company on the RPC args instead of the retired PATCH body.
-        supabaseRpc('activate_external_binding', (call) => {
+        supabaseRpc('activate_external_binding_audited', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
           assertEquals(body.p_company, 'ACME');
           return jsonResponse('2026-09-14T00:00:00+00:00');
         }),
 
-        supabaseRpc('log_audit', (call) => {
-          const body = call.bodyJson as Record<string, unknown>;
-          assertEquals(body.p_action, 'integration.set_company');
-          assertEquals((body.p_detail as Record<string, unknown>).company_id, 'ACME');
-          auditCalled = true;
-          return jsonResponse(null);
-        }),
       ],
-      async () => {
+      async ({ calls }) => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
         assertEquals(res.status, 200);
-        assertEquals(auditCalled, true);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
       },
     );
   });
 
   it('AC-EAC-104 an empty site_url refuses Company selection before any external call', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -488,14 +533,14 @@ describe('external-set-company — ERPNext branch', () => {
         assertEquals(res.status, 422);
         assertEquals((await res.json()).error, 'CONFIG_REJECTED');
         assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 0);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 0);
         assertEquals(calls.filter((c) => c.url.host === 'erp.example.com').length, 0);
       },
     );
   });
 
   it('AC-EAC-106 an unsupported ERPNext major refuses with a legible 422 and writes nothing', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -522,7 +567,7 @@ describe('external-set-company — ERPNext branch', () => {
         assertEquals(body.reason, 'erpnext-unsupported-version');
         assertEquals(body.versionMajor, 14);
         assertEquals(body.supportedMajors, [15, 16]);
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 0);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 0);
         assertEquals(rpcCall(calls, 'log_audit').length, 0);
         assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
       },
@@ -530,7 +575,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('AC-EAC-105 the handshake runs before any write — Company-validate → version-handshake → activation RPC, and no direct PATCH', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -546,8 +591,7 @@ describe('external-set-company — ERPNext branch', () => {
           () => jsonResponse({ erpnext: { version: '15.94.3' } })),
         // #656: the read-permission probe runs between the handshake and the activation RPC.
         ...activationProbeRoutes(),
-        supabaseRpc('activate_external_binding', () => jsonResponse('2026-09-14T00:00:00+00:00')),
-        supabaseRpc('log_audit', () => jsonResponse(null)),
+        supabaseRpc('activate_external_binding_audited', () => jsonResponse('2026-09-14T00:00:00+00:00')),
       ],
       async ({ calls }) => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
@@ -559,13 +603,13 @@ describe('external-set-company — ERPNext branch', () => {
         assert(order.indexOf('/api/resource/Company/ACME')
              < order.indexOf('/api/method/frappe.utils.change_log.get_versions'));
         assert(order.indexOf('/api/method/frappe.utils.change_log.get_versions')
-             < order.indexOf('/rest/v1/rpc/activate_external_binding'));
+             < order.indexOf('/rest/v1/rpc/activate_external_binding_audited'));
       },
     );
   });
 
   it('AC-EAC-107 a v15 handshake activates with the Company account defaults', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -583,7 +627,7 @@ describe('external-set-company — ERPNext branch', () => {
           () => jsonResponse({ erpnext: { version: '15.94.3' } })),
         // #656: the read-permission probe runs between the handshake and the activation RPC.
         ...activationProbeRoutes(),
-        supabaseRpc('activate_external_binding', (call) => {
+        supabaseRpc('activate_external_binding_audited', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
           assertEquals(body.p_version_major, 15);
           assertEquals(body.p_company, 'ACME');
@@ -593,7 +637,6 @@ describe('external-set-company — ERPNext branch', () => {
           assertEquals(patch.default_bank_account, null);
           return jsonResponse('2026-09-14T00:00:00+00:00');
         }),
-        supabaseRpc('log_audit', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
@@ -601,13 +644,13 @@ describe('external-set-company — ERPNext branch', () => {
         assertEquals(await res.json(), {
           ok: true, companyId: 'ACME', versionMajor: 15, activatedAt: '2026-09-14T00:00:00+00:00',
         });
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 1);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 1);
       },
     );
   });
 
   it('AC-EAC-108 a v16 handshake activates (DD-OPS-10 — RIS targets v16.33); the v16.33 Company shape (four defaults present, default_bank_account ABSENT) maps bank to null', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -633,7 +676,7 @@ describe('external-set-company — ERPNext branch', () => {
           () => jsonResponse({ erpnext: { version: '16.33.0' } })),
         // #656: the read-permission probe runs between the handshake and the activation RPC.
         ...activationProbeRoutes(),
-        supabaseRpc('activate_external_binding', (call) => {
+        supabaseRpc('activate_external_binding_audited', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
           assertEquals(body.p_version_major, 16);
           const patch = body.p_config_patch as Record<string, unknown>;
@@ -646,12 +689,11 @@ describe('external-set-company — ERPNext branch', () => {
           assertEquals('default_bank_account' in patch, true);
           return jsonResponse('2026-09-14T00:00:00+00:00');
         }),
-        supabaseRpc('log_audit', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
         assertEquals(res.status, 200);
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 1);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 1);
       },
     );
   });
@@ -659,7 +701,7 @@ describe('external-set-company — ERPNext branch', () => {
   // ── #656: the integration user's read permissions are probed before activated_at is stamped ──────
 
   it('AC-ENA-074 (#656) a user missing reads is refused with a 422 naming EVERY unreadable doctype, and nothing is activated', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         ...throughHandshake(),
         ...activationProbeRoutes(['timesheets'], (doctype) =>
@@ -678,14 +720,14 @@ describe('external-set-company — ERPNext branch', () => {
         // The structured reason the Company dialog renders in the viewer's language.
         assertEquals(body.reason, 'erpnext-missing-read-permissions');
         assertEquals(body.missing, ['Timesheet', 'GL Entry']);
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 0);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 0);
         assertEquals(rpcCall(calls, 'log_audit').length, 0);
       },
     );
   });
 
   it('AC-ENA-074 (#656) an unreachable site during the probe is a 502 (not a permission claim), and nothing is activated', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         ...throughHandshake(),
         ...activationProbeRoutes(['procurement'], (doctype) =>
@@ -697,13 +739,13 @@ describe('external-set-company — ERPNext branch', () => {
         assertEquals((await res.json()).error, 'external-unreachable');
         // The 5s/no-retry budget: the failing probe got exactly one attempt.
         assertEquals(probedDoctypes(calls).filter((d) => d === 'GL Entry').length, 1);
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 0);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 0);
       },
     );
   });
 
   it('#656 an unreadable domain ownership fails closed with a 500, and nothing is activated', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         ...throughHandshake(),
         supabaseSelect('external_domain_ownership', () => jsonResponse({ message: 'boom', code: 'XX000' }, { status: 500 })),
@@ -712,18 +754,17 @@ describe('external-set-company — ERPNext branch', () => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
         assertEquals(res.status, 500);
         assertEquals(probedDoctypes(calls).length, 0);
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 0);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 0);
       },
     );
   });
 
   it('#656 a fully readable user activates; the probe covers the owned domains + ledgers only, after the handshake, never following redirects', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         ...throughHandshake(),
         ...activationProbeRoutes(['procurement']),
-        supabaseRpc('activate_external_binding', () => jsonResponse('2026-09-14T00:00:00+00:00')),
-        supabaseRpc('log_audit', () => jsonResponse(null)),
+        supabaseRpc('activate_external_binding_audited', () => jsonResponse('2026-09-14T00:00:00+00:00')),
       ],
       async ({ calls }) => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
@@ -736,7 +777,7 @@ describe('external-set-company — ERPNext branch', () => {
         const order = calls.map((c) => c.url.pathname);
         const firstProbe = calls.findIndex((c) => c.url.pathname === '/api/resource/GL%20Entry');
         assert(order.indexOf('/api/method/frappe.utils.change_log.get_versions') < firstProbe);
-        assert(firstProbe < order.indexOf('/rest/v1/rpc/activate_external_binding'));
+        assert(firstProbe < order.indexOf('/rest/v1/rpc/activate_external_binding_audited'));
         for (const c of calls.filter((c) => c.url.host === 'erp.example.com' && c.url.pathname !== '/api/resource/Company/ACME')) {
           assertEquals(c.redirect, 'manual', `${c.url.pathname} must not follow redirects`);
         }
@@ -747,7 +788,7 @@ describe('external-set-company — ERPNext branch', () => {
   // ── #656 review: caller standing + the probe's total time budget ─────────────────────────────────
 
   it('AC-ENA-074 (#656) a disabled or banned Admin with a valid token is refused 403 and nothing is read or activated', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -765,14 +806,14 @@ describe('external-set-company — ERPNext branch', () => {
         assertEquals(res.status, 403);
         assertEquals(restCall(calls, 'external_org_bindings').length, 0);
         assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 0);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 0);
         assertEquals(calls.filter((c) => c.url.host === 'erp.example.com').length, 0);
       },
     );
   });
 
   it('#656 an unresolvable caller standing fails closed with a 403', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -783,7 +824,7 @@ describe('external-set-company — ERPNext branch', () => {
       async ({ calls }) => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
         assertEquals(res.status, 403);
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 0);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 0);
       },
     );
   });
@@ -797,7 +838,7 @@ describe('external-set-company — ERPNext branch', () => {
       const t = setTimeout(() => resolve(jsonResponse({ data: [] })), 3_000);
       call.signal.addEventListener('abort', () => { clearTimeout(t); reject(call.signal.reason); });
     });
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         ...throughHandshake(),
         supabaseSelect('external_domain_ownership', () => jsonResponse([{ domain: 'procurement' }])),
@@ -807,7 +848,7 @@ describe('external-set-company — ERPNext branch', () => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
         assertEquals(res.status, 502);
         assertEquals((await res.json()).error, 'external-unreachable');
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 0);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 0);
         assertEquals(rpcCall(calls, 'log_audit').length, 0);
       },
     );
@@ -862,7 +903,7 @@ describe('external-set-company — host guard (#751)', () => {
   ];
   for (const [where, records] of resolvingPrivate) {
     it(`#751 refuses a binding whose site name resolves to ${where} — nothing is activated`, async () => {
-      await withFetchMock(routes(), async ({ calls }) =>
+      await withFeatureEnabled(routes(), async ({ calls }) =>
         withDns(records, async () => {
           const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
           assertEquals(res.status, 422);
@@ -870,7 +911,7 @@ describe('external-set-company — host guard (#751)', () => {
             error: 'config-rejected',
             message: 'Private or reserved addresses are not allowed',
           });
-          assertEquals(rpcCall(calls, 'activate_external_binding').length, 0);
+          assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 0);
           assertEquals(rpcCall(calls, 'log_audit').length, 0);
           assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
         }));
@@ -878,7 +919,7 @@ describe('external-set-company — host guard (#751)', () => {
   }
 
   it('#751 accepts a binding whose site name resolves PUBLIC (sslip.io-style real ERP) — full activation', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         ...routes(),
         erp(HOST, '/api/resource/Company/ACME', () => jsonResponse({ data: { name: 'ACME' } })),
@@ -886,8 +927,7 @@ describe('external-set-company — host guard (#751)', () => {
           () => jsonResponse({ erpnext: { version: '16.33.0' } })),
         supabaseSelect('external_domain_ownership', () => jsonResponse([{ domain: 'procurement' }])),
         erp(HOST, /^\/api\/resource\/[^/]+$/, () => jsonResponse({ data: [] })),
-        supabaseRpc('activate_external_binding', () => jsonResponse('2026-09-14T00:00:00+00:00')),
-        supabaseRpc('log_audit', () => jsonResponse(null)),
+        supabaseRpc('activate_external_binding_audited', () => jsonResponse('2026-09-14T00:00:00+00:00')),
       ],
       async () => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
@@ -900,7 +940,7 @@ describe('external-set-company — host guard (#751)', () => {
   });
 
   it('#751 fails closed when the resolver errors — nothing is activated', async () => {
-    await withFetchMock(routes(), async ({ calls }) =>
+    await withFeatureEnabled(routes(), async ({ calls }) =>
       withDns('failure', async () => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
         assertEquals(res.status, 422);
@@ -908,7 +948,7 @@ describe('external-set-company — host guard (#751)', () => {
           error: 'config-rejected',
           message: 'Private or reserved addresses are not allowed',
         });
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 0);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 0);
         assertEquals(rpcCall(calls, 'log_audit').length, 0);
         assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
       }));

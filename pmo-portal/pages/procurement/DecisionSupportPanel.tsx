@@ -7,12 +7,11 @@
  *
  * Three budget layers (ADR-0034):
  *   • Budget    = useProjectBudget(projectId) — Σ Active budget-version line items.
- *   • Committed = useProjectCommittedSpend(projectId) — Σ PO total_value in
- *                 Ordered/Received/Vendor Invoiced/Paid (the EXACT basis the dashboards
- *                 use, 0009_dashboard_margin.sql). UNCHANGED by this feature.
+ *   • Committed = useProjectCommittedSpend(projectId) — the project-currency open
+ *                 commitment position, with ERP ledger treatment per ADR-0093.
  *   • Reserved  = useProjectReservedSpend(projectId) — Σ total_value in Approved/Vendor
  *                 Quoted/Quote Selected (approved, not yet ordered — "encumbrance").
- * No new RPC — three focused org-scoped reads.
+ * Three focused org-scoped reads.
  *
  * Available = Budget − Committed − Reserved (the over-commitment-safe headroom).
  *
@@ -27,6 +26,7 @@
  */
 import React from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { Card, CardPad } from '@/src/components/ui/Card';
 import { StatTiles } from '@/src/components/ui/StatTiles';
 import { ErrBanner } from '@/src/components/ui/ErrBanner';
@@ -54,10 +54,11 @@ export interface DecisionSupportPanelProps {
   totalValue: number;
   /** Project display name (from DETAIL_SELECT join). */
   projectName: string | null | undefined;
+  /** Contractual title behind a short `projectName`. */
+  projectLegalName?: string | null;
   /** The case's current status — drives per-stage math + the visibility boundary. */
   status: ProcurementStatus;
-  /** The procurement's own ISO-4217 currency (FR-L10N-020) — every figure here derives
-   *  from `totalValue`/the project's budget rollups, which share this record's currency. */
+  /** The procurement's own ISO-4217 currency. */
   currency: string;
 }
 
@@ -65,9 +66,11 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   projectId,
   totalValue,
   projectName,
+  projectLegalName,
   status,
   currency,
 }) => {
+  const { t } = useTranslation('procurement');
   // Committed and Reserved sum every request on the project. A role that reads only the requests it
   // raised (Engineer, migration 0350) would get a partial sum and an overstated Available, so the
   // panel is not offered to it and its reads are not issued.
@@ -98,6 +101,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         <ProjectNameLink
           projectId={scopedProjectId}
           name={projectName}
+          legalName={projectLegalName}
           className="text-[12.5px] font-medium text-foreground"
         />
       ) : null}
@@ -152,42 +156,71 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     );
   }
 
+  const projectCurrency = reservedQ.projectCurrency;
+  const budgetCurrency = reservedQ.budgetCurrency;
+  // #1354: the project's own figures (budget, committed, reserved) share one currency. A request in another
+  // currency is shown in ITS currency beside them, with no conversion and no after-request comparison.
+  const requestInOtherCurrency = !!currency && !!projectCurrency && budgetCurrency === projectCurrency && currency !== projectCurrency;
+  if (!currency || !projectCurrency || !budgetCurrency ||
+      (!requestInOtherCurrency && (currency !== projectCurrency || budgetCurrency !== projectCurrency))) {
+    return (
+      <Card variant="bare" className="mb-4"><CardPad>{heading}
+        <p className="text-[13px] text-muted-foreground">{t('decisionSupport.currencyUnavailable', 'Budget comparison unavailable for these currencies.')}</p>
+      </CardPad></Card>
+    );
+  }
+
   // ── Figures (three layers, ADR-0034) ─────────────────────────────────────────
   // Interdependent budget math lives in the pure computeBudgetSignal helper so it is
   // independently unit-testable; this block is presentation-only.
   const committedSpend = committed.data ?? 0;
+  const otherCurrencyCommitted = (committed.otherCurrencies ?? [])
+    .map((position) => formatCurrency(position.amount, position.currency)).join(', ');
+  const otherCurrencyReserved = (reservedQ.otherCurrencies ?? [])
+    .map((position) => position.currency ? formatCurrency(position.amount, position.currency) : t('decisionSupport.currencyUnknown', 'currency unavailable'))
+    .join(', ');
   const reserved = reservedQ.data ?? 0; // TOTAL reserved (incl. this case if applicable)
-  const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } =
-    computeBudgetSignal({
-      budget: budgetAmount,
-      committed: committedSpend,
-      reserved,
-      totalValue,
-      status,
-    });
+  let signal;
+  try {
+    // A request in another currency is not part of the project's figures: compute them without it.
+    signal = requestInOtherCurrency
+      ? computeBudgetSignal({ budget: budgetAmount, committed: committedSpend, reserved, totalValue: 0, status: 'Draft', projectCurrency, budgetCurrency, requestCurrency: projectCurrency })
+      : computeBudgetSignal({ budget: budgetAmount, committed: committedSpend, reserved, totalValue, status, projectCurrency, budgetCurrency, requestCurrency: currency });
+  } catch {
+    return <Card variant="bare" className="mb-4"><CardPad>{heading}
+      <p className="text-[13px] text-muted-foreground">{t('decisionSupport.amountUnavailable', 'Budget comparison unavailable for these amounts.')}</p>
+    </CardPad></Card>;
+  }
+  const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } = signal;
   const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
 
   const tiles = [
-    { label: 'This request', value: formatCurrency(totalValue, currency) },
+    {
+      label: t('decisionSupport.thisProcurement', 'This procurement'),
+      value: formatCurrency(totalValue, currency),
+      ...(requestInOtherCurrency ? { sub: t('decisionSupport.notCompared', 'In a different currency: not compared with the budget') } : {}),
+    },
     {
       label: 'Reserved',
-      value: formatCurrency(otherReserved, currency),
-      sub: 'approved, not yet ordered',
+      value: formatCurrency(otherReserved, budgetCurrency),
+      sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : 'approved, not yet ordered',
     },
     {
       label: 'Available',
-      value: formatCurrency(available, currency),
+      value: formatCurrency(available, budgetCurrency),
       tone: available < 0 ? ('neg' as const) : undefined,
+      // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
+      ...(otherCurrencyCommitted ? { sub: `Not counting commitments in other currencies: ${otherCurrencyCommitted}` } : {}),
     },
-    { label: 'Project budget', value: formatCurrency(budgetAmount, currency) },
-    {
-      label: 'After this request',
+    { label: 'Project budget', value: formatCurrency(budgetAmount, budgetCurrency) },
+    ...(requestInOtherCurrency ? [] : [{
+      label: t('decisionSupport.afterThisProcurement', 'After this procurement'),
       value: formatCurrency(afterRequest, currency),
       // I4 (design-review): afterPct is headroom remaining (afterRequest/budget),
       // NOT utilization — labelled "% headroom remaining" for honest spend control.
       sub: `${afterPct.toFixed(1)}% headroom remaining`,
       tone: afterRequest < 0 ? ('neg' as const) : undefined,
-    },
+    }]),
   ];
 
   return (
@@ -199,18 +232,18 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             Available (Budget − Committed − Reserved) is the over-commitment-safe
             headroom; no progress bar — an uninformative single-segment 0% bar
             misreads as broken (Wave-5 I1). columns=3 → a 3+2 strip for five tiles. */}
-        <StatTiles tiles={tiles} columns={5} />
+        <StatTiles tiles={tiles} columns={tiles.length >= 5 ? 5 : 4} />
 
         {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not
             color-only). Approval is still permitted (OD-W5-4/OD-W5-5). */}
-        {overAvailable && (
+        {overAvailable && !requestInOtherCurrency && (
           <ErrBanner
             className="mt-3 mb-0"
             title="Over available budget"
             sub={
               <>
-                This request exceeds available budget by{' '}
+                {t('decisionSupport.overBudgetLead', 'This procurement exceeds available budget by')}{' '}
                 <strong className="tabular">{formatCurrency(overAvailableAmount, currency)}</strong>. Approval
                 is still permitted — this is an advisory only.
               </>
@@ -220,7 +253,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
         {/* Already-reserved + project over budget — no thisRequest advisory (it is
             already counted in Reserved); surface the over-budget condition instead. */}
-        {overBudgetReserved && (
+        {overBudgetReserved && !requestInOtherCurrency && (
           <ErrBanner
             className="mt-3 mb-0"
             title="Project over budget"

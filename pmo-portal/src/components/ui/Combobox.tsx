@@ -36,9 +36,28 @@ export interface ComboboxOption {
   label: string;
   /** Optional secondary line (e.g. "Client" / "Vendor"). */
   sub?: string;
+  /** Render a full, wrapping label with `sub` on its own line for server results that need distinguishing details. */
+  wrapLabel?: boolean;
+  /** Optional non-truncating labels shown as separate badges in the option row. */
+  badges?: string[];
   /** Optional 2-letter avatar + color for the chip/row. */
   initials?: string;
   color?: string;
+}
+
+/** Server-search mode: the caller owns the options (searched and paged on the server); Combobox keeps the keyboard, focus and ARIA model and skips its own load and filter. */
+export interface ComboboxServerSearch {
+  options: ComboboxOption[];
+  status: 'loading' | 'ready' | 'error';
+  /** Called with the typed text on every change (and '' on close); debounce in the caller. */
+  onQueryChange: (query: string) => void;
+  onOpenChange?: (open: boolean) => void;
+  onRetry: () => void;
+  hasMore?: boolean;
+  /** Next page; also fired by ArrowDown on the last option. */
+  onLoadMore?: () => void;
+  /** Label of the Show more button (translated by the caller's namespace). */
+  moreLabel?: string;
 }
 
 export interface ComboboxProps {
@@ -49,13 +68,11 @@ export interface ComboboxProps {
   selectedOption?: ComboboxOption | null;
   onChange: (value: string, option: ComboboxOption) => void;
   /** Async option loader (the DAL FK source). Re-invoked on retry. */
-  loadOptions: () => Promise<ComboboxOption[]>;
+  loadOptions?: () => Promise<ComboboxOption[]>;
+  serverSearch?: ComboboxServerSearch;
   placeholder?: string;
   required?: boolean;
   error?: React.ReactNode;
-  /** Optional inline-create from the empty state; receives the current query. */
-  onCreate?: (query: string) => void;
-  createLabel?: string;
   /** Search input placeholder. */
   searchPlaceholder?: string;
   /** Noun for the empty/error copy, e.g. "company". */
@@ -64,9 +81,16 @@ export interface ComboboxProps {
   clearable?: boolean;
   onClear?: () => void;
   disabled?: boolean;
+  /** Keep the clear (x) affordance usable while `disabled`, so a saved value stays removable
+   *  when only BROWSING is locked (e.g. the ERPNext org settings: no active binding, choice
+   *  remains clearable — AC-S11-002/AC-S11-004). Default false: a disabled picker is fully inert
+   *  (no open, no select, no clear). */
+  clearWhileDisabled?: boolean;
   /** Stable DOM id for form error-summary focus links. */
   id?: string;
   className?: string;
+  /** Size/fill the trigger like the shared form controls (SelectField/TextField). */
+  formControl?: boolean;
 }
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -77,18 +101,19 @@ export const Combobox: React.FC<ComboboxProps> = ({
   selectedOption,
   onChange,
   loadOptions,
+  serverSearch,
   placeholder = 'Select…',
   required,
   error,
-  onCreate,
-  createLabel = 'Create',
   searchPlaceholder,
   noun = 'option',
   clearable,
   onClear,
   disabled,
+  clearWhileDisabled,
   id,
   className,
+  formControl,
 }) => {
   const { t } = useTranslation();
   const baseId = useId();
@@ -98,11 +123,16 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [state, setState] = useState<LoadState>('idle');
-  const [options, setOptions] = useState<ComboboxOption[]>([]);
+  const [localState, setState] = useState<LoadState>('idle');
+  const [localOptions, setOptions] = useState<ComboboxOption[]>([]);
+  const ss = serverSearch;
+  const ssRef = useRef(ss);
+  ssRef.current = ss;
+  const state: LoadState = ss ? ss.status : localState;
+  const options = ss ? ss.options : localOptions;
   // -1 = nothing highlighted yet; the first ArrowDown lands on index 0.
   const [active, setActive] = useState(-1);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; origin: string } | null>(null);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -111,6 +141,16 @@ export const Combobox: React.FC<ComboboxProps> = ({
   // Monotonic load token: a resolution is only honored if it is still the
   // latest in-flight load (drops a stale resolve after close / a re-load).
   const loadIdRef = useRef(0);
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
+
+  useLayoutEffect(() => {
+    if (disabled) {
+      loadIdRef.current++;
+      setOpen(false);
+      setQuery('');
+    }
+  }, [disabled]);
 
   const selected = useMemo(
     () => selectedOption ?? options.find((o) => o.value === value) ?? null,
@@ -124,32 +164,33 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
   const filtered = useMemo(() => {
     const q = normalizeForSearch(query.trim());
-    if (!q) return options;
+    if (ss || !q) return options;
     return options.filter(
       (o) => normalizeForSearch(o.label).includes(q) || (o.sub && normalizeForSearch(o.sub).includes(q)),
     );
-  }, [options, query]);
+  }, [options, query, ss]);
 
   const load = useCallback(() => {
+    if (!loadOptions) return;
     const id = ++loadIdRef.current;
     setState('loading');
     loadOptions()
       .then((opts) => {
         // Drop a stale resolution: a newer load started or the picker closed.
-        if (id !== loadIdRef.current) return;
+        if (id !== loadIdRef.current || disabledRef.current) return;
         setOptions(opts);
         setState('ready');
       })
       .catch(() => {
-        if (id !== loadIdRef.current) return;
+        if (id !== loadIdRef.current || disabledRef.current) return;
         setState('error');
       });
   }, [loadOptions]);
 
   // Load once per open (lazy — never fetches until the picker is opened).
   useEffect(() => {
-    if (open && state === 'idle') load();
-  }, [open, state, load]);
+    if (open && localState === 'idle') load();
+  }, [open, localState, load]);
 
   // Re-load when the option SOURCE changes while the picker is open (the async FK
   // source — e.g. useClientCompanies — may resolve to [] on the very first open
@@ -158,9 +199,12 @@ export const Combobox: React.FC<ComboboxProps> = ({
   // exactly when the underlying data source changed, not on unrelated re-renders.
   const loadRef = useRef(load);
   useEffect(() => {
-    if (open && state !== 'idle' && loadRef.current !== load) load();
+    if (open && localState !== 'idle' && loadRef.current !== load) load();
     loadRef.current = load;
-  }, [open, state, load]);
+  }, [open, localState, load]);
+
+  useEffect(() => { ssRef.current?.onOpenChange?.(open); }, [open]);
+  useEffect(() => { ssRef.current?.onQueryChange(query); }, [query]);
 
   // On close, invalidate any in-flight load so its late resolution is ignored,
   // and reset a still-loading state to idle so the next open re-fetches cleanly
@@ -196,9 +240,38 @@ export const Combobox: React.FC<ComboboxProps> = ({
   // Position the portal popover under the trigger (escapes overflow clipping).
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) return;
-    const r = triggerRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom + 5, left: r.left, width: r.width });
-  }, [open]);
+    const compute = () => {
+      const t = triggerRef.current;
+      if (!t) return;
+      const r = t.getBoundingClientRect();
+      const pop = popRef.current;
+      const ph = pop?.offsetHeight ?? 260;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const GUTTER = 8;
+      const GAP = 5;
+
+      const width = Math.min(r.width, vw - GUTTER * 2);
+      let left = r.left;
+      left = Math.min(left, vw - GUTTER - width);
+      left = Math.max(left, GUTTER);
+
+      const below = r.bottom + GAP;
+      const above = r.top - GAP - ph;
+      const flipUp = below + ph > vh - GUTTER && above >= GUTTER;
+      const top = flipUp ? Math.max(GUTTER, above) : Math.max(GUTTER, Math.min(below, vh - GUTTER - ph));
+
+      setPos({ top, left, width, origin: `${flipUp ? 'bottom' : 'top'} left` });
+    };
+
+    compute();
+    window.addEventListener('resize', compute);
+    window.addEventListener('scroll', compute, true);
+    return () => {
+      window.removeEventListener('resize', compute);
+      window.removeEventListener('scroll', compute, true);
+    };
+  }, [open, state, filtered.length]);
 
   // Close on outside click.
   useEffect(() => {
@@ -223,6 +296,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
   const select = useCallback(
     (opt: ComboboxOption) => {
+      if (disabledRef.current) return;
       onChange(opt.value, opt);
       setOpen(false);
       setQuery('');
@@ -236,6 +310,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   const onSearchKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
+      if (ss?.hasMore && active >= filtered.length - 1) ss.onLoadMore?.();
       setActive((a) => Math.min(a + 1, filtered.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
@@ -270,8 +345,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
     ) : null;
 
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
-      <span id={labelId} className="text-[12px] font-semibold leading-[1.3] text-foreground">
+    <div className={cn('flex flex-col', formControl ? 'gap-2' : 'gap-1.5', className)}>
+      <span id={labelId} className={cn('font-semibold text-foreground', formControl ? 'text-control' : 'text-[12px] leading-[1.3]')}>
         {label}
         {required && (
           <span aria-hidden className="ml-0.5 text-destructive">
@@ -287,18 +362,22 @@ export const Combobox: React.FC<ComboboxProps> = ({
           type="button"
           role="combobox"
           aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-controls={open ? listId : undefined}
+          aria-expanded={open && !disabled}
+          aria-controls={open && !disabled ? listId : undefined}
           aria-labelledby={labelId}
+          title={selected?.sub ? `${selected.label} — ${selected.sub}` : selected?.label}
           aria-required={required || undefined}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errId : undefined}
           disabled={disabled}
           onClick={() => !disabled && setOpen((o) => !o)}
           className={cn(
-            'flex h-8 w-full items-center gap-2 rounded-md border bg-background px-[10px] text-[13.5px] text-foreground',
+            'flex w-full items-center gap-2 rounded-md border text-foreground',
+            formControl
+              ? 'h-[var(--control-height)] bg-card px-3 text-control [@media(pointer:coarse)]:h-11'
+              : 'h-8 bg-background px-[10px] text-[13.5px]',
             'hover:border-primary/50 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground',
-            error ? 'border-destructive' : 'border-input',
+            error ? 'border-destructive' : 'border-border hover:border-input',
           )}
         >
           {selected ? (
@@ -317,6 +396,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
         {clearable && value && (
           <button
             type="button"
+            disabled={disabled && !clearWhileDisabled}
             aria-label={t('combobox.clear', { defaultValue: 'Clear {{noun}}', noun })}
             onClick={(e) => {
               e.stopPropagation();
@@ -334,15 +414,15 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
       <FieldError id={errId}>{error}</FieldError>
 
-      {open &&
+      {open && !disabled &&
         pos &&
         createPortal(
           <div
             ref={popRef}
-            style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 820 }}
-            className="overflow-hidden rounded-md border border-border bg-popover shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
+            style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 820, '--menu-origin': pos.origin } as React.CSSProperties}
+            className="menu-pop-anim motion-reduce:animate-none overflow-hidden rounded-md border border-border bg-popover shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
           >
-            <div className="flex items-center gap-2 border-b border-border px-[11px] py-2.5">
+            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
               <Icon name="search" className="size-[15px] shrink-0 text-muted-foreground" />
               <input
                 ref={searchRef}
@@ -360,7 +440,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
             </div>
 
             {state === 'loading' && (
-              <div data-testid="combo-loading" className="px-[9px] py-1.5" aria-busy="true">
+              <div data-testid="combo-loading" className="px-2 py-1.5" aria-busy="true">
                 <div className="skel skel-line" style={{ width: '72%' }} />
                 <div className="skel skel-line" style={{ width: '58%' }} />
                 <div className="skel skel-line" style={{ width: '65%' }} />
@@ -373,7 +453,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
                 {t('combobox.error.title', { defaultValue: "Couldn't load {{noun}}s.", noun })}
                 <button
                   type="button"
-                  onClick={() => load()}
+                  onClick={() => (ss ? ss.onRetry() : load())}
                   className="mt-2 inline-flex items-center gap-1.5 font-semibold text-primary"
                 >
                   <Icon name="refresh" className="size-[14px]" />
@@ -387,8 +467,9 @@ export const Combobox: React.FC<ComboboxProps> = ({
                 ref={listRef}
                 id={listId}
                 role="listbox"
+                tabIndex={-1}
                 aria-label={t('combobox.listLabel', { defaultValue: '{{noun}}s', noun })}
-                className="max-h-[220px] overflow-y-auto p-[5px]"
+                className="max-h-[220px] overflow-y-auto p-1.5"
               >
                 {filtered.map((opt, i) => {
                   const isSelected = opt.value === value;
@@ -402,15 +483,44 @@ export const Combobox: React.FC<ComboboxProps> = ({
                       onMouseEnter={() => setActive(i)}
                       onClick={() => select(opt)}
                       className={cn(
-                        'flex h-[34px] cursor-pointer items-center gap-2.5 rounded-sm px-[9px] text-[13.5px]',
+                        'flex cursor-pointer gap-2 rounded-sm px-2 text-[13.5px]',
+                        opt.badges?.length || opt.wrapLabel ? 'min-h-[34px] items-start py-1.5' : 'h-[34px] items-center',
                         isSelected && 'bg-primary/[0.07]',
                         isActive && !isSelected && 'bg-accent',
                       )}
                     >
                       <Avatar opt={opt} size={22} />
-                      <span className="truncate">{opt.label}</span>
-                      {opt.sub && (
-                        <span className="ml-1.5 shrink-0 text-[11.5px] text-muted-foreground">{opt.sub}</span>
+                      {opt.wrapLabel ? (
+                        <div className="min-w-0 flex-1">
+                          <span className="block whitespace-normal break-words">{opt.label}</span>
+                          {opt.sub && (
+                            <span title={opt.sub} className="mt-1 block whitespace-normal break-words text-[11.5px] text-muted-foreground">{opt.sub}</span>
+                          )}
+                        </div>
+                      ) : opt.badges?.length ? (
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                            <span className="min-w-0 flex-1 truncate">{opt.label}</span>
+                            {opt.badges.map((badge) => (
+                              <span
+                                key={badge}
+                                className="shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-1.5 py-0.5 text-[10.5px] font-medium leading-none text-warning-foreground"
+                              >
+                                {badge}
+                              </span>
+                            ))}
+                          </div>
+                          {opt.sub && (
+                            <span title={opt.sub} className="mt-1 block min-w-0 truncate text-[11.5px] text-muted-foreground">{opt.sub}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          <span className="min-w-0 truncate">{opt.label}</span>
+                          {opt.sub && (
+                            <span title={opt.sub} className="ml-1.5 min-w-0 shrink-[3] truncate text-[11.5px] text-muted-foreground">{opt.sub}</span>
+                          )}
+                        </>
                       )}
                       {isSelected && (
                         <Icon name="check" className="ml-auto size-[15px] shrink-0 text-primary" />
@@ -424,19 +534,15 @@ export const Combobox: React.FC<ComboboxProps> = ({
                     {query
                       ? t('combobox.empty.withQuery', { defaultValue: 'No {{noun}} matches "{{query}}".', noun, query })
                       : t('combobox.empty.bare', { defaultValue: 'No {{noun}} matches.', noun })}
-                    {onCreate && query.trim() && (
-                      <button
-                        type="button"
-                        onClick={() => onCreate(query.trim())}
-                        className="mt-2 inline-flex items-center gap-1.5 font-semibold text-primary"
-                      >
-                        <Icon name="plus" className="size-[14px]" />
-                        {createLabel}
-                      </button>
-                    )}
                   </li>
                 )}
               </ul>
+            )}
+
+            {state === 'ready' && ss?.hasMore && ss.onLoadMore && (
+              <button type="button" onClick={ss.onLoadMore} className="w-full border-t border-border px-3 py-2 text-[12.5px] font-semibold text-primary hover:bg-accent">
+                {ss.moreLabel ?? 'Show more'}
+              </button>
             )}
           </div>,
           document.body,

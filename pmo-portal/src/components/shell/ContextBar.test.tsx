@@ -42,31 +42,32 @@ beforeEach(() => {
   mockConfig.HELP_URL = 'https://wa.me/6281234567890';
 });
 
+// owner 2026-10-30: legal links hidden from the account menu for now; login footer keeps them
 describe('ContextBar legal entry points', () => {
-  it('AC-LEG-025: the ONE account menu exposes Terms, Privacy and Help with correct attrs', async () => {
+  it('AC-LEG-025: the account menu hides Terms and Privacy and exposes Help with correct attrs', async () => {
     renderBar();
     await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
     const menu = screen.getByRole('menu');
-    expect(within(menu).getByRole('menuitem', { name: /^terms$/i })).toHaveAttribute('href', '/terms');
-    expect(within(menu).getByRole('menuitem', { name: /^privacy$/i })).toHaveAttribute('href', '/privacy');
+    expect(within(menu).queryByRole('menuitem', { name: /^terms$/i })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /^privacy$/i })).not.toBeInTheDocument();
     const help = within(menu).getByRole('menuitem', { name: /contact support via whatsapp/i });
     expect(help).toHaveAttribute('href', 'https://wa.me/6281234567890');
     expect(help).toHaveAttribute('target', '_blank');
     expect(help).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
-  it('AC-LEG-023: the shared account menu includes Terms, Privacy, Help as menuitems', async () => {
+  it('AC-LEG-023: the shared account menu hides Terms and Privacy and includes Help', async () => {
     renderBar();
     await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
     const menu = screen.getByRole('menu');
-    expect(within(menu).getByRole('menuitem', { name: /^terms$/i })).toHaveAttribute('href', '/terms');
-    expect(within(menu).getByRole('menuitem', { name: /^privacy$/i })).toHaveAttribute('href', '/privacy');
+    expect(within(menu).queryByRole('menuitem', { name: /^terms$/i })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /^privacy$/i })).not.toBeInTheDocument();
     const help = within(menu).getByRole('menuitem', { name: /contact support via whatsapp/i });
     expect(help).toHaveAttribute('href', 'https://wa.me/6281234567890');
     expect(help).toHaveAttribute('target', '_blank');
   });
 
-  it('AC-LEG-010/FR-LEG-028: Help is omitted when HELP_URL empty, Terms/Privacy remain', async () => {
+  it('AC-LEG-010/FR-LEG-028: Help is omitted when HELP_URL empty and legal links remain hidden', async () => {
     mockConfig.HELP_URL = '';
     renderBar();
     expect(screen.queryByRole('link', { name: /contact support via whatsapp/i })).toBeNull();
@@ -74,7 +75,7 @@ describe('ContextBar legal entry points', () => {
     await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
     const menu = screen.getByRole('menu');
     expect(within(menu).queryByRole('menuitem', { name: /contact support via whatsapp/i })).toBeNull();
-    expect(within(menu).getByRole('menuitem', { name: /^terms$/i })).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: /^privacy$/i })).toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /^terms$/i })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /^privacy$/i })).not.toBeInTheDocument();
   });
 });

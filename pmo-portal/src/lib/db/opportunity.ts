@@ -1,7 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import { useAuth } from '@/src/auth/useAuth';
 
 /**
  * The full opportunity row for the detail page (Director decision 2). Selects
@@ -29,6 +27,7 @@ import { useAuth } from '@/src/auth/useAuth';
 export const OPPORTUNITY_COLUMNS = [
   'id',
   'name',
+  'short_name',
   'code',
   'pmo_project_number',
   'status',
@@ -83,13 +82,17 @@ export async function getOpportunity(id: string): Promise<OpportunityRow | null>
   return (data as unknown as OpportunityRow) ?? null;
 }
 
-/** Org-scoped opportunity detail query. queryKey includes org_id for cache isolation. */
-export function useOpportunity(id: string | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<OpportunityRow | null>({
-    queryKey: ['opportunity', orgId, id],
-    queryFn: () => getOpportunity(id!),
-    enabled: Boolean(orgId && id),
-  });
+/** Ids per `.in('id', …)` request: keeps the URL short and each page under the row cap. */
+export const BY_IDS_CHUNK = 100;
+
+/** Opportunities readable by the caller among `ids`; inaccessible ids are simply absent. Reads in chunks. */
+export async function getOpportunitiesByIds(ids: readonly string[]): Promise<OpportunityRow[]> {
+  const unique = [...new Set(ids)];
+  const out: OpportunityRow[] = [];
+  for (let i = 0; i < unique.length; i += BY_IDS_CHUNK) {
+    const { data, error } = await supabase.from('projects').select(SELECT).in('id', unique.slice(i, i + BY_IDS_CHUNK));
+    if (error) throw new Error(error.message);
+    out.push(...((data as unknown as OpportunityRow[]) ?? []));
+  }
+  return out;
 }

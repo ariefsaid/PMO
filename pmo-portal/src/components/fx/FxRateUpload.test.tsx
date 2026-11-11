@@ -109,7 +109,7 @@ describe('AC-FX-007 JISDOR upload preview', () => {
     selectFile();
     expect(await screen.findByText('rates.csv')).toBeInTheDocument();
     expect(input).toHaveAccessibleName('Choose BI Excel or date,rate CSV');
-    expect(await screen.findByText(/Row 7: 999999 — Enter a rate/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Row 7: 999999 \(Enter a rate/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Correct rejected rows and upload again/i)).toHaveLength(1);
     expect(screen.getByText(/1 new/i)).toBeInTheDocument();
     expect(screen.getByText(/1 identical duplicate/i)).toBeInTheDocument();
@@ -225,4 +225,50 @@ describe('AC-FX-007 JISDOR upload preview', () => {
     await waitFor(() => expect(screen.getByText('16,300')).toBeInTheDocument());
     expect(screen.queryByText('16,234.56')).not.toBeInTheDocument();
   });
+});
+
+it('renders a bounded summary for a long coverage gap', async () => {
+  h.parseFile.mockResolvedValueOnce({ rows: [
+    { rate_date: '0100-01-01', rate: 16000 },
+    { rate_date: '2026-01-01', rate: 16000 },
+  ], rejected: [], duplicates: 0 });
+  renderUpload();
+  selectFile();
+  expect(await screen.findByText(/703456 dates without rates across 1 gap$/)).toBeInTheDocument();
+});
+
+it('explains the expanded workbook limit when parsing rejects it', async () => {
+  const { ImportParseError } = await import('@/src/lib/import/types');
+  h.parseFile.mockRejectedValueOnce(new ImportParseError('fileTooLarge', 'Expanded workbook exceeds 20 MiB.'));
+  renderUpload();
+  selectFile();
+  expect(await screen.findByText('Expanded workbook exceeds 20 MiB.')).toBeInTheDocument();
+});
+
+
+it('renders Indonesian expanded-size and long-gap states', async () => {
+  const { ImportParseError } = await import('@/src/lib/import/types');
+  h.parseFile.mockRejectedValueOnce(new ImportParseError('fileTooLarge', 'Expanded workbook exceeds 20 MiB.'));
+  renderUpload(true, 'id');
+  const input = screen.getByLabelText('Pilih file Excel BI atau CSV tanggal,kurs');
+  fireEvent.change(input, { target: { files: [new File(['x'], 'rates.xlsx')] } });
+  expect(await screen.findByText('Ukuran buku kerja setelah diekstrak melebihi 20 MiB.')).toBeInTheDocument();
+  h.parseFile.mockResolvedValueOnce({ rows: [
+    { rate_date: '0100-01-01', rate: 16000 },
+    { rate_date: '2026-01-01', rate: 16000 },
+  ], rejected: [], duplicates: 0 });
+  fireEvent.change(input, { target: { files: [new File(['x'], 'next.xlsx')] } });
+  expect(await screen.findByText(/703456 tanggal tanpa kurs dalam 1 rentang/)).toBeInTheDocument();
+});
+
+
+it('uses plural gap copy for multiple ranges', async () => {
+  h.parseFile.mockResolvedValueOnce({ rows: [
+    { rate_date: '0100-01-01', rate: 16000 },
+    { rate_date: '1000-01-01', rate: 16000 },
+    { rate_date: '2026-01-01', rate: 16000 },
+  ], rejected: [], duplicates: 0 });
+  renderUpload();
+  selectFile();
+  expect(await screen.findByText(/dates without rates across 2 gaps$/)).toBeInTheDocument();
 });

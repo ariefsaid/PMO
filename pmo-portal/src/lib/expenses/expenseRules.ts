@@ -1,6 +1,6 @@
 import type { Role } from '@/src/auth/AuthContext';
 import { mayDecideRoutedApproval, type ApprovalRoute } from '@/src/lib/procurement/approvalRoute';
-import type { AgingBucket, ExpenseAdvanceAgingRow, ExpenseClaimRow } from '@/src/lib/db/expenseClaims';
+import type { AgingBucket, ExpenseClaimRow } from '@/src/lib/db/expenseClaims';
 
 /**
  * #775 — the FE projection of `transition_expense_claim` / `record_expense_advance_return` (0247 §7/§9).
@@ -22,6 +22,8 @@ export interface ExpenseActionContext {
   route?: RouteShape | null;
   /** The advance's own outstanding (only read for a paid advance). */
   advanceOutstanding?: number | null;
+  /** #1515 DD-IMP-7: the custodian of the float this record is charged to; null/undefined = not a float record. */
+  floatCustodianId?: string | null;
 }
 
 export function availableExpenseActions(ctx: ExpenseActionContext): ExpenseAction[] {
@@ -32,16 +34,19 @@ export function availableExpenseActions(ctx: ExpenseActionContext): ExpenseActio
   const isAdmin = realRole === 'Admin';
   const financeOrAdmin = FINANCE_OR_ADMIN.includes(realRole);
   const s = claim.status;
+  const onFloat = !!ctx.floatCustodianId;
+  const isCustodian = onFloat && ctx.floatCustodianId === userId;
   if (s === 'Draft' && isClaimant) out.push('submit');
   if (s === 'Rejected' && isClaimant) out.push('reopen');
-  if (s === 'Submitted' && !isClaimant && APPROVAL_RANK.includes(realRole) && mayDecideRoutedApproval(ctx.route, userId, isAdmin)) {
+  if (s === 'Submitted' && !isClaimant && !isCustodian && APPROVAL_RANK.includes(realRole) && mayDecideRoutedApproval(ctx.route, userId, isAdmin)) {
     out.push('approve', 'reject');
   }
-  if (s === 'Approved' && financeOrAdmin && !isClaimant && claim.approved_by_id !== userId) out.push('pay');
+  const mayPay = onFloat ? isCustodian : financeOrAdmin;
+  if (s === 'Approved' && mayPay && !isClaimant && claim.approved_by_id !== userId) out.push('pay');
   if (((s === 'Draft' || s === 'Submitted') && (isClaimant || financeOrAdmin)) || (s === 'Approved' && financeOrAdmin)) {
     out.push('cancel');
   }
-  if (claim.kind === 'advance' && s === 'Paid' && financeOrAdmin && !isClaimant && (ctx.advanceOutstanding ?? 0) > 0) {
+  if (claim.kind === 'advance' && s === 'Paid' && (financeOrAdmin || isCustodian) && !isClaimant && (ctx.advanceOutstanding ?? 0) > 0) {
     out.push('recordReturn');
   }
   return out;
@@ -78,18 +83,3 @@ export function claimsAwaitingViewer<T extends AwaitingRow>(rows: T[], userId: s
 }
 
 export const AGING_BUCKETS: readonly AgingBucket[] = ['0-30', '31-60', '61-90', '90+'];
-
-export function agingTotals(
-  rows: Pick<ExpenseAdvanceAgingRow, 'currency' | 'bucket' | 'outstanding'>[],
-): Record<string, Record<AgingBucket, number>> {
-  const cents: Record<string, Record<AgingBucket, number>> = {};
-  for (const r of rows) {
-    if (!cents[r.currency]) cents[r.currency] = { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
-    cents[r.currency][r.bucket] += toCents(r.outstanding);
-  }
-  const out: Record<string, Record<AgingBucket, number>> = {};
-  for (const [currency, b] of Object.entries(cents)) {
-    out[currency] = { '0-30': b['0-30'] / 100, '31-60': b['31-60'] / 100, '61-90': b['61-90'] / 100, '90+': b['90+'] / 100 };
-  }
-  return out;
-}

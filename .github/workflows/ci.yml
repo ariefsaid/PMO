@@ -2,11 +2,13 @@ name: CI
 
 on:
   push:
-    # PUSH CI on `main` ONLY: a post-merge `verify` smoke of what actually landed. `main`'s
-    # protection is not strict (a PR can merge on a stale base) and Dependabot / release-please
-    # merge there directly, so this is the only re-test of the merged result. `dev`/feature
-    # branches are PR-gated → no push trigger there.
-    branches: [main]
+    # PUSH CI on `main` and `dev`. `main`: a post-merge `verify` smoke of what actually landed —
+    # its protection is not strict (a PR can merge on a stale base) and Dependabot / release-please
+    # merge there directly, so this is the only re-test of the merged result. `dev` (#1584): PRs to
+    # `dev` run only the tests their diff can affect (see `scope`), so the push to `dev` is the
+    # FULL suite — unit, verify, pgTAP — and anything a PR's selection missed is caught here, one
+    # run after the merge. Feature branches are PR-gated → no push trigger there.
+    branches: [main, dev]
     paths-ignore:
       - 'docs/**'
       - 'review/**'
@@ -46,7 +48,10 @@ permissions:
   contents: read
 
 # Cancel an in-progress run when a newer commit is pushed to the same branch/PR —
-# avoids paying for superseded runs during iterative pushes.
+# avoids paying for superseded runs during iterative pushes. On a push to `dev` this is safe
+# (#1584): every push runs the FULL suite on a tree that contains all earlier commits, so a later
+# run covers whatever a cancelled earlier one would have tested; a failure in the later run still
+# names the merge it ran on (the "Name the merged change" step in `verify`).
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -56,33 +61,101 @@ defaults:
     working-directory: pmo-portal
 
 # ─── CI TIERING (resource-lean) ─────────────────────────────────────────────────
-# PR → dev    → `verify` + `pgtap` (typecheck · lint · unit tests · build; Supabase +
-#               pgTAP only — no browser, fast). Fast lane.
-# PR → main   → `verify` + `integration` (Supabase + pgTAP + Playwright e2e incl. the
+# PR → dev    → `scope` picks what the diff can affect (scripts/ci-test-scope.mjs): the unit
+#               job runs only the AFFECTED tests (or the full suite when the diff touches
+#               anything the module graph can't see), `pgtap` only when supabase/** or its
+#               scripts change, the Deno steps of `verify` only when edge functions change.
+#               Typecheck · lint · guards · build always run. No browser. Fast lane.
+# push dev    → everything, full: unit (2 shards) · verify · pgtap (#1584).
+# PR → main   → (everything full, unchanged) `verify` + `integration` (Supabase + pgTAP + Playwright e2e incl. the
 #               visual-invariant gate AC-VISUAL-ICON-001 + mobile-overflow gate
 #               AC-MOBILE-OVERFLOW-001). Authoritative pre-merge gate. (pgTAP runs again
 #               here — cheap, and this job must stand alone as the merge-gate proof.)
-# push main   → `verify` smoke only (pgtap/integration skipped — see their `if`).
+# push main   → `verify` smoke only (pgtap/integration skipped — see their `if`); unit is full.
 # dispatch    → `integration` only, pgTAP skipped (scripts/ci-e2e.sh; the PR already ran
 #               `verify` + `pgtap`).
-# No push CI at all (PR-gated) → no duplicate `verify` runs.
+# Feature branches have no push CI (PR-gated) → no duplicate `verify` runs.
 # Integration trims: Playwright browsers cached + Supabase starts without the
 # CI-unused containers (studio/realtime/vector). `pgtap` uses the same trim.
 # main→production → no CI; main is already pre-gated by the PR that merged it.
 # ───────────────────────────────────────────────────────────────────────────────
 jobs:
-  # The Vitest suite split across 2 parallel runners (one runner took ~28 min; 4 cost more runner-minutes per push — owner 2026-10-20). Each shard writes a
-  # blob report with its coverage; `verify` merges them, so the required `verify` check still owns
-  # every unit test and the changed-lines coverage gate.
-  unit:
+  # What can this change affect? (#1584, scripts/ci-test-scope.mjs, self-tested in `verify`.)
+  # Only a PR to `dev` is narrowed; a push (main, dev), a PR to `main` and any other base run
+  # everything. Narrowed = `unit: affected` (module-graph selection) unless the diff touches
+  # something the graph can't see, `pgtap` only for supabase/** and its scripts, `deno` only for
+  # edge functions (and the pmo-portal files they import). Lint, typecheck, guards, build: always.
+  scope:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
+    timeout-minutes: 5
+    outputs:
+      unit_matrix: ${{ steps.scope.outputs.unit_matrix }}
+      unit: ${{ steps.scope.outputs.unit }}
+      pgtap: ${{ steps.scope.outputs.pgtap }}
+      deno: ${{ steps.scope.outputs.deno }}
+      base_sha: ${{ steps.scope.outputs.base_sha }}
+    defaults:
+      run:
+        working-directory: .
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - id: scope
+        # Event/ref values arrive via env, never interpolated into the shell.
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = dev ]; then
+            git fetch --no-tags origin "$BASE_REF"
+            json=$(node scripts/ci-test-scope.mjs --base "origin/$BASE_REF")
+            base_sha=$(git merge-base "origin/$BASE_REF" HEAD)
+          else
+            json='{"unit":"full","pgtap":true,"deno":true,"reason":"not a PR to dev: everything runs"}'
+            base_sha=
+          fi
+          echo "$json"
+          unit=$(jq -r .unit <<<"$json")
+          if [ "$unit" = full ]; then
+            matrix='{"include":[{"shard":1,"mode":"full"},{"shard":2,"mode":"full"}]}'
+          else
+            matrix='{"include":[{"shard":1,"mode":"affected"}]}'
+          fi
+          {
+            echo "unit=$unit"
+            echo "unit_matrix=$matrix"
+            echo "pgtap=$(jq -r .pgtap <<<"$json")"
+            echo "deno=$(jq -r .deno <<<"$json")"
+            echo "base_sha=$base_sha"
+          } >> "$GITHUB_OUTPUT"
+          echo "### Test scope" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$json\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # The Vitest suite. Full mode: split across 2 parallel runners (one runner took ~28 min; 4 cost more
+  # runner-minutes per push — owner 2026-10-20). Affected mode (PR to dev, see `scope`): ONE runner,
+  # the tests the module graph selects from the diff PLUS every test that reads repo files with fs
+  # (the graph can't see those reads). Either way each runner writes a blob report with its coverage;
+  # `verify` merges them (a single blob merges fine), so the required `verify` check still owns every
+  # selected test and the changed-lines coverage gate.
+  unit:
+    needs: scope
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # A hung test must not hold a runner for the 6h default (absorbs #1528). Full shards run ~17 min.
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.scope.outputs.unit_matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Affected mode diffs against the PR's merge base, so it needs the history.
+          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -90,10 +163,26 @@ jobs:
           cache-dependency-path: pmo-portal/package-lock.json
       - run: npm ci
       - name: Unit tests (shard ${{ matrix.shard }}/2, + coverage)
+        if: matrix.mode == 'full'
         run: npx vitest run --coverage --shard=${{ matrix.shard }}/2 --reporter=default --reporter=blob
+      - name: Select the affected unit tests
+        if: matrix.mode == 'affected'
+        env:
+          BASE_SHA: ${{ needs.scope.outputs.base_sha }}
+        run: |
+          test -n "$BASE_SHA"
+          npx vitest list --filesOnly --changed "$BASE_SHA" | sed -E 's/^\[[a-z]+\] //' > /tmp/changed-tests.txt
+          node ../scripts/ci-test-scope.mjs --fs-coupled > /tmp/fs-tests.txt
+          sort -u /tmp/changed-tests.txt /tmp/fs-tests.txt > /tmp/affected-tests.txt
+          echo "$(wc -l < /tmp/changed-tests.txt) via the module graph + $(wc -l < /tmp/fs-tests.txt) that read repo files = $(wc -l < /tmp/affected-tests.txt) test files"
+      - name: Unit tests (affected by the diff, + coverage)
+        if: matrix.mode == 'affected'
+        run: |
+          mapfile -t files < /tmp/affected-tests.txt
+          npx vitest run --coverage --reporter=default --reporter=blob "${files[@]}"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: unit-blob-${{ matrix.shard }}
+          name: unit-blob-${{ matrix.mode }}-${{ matrix.shard }}
           path: pmo-portal/.vitest-reports/
           include-hidden-files: true
           if-no-files-found: error
@@ -102,7 +191,7 @@ jobs:
   verify:
     # PR-only: a workflow_dispatch (scripts/ci-e2e.sh) is for e2e; its PR already ran verify.
     # `!cancelled()`: a failed shard must FAIL verify, not skip it (a skipped required check passes).
-    needs: unit
+    needs: [scope, unit]
     if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
@@ -125,7 +214,7 @@ jobs:
       - name: Repository script tests (non-DB)
         working-directory: .
         run: |
-          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' -print | sort)
+          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' ! -name 'financial-statements-nightly-intent-race.test.mjs' -print | sort)
           node --test "${tests[@]}"
       - name: CI integration-order test
         working-directory: .
@@ -135,6 +224,7 @@ jobs:
           node scripts/check-browser-shard-inventory.mjs --self-test
           node scripts/check-e2e-time-budget.mjs --self-test
           node scripts/check-redirect-targets.mjs --self-test
+          node scripts/ci-test-scope.mjs --self-test
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
           bash scripts/ci-e2e.sh --self-test
@@ -162,14 +252,15 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint:ci
-      - name: Unit shards all passed
+      - name: Unit tests all passed
         run: test "${{ needs.unit.result }}" = success
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: unit-blob-*
           path: pmo-portal/.vitest-reports/
           merge-multiple: true
-      - name: Unit tests (+ coverage) — merge the 2 shard reports
+      - name: Unit tests (+ coverage) — merge the shard report(s)
         run: npx vitest run --merge-reports --coverage
       - name: Changed-lines coverage gate (≥80%)
         if: github.event_name == 'pull_request'
@@ -187,13 +278,26 @@ jobs:
             --min 80
       - name: Build
         run: npm run build
+      - name: Entry preload list excludes recharts/markdown/compiler
+        run: npx vitest run src/lib/build/entryPreload.test.ts
       - name: Lock wrapper process tests
         working-directory: .
         run: python3 -m unittest discover -s scripts/tests -v
 
+      # Restore the Deno binary into the runner tool cache first: setup-deno v2.0.5
+      # checks the tool cache (tc.find) BEFORE downloading and skips the release
+      # download on a hit — the download 504'd GitHub-side on 2026-11-08/09.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: needs.scope.outputs.deno == 'true'
+        with:
+          path: /opt/hostedtoolcache/deno
+          key: deno-${{ runner.os }}-${{ runner.arch }}-2.7.11
+      # Deno steps run only when the diff can affect them (`scope.deno`; always on push / PR to main).
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        if: needs.scope.outputs.deno == 'true'
         with:
           # Pinned (not `latest`/`vx.x`) for deploy-check determinism — bump deliberately.
+          # Bump the cache key above together with this version.
           deno-version: '2.7.11'
       # Gap: supabase/functions/** is outside tsc/ESLint (edge functions are Deno programs, not
       # part of the pmo-portal TS project). Each function has its own deno.json import map/deps.
@@ -205,6 +309,7 @@ jobs:
       # script DISCOVERS the functions (every dir with a deno.json + index.ts) instead of carrying the
       # hand-kept list this step used to hold, which had already drifted 10 functions behind.
       - name: Deno typecheck — edge function entry points + _shared
+        if: needs.scope.outputs.deno == 'true'
         working-directory: .
         run: bash scripts/deno-typecheck-edge-fns.sh
       # Boot smoke — `deno check` is type-only and Vitest resolves module-init order differently than
@@ -212,6 +317,7 @@ jobs:
       # deployed worker at boot (WORKER_ERROR). This imports each entrypoint's graph (Deno.serve stubbed)
       # and fails on any import-time throw. Regression guard for the 2026-07-04 agent-chat boot crash.
       - name: Deno boot smoke — edge function entry points load without throwing
+        if: needs.scope.outputs.deno == 'true'
         working-directory: .
         run: bash scripts/deno-boot-smoke-edge-fns.sh
 
@@ -228,21 +334,35 @@ jobs:
       #     runner reports `NotCapable: Requires env access` as a TEST FAILURE, which reads exactly
       #     like a broken assertion but is a missing flag.
       - name: Deno unit tests — edge functions + _shared
+        if: needs.scope.outputs.deno == 'true'
         working-directory: .
         run: bash scripts/deno-test-edge-fns.sh
 
       # The Microsoft folder-write allowlist is the one place PMO writes to Microsoft: break each tagged
       # rule and the tests must go red (scripts/m365-record-folder-write-mutation.mjs restores the sources).
       - name: M365 folder-write mutation witness
+        if: needs.scope.outputs.deno == 'true'
         working-directory: .
         run: node scripts/m365-record-folder-write-mutation.mjs
+
+      # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
+      # which merge it ran on (a squash merge's subject ends in the PR number).
+      - name: Name the merged change
+        if: ${{ failure() && github.event_name == 'push' }}
+        working-directory: .
+        run: echo "::error title=Full suite failed after a push::$(git log -1 --format=%s)"
 
   pgtap:
     # PR→dev fast-lane addition: pgTAP is cheap (no browser, Supabase stack only, seconds not
     # minutes) so it runs here too — RLS/tenancy/SoD regressions get caught before merge to
     # dev, not just at the dev→main promote. The Playwright/e2e/visual portion stays reserved
     # for the `integration` job (PR→main only) below — this job does NOT duplicate it.
-    if: github.event_name == 'pull_request' && github.base_ref == 'dev'
+    #
+    # #1584: on a PR to dev it runs only when `scope.pgtap` (supabase/** or a script this job runs
+    # changed); a skipped job counts as passing and `dev` has no required checks. A push to `dev`
+    # always runs it (the full-suite backstop). PR→main / push main are unchanged (`integration`).
+    needs: scope
+    if: ${{ !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'dev' && needs.scope.outputs.pgtap == 'true') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -260,7 +380,11 @@ jobs:
 
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
-          version: 2.105.0
+          version: 2.122.1
+      # Pull every Supabase image (stack, pg_prove) from Docker Hub: GHCR rate-limits
+      # them (`toomanyrequests`, even authenticated) and public ECR hits its data limit.
+      - name: Use Docker Hub for Supabase images
+        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io" >> "$GITHUB_ENV"
 
       # Docker is pre-installed on ubuntu-latest; storage + edge_runtime are disabled in
       # config.toml. Also exclude CI-unused containers to shave the stack-up time:
@@ -273,13 +397,37 @@ jobs:
       - name: Financial statement script tests (local Supabase required)
         env:
           SUPABASE_DB_CONTAINER: supabase_db_pmo-portal
-        # Both files mutate the one local database (fixture org + migration down/up): run them serially.
-        run: node --test --test-concurrency=1 scripts/financial-statements-publication-race.test.mjs scripts/financial-statements-rollback.test.mjs
+        # Every file here mutates the one local database (owned fixture org + migration down/up or
+        # two-session interleaving): run them serially. The nightly-intent race owns AC-NS-004/005's
+        # concurrent evidence, so it must gate this DB-owning path rather than a local-only run.
+        run: node --test --test-concurrency=1 scripts/financial-statements-publication-race.test.mjs scripts/financial-statements-rollback.test.mjs scripts/financial-statements-nightly-intent-race.test.mjs
 
       # Applies every migration in order and re-seeds from supabase/seed.sql so tests
       # always start from a clean, known state.
       - name: Reset DB (migrations + seed)
+        id: reset_db
         run: supabase db reset --yes
+
+      # #1196: a reset that cannot restart the stack reports only "Error status 502" after
+      # "Restarting containers...", which does not say WHICH service was unavailable. This
+      # failure-only step records bounded container health/status/exit fields plus status-code-only
+      # probes through Kong; it never prints env, credentials, rows, response bodies or container
+      # logs. The failed reset step above still decides the job outcome — this step cannot change it.
+      - name: Diagnose reset failure (bounded, redacted)
+        if: failure() && steps.reset_db.outcome == 'failure'
+        continue-on-error: true
+        run: node scripts/ci-reset-diagnostics.mjs --out /tmp/ci-reset-diagnostics.md
+      - name: Upload reset diagnostics
+        if: failure() && steps.reset_db.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-reset-diagnostics-pgtap
+          path: /tmp/ci-reset-diagnostics.md
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Project short-name migration round trip
+        run: scripts/with-db-lock.sh node scripts/check-project-short-name-reversal.mjs
 
       # Isolation-probe denominator guard (#612 item 1): the checked-in surface manifest must name
       # every public table / SECURITY DEFINER function / edge function / storage bucket, and must not
@@ -292,6 +440,31 @@ jobs:
       # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs.
       - name: pgTAP integration tests
         run: supabase test db
+
+      # AC-CQ-003 (issue #1281): contract-quantities upgrade/reversal round trip. The harness
+      # inlines migration 0337 and its rollback into a generated pgTAP file (deleted on exit)
+      # and runs it against the DB reset above — the suite is transactional, so migrations are
+      # still at HEAD here.
+      - name: Contract quantities rollback harness
+        run: scripts/test-contract-quantities-rollback.sh
+
+      # AC-PLN-005 (issue #1720 S2): the feature-enforcement rollback must actually strip the
+      # entitlement conjunct it appended to live policies, and re-applying must restore it. The
+      # harness inlines migration 0534 and its rollback into a generated pgTAP file (deleted on exit).
+      - name: Plans feature-enforcement rollback harness
+        run: scripts/test-plans-feature-enforcement-rollback.sh
+
+      # AC-PLN-012: reversing the allowance ledger removes only credits linked by the ledger, then
+      # reapplying the migration restores the scheduled-grant objects.
+      - name: Plans limit rollback harness
+        run: scripts/test-plan-limits-rollback.sh
+
+      # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
+      # which merge it ran on (a squash merge's subject ends in the PR number).
+      - name: Name the merged change
+        if: ${{ failure() && github.event_name == 'push' }}
+        working-directory: .
+        run: echo "::error title=Full suite failed after a push::$(git log -1 --format=%s)"
 
   browser-chromium:
     if: (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch'
@@ -308,7 +481,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
-          version: 2.105.0
+          version: 2.122.1
+      # Pull every Supabase image (stack, pg_prove) from Docker Hub: GHCR rate-limits
+      # them (`toomanyrequests`, even authenticated) and public ECR hits its data limit.
+      - name: Use Docker Hub for Supabase images
+        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io" >> "$GITHUB_ENV"
+      # Cache the Deno binary in the runner tool cache: setup-deno v2.0.5 checks it via
+      # tc.find BEFORE downloading (src/install.ts), so a hit skips the release download
+      # that 504'd on 2026-11-08/09. Bump the key together with the version below.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /opt/hostedtoolcache/deno
+          key: deno-${{ runner.os }}-${{ runner.arch }}-2.7.11
       # AC-S21-005 starts its local edge-function handler with `deno run`; each matrix runner is
       # isolated and cannot inherit the deno binary that the old unsharded integration job installed.
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
@@ -325,7 +509,22 @@ jobs:
       - name: Start local Supabase stack
         run: supabase start -x studio,realtime,vector
       - name: Reset DB (migrations + seed)
+        id: reset_db
         run: supabase db reset --yes
+      # #1196: failure-only, bounded, redacted — see the pgtap job's comment for the rationale. A
+      # reset failure here used to leave NO browser artifacts and no service-level evidence at all.
+      - name: Diagnose reset failure (bounded, redacted)
+        if: failure() && steps.reset_db.outcome == 'failure'
+        continue-on-error: true
+        run: node scripts/ci-reset-diagnostics.mjs --out /tmp/ci-reset-diagnostics.md
+      - name: Upload reset diagnostics
+        if: failure() && steps.reset_db.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-reset-diagnostics-browser-chromium-${{ matrix.shard }}
+          path: /tmp/ci-reset-diagnostics.md
+          retention-days: 7
+          if-no-files-found: ignore
       - name: Write .env.local for Vite / Playwright
         run: |
           eval "$(supabase status -o env)"
@@ -467,7 +666,11 @@ jobs:
 
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
-          version: 2.105.0
+          version: 2.122.1
+      # Pull every Supabase image (stack, pg_prove) from Docker Hub: GHCR rate-limits
+      # them (`toomanyrequests`, even authenticated) and public ECR hits its data limit.
+      - name: Use Docker Hub for Supabase images
+        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -475,6 +678,10 @@ jobs:
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
 
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /opt/hostedtoolcache/deno
+          key: deno-${{ runner.os }}-${{ runner.arch }}-2.7.11
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: '2.7.11'
@@ -494,13 +701,41 @@ jobs:
       # Applies every migration in order and re-seeds from supabase/seed.sql so tests
       # always start from a clean, known state.
       - name: Reset DB (migrations + seed)
+        id: reset_db
         run: supabase db reset --yes
+
+      # #1196 (the run that filed the issue): failure-only, bounded, redacted — see the pgtap job's
+      # comment for the rationale. Ordered immediately after the reset so it runs before every later
+      # step is skipped by the failure.
+      - name: Diagnose reset failure (bounded, redacted)
+        if: failure() && steps.reset_db.outcome == 'failure'
+        continue-on-error: true
+        run: node scripts/ci-reset-diagnostics.mjs --out /tmp/ci-reset-diagnostics.md
+      - name: Upload reset diagnostics
+        if: failure() && steps.reset_db.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-reset-diagnostics-integration
+          path: /tmp/ci-reset-diagnostics.md
+          retention-days: 7
+          if-no-files-found: ignore
 
       # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs. Skipped on a dispatch: the PR's
       # `pgtap` job already ran it (ci-e2e.sh sets run_pgtap when there is no PR).
       - name: pgTAP integration tests
         if: github.event_name != 'workflow_dispatch' || inputs.run_pgtap
         run: supabase test db
+
+      # AC-NS-004/005: the two-session SQL interleaving proof must gate the RELEASE path too, not only
+      # the PR-to-dev `pgtap` job; a local-only harness would never gate a merge. It runs here against
+      # the same reset database the pgTAP gate used, creates only its own synthetic org, and proves
+      # that fixture is gone afterwards. Kept in the same skip condition as pgTAP so a re-dispatch
+      # (whose PR already proved it) does not rerun it.
+      - name: Financial statement nightly-intent race (local Supabase required)
+        if: github.event_name != 'workflow_dispatch' || inputs.run_pgtap
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_pmo-portal
+        run: node --test --test-concurrency=1 scripts/financial-statements-nightly-intent-race.test.mjs
 
       # Extract the anon key + API URL from the local stack and write them into the file
       # pmo-portal/src/lib/supabase/client.ts reads at build/dev time.
@@ -570,17 +805,30 @@ jobs:
           npx playwright test --project=chromium --shard=2/2 --list --reporter=json > /tmp/pw-chromium-2-list.json
           node ../scripts/check-browser-shard-inventory.mjs --full /tmp/pw-chromium-full-list.json /tmp/pw-chromium-1-list.json /tmp/pw-chromium-2-list.json /tmp/pw-chromium-1.json /tmp/pw-chromium-2.json
 
-      # playwright.config.ts's `webServer` is now an ARRAY of two Vite dev servers: the ordinary
-      # one (`npm run dev`, :3000, analytics disabled) and a second, analytics-ENABLED one (:3100,
-      # the `consent` project's lane, D6 in docs/plans/2026-07-25-observability-analytics.md — a
-      # dev server with a real key was the only way to make AC-CON-003 non-vacuous). Both are
-      # started for every project invocation below since `webServer` is a top-level config, not
-      # per-project. reuseExistingServer=false in CI so Playwright owns the lifecycle for both.
+      # playwright.config.ts's `webServer` is an ARRAY of two servers (#1968: PRODUCTION builds
+      # served via `vite build` + `vite preview` — CI defaults to E2E_SERVER=build): the ordinary
+      # one (:3000, analytics disabled) and a second, analytics-ENABLED one (:3100, the `consent`
+      # project's lane, D6 in docs/plans/2026-07-25-observability-analytics.md — a server with a
+      # real key was the only way to make AC-CON-003 non-vacuous; its env is baked in at build
+      # time). Both are started for every project invocation below since `webServer` is a top-level
+      # config, not per-project. reuseExistingServer=false in CI so Playwright owns the lifecycle
+      # for both.
       - name: E2E tests (Playwright / serial)
         id: serial_e2e
         continue-on-error: true
         working-directory: pmo-portal
         run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json
+
+      # Playwright clears the shared outputDir at the start of each invocation. Preserve serial
+      # traces here, before the consent project starts and clears /tmp/pmo-portal-test-results.
+      - name: Upload serial Playwright diagnostics
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-serial-test-results
+          path: /tmp/pmo-portal-test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: E2E tests (Playwright / consent)
         id: consent_e2e
@@ -640,9 +888,13 @@ jobs:
         continue-on-error: true
         env:
           SUPABASE_SECRETS: ${{ secrets.SUPABASE_SECRETS }}
+        # This smoke uses Node fetch and signs in directly, so it does not need Chromium's setup
+        # dependency. Supabase CLI 2.122.1 watches the repository while serving functions; the
+        # setup dependency writes pmo-portal/e2e/.auth/*.json and triggers a runtime restart,
+        # making the following POSTs transiently return 503.
         run: |
           printf '%s\n' "$SUPABASE_SECRETS" > supabase/functions/.env.local
-          scripts/serve-functions.sh -- bash -c 'cd pmo-portal && npx playwright test served-fn-smoke --project=chromium'
+          scripts/serve-functions.sh -- bash -c 'cd pmo-portal && npx playwright test served-fn-smoke --project=chromium --no-deps'
 
       - name: Upload Playwright report
         if: failure()

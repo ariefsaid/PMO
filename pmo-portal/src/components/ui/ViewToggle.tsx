@@ -12,14 +12,6 @@ export interface ViewOption<V extends string = string> {
   /** Optional test id on the option's button (for AC-tagged assertions). */
   testId?: string;
   /**
-   * Optional Tailwind classes applied to the individual option button.
-   * NOTE: Because `cn` is clsx-only (no tailwind-merge), adding a display utility here
-   * (e.g. `"hidden"`) will NOT override the base `inline-flex` class that ViewToggle
-   * emits — both land in the class string and `inline-flex` wins. Use `wrapperClassName`
-   * instead when you need to control visibility on the per-option level.
-   */
-  optionClassName?: string;
-  /**
    * Optional Tailwind classes applied to a `<span>` wrapper rendered around the option
    * button. Because the wrapper carries no competing display utility, a class like
    * `"hidden md:block"` reliably hides the option below the breakpoint.
@@ -36,6 +28,8 @@ export interface ViewToggleProps<V extends string = string> {
   onChange: (value: V) => void;
   ariaLabel: string;
   className?: string;
+  /** Option labels remain accessible while allowing icon-only compact layouts. */
+  labelClassName?: string;
   /**
    * ARIA semantics variant.
    * - `'tabs'` (default): `role="tablist"` container + `role="tab"` + `aria-selected`. Use when
@@ -59,56 +53,77 @@ export function ViewToggle<V extends string = string>({
   onChange,
   ariaLabel,
   className,
+  labelClassName,
   semantics = 'tabs',
 }: ViewToggleProps<V>) {
   const isToggle = semantics === 'toggle';
+  const rootRef = React.useRef<HTMLDivElement>(null);
+
+  const focusOption = (v: V) => {
+    const root = rootRef.current;
+    if (!root) return;
+    const btn = root.querySelector<HTMLButtonElement>(`button[data-value="${CSS.escape(String(v))}"]`);
+    btn?.focus();
+  };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     // Arrow-key roving only applies to the tablist semantics variant.
     if (isToggle) return;
-    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    if (e.altKey || e.metaKey || e.ctrlKey) return;
+    const isNext = e.key === 'ArrowRight';
+    const isPrev = e.key === 'ArrowLeft';
+    const isHome = e.key === 'Home';
+    const isEnd = e.key === 'End';
+    if (!isNext && !isPrev && !isHome && !isEnd) return;
     e.preventDefault();
     const idx = options.findIndex((o) => o.value === value);
-    const next =
-      e.key === 'ArrowRight'
-        ? options[(idx + 1) % options.length]
-        : options[(idx - 1 + options.length) % options.length];
+    const next = isNext
+      ? options[(idx + 1) % options.length]
+      : isPrev
+        ? options[(idx - 1 + options.length) % options.length]
+        : isHome
+          ? options[0]
+          : options[options.length - 1];
+    focusOption(next.value);
     onChange(next.value);
   };
 
   return (
     <div
+      ref={rootRef}
       role={isToggle ? 'group' : 'tablist'}
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
       className={cn('inline-flex min-h-8 items-center gap-0.5 rounded-lg bg-secondary p-0.5', className)}
     >
-      {options.map((opt) => {
+      {options.map((opt, i) => {
         const on = opt.value === value;
+        // A value with no tab (a URL-only drill filter, #1461) leaves the first tab tabbable so the strip stays keyboard-reachable.
+        const tabbable = on || (i === 0 && !options.some((o) => o.value === value));
         const btn = (
           <button
             key={opt.value}
             type="button"
+            data-value={opt.value}
             // tabs: role="tab" + aria-selected + roving tabIndex
             // toggle: no role override + aria-pressed + always focusable
-            {...(!isToggle && { role: 'tab', 'aria-selected': on, tabIndex: on ? 0 : -1 })}
+            {...(!isToggle && { role: 'tab', 'aria-selected': on, tabIndex: tabbable ? 0 : -1 })}
             {...(isToggle && { 'aria-pressed': on, tabIndex: 0 })}
             data-testid={opt.testId}
             onClick={() => onChange(opt.value)}
             className={cn(
               // touch-target: ≥44px hit area on coarse pointers, 28px visual (WCAG 2.5.5).
-              'touch-target inline-flex h-7 items-center gap-1.5 rounded-[5px] px-[11px] text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-100',
+              'touch-target inline-flex h-7 items-center gap-1.5 rounded-[5px] px-3 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-100',
               '[&_svg]:size-[14px]',
               on
                 ? 'bg-background font-semibold text-foreground shadow-[0_1px_2px_hsl(240_6%_10%/0.1)]'
                 : 'text-muted-foreground hover:text-foreground',
-              opt.optionClassName,
             )}
           >
             {opt.icon && <Icon name={opt.icon} />}
-            {opt.label}
+            <span className={labelClassName}>{opt.label}</span>
             {opt.count !== undefined && opt.count > 0 && (
-              <Badge active={on} className="min-w-0 px-1.5">
+              <Badge className="min-w-0 px-1.5">
                 {opt.count}
               </Badge>
             )}

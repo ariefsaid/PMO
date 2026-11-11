@@ -136,7 +136,7 @@ Supabase's auth/RLS/storage/pgTAP). Full parallel/serialized-owner operating mod
   up only for migration/pgTAP/e2e phases; down otherwise.
 - **Close browsers after every rendered check** — `agent-browser close` / kill stray Chromium and
   `@playwright/mcp` servers immediately; they accumulate and (with the stack + the Electron app's
-  context) have crashed the Claude app at >20 GB, killing in-flight agent runs. See `docs/pi-delegation.md`
+  context) have crashed the Claude app at >20 GB, killing in-flight agent runs. See `docs/orca-dispatch.md`
   §3c for the pi process-tree detail (pi + everything it spawns lives under the app's process tree).
 - **Reclaim Docker disk periodically.** Stopped containers + dangling images pile up fast (seen: ~40 GB
   reclaimable). **`docker container prune` + `docker image prune`** are safe — they touch only *stopped*
@@ -304,8 +304,8 @@ hosted-grant sweep — and if a step is refused, stops there and hands the owner
 work around a refusal). The after-push probes stay **owner-run**: the probe driver rotates the smoke-org Admin
 password and keeps the probe secrets inside the one process the owner runs.
 ⚑ GoTrue throttles password sign-ins right after the two smokes — wait a minute before the isolation probe's
-sign-in. ⚑ `supabase db query --linked` works only from the linked main checkout (a worktree has no
-`supabase/.temp/project-ref`).
+sign-in. ⚑ Read the cloud DB (sweeps, counts, migration level) with `scripts/prod-read.sh`, never the `supabase`
+CLI with `--linked` (it needs a management token the session lacks; `.claude/hooks/prod-db-path-gate.sh` blocks it).
 
 ### Production auth floor (cloud project — NOT in the committed `config.toml`)
 
@@ -465,6 +465,10 @@ cd ~/Coding/frappe-docker-pmo && docker compose -p pmo-erpnext -f pwd.yml exec -
 #    ERPNEXT_TEST_FAULTS=1
 #    ERPNEXT_TEST_FAULTS_ALLOW_HOST=localhost,127.0.0.1  # ⚑ Kong forwards the host WITHOUT the port — port-suffixed values alone never match
 #    (ERPNEXT_SITE_URL / ERPNEXT_BENCH_URL default to host.docker.internal:8080 / localhost:8080 — leave them)
+#    serve-functions.sh sets ERPNEXT_ALLOW_LOCAL_BENCH=1 for you: the ERP host guard then lets the served
+#    functions reach the plain-http bench, but only the origins in ERPNEXT_LOCAL_BENCH_ORIGINS (default
+#    http://host.docker.internal:8080,http://localhost:8080) and only while SUPABASE_URL is a local stack —
+#    it is inert on the hosted project. Without it every bench call fails "ERPNext destination is not permitted".
 # 3. run — e2e-local exports the local Supabase URL/keys from `supabase status` and takes the DB lock itself:
 scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- \
   scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-TSP- e2e/serial/AC-ENA-05 --reporter=line
@@ -484,6 +488,92 @@ composed with `with-db-lock.sh` + `scripts/serve-functions.sh`:
 scripts/with-db-lock.sh scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- \
   npx playwright test e2e/AC-ENA-053-*
 ```
+
+**ERPNext vendor payments: one in flight per bill.** A bill can have one ERPNext payment in flight at a time; a second
+attempt is refused with "A payment for this bill is already in progress". A payment that never reached ERPNext frees its
+bill by itself: one the purchase rules refused is marked failed at once, and a queued one never claimed within 15 minutes is
+marked failed when the next payment for that bill arrives. Those two automatic releases are not retried automatically; a
+person's retry of the same payment still works while no other payment holds the bill. A payment whose outcome is unknown
+(claimed, then committing, committed or quarantined) is settled by the sweep, which adopts the ERPNext document or holds
+the row. The one route that needs a person is a **held** payment: resolve it through the Admin-only `release_outbox_hold`
+action (held to failed). The same payment then retries by itself and adopts the ERPNext payment if one exists — but the
+automatic retry only happens within 24 hours of the command (`outbox_max_auto_age`, the sweep's automatic age limit), so
+a failed payment older than that is never re-driven on its own and only a person's retry moves it. Before any manual
+retry, check ERPNext for the payment first: if it already exists, the retry adopts it instead of paying twice. Do not
+edit outbox rows by hand.
+
+## Odoo 20 Community dev bed (#1504 prerequisite)
+
+A stock `odoo:20.0` + `postgres:17-alpine` Docker Compose project (`pmo-odoo`), separate from the Supabase and
+ERPNext stacks. Dev bed only, never CI. Localhost-only: Odoo on `127.0.0.1:8069` (ERPNext uses 8080); Postgres
+is not published. Memory is capped (`odoo` 1.5 GB, `db` 512 MB; idle use is about 270 MB, `--workers=0`).
+Throwaway credentials are generated into the untracked `.env.odoo.local` (gitignored); nothing secret is tracked.
+
+```bash
+scripts/with-odoo-lock.sh scripts/odoo-dev-bed.sh up      # start, seed the demo db (idempotent), mint a probe API key
+scripts/odoo-dev-bed.sh status                             # containers + installed modules
+node scripts/odoo-probe.mjs                                # run the API-claim probe (shapes only, no secrets)
+scripts/odoo-dev-bed.sh down                               # stop (data kept)
+scripts/with-odoo-lock.sh scripts/odoo-dev-bed.sh reset    # wipe volumes, reseed from scratch
+```
+
+Seeded modules (Community only): `purchase stock account project analytic hr_timesheet fleet maintenance` and
+`l10n_id`; demo data off. A bot user's API key goes to `.env.odoo.local`. The first `up` takes several minutes
+(image about 3.5 GB, module install about 2 min); later runs reuse the volumes.
+
+**Lock order, machine-global, outermost first: `odoo -> erpnext -> db -> test`.** `scripts/with-odoo-lock.sh`
+(`PMO_ODOO_LOCK`, default `~/.pmo-odoo.lock`) shares the core in `scripts/lib/flock-run.sh`. Wrap `up`, `reset`
+and any probe run (it creates and deletes records). The ERPNext example above lists db before erpnext; the
+binding order is the one stated here.
+
+For the exercised purchase-to-payment calls, an internal user with Purchase User, Inventory User, and
+Accounting Invoice groups completed order confirmation, partial and complete receipts, a backorder wizard,
+lot creation, revision, bill and payment posting, and reconciliation. Removing each app group separately
+blocked an exercised operation. This is the smallest set tested on this bed, not a proof for every possible
+customized installation; see the O2 findings below.
+
+**Purchase-to-payment setup:** double validation must be off (`po_double_validation = one_step`) so an
+order confirmation completes within the tested flow. Select the organisation's default payment journal from
+the mirrored bank or cash journals that have an outbound payment method; Finance can choose another journal
+for an individual payment. Odoo procurement money writes use the shared money outbox, including same-intent
+recovery after a lost response.
+
+**Background recovery (AC-OPP-062):** each eligible Odoo sweep tick runs bounded procurement recovery beside
+revenue recovery and shares the tick's Odoo-call and time budgets. It reads the candidate set once, reserves
+capacity before dispatch, rebuilds the recorded command and uses persisted composite facts where a recovery
+probe needs them. The recorded actor is rechecked before any recovery reissue that could create a new Odoo
+document. A uniquely proved document is confirmed and linked; ambiguous or conflicting probe evidence stays
+held. Do not adopt a document by amount, vendor or date alone. The AC-OPP-062 sweep bed proves a lost
+bill-post response is linked with exactly one Odoo bill for that command, an edited bill anchor remains held,
+and a payment-create response lost after Odoo accepts it is recovered without allowing a second payment
+intent for the same bill. Order, receipt and revision recovery are covered by unit tests, not this sweep bed.
+
+**Held bill or order procedure:** an Admin reviews the held outbox command, its original PMO record and the
+matching Odoo document, including the supplier, totals, order relationship and creation window. When the
+intended Odoo document is clear, restore or correct its stock external identifier so the original command can
+find it, then use the audited `release_outbox_hold` route and retry the original command. Keep the row held
+when more than one document or owner could match; do not start a new intent to work around the hold. A row held as `committed-anchor-owned-elsewhere` was already committed in Odoo but
+its document is anchored to a different PMO record: check which record owns the document before releasing.
+
+**Held payment procedure:** only an Admin or Finance user other than the dispatching user may resolve a held
+payment. Compare the candidate in Odoo with the bill, vendor, amount and bounded creation window; adopt only
+after confirming the named payment is reconciled to that bill. Mark the payment absent only after searching
+those same facts and repeating the search; then retry the original command. Leave the row held when the
+evidence is inconclusive. These are scoped dev-bed results; release readiness remains the owner's call.
+
+For the exercised customer-invoice and receipt calls (#1506 findings, research doc §10), an internal user with the
+Billing group (`account.group_account_invoice`) completed invoice create and post, the register-payment wizard, line
+reconcile, the credit-note wizard and the Coretax export. The stock external identifier (`ir.model.data`) read and
+create additionally needed Access Rights (`base.group_erp_manager`). An API key for an internal-only user could not
+exceed one day. Smallest set tested on this bed, not a proof for every customized installation.
+
+**OWNER go-live check (O2 and O3):** Access Rights is an elevated grant on the service user. The owner confirms it
+for the real Odoo before an org employs `procurement` or `revenue` under Odoo; the build does not block on it.
+
+**Tax group names (O3):** the default sales tax is accepted only when its tax group is a PPN output group, matched on the group's English name (`Non-luxury Good Taxes`, `Luxury Good Taxes`, `Zero-rated Taxes`). Directory reads pin `lang=en_US`, so the service user's language does not matter. A group renamed in Accounting settings, or relabelled by an Odoo upgrade, is refused with the tax named, not guessed.
+
+What the bed showed about the Odoo API, including where the research docs were wrong:
+`docs/research/2026-10-31-odoo20-dev-bed-verification.md`.
 
 ## Observability & alerting (GTM item 3 — the floor)
 
@@ -563,7 +653,7 @@ per-deployed-project sign-off is the control.
 
 ⛔ **Do not read a number here as current** — `docs/backlog.md` § *Deployment state* holds the four
 commands that are the answer (`git rev-parse origin/{production,main,dev}`, the two `rev-list --count`s,
-`supabase migration list --linked`). This section keeps only the rules and the last dated snapshot.
+`scripts/prod-read.sh -c "select max(version) from supabase_migrations.schema_migrations"`). This section keeps only the rules and the last dated snapshot.
 
 **Snapshot 2026-10-09 (orientation only):** `production` == `main` == `97c00cf7` (**v0.17.0**, tag `v0.17.0`); cloud
 DB at **`0282`** (`0262`–`0282` pushed 2026-10-09 under an explicit owner deploy instruction); all 24 edge functions

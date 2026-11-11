@@ -362,7 +362,7 @@ describe('Luna BLOCK 1 — anchor collision: a Receive probe never adopts a Pay 
         expect(decoded).toContain('"party_type","=","Customer"');
         return new Response(JSON.stringify({ data: [] }), { status: 200 });
       }
-      return new Response(JSON.stringify({}), { status: 200 });
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
     };
     const result = await probeErpByPaymentComposite(
       { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: (d) => ({ id: (d as { name: string }).name }), pmoRecordId: 'pmo-pe-recv-1' },
@@ -383,7 +383,7 @@ describe('Luna BLOCK 1 — anchor collision: a Receive probe never adopts a Pay 
         expect(decoded).toContain('"party_type","=","Supplier"');
         return new Response(JSON.stringify({ data: [] }), { status: 200 });
       }
-      return new Response(JSON.stringify({}), { status: 200 });
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
     };
     const result = await probeErpByPaymentComposite(
       { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: (d) => ({ id: (d as { name: string }).name }), pmoRecordId: 'pmo-pe-pay-1' },
@@ -423,6 +423,7 @@ describe('Luna BLOCK 1 — anchor collision: a Receive probe never adopts a Pay 
       if (decoded.includes('"reference_no","like"')) {
         return new Response(JSON.stringify({ data: [{ name: 'ACC-PE-PAY-2026-00001' }] }), { status: 200 });
       }
+      if (decoded.includes('filters=')) return new Response(JSON.stringify({ data: [] }), { status: 200 }); // composite query: no candidates
       // The fetched doc is a Pay doc — a Receive probe must NOT adopt it.
       return new Response(
         JSON.stringify({ name: 'ACC-PE-PAY-2026-00001', docstatus: 1, payment_type: 'Pay', party_type: 'Supplier', references: [{ reference_name: 'ACC-PINV-2026-00001' }] }),
@@ -480,7 +481,7 @@ describe('#762 probeErpByPaymentComposite — a withholding receipt also matches
     siNames: ['ACC-SINV-0001'], createdAfter: '2026-10-01 00:00:00', paymentType: 'Receive' as const,
     withheldAmount: '20.00', allocatedAmount: '1000.00',
   };
-  const probe = (doc: Record<string, unknown>) => probeErpByPaymentComposite(
+  const probe = (doc: Record<string, unknown>, input = receiptInput) => probeErpByPaymentComposite(
     { client: client(async (url: string) => {
       const decoded = decodeURIComponent(url);
       if (decoded.includes('"reference_no","like"')) return new Response(JSON.stringify({ data: [] }), { status: 200 });
@@ -488,10 +489,18 @@ describe('#762 probeErpByPaymentComposite — a withholding receipt also matches
       return new Response(JSON.stringify({ name: 'ACC-PAY-0001', ...doc }), { status: 200 });
     }), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: (d) => ({ id: (d as { name: string }).name }),
       pmoRecordId: 'receipt-1' },
-    'idem-wht', receiptInput,
+    'idem-wht', input,
   );
   const withholdingDoc = { references: [{ reference_name: 'ACC-SINV-0001', allocated_amount: 1000 }],
     deductions: [{ amount: 20, description: 'Withholding slip: WHT-001' }] };
+
+  it('compares decimal-text deduction and allocation at cent precision', async () => {
+    expect(await probe({ references: [{ reference_name: 'ACC-SINV-0001', allocated_amount: '1000.004' }],
+      deductions: [{ amount: '10.075' }] }, { ...receiptInput, withheldAmount: '10.08' }))
+      .toEqual({ externalRecordId: 'ACC-PAY-0001', canonical: { id: 'receipt-1' } });
+    expect(await probe({ references: [{ reference_name: 'ACC-SINV-0001', allocated_amount: '1000.005' }],
+      deductions: [{ amount: '10.075' }] }, { ...receiptInput, withheldAmount: '10.08' })).toBeNull();
+  });
 
   it('AC-WHT-002: adopts the landed entry carrying the withheld deduction and the gross allocation', async () => {
     expect(await probe(withholdingDoc)).toEqual({ externalRecordId: 'ACC-PAY-0001', canonical: { id: 'receipt-1' } });
@@ -504,4 +513,78 @@ describe('#762 probeErpByPaymentComposite — a withholding receipt also matches
   it('AC-WHT-002: never adopts a same-cash entry that allocates only the cash to the invoice', async () => {
     expect(await probe({ ...withholdingDoc, references: [{ reference_name: 'ACC-SINV-0001', allocated_amount: 980 }] })).toBeNull();
   });
+});
+
+it('checks every candidate page before adopting a unique payment', async () => {
+  const names = Array.from({ length: 21 }, (_, i) => `PE-${String(i + 1).padStart(2, '0')}`);
+  const fetchImpl = async (url: string) => {
+    const parsed = new URL(url);
+    const filters = JSON.parse(parsed.searchParams.get('filters') ?? '[]') as Array<[string, string, string]>;
+    if (filters.some(([field]) => field === 'reference_no')) return new Response(JSON.stringify({ data: [] }));
+    if (parsed.searchParams.has('filters')) {
+      const after = filters.find(([field, op]) => field === 'name' && op === '>')?.[2] ?? '';
+      return new Response(JSON.stringify({ data: names.filter((name) => name > after).slice(0, 20).map((name) => ({ name })) }));
+    }
+    const name = decodeURIComponent(parsed.pathname.split('/').at(-1)!);
+    return new Response(JSON.stringify({ name, references: [{ reference_name: name === 'PE-01' || name === 'PE-21' ? 'SI-1' : 'other' }] }));
+  };
+  const result = await probeErpByPaymentComposite(
+    { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: () => ({ id: 'x' }), pmoRecordId: 'pmo' },
+    'key', { partyType: 'Customer', party: 'Customer', paidAmount: '10', piNames: [], siNames: ['SI-1'], createdAfter: '2026-01-01', paymentType: 'Receive' },
+  );
+  expect(result).toBeNull();
+});
+
+it('does not adopt when a candidate page has an invalid name', async () => {
+  const fetchImpl = async (url: string) => {
+    const decoded = decodeURIComponent(url);
+    if (decoded.includes('"reference_no","like"')) return new Response(JSON.stringify({ data: [] }));
+    if (decoded.includes('filters=')) return new Response(JSON.stringify({ data: [{ name: 'PE-01' }, {}] }));
+    return new Response(JSON.stringify({ references: [{ reference_name: 'SI-1' }] }));
+  };
+  await expect(probeErpByPaymentComposite(
+    { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: () => ({ id: 'x' }), pmoRecordId: 'pmo' },
+    'key', { partyType: 'Customer', party: 'Customer', paidAmount: '10', piNames: [], siNames: ['SI-1'], createdAfter: '2026-01-01', paymentType: 'Receive' },
+  )).rejects.toThrow();
+});
+
+it.each(['boundary', 'duplicate', 'out-of-order', 'malformed', 'query-error'])('does not adopt a candidate when a later page is %s', async (scenario) => {
+  const first = Array.from({ length: 20 }, (_, i) => ({ name: `PE-${String(i + 1).padStart(2, '0')}` }));
+  let page = 0;
+  const adopt = vi.fn(() => ({ id: 'adopted' }));
+  const fetchImpl = async (url: string) => {
+    const parsed = new URL(url);
+    const filters = JSON.parse(parsed.searchParams.get('filters') ?? '[]') as Array<[string, string, string]>;
+    if (filters.some(([field]) => field === 'reference_no')) return new Response(JSON.stringify({ data: [] }));
+    if (parsed.searchParams.has('filters')) {
+      if (page++ === 0) return new Response(JSON.stringify({ data: first }));
+      if (scenario === 'query-error') return new Response('failure', { status: 400 });
+      const data = scenario === 'boundary' ? [{ name: 'PE-20' }] : scenario === 'duplicate' ? [{ name: 'PE-21' }, { name: 'PE-21' }] : scenario === 'out-of-order' ? [{ name: 'PE-22' }, { name: 'PE-21' }] : null;
+      return new Response(JSON.stringify({ data }));
+    }
+    return new Response(JSON.stringify({ references: [{ reference_name: 'SI-1' }] }));
+  };
+  const result = probeErpByPaymentComposite(
+    { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: adopt, pmoRecordId: 'pmo' },
+    'key', { partyType: 'Customer', party: 'Customer', paidAmount: '10', piNames: [], siNames: ['SI-1'], createdAfter: '2026-01-01', paymentType: 'Receive' },
+  );
+  if (scenario === 'query-error') await expect(result).rejects.toThrow();
+  else if (scenario === 'malformed') await expect(result).rejects.toMatchObject({ code: 'external-unreachable' });
+  else expect(await result).toBeNull();
+  expect(adopt).not.toHaveBeenCalled();
+});
+
+it('keeps unordered list behavior for default callers', async () => {
+  const { listDocNamesByFilters } = await import('./client.ts');
+  expect(await listDocNamesByFilters(client(async () => new Response(JSON.stringify({ data: [{ name: 'B' }, {}, { name: 'A' }] }))), 'Payment Entry', [])).toEqual(['B', 'A']);
+  // THEME-DATA-07: a non-array envelope is an unconfirmed read, not an empty list.
+  await expect(listDocNamesByFilters(client(async () => new Response(JSON.stringify({ data: null }))), 'Payment Entry', [])).rejects.toMatchObject({ code: 'external-unreachable' });
+  expect(await listDocNamesByFilters(client(async () => new Response(JSON.stringify({ data: [] }))), 'Payment Entry', [])).toEqual([]);
+});
+
+it.each([{}, { data: 'x' }, null])('THEME-DATA-07 an anchor probe over a malformed list envelope %j is unconfirmed, not a miss', async (body) => {
+  const fetchImpl = async () => new Response(JSON.stringify(body), { status: 200 });
+  await expect(probeErpByAnchorKey(
+    { client: client(fetchImpl), doctype: 'Purchase Invoice', anchorField: 'remarks', fromDoc: () => ({ id: 'x' }), pmoRecordId: 'pmo' }, 'key',
+  )).rejects.toMatchObject({ code: 'external-unreachable' });
 });

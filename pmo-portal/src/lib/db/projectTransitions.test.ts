@@ -16,11 +16,21 @@ vi.mock('@/src/lib/supabase/client', () => ({
 }));
 
 import {
-  isLegalProjectTransition,
+  getProjectWinEligibility,
   projectStatusGroup,
   transitionProject,
   listPipelineStageConfig,
+  LEGAL_PROJECT_TRANSITIONS,
+  PIPELINE_STATUSES,
 } from './projectTransitions';
+
+describe('win eligibility', () => {
+  it('reads the server decision for the selected project', async () => {
+    mockRpc.mockResolvedValue({ data: 'reviewer_required', error: null });
+    await expect(getProjectWinEligibility('project-1')).resolves.toBe('reviewer_required');
+    expect(mockRpc).toHaveBeenCalledWith('project_win_eligibility', { p_id: 'project-1' });
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Builder helpers
@@ -51,46 +61,12 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// B1/B2 — Transition map (AC-1000)
-// ---------------------------------------------------------------------------
-
-describe('isLegalProjectTransition', () => {
-  it('AC-1000: project transition map accepts legal pairs, rejects illegal jumps, terminals and no-ops (FR-PR-001/003)', () => {
-    // Legal pairs
-    expect(isLegalProjectTransition('Leads', 'PQ Submitted')).toBe(true);
-    expect(isLegalProjectTransition('Negotiation', 'Won, Pending KoM')).toBe(true);
-    expect(isLegalProjectTransition('Tender Submitted', 'Loss Tender')).toBe(true);
-    expect(isLegalProjectTransition('Won, Pending KoM', 'Ongoing Project')).toBe(true);
-    expect(isLegalProjectTransition('On Hold', 'Ongoing Project')).toBe(true);
-    expect(isLegalProjectTransition('Close Out', 'Ongoing Project')).toBe(true);
-    expect(isLegalProjectTransition('Loss Tender', 'Negotiation')).toBe(true);
-    expect(isLegalProjectTransition('Leads', 'Internal Project')).toBe(true);
-
-    // Illegal jumps
-    expect(isLegalProjectTransition('Leads', 'Won, Pending KoM')).toBe(false);
-    expect(isLegalProjectTransition('Internal Project', 'Leads')).toBe(false);
-    expect(isLegalProjectTransition('Ongoing Project', 'Leads')).toBe(false);
-    // No-op
-    expect(isLegalProjectTransition('Leads', 'Leads')).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// B3 — Status-group helper (AC-1001)
+// B3 — Status-group helper (AC-1001); the AC-1000 map legality now lives at pgTAP
+// (supabase/tests/project_transition_map.test.sql) and AC-DEC-001 at
+// supabase/tests/0236_project_declined_outcome.test.sql (#1710 re-home).
 // ---------------------------------------------------------------------------
 
 describe('projectStatusGroup', () => {
-  it('AC-DEC-001: Declined is a legal terminal target from every pre-award stage, never from won/on-hand, and revives to Negotiation', () => {
-    for (const from of ['Leads', 'PQ Submitted', 'Quotation Submitted', 'Tender Submitted', 'Negotiation'] as const) {
-      expect(isLegalProjectTransition(from, 'Declined')).toBe(true);
-    }
-    for (const from of ['Won, Pending KoM', 'Ongoing Project', 'On Hold', 'Close Out', 'Internal Project'] as const) {
-      expect(isLegalProjectTransition(from, 'Declined')).toBe(false);
-    }
-    expect(isLegalProjectTransition('Declined', 'Negotiation')).toBe(true);
-    expect(projectStatusGroup('Declined')).toBe('lost');
-  });
-
   it('AC-1001: projectStatusGroup maps the five pipeline statuses to pipeline, the won/active set to onHand, Loss Tender to lost, Internal Project to internal (FR-PR-012)', () => {
     // Pipeline statuses
     expect(projectStatusGroup('Leads')).toBe('pipeline');
@@ -113,11 +89,34 @@ describe('projectStatusGroup', () => {
   });
 });
 
+describe('AC-1793 stage order and transitions', () => {
+  it('keeps Quotation before Pre-Qual and requires each stage to follow the revised order', () => {
+    expect(PIPELINE_STATUSES).toEqual([
+      'Leads', 'Quotation Submitted', 'PQ Submitted', 'Tender Submitted', 'Negotiation',
+    ]);
+    expect(LEGAL_PROJECT_TRANSITIONS['Leads']).toContain('Quotation Submitted');
+    expect(LEGAL_PROJECT_TRANSITIONS['Leads']).not.toContain('PQ Submitted');
+    expect(LEGAL_PROJECT_TRANSITIONS['Quotation Submitted']).toContain('PQ Submitted');
+    expect(LEGAL_PROJECT_TRANSITIONS['Quotation Submitted']).not.toContain('Leads');
+    expect(LEGAL_PROJECT_TRANSITIONS['PQ Submitted']).toContain('Tender Submitted');
+    expect(LEGAL_PROJECT_TRANSITIONS['Tender Submitted']).toContain('Negotiation');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // B4 — DAL RPC error surfacing + params/no-org-id (AC-1002)
 // ---------------------------------------------------------------------------
 
 describe('transitionProject', () => {
+  it('AC-1002: transitionProject refusal keeps its SQLSTATE and detail on the thrown error', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'illegal transition', code: 'P0001', details: 'bad-state' } });
+    await expect(transitionProject('p1', 'Won, Pending KoM')).rejects.toMatchObject({
+      message: 'illegal transition',
+      code: 'P0001',
+      details: 'bad-state',
+    });
+  });
+
   it('AC-1002: transitionProject surfaces the RPC 42501/P0001 error and sends {p_id,p_to,p_customer_contract_ref,p_contract_date} with no org_id (FR-PR-002/011)', async () => {
     // Error path: should throw
     makeRpcBuilder({ data: null, error: { message: 'illegal transition', code: 'P0001' } });
@@ -145,6 +144,20 @@ describe('transitionProject', () => {
     // No org_id in any call
     expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
   });
+
+  it('AC-LR-001 / FR-LR-012: transitionProject sends the lost reason and a trimmed note; a blank note is omitted', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await transitionProject('p1', 'Loss Tender', { lostReason: 'price', lostNote: ' undercut ' });
+    expect(mockRpc).toHaveBeenLastCalledWith('transition_project', {
+      p_id: 'p1',
+      p_to: 'Loss Tender',
+      p_lost_reason: 'price',
+      p_lost_note: 'undercut',
+    });
+    makeRpcBuilder({ data: null, error: null });
+    await transitionProject('p1', 'Declined', { lostReason: 'capacity', lostNote: '  ' });
+    expect(mockRpc.mock.lastCall?.[1]).toEqual({ p_id: 'p1', p_to: 'Declined', p_lost_reason: 'capacity' });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -152,7 +165,7 @@ describe('transitionProject', () => {
 // ---------------------------------------------------------------------------
 
 describe('listPipelineStageConfig', () => {
-  it('AC-1003: listPipelineStageConfig selects (status, win_probability) from pipeline_stage_config, normalises win_probability to Number, sends no org_id (FR-PR-013)', async () => {
+  it('AC-1003: listPipelineStageConfig exposes the stage win value as % Go and normalises it to Number', async () => {
     makeFromBuilder({ data: [{ status: 'Leads', win_probability: '0.100' }], error: null });
 
     const result = await listPipelineStageConfig();
@@ -161,8 +174,8 @@ describe('listPipelineStageConfig', () => {
     expect(mockSelect).toHaveBeenCalledWith('status, win_probability');
 
     // Normalised to number
-    expect(result[0].win_probability).toBe(0.1);
-    expect(typeof result[0].win_probability).toBe('number');
+    expect(result[0].go_probability).toBe(0.1);
+    expect(typeof result[0].go_probability).toBe('number');
 
     // No org_id
     expect(JSON.stringify(mockFrom.mock.calls)).not.toContain('org_id');

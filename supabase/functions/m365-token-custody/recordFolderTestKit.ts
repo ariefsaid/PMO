@@ -33,6 +33,7 @@ export type GraphRoute = {
   respond: (call: FetchCall, path: string) => Response | Promise<Response>;
 };
 export const gget = (match: string | RegExp, respond: GraphRoute["respond"]): GraphRoute => ({ method: "GET", match, respond });
+export const gput = (match: string | RegExp, respond: GraphRoute["respond"]): GraphRoute => ({ method: "PUT", match, respond });
 export const gpost = (match: string | RegExp, respond: GraphRoute["respond"]): GraphRoute => ({ method: "POST", match, respond });
 
 export interface World {
@@ -42,10 +43,22 @@ export interface World {
   parentError?: unknown;
   /** Rows returned for the folder register read. */
   documents: unknown[] | ((call: FetchCall) => unknown[]);
+  /** Rows for any other caller-RLS table read (e.g. budget links, purchase file tables), keyed by table name. */
+  tables?: Record<string, unknown[] | ((call: FetchCall) => unknown[])>;
+  /** When true the project/procurement document reads never answer until the request is aborted. */
+  hangDocuments?: boolean;
+  /** Entitlement shorthand: false resolves the `m365_integration` plan switch off (default true). */
+  entitled?: boolean;
+  /** Effective `m365_integration` plan switch (default true); the single source of entitlement. */
+  featureEnabled?: boolean;
+  /** `m365_membership_state.state` (default active). */
+  memberState?: "active" | "disabled" | "banned" | "missing";
   settings: unknown[] | { error: { code: string; message: string } };
   scopes: string[];
   connectionStatus: "active" | "stale" | "revoked";
   connectionMissing: boolean;
+  /** The connection read itself fails (a database outage), as opposed to the row being absent. */
+  connectionReadError?: boolean;
   graph: GraphRoute[];
   link: (call: FetchCall) => Response;
   created: (call: FetchCall) => Response;
@@ -58,6 +71,8 @@ export interface World {
   refresh: (call: FetchCall) => Response | Promise<Response>;
   /** Synthetic fixture value captured for exact refresh-generation assertions. */
   seededRefreshCiphertext?: string;
+  /** Answer of the run-aware summary save RPC (default `"accepted"`). */
+  sweepSave?: (call: FetchCall) => Response;
 }
 
 export const projectRow = (over: Record<string, unknown> = {}) => ({
@@ -126,10 +141,20 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
   });
   const rows = (data: unknown[]) => jsonResponse(data);
   const parentRows = async (call: FetchCall) => rows(typeof world.parent === "function" ? await world.parent(call) : world.parent);
-  const documentRows = (call: FetchCall) => rows(typeof world.documents === "function" ? world.documents(call) : world.documents);
+  const documentRows = (call: FetchCall) =>
+    world.hangDocuments
+      ? new Promise<Response>((_resolve, reject) => call.signal.addEventListener("abort", () => reject(new Error("aborted"))))
+      : rows(typeof world.documents === "function" ? world.documents(call) : world.documents);
+  const extraTables = Object.keys(world.tables ?? {}).map((name) =>
+    table(name, (call) => {
+      const source = world.tables![name]!;
+      return rows(typeof source === "function" ? source(call) : source);
+    })
+  );
   return [
-    { label: "membership", pathname: "/rest/v1/rpc/m365_membership_state", response: () => jsonResponse({ state: "active", org_id: ORG, role: world.role }) },
-    table("org_features", () => jsonResponse({ enabled: true }, OBJECT_HEADERS)),
+    ...extraTables,
+    { label: "membership", pathname: "/rest/v1/rpc/m365_membership_state", response: () => jsonResponse({ state: world.memberState ?? "active", org_id: ORG, role: world.role }) },
+    { label: "feature", pathname: "/rest/v1/rpc/service_feature_enabled", response: () => jsonResponse((world.featureEnabled ?? true) && (world.entitled ?? true)) },
     table("projects", (call) => world.parentError ? jsonResponse(world.parentError, { status: 500 }) : parentRows(call)),
     table("procurements", (call) => world.parentError ? jsonResponse(world.parentError, { status: 500 }) : parentRows(call)),
     table("project_documents", documentRows),
@@ -138,11 +163,15 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
       const settings = world.settings;
       return Array.isArray(settings) ? rows(settings) : jsonResponse(settings.error, { status: 403 });
     }),
+    { label: "save-sweep-summary", pathname: "/rest/v1/rpc/m365_record_folder_sweep_save", response: (call) => world.sweepSave ? world.sweepSave(call) : jsonResponse("accepted") },
     table("ms_graph_connections", () =>
-      world.connectionMissing
-        ? jsonResponse({ message: "none" }, { status: 406 })
+      world.connectionReadError
+        ? jsonResponse({ code: "XX000", message: "database unavailable" }, { status: 500 })
+        : world.connectionMissing
+        ? jsonResponse({ code: "PGRST116", message: "none" }, { status: 406 })
         : jsonResponse(connection, OBJECT_HEADERS)),
     { label: "link", pathname: "/rest/v1/rpc/m365_link_record_folder", response: (call) => world.link(call) },
+    { label: "delete-connection", pathname: "/rest/v1/rpc/m365_delete_connection", response: () => jsonResponse("synthetic-connection") },
     { label: "created", pathname: "/rest/v1/rpc/m365_record_folder_created", response: (call) => world.created(call) },
     { label: "candidates", pathname: "/rest/v1/rpc/m365_record_folder_candidates", response: (call) => world.candidates(call) },
     { label: "pkce-state", method: "POST", pathname: "/rest/v1/m365_pkce_states", response: () => new Response(null, { status: 201 }) },
@@ -150,6 +179,7 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
     { label: "token", host: "login.microsoftonline.com", response: (call) => world.refresh(call) },
     { label: "finish-refresh", pathname: "/rest/v1/rpc/m365_finish_refresh", response: (call) => {
       const args = call.bodyJson as Record<string, unknown>;
+      if (args.p_status === "stale" || args.p_status === "revoked") connection.status = args.p_status;
       if (args.p_status === "active") Object.assign(connection, {
         scopes: args.p_scopes, access_token_ciphertext: args.p_access_token_ciphertext,
         refresh_token_ciphertext: args.p_refresh_token_ciphertext,

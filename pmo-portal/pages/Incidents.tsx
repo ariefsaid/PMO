@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   ListPage,
@@ -14,13 +14,13 @@ import {
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
-import { ExportButton } from '@/src/components/export';
+import { ExportAllButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useIncidents, useIncidentMutations } from '@/src/hooks/useIncidents';
+import { useIncidentsPage, useIncidentsExportAll, useIncidentMutations } from '@/src/hooks/useIncidents';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import type { IncidentRow, IncidentStatus } from '@/src/lib/db/incidents';
+import { INCIDENTS_PAGE_SIZE, type IncidentRow, type IncidentStatus } from '@/src/lib/db/incidents';
 import { severityVariant, workflowVariant } from '@/src/lib/status/statusVariants';
 import { NEXT_STATUS, TRANSITION_COPY, type AdvanceStatus } from '@/src/lib/incidents/transitions';
 import { IncidentFormModal } from '@/components/IncidentFormModal';
@@ -50,11 +50,34 @@ const Incidents: React.FC = () => {
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data, isPending, isError, refetch } = useIncidents();
   const { create, update, transition, remove } = useIncidentMutations();
+  const exportAll = useIncidentsExportAll();
 
+  const [typed, setTyped] = useState('');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('All');
+  const [page, setPage] = useState(1);
+
+  // Search is applied 300 ms after the last keystroke; a new term or status starts at page 1.
+  useEffect(() => {
+    const timer = setTimeout(() => { setSearch(typed.trim()); setPage(1); }, 300);
+    return () => clearTimeout(timer);
+  }, [typed]);
+
+  const { list, allTotal } = useIncidentsPage({
+    page,
+    pageSize: INCIDENTS_PAGE_SIZE,
+    status: filter === 'All' ? undefined : filter,
+    search: search || undefined,
+  });
+  const { data, isPending, isError, refetch } = list;
+  const rows = data?.rows;
+  const total = data?.total ?? 0;
+  const lastPage = Math.max(1, Math.ceil(total / INCIDENTS_PAGE_SIZE));
+  // Deleting the last row of the last page leaves an empty page behind: step back.
+  useEffect(() => {
+    if (data && page > lastPage) setPage(lastPage);
+  }, [data, page, lastPage]);
 
   // Modal: null = closed; { incident: null } = create; { incident } = edit.
   const [formTarget, setFormTarget] = useState<{ incident: IncidentRow | null } | null>(null);
@@ -68,26 +91,12 @@ const Incidents: React.FC = () => {
   const canDelete = may('delete', 'incident');
   const canRowWrite = canEdit || canTransition || canDelete;
 
-  const all = useMemo(() => data ?? [], [data]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return all
-      .filter((i) => filter === 'All' || i.status === filter)
-      .filter(
-        (i) =>
-          !q ||
-          i.type.toLowerCase().includes(q) ||
-          (i.location ?? '').toLowerCase().includes(q),
-      );
-  }, [all, search, filter]);
-
   // ── States ──────────────────────────────────────────────────────────────
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
     ? 'loading'
     : isError || !data
       ? 'error'
-      : all.length === 0
+      : allTotal === 0
         ? 'empty'
         : undefined;
 
@@ -117,6 +126,7 @@ const Incidents: React.FC = () => {
     {
       key: 'incident_date',
       header: 'Date',
+      kind: 'date',
       cell: (i) => <span className="tabular text-muted-foreground">{i.incident_date}</span>,
       exportValue: (i) => i.incident_date,
       colClassName: 'hidden sm:table-cell',
@@ -191,6 +201,8 @@ const Incidents: React.FC = () => {
   return (
     <ListPage
       title="Incidents"
+      count={data ? total : undefined}
+      total={data ? allTotal : undefined}
       description="The organisation incident register. Anyone can file an incident; managers investigate and close them."
       primaryAction={
         canCreate && (
@@ -209,6 +221,7 @@ const Incidents: React.FC = () => {
               value={filter}
               onChange={(v) => {
                 setFilter(v);
+                setPage(1);
                 trackFilterApplied('status', STATUS_FILTERS.length, 'incidents');
               }}
               ariaLabel="Filter by status"
@@ -221,25 +234,32 @@ const Incidents: React.FC = () => {
           <SearchMini
             placeholder="Search incidents…"
             aria-label="Search incidents"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
             searchSurface="incidents-list"
             module="incidents"
-            resultCount={filtered.length}
+            resultCount={total}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
         )
       }
       exportAction={
         state !== 'loading' && (
-          <ExportButton rows={filtered} columns={columns} entity="Incidents" />
+          // #1991: the page holds ONE server page; Export still delivers EVERY incident matching
+          // the current status/search, read at click time.
+          <ExportAllButton
+            entity="Incidents"
+            columns={columns}
+            hasRows={total > 0}
+            fetchRows={() => exportAll.mutateAsync({ status: filter === 'All' ? undefined : filter, search: search || undefined })}
+          />
         )
       }
     >
       {/* Body */}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="table" columns={5} rows={6} />
         </div>
       )}
 
@@ -271,7 +291,7 @@ const Incidents: React.FC = () => {
 
       {state === undefined && (
         <DataTable<IncidentRow>
-          rows={filtered}
+          rows={rows ?? []}
           columns={columns}
           rowKey={(i) => i.id}
           // CW-4a: rows now OPEN the routable `/incidents/:id` detail page (they were inert — a
@@ -280,10 +300,24 @@ const Incidents: React.FC = () => {
           onActivate={(i) => navigate(`/incidents/${i.id}`)}
           rowLabel={(i) => `Open ${i.type}`}
           rowMenu={canRowWrite ? rowMenuOrNone : undefined}
-          state={filtered.length === 0 ? 'empty' : undefined}
+          state={(rows ?? []).length === 0 ? 'empty' : undefined}
           emptyTitle="No incidents match your filters"
           emptySub="Try a different status or clear the search."
         tableId="incidents-table" />
+      )}
+
+      {state === undefined && total > INCIDENTS_PAGE_SIZE && (
+        <nav aria-label="Pages" className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
+          <span>{(page - 1) * INCIDENTS_PAGE_SIZE + 1}–{Math.min(page * INCIDENTS_PAGE_SIZE, total)} of {total}</span>
+          <span className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} aria-label="Previous page">
+              <Icon name="back" aria-hidden="true" />
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)} aria-label="Next page">
+              <Icon name="chev" aria-hidden="true" />
+            </Button>
+          </span>
+        </nav>
       )}
 
       {/* File / edit incident modal */}

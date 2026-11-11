@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -7,6 +7,7 @@ vi.mock('@/src/lib/db/operators', () => ({ isOperator: vi.fn() }));
 
 import { useIsOperator, useOperatorMembership } from '../useIsOperator';
 import { isOperator } from '@/src/lib/db/operators';
+import { SERVER_SESSION_STALE_TIME } from '@/src/lib/queryPolicies';
 
 const makeWrapper = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -17,6 +18,7 @@ const makeWrapper = () => {
 };
 
 describe('useIsOperator (AC-OPR-003 — clarity projection ONLY, ADR-0049)', () => {
+  beforeEach(() => { vi.mocked(isOperator).mockReset(); });
   it('returns true when the RPC reports the caller is an Operator', async () => {
     vi.mocked(isOperator).mockResolvedValue(true);
     const { result } = renderHook(() => useIsOperator(), { wrapper: makeWrapper() });
@@ -94,7 +96,7 @@ describe('useIsOperator (AC-OPR-003 — clarity projection ONLY, ADR-0049)', () 
     expect(isOperator).toHaveBeenCalledTimes(2);
   });
 
-  it('rechecks membership on focus or within a minute and clears Operator-only aggregates after a negative result', async () => {
+  it('keeps membership shared across the shell but bounded, and clears Operator-only aggregates after invalidation', async () => {
     vi.mocked(isOperator).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } } });
     const Wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -104,10 +106,16 @@ describe('useIsOperator (AC-OPR-003 — clarity projection ONLY, ADR-0049)', () 
     await waitFor(() => expect(result.current.isOperator).toBe(true));
 
     const membershipQuery = qc.getQueryCache().find({ queryKey: ['operator', 'isOperator'] });
-    expect(membershipQuery?.options).toMatchObject({
+    const membershipOptions = membershipQuery?.options as { staleTime?: number; refetchOnWindowFocus?: boolean; refetchInterval?: unknown } | undefined;
+    // Review finding 2: membership must not be cached forever — an operator whose platform
+    // membership changes in another session has to lose the affordance within minutes. Sharing one
+    // key still means ONE membership read per window for every shell/route consumer.
+    expect(membershipOptions).toMatchObject({
+      staleTime: SERVER_SESSION_STALE_TIME,
       refetchOnWindowFocus: true,
-      refetchInterval: 60_000,
+      refetchInterval: SERVER_SESSION_STALE_TIME,
     });
+    expect(membershipOptions?.staleTime).not.toBe(Infinity);
 
     qc.setQueryData(['usage', 'org-1', true, null], [{ run_count: 1 }]);
     qc.setQueryData(['agent-run-stats', 'org-1', true, null], [{ runs: 1 }]);

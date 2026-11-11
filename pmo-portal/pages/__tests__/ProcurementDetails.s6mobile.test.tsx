@@ -1,14 +1,14 @@
 /**
  * Stream S6 — Wave-0 mobile UX fixes for ProcurementDetails
  *
- * AC-S20-001: one evidence-first responsive decision area
- *   The canonical decision-card is the sole action area at every viewport; it uses
- *   sticky positioning for reachability without a mirrored mobile control.
+ * AC-S20-001: one evidence-first decision area
+ *   The RecordHeader's primary action is the single decision control (#1404); there is no legacy
+ *   mirrored mobile sticky-action bar.
  *
  * B-IMP-2 (AC-S6-2): SoD pre-announce on draft state for the author
  *   When the PR is in Draft and the current user is the requester (author),
  *   show inline copy "Submitting hands this to another approver — you can't
- *   approve your own request." so the author understands SoD before submitting.
+ *   approve your own procurement case." so the author understands SoD before submitting.
  *
  * C-IMP-1 (AC-S6-3): BackBar on success render at <=921px
  *   The BackBar is rendered (conditionally visible via CSS) on the success render
@@ -20,6 +20,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import { BahasaProvider } from '@/test/bahasa';
+import enProcurementRecord from '../../public/locales/en/procurementRecord.json';
+import idProcurementRecord from '../../public/locales/id/procurementRecord.json';
 
 // ---------------------------------------------------------------------------
 // Stub ProcurementFilesSubsection — it calls useQueryClient() internally.
@@ -29,7 +33,11 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => ({ ...((await orig()) as Record<string, unknown>), useOrgTaxDefault: () => undefined }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -78,12 +86,6 @@ const mockDeleteItem = vi.fn().mockResolvedValue(undefined);
 const mockSelectQuote = vi.fn().mockResolvedValue(undefined);
 const mockCreateDocument = vi.fn().mockResolvedValue({ id: 'd-new' });
 const mockDeleteDocument = vi.fn().mockResolvedValue(undefined);
-const docsState = {
-  data: [] as Record<string, unknown>[],
-  isPending: false,
-  isError: false,
-  refetch: vi.fn(),
-};
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useProcurementCrudMutations: () => ({
     updateHeader: { mutateAsync: mockUpdateHeader, isPending: false },
@@ -94,7 +96,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: mockCreateDocument, isPending: false },
     deleteDocument: { mutateAsync: mockDeleteDocument, isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
@@ -119,8 +120,9 @@ vi.mock('react-router', async (orig) => {
 });
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useToast: () => ({ toast }) };
+  return { ...actual, useToast: () => ({ toast }), useIsNarrow: () => mockIsNarrow };
 });
+let mockIsNarrow = false;
 
 // Stub hooks that DecisionSupportPanel uses
 vi.mock('@/src/hooks/useBudget', () => ({
@@ -143,6 +145,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -179,6 +183,11 @@ const draftByAlice = {
   quotations: [],
   receipts: [],
   invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
 /** A Draft PR by someone else — u-alice is NOT the requester (tests SoD copy absent). */
@@ -206,9 +215,9 @@ const paidByAlice = {
   invoices: [{ id: 'i1', procurement_id: 'proc-s6-001', vi_number: 'VI-001', status: 'Paid' as const, invoice_date: '2026-06-10', org_id: 'org-1', created_at: '2026-06-10T00:00:00Z' }],
 };
 
-const renderPage = (id = 'proc-s6-001') =>
+const renderPage = (id = 'proc-s6-001', state?: unknown) =>
   render(
-    <MemoryRouter initialEntries={[`/procurement/${id}`]}>
+    <MemoryRouter initialEntries={[{ pathname: `/procurement/${id}`, state }]}>
       <Routes>
         <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
       </Routes>
@@ -216,6 +225,26 @@ const renderPage = (id = 'proc-s6-001') =>
   );
 
 // ---------------------------------------------------------------------------
+const ProcurementRecordCatalogue = ({ children }: { children: React.ReactNode }) => {
+  const { i18n } = useTranslation();
+  i18n.addResourceBundle('en', 'procurementRecord', enProcurementRecord, true, true);
+  i18n.addResourceBundle('id', 'procurementRecord', idProcurementRecord, true, true);
+  return <>{children}</>;
+};
+
+const renderBahasaPage = (id = 'proc-s6-001') =>
+  render(
+    <BahasaProvider>
+      <ProcurementRecordCatalogue>
+        <MemoryRouter initialEntries={[`/procurement/${id}`]}>
+          <Routes>
+            <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
+          </Routes>
+        </MemoryRouter>
+      </ProcurementRecordCatalogue>
+    </BahasaProvider>,
+  );
+
 // AC-S6-3: BackBar on success render at <=921px (C-IMP-1)
 // ---------------------------------------------------------------------------
 describe('AC-S6-3 (C-IMP-1): BackBar present in success render DOM for mobile back-nav', () => {
@@ -282,7 +311,15 @@ describe('AC-S6-2 (B-IMP-2): SoD pre-announce shown to author on Draft', () => {
     detailState.data = { ...draftByAlice };
     renderPage();
     const notice = screen.getByTestId('sod-pre-announce');
-    expect(notice).toHaveTextContent(/can.?t approve your own request/i);
+    expect(notice).toHaveTextContent(/can.?t approve your own procurement/i);
+  });
+
+  it('AC-S6-2: localizes the procurement SoD pre-announce in Bahasa', () => {
+    detailState.data = { ...draftByAlice };
+    renderBahasaPage();
+    expect(screen.getByTestId('sod-pre-announce')).toHaveTextContent(
+      'Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui kasus pengadaan Anda sendiri.',
+    );
   });
 
   it('AC-S6-2: the pre-announce is NOT shown when the viewer is NOT the author (Draft, different user)', () => {
@@ -307,9 +344,12 @@ describe('AC-S6-2 (B-IMP-2): SoD pre-announce shown to author on Draft', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AC-S20-001: one evidence-first responsive decision area; no mirrored phone CTA.
+// AC-S20-001: one evidence-first decision area; no legacy mirrored phone CTA.
+// The decision card + sticky RecordActionZone were replaced by the RecordHeader's one primary action
+// (#1404); the phone-only fixed bar repeats that same verb. Look pins (sticky/bottom-0 classes, button
+// counts inside a zone) are dropped; the goal — one canonical control, no second legacy bar — holds.
 // ---------------------------------------------------------------------------
-describe('AC-S20-001: one responsive decision area on phone', () => {
+describe('AC-S20-001: one decision area on phone', () => {
   beforeEach(() => {
     detailState.isPending = false;
     detailState.isError = false;
@@ -318,21 +358,12 @@ describe('AC-S20-001: one responsive decision area on phone', () => {
     mockIsDesktop = false;
   });
 
-  it('AC-S20-001: a Draft request has one action zone and one Submit Request control', () => {
+  it('AC-S20-001: a Draft request has one Submit control in the header actions and no legacy mobile bar', () => {
     detailState.data = { ...draftByAlice };
     renderPage();
-    expect(screen.getAllByTestId('record-action-zone')).toHaveLength(1);
+    const actions = screen.getByTestId('record-header-actions');
+    expect(within(actions).getAllByRole('button', { name: /submit for approval/i })).toHaveLength(1);
     expect(screen.queryByTestId('mobile-sticky-action')).toBeNull();
-    expect(within(screen.getByTestId('decision-card')).getAllByRole('button', { name: /submit request/i })).toHaveLength(1);
-  });
-
-  it('AC-S20-001: the single decision area uses sticky reachability without a second DOM action', () => {
-    detailState.data = { ...draftByAlice };
-    renderPage();
-    const zone = screen.getByTestId('record-action-zone');
-    expect(zone.className).toContain('sticky');
-    expect(zone.className).toContain('bottom-0');
-    expect(zone.querySelectorAll('button')).toHaveLength(2); // Submit + Cancel, both canonical controls.
   });
 
   it('AC-S20-001: a terminal request has no mirrored bar or transition action', () => {
@@ -344,6 +375,57 @@ describe('AC-S20-001: one responsive decision area on phone', () => {
   });
 });
 
+describe('B4: one filled main action per screen, wherever it is started', () => {
+  beforeEach(() => {
+    detailState.isPending = false;
+    detailState.isError = false;
+    detailState.error = null;
+    mockEffectiveRole = 'Engineer';
+    mockIsDesktop = false;
+    mockIsNarrow = false;
+  });
+
+  it('B4: below 640px only the phone action bar carries the main action', () => {
+    mockIsNarrow = true;
+    detailState.data = { ...draftByAlice };
+    renderPage();
+    expect(screen.getAllByRole('button', { name: /submit for approval/i })).toHaveLength(1);
+    expect(within(screen.getByTestId('record-header-actions')).queryByRole('button', { name: /submit for approval/i })).toBeNull();
+  });
+
+  it('B4: opening the record from the drawer main action starts that same action', () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...draftByOther, status: 'Received' as const };
+    renderPage('proc-s6-001', { runMainAction: 'Vendor Invoiced' });
+    expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
+  });
+
+  it('B4: a stale hand-off for a different step does nothing', () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...draftByOther, status: 'Received' as const };
+    renderPage('proc-s6-001', { runMainAction: 'Paid' });
+    expect(screen.queryByTestId('vi-inline-capture')).toBeNull();
+  });
+});
+
+describe('C1/O18: the no-access page names the record a procurement and carries the page heading', () => {
+  it('C1: a hidden or missing record reads as a procurement, under one h1', () => {
+    detailState.data = undefined;
+    detailState.isError = true;
+    detailState.error = Object.assign(new Error('not found'), { code: 'PGRST116' });
+    renderPage();
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    const page = screen.getByTestId('procurement-no-access');
+    expect(page).toHaveTextContent('This procurement case either doesn\'t exist');
+    expect(page).not.toHaveTextContent(/request/i);
+    detailState.isError = false;
+    detailState.error = null;
+  });
+});
+
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useErpJournalLines', () => import('@/pages/__tests__/helpers/erpJournalLinesMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

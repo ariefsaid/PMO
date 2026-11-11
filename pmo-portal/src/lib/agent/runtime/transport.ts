@@ -66,6 +66,12 @@ export interface AgentChatRequest {
    * terminal state even though the browser gave up on the stream.
    */
   cancel?: AgentCancel;
+  /**
+   * #1532 S1: sent ONLY when this browser's analytics consent is active (not opted out, no DNT).
+   * Lets the server tag AI telemetry with the replay session id and the opaque user id (cost per
+   * user). Absent => the server adds neither, and never captures prompt/response text.
+   */
+  analytics?: { consent: true; sessionId?: string };
 }
 
 /** Typed error shape for non-2xx responses from agent-chat. */

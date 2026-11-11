@@ -59,19 +59,7 @@ describe('erpnext/dispatchFactory', () => {
     expect(adapter.tier).toBe(ERPNEXT_TIER);
   });
 
-  it('throws BINDING_NOT_ACTIVATED/config-rejected when activated_at is null (a version mismatch or never-activated binding)', async () => {
-    const row = { ...ACTIVATED_ROW, activated_at: null };
-    await expect(
-      resolveErpDispatchAdapter({
-        serviceClient: serviceClientReturning(row),
-        orgId: 'org-1',
-        command: { domain: 'procurement', operation: 'create', record: { id: 'pmo-1', erp_doc_kind: 'purchase-order' } },
-        fetchImpl: vi.fn() as unknown as typeof fetch,
-        apiKey: 'k',
-        apiSecret: 's',
-      }),
-    ).rejects.toMatchObject({ code: 'config-rejected' });
-  });
+  // A binding with `activated_at === null` is refused `config-rejected` before any ERP call: shared `cutover.activation` suite.
 
   it('throws when no binding row exists for the org', async () => {
     await expect(
@@ -147,6 +135,59 @@ describe('erpnext/dispatchFactory', () => {
               }
               // B10: the cross-org link pre-flight resolves `vendorId` against `companies.org_id`
               // before any ref resolution — the vendor belongs to the caller's org here.
+              if (table === 'companies' && filters.id === 'company-1') return { data: { org_id: 'org-1' }, error: null };
+              return { data: null, error: null };
+            },
+          };
+          return chain;
+        },
+      }),
+    } as unknown as DispatchServiceClient;
+
+    let capturedToBodyCtx: unknown;
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient,
+      orgId: 'org-1',
+      command: { domain: 'procurement', operation: 'create', record: { id: 'pmo-1', erp_doc_kind: 'quotation', vendorId: 'company-1', items: [{ item_code: 'X', qty: 1, rate: 1 }] } },
+      fetchImpl: (async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'PUR-SQTN-2026-00001' }), { status: 200 });
+        if (init?.method === 'PUT') return new Response(JSON.stringify({ name: 'PUR-SQTN-2026-00001', docstatus: 1 }), { status: 200 });
+        return new Response(JSON.stringify({ name: 'PUR-SQTN-2026-00001', docstatus: 1 }), { status: 200 });
+      }) as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+      doctypeBodies: {
+        quotation: {
+          toBody: (rec, ctx) => {
+            capturedToBodyCtx = ctx;
+            return { supplier: ctx.refs.supplier, items: rec.items };
+          },
+          fromDoc: () => ({ id: 'placeholder' }),
+        },
+      },
+    });
+    await adapter.commit({ domain: 'procurement', operation: 'create', record: { id: 'pmo-1', erp_doc_kind: 'quotation', vendorId: 'company-1', items: [{ item_code: 'X', qty: 1, rate: 1 }] } });
+    expect((capturedToBodyCtx as { refs: { supplier: string | null } }).refs.supplier).toBe('Spike Supplier');
+  });
+
+  // ADP-022 seam coverage, passthrough half: the companies-domain external id normally encodes its
+  // doctype (`Supplier:<name>`, task 3.2), and the prefixed form is covered above — the resolver must
+  // leave a prefix-less mapping value UNMODIFIED rather than mangle or drop it.
+  it('task 4.6/4.7 — an external_refs mapping with NO doctype prefix passes through unmodified into ctx.refs.supplier', async () => {
+    const serviceClient: DispatchServiceClient = {
+      from: (table: string) => ({
+        select: () => {
+          let filters: Record<string, string> = {};
+          const chain = {
+            eq: (col: string, val: string) => {
+              filters = { ...filters, [col]: val };
+              return chain;
+            },
+            maybeSingle: async () => {
+              if (table === 'external_org_bindings') return { data: ACTIVATED_ROW, error: null };
+              if (table === 'external_refs' && filters.domain === 'companies' && filters.pmo_record_id === 'company-1') {
+                return { data: { external_record_id: 'Spike Supplier' }, error: null };
+              }
               if (table === 'companies' && filters.id === 'company-1') return { data: { org_id: 'org-1' }, error: null };
               return { data: null, error: null };
             },
@@ -488,94 +529,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
     'external_refs:revenue:si-org2': { external_record_id: 'ACC-SINV-2026-09999' },
   };
 
-  it('Luna B2 — sales-invoice: a customerId owned by ANOTHER org is rejected BEFORE any ERP write (no orphan money)', async () => {
-    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
-    await expect(
-      resolveErpDispatchAdapter({
-        serviceClient: multiTableServiceClient(LINK_TABLES),
-        orgId: 'org-1',
-        // cust-org2 genuinely belongs to org-2 in the fixture; cust-1 would pass.
-        command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-org2', projectId: 'proj-1', items: [] } },
-        fetchImpl,
-        apiKey: 'k',
-        apiSecret: 's',
-      }),
-    ).rejects.toMatchObject({ code: 'cross-org-link-rejected' });
-    expect(fetchImpl).not.toHaveBeenCalled();
-  });
-
-  it('Luna B2 — sales-invoice: a projectId owned by ANOTHER org is rejected BEFORE any ERP write', async () => {
-    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
-    await expect(
-      resolveErpDispatchAdapter({
-        serviceClient: multiTableServiceClient(LINK_TABLES),
-        orgId: 'org-1',
-        command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-org2', items: [] } },
-        fetchImpl,
-        apiKey: 'k',
-        apiSecret: 's',
-      }),
-    ).rejects.toMatchObject({ code: 'cross-org-link-rejected' });
-    expect(fetchImpl).not.toHaveBeenCalled();
-  });
-
-  it('Luna B2 — incoming-payment: a salesInvoiceId owned by ANOTHER org is rejected BEFORE any ERP write (the orphan-receipt case)', async () => {
-    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
-    await expect(
-      resolveErpDispatchAdapter({
-        serviceClient: multiTableServiceClient(LINK_TABLES),
-        orgId: 'org-1',
-        // A VALID own-org customer paired with ANOTHER org's SI — the exact audit scenario. Note the
-        // cross-org SI even HAS an external_refs mapping, so the BLOCK-5 resolvability check passes:
-        // only a real org_id check on the row can catch this.
-        command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-1', erp_doc_kind: 'incoming-payment', customerId: 'cust-1', salesInvoiceId: 'si-org2', paid_amount: 100, date: '2026-07-16' } },
-        fetchImpl,
-        apiKey: 'k',
-        apiSecret: 's',
-      }),
-    ).rejects.toMatchObject({ code: 'cross-org-link-rejected' });
-    expect(fetchImpl).not.toHaveBeenCalled();
-  });
-
-  it('Luna B2 — a link id that does not exist at all is rejected (fail closed, never a silent null link)', async () => {
-    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
-    await expect(
-      resolveErpDispatchAdapter({
-        serviceClient: multiTableServiceClient(LINK_TABLES),
-        orgId: 'org-1',
-        command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-does-not-exist', projectId: 'proj-1', items: [] } },
-        fetchImpl,
-        apiKey: 'k',
-        apiSecret: 's',
-      }),
-    ).rejects.toMatchObject({ code: 'cross-org-link-rejected' });
-    expect(fetchImpl).not.toHaveBeenCalled();
-  });
-
-  it('Luna B2 — same-org links (customer + project + SI all in org-1) resolve normally: the adapter is built', async () => {
-    const adapter = await resolveErpDispatchAdapter({
-      serviceClient: multiTableServiceClient(LINK_TABLES),
-      orgId: 'org-1',
-      command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-1', erp_doc_kind: 'incoming-payment', customerId: 'cust-1', salesInvoiceId: 'si-1', paid_amount: 100, date: '2026-07-16' } },
-      fetchImpl: vi.fn() as unknown as typeof fetch,
-      apiKey: 'k',
-      apiSecret: 's',
-    });
-    expect(adapter.tier).toBe(ERPNEXT_TIER);
-  });
-
-  it('Luna B2 — the SAME cross-org customerId is accepted for the org that DOES own it (the guard checks the row, not a canned answer)', async () => {
-    const adapter = await resolveErpDispatchAdapter({
-      serviceClient: multiTableServiceClient({ ...LINK_TABLES, 'external_refs:companies:cust-org2': { external_record_id: 'Customer:Other Tenant Customer' } }),
-      // caller is org-2 this time — cust-org2 is its OWN customer, so the identical id must pass.
-      orgId: 'org-2',
-      command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-2', erp_doc_kind: 'sales-invoice', customerId: 'cust-org2', items: [] } },
-      fetchImpl: vi.fn(async (url: string) => itemCatalogResponse(url) ?? new Response('{}', { status: 200 })) as unknown as typeof fetch, // #856: an invoice create looks up the default tax template
-      apiKey: 'k',
-      apiSecret: 's',
-    });
-    expect(adapter.tier).toBe(ERPNEXT_TIER);
-  });
+  // The six Luna B2 cross-tenant link refusals moved to the shared invoice.push suite (contractSuite/revenue.suite.ts).
 
   // ============================================================================
   // Luna re-audit BLOCK 4 — the require_project_on_si gate must require a RESOLVED ERP project, not
@@ -1251,7 +1205,8 @@ describe('resolvePaymentRefs — #910 task 2 (FR-VPAY-002/003/004/006)', () => {
 
   it('FR-VPAY-006b — paid_amount ≤ 0 refuses', async () => {
     const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
-    await expect(resolveAdapter(paymentCommand({ paid_amount: 0 }), HAPPY_TABLES, fetchImpl)).rejects.toMatchObject({ code: 'commit-rejected' });
+    await expect(resolveAdapter(paymentCommand({ paid_amount: 0 }), HAPPY_TABLES, fetchImpl))
+      .rejects.toSatisfy((err: AppError) => err.code === 'commit-rejected' && /supplier payment/i.test(err.message));
     await expect(resolveAdapter(paymentCommand({ paid_amount: -1 }), HAPPY_TABLES, fetchImpl)).rejects.toMatchObject({ code: 'commit-rejected' });
     expect(fetchImpl).not.toHaveBeenCalled();
   });

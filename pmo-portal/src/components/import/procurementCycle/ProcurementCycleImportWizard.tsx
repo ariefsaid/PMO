@@ -13,6 +13,7 @@
  */
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import { Button, Icon, StatusPill } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { RefLookup } from '@/src/lib/import';
@@ -30,7 +31,7 @@ import {
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
-export interface ProcurementCycleImportWizardProps {
+interface ProcurementCycleImportWizardProps {
   requestedById: string;
   projectLookup: RefLookup;
   vendorLookup: RefLookup;
@@ -87,6 +88,11 @@ export function ProcurementCycleImportWizard({
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [requestClose]);
+
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  useEffect(() => {
+    return acquireBackgroundInert();
+  }, []);
 
   // Focus-in on open; restore trigger on unmount.
   useEffect(() => {
@@ -148,7 +154,7 @@ export function ProcurementCycleImportWizard({
         )}
       >
         {/* Header */}
-        <div className="flex items-center gap-2.5 border-b border-border px-[18px] py-4">
+        <div className="flex items-center gap-2 border-b border-border px-[var(--space-content-inset)] py-4">
           <div className="min-w-0 flex-1">
             <h2
               id={titleId}
@@ -172,7 +178,7 @@ export function ProcurementCycleImportWizard({
         </div>
 
         {/* Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--space-content-inset)] py-4">
           {wiz.step === 'upload' && <CycleUploadStep wiz={wiz} />}
           {wiz.step === 'mapping' && <CycleMappingStep wiz={wiz} />}
           {wiz.step === 'preview' && <CyclePreviewStep wiz={wiz} />}
@@ -181,7 +187,7 @@ export function ProcurementCycleImportWizard({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-2 border-t border-border px-[18px] py-3.5">
+        <div className="flex items-center gap-2 border-t border-border px-[var(--space-content-inset)] py-3">
           {(wiz.step === 'mapping' || wiz.step === 'preview') && (
             <Button variant="ghost" size="sm" onClick={wiz.back}>
               Back
@@ -208,7 +214,7 @@ export function ProcurementCycleImportWizard({
                 variant="primary"
                 size="sm"
                 onClick={() => void wiz.commit()}
-                disabled={validRecordCount === 0}
+                disabled={validRecordCount === 0 || !wiz.conflictReport}
               >
                 Import {validRecordCount} record{validRecordCount !== 1 ? 's' : ''}
               </Button>
@@ -256,6 +262,7 @@ function CycleUploadStep({ wiz }: { wiz: Wiz }) {
           }}
         />
       </label>
+      {wiz.parsing && <p role="status">Reading file…</p>}
       {wiz.parseError && (
         <p role="alert" className="flex items-start gap-1.5 text-[12.5px] text-destructive">
           <Icon name="alert" className="mt-px size-4 shrink-0" />
@@ -335,6 +342,13 @@ function CycleMappingRow({
 
 function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
   const { validatedGroups, counts } = wiz;
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const allCollapsed = validatedGroups.length > 0 && validatedGroups.every(vg => collapsed.has(vg.group.caseRef));
+  const toggleCase = (id: string) => setCollapsed(previous => {
+    const next = new Set(previous);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   return (
     <div className="flex flex-col gap-3">
@@ -348,18 +362,40 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
         {counts.totalCases > 0 && (
           <button
             type="button"
-            onClick={wiz.globalExpand === false ? wiz.expandAll : wiz.collapseAll}
+            onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(validatedGroups.map(vg => vg.group.caseRef)))}
             className="shrink-0 text-[12px] text-primary-text hover:underline"
           >
-            {wiz.globalExpand === false ? 'Expand all' : 'Collapse all'}
+            {allCollapsed ? 'Expand all' : 'Collapse all'}
           </button>
         )}
       </div>
 
+      {wiz.parseError && (
+        <div role="alert" className="text-[13px] text-destructive-text">
+          <p>{wiz.parseError}</p>
+          <button type="button" onClick={() => void wiz.goPreview()} className="underline">Retry preview</button>
+        </div>
+      )}
+      {!wiz.conflictReport && !wiz.parseError && <p role="status" className="text-[13px] text-muted-foreground">Checking import identities…</p>}
+      {wiz.conflictReport && <p className="text-[13px] text-muted-foreground">{wiz.conflictReport.wouldCreate} to create, {wiz.conflictReport.wouldSkip} to skip, {wiz.conflictReport.wouldCollide} conflicts</p>}
+      {wiz.conflictReport?.conflicts?.length ? (
+        <div className="text-[13px] text-destructive-text">
+          <p>Reconcile these conflicts before importing the affected records:</p>
+          <ul>
+            {wiz.conflictReport.conflicts.map((conflict, index) => (
+              <li key={`${conflict.caseRef}-${conflict.rowNumber ?? ''}-${conflict.id ?? ''}-${index}`}>
+                <span className="break-all">{conflict.caseRef}{conflict.rowNumber != null ? ` · row ${conflict.rowNumber}` : ''}{conflict.type ? ` · ${conflict.type}` : ''}{conflict.id ? ` · ${conflict.id}` : ''}</span>{' '}
+                <span>{conflict.message}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {/* Case/record tree */}
       <div className="flex flex-col gap-2">
         {validatedGroups.map((vg) => (
-          <CaseCard key={vg.group.caseRef} vg={vg} globalExpand={wiz.globalExpand} />
+          <CaseCard key={vg.group.caseRef} vg={vg} expanded={!collapsed.has(vg.group.caseRef)} onToggle={() => toggleCase(vg.group.caseRef)} />
         ))}
       </div>
 
@@ -371,14 +407,11 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
 }
 
 /** A single case with its records (expandable). */
-function CaseCard({ vg, globalExpand }: { vg: ValidatedGroup; globalExpand: boolean | null }) {
+function CaseCard({ vg, expanded, onToggle }: { vg: ValidatedGroup; expanded: boolean; onToggle: () => void }) {
   // FR-L10N-020: an import PREVIEW row is a spreadsheet cell, not a stored record — there is no
   // per-row currency to read, and nothing is persisted yet. The org default is what the rows will
   // land in, so it is what the preview shows.
   const orgCurrency = useOrgCurrency();
-  const [localExpanded, setLocalExpanded] = useState(true);
-  // Global override wins when set; otherwise use local state.
-  const expanded = globalExpand !== null ? globalExpand : localExpanded;
   const { group, groupErrors, rows, valid } = vg;
 
   const validRowCount = rows.filter((r) => r.valid).length;
@@ -391,7 +424,7 @@ function CaseCard({ vg, globalExpand }: { vg: ValidatedGroup; globalExpand: bool
       {/* Case header row */}
       <button
         type="button"
-        onClick={() => setLocalExpanded((x) => !x)}
+        onClick={onToggle}
         className="flex w-full items-center gap-2 px-3 py-2 text-left"
         aria-expanded={expanded}
       >

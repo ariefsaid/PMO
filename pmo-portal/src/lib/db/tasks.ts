@@ -1,3 +1,5 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables, TablesUpdate, Enums } from '@/src/lib/supabase/database.types';
@@ -99,18 +101,82 @@ type RawTask = TaskRow & {
  * failure.
  */
 export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
-  const { data, error } = await supabase
+  const rows = await fetchAllPages((from, to) => supabase
     .from('tasks')
     .select(SELECT)
     .eq('project_id', projectId)
     .is('tombstoned_at', null)
-    .order('created_at', { ascending: true });
-  if (error) throwWrite(error);
-  const rows = (data ?? []) as unknown as RawTask[];
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to)) as unknown as RawTask[];
   return rows.map((t) => ({
     ...t,
     assignee: t.assignee ?? null,
     dependencies: t.dependencies ?? [],
+  }));
+}
+
+/** Narrow task row for dashboard overdue counts: no joins, no description. */
+export type TaskDueRow = Pick<TaskRow, 'project_id' | 'status' | 'end_date'>;
+
+const DUE_CHUNK = 100;
+
+/**
+ * Status + due date of every live task across `projectIds`, in `.in(project_id)` chunks (one read
+ * per chunk, not one per project). Narrow select: the PM dashboard only counts overdue tasks.
+ * Excludes tombstoned rows like listTasks. Throws on any chunk failure (never a partial set).
+ */
+export async function listTaskDueRows(projectIds: readonly string[]): Promise<TaskDueRow[]> {
+  const unique = [...new Set(projectIds)];
+  const out: TaskDueRow[] = [];
+  for (let i = 0; i < unique.length; i += DUE_CHUNK) {
+    const chunk = unique.slice(i, i + DUE_CHUNK);
+    out.push(...(await fetchAllPages((from, to) => supabase
+      .from('tasks')
+      .select('id, project_id, status, end_date')
+      .in('project_id', chunk)
+      .is('tombstoned_at', null)
+      .order('id', { ascending: true })
+      .range(from, to)) as unknown as TaskDueRow[]));
+  }
+  return out;
+}
+
+/** A dated task as the calendar needs it: no joins beyond the project name, no description. */
+export interface CalendarTask {
+  id: string;
+  name: string;
+  status: TaskStatus;
+  project_id: string | null;
+  project_name: string | null;
+  start_date: string | null;
+  end_date: string;
+  assignee_id: string | null;
+  created_by: string | null;
+}
+
+/**
+ * Live, unarchived tasks due in `[from, to)` (YYYY-MM-DD) for the calendar views. ONE query for the
+ * whole org window (RLS scopes rows; org_id is never sent), or one project when `projectId` is given.
+ * Throws on any page failure (never a partial set).
+ */
+export async function listCalendarTasks(
+  opts: { from: string; to: string; projectId?: string },
+): Promise<CalendarTask[]> {
+  const rows = await fetchAllPages((from, to) => {
+    let q = supabase
+      .from('tasks')
+      .select('id, name, status, project_id, start_date, end_date, assignee_id, created_by, project:projects!tasks_project_id_fkey(name, short_name)')
+      .gte('end_date', opts.from)
+      .lt('end_date', opts.to)
+      .is('tombstoned_at', null)
+      .is('archived_at', null);
+    if (opts.projectId) q = q.eq('project_id', opts.projectId);
+    return q.order('end_date', { ascending: true }).order('id', { ascending: true }).range(from, to);
+  }) as unknown as Array<Omit<CalendarTask, 'project_name'> & { project: { name: string; short_name?: string | null } | null }>;
+  return rows.map(({ project, ...t }) => ({
+    ...t,
+    project_name: project ? projectDisplayName(project) : null,
   }));
 }
 
@@ -120,14 +186,14 @@ export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
  * listTasks. RLS scopes rows; ordered by created_at so items read in the order they were minuted.
  */
 export async function listTasksByMeeting(meetingId: string): Promise<TaskWithRefs[]> {
-  const { data, error } = await supabase
+  const rows = await fetchAllPages((from, to) => supabase
     .from('tasks')
     .select(SELECT)
     .eq('meeting_id', meetingId)
     .is('tombstoned_at', null)
-    .order('created_at', { ascending: true });
-  if (error) throwWrite(error);
-  const rows = (data ?? []) as unknown as RawTask[];
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to)) as unknown as RawTask[];
   return rows.map((t) => ({
     ...t,
     assignee: t.assignee ?? null,
@@ -165,15 +231,15 @@ export async function getTask(id: string): Promise<TaskWithRefs | null> {
  * direct DAL (this branch) whenever the ownership cache is empty/never-loaded (FR-CUA-030/031).
  *
  * OD-INT-9: parent_task_id IS forwarded to the external dispatch; the dispatch factory resolves
- * it via `external_refs` to a ClickUp `parent` id. Unresolvable parents create a flat task
- * (reconciled later). milestone_id remains omitted (PMO-native grouping).
+ * it via `external_refs` to a ClickUp `parent` id. An unmapped parent refuses the dispatch
+ * (commit-rejected — nothing is created). milestone_id is forwarded too: ClickUp has no such field and ignores it, but the
+ * dispatch's mirror write stamps it so the task lands in the chosen group.
  */
 export async function createTask(input: TaskInput): Promise<TaskRow> {
   if (routeTaskWrite(input.project_id) === 'external') {
     // OD-INT-9: parent_task_id IS forwarded to the external dispatch; the dispatch factory
-    // resolves it via `external_refs` to a ClickUp `parent` id. Unresolvable parents create
-    // a flat task (reconciled later by the sweep). milestone_id remains omitted (PMO-native
-    // grouping).
+    // resolves it via `external_refs` to a ClickUp `parent` id. An unmapped parent refuses
+    // the dispatch (commit-rejected — nothing is created).
     const res = await dispatchTaskCommand('create', {
       id: crypto.randomUUID(),
       project_id: input.project_id,
@@ -183,8 +249,8 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       start_date: input.start_date || null,
       end_date: input.end_date || null,
       parent_task_id: input.parent_task_id ?? null,
-      // OD-INT-9: description + priority DO map to ClickUp (unlike milestone_id, a PMO-native
-      // enhancement that stays excluded). Follow the parent_task_id precedent.
+      milestone_id: input.milestone_id ?? null, // PMO-native: stamped on the mirror, never sent to ClickUp
+      // OD-INT-9: description + priority DO map to ClickUp. Follow the parent_task_id precedent.
       description: input.description || null,
       priority: input.priority ?? null,
     });
@@ -221,11 +287,9 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
  */
 export async function updateTask(id: string, patch: TaskPatch, projectId?: string): Promise<void> {
   if (routeTaskWrite(projectId) === 'external') {
-    // NOTE (OD-INT-9 gap): strip parent_task_id before dispatch — same exclusion + reason as
-    // create above (ClickUp `parent` mapping is a separate issue). Forwarding an unhandled
-    // field to the ClickUp edge function risks rejecting the whole write.
-    const { parent_task_id: _omitted, ...rest } = patch;
-    await dispatchTaskCommand('update', { id, ...rest });
+    // parent_task_id (re-parent, or null = promote) and milestone_id ride along: the dispatch maps the
+    // parent to ClickUp's `parent` and stamps both on the mirror. Absent keys stay absent.
+    await dispatchTaskCommand('update', { id, ...patch });
     return;
   }
   const next: TablesUpdate<'tasks'> = {};
@@ -333,4 +397,73 @@ export async function removeDependency(taskId: string, dependsOnId: string): Pro
     .select('task_id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Dependency not found or you do not have permission to remove it.');
+}
+/**
+ * A task row joined with its project name — the shape the My Tasks page consumes.
+ * This is a cross-project, assignee-scoped read: the RLS `tasks_select` policy
+ * already gates to the org; the server-side `assignee_id = self` filter scopes to own.
+ *
+ * The plan (B-1) notes: "only add a small DAL helper if needed — do NOT add a new RLS
+ * migration". RLS already scopes to the org; the assignee filter is a client-side WHERE.
+ */
+export interface MyTask {
+  id: string;
+  name: string;
+  status: TaskStatus;
+  assignee_id: string | null;
+  /** #525: NULL for a task that was never given a project — it is a real state, not missing data. */
+  project_id: string | null;
+  /** NULL exactly when `project_id` is; the UI renders a heading, not a project link (FR-FCT-041). */
+  project_name: string | null;
+  /** The contractual title behind a short `project_name` (hover + search). */
+  project_contractual_name?: string | null;
+  /** Meeting-linked tasks without a project still have a canonical record doorway. */
+  meeting_id?: string | null;
+  start_date: string | null;
+  end_date: string | null;
+}
+
+/**
+ * Fetch all tasks assigned to the signed-in user across projects.
+ * org_id is NEVER sent — RLS (tasks_select) scopes to the org. The assignee_id
+ * filter is applied by the server along with RLS.
+ * The project name is joined via `projects(name)` in the select. Excludes tombstoned rows
+ * (`.is('tombstoned_at', null)`, AC-CUA-002/C5c) — a ClickUp-native delete (C3) must not
+ * remain in the cross-project My Tasks list either.
+ */
+export async function listMyTasks(userId: string): Promise<MyTask[]> {
+  const data = await fetchAllPages((from, to) => supabase
+    .from('tasks')
+    .select('id, name, status, assignee_id, project_id, meeting_id, start_date, end_date, project:projects!tasks_project_id_fkey(name, short_name)')
+    .eq('assignee_id', userId)
+    .is('tombstoned_at', null)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to));
+  // Map the joined `project` shape onto `project_name`.
+  return ((data ?? []) as unknown as Array<{
+    id: string;
+    name: string;
+    status: string;
+    assignee_id: string | null;
+    project_id: string | null;
+    meeting_id: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    project: { name: string; short_name?: string | null } | null;
+  }>).map((t) => ({
+    id: t.id,
+    name: t.name,
+    status: t.status as TaskStatus,
+    assignee_id: t.assignee_id,
+    project_id: t.project_id,
+    meeting_id: t.meeting_id,
+    // ⚑ NOT `?? '—'`. A project-less task has no project NAME either, and collapsing that to a dash
+    // would make it indistinguishable from a project whose name failed to load — the UI needs to
+    // tell them apart to decide between a link and a plain heading (FR-FCT-041).
+    project_name: t.project ? projectDisplayName(t.project) : null,
+    ...(t.project && projectDisplayName(t.project) !== t.project.name ? { project_contractual_name: t.project.name } : {}),
+    start_date: t.start_date,
+    end_date: t.end_date,
+  }));
 }

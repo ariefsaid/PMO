@@ -25,6 +25,10 @@ export interface FunctionsClient {
   functions: { invoke(name: string, opts: { body: unknown }): Promise<{ data: unknown; error: unknown }> };
 }
 
+export interface RpcClient {
+  rpc(fn: string, args: Record<string, unknown>): PromiseLike<LooseResult>;
+}
+
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function asLoose(client: unknown): LooseClient {
@@ -34,6 +38,10 @@ export function asLoose(client: unknown): LooseClient {
 export function asFunctions(client: unknown): FunctionsClient | null {
   const fns = (client as { functions?: { invoke?: unknown } } | null)?.functions;
   return fns && typeof fns.invoke === 'function' ? (client as FunctionsClient) : null;
+}
+
+export function asRpc(client: unknown): RpcClient | null {
+  return typeof (client as { rpc?: unknown } | null)?.rpc === 'function' ? (client as RpcClient) : null;
 }
 
 export async function readRows<T>(q: PromiseLike<LooseResult>): Promise<T[]> {

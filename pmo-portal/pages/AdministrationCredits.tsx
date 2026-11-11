@@ -112,7 +112,7 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
         title={t('admin.nav.credits', 'Credits')}
         action={
           isOperator && (
-            <Button variant="primary" onClick={() => setGrantOpen(true)}>
+            <Button variant="primary" onClick={() => { setSaveError(null); setGrantOpen(true); }}>
               <Icon name="plus" />
               {t('admin.credits.grant', 'Grant credits')}
             </Button>
@@ -150,10 +150,11 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
         <GrantFormModal
           loading={grantMutation.isPending}
           submitError={saveError}
-          onClose={() => setGrantOpen(false)}
-          onSubmit={(amount, note) =>
-            grantMutation.mutate({ orgId, amount, note })
-          }
+          onClose={() => { setSaveError(null); setGrantOpen(false); }}
+          onSubmit={(amount, note) => {
+            setSaveError(null);
+            grantMutation.mutate({ orgId, amount, note });
+          }}
         />
       )}
     </div>

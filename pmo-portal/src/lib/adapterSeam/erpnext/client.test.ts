@@ -16,6 +16,8 @@ import {
   unwrapFrappeDoc,
   escapeLikePattern,
   listDocNamesByAnchor,
+  listDocsByFilters,
+  listDocsByFiltersPaged,
   ERP_REQUEST_TIMEOUT_MS,
   ERP_QUARANTINE_WINDOW_MS,
   ERP_RESPONSE_MAX_BYTES,
@@ -23,6 +25,7 @@ import {
   ERP_RETRY_AFTER_CAP_MS,
   withProbeBudget,
   withCommitDeadline,
+  withRangeWriteDeadline,
   isFinancialDecimalTextResponse,
   type ErpClientDeps,
 } from './client.ts';
@@ -404,6 +407,53 @@ describe('erpnext/client', () => {
     });
   });
 
+  describe('THEME-DATA-07 a malformed successful list envelope is unconfirmed, never an empty confirmed miss', () => {
+    const bad: Array<[string, () => Promise<Response>]> = [
+      ['no data member', async () => jsonResponse(200, {})],
+      ['non-array data', async () => jsonResponse(200, { data: 'oops' })],
+      ['null data', async () => jsonResponse(200, { data: null })],
+      ['malformed JSON', async () => new Response('<html>gateway</html>', { status: 200 })],
+      ['empty body', async () => new Response('', { status: 200 })],
+    ];
+    it.each(bad)('listDocNamesByAnchor rejects external-unreachable on %s', async (_l, f) => {
+      await expect(listDocNamesByAnchor(fetchDeps(f), 'Purchase Invoice', 'remarks', 'k')).rejects.toMatchObject({ code: 'external-unreachable' });
+    });
+    it.each(bad)('listDocsByFilters rejects external-unreachable on %s', async (_l, f) => {
+      await expect(listDocsByFilters(fetchDeps(f), 'Purchase Invoice', [], ['name'])).rejects.toMatchObject({ code: 'external-unreachable' });
+    });
+    it('a validated empty array is still an empty result', async () => {
+      const deps = fetchDeps(async () => jsonResponse(200, { data: [] }));
+      expect(await listDocNamesByAnchor(deps, 'Purchase Invoice', 'remarks', 'k')).toEqual([]);
+      expect(await listDocsByFilters(deps, 'Purchase Invoice', [], ['name'])).toEqual([]);
+    });
+  });
+
+  it('AC-010 pages a complete candidate list by name and refuses duplicate or malformed page identities', async () => {
+    const urls: string[] = [];
+    const deps = fetchDeps(async (input) => {
+      const url = new URL(String(input));
+      urls.push(url.toString());
+      const filters = JSON.parse(url.searchParams.get('filters') ?? '[]') as unknown[][];
+      const after = filters.find(([field, op]) => field === 'name' && op === '>')?.[2] as string | undefined;
+      const last = filters.find(([field, op]) => field === 'name' && op === '>')?.[2] as string | undefined;
+      const rows = !after ? [{ name: 'BUDGET-1' }] : last === 'BUDGET-1' ? [{ name: 'BUDGET-2' }] : [];
+      return jsonResponse(200, { data: rows });
+    });
+    const rows = await listDocsByFiltersPaged(deps, 'Budget', [], ['name'], { pageSize: 1, maxPages: 3 });
+    expect(rows).toEqual([{ name: 'BUDGET-1' }, { name: 'BUDGET-2' }]);
+    expect(urls.map((value) => JSON.parse(new URL(value).searchParams.get('filters') ?? '[]'))).toEqual([
+      [], [['name', '>', 'BUDGET-1']], [['name', '>', 'BUDGET-2']],
+    ]);
+
+    const duplicate = fetchDeps(async (input) => {
+      const url = new URL(String(input));
+      const after = JSON.parse(url.searchParams.get('filters') ?? '[]').length > 0;
+      return jsonResponse(200, { data: after ? [{ name: 'BUDGET-1' }] : [{ name: 'BUDGET-1' }] });
+    });
+    await expect(listDocsByFiltersPaged(duplicate, 'Budget', [], ['name'], { pageSize: 1, maxPages: 2 }))
+      .rejects.toMatchObject({ code: 'external-unreachable' });
+  });
+
   // ── Luna BLOCK 5 (money path): a hung POST must never race its own recovery ────────────────────
   describe('commit deadline (Luna BLOCK 10 — the claim budget bounds the POST itself, not the commit entry)', () => {
     it('refuses a POST issued AT/PAST the commit deadline — the request never reaches ERP', async () => {
@@ -442,6 +492,33 @@ describe('erpnext/client', () => {
       expect(budgeted.commitDeadlineAtMs).toBe(42);
       expect(base.commitDeadlineAtMs).toBeUndefined();
       expect(budgeted.fetchImpl).toBe(base.fetchImpl);
+    });
+
+    it('withRangeWriteDeadline gives staged Budget writes one attempt so recovery reads back before any retry', async () => {
+      const base = { ...fetchDeps(async () => jsonResponse(503, { exception: 'ServiceUnavailable' })), now: () => 0 };
+      const budgeted = withRangeWriteDeadline(base, 42);
+
+      await expect(updateDoc(budgeted, 'Budget', 'BUD-RANGE-1', { budget_distribution: [] }))
+        .rejects.toMatchObject({ code: 'external-unreachable' });
+      expect(budgeted.rangeWriteDeadlineAtMs).toBe(42);
+      expect(budgeted.maxRetries).toBe(0);
+      expect(budgeted.fetchImpl).toHaveBeenCalledTimes(1);
+      expect(base.maxRetries).toBeUndefined();
+    });
+
+    it('rechecks a range-write deadline after waiting for the rate limiter and before sending the write', async () => {
+      let now = 41;
+      const deps = withRangeWriteDeadline({
+        ...fetchDeps(async () => jsonResponse(200, { name: 'BUD-RANGE-1' })),
+        now: () => now,
+        rateLimiter: {
+          acquire: async () => { now = 42; },
+        },
+      }, 42);
+
+      await expect(updateDoc(deps, 'Budget', 'BUD-RANGE-1', { budget_distribution: [] }))
+        .rejects.toMatchObject({ code: 'external-unreachable', retryable: true });
+      expect(deps.fetchImpl).not.toHaveBeenCalled();
     });
   });
 
@@ -868,4 +945,68 @@ describe('erpnext/client', () => {
       }
     });
   });
+});
+
+describe('safe bounded diagnostic reads', () => {
+  it.each(['throw', 'redirect', 'cap', 'server'])('does not expose sensitive request or upstream content on %s', async kind => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fetchImpl = vi.fn(async () => {
+      if (kind === 'throw') throw new Error('secret-company');
+      if (kind === 'redirect') return new Response('', { status: 302 });
+      if (kind === 'cap') return new Response('secret-company'.repeat(100));
+      return new Response(JSON.stringify({ exc_type: 'secret-company', message: 'secret-company' }), { status: 500 });
+    });
+    try {
+      const deps = { fetchImpl: fetchImpl as typeof fetch, baseUrl: 'https://example.invalid', apiKey: 'key', apiSecret: 'secret', maxRetries: 0 };
+      let error: unknown;
+      try { await erpnextRequest(deps, { method: 'GET', path: '/api/method/frappe.client.get_list?company=secret-company', maxResponseBytes: 64, safeDiagnostic: true }); } catch (caught) { error = caught; }
+      expect(error).toBeInstanceOf(Error);
+      expect(String(error)).toBe('ErpError: Statement report request failed');
+      expect(log.mock.calls).toEqual([]);
+      expect(JSON.stringify([String(error), log.mock.calls])).not.toContain('secret-company');
+    } finally { log.mockRestore(); }
+  });
+});
+
+describe('diagnostic request cancellation', () => {
+  it('cleans up listeners after successful request', async () => {
+    const controller = new AbortController();
+    const add = vi.spyOn(controller.signal, 'addEventListener');
+    const remove = vi.spyOn(controller.signal, 'removeEventListener');
+    const deps = { fetchImpl: vi.fn(async () => new Response('{}')) as typeof fetch, baseUrl: 'https://example.invalid', apiKey: 'key', apiSecret: 'secret', maxRetries: 0 };
+    await erpnextRequest(deps, { method: 'GET', path: '/api/method/frappe.client.get_list', safeDiagnostic: true, signal: controller.signal });
+    expect(add.mock.calls.filter(call => call[0] === 'abort').length).toBe(remove.mock.calls.filter(call => call[0] === 'abort').length);
+  });
+  it('does not invoke fetch after an aborted limiter acquisition resolves', async () => {
+    let release!: () => void;
+    const fetchImpl = vi.fn(async () => new Response('{}'));
+    const controller = new AbortController();
+    const deps = { fetchImpl: fetchImpl as typeof fetch, baseUrl: 'https://example.invalid', apiKey: 'key', apiSecret: 'secret', maxRetries: 0, rateLimiter: { acquire: () => new Promise<void>(resolve => { release = resolve; }) } };
+    const result = erpnextRequest(deps, { method: 'GET', path: '/api/method/frappe.client.get_list', safeDiagnostic: true, signal: controller.signal }).catch(error => error);
+    controller.abort();
+    expect(await result).toBeInstanceOf(Error);
+    release();
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+it('fences a diagnostic deadline immediately after acquisition even before a timer fires', async () => {
+  let now = 100;
+  const fetchImpl = vi.fn(async () => new Response('{}'));
+  const deps = { fetchImpl: fetchImpl as typeof fetch, baseUrl: 'https://example.invalid', apiKey: 'key', apiSecret: 'secret', maxRetries: 0, now: () => now, rateLimiter: { acquire: async () => { now = 201; } } };
+  await expect(erpnextRequest(deps, { method: 'GET', path: '/api/method/frappe.client.get_list', safeDiagnostic: true, deadlineAtMs: 200 })).rejects.toThrow();
+  expect(fetchImpl).not.toHaveBeenCalled();
+});
+
+it('consumes a limiter rejection when acquisition synchronously aborts its caller', async () => {
+  const controller = new AbortController();
+  let rejectAcquire!: (reason: Error) => void;
+  const fetchImpl = vi.fn(async () => new Response('{}'));
+  const deps = { fetchImpl: fetchImpl as typeof fetch, baseUrl: 'https://example.invalid', apiKey: 'key', apiSecret: 'secret', rateLimiter: { acquire: () => { controller.abort(); return new Promise<void>((_, reject) => { rejectAcquire = reject; }); } } };
+  const result = await erpnextRequest(deps, { method: 'GET', path: '/api/method/frappe.client.get_list', safeDiagnostic: true, signal: controller.signal }).catch(error => error);
+  expect(String(result)).toBe('ErpError: Statement report request failed');
+  rejectAcquire(new Error('sensitive limiter failure'));
+  await new Promise(resolve => setTimeout(resolve, 10));
+  expect(fetchImpl).not.toHaveBeenCalled();
 });

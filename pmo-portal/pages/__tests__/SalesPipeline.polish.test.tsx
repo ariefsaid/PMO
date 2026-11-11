@@ -1,6 +1,8 @@
 import React from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+// Harness: the board now mounts DraggableSalesBoard (useQueryClient), so the page renders under a QueryClientProvider (#1637).
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
@@ -12,7 +14,7 @@ const { state } = vi.hoisted(() => ({ state: { data: { stages: [], projects: [
   { id: 'p2', name: 'Harbor Renewal — Western Terminal Opportunity', status: 'Leads', pmo_project_number: 'PMO-002', currency: 'USD', contract_value: 250000, win_probability: 0.1, service_line: 'Advisory', sector: 'Transport', location: 'Bali' },
 ] }, isPending: false, isError: false, refetch: vi.fn() } }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => state, useLostDeals: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => state, useLostDeals: () => ({ data: [] }), useWonDeals: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectMutations: () => ({ create: {} }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ role: 'Project Manager', currentUser: { id: 'pm' } }) }));
 function Probe() { const location = useLocation(); return <output data-testid="url">{location.search}</output>; }

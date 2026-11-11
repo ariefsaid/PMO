@@ -17,6 +17,8 @@ const project = {
 } as unknown as ProjectWithRefs;
 
 const h = vi.hoisted(() => ({ role: 'Admin' }));
+vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
+vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [project], isPending: false, isError: false, refetch: vi.fn() }),
   useProject: () => ({ data: project, isPending: false, isError: false, refetch: vi.fn() }),
@@ -37,6 +39,14 @@ vi.mock('@/src/hooks/useProjectFinances', () => ({
       categories: [{ category: 'Labor', mapped: true, amount: '1200.00' }, { category: 'Materials', mapped: false, amount: null }] } },
   isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useProgressBilling', () => ({
+  useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectBilling: () => ({ data: { contractLines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -54,6 +64,11 @@ vi.mock('@/src/hooks/useMilestones', () => ({
   useMilestoneMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: vi.fn() }, remove: { mutateAsync: vi.fn() } }),
 }));
 vi.mock('@/src/hooks/useTasks', () => ({ useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useProjectPosition', () => ({
+  useOverdueReceivables: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectAttention: () => ({ items: [], isPending: false, error: null, myVisibleTaskKeys: new Set() }),
+  useBudgetPosition: () => ({ isPending: false, isError: false, refetch: vi.fn(), hasBudget: false, canSeeActual: true, rows: [], unknown: 0 }),
+}));
 vi.mock('@/src/lib/db/opportunity', () => ({ useOpportunity: () => ({ data: undefined, isPending: false, isError: false }) }));
 vi.mock('@/src/components/comments/CommentsSection', () => ({
   CommentsSection: () => <section aria-labelledby="comments-h"><h2 id="comments-h">Comments</h2></section>,
@@ -69,23 +84,29 @@ const renderOverview = async () => {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  // #1344: bind the wait to the boundary ProjectSections actually renders (see #1198) — the
+  // retired project-detail-panel-loading id asserted nothing, so the findBy below could run
+  // while the panel still showed its loading skeleton. The Overview content is static, so
+  // the fallback clears with the record commit.
   const panel = screen.getByRole('tabpanel');
-  await within(panel).findByRole('heading', { level: 2, name: 'Comments' });
+  await waitFor(() => expect(within(panel).queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  await within(panel).findByRole('heading', { level: 2, name: 'Phase timeline' });
   return panel;
 };
 
-describe('PD-B Overview renders only blocks with data', () => {
-  it('PD-B: with no budget, phases, work orders, requests or statements, Overview is one phases line + Project finances + Comments', async () => {
+describe('PD-B active Overview renders the approved money and delivery composition', () => {
+  it('PD-B: with no budget, phases, work orders, requests or statements, Overview renders the live money position, budget comparison and phase line', async () => {
     const panel = await renderOverview();
-    expect(within(panel).getAllByRole('heading', { level: 2 }).map((el) => el.textContent)).toEqual(['Project finances', 'Comments']);
-    const phases = within(panel).getByTestId('milestone-strip-empty');
-    expect(phases).toHaveTextContent('No delivery phases yet');
-    expect(within(phases).getByRole('button', { name: 'Plan delivery phases' })).toBeInTheDocument();
+    expect(within(panel).getAllByRole('heading', { level: 2 }).map((el) => el.textContent)).toEqual(['Needs attention', 'Money position', 'Budget vs actual', 'Phase timeline']);
+    const phases = within(panel).getByRole('region', { name: 'Phase timeline' });
+    expect(phases).toHaveTextContent('No phases yet. Add phases to track delivery progress.');
+    expect(within(phases).getByRole('button', { name: 'Update phases' })).toBeInTheDocument();
     for (const gone of ['Budget utilization', 'Budget snapshot', 'Procurement summary', 'Contract drawdown', 'Progress curve',
-      'Project profit and loss', 'No active budget', 'Statements are not available yet', "Plan this project's delivery phases",
-      'No purchase requests for this project yet', 'No dated phases yet']) {
+      'Statements are not available yet', 'No procurement cases for this project yet', 'No dated phases yet', 'No budget categories in this version']) {
       expect(within(panel).queryByText(gone)).toBeNull();
     }
+    const budget = within(panel).getByRole('region', { name: 'Budget vs actual' });
+    expect(budget).toHaveTextContent('No active budget yet, so spending can’t be compared.');
+    expect(budget).not.toHaveTextContent(/\$0(?:\.00)?|0%/);
   });
 });

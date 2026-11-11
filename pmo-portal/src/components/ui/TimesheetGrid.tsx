@@ -26,6 +26,8 @@ export interface TimesheetGridRow {
   hours: number[];
   /** Owning project id — present only in read-only contexts; enables click-to-open (AC-JR-W1-08). */
   projectId?: string;
+  /** Contractual title behind a short `project` label — hover + accessible description (#1325). */
+  projectLegalName?: string;
 }
 
 export interface TimesheetGridProps {
@@ -56,11 +58,6 @@ export interface TimesheetGridProps {
   onNoteChange?: (rowId: string, note: string) => void;
   /** Fired when a row's delete control is activated (page stages a ConfirmDialog). */
   onDeleteRow?: (rowId: string) => void;
-}
-
-/** Format hours with a tabular figure; trims trailing zeros (8 not 8.00). */
-function fmt(n: number): string {
-  return formatNumberExact(n);
 }
 
 /**
@@ -154,7 +151,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         // One delete control, one accessible name.
         <div className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium" title={r.project}>
+            <div className="truncate text-sm font-medium" title={r.projectLegalName ?? r.project}>
               {r.project}
             </div>
             {r.code && (
@@ -189,6 +186,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
           <ProjectNameLink
             projectId={r.projectId}
             name={r.project}
+            legalName={r.projectLegalName}
             className="truncate text-sm font-medium"
           />
           {r.code && (
@@ -220,7 +218,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
           // Prefer the raw as-typed string so in-progress values survive;
           // fall back to the numeric (blank for 0) when no raw map is given.
           const raw = rawHours?.[r.id]?.[i];
-          const value = raw !== undefined ? raw : h === 0 ? '' : fmt(h);
+          const value = raw !== undefined ? raw : h === 0 ? '' : formatNumberExact(h);
           return (
             <div className={tint(d.weekend)} style={{ minHeight: 54 }}>
               <input
@@ -260,7 +258,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                 filled ? 'bg-primary/[0.07] font-semibold text-foreground' : 'text-muted-foreground/45'
               )}
             >
-              {filled ? fmt(h) : '·'}
+              {filled ? formatNumberExact(h) : '·'}
             </div>
           </div>
         );
@@ -277,7 +275,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         const rowTotal = rowTotals.get(r.id) ?? 0;
         return (
           <span data-testid={`tsgrid-row-total-${r.id}`} className="text-sm font-semibold tabular">
-            {rowTotal > 0 ? fmt(rowTotal) : '·'}
+            {rowTotal > 0 ? formatNumberExact(rowTotal) : '·'}
           </span>
         );
       },
@@ -290,9 +288,9 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     values: {
       ...Object.fromEntries(dailyTotals.map((total, i) => [
         `day-${i}`,
-        <span key={i} data-testid={`tsgrid-daily-total-${i}`} className="text-sm font-semibold tabular">{total > 0 ? fmt(total) : '·'}</span>,
+        <span key={i} data-testid={`tsgrid-daily-total-${i}`} className="text-sm font-semibold tabular">{total > 0 ? formatNumberExact(total) : '·'}</span>,
       ])),
-      total: <span data-testid="tsgrid-grand-total" className="text-sm font-bold tabular">{fmt(grandTotal)}</span>,
+      total: <span data-testid="tsgrid-grand-total" className="text-sm font-bold tabular">{formatNumberExact(grandTotal)}</span>,
     } as Record<string, React.ReactNode>,
   }];
 
@@ -379,7 +377,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
               <div className="min-w-0 flex-1">
                 {editable ? (
                   // Editable mobile: plain text (no link while editing)
-                  <div className="truncate text-sm font-medium text-foreground" title={r.project}>
+                  <div className="truncate text-sm font-medium text-foreground" title={r.projectLegalName ?? r.project}>
                     {r.project}
                   </div>
                 ) : (
@@ -387,6 +385,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                   <ProjectNameLink
                     projectId={r.projectId}
                     name={r.project}
+                    legalName={r.projectLegalName}
                     className="truncate text-sm font-medium"
                   />
                 )}
@@ -418,7 +417,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
 
                 if (editable) {
                   const raw = rawHours?.[r.id]?.[i];
-                  const value = raw !== undefined ? raw : h === 0 ? '' : fmt(h);
+                  const value = raw !== undefined ? raw : h === 0 ? '' : formatNumberExact(h);
                   return (
                     <div
                       key={i}
@@ -428,10 +427,13 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                       )}
                     >
                       {/* Day label — occupies fixed width so inputs align */}
+                      {/* Day label — occupies fixed width so inputs align. Full muted token:
+                          the /70 alpha failed AA on the weekend tint in dark mode (axe
+                          color-contrast, tidy sweep). The weekend reads through the row tint. */}
                       <span
                         className={cn(
                           'w-[52px] shrink-0 text-[12px] font-semibold uppercase tracking-[0.03em]',
-                          weekend ? 'text-muted-foreground/70' : 'text-muted-foreground'
+                          'text-muted-foreground'
                         )}
                         aria-hidden="true"
                       >
@@ -476,10 +478,13 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                       weekend && 'bg-secondary/60'
                     )}
                   >
+                    {/* Day label — occupies fixed width so inputs align. Full muted token:
+                        the /70 alpha failed AA on the weekend tint in dark mode (axe
+                        color-contrast, tidy sweep). The weekend reads through the row tint. */}
                     <span
                       className={cn(
                         'w-[52px] shrink-0 text-[12px] font-semibold uppercase tracking-[0.03em]',
-                        weekend ? 'text-muted-foreground/70' : 'text-muted-foreground'
+                        'text-muted-foreground'
                       )}
                       aria-hidden="true"
                     >
@@ -495,7 +500,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                           : 'text-muted-foreground/45'
                       )}
                     >
-                      {filled ? fmt(h) : '·'}
+                      {filled ? formatNumberExact(h) : '·'}
                     </div>
                   </div>
                 );
@@ -521,7 +526,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
             >
               <span className="text-[11px] uppercase tracking-[0.03em]">{t('timesheets.rowTotal', 'Row total')}</span>
               <span className="text-sm text-foreground">
-                {rowTotal > 0 ? fmt(rowTotal) : '·'}
+                {rowTotal > 0 ? formatNumberExact(rowTotal) : '·'}
               </span>
             </div>
           </div>
@@ -537,7 +542,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
           data-testid="tsgrid-grand-total"
           className="text-sm font-bold tabular text-foreground"
         >
-          {fmt(grandTotal)}
+          {formatNumberExact(grandTotal)}
         </span>
       </div>
     </div>

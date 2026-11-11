@@ -109,10 +109,11 @@ where `event_count` is the number of persisted events restored into the transcri
 
 **FR-APH-011 — `agent_feedback_rated`.**
 When the user rates an assistant event via `FeedbackControl`'s `onRate` callback, the system shall
-fire `agent_feedback_rated` with `{ rating: 'up' | 'down', downvote_reason: string | undefined }`
-(the existing `DownvoteReason` enum value verbatim when present) — the event's `id`/`run_id` and
-the assistant's actual text are never sent (rating trends are the analytics need; correlating a
-specific rated message to its content is a DB-side/ADR-0043 concern, not a PostHog one).
+fire `agent_feedback_rated` with `{ rating: 'up' | 'down', downvote_reason: string | undefined, run_id: string, $ai_trace_id: string }`
+(the existing `DownvoteReason` enum value verbatim when present). **Amended by FR-PHO-005 (#1532):**
+`run_id` (the opaque run uuid; `$ai_trace_id` repeats it under PostHog's own key) joins the rating to
+its AI trace. The event's `id` and the assistant's actual text are never sent (correlating a rated
+message to its content is a DB-side/ADR-0043 concern, not a PostHog one).
 
 **FR-APH-012 — `agent_compose_view_saved`.**
 When a `compose_view` artifact is saved from the transcript (the existing
@@ -280,13 +281,13 @@ Then `agent_thread_resumed` fires with `{ thread_id: threadId, run_id: runId, ev
 **AC-APH-011 — `agent_feedback_rated` fires with rating only on thumbs-up. [Unit]**
 Given `FeedbackControl`'s `onRate` is invoked with `('evt-1', 'up', undefined)`,
 When the rate handler runs,
-Then `agent_feedback_rated` fires with `{ rating: 'up', downvote_reason: undefined }` — no
-`eventId`/`run_id` property present.
+Then `agent_feedback_rated` fires with `{ rating: 'up', downvote_reason: undefined, run_id, $ai_trace_id }`
+— no `eventId` property present (amended by FR-PHO-005).
 
 **AC-APH-012 — `agent_feedback_rated` fires with rating and reason on thumbs-down. [Unit]**
 Given `onRate` is invoked with `('evt-1', 'down', 'wrong_tool')`,
 When the rate handler runs,
-Then `agent_feedback_rated` fires with `{ rating: 'down', downvote_reason: 'wrong_tool' }`.
+Then `agent_feedback_rated` fires with `{ rating: 'down', downvote_reason: 'wrong_tool', run_id, $ai_trace_id }`.
 
 **AC-APH-013 — `agent_compose_view_saved` fires on a successful compose-view save. [Unit]**
 Given a `compose_view` artifact's save action succeeds,

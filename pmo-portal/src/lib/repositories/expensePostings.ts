@@ -55,3 +55,12 @@ export async function listExpenseAccountMap(): Promise<ExpenseAccountMapRow[]> {
   if (error) throw new AppError(error.message, error.code);
   return (data ?? []).map((r) => ({ accountKey: r.account_key as ExpenseAccountKey, erpAccount: r.erp_account, updatedAt: r.updated_at }));
 }
+
+// Repository wrapper (ADR-0017 seam) — moved here from the composition root (T-29).
+import { wrap } from './repositoryErrors';
+import type { ExpensePostingRepository } from './contracts/expenses';
+
+export const expensePostingsRepository: ExpensePostingRepository = {
+  listForClaim: (claimId) => wrap(() => listExpensePostings(claimId)),
+  listAccountMap: () => wrap(() => listExpenseAccountMap()),
+};

@@ -22,7 +22,7 @@ interface UploadError {
   code: string;
 }
 
-export interface FxRateUploadProps {
+interface FxRateUploadProps {
   today: string;
   onClose: () => void;
   onCommitted: (counts: { new: number; changed: number; unchanged: number }) => void;
@@ -53,6 +53,8 @@ const reasonCopy = (reason: string, t: (key: string, fallback: string) => string
 
 const fileErrorCopy = (code: string, t: (key: string, fallback: string) => string): string => {
   switch (code) {
+    case 'expandedFileTooLarge':
+      return t('fx.expandedFileTooLarge', 'Expanded workbook exceeds 20 MiB.');
     case 'fileTooLarge':
       return t('fx.fileTooLarge', 'File exceeds 5 MiB.');
     case 'emptyFile':
@@ -85,7 +87,6 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
   const [parsed, setParsed] = useState<FxParsed | null>(null);
   const [preview, setPreview] = useState<FxPreview | null>(null);
   const [error, setError] = useState<UploadError | null>(null);
-  const [selected, setSelected] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const columns: Column<FxRateInput>[] = [
     {
@@ -121,7 +122,6 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
 
   const selectFile = async (file: File) => {
     const request = ++generation.current;
-    setSelected(true);
     setSelectedFileName(file.name);
     setParsed(null);
     setPreview(null);
@@ -136,7 +136,11 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
       await loadExisting(result, request);
     } catch (cause) {
       if (generation.current !== request) return;
-      const code = cause instanceof ImportParseError ? cause.code : 'unsupportedFile';
+      const code = cause instanceof ImportParseError
+        ? cause.code === 'fileTooLarge' && cause.message === 'Expanded workbook exceeds 20 MiB.'
+          ? 'expandedFileTooLarge'
+          : cause.code
+        : 'unsupportedFile';
       setError({ kind: 'parse', code });
       setState('error');
     }
@@ -144,13 +148,6 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
 
   const close = () => {
     generation.current += 1;
-    setParsed(null);
-    setPreview(null);
-    setError(null);
-    setSubmitError(null);
-    setConfirmOpen(false);
-    setState('choose');
-    setSelectedFileName(null);
     onClose();
   };
 
@@ -182,7 +179,6 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
       setState('done');
       setParsed(null);
       setPreview(null);
-      setSelected(false);
       setSelectedFileName(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       onCommitted(counts);
@@ -220,7 +216,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
             preview.rows.length === 0 ||
             preview.rejected.length > 0
           }
-          dirty={selected}
+          dirty={selectedFileName !== null}
           loading={state === 'committing'}
           submitError={submitError}
         >
@@ -297,11 +293,17 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                   </span>
                   {preview.coverage.firstDate && preview.coverage.lastDate && (
                     <span className="text-muted-foreground">
-                      {t('uxs38.previewCoverage', 'Dates from {{first}} to {{last}} — {{count}} with rates', {
+                      {t('uxs38.previewCoverage', 'Dates from {{first}} to {{last}}: {{count}} with rates', {
                         first: formatDateOnly(preview.coverage.firstDate),
                         last: formatDateOnly(preview.coverage.lastDate),
                         count: preview.rows.length,
                       })}
+                      {preview.coverage.gapSummary && (
+                        <> · {t('uxs38.previewGapSummary', '{{dates}} dates without rates across {{count}} gaps', {
+                          dates: preview.coverage.gapSummary.count,
+                          count: preview.coverage.gapSummary.ranges.length,
+                        })}</>
+                      )}
                       {preview.coverage.missingDates.length > 0 && (
                         <> · {t('uxs38.previewGaps', 'No rate for {{dates}}', {
                           dates: preview.coverage.missingDates.map(formatDateOnly).join(', '),
@@ -334,7 +336,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                       <ul className="space-y-1 text-sm">
                         {preview.rejected.map((item) => (
                           <li key={`${item.row}:${item.reason}`}>
-                            {t('fx.rejected', 'Row {{row}}: {{value}} — {{reason}}', {
+                            {t('fx.rejected', 'Row {{row}}: {{value}} ({{reason}})', {
                               row: item.row,
                               value: item.value ?? '',
                               reason: reasonCopy(item.reason, t),
@@ -367,7 +369,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
           <p>
             {t(
               'fx.confirmUploadDescription',
-              'USD → IDR · JISDOR — {{new}} new, {{changed}} changed, {{unchanged}} unchanged.',
+              'USD → IDR · JISDOR: {{new}} new, {{changed}} changed, {{unchanged}} unchanged.',
               {
                 new: preview?.new ?? 0,
                 changed: preview?.changed ?? 0,

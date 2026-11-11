@@ -24,6 +24,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -201,6 +202,7 @@ test.describe('AC-ENA-052: PO + GR create+submit through the real served adapter
       // exported bench creds to THIS process (never hardcoded here, NFR-ENA-SEC-002); the PMO-side
       // mirror assertions above already prove the AC either way.
       if (ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET) {
+        assertLocalBenchUrl(ERPNEXT_BENCH_URL);
         const poDocRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Purchase%20Order/${encodeURIComponent(poName)}`, {
           headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
         });

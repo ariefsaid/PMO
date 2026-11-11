@@ -388,7 +388,7 @@ it('Blocker-5 AC-AW-adapter: on needs-approval, re-POST messages include assista
 
 // ── ADR-0045 §2 (Task Q7): control('answer') stashes AgentAnswer → re-POST carries answer ──
 
-it('AC-ATC-adapter: control(answer) stashes AgentAnswer; next subscribe re-POSTs with req.answer', async () => {
+it('AC-ATC-017 AC-AXP-013 adapter: control(answer) stashes AgentAnswer; next subscribe re-POSTs with req.answer', async () => {
   const questionEvent: AgentEvent = {
     id: 'q-evt-1',
     runId: 'r-q1',
@@ -434,8 +434,13 @@ it('AC-ATC-adapter: control(answer) stashes AgentAnswer; next subscribe re-POSTs
   }
 
   expect(fetchMock).toHaveBeenCalledTimes(2);
+  const firstCall = fetchMock.mock.calls[0] as [string, RequestInit];
+  const firstBody = JSON.parse(firstCall[1].body as string) as AgentChatRequest;
   const secondCall = fetchMock.mock.calls[1] as [string, RequestInit];
   const body = JSON.parse(secondCall[1].body as string) as AgentChatRequest;
+  expect(firstBody.runId).toBe(run.id);
+  expect(firstBody.answer).toBeUndefined();
+  expect(body.runId).toBe(firstBody.runId);
   expect(body.answer).toEqual({ questionId: 'q1', optionId: 'a' });
 
   expect(events2.some((e) => (e.payload as { status?: string })?.status === 'completed')).toBe(true);
@@ -720,5 +725,43 @@ it('a failing cancel-POST emits an observable console.warn carrying a structured
   // Never leaks the raw error's message/stack into the structured context.
   expect(JSON.stringify(context)).not.toContain('network down');
 
+  warnSpy.mockRestore();
+});
+
+it('a non-2xx cancel-POST response warns with the structured code and leaks no response detail', async () => {
+  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const runningEvent: AgentEvent = {
+    id: 'e-run-3',
+    runId: 'r-cancel-3',
+    type: 'status',
+    payload: { status: 'running' },
+    createdAt: new Date().toISOString(),
+  };
+  let callCount = 0;
+  const fetchMock = vi.fn().mockImplementation(() => {
+    callCount++;
+    if (callCount === 1) {
+      return Promise.resolve({ ok: true, body: readableFrom(encodeSse(runningEvent)) });
+    }
+    // Second call: the cancel POST resolves, but the server rejected it.
+    return Promise.resolve({ ok: false, status: 500, statusText: 'secret-detail' });
+  });
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl: fetchMock as unknown as typeof fetch,
+  });
+  const run = await runtime.createRun({ goal: 'do something slow' });
+  const drainPromise = (async () => {
+    for await (const _ of runtime.subscribe(run.id)) { /* drain */ }
+  })();
+  await runtime.control(run.id, 'cancel');
+  await drainPromise;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(warnSpy).toHaveBeenCalledTimes(1);
+  const [, context] = warnSpy.mock.calls[0] as [string, Record<string, unknown>];
+  expect(context).toMatchObject({ errorCode: 'CANCEL_POST_FAILED', runId: run.id, status: 500 });
+  expect(JSON.stringify(context)).not.toContain('secret-detail');
   warnSpy.mockRestore();
 });

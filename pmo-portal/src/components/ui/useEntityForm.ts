@@ -131,7 +131,7 @@ export function useEntityForm<T extends object>({
       const mayDisplay = touched[k] || hasAttemptedSubmit;
       // Keep showing only if the field is still invalid live AND the field was
       // user-touched or the user has tried to submit the form.
-      if (msg && liveErrors[k] && mayDisplay) out[k] = msg;
+      if (msg && liveErrors[k] && mayDisplay) out[k] = liveErrors[k];
     }
     return out;
   }, [surfacedErrors, liveErrors, touched, hasAttemptedSubmit]);

@@ -1,6 +1,6 @@
 /** AC-OUT-841 — external-connect ClickUp validation is deadline-bounded and surfaces external-unreachable. */
 import { assertEquals, assertRejects } from '@std/assert';
-import { handleConnectRequest, setTestJwks, validateClickUpToken } from './index.ts';
+import { handleConnectRequest, setTestJwks, validateClickUpTeam, validateClickUpToken } from './index.ts';
 import {
   createAuthedRequest,
   createJwtAuthority,
@@ -8,11 +8,12 @@ import {
   installEdgeEnv,
   jsonResponse,
   rpcCall,
+  supabaseRpc,
   supabaseSelect,
   withFetchMock,
 } from '../_shared/testing/edgeTestKit.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { hungFetch, withShortOutboundDeadline } from '../_shared/testing/hungFetch.ts';
+import { hungFetch, stalledBodyFetch, withShortOutboundDeadline } from '../_shared/testing/hungFetch.ts';
 
 Deno.test('AC-OUT-841: external-connect token validation rejects within the deadline as external-unreachable (not "invalid token")', async () => {
   await withShortOutboundDeadline(async () => {
@@ -30,9 +31,11 @@ Deno.test('AC-OUT-841: a hung ClickUp during external-connect returns 502 extern
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
+        supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true, role: 'Admin' })),
+        supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
         supabaseSelect('platform_operators', () =>
           new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
       ],
@@ -61,4 +64,18 @@ Deno.test('AC-OUT-841: a hung ClickUp during external-connect returns 502 extern
   } finally {
     env.restore();
   }
+});
+
+Deno.test('AC-OUT-841: a ClickUp body that stalls after headers is external-unreachable for the token read, not a null user id', async () => {
+  await withShortOutboundDeadline(async () => {
+    const err = await assertRejects(() => validateClickUpToken('t', { fetchImpl: stalledBodyFetch() }), AppError);
+    assertEquals((err as AppError).code, 'external-unreachable');
+  });
+});
+
+Deno.test('AC-OUT-841: a ClickUp body that stalls after headers is external-unreachable for the team read, not "Unable to resolve workspace"', async () => {
+  await withShortOutboundDeadline(async () => {
+    const err = await assertRejects(() => validateClickUpTeam('t', { fetchImpl: stalledBodyFetch() }), AppError);
+    assertEquals((err as AppError).code, 'external-unreachable');
+  });
 });

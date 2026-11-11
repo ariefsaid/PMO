@@ -1,6 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
-import { getOrgDefaultCurrency } from '@/src/lib/db/orgs';
-import { useAuth } from '@/src/auth/useAuth';
+import { useOrgFxContext } from './useOrgFxContext';
 
 /**
  * The caller's org operating currency, for figures with no money row of their own (dashboard
@@ -11,26 +9,19 @@ import { useAuth } from '@/src/auth/useAuth';
  * operator action.
  */
 function useOrgCurrencyQuery() {
-  const { currentUser } = useAuth();
-  return useQuery<string>({
-    queryKey: ['org-currency', currentUser?.org_id],
-    queryFn: () => getOrgDefaultCurrency(),
-    enabled: Boolean(currentUser),
-    staleTime: Infinity,
-    placeholderData: 'USD',
-  });
+  return useOrgFxContext();
 }
 
 /** Currency plus its loading/error state for views that must not label amounts with the USD placeholder. */
 export function useOrgCurrencyState(): { currency: string; isResolved: boolean; isError: boolean } {
   const query = useOrgCurrencyQuery();
   return {
-    currency: query.data ?? 'USD',
+    currency: query.data?.currency ?? 'USD',
     isResolved: query.data !== undefined && !query.isPlaceholderData,
     isError: query.isError,
   };
 }
 
 export function useOrgCurrency(): string {
-  return useOrgCurrencyQuery().data ?? 'USD';
+  return useOrgCurrencyQuery().data?.currency ?? 'USD';
 }

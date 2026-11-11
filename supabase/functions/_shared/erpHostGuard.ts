@@ -101,6 +101,57 @@ export async function isPrivateOrReservedHost(hostname: string, signal?: AbortSi
   }
 }
 
+/** Hosts `SUPABASE_URL` carries only on a developer's own stack (`supabase functions serve` sees `http://kong:8000`). */
+const LOCAL_SUPABASE_HOSTS = new Set(['kong', '127.0.0.1', 'localhost', 'host.docker.internal']);
+const DEFAULT_LOCAL_BENCH_ORIGINS = 'http://host.docker.internal:8080,http://localhost:8080';
+
+function readEnv(name: string): string | undefined {
+  try {
+    return Deno.env.get(name);
+  } catch {
+    return undefined; // no env permission: the allowance stays off
+  }
+}
+
+function originOf(value: string): string | null {
+  try {
+    const url = new URL(value.trim());
+    // Only web origins: file:/data: URLs all report the origin "null" and would match each other.
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+let localBenchWarned = false;
+
+/**
+ * Local-only allowance for the developer ERPNext bench (plain http on a Docker host). True only when
+ * `ERPNEXT_ALLOW_LOCAL_BENCH` is exactly `1`, the platform-set `SUPABASE_URL` is a local http stack
+ * (hosted projects carry `https://<ref>.supabase.co`, and `SUPABASE_*` names cannot be set as function
+ * secrets), and the site's origin is listed in `ERPNEXT_LOCAL_BENCH_ORIGINS` (default: the bench).
+ */
+export function isLocalBenchSite(siteUrl: string): boolean {
+  if (readEnv('ERPNEXT_ALLOW_LOCAL_BENCH') !== '1') return false;
+  let supabase: URL;
+  try {
+    supabase = new URL(readEnv('SUPABASE_URL') ?? '');
+  } catch {
+    return false;
+  }
+  if (supabase.protocol !== 'http:' || !LOCAL_SUPABASE_HOSTS.has(supabase.hostname)) return false;
+  const site = originOf(siteUrl);
+  if (!site) return false;
+  const listed = (readEnv('ERPNEXT_LOCAL_BENCH_ORIGINS') || DEFAULT_LOCAL_BENCH_ORIGINS)
+    .split(',').map(originOf).filter((origin): origin is string => origin !== null);
+  if (!listed.includes(site)) return false;
+  if (!localBenchWarned) {
+    localBenchWarned = true;
+    console.warn(`[erp-host-guard] local bench allowance in use for ${site}`);
+  }
+  return true;
+}
+
 /** URL validation shared by ERP connection and request functions. */
 export async function isPermittedErpSiteUrl(siteUrl: string, signal?: AbortSignal): Promise<boolean> {
   let site: URL;
@@ -109,6 +160,7 @@ export async function isPermittedErpSiteUrl(siteUrl: string, signal?: AbortSigna
   } catch {
     return false;
   }
+  if (isLocalBenchSite(siteUrl)) return true;
   return site.protocol === 'https:' && !(await isPrivateOrReservedHost(site.hostname, signal));
 }
 

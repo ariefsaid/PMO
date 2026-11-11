@@ -122,6 +122,19 @@ describe('ProjectNew — one-step create page (#806)', () => {
     expect(toast).toHaveTextContent(/Harborside Annex/);
   });
 
+  it('a project saved while ERP sync runs shows the background state and navigates immediately', async () => {
+    createMutation.mockResolvedValue({ id: 'project-new', erpSetup: 'syncing' });
+    renderPage();
+    await fillValid('Background Sync Project');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    expect(await findToastAnnouncement('status', /ERP linking is running in the background/i)).toHaveTextContent('Background Sync Project');
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/projects/project-new', {
+      replace: true,
+      state: { pmoListReturn: { list: 'projects' } },
+    }));
+  });
+
   it('a failed Save stays on the page with the entries and a classified warning', async () => {
     createMutation.mockRejectedValue(new AppError('denied', '42501'));
     renderPage();
@@ -131,6 +144,21 @@ describe('ProjectNew — one-step create page (#806)', () => {
     expect(toast).toBeInTheDocument();
     expect(navigate).not.toHaveBeenCalled();
     expect(screen.getByLabelText(/project name/i)).toHaveValue('Blocked Project');
+  });
+
+  it('AC-PLN-010: a plan active-project refusal (PL002) names the limit and creates nothing', async () => {
+    createMutation.mockRejectedValue(
+      new AppError('project_limit_reached: the starter plan allows 25 active projects', 'PL002'),
+    );
+    renderPage();
+    await fillValid('One Too Many');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+    const toast = await findToastAnnouncement('alert', /active-project limit/i);
+    expect(toast).toHaveTextContent(/active-project limit/i);
+    // Reviewed copy, never the backend's machine sentence.
+    expect(toast).toHaveTextContent(/nothing was created/i);
+    expect(toast).not.toHaveTextContent(/project_limit_reached/);
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('Cancel on a pristine page returns to the list at once; nothing is created', async () => {

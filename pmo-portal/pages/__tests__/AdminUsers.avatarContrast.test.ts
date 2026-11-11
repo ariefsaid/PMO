@@ -114,9 +114,8 @@ describe('AC-A11Y-AVATAR-001: Avatar categorical hues clear AA 4.5:1 for white b
   it('regression guard: the previously-flagged raw tokens (--warning, --success) would fail this gate', () => {
     // Sanity check that the helper correctly reproduces the two audit-flagged
     // failures on the OLD raw tokens, so we know the test is measuring the real thing.
-    const warningLight = lightTokens['warning'];
-    const successLight = lightTokens['success'];
-    expect(contrastRatio(WHITE, hslToRgb(...warningLight))).toBeLessThan(4.5);
-    expect(contrastRatio(WHITE, hslToRgb(...successLight))).toBeLessThan(4.5);
+    // Historical audit colours, independent of subsequent palette retuning.
+    expect(contrastRatio(WHITE, [250, 168, 5])).toBeLessThan(4.5);
+    expect(contrastRatio(WHITE, [43, 171, 90])).toBeLessThan(4.5);
   });
 });

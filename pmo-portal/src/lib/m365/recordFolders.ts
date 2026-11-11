@@ -1,7 +1,7 @@
 import { AppError } from '@/src/lib/appError';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
-import { classifyM365InvokeError } from './connectClient';
+import { throwClassifiedM365Error } from './connectClient';
 import type {
   RecordFolderBackfillPage,
   RecordFolderCursor,
@@ -39,23 +39,6 @@ function malformed(): AppError {
   return new AppError(SAFE_ERROR, 'BAD_REQUEST');
 }
 
-async function errorCode(error: unknown): Promise<string | undefined> {
-  const context = (error as { context?: Response } | null)?.context;
-  if (!context || typeof context.clone !== 'function') return undefined;
-  try {
-    const body = (await context.clone().json()) as { error?: unknown };
-    return typeof body?.error === 'string' ? body.error : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-async function throwClassified(error: unknown): Promise<never> {
-  const code = await errorCode(error);
-  const classified = classifyM365InvokeError(error, code ? { error: code } : undefined);
-  throw new AppError(classified.message, classified.code);
-}
-
 export function validRecordFolderTarget(target: RecordFolderTarget): boolean {
   return isRecord(target) && KINDS.has(target.kind) && typeof target.id === 'string' && UUID.test(target.id);
 }
@@ -86,15 +69,17 @@ export async function ensureRecordFolder(target: RecordFolderTarget): Promise<Re
       body: { action: 'ensure_record_folder', kind: target.kind, id: target.id },
     }),
   );
-  if (error) await throwClassified(error);
+  if (error) await throwClassifiedM365Error(error);
   return decodeOutcome(data);
 }
 
+/** `{kind, after}` plus the server's optional sweep `run` id, which is echoed back unchanged. */
 function validCursor(value: unknown): value is RecordFolderCursor {
   return isRecord(value)
-    && hasExactKeys(value, ['kind', 'after'], ['kind', 'after'])
+    && hasExactKeys(value, ['kind', 'after', 'run'], ['kind', 'after'])
     && typeof value.kind === 'string' && KINDS.has(value.kind)
-    && (value.after === null || (typeof value.after === 'string' && UUID.test(value.after)));
+    && (value.after === null || (typeof value.after === 'string' && UUID.test(value.after)))
+    && (value.run === undefined || (typeof value.run === 'string' && UUID.test(value.run)));
 }
 
 const isCount = (value: unknown): value is number =>
@@ -102,8 +87,9 @@ const isCount = (value: unknown): value is number =>
 
 function decodePage(data: unknown, request?: RecordFolderCursor): RecordFolderBackfillPage {
   if (!isRecord(data)) throw malformed();
-  const allowed = ['scanned', ...BUCKETS, 'next', 'stopped', 'retry_after_seconds'];
-  if (!hasExactKeys(data, allowed, ['scanned', ...BUCKETS, 'next'])) throw malformed();
+  const allowed = ['scanned', ...BUCKETS, 'unmatched', 'next', 'stopped', 'retry_after_seconds', 'summary_warning'];
+  if (!hasExactKeys(data, allowed, ['scanned', ...BUCKETS, 'unmatched', 'next'])) throw malformed();
+  if (!Array.isArray(data.unmatched) || !data.unmatched.every((id) => typeof id === 'string' && UUID.test(id))) throw malformed();
   const counts = [data.scanned, ...BUCKETS.map((key) => data[key])];
   if (!counts.every(isCount)) throw malformed();
   const scanned = data.scanned as number;
@@ -123,8 +109,13 @@ function decodePage(data: unknown, request?: RecordFolderCursor): RecordFolderBa
     missing: data.missing as number,
     failed: data.failed as number,
     skipped: data.skipped as number,
+    unmatched: data.unmatched as string[],
     next,
   };
+  if (data.summary_warning !== undefined) {
+    if (typeof data.summary_warning !== 'string' || data.summary_warning.length > 200) throw malformed();
+    page.summary_warning = data.summary_warning;
+  }
   if (data.stopped !== undefined) page.stopped = data.stopped as NonNullable<RecordFolderBackfillPage['stopped']>;
   if (retry !== undefined) page.retry_after_seconds = retry as number;
   return page;
@@ -138,6 +129,6 @@ export async function linkExistingRecordFolders(cursor?: RecordFolderCursor): Pr
       body: { action: 'link_existing_record_folders', ...(cursor ? { cursor } : {}) },
     }),
   );
-  if (error) await throwClassified(error);
+  if (error) await throwClassifiedM365Error(error);
   return decodePage(data, cursor);
 }

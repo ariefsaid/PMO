@@ -60,6 +60,39 @@ Every audit round has found defects in one of these five buckets. Check yours ag
 | Inbound feed (adopt, lifecycle, status) | `supabase/functions/_shared/erpnextFeedDeps.ts` |
 | Sweep (recovery pass + doctype poll) | `supabase/functions/erpnext-sweep/index.ts` |
 | Outbox schema + its RPCs | `supabase/migrations/0096_erpnext_seam_tables.sql` |
+| Per-bill in-flight serialization (0682) | `supabase/migrations/0682_erpnext_payment_inflight_per_bill.sql` |
+
+**The refused-claim write (0682, ERPNext payments).** When a bill's purchase rules refuse a procurement payment's
+claim, the dispatcher's claim wrapper (`claimOutboxForCommit` in
+`supabase/functions/adapter-dispatch/moneyOutboxDeps.ts`) records that through the SQL function
+`fail_refused_payment_claim` (migration 0682) — its only caller. Scope: it fails that one never-claimed `pending` row
+(spending its automatic attempt budget, so neither the sweep's candidate list nor the pending-retry list re-drives it —
+a person's retry is the way forward) and, via the outbox trigger, frees the bill so another payment can take it. It
+never touches a row that was ever claimed: an unknown outcome belongs to the sweep's adopt-or-hold recovery, never to
+a silent failure. The sweep treats a retry refused because the bill is held (`payment-in-flight-for-bill`) as a
+deferral — quiet, tried again next tick — not an error.
+
+**The statement recovery scan (0698).** The 0685 post-confirm statement trigger fires only on
+`UPDATE OF state`, so a confirmation that never passes through it — a row written already-confirmed,
+or one whose post-confirm bookkeeping rolled back — would otherwise wait for the nightly 02:00
+materialization. The sweep's per-tick call to `scan_erp_statement_confirmed_misses`
+(`supabase/migrations/0698_statement_confirmed_recovery_scan.sql`) stamps those rows
+(`external_command_outbox.statement_intent_at`, supported by a matching partial index) and raises one
+coalesced reserved-path intent, so the refresh runs on the next tick instead of at 02:00. The same
+migration backfills the pre-rollout confirmed history, so the first scan reports only real misses;
+the scan is fenced by the same 0685 lease/binding machinery as every other writer and is a no-op for
+organizations with the feature disabled.
+
+**The parked-unit resume (202 `budget-cancellation-pending`).** A v16 whole-project range activation whose
+*predecessor* still has an unsettled ERPNext archive cancellation is PARKED, not pushed: the budget gate
+writes `push_error='waiting-for-budget-archive-cancellation'` on each account unit and returns 202 with
+**no outbox row at all** (the fan-out never begins). The sweep's budget backstop therefore cannot find a
+candidate for those rows and must not call them orphaned. Once the project's `budget_archive_cancel_intents`
+are all settled (`budgetArchiveCancelState` — the same classifier the gate uses), the resume re-runs
+`buildBudgetDispatchPlan` (the SAME gate) and drives each unit through the ordinary outbox path, attributed
+to the archive intent's recorded actor and re-authorized at drive time. A held intent parks the units
+`held` with `budget-archive-cancellation-held`; a unit the re-derived plan no longer contains (the account
+left the budget) is retired as `budget-archive-cancellation-superseded`. Never a second push path.
 
 ## Numeric relationships that MUST hold (a whole round was lost to one of these)
 

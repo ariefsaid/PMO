@@ -5,7 +5,7 @@
  * A3: status{needs-approval} → <ApprovalChip>; system{write_resolved} → inline notice.
  */
 import React from 'react';
-import type { AgentEvent, NeedsApprovalPayload, WriteResolvedPayload, QuestionPayload } from '@/src/lib/agent/runtime/port';
+import type { NeedsApprovalPayload, WriteResolvedPayload, QuestionPayload } from '@/src/lib/agent/runtime/port';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { ChatBubble } from './ChatBubble';
 import { Markdown } from './Markdown';
@@ -77,7 +77,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
             <span className="sr-only">Assistant: </span>
             <Markdown text={event.text ?? ''} />
           </div>
-          {onRate && <FeedbackControl eventId={event.id} onRate={onRate} />}
+          {onRate && <FeedbackControl eventId={event.id} runId={event.runId} onRate={onRate} />}
         </div>
       );
 
@@ -195,5 +195,3 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
       return null;
   }
 };
-
-export type { AgentEvent };

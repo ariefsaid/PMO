@@ -1,6 +1,6 @@
 import React from 'react';
 import { Icon } from '@/src/components/ui/icons';
-import { PREVIEWABLE_EXTENSIONS } from '@/src/lib/fileConstants';
+import { VIEWABLE_EXTENSIONS } from '@/src/lib/fileConstants';
 
 function truncate(str: string, max: number): string {
   return str.length > max ? str.slice(0, max) + '…' : str;
@@ -12,7 +12,7 @@ function getExtension(path: string): string {
 }
 
 function isPreviewable(path: string): boolean {
-  return (PREVIEWABLE_EXTENSIONS as readonly string[]).includes(getExtension(path));
+  return (VIEWABLE_EXTENSIONS as readonly string[]).includes(getExtension(path));
 }
 
 function extractFilename(path: string): string {

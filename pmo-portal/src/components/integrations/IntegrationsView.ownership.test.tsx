@@ -112,7 +112,7 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
       vi.mocked(useIntegrations).mockReturnValue({ bindings: [], isPending: false, isError: false, isSuccess: true, error: null, refetch: vi.fn(), connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, getBinding: vi.fn(() => undefined), getHealth: vi.fn().mockResolvedValue(null) } as any);
       wrapWithRole('Admin', <IntegrationsView />);
       const list = screen.getByTestId('integrations-tier-list');
-      expect(within(list).getByText(/ClickUp is US-hosted SaaS — task-domain data resides with ClickUp/)).toBeInTheDocument();
+      expect(within(list).getByText(/ClickUp is US-hosted SaaS: task-domain data resides with ClickUp/)).toBeInTheDocument();
     });
 
     it('Non-ClickUp tiers do NOT render the data-locality note', () => {
@@ -148,7 +148,7 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
       wrapWithRole('Admin', <IntegrationsView />);
       const list = screen.getByTestId('integrations-tier-list');
       expect(
-        within(list).getByText(/Self-hosted ERP — data resides on your ERPNext instance/),
+        within(list).getByText(/Self-hosted ERP: data resides on your ERPNext instance/),
       ).toBeInTheDocument();
     });
   });

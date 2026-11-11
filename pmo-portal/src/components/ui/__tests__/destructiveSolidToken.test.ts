@@ -13,8 +13,14 @@ import { buttonClasses } from '../buttonClasses';
  *
  * The fix splits the concerns the same way DESIGN.md's "Solid fills" note already prescribes for
  * `--primary`/`-solid`: a dedicated `--destructive-solid` token, used ONLY as the solid destructive
- * BUTTON background, leaving the raw `--destructive` hue (and `text-destructive`/dot/bar) restored
- * to its original bright value.
+ * BUTTON background, leaving the raw `--destructive` hue (and `text-destructive`/dot/bar) free to
+ * keep its own AA contrast against the theme canvas.
+ *
+ * Rewritten 2026-10-28 (visual step 1, #1452): the behaviour under test is "text on a solid
+ * destructive fill is readable", so the gate is the TOKEN PAIR — `--destructive-foreground` on
+ * `--destructive-solid` must clear WCAG AA text (4.5:1) in BOTH themes — instead of requiring a
+ * hardcoded white foreground. The adopted dark theme inverts the pairing (light red fill, dark
+ * work-surface text), which a white-text assertion would fail spuriously.
  *
  * Token VALUES are read straight out of `index.css` (the single source of truth) rather than
  * hardcoded here, matching `AdminUsers.avatarContrast.test.ts` / `checkboxBorderContrast.test.ts` —
@@ -87,10 +93,21 @@ describe('AC-RAM-004 regression: --destructive/--destructive-solid split', () =>
     expect(darkTokens['destructive-solid']).toBeDefined();
   });
 
-  it('dark --destructive-solid (the solid BUTTON fill) with white text clears AA (was 3.58:1)', () => {
-    const solidRgb = hslToRgb(...darkTokens['destructive-solid']);
-    const whiteRgb: [number, number, number] = [255, 255, 255];
-    expect(contrastRatio(solidRgb, whiteRgb)).toBeGreaterThanOrEqual(AA_TEXT_MIN_CONTRAST);
+  it('AC-RAM-004: --destructive-foreground on --destructive-solid clears AA in BOTH themes (token pair, not white)', () => {
+    for (const [theme, tokens] of [
+      ['light', lightTokens],
+      ['dark', darkTokens],
+    ] as const) {
+      expect(tokens['destructive-solid'], `${theme} --destructive-solid missing`).toBeDefined();
+      expect(tokens['destructive-foreground'], `${theme} --destructive-foreground missing`).toBeDefined();
+      const solidRgb = hslToRgb(...tokens['destructive-solid']);
+      const fgRgb = hslToRgb(...tokens['destructive-foreground']);
+      const ratio = contrastRatio(fgRgb, solidRgb);
+      expect(
+        ratio,
+        `${theme} --destructive-foreground on --destructive-solid measured ${ratio.toFixed(2)}:1`
+      ).toBeGreaterThanOrEqual(AA_TEXT_MIN_CONTRAST);
+    }
   });
 
   it('dark --destructive (the raw hue behind text-destructive/dot/bar) on --background clears AA', () => {

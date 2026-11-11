@@ -231,10 +231,12 @@ AC range **AC-900..AC-911** (confirmed unused: Dashboard owns 701–711, Budget 
 owns 800–816; `grep -r AC-9` across the repo finds nothing). Each AC names its id as the leading token
 (traceability) and is annotated with its **owning layer (ADR-0010)**.
 
-- **AC-900** *(Unit)* — Transition map: legal pair accepted, illegal rejected.
-  Given the transition-map logic, When asked `Draft → Submitted`, `Submitted → Approved`,
+- **AC-900** *(pgTAP)* — Transition map: legal pair accepted, illegal rejected.
+  Given `transition_timesheet()`'s transition map (a move through the RPC —
+  `supabase/tests/timesheet_transition_map.test.sql`), When asked `Draft → Submitted`, `Submitted → Approved`,
   `Submitted → Rejected`, `Rejected → Draft` Then each is legal; When asked `Draft → Approved` (illegal
-  jump), `Approved → <any>` (terminal), or `Submitted → Draft` Then each is rejected. *(FR-TS-001)*
+  jump), `Approved → <any other>` (only re-open to Draft is legal), or `Submitted → Draft` Then each is
+  rejected. *(FR-TS-001)*
 - **AC-901** *(Unit)* — Cosmetic action gating helper (owner vs approver).
   Given `timesheetActions(status, isOwner, isApprover)`, When the owner views their `Draft` sheet Then
   `Submit` is offered and `Approve`/`Reject` are not; When the owner views their `Submitted` sheet Then no
@@ -298,12 +300,12 @@ owns 800–816; `grep -r AC-9` across the repo finds nothing). Each AC names its
 
 | Requirement | AC(s) | Owning layer (ADR-0010) |
 |---|---|---|
-| FR-TS-001 (transition map legality) | AC-900, AC-911 | Unit (E2E end-to-end) |
+| FR-TS-001 (transition map legality) | AC-900, AC-911 | pgTAP (E2E end-to-end) |
 | FR-TS-002 (all changes via RPC) | AC-902 | Unit |
 | FR-TS-003 (internal authz: org+matrix) | AC-905 | pgTAP |
 | FR-TS-004 (submit: owner only) | AC-906, AC-901, AC-911 | pgTAP (UI gate at Unit; E2E) |
 | FR-TS-005 (approve/reject + fallback + SoD) | AC-907, AC-908, AC-909, AC-901 | pgTAP (UI gate at Unit) |
-| FR-TS-006 (rework `Rejected → Draft`) | AC-900 (map) | Unit |
+| FR-TS-006 (rework `Rejected → Draft`) | AC-900 (map) | pgTAP |
 | FR-TS-007 (`profiles.manager_id`) | AC-907, AC-910 | pgTAP |
 | FR-TS-008 (manager read path) | AC-910, AC-911 | pgTAP (E2E end-to-end) |
 | FR-TS-009 (org_id not client-supplied + anon-revoke) | AC-910, AC-905 | pgTAP |
@@ -313,9 +315,9 @@ owns 800–816; `grep -r AC-9` across the repo finds nothing). Each AC names its
 | NFR-TS-ATOM-001 (atomic transition) | AC-906, AC-907 | pgTAP |
 | NFR-TS-UI-001 (loading/empty/error states) | AC-904, AC-911 | Unit (E2E end-to-end) |
 
-Per-layer AC split: **Unit** AC-900/901/902/903/904/912 (**6**) · **pgTAP** AC-905/906/907/908/909/910 (**6**) ·
+Per-layer AC split: **Unit** AC-901/902/903/904/912 (**5**) · **pgTAP** AC-900/905/906/907/908/909/910 (**7**) ·
 **E2E** AC-911 (**1**, curated submit→approve journey). Authorization, SoD, tenancy, the manager read path,
-atomicity, and the legal-map gate all sit at **pgTAP** (the DB is the real gate); transition-map logic, the
+atomicity, and the legal-map gate all sit at **pgTAP** (the DB is the real gate); the
 cosmetic action gate, DAL error surfacing, the queue-DAL shape, and UI states sit at **Unit**; one
 end-to-end happy path at **E2E**. No AC is pushed up a layer to satisfy a convention (ADR-0010).
 

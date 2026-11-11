@@ -14,6 +14,7 @@
 // No @-alias (Deno has no Vite alias).
 import type { AgentAction, DeputyContext, ReadQueryBuilder, SupabaseLikeWithWrites } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import { resolveAgentEntity } from './entityCatalog.ts';
+import { isEntityAllowed, keyForEntity, notOnPlanError, writeRefusal } from './featureSwitches.ts';
 import {
   QUERY_ENTITY_SCHEMA,
   CREATE_ACTIVITY_SCHEMA,
@@ -43,12 +44,6 @@ export type { AgentReadEntity };
 
 /** Wall-clock timeout for each DB read. D6. */
 export const READ_TIMEOUT_MS = 5000;
-
-/**
- * ADR-0051: money-value writes at/above this amount require an approval chip.
- * Server-side only; never client/model supplied.
- */
-export const AGENT_APPROVAL_MONEY_THRESHOLD = 10_000;
 
 /** ADR-0051 / FR-AT2-APR-005: destructive deletes always require the approval chip. */
 export function isDestructiveDeleteAction(name: string): boolean {
@@ -87,6 +82,12 @@ export async function runQueryEntity(input: unknown, ctx: DeputyContext): Promis
   if (!(AGENT_READ_ENTITIES as readonly string[]).includes(entityKey)) return { error: `unknown entity: ${inp?.entity}` };
   const entry = resolveAgentEntity(entityKey);
   if (!entry) return { error: `unknown entity: ${inp?.entity}` };
+  // S4 (FR-PLN-008): an entity whose module is off on the caller's plan is refused HERE too — the
+  // handler's offering filter already hides it, so this is the depth that catches a model that calls it
+  // anyway (or a stale snapshot from a continuation pass). Typed so the model says "not on your plan".
+  if (!isEntityAllowed(entityKey, ctx.featureSwitches)) {
+    return { ...notOnPlanError(keyForEntity(entityKey) ?? 'unknown') };
+  }
   // Migration 0350: only the four money roles read bills and payments. Say so rather than return RLS's empty list,
   // which the model would report as "there are none". An unknown role is refused too (allow-list).
   if (AGENT_MONEY_READ_ENTITIES.has(entityKey) && !AGENT_MONEY_READ_ROLES.includes(ctx.role ?? '')) {
@@ -334,7 +335,7 @@ export const updateTaskStatusAction: AgentAction & {
   summarize: (input: UpdateTaskStatusInput) => string;
 } = {
   name: 'update_task_status',
-  description: "Advance a task's status. Requires user approval; RLS restricts engineers to their own tasks.",
+  description: "Advance a task's status. Requires user approval; RLS restricts engineers and finance to their own tasks.",
   inputSchema: UPDATE_TASK_STATUS_SCHEMA,
   surfaces: ['agent'],
   confirm: true,
@@ -351,12 +352,27 @@ export const updateTaskStatusAction: AgentAction & {
     // (NFR-AW-SEC-002). DeputyContext itself is intentionally NOT widened to
     // SupabaseLikeWithWrites — that would leak write capability into read-only actions.
     const sb = ctx.supabase as SupabaseLikeWithWrites;
-    const { error } = await sb
+    // .select() returns the UPDATED rows — the refused-write oracle (#1315). RLS
+    // (tasks_update_own_status, migration 0355) silently FILTERS an update the caller may not
+    // perform: PostgREST resolves with zero rows and NO error, so without the row check the
+    // assistant claimed the status was set when nothing changed. A real db error still takes
+    // the db-error branch first; only "no error AND no row" reports the permission/not-found
+    // refusal to the model, which then tells the user the truth instead of a false success.
+    const { data, error } = await sb
       .from('tasks')
       .update({ status: v.value.status })
-      .eq('id', v.value.taskId);
+      .eq('id', v.value.taskId)
+      .select('id,status');
     if (error) return { error: 'update_task_status db error', code: (error as { code?: string }).code };
-    return { taskId: v.value.taskId, status: v.value.status };
+    const updatedRows = Array.isArray(data) ? data as Array<{ id?: unknown; status?: unknown }> : [];
+    const updated = updatedRows[0];
+    if (!updated) {
+      return { error: "You can't change this task's status — the task was not found or you don't have permission to change it." };
+    }
+    if (typeof updated.id !== 'string' || typeof updated.status !== 'string') {
+      return { error: 'update_task_status db error' };
+    }
+    return { taskId: updated.id, status: updated.status };
   },
 };
 
@@ -535,6 +551,11 @@ export const createAutomationAction: AgentAction & {
   summarize: (i) =>
     `Watch: ${i.prompt} (${i.kind === 'schedule' ? `on schedule ${i.schedule}` : `when ${i.trigger_on?.event}`})`,
   run: async (input: unknown, ctx: DeputyContext) => {
+    // S4 (FR-PLN-006): a write checks its OWN switch key at execution, and never fails open — the run
+    // gate refuses an explicitly-off assistant, but a chip can be approved after a resolver failure
+    // left the snapshot unknown. Null (unresolved) refuses here; reads keep the fail-open rule.
+    const refusal = writeRefusal('agent_assistant', ctx.featureSwitches);
+    if (refusal) return refusal;
     const v = validateCreateAutomation(input);
     if (v.ok === false) return { error: v.error };
     // Cast: see the write-action comment on createActivityAction.

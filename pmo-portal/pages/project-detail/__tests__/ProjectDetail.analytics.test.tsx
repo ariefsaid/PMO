@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
+vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
+vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinancesSection: () => null }));
 // ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
@@ -31,6 +33,7 @@ const projData = [
     last_update: '',
     org_id: 'o1',
     contract_value: 200000,
+    currency: 'USD',
     win_probability: 1,
     stage_id: null,
     code: null,
@@ -65,12 +68,11 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
     isPending: false,
   }),
 }));
-vi.mock('../tabs/OverviewTab', () => ({ default: () => <div data-testid="tab-overview">Overview</div> }));
 vi.mock('../tabs/BudgetTab', () => ({ default: () => <div data-testid="tab-budget">Budget</div> }));
 vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-procurement">Procurement</div> }));
 vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
 vi.mock('../tabs/DocumentsTab', () => ({ default: () => <div data-testid="tab-documents">Documents</div> }));
-vi.mock('../PipelineLens', () => ({ default: () => <div>Pipeline</div> }));
+vi.mock('../../sales/DealBand', () => ({ default: () => <div>Pipeline</div> }));
 vi.mock('@/src/hooks/useTasks', () => ({
   useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
@@ -87,6 +89,24 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectPosition', () => ({
+  useProjectAttention: () => ({ items: [], isPending: false }),
+  useOverdueReceivables: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));
+vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () => null, MoneyBlock: () => null }));
+vi.mock('../ProjectActivity', () => ({ ActivityFooter: () => null, MyOpenTasks: () => null, ProjectActivity: () => null }));
+vi.mock('../ProjectDrawdown', () => ({ default: () => null }));
+vi.mock('../ProjectSCurve', () => ({ default: () => null }));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
 }));
 vi.mock('../ProjectDetailHeader', () => ({
   default: () => <div>Header</div>,
@@ -113,7 +133,13 @@ const renderAt = async (path: string) => {
       </MemoryRouter>
     </ImpersonationProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  // #1344: the old wait named project-detail-panel-loading, an id the demand-loading change
+  // (#1469) retired — it asserted nothing and returned before the panel's Suspense fallback
+  // cleared, racing the skeleton on a loaded machine (#1198 fixed the defaultTab fixture;
+  // same binding here). Tab surfaces are stubbed modules, so once the record lands the
+  // fallback clears in microtasks — the wait just refuses to assert before it has.
+  const panel = screen.getByRole('tabpanel');
+  await waitFor(() => expect(within(panel).queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
   return view;
 };
 

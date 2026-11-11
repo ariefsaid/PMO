@@ -5,17 +5,19 @@
  * using the org's per-org Vault token (resolved from external_org_bindings.secret_ref).
  *
  * Auth: runs under the CALLER JWT (verified locally via verifyCallerJwt, ADR-0057),
- * then re-enforces Admin/Operator/PM gate on the verified `sub`.
+ * then requires active membership standing (actor_authorization_state, fail closed) and
+ * re-enforces the Admin/Operator/PM gate on the verified `sub`.
  * - Admin of the org: allowed
  * - Platform Operator: allowed
  * - Project Manager of the org: allowed (per ADR-0016 project matrix — server re-enforces)
+ * All of the above only while the caller's membership is currently active.
  *
  * Request: POST { tier: 'clickup' }
  * Response: { lists: [{ id, name, space_name, folder_name }] }
  *
  * Errors:
  * - 401: missing/invalid JWT
- * - 403: not Admin/Operator/PM of the org
+ * - 403: caller lacks active membership standing, or is not Admin/Operator/PM of the org
  * - 404: no active ClickUp binding for this org
  * - 422: credential resolution failed (Vault secret missing)
  * - 500: internal/upstream error
@@ -23,6 +25,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
+  bearerToken,
   verifyCallerJwt,
   JwtVerifyError,
   jwksFromUrl,
@@ -30,6 +33,7 @@ import {
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { hasActiveStanding } from '../_shared/adminOrOperator.ts';
 import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 
 interface ListsBody {
@@ -41,10 +45,6 @@ interface ListItem {
   name: string;
   space_name: string;
   folder_name: string | null;
-}
-
-interface ListsResponse {
-  lists: ListItem[];
 }
 
 // Memoized JWKS resolver (same pattern as agent-chat, adapter-dispatch, external-connect)
@@ -68,16 +68,10 @@ export const testSupabaseOptions = {
   },
 };
 
-function bearerTokenFromHeader(authHeader: string | null): string | null {
-  if (!authHeader) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(authHeader);
-  return m ? m[1] : null;
-}
-
-function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', ...headers }, // #641: every answer is CORS-readable
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }, // #641: every answer is CORS-readable
   });
 }
 
@@ -88,6 +82,8 @@ function errorResponse(message: string, code: string, status: number): Response 
 // ============================================================================
 // ClickUp hierarchy fetching (injected fetch for testability)
 // ============================================================================
+
+const CLICKUP_BASE_URL = 'https://api.clickup.com/api/v2';
 
 interface ClickUpTeam {
   id: string;
@@ -102,25 +98,20 @@ interface ClickUpSpace {
 interface ClickUpFolder {
   id: string;
   name: string;
-  space_id: string;
 }
 
 interface ClickUpList {
   id: string;
   name: string;
-  folder_id: string | null;
-  space_id: string;
 }
 
 interface ClickUpHierarchyDeps {
   fetchImpl: typeof fetch;
   token: string;
-  baseUrl?: string;
 }
 
 async function fetchTeams(deps: ClickUpHierarchyDeps): Promise<ClickUpTeam[]> {
-  const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/team`, {
+  const res = await fetchBounded(deps.fetchImpl, `${CLICKUP_BASE_URL}/team`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) {
@@ -131,21 +122,19 @@ async function fetchTeams(deps: ClickUpHierarchyDeps): Promise<ClickUpTeam[]> {
 }
 
 async function fetchSpaces(deps: ClickUpHierarchyDeps, teamId: string): Promise<ClickUpSpace[]> {
-  const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/team/${teamId}/space`, {
+  const res = await fetchBounded(deps.fetchImpl, `${CLICKUP_BASE_URL}/team/${teamId}/space`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
-  if (!res.ok) return [];
+  if (!res.ok) throw new AppError('Failed to fetch ClickUp spaces', 'external-unreachable');
   const data = (await res.json()) as { spaces: ClickUpSpace[] };
   return data.spaces;
 }
 
 async function fetchFolders(deps: ClickUpHierarchyDeps, spaceId: string): Promise<ClickUpFolder[]> {
-  const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/space/${spaceId}/folder`, {
+  const res = await fetchBounded(deps.fetchImpl, `${CLICKUP_BASE_URL}/space/${spaceId}/folder`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
-  if (!res.ok) return [];
+  if (!res.ok) throw new AppError('Failed to fetch ClickUp folders', 'external-unreachable');
   const data = (await res.json()) as { folders: ClickUpFolder[] };
   return data.folders;
 }
@@ -155,51 +144,73 @@ async function fetchLists(
   spaceId: string,
   folderId: string | null,
 ): Promise<ClickUpList[]> {
-  const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
   const path = folderId ? `/folder/${folderId}/list` : `/space/${spaceId}/list`;
-  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}${path}`, {
+  const res = await fetchBounded(deps.fetchImpl, `${CLICKUP_BASE_URL}${path}`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
-  if (!res.ok) return [];
+  if (!res.ok) throw new AppError('Failed to fetch ClickUp lists', 'external-unreachable');
   const data = (await res.json()) as { lists: ClickUpList[] };
   return data.lists;
 }
 
+/** Small fixed cap on parallel ClickUp reads across the WHOLE traversal (rate-limit friendly). */
+const HIERARCHY_CONCURRENCY = 4;
+
+/**
+ * One request-wide gate: at most `limit` calls in flight across every level of the tree.
+ * Once any call fails, queued and new calls reject without touching the network
+ * (calls already in flight still settle).
+ */
+function createGate(limit: number) {
+  let active = 0;
+  let failure: unknown;
+  let failed = false;
+  const waiting: Array<() => void> = [];
+  return async <R>(fn: () => Promise<R>): Promise<R> => {
+    while (active >= limit && !failed) await new Promise<void>((r) => waiting.push(r));
+    if (failed) throw failure;
+    active++;
+    try {
+      return await fn();
+    } catch (e) {
+      if (!failed) { failed = true; failure = e; }
+      throw e;
+    } finally {
+      active--;
+      // Wake everyone on failure so they reject; otherwise hand the slot to one waiter.
+      if (failed) waiting.splice(0).forEach((r) => r());
+      else waiting.shift()?.();
+    }
+  };
+}
+
 /** Build flattened list hierarchy from ClickUp workspace. */
 async function buildFlattenedLists(deps: ClickUpHierarchyDeps): Promise<ListItem[]> {
-  const teams = await fetchTeams(deps);
-  const allLists: ListItem[] = [];
-
-  for (const team of teams) {
-    const spaces = await fetchSpaces(deps, team.id);
-    for (const space of spaces) {
-      const folders = await fetchFolders(deps, space.id);
+  const gate = createGate(HIERARCHY_CONCURRENCY);
+  const teams = await gate(() => fetchTeams(deps));
+  const perTeam = await Promise.all(teams.map(async (team) => {
+    const spaces = await gate(() => fetchSpaces(deps, team.id));
+    const perSpace = await Promise.all(spaces.map(async (space) => {
+      const items: ListItem[] = [];
+      const folders = await gate(() => fetchFolders(deps, space.id));
       // Lists in folders
-      for (const folder of folders) {
-        const lists = await fetchLists(deps, space.id, folder.id);
-        for (const list of lists) {
-          allLists.push({
-            id: list.id,
-            name: list.name,
-            space_name: space.name,
-            folder_name: folder.name,
-          });
-        }
-      }
-      // Lists directly in space (no folder)
-      const spaceLists = await fetchLists(deps, space.id, null);
-      for (const list of spaceLists) {
-        allLists.push({
+      const perFolder = await Promise.all(folders.map(async (folder) =>
+        (await gate(() => fetchLists(deps, space.id, folder.id))).map((list) => ({
           id: list.id,
           name: list.name,
           space_name: space.name,
-          folder_name: null,
-        });
+          folder_name: folder.name as string | null,
+        }))));
+      for (const group of perFolder) items.push(...group);
+      // Lists directly in space (no folder)
+      for (const list of await gate(() => fetchLists(deps, space.id, null))) {
+        items.push({ id: list.id, name: list.name, space_name: space.name, folder_name: null });
       }
-    }
-  }
-
-  return allLists;
+      return items;
+    }));
+    return perSpace.flat();
+  }));
+  return perTeam.flat();
 }
 
 // ============================================================================
@@ -218,7 +229,7 @@ export async function handleListsRequest(req: Request): Promise<Response> {
   }
 
   // 1. Extract and verify caller JWT (ADR-0057)
-  const jwt = bearerTokenFromHeader(req.headers.get('Authorization'));
+  const jwt = bearerToken(req.headers.get('Authorization'));
   if (!jwt) {
     return errorResponse('Missing Authorization header', 'UNAUTHORIZED', 401);
   }
@@ -245,15 +256,27 @@ export async function handleListsRequest(req: Request): Promise<Response> {
   // 2. Service-role client for admin lookups
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
-  // 3. Load caller profile (role + org_id)
+  // 3. Load caller profile (role + org_id + status)
   const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
-    .select('org_id, role')
+    .select('org_id, role, status')
     .eq('id', userId)
     .single();
 
   if (profileError || !profile) {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
+  }
+
+  // 3b. Standing gate: the role gate below authorizes only while the membership is active NOW —
+  // the PM allowance included. A deactivated or banned caller with an unexpired JWT stops here,
+  // before any Vault read or ClickUp request.
+  if (!(await hasActiveStanding({
+    stateClient: serviceClient,
+    orgId: profile.org_id,
+    userId,
+    profileStatus: profile.status,
+  }))) {
+    return errorResponse('Active organization member required', 'FORBIDDEN', 403);
   }
 
   // 4. Role gate: Admin OR Operator OR Project Manager

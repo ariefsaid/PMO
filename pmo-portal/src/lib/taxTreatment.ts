@@ -27,7 +27,7 @@
  */
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { parseMoneyInputAtScale, parseNeutralMoneyInputAtScale } from '@/src/lib/format';
-import { decimalUnits, isTaxTreatment, normalizeTaxAmount } from './taxNormalize';
+import { decimalUnits, divRoundHalfAwayFromZero, isTaxTreatment, normalizeTaxAmount } from './taxNormalize';
 export { isTaxTreatment, normalizeTaxAmount };
 
 /**
@@ -35,8 +35,8 @@ export { isTaxTreatment, normalizeTaxAmount };
  * `tax_treatment in ('inclusive','exclusive')` — these values are that domain verbatim.
  */
 export const TAX_TREATMENT_OPTIONS: { value: TaxTreatment; label: string }[] = [
-  { value: 'inclusive', label: 'Inclusive — the amount already includes tax' },
-  { value: 'exclusive', label: 'Exclusive — tax is on top of the amount' },
+  { value: 'inclusive', label: 'Inclusive: the amount already includes tax' },
+  { value: 'exclusive', label: 'Exclusive: tax is on top of the amount' },
 ];
 
 /** Placeholder for the empty (nothing-chosen-yet) state of the treatment select. */
@@ -94,8 +94,8 @@ export function parseNeutralTaxFacts(treatmentRaw: string, amountRaw: string): P
  * UNDER-detect over-commitment (migration 0197's header).
  */
 export const CONTRACT_TAX_REQUIRED_HINT =
-  'State the tax treatment and the tax amount for this contract value — enter 0 if there is no ' +
-  'tax. Without it the work-order drawdown compares this ceiling against order values on an ' +
+  'State the tax treatment and the tax amount for this contract value (enter 0 if there is no ' +
+  'tax). Without it the work-order drawdown compares this ceiling against order values on an ' +
   'unknown basis.';
 
 /** Exact authored tax-base ratio: keep 11/12 rather than a rounded decimal or an effective rate. */
@@ -167,7 +167,7 @@ export function calculateStandaloneTax(
   const taxDenominator =
     treatment === 'inclusive' ? rateDenominator + rateNumerator : rateDenominator;
   const taxNumerator = amountCents * rateNumerator;
-  const taxCents = (2n * taxNumerator + taxDenominator) / (2n * taxDenominator);
+  const taxCents = divRoundHalfAwayFromZero(taxNumerator, taxDenominator);
   const netCents = treatment === 'inclusive' ? amountCents - taxCents : amountCents;
   const grossCents = treatment === 'inclusive' ? amountCents : amountCents + taxCents;
   return {

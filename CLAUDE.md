@@ -13,6 +13,8 @@
 > - **PII** — names, personal emails, phones, account-shape enumeration hints.
 > - **Secrets or their coordinates** — keys, vault/item names, env-var names, internal hostnames,
 >   tenant IDs.
+> - **Competitor analysis** — comparisons, gap analyses, screenshots or notes naming products we're
+>   compared against. They go in `docs/private/` only; public text says "competitor review".
 >
 > **Where open-weakness detail goes instead:** a GitHub **private security advisory**
 > (`Security → Advisories`), the local-only `docs/private/` (own git repo, no remote, ignored via `.git/info/exclude`; reviews/audits of unfixed defects go here), or the Director's private memory
@@ -36,20 +38,21 @@ B2B multi-tenancy without a rewrite.
 - `supabase/migrations/` — Postgres schema + RLS policies.
 - `.claude/agents/`, `.claude/skills/` — the role agents and vendored skills (skills gitignored, via `scripts/vendor-skills.sh`). **Edit skills ONLY in `.claude/skill-overrides/<name>/` (tracked)** — the vendor script overlays them; edits in `.claude/skills/` are destroyed on re-vendor. Config the skills read: `docs/agents/{issue-tracker,triage-labels,domain,skills}.md`.
 
+## What's next: the pinned Roadmap issue
+Start every session at **GitHub issue "Roadmap: vision, the maps, and what's next" (#1571, pinned)**: vision, every map, and the Now/Next/Later order. Every open issue sits under one map with a status label. When a Now item ships, update the roadmap in the same session.
+
 ## Operating model: Owner → Director → role agents
 The **owner** talks to the **Director** (Opus 4.8, the main session). The Director runs an
 **issue-driven loop** and takes each issue end-to-end — but **does not run the build itself by
 default.** ⛔ **Pick the executor before starting any build** (`docs/factory-workflow.md` § Executor
-routing): a bounded code or FE slice → an **SSSF ADW** (`adws/adw_simple_sdlc.py`), chained with **no
+routing): a bounded code or FE slice → an **Orca worker** (`docs/orca-dispatch.md`), chained with **no
 owner pause between issues**; **money-path / SoD / auth / token-custody** → Director-dispatched per
-issue. Reaching for `implementer` on a slice the factory should run is the standing mistake — it
-spends an owner checkpoint that the routing removed. Keep tool approvals **ON**; pause for owner
+issue, also through Orca workers. Building it yourself in the main session is the standing mistake. Keep tool approvals **ON**; pause for owner
 approval before any push / merge / deploy, and at **milestone** boundaries — not at issue boundaries
 inside a signed brief. `main` stays the ceiling either way.
-> **⚑ Current executor (trial, 2026-06-12):** role-agent work is dispatched to the **pi CLI**
-> (GLM/codex substrates), not Claude subagents — to spare the Claude quota. The roster + models below are
-> the *contract* (and the Claude fallback); **`docs/pi-delegation.md` is how work is actually dispatched
-> right now.** The gates are unchanged; the **per-issue QA loop now follows ADR-0030's portfolio model**
+> **⚑ Executor (owner, 2026-10-27):** all agent work — subagents, builders, reviewers, cross-model — runs as
+> **Orca supervised workers** on any harness (claude, codex, antigravity, zcode, pi, dsh) and model; routing
+> table and mechanics in **`docs/orca-dispatch.md`**. The roster below is the *role contract* handed to a worker. The gates are unchanged; the **per-issue QA loop now follows ADR-0030's portfolio model**
 > (`docs/qa-portfolio.md`, `review mode: portfolio` default — see the loop below).
 
 Per-issue loop (**QA = ADR-0030 "Discover → Graduate → Cover" portfolio; source of truth `docs/qa-portfolio.md`**,
@@ -62,12 +65,15 @@ stays intact in-repo, flip the mode to revert):
    mode this step is instead the owner-approved static HTML mockup round, `docs/design-workflow.md` §1a.)*
 2. **Spec (SDD)** — `spec-miner` (existing code) / `feature-forge` (new behavior) → `docs/specs/*.spec.md`.
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs).
-4. **Build (TDD)** — **executor per the routing above, decided before you start**: ADW by default
-   (`--builder fe_builder --reviewer fe_reviewer` for UI); Director-dispatched only for the
-   money/SoD/auth tier. `implementer` / `ui-implementer` name the **role contract handed to the
+4. **Build (TDD)** — **executor per the routing above, decided before you start**: an Orca worker
+   (`docs/orca-dispatch.md`); per-issue Director dispatch for the money/SoD/auth tier. `implementer` / `ui-implementer` name the **role contract handed to the
    executor** — they are not a decision to build it yourself (red-green-refactor; no prod code
    without a failing test). **Deterministic correctness becomes Layer-1 CI gate-tests** — chart-position, money, dates/TZ,
    derived values, `axe-core` a11y, Playwright visual-regression — not human review (ADR-0030 §C).
+   **UI/redesign lane:** step 5 is machine gates (typecheck, eslint, changed vitest, touched e2e,
+   `scripts/ux-proof.sh` on touched routes) plus security-auditor only when auth/RLS/money files change;
+   steps 6–7 Discover/graduate do not apply. Director does one rendered review (impeccable + taste,
+   every state); owner judges screenshots. Cap: one review + one fix.
 5. **Review — 3 reviewers, always** — `spec-reviewer`, `code-quality-reviewer`, **and** `security-auditor`
    (OWASP/STRIDE on auth + RLS + `org_id` tenancy; right-sized per model-tiering). All three run on every code
    issue. (Security focuses its depth on auth/RLS/RPC/public surfaces; on a change that touches none it
@@ -113,7 +119,7 @@ for one client, architected to scale to millions.
 **Before asserting a fact, name the artifact that decides it and read THAT one.** A doc, a memory, a
 test name, a policy body and an exit code are all *claims about* the deciding artifact, and each has
 been wrong here: `role_table_grants` decides reachability (not the policy) · `pg_policies` at head
-decides policy (not the migrations) · `supabase migration list --linked` decides the cloud's level
+decides policy (not the migrations) · `scripts/prod-read.sh` (the runbook's read-only path, `docs/environments.md`) decides the cloud's level — never the `supabase` CLI with `--linked`
 (never memory) · the output body decides pass/fail (not `$?` through a pipe) · shipped code decides
 behaviour (not a spec default). **Never assert a negative from a grep without stating its scope** —
 "nothing reads the stamp" was three directories searched out of four. `scripts/prior-art.sh <term>`
@@ -135,32 +141,41 @@ Do not merge, push or promote to `main` or production. This overrides the generi
 below and in older plans. Production additionally retains its separate per-instance approval rule.
 
 
-**v0.23.0 throughput override (owner, 2026-10-18):** every slice PR to dev requires the normal
-two unit shards, pgTAP and verify. Dispatch browser integration only on the PR closing a work lane
-or a completed statement/money piece, rather than every slice. Up to **two** browser dispatches may
+**Dev CI runs what a PR can affect (owner, 2026-10-31, #1584):** a PR to dev runs only the affected unit
+tests, pgTAP only for `supabase/**`, Deno only for edge functions (`scripts/ci-test-scope.mjs`; config,
+setup, deps, `ci.yml`, deletions or >60 files force full). Every push to dev runs everything; a red push run
+is fixed on dev first. **v0.23.0 throughput override (owner, 2026-10-18):** (Browser cadence: see the 2026-10-30 rule below.) Up to **two** browser dispatches may
 run concurrently through the logged shared wrapper; at most **two** heavy local runs on the Mac.
 Build the three approved UX lanes in parallel with statements and money fixes; statements take
 priority on shared resources. Rebase translation-file edits immediately before each PR (#1070).
 Dev remains the ceiling. This supersedes older per-slice browser and single-dispatch limits.
 
-**Post-merge browser gate (owner, 2026-10-19):** after every 2–3 slice merges to `dev`, dispatch
-one browser integration run on `dev` itself through the logged wrapper. A red dev run stops new
-merges until fixed. This supplements the lane-closing runs above; the same concurrency caps apply.
+**Browser e2e runs on the PR to main, not on dev PRs (owner, 2026-10-30; replaces the 2026-10-23 and v0.23 browser cadences):**
+merge a PR to dev once its `verify`, `unit` and (when run) `pgtap` checks are green. CI's `integration` job runs the browser suite on the release PR
+to `main`; a red run there is fixed on `dev`. `scripts/ci-e2e.sh` on a dev branch only to diagnose.
 
-- **CI is the full-suite gate for every PR (owner 2026-09-29/30):** PRs to `dev` gate on CI's `verify` +
-  `pgtap`; PRs to `main` gate on CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,
-  served-fn smoke), which runs automatically on the PR. Don't repeat the full suite on the shared Mac; run
-  the local final gate below. Targeted runs can MISS cross-component breakage — that is why CI's full suite,
-  not a local green, decides the merge. Heavy e2e for a PR to `dev` only via
-  `scripts/ci-e2e.sh <branch>` (once per PR, for shared-code or milestone-closing PRs; it enforces the caps
-  and needs `--owner-ok` beyond them — CI fair-use rule shared with MOS). `scripts/verify-main-pr.sh`
-  reproduces CI's PR-to-`main` run locally; use it only to diagnose a CI failure CI could not report (e.g. a
-  job that timed out before printing). **Local final gate** (every builder and brief, before a PR): `npm run
-  typecheck`, `npx eslint --max-warnings=0 <touched files>`, `npx vitest run --changed origin/dev` (every test
-  that imports anything you changed — this is what still catches shared-component breakage), the touched e2e
-  journeys (`scripts/e2e-local.sh <fragment>`), and for DB changes only the touched pgTAP files
-  (`supabase test db <files>`; CI's `pgtap` job is the full proof) — vitest/typecheck under
-  `scripts/with-test-lock.sh`, DB work under `scripts/with-db-lock.sh`. `db reset` (and `e2e-local.sh --reset`)
+**Hotfixes to main (owner, 2026-11-04):** a hotfix with no frontend change (no `pmo-portal/**` app code) merges on `verify` + affected `unit` + `pgtap` (as a dev PR); admin-merge without waiting for `integration`. Frontend hotfixes keep the full run. The next release runs the full suite.
+
+**Don't waste CI minutes (owner, 2026-11-02; v0.30.0 spent 3 release runs on one test):** a red release test is fixed only
+after its root cause is stated from the run's trace and video (`gh run download <run>`). A workaround that doesn't explain
+the failure is rejected, and a local green is not proof. Same test red twice: stop and re-diagnose; don't patch again.
+Batch release fixes into one PR to `dev`. Never push to `dev` (docs included) while the release PR's CI runs; it restarts it.
+No scheduled CI runs: agent evals run manually and locally (the `agent-evals` workflow is disabled).
+
+- **CI is the merge gate, scoped per target (owner 2026-09-29/30; dev re-scoped 2026-10-31, #1584):** a PR to
+  `dev` gates on `verify` + affected `unit` tests + `pgtap` when `supabase/**` changes (the top rule above); the push
+  to `dev` runs the full suite as the backstop, so a break a narrowed PR missed is fixed on `dev` first.
+  PRs to `main` gate on CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual, served-fn smoke). CI, not a local
+  green, decides the merge; don't repeat the full suite on the shared Mac. `scripts/ci-e2e.sh <branch>` (dev, to
+  diagnose; caps, `--owner-ok` beyond them) and `scripts/verify-main-pr.sh` (reproduces CI's PR-to-`main` run, for a failure CI could not
+  report) are diagnosis tools only.
+  **Local final gate** (every builder and brief, before a PR; owner rule 2026-10-26): `npm run check:guards`,
+  `npm run typecheck`, `npx eslint --max-warnings=0 <touched files>`, the **directly touched test files** (never
+  `vitest --changed` or the full suite locally — CI owns the full run on the push-to-`dev` backstop and the
+  release PR; a local near-full run queues every parallel build behind one lock for hours), the touched e2e journeys (`scripts/e2e-local.sh
+  <fragment>`); UI changes also run `node scripts/affected-e2e.mjs` (`--run` executes them; it refuses >40 specs locally, `--allow-broad` overrides), rendered captures for UI (`scripts/ux-proof.sh`), and for DB changes only the touched pgTAP
+  files (`supabase test db <files>`; CI's `pgtap` job is the full proof) — DB work under `scripts/with-db-lock.sh`;
+  `scripts/with-test-lock.sh` only for the rare deliberate full run (`npm run verify:locked`). `db reset` (and `e2e-local.sh --reset`)
   only when your branch adds/changes a migration or seed. Reviewers and release-engineer read the builder's
   gate evidence and re-run only a targeted check they doubt — no outer re-verify chains.
 - **⛔ NOT DONE UNTIL GREEN — enforced, not advised (2026-07-17).** A task is not complete while any
@@ -193,18 +208,20 @@ merges until fixed. This supplements the lane-closing runs above; the same concu
 - **Coverage:** ≥80% lines on changed code to merge; tests must assert behavior, not inflate numbers.
 - **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (CI `--max-warnings=0`). Both block merge.
 - **⛔ HARD STOP — PRODUCTION (binding, owner directive 2026-06-17, RE-ENFORCED 2026-07-14 after a violation):** **NEVER push/deploy/promote to `production` without the owner's EXPLICIT, per-instance, this-message "yes" naming production.** This includes `git push origin main:production`, CF Pages prod, prod DB push (`db-push-prod.sh`), prod reseed, and prod edge-fn deploy. **Do NOT infer prod authorization** from "do it all", "ship it", "make it reachable", a stated deploy plan, or any prior approval — a prior "ship to prod" is **per-instance, never standing**, and ambiguity means STOP and ASK. Reaching `main` is the autonomous ceiling; the `main`→`production` step is ALWAYS a separate, explicit, owner-gated action. *(2026-07-14 incident: read "do it all and on by default" as prod authorization and promoted `main:production` without an explicit prod OK — this is exactly what must not happen; when in doubt, stop at `main` and ask.)*
-- **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** A prior "ship to prod" is per-instance, never standing. CI is tiered + resource-lean: PR→`dev` = `verify` + `pgtap` (fast lane; `ci.yml` gates pgtap on `base_ref == 'dev'`); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke (the only re-test of the merged result). `integration` fires automatically on the PR→`main`, and on a PR→`dev` only when dispatched via `scripts/ci-e2e.sh` (a dispatch skips `verify` + pgTAP — the PR ran them) and starts Supabase without the CI-unused containers (`studio,realtime,vector`) with Playwright browsers cached. `main`→`production` is a manual, owner-instructed promote only.
+- **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** A prior "ship to prod" is per-instance, never standing. CI is tiered: PR→`dev` = `verify` + affected `unit` + `pgtap` on `supabase/**` changes, no browser e2e (the push to `dev` runs the full suite); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke (the only re-test of the merged result). `integration` fires automatically on the PR→`main`, and on a PR→`dev` only via `scripts/ci-e2e.sh` to diagnose (a dispatch skips `verify` + pgTAP). `main`→`production` is a manual, owner-instructed promote only.
 - **Checkpoints:** the **owner** approves spec sign-off + **every production deploy** / irreversible infra (see Branch flow — prod requires a direct, per-instance instruction); the **Director** approves merge-to-`dev` and merge-to-`main` within the signed spec, and escalates anything strategic or out-of-spec.
-- **PRs:** one per issue — *for code*. **Docs-only changes (`docs/**`, `*.md`) push DIRECT to `dev`; no PR, no branch.**
+- **PRs: batch 3–5 related branches into one PR to `dev` (owner, 2026-10-31).** Workers push branches only; the
+  Director merges each into a batch branch with `git merge --no-ff` and opens one PR listing every `Closes`. Merge the
+  PR with a merge commit (`gh pr merge --merge`), never squash, so any one branch reverts on its own. Money, SoD and
+  auth changes ship alone. **Docs-only changes (`docs/**`, `*.md`) push DIRECT to `dev`; no PR, no branch.**
   CI paths-ignores them, so a docs PR gates on nothing and is pure ceremony (a docs PR reports "no checks
   reported"). This matches long-standing practice on `dev`. Exception: a docs change that is genuinely
   *reviewable content* (a spec/ADR you want the owner to sign off) may still take a PR — that's a review
   request, not a gate. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
 - **Data/schema:** reversible migrations; RLS on every business table; `org_id` seam enforced.
-- **Design/UI:** `DESIGN.md` (design.md format) is the design-system source of truth; QA per the
-  **ADR-0030 portfolio** (`docs/qa-portfolio.md`) — Layer-1 deterministic gate-tests + a rendered Discover
-  pass (every finding graduated) before merging UI changes (`/design-review` is the `4-lens`-mode fallback);
-  Storybook for the shared component library (from Phase 3).
+- **Design/UI:** `DESIGN.md` = tokens only; composition = rendered owner approval;
+  tests assert user actions, never looks. Delete look-pinning tests when recomposing; keep behaviour, a11y,
+  money and role tests. Done = `scripts/ux-proof.sh` clean on touched routes.
 
 ## Read-before-you-touch (context triggers — do NOT read these by default)
 Durable subsystem gotchas live with their subsystem, not in this file and not in the backlog. Read the
@@ -212,9 +229,10 @@ matching one ONLY when your task touches that surface — that is the whole poin
 
 | Touching… | Read first |
 |---|---|
-| About to start ANY build — or to decide who runs it | [`docs/factory-workflow.md`](docs/factory-workflow.md) § Executor routing — **the ADW is the default and issues chain without owner pauses**; per-issue Director dispatch is the money/auth exception, not the reverse |
+| About to start ANY build — or to decide who runs it | [`docs/orca-dispatch.md`](docs/orca-dispatch.md) — Orca workers on any harness/model; routing table there |
 | Any money flow (budget activate · invoice/payment submit · procurement transition · timesheet push) | [`docs/money-path-primer.md`](docs/money-path-primer.md) — a map of the outbox/sweep/SoD architecture so you don't re-derive it from source |
-| The agent / LLM surface (prompts, tools, evals, the assistant panel) | [`docs/adr/0050-layered-agent-prompt-charter-and-skills.md`](docs/adr/0050-layered-agent-prompt-charter-and-skills.md) + [`docs/adr/0052-agent-eval-harness.md`](docs/adr/0052-agent-eval-harness.md) — ⚑ the deployed model (`deepseek-v4-flash`) is a **weak tool-selector**; prompt steering is unit-tested for text presence but NOT verified against the live model. The eval harness is the real gate. |
+| Client seeding or day-to-day PMO agent operations through the CLI | [`docs/runbooks/pmo-cli.md`](docs/runbooks/pmo-cli.md) — shipped commands, data ownership, timing, safety and app-only paths |
+| The agent / LLM surface (prompts, tools, evals, the assistant panel) | [`docs/adr/0050-layered-agent-prompt-charter-and-skills.md`](docs/adr/0050-layered-agent-prompt-charter-and-skills.md) + [`docs/adr/0052-agent-eval-harness.md`](docs/adr/0052-agent-eval-harness.md) — the deployed model (`deepseek/deepseek-v4.1-flash-1017`) chose the right tool on every completed turn in the 10-run local eval (86/90, 2026-11-02, #1596). Run the eval harness locally (not CI) after prompt or tool changes; it is the real gate. |
 | Authoring or editing any e2e spec | [`docs/e2e-parallel-conventions.md`](docs/e2e-parallel-conventions.md) — isolation classes, the `@e2e-isolation` tag, and the guard-polarity rule |
 | Local/prod Supabase, secrets, or a deploy | [`docs/environments.md`](docs/environments.md) |
 
@@ -314,7 +332,7 @@ immutable `headRefOid`, and, if the remote branch exists, require
 `git ls-remote --heads origin refs/heads/<branch>` to report the same OID. Any mismatch means stop and preserve
 the divergent branch. Only then confirm the exact issue worktree is clean, run
 `git worktree remove <exact-path>` (never `--force`) and `git worktree prune`, delete the local feature branch
-with `git branch -d <branch>` (use `-D` only after the exact-tip checks for a verified squash merge), and
+with `git branch -d <branch>` (use `-D` only after the exact-tip checks), and
 finally delete the still-matching repository-owned remote branch with `git push origin --delete <branch>`.
 Never remove a worktree or branch merely because it looks stale.
 

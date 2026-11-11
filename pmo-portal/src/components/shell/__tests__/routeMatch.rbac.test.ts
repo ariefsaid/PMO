@@ -17,16 +17,13 @@ import { UserRole } from '../../../../types';
 describe('modulesForRole (AC-W3-N3 + AC-W3-N4)', () => {
   // ── AC-W3-N3 ─────────────────────────────────────────────────────────────
 
-  it('AC-009 support: financial statements are navigable only to real company-detail roles', () => {
+  it('Finance area is navigable only to Executive, Finance and Admin roles', () => {
+    const destinations = ['/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements'];
     for (const role of [UserRole.Admin, UserRole.Executive, UserRole.Finance]) {
-      expect(modulesForRole(role).find((module) => module.module === 'financial-statements')).toMatchObject({
-        path: '/financial-statements',
-        icon: 'table',
-        labelKey: 'shell.nav.financialStatements',
-      });
+      expect(modulesForRole(role).filter((module) => module.module.startsWith('finance')).map((module) => module.path)).toEqual(destinations);
     }
-    expect(modulesForRole(UserRole.ProjectManager).some((module) => module.module === 'financial-statements')).toBe(false);
-    expect(modulesForRole(UserRole.Engineer).some((module) => module.module === 'financial-statements')).toBe(false);
+    expect(modulesForRole(UserRole.ProjectManager).some((module) => module.module.startsWith('finance'))).toBe(false);
+    expect(modulesForRole(UserRole.Engineer).some((module) => module.module.startsWith('finance'))).toBe(false);
   });
 
   it('AC-W3-N3: Engineer does NOT see Sales Pipeline in Navigate', () => {
@@ -68,7 +65,7 @@ describe('modulesForRole (AC-W3-N3 + AC-W3-N4)', () => {
     expect(vendors).toMatchObject({ path: '/companies?type=Vendor', labelKey: 'shell.nav.vendors' });
   });
 
-  it('AC-W3-N3: Finance sees Sales, Procurement, Companies and FX Administration, but NOT My Tasks', () => {
+  it('AC-W3-N3: Finance sees Sales, Procurement, Companies, FX Administration and My Tasks', () => {
     const items = modulesForRole(UserRole.Finance);
     const modules = items.map((m) => m.module);
     expect(modules).toContain('sales');
@@ -76,7 +73,7 @@ describe('modulesForRole (AC-W3-N3 + AC-W3-N4)', () => {
     expect(modules).toContain('companies');
     expect(modules).toContain('administration');
     expect(items.find((m) => m.module === 'administration')?.path).toBe('/administration/exchange-rates');
-    expect(modules).not.toContain('my-tasks');
+    expect(modules).toContain('my-tasks');
   });
 
   it('AC-FX-010: Admin and Executive retain the existing Administration palette entry', () => {
@@ -91,9 +88,9 @@ describe('modulesForRole (AC-W3-N3 + AC-W3-N4)', () => {
     expect(items.map((m) => m.module)).toContain('my-tasks');
   });
 
-  it('AC-W3-N4: Finance does NOT see My Tasks in Navigate (no IC tasks surface)', () => {
+  it('AC-TASK-FIN-001: Finance sees My Tasks in Navigate (works assigned tasks like an Engineer)', () => {
     const items = modulesForRole(UserRole.Finance);
-    expect(items.map((m) => m.module)).not.toContain('my-tasks');
+    expect(items.map((m) => m.module)).toContain('my-tasks');
   });
 
   it('AC-W3-N4: Engineer sees Dashboard, Projects, Timesheets, Incidents and My Tasks (expected set)', () => {

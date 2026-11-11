@@ -18,6 +18,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SAR_CURRENCY } from './_sarHelpers';
+import { assertLocalBenchUrl } from './_benchGuard';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -41,6 +42,7 @@ test.setTimeout(240_000);
 const benchHeaders = () => ({ Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}`, 'Content-Type': 'application/json' });
 
 async function bench(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<Record<string, unknown>> {
+  assertLocalBenchUrl(BENCH_URL);
   const res = await fetch(`${BENCH_URL}${path}`, { method, headers: benchHeaders(), body: body === undefined ? undefined : JSON.stringify(body) });
   const json = (await res.json()) as { data?: Record<string, unknown>; exc_type?: string; _server_messages?: string };
   expect(res.status, `bench ${method} ${path}: ${json.exc_type ?? ''} ${json._server_messages ?? ''}`).toBe(200);
@@ -49,7 +51,7 @@ async function bench(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknow
 
 /** One served sweep tick; returns THIS org's per-org result (the sweep ticks every activated org). */
 async function sweep(orgId: string): Promise<{ errors: string[]; ledger?: { gl: number; ple: number } }> {
-  type SweepBody = { perOrg?: Array<{ orgId: string; errors: string[]; ledger?: { gl: number; ple: number } }> };
+  type SweepBody = { cadence?: string; perOrg?: Array<{ orgId: string; errors: string[]; ledger?: { gl: number; ple: number } }> };
   let res: Response;
   let text: string;
   // The local edge runtime kills a tick that exceeds its CPU budget (546 WORKER_LIMIT, or a dropped
@@ -59,7 +61,7 @@ async function sweep(orgId: string): Promise<{ errors: string[]; ledger?: { gl: 
     res = await fetch(`${FUNCTIONS_URL}/functions/v1/erpnext-sweep`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SWEEP_SECRET}` },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ mode: 'full' }),
     });
     text = await res.text();
     const killed = res.status === 546 || text.trim() === '';
@@ -67,6 +69,7 @@ async function sweep(orgId: string): Promise<{ errors: string[]; ledger?: { gl: 
   }
   const body = (text ? JSON.parse(text) : {}) as SweepBody;
   expect(res.status, text.slice(0, 500)).toBe(200);
+  expect(body.cadence, `the tick must run the ledger feed, not just the money passes: ${text.slice(0, 500)}`).toBe('full');
   const mine = body.perOrg?.find((o) => o.orgId === orgId);
   expect(mine, 'the sweep ticked the throwaway org').toBeTruthy();
   return mine!;
@@ -146,6 +149,7 @@ test('AC-ENA-062: cancelling a Purchase Invoice in ERPNext brings the project ac
     expect((mirrored ?? []).every((r) => r.is_cancelled === true)).toBe(true);
   } finally {
     if (piName) {
+      assertLocalBenchUrl(BENCH_URL);
       const doc = await fetch(`${BENCH_URL}/api/resource/Purchase%20Invoice/${encodeURIComponent(piName)}`, { headers: benchHeaders() })
         .then((r) => r.json() as Promise<{ data?: { docstatus?: number } }>).catch(() => ({ data: undefined }));
       if (doc.data?.docstatus === 1) {

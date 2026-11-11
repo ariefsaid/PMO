@@ -7,8 +7,21 @@ import { employeeChoiceLabels } from './employeeChoiceLabels';
 
 export interface EmployeeProfileOption {
   value: string;
-  label: string;
-  email?: string;
+  /**
+   * #1226: the person's display name, supplied by the caller. Identity is never re-derived from a
+   * display string — a name that happens to end in its own email must render exactly as given.
+   */
+  name?: string | null;
+  email?: string | null;
+  /** Display-only fallback used verbatim when the caller supplies no name (never parsed). */
+  label?: string;
+}
+
+/** The two identifying facts the decision names, carried through instead of re-parsed from a label. */
+interface EmployeeIdentity {
+  id: string;
+  name: string;
+  email: string | null;
 }
 
 export interface EmployeeLinkConfirmProps {
@@ -56,17 +69,24 @@ const pmoIdentity = (l: ProposedEmployeeLink): string | null =>
 const isDecidable = (l: ProposedEmployeeLink): boolean =>
   erpIdentity(l) !== null && pmoIdentity(l) !== null;
 
-const profileName = (option: EmployeeProfileOption): string => {
-  const emailSuffix = option.email ? ` · ${option.email}` : '';
-  return emailSuffix && option.label.endsWith(emailSuffix)
-    ? option.label.slice(0, -emailSuffix.length)
-    : option.label;
+/**
+ * #1226: the identity is the caller's `name` (or its verbatim `label` fallback, or the email), never
+ * a display string with a ` · email` suffix chiselled back off. Returns null when nothing identifies
+ * the person, so an unidentified destination withholds the confirmation instead of rendering blank.
+ */
+const profileIdentity = (option: EmployeeProfileOption): EmployeeIdentity | null => {
+  const name = option.name?.trim() || option.label?.trim() || option.email?.trim() || '';
+  if (!name) return null;
+  return { id: option.value, name, email: option.email?.trim() || null };
 };
+
+const profileName = (option: EmployeeProfileOption): string => profileIdentity(option)?.name ?? '';
 
 interface PendingConfirmation {
   link: ProposedEmployeeLink;
   profileId: string | null;
-  selectedProfile: EmployeeProfileOption | null;
+  /** The chosen destination's identity, carried from the picker — not recomputed from its label. */
+  selectedIdentity: EmployeeIdentity | null;
   requiresActiveProfile: boolean;
 }
 
@@ -111,14 +131,19 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
     () => new Map((profileOptions ?? []).map((option) => [option.value, option])),
     [profileOptions],
   );
+  const comboboxOptionsById = useMemo(
+    () => new Map(comboboxOptions.map((option) => [option.value, option])),
+    [comboboxOptions],
+  );
   const loadProfileOptions = useCallback(async () => comboboxOptions, [comboboxOptions]);
 
   const openConfirmation = (link: ProposedEmployeeLink, profileId: string | null, requiresActiveProfile: boolean) => {
     setSaveError(false);
+    const selected = profileId ? activeProfilesById.get(profileId) : undefined;
     setPending({
       link,
       profileId,
-      selectedProfile: profileId ? activeProfilesById.get(profileId) ?? null : null,
+      selectedIdentity: selected ? profileIdentity(selected) : null,
       requiresActiveProfile,
     });
   };
@@ -129,12 +154,13 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
     let confirmedLink = pending.link;
     if (pending.profileId) {
       const selected = activeProfilesById.get(pending.profileId);
-      if (!selected) return;
+      const identity = selected ? profileIdentity(selected) : null;
+      if (!selected || !identity) return;
       confirmedLink = {
         ...pending.link,
         profile_id: selected.value,
-        profile_name: profileName(selected),
-        profile_email: selected.email ?? null,
+        profile_name: identity.name,
+        profile_email: identity.email,
       };
     } else if (!isDecidable(pending.link)) {
       return;
@@ -156,12 +182,17 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
 
   const pendingLink = pending?.link ?? null;
   const pendingActiveProfile = pending?.profileId ? activeProfilesById.get(pending.profileId) : undefined;
-  const pendingSelected = pendingActiveProfile ?? pending?.selectedProfile ?? undefined;
+  // The identity carried by the picker when the choice is still active, else the one captured when the
+  // dialog opened — so the decision names facts the caller supplied, never a re-parsed label.
+  const pendingIdentity = (pendingActiveProfile ? profileIdentity(pendingActiveProfile) : null)
+    ?? pending?.selectedIdentity
+    ?? null;
   const pendingDestination = pending
     ? pending.profileId
-      ? pendingSelected ? profileName(pendingSelected) : null
+      ? pendingIdentity?.name ?? null
       : pmoIdentity(pending.link)
     : null;
+  const pendingEmail = pendingIdentity?.email ?? pendingLink?.profile_email ?? null;
   const staleSelection = Boolean(
     pending?.requiresActiveProfile && (!pendingActiveProfile || profileOptions === undefined),
   );
@@ -217,7 +248,7 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
                   <Combobox
                     label={t('approvals.employeeLinks.uxs30.profileLabel', 'PMO user to attribute hours to')}
                     value={selectedProfile?.value ?? null}
-                    selectedOption={selectedProfile ? { value: selectedProfile.value, label: selectedProfile.label } : null}
+                    selectedOption={selectedProfile ? (comboboxOptionsById.get(selectedProfile.value) ?? { value: selectedProfile.value, label: profileName(selectedProfile) }) : null}
                     onChange={(value) => setSelectedProfileIds((current) => ({ ...current, [link.id]: value }))}
                     loadOptions={loadProfileOptions}
                     placeholder={t('approvals.employeeLinks.uxs30.profilePlaceholder', 'Select a PMO profile')}
@@ -287,9 +318,9 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
                   ? ` (${pendingLink.employee_number.trim()})`
                   : '',
                 profile: pendingDestination ?? '',
-                profileEmail: (pendingSelected?.email ?? pendingLink.profile_email)
-                  ? ` (${pendingSelected?.email ?? pendingLink.profile_email})`
-                  : '',
+                // #1226: the email is a second fact, added only when the name doesn't already carry it
+                // (a display name that ends in its own email must not read as a duplicated value).
+                profileEmail: pendingEmail && !(pendingDestination ?? '').includes(pendingEmail) ? ` (${pendingEmail})` : '',
               },
             )}</span>
             {staleSelection && <>
@@ -301,15 +332,15 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
                   label={t('approvals.employeeLinks.uxs30.profileLabel', 'PMO user to attribute hours to')}
                   value={pendingActiveProfile?.value ?? null}
                   selectedOption={pendingActiveProfile
-                    ? { value: pendingActiveProfile.value, label: pendingActiveProfile.label }
+                    ? (comboboxOptionsById.get(pendingActiveProfile.value) ?? { value: pendingActiveProfile.value, label: profileName(pendingActiveProfile) })
                     : null}
                   onChange={(value) => {
-                    const selectedProfile = activeProfilesById.get(value) ?? null;
+                    const selectedProfile = activeProfilesById.get(value);
                     setSaveError(false);
                     setPending((current) => current ? {
                       ...current,
                       profileId: value,
-                      selectedProfile,
+                      selectedIdentity: selectedProfile ? profileIdentity(selectedProfile) : null,
                     } : current);
                     setSelectedProfileIds((current) => ({ ...current, [pendingLink.id]: value }));
                   }}

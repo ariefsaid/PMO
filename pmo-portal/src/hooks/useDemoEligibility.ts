@@ -1,8 +1,9 @@
 import { useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getOrgLifecycleState } from '@/src/lib/db/orgs';
+import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { DemoEligibility } from '@/src/auth/impersonation';
+import { SERVER_SESSION_STALE_TIME } from '@/src/lib/queryPolicies';
 
 /**
  * useDemoEligibility — is the signed-in org a DEMO org? The gate behind the Admin
@@ -15,8 +16,9 @@ import type { DemoEligibility } from '@/src/auth/impersonation';
  * this returns `'pending'` — never `'eligible'`. Only an org row that explicitly says
  * `'demo'` unlocks the control; NULL/unknown states map to `'ineligible'` in the DAL.
  *
- * The value is rechecked on remount, focus, and at a short interval while an Admin is
- * signed in. Cached demo data is withheld on initial mount and role/org transitions;
+ * The value is rechecked on mount, on focus and at a bounded interval while an Admin is signed in,
+ * so an org that changes lifecycle state in another session reaches this tab within minutes. Cached
+ * demo data is withheld on initial mount and role/org transitions;
  * background checks keep the already verified selection until their result settles. The provider clears
  * any stale view-as selection when eligibility disappears (AC-AUTH-015).
  */
@@ -30,12 +32,17 @@ export function useDemoEligibility(): DemoEligibility {
   }
   const { data, isPending, isError, isFetching } = useQuery({
     queryKey: ['org-lifecycle-state', orgId],
-    queryFn: () => getOrgLifecycleState(),
+    queryFn: () => repositories.orgSettings.getLifecycleState(),
     enabled,
+    // A GATE, not a display cache: AC-AUTH-015 requires the view-as control to re-verify on mount
+    // and whenever the org/role context changes, so nothing is trusted while it re-reads. Still
+    // bounded (never Infinity) and revalidated on focus and at a 5-minute interval, so an org that
+    // changes lifecycle state in another session reaches this tab within minutes.
     staleTime: 0,
+    gcTime: Infinity,
     refetchOnMount: 'always',
-    refetchOnWindowFocus: 'always',
-    refetchInterval: enabled ? 30_000 : false,
+    refetchOnWindowFocus: true,
+    refetchInterval: enabled ? SERVER_SESSION_STALE_TIME : false,
   });
   if (enabled && !isPending && !isError && !isFetching) settled.current.hasVerified = true;
   // Loading, errored, and signed-out all collapse to the same deny: unknown ≠ demo.

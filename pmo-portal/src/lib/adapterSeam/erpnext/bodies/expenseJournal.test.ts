@@ -24,7 +24,7 @@ describe('expenseJournalToBody (AC-EXP-111)', () => {
     });
   });
 
-  it('AC-EXP-111 overhead approval: no project key at all', () => {
+  it('AC-EXP-111 a debit row with no ERP project (untagged, or an unlinked Internal Project) has no project key', () => {
     const body = expenseJournalToBody({
       ...approval,
       journal_rows: [

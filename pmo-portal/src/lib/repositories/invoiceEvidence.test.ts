@@ -33,6 +33,15 @@ describe('getSalesInvoiceEvidence', () => {
     });
   });
 
+  it('S-17 reports ERP_UNREACHABLE when the failed response has no usable body', async () => {
+    const error = new Error('Edge Function returned a non-2xx status code') as Error & { context?: Response };
+    error.context = new Response('not json', { status: 502 });
+    invoke.mockResolvedValue({ data: null, error });
+    await expect(getSalesInvoiceEvidence('synthetic-invoice-id')).rejects.toMatchObject({
+      code: 'ERP_UNREACHABLE', message: 'Edge Function returned a non-2xx status code',
+    });
+  });
+
   it('rejects an unexpected success body without treating it as evidence', async () => {
     invoke.mockResolvedValue({ data: null, error: null });
     const error = await getSalesInvoiceEvidence('synthetic-invoice-id').catch((err: unknown) => err);

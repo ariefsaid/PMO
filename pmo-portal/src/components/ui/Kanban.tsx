@@ -1,5 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
+
+/** `target` = an allowed column with the dragged card over it right now. */
+export type DropState = 'allowed' | 'target' | 'blocked';
 
 export interface KanbanColumnProps {
   title: string;
@@ -15,6 +19,10 @@ export interface KanbanColumnProps {
   emptyMessage?: string;
   /** Marks the column as the one a surrounding control (e.g. a funnel stage) has selected. */
   selected?: boolean;
+  /** Flat separators for boards whose cards sit inside a shared panel surface. */
+  presentation?: 'cards' | 'flat';
+  /** Drag feedback while a card is being dragged (DND, #1637): where it may or may not land. */
+  dropState?: DropState;
 }
 
 /** Base kanban column shell — sticky header, scrollable body. Surface issues
@@ -28,19 +36,32 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   children,
   emptyMessage = 'No items',
   selected = false,
+  presentation = 'cards',
+  dropState,
 }) => {
+  const { t } = useTranslation('boardDrag');
   const empty = React.Children.count(children) === 0;
   return (
     <div
       data-selected={selected ? 'true' : undefined}
       aria-current={selected ? 'true' : undefined}
+      data-drop-state={dropState}
       className={cn(
-        'flex min-w-0 flex-col rounded-lg border',
+        'flex min-w-0 flex-col',
+        presentation === 'flat'
+          ? ''
+          : 'rounded-lg border border-transparent bg-secondary/50',
         // ring = the non-colour cue (matches the selected card treatment)
-        selected ? 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]' : 'border-border bg-secondary/50',
+        selected && (presentation === 'flat'
+          ? 'border-b-2 border-primary bg-primary/[0.04]'
+          : 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]'),
+        dropState === 'allowed' && 'border-primary/60 ring-1 ring-primary/30',
+        dropState === 'target' && 'border-primary bg-primary/[0.08] ring-2 ring-primary/60',
+        // dashed edge, not opacity: dimming text drops it under AA contrast (axe, mid-drag)
+        dropState === 'blocked' && 'border-dashed border-border',
       )}
     >
-      <div className="kcol-head-sticky border-b border-border px-3 pb-2.5 pt-[11px]">
+      <div className="kcol-head-sticky border-b border-border px-3 pb-2 pt-3">
         <div className="flex items-center gap-2">
           <span
             aria-hidden
@@ -53,13 +74,18 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
               {prob}
             </span>
           )}
-          <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-[7px] text-[11.5px] font-bold text-muted-foreground tabular">
+          <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-2 text-[11.5px] font-bold text-muted-foreground tabular">
             {count}
           </span>
         </div>
-        {totals && <div className="mt-[7px] flex items-baseline gap-[7px]">{totals}</div>}
+        {totals && <div className="mt-2 flex items-baseline gap-2">{totals}</div>}
+        {dropState && (
+          <p className="mt-1 text-[11.5px] text-muted-foreground">
+            {dropState !== 'blocked' ? t('boardDrag:dropHere', 'Drop to move here') : t('boardDrag:cantMoveHere', "Can't move here")}
+          </p>
+        )}
       </div>
-      <div className="flex min-h-[60px] flex-col gap-[9px] overflow-y-auto p-[9px]">
+      <div className="flex min-h-[60px] flex-col gap-2 overflow-y-auto p-2">
         {empty ? (
           <div className="py-6 text-center text-xs text-muted-foreground">{emptyMessage}</div>
         ) : (
@@ -94,7 +120,7 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
       }
     }}
     className={cn(
-      'relative cursor-pointer rounded-lg border border-border bg-card p-[11px] shadow-[0_1px_2px_hsl(240_6%_10%/0.04)] transition-[box-shadow,border-color,transform] duration-150',
+      'relative cursor-pointer rounded-lg border border-border bg-card p-3 shadow-[0_1px_2px_hsl(240_6%_10%/0.04)] transition-[box-shadow,border-color,transform] duration-150',
       'hover:border-muted-foreground/35 hover:shadow-[0_4px_14px_hsl(240_6%_10%/0.1)] active:scale-[0.992]',
       selected && 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]',
       className

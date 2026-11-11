@@ -75,8 +75,10 @@ const salesInvoicesState = hoisted.salesInvoicesState;
 vi.mock('@/src/hooks/useRevenue', () => ({
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => salesInvoicesState,
+  useIncomingPayments: () => ({ data: [], isPending: false, isError: false }),
   useRevenueMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
+    setReceivedDate: { mutateAsync: vi.fn(), isPending: false },
     submitInvoice: { mutateAsync: vi.fn(), isPending: false },
     cancelInvoice: { mutateAsync: vi.fn(), isPending: false },
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },

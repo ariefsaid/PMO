@@ -223,11 +223,11 @@ const AdministrationExchangeRates: React.FC = () => {
             canUpload
               ? `${t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")} ${t(
                   'uxs38.emptyScope',
-                  'Reference rates affect displayed rupiah equivalents only — accounting records are never changed.',
+                  'Reference rates affect displayed rupiah equivalents only. Accounting records are never changed.',
                 )}`
               : `${t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")} ${t(
                   'uxs38.emptyScope',
-                  'Reference rates affect displayed rupiah equivalents only — accounting records are never changed.',
+                  'Reference rates affect displayed rupiah equivalents only. Accounting records are never changed.',
                 )} ${t(
                   'uxs38.emptyNeedRole',
                   'An Admin or Finance member can upload them from this page.',
@@ -245,7 +245,7 @@ const AdministrationExchangeRates: React.FC = () => {
       ) : (
         <>
           <p data-testid="fx-page-summary" className="mb-2 text-sm text-muted-foreground">
-            {t('uxs38.pageSummary', 'Dates from {{first}} to {{last}} — {{count}} with rates', {
+            {t('uxs38.pageSummary', 'Dates from {{first}} to {{last}}: {{count}} with rates', {
               first: formatDateOnly(rates.data.rows[rates.data.rows.length - 1].rate_date),
               last: formatDateOnly(rates.data.rows[0].rate_date),
               count: new Set(rates.data.rows.map((row) => row.rate_date)).size,

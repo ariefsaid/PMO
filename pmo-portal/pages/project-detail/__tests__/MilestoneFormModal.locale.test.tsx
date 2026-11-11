@@ -13,6 +13,10 @@ const catalogues = {
   en: JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8')),
   id: JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8')),
 };
+const projectCatalogues = {
+  en: JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/project.json'), 'utf8')),
+  id: JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/project.json'), 'utf8')),
+};
 
 const editPhase: MilestoneWithProgress = {
   id: 'phase-1',
@@ -33,7 +37,9 @@ async function renderForm(locale: 'en' | 'id', milestone: MilestoneWithProgress 
     lng: locale,
     fallbackLng: 'en',
     defaultNS: 'common',
-    resources: { en: { common: catalogues.en }, id: { common: catalogues.id } },
+    fallbackNS: 'common',
+    ns: ['common', 'project'],
+    resources: { en: { common: catalogues.en, project: projectCatalogues.en }, id: { common: catalogues.id, project: projectCatalogues.id } },
     initImmediate: false,
   });
   return render(

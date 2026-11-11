@@ -61,6 +61,8 @@ const h = vi.hoisted(() => {
       calls.order.push(args);
       return builder;
     };
+    builder.gt = () => builder;
+    builder.limit = () => builder;
     builder.maybeSingle = () => {
       calls.maybeSingle++;
       return Promise.resolve({ data: state.mirrorRow, error: state.mirrorError });
@@ -175,6 +177,12 @@ describe('listPushesNeedingAttention — the Approvals operator surface (FR-TSP-
 
   it('classifies a mirror-query error as an AppError', async () => {
     h.state.mirrorAttentionError = { message: 'denied', code: '42501' };
+    await expect(listPushesNeedingAttention()).rejects.toMatchObject({ message: 'denied', code: '42501' });
+  });
+
+  it('a failing sheets-chunk read rejects instead of returning rows with blank owners', async () => {
+    h.state.mirrorAttentionRows = [{ id: 'm1', timesheet_id: 'ts-1', push_state: 'failed', push_error: 'x', ts_number: null }];
+    h.state.sheetsError = { message: 'denied', code: '42501' };
     await expect(listPushesNeedingAttention()).rejects.toMatchObject({ message: 'denied', code: '42501' });
   });
 });

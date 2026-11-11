@@ -1,8 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { IncidentRow, IncidentStatus, IncidentInput } from '@/src/lib/db/incidents';
 import { useAuth } from '@/src/auth/useAuth';
-import { withTimeout, DEFAULT_MUTATION_TIMEOUT_MS } from '@/src/lib/withTimeout';
+import { withTimeout } from '@/src/lib/withTimeout';
 
 /**
  * Org-scoped Incidents list over the repository seam (ADR-0017). queryKey includes
@@ -16,6 +16,37 @@ export function useIncidents(status?: IncidentStatus, opts?: { enabled?: boolean
     queryKey: ['incidents', orgId, status ?? 'all'],
     queryFn: () => repositories.incident.list(status ? { status } : undefined),
     enabled: Boolean(orgId) && opts?.enabled !== false,
+  });
+}
+
+/**
+ * One server page of the Incidents register (#1991) plus the unfiltered total for "Showing x of y".
+ * Both keys sit under `['incidents', orgId, …]` so every incident mutation's invalidation refetches
+ * them. The previous page stays on screen while the next loads. The unfiltered count is only fetched
+ * while a filter is active; unfiltered, the page total IS the denominator.
+ */
+export function useIncidentsPage(args: { page: number; pageSize: number; status?: IncidentStatus; search?: string }) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const filtered = Boolean(args.status || args.search);
+  const list = useQuery({
+    queryKey: ['incidents', orgId, 'page', args.status ?? 'all', args.search ?? '', args.page, args.pageSize],
+    queryFn: () => repositories.incident.listPage(args),
+    enabled: Boolean(orgId),
+    placeholderData: keepPreviousData,
+  });
+  const all = useQuery({
+    queryKey: ['incidents', orgId, 'count'],
+    queryFn: () => repositories.incident.count(),
+    enabled: Boolean(orgId) && filtered,
+  });
+  return { list, allTotal: filtered ? all.data : list.data?.total };
+}
+
+/** Every incident matching the current status/search, read only when the user exports (the page holds one server page). */
+export function useIncidentsExportAll() {
+  return useMutation({
+    mutationFn: (params?: { status?: IncidentStatus; search?: string }) => repositories.incident.list(params),
   });
 }
 
@@ -54,7 +85,7 @@ export interface TransitionIncidentArgs {
  * (code preserved) for the caller to classify via `classifyMutationError`.
  *
  * Reference adoption (UI-freeze hardening, `docs/plans/2026-07-24-mutation-timeout-adoption.md`):
- * each `mutationFn` is raced against `DEFAULT_MUTATION_TIMEOUT_MS` via `withTimeout` so a stalled
+ * each `mutationFn` is raced against the shared `withTimeout` deadline so a stalled
  * request can never leave a confirm dialog's Cancel/Esc disabled forever — it settles as an
  * ordinary `classifyMutationError`-recognized "Request timed out" failure instead.
  */
@@ -67,7 +98,7 @@ export function useIncidentMutations() {
 
   const create = useMutation({
     mutationFn: (input: IncidentInput) =>
-      withTimeout(repositories.incident.create(input), DEFAULT_MUTATION_TIMEOUT_MS),
+      withTimeout(repositories.incident.create(input)),
     // ⚑ onSettled, NOT onSuccess: on a TIMEOUT the outcome is UNKNOWN, not unchanged — the
     // server may have committed while the response was lost. Refetching the truth either way
     // keeps the surface self-correcting; it still never reports the write as succeeded.
@@ -76,19 +107,19 @@ export function useIncidentMutations() {
 
   const update = useMutation({
     mutationFn: ({ id, input }: UpdateIncidentArgs) =>
-      withTimeout(repositories.incident.update(id, input), DEFAULT_MUTATION_TIMEOUT_MS),
+      withTimeout(repositories.incident.update(id, input)),
     onSettled: invalidate,
   });
 
   const transition = useMutation({
     mutationFn: ({ id, status }: TransitionIncidentArgs) =>
-      withTimeout(repositories.incident.transition(id, status), DEFAULT_MUTATION_TIMEOUT_MS),
+      withTimeout(repositories.incident.transition(id, status)),
     onSettled: invalidate,
   });
 
   const remove = useMutation({
     mutationFn: (id: string) =>
-      withTimeout(repositories.incident.delete(id), DEFAULT_MUTATION_TIMEOUT_MS),
+      withTimeout(repositories.incident.delete(id)),
     onSettled: invalidate,
   });
 

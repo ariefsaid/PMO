@@ -1,7 +1,10 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset, mapBounded } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
+
+const ELIGIBILITY_CHUNK = 100;
 
 /**
  * Work-order DAL (#566, over migrations `0193` + `0197`).
@@ -29,7 +32,7 @@ import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
  */
 
 export type WorkOrderValueAuthor = Pick<Tables<'profiles'>, 'role' | 'manager_id' | 'status'>;
-export type WorkOrderRow = Tables<'work_orders'> & { value_author?: WorkOrderValueAuthor | null };
+export type WorkOrderRow = Tables<'work_orders'> & { value_author?: WorkOrderValueAuthor | null; issue_eligibility?: string | null };
 export type WorkOrderStatus = WorkOrderRow['status'];
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -162,18 +165,44 @@ export function isOverCommitmentRefusal(err: unknown): boolean {
   return code === 'P0001' && message.includes('must be acknowledged explicitly');
 }
 
+/** Attach only the caller's advisory issue decision; unreadable decisions fail closed. */
+async function attachIssueEligibility(rows: WorkOrderRow[]): Promise<WorkOrderRow[]> {
+  const ids = rows.filter((row) => row.status === 'Draft').map((row) => row.id);
+  if (ids.length === 0) return rows;
+  const decisions = new Map<string, string>();
+  // Chunked so no response passes db-max-rows; a failed chunk fails closed for its own ids only.
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += ELIGIBILITY_CHUNK) chunks.push(ids.slice(i, i + ELIGIBILITY_CHUNK));
+  await mapBounded(chunks, 4, async (chunk) => {
+    try {
+      const { data, error } = await supabase.rpc('work_order_issue_eligibility', { p_ids: chunk });
+      if (!error) for (const item of data ?? []) decisions.set(item.work_order_id, item.reason);
+    } catch {
+      // Keep the register readable; missing eligibility never enables Issue.
+    }
+  });
+  return rows.map((row) => row.status === 'Draft'
+    ? { ...row, issue_eligibility: decisions.get(row.id) ?? null }
+    : row);
+}
+
 /**
  * Every work order on a project, newest first. org_id is NEVER sent — `work_orders_select`
  * (`org_id = auth_org_id() AND is_active_member()`) scopes the rows.
  */
 export async function listProjectWorkOrders(projectId: string): Promise<WorkOrderRow[]> {
-  const { data, error } = await supabase
-    .from('work_orders')
-    .select('*, value_author:profiles!work_orders_order_value_set_by_fkey(role,manager_id,status)')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: false });
-  if (error) throwWrite(error);
-  return data ?? [];
+  // Complete keyset scan, then newest first in memory.
+  const rows = await fetchAllRowsByKeyset<WorkOrderRow>(async (afterId, limit) => {
+    let q = supabase
+      .from('work_orders')
+      .select('*, value_author:profiles!work_orders_order_value_set_by_fkey(role,manager_id,status)')
+      .eq('project_id', projectId)
+      .order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit) as unknown as PromiseLike<{ data: WorkOrderRow[] | null; error: { message: string; code?: string } | null }>;
+  });
+  rows.sort((a, b) => b.created_at.localeCompare(a.created_at) || a.id.localeCompare(b.id));
+  return attachIssueEligibility(rows);
 }
 
 /** One work order by id, or null when not found / not readable. RLS scopes the row. */
@@ -184,7 +213,8 @@ export async function getWorkOrder(id: string): Promise<WorkOrderRow | null> {
     .eq('id', id)
     .maybeSingle();
   if (error) throwWrite(error);
-  return data ?? null;
+  if (!data) return null;
+  return (await attachIssueEligibility([data]))[0] ?? null;
 }
 
 /**

@@ -30,7 +30,7 @@ describe('AC-EXT-002: the external reference is never in an ERP push body', () =
   it.each([
     ['purchase request (Material Request)', mrToBody],
     ['purchase order', poToBody],
-    ['vendor invoice (Purchase Invoice)', piToBody],
+    ['supplier invoice (Purchase Invoice)', piToBody],
   ])('%s body has no external_ref field and no trace of its value', (_name, toBody) => {
     const body = toBody(record, CTX);
     const json = JSON.stringify(body);

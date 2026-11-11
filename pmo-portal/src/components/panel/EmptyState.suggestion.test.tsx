@@ -4,6 +4,7 @@ import { AgentContextContext } from '@/src/lib/agent/context/agentContextInterna
 import { EXAMPLE_QUESTIONS } from './emptyState.constants';
 import { EmptyState } from './EmptyState';
 import { SUGGESTION_CHIPS } from './suggestionChips.constants';
+import { BahasaProvider } from '@/test/bahasa';
 
 function renderWithEntity(entity?: { type: string; id: string; label: string }, onPick = vi.fn()) {
   return {
@@ -52,5 +53,31 @@ describe('EmptyState route-aware suggestions', () => {
     }
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+});
+
+describe('EmptyState Bahasa copy (D-037)', () => {
+  it('localizes the empty-state explanation and suggestion chips while keeping chip selection functional', () => {
+    const onPick = vi.fn();
+    render(
+      <BahasaProvider>
+        <AgentContextContext.Provider
+          value={{
+            getContext: () => ({ entity: { type: 'project', id: 'p-1', label: 'Alpha' }, route: '/test' }),
+            setEntity: vi.fn(),
+            setSelection: vi.fn(),
+          }}
+        >
+          <EmptyState onPick={onPick} />
+        </AgentContextContext.Provider>
+      </BahasaProvider>,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Tanya asisten Anda' })).toBeInTheDocument();
+    expect(screen.getByText('Saya hanya dapat melihat data yang dapat Anda lihat.')).toBeInTheDocument();
+    expect(screen.getByText('Untuk saat ini, jawaban hanya dapat dibaca.')).toBeInTheDocument();
+    const prompt = 'Ringkas status proyek ini.';
+    fireEvent.click(screen.getByRole('button', { name: prompt }));
+    expect(onPick).toHaveBeenCalledWith(prompt);
   });
 });

@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  * takes the PMO-native path — and still **never** dispatches. That contract (and its never-dispatch goal)
  * lives in revenue.native.test.ts.
  *
- * A flipped-org revenue command (setDomainOwnership `revenue`→`erpnext`) routes to
+ * A flipped-org revenue command (setTaskOwnership `revenue`→`erpnext`) routes to
  * `dispatchDomainCommand` with `erp_doc_kind` + a minted `idempotencyKey`.
  *
  * P2 procurement/company writes stay byte-for-byte on the direct DAL (re-assert the AC-ENA-001
@@ -20,8 +20,9 @@ vi.mock('@/src/lib/adapterSeam/dispatchClient', () => ({
 }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   clearOwnershipCache: vi.fn(),
-  setDomainOwnership: vi.fn(),
+  setTaskOwnership: vi.fn(),
   routeDomainWrite: vi.fn(),
+  domainTier: vi.fn(() => 'erpnext'),
 }));
 vi.mock('@/src/lib/db/revenue', () => ({
   submitSalesInvoiceSod: vi.fn(),
@@ -32,7 +33,7 @@ vi.mock('@/src/lib/db/revenue', () => ({
 
 import * as dispatchClient from '@/src/lib/adapterSeam/dispatchClient';
 import * as revenueDb from '@/src/lib/db/revenue';
-import { clearOwnershipCache, setDomainOwnership, routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership, routeDomainWrite, domainTier } from '@/src/lib/adapterSeam/ownershipCache';
 import { repositories } from '@/src/lib/repositories';
 
 // The single spy target for every "must never dispatch externally" assertion below.
@@ -46,6 +47,7 @@ beforeEach(() => {
   dispatchSpy = vi.spyOn(dispatchClient, 'dispatchDomainCommand');
   // Default routeDomainWrite to 'pmo' (cold map) unless a test overrides it
   vi.mocked(routeDomainWrite).mockReturnValue('pmo');
+  vi.mocked(domainTier).mockReturnValue('erpnext');
 });
 
 // DD-EFK-1 (#893): the e-Faktur setter stays PMO-direct on every route — including externally owned revenue.
@@ -85,7 +87,7 @@ describe('AC-SAR-001 cold ownership map — P2 procurement/company writes stay b
  */
 describe('task 2.2 — flipped ownership map — revenue record creates route to dispatchDomainCommand', () => {
   beforeEach(() => {
-    setDomainOwnership([{ domain: 'revenue', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'revenue', externalTier: 'erpnext' }]);
     vi.mocked(routeDomainWrite).mockReturnValue('external');
     // Mock getSalesInvoice and getIncomingPayment to return ERP external IDs
     vi.mocked(revenueDb.getSalesInvoice).mockResolvedValue({ si_number: 'ACC-SINV-2026-00001' } as unknown as Awaited<ReturnType<typeof revenueDb.getSalesInvoice>>);
@@ -130,6 +132,14 @@ describe('task 2.2 — flipped ownership map — revenue record creates route to
       withholdingSlipNumber: 'WHT-001', date: '2026-10-05' });
     expect(dispatchSpy.mock.calls[0][2]).toMatchObject({ paid_amount: 1000, received_amount: 980,
       withheld_amount: 20, withholding_slip_number: 'WHT-001' });
+  });
+
+  it('AC-WHA-006: the receipt command carries the stated withholding article in the durable intent', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'PE-001', canonical: { id: 'receipt-1', ip_number: 'PE-001' } });
+    await repositories.revenue.createPayment({ customerId: 'cust-1', salesInvoiceId: 'si-1',
+      paidAmount: 1000, receivedAmount: 980, withheldAmount: 20,
+      withholdingSlipNumber: 'WHT-001', withholdingArticle: 'pph4_2', date: '2026-10-05' });
+    expect(dispatchSpy.mock.calls[0][2]).toMatchObject({ withheld_amount: 20, withholding_article: 'pph4_2' });
   });
 
   it('createPayment dispatches externally with erp_doc_kind=incoming-payment + a minted idempotencyKey', async () => {
@@ -211,6 +221,26 @@ describe('task 2.2 — flipped ownership map — revenue record creates route to
     );
   });
 
+  it('AC-OCI-090 submits an Odoo draft by PMO id before Odoo assigns its number', async () => {
+    vi.mocked(domainTier).mockReturnValue('odoo');
+    vi.mocked(revenueDb.getSalesInvoice).mockResolvedValue({ si_number: null, pmo_native: false } as unknown as Awaited<ReturnType<typeof revenueDb.getSalesInvoice>>);
+    dispatchSpy.mockResolvedValue({ canonical: { id: 'si-odoo-1' } });
+
+    await repositories.revenue.submitInvoice('si-odoo-1');
+
+    expect(dispatchSpy).toHaveBeenCalledWith('revenue', 'transition', expect.objectContaining({
+      id: 'si-odoo-1', erp_doc_kind: 'sales-invoice', verb: 'submit',
+    }), expect.objectContaining({ idempotencyKey: expect.any(String) }));
+    expect(dispatchSpy.mock.calls[0][2]).not.toHaveProperty('externalRecordId');
+  });
+
+  it('keeps the external invoice number requirement for ERPNext', async () => {
+    vi.mocked(domainTier).mockReturnValue('erpnext');
+    vi.mocked(revenueDb.getSalesInvoice).mockResolvedValue({ si_number: null, pmo_native: false } as unknown as Awaited<ReturnType<typeof revenueDb.getSalesInvoice>>);
+    await expect(repositories.revenue.submitInvoice('si-legacy')).rejects.toMatchObject({ code: 'not-found' });
+    expect(dispatchSpy).not.toHaveBeenCalled();
+  });
+
   it('cancelInvoice dispatches externally with erp_doc_kind=sales-invoice (transition)', async () => {
     dispatchSpy.mockResolvedValue({
       externalRecordId: 'ACC-SINV-2026-00001',
@@ -251,7 +281,7 @@ describe('task 2.2 — flipped ownership map — revenue record creates route to
  */
 describe('FIX 1 — submitInvoice SoD gate (AC-SAR-195 / FR-SAR-195)', () => {
   beforeEach(() => {
-    setDomainOwnership([{ domain: 'revenue', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'revenue', externalTier: 'erpnext' }]);
     vi.mocked(routeDomainWrite).mockReturnValue('external');
     // Mock getSalesInvoice to return ERP external ID for the transition
     vi.mocked(revenueDb.getSalesInvoice).mockResolvedValue({ si_number: 'ACC-SINV-2026-00001' } as unknown as Awaited<ReturnType<typeof revenueDb.getSalesInvoice>>);

@@ -1,4 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+const itemEligibility = vi.hoisted(() => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }));
+const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => itemEligibility }));
+afterEach(() => { clearOwnershipCache(); itemEligibility.data = true; itemEligibility.isPending = false; itemEligibility.isError = false; itemEligibility.isFetching = false; recordPush.status = 'idle'; subcontractPosition.data = []; subcontractPosition.isPending = false; subcontractPosition.isError = false; });
 
 // OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
 // live org read (`useOrgTaxDefault` → react-query + AuthContext). Only the READ is stubbed here —
@@ -10,8 +17,17 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };
 });
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: { procurement: true, procurement_full: true },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -31,16 +47,31 @@ async function confirmInDialog(label: RegExp | string) {
 const detailState = {
   data: undefined as Record<string, unknown> | undefined,
   isPending: false,
+  isFetching: false,
   isError: false,
   error: null as (Error & { code?: string }) | null,
   refetch: vi.fn(),
 };
+const linkedDocsState = vi.hoisted(() => ({ data: [] as Record<string, unknown>[] }));
+const projectScopeState = vi.hoisted(() => ({ data: { project_manager_id: 'u-alice' } as Record<string, unknown> | null, isPending: false, isError: false }));
+
+vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => projectScopeState }));
 
 const mockTransition = vi.fn().mockResolvedValue(undefined);
 const mockCreateQuotation = vi.fn().mockResolvedValue({ id: 'q-new' });
 const mockCreateReceipt = vi.fn().mockResolvedValue({ id: 'r-new' });
 const mockCreateInvoice = vi.fn().mockResolvedValue({ id: 'i-new' });
+const mockCreatePurchaseOrder = vi.fn().mockResolvedValue({ id: 'po-new' });
 const mockCaptureVendorInvoice = vi.fn().mockResolvedValue({ id: 'vi-new' });
+const mockCaptureSubcontractVendorInvoice = vi.fn().mockResolvedValue({ id: 'vi-sub-new' });
+const subcontractPosition = vi.hoisted(() => ({
+  data: [] as Record<string, unknown>[],
+  isPending: false,
+  isError: false,
+  refetch: vi.fn(),
+}));
+vi.mock('@/src/hooks/useSubcontract', () => ({ usePoPosition: () => subcontractPosition }));
+vi.mock('@/pages/procurement/SubcontractLinesSection', () => ({ SubcontractLinesSection: () => null }));
 
 // The per-phase file sub-section has its own unit test + needs a QueryClient;
 // stub it here so the page tests stay focused on the lifecycle behavior.
@@ -52,8 +83,9 @@ vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
     createRfq: { mutateAsync: vi.fn(), isPending: false },
-    createPurchaseOrder: { mutateAsync: vi.fn(), isPending: false },
+    createPurchaseOrder: { mutateAsync: mockCreatePurchaseOrder, isPending: false },
     createPayment: { mutateAsync: vi.fn(), isPending: false },
+    pendingPush: recordPush,
   }),
 }));
 
@@ -85,6 +117,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createReceipt: { mutateAsync: mockCreateReceipt, isPending: false, error: null },
     createInvoice: { mutateAsync: mockCreateInvoice, isPending: false, error: null },
     captureVendorInvoice: { mutateAsync: mockCaptureVendorInvoice, isPending: false, error: null },
+    captureSubcontractVendorInvoice: { mutateAsync: mockCaptureSubcontractVendorInvoice, isPending: false, error: null },
     setEfaktur: { mutateAsync: vi.fn(), isPending: false },
     approveAmount: { mutateAsync: mockApproveAmount, isPending: false },
   }),
@@ -115,14 +148,13 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: mockCreateDocument, isPending: false },
     deleteDocument: { mutateAsync: mockDeleteDocument, isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 
 // FK pickers (header edit project/vendor, quotation vendor) read cached option
 // hooks; stub them so the detail test needs no QueryClient.
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),
-  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Apex Supply', sub: 'Vendor' }] }),
+  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Apex Supply', sub: 'Vendor' }, { value: 'v-syn', label: 'Synergy Systems', sub: 'Vendor' }, { value: 'v-apx', label: 'Apex Supply', sub: 'Vendor' }] }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -346,17 +378,23 @@ const paidProcurement = {
 // ---------------------------------------------------------------------------
 // The page is now a tabbed record shell (`/procurement/:id/:tab?`, default Overview).
 // `tab` deep-links a panel so a test can land on the tab that owns the content it
-// asserts (line items / documents / vendor quotes). Goals unchanged — only the journey
+// asserts (line items / documents / supplier quotes). Goals unchanged — only the journey
 // step "land on the owning tab" is made explicit (the content moved behind a tab).
-const renderPage = (id = 'proc-001', tab?: string) =>
+const renderPage = (id = 'proc-001', tab?: string, query = '') =>
   render(
-    <MemoryRouter initialEntries={[`/procurement/${id}${tab ? `/${tab}` : ''}`]}>
+    <MemoryRouter initialEntries={[`/procurement/${id}${tab ? `/${tab}` : ''}${query}`]}>
       <Routes>
         <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
         <Route path="/procurement/:procurementId/:tab" element={<ProcurementDetails />} />
       </Routes>
     </MemoryRouter>
   );
+
+const chooseRecordKind = async (label: string) => {
+  const header = screen.getByTestId('record-header');
+  await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
+  await userEvent.click(within(header).getByRole('menuitem', { name: label }));
+};
 
 // ---------------------------------------------------------------------------
 // D1 — AC-804: loading / empty / error+retry states (NFR-PROC-UI-001)
@@ -462,12 +500,14 @@ describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
     expect(within(header).getByTestId('procurement-status-badge')).toBeInTheDocument();
   });
 
-  it('CW-3a: the procurement lifecycle renders the bar stepper, NOT the retired circle-node stepper', () => {
+  it('AC-1404: the four procurement stages show as a compact tracker', () => {
     renderPage();
-    // The lifecycle is rendered as the canonical even-flex BAR stepper (.jstep steps)…
-    expect(document.querySelector('.jstep')).toBeInTheDocument();
-    // …and the retired numbered-circle node stepper (.pstep) is gone.
-    expect(document.querySelector('.pstep')).toBeNull();
+    const tracker = screen.getByTestId('procurement-stage-tracker');
+    expect(within(tracker).getAllByRole('listitem')).toHaveLength(4);
+    expect(within(tracker).getByText('Request')).toBeInTheDocument();
+    expect(within(tracker).getByText('Order')).toBeInTheDocument();
+    expect(within(tracker).getByText('Receive')).toBeInTheDocument();
+    expect(within(tracker).getByText('Pay')).toBeInTheDocument();
   });
 
   it('H2: the success render has no ALWAYS-VISIBLE BackBar; the mobile BackBar (≤920px) is CSS-hidden on desktop', () => {
@@ -487,20 +527,15 @@ describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
     expect(screen.queryByRole('button', { name: /Audit trail/i })).toBeNull();
   });
 
-  it('G5 / I3 (design-review): absent stat tiles are OMITTED rather than showing "Pending" / "None yet"', () => {
+  it('AC-1404: the money card labels requested and ordered amounts from their sources', () => {
     renderPage();
-    // I3 fix: baseProcurement has no selected quote, no PO, no receipts.
-    // The revamp removes placeholder tiles — only the PR value tile is present.
-    // "Pending" and "None yet" must NOT appear as tile values (sparse layout).
-    const strips = screen.getAllByTestId('stat-tiles');
-    const mainStrip = strips[0]; // first stat-tiles = the overview bento tiles
-    const tileText = within(mainStrip).getAllByTestId('stat-tile').map((el) => el.textContent ?? '');
-    expect(tileText.some((t) => t.includes('Pending'))).toBe(false);
-    expect(tileText.some((t) => t.toLowerCase().includes('none yet'))).toBe(false);
-    // PR value tile must still be present
-    expect(tileText.some((t) => t.includes('$50,000'))).toBe(true);
-    // no em-dash in tile area
-    expect(tileText.some((t) => t.includes('—'))).toBe(false);
+    const moneyCard = screen.getByTestId('procurement-money-summary');
+    expect(within(moneyCard).getByText('Requested')).toBeInTheDocument();
+    // C6: the heading names the currency once, so the figures below are bare numbers.
+    expect(within(moneyCard).getByText(/Money · USD, before tax/)).toBeInTheDocument();
+    expect(within(moneyCard).getByText('50,000')).toBeInTheDocument();
+    expect(within(moneyCard).queryByText('$50,000')).not.toBeInTheDocument();
+    expect(within(moneyCard).getByText('Ordered')).toBeInTheDocument();
   });
 });
 
@@ -519,27 +554,30 @@ describe('AC-IXD-PROC-004: selected-quote binds on the Quote Selected state (PRO
     mockEffectiveRole = 'Finance';
   });
 
-  it('PROC-004: the "Selected quote" tile shows the chosen quote vendor + amount (not "Pending")', () => {
-    renderPage();
-    const tileLabel = screen.getByText('Selected quote');
-    const tile = tileLabel.closest('[data-testid="stat-tile"]') as HTMLElement;
-    // The selected quote is $148,000 from Synergy Systems — bound from this state.
-    expect(within(tile).getByText('$148,000')).toBeInTheDocument();
-    expect(within(tile).getByText('Synergy Systems')).toBeInTheDocument();
-    // It must NOT read the pre-selection "Pending" / "N received" placeholder.
-    expect(within(tile).queryByText('Pending')).toBeNull();
-    expect(within(tile).queryByText(/received/i)).toBeNull();
+  it('PROC-004: quotation comparison cards identify the selected supplier and amount', () => {
+    renderPage('proc-001', 'quotes');
+    const comparisons = screen.getByTestId('quotation-comparison-cards');
+    expect(within(comparisons).getByText('Synergy Systems')).toBeInTheDocument();
+    expect(within(comparisons).getByText('$148,000')).toBeInTheDocument();
+    expect(within(comparisons).getByText('Chosen')).toBeInTheDocument();
   });
 
-  it('PROC-004: the selected quotation row carries the "Selected · best value" pill', () => {
+  it('PROC-004: selected and lowest-price pills appear only on the chosen lowest quote row', () => {
     renderPage('proc-001', 'quotes');
-    // VendorQuotesTab (Slice 3) replaced QuotationsSection — testid is now vendor-quotes.
     const section = screen.getByTestId('vendor-quotes');
-    // The chosen $148,000 (VQ-2602050001) row shows "Selected · best value"; the $152,000 one does not.
-    // Both desktop + mobile branches render the pill so at least one match expected.
-    expect(within(section).getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
-    // The VQ number is present in the section
-    expect(within(section).getAllByText('VQ-2602050001').length).toBeGreaterThanOrEqual(1);
+    const quoteRows = Array.from(section.querySelectorAll('tr'));
+    const chosenRow = quoteRows.find((row) => row.textContent?.includes('VQ-2602050001'));
+    expect(chosenRow).toBeInTheDocument();
+    expect(chosenRow).toHaveTextContent('$148,000');
+    expect(chosenRow).toHaveTextContent('Synergy Systems');
+    expect(within(chosenRow as HTMLElement).getByText('Selected')).toBeInTheDocument();
+    expect(within(chosenRow as HTMLElement).getByText('Lowest price')).toBeInTheDocument();
+
+    const higherQuoteRow = quoteRows.find((row) => row.textContent?.includes('VQ-2602050002'));
+    expect(higherQuoteRow).toBeInTheDocument();
+    expect(higherQuoteRow).toHaveTextContent('$152,000');
+    expect(within(higherQuoteRow as HTMLElement).queryByText('Selected')).not.toBeInTheDocument();
+    expect(within(higherQuoteRow as HTMLElement).queryByText('Lowest price')).not.toBeInTheDocument();
   });
 });
 
@@ -566,32 +604,27 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
+    const header = screen.getByTestId('record-header');
+    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(header).getByRole('menuitem', { name: 'Reject' })).toBeInTheDocument();
   });
 
-  it('AC-S20-001: one complete decision area follows request identity, value and budget evidence in keyboard order', async () => {
+  it('AC-S20-001: the approver has one primary action with request and budget evidence on the page', async () => {
     mockEffectiveRole = 'Finance';
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    expect(document.querySelector('[data-testid="mobile-sticky-action"]')).toBeNull();
     const budgetEvidence = screen.getByRole('heading', { name: /budget impact/i });
-    const requestValue = screen.getByText('PR value').closest('[data-testid="stat-tile"]')!;
-    const decision = screen.getByTestId('decision-card');
+    const money = screen.getByTestId('procurement-money-summary');
+    const header = screen.getByTestId('record-header');
     expect(screen.getByText('Workstations for HQ')).toBeInTheDocument();
     expect(screen.getByText('PROC-2026-001')).toBeInTheDocument();
-    expect(requestValue.compareDocumentPosition(budgetEvidence) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(budgetEvidence.compareDocumentPosition(decision) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(decision).getAllByRole('button', { name: /approve/i })).toHaveLength(1);
-    expect(within(decision).getAllByRole('button', { name: /reject/i })).toHaveLength(1);
-    expect(within(decision).getAllByRole('button', { name: /cancel request/i })).toHaveLength(1);
-
-    within(decision).getByRole('button', { name: /add a note/i }).focus();
-    await userEvent.tab();
-    expect(within(decision).getByRole('button', { name: /approve/i })).toHaveFocus();
-    await userEvent.tab();
-    expect(within(decision).getByRole('button', { name: /reject/i })).toHaveFocus();
-    await userEvent.tab();
-    expect(within(decision).getByRole('button', { name: /cancel request/i })).toHaveFocus();
+    expect(within(money).getByText('50,000')).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: 'Approve' }).className).toContain('bg-primary');
+    expect(screen.getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(header).getByRole('menuitem', { name: 'Reject' })).toBeInTheDocument();
+    expect(within(header).getByRole('menuitem', { name: 'Cancel procurement' })).toBeInTheDocument();
+    expect(budgetEvidence).toBeInTheDocument();
   });
 
   it('AC-S20-002: policy and separation-of-duties detail follows financial evidence without losing its explanation', () => {
@@ -611,11 +644,11 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
   });
 
-  it('AC-805: Submit (Draft → Requested) offered to Engineer', () => {
+  it('AC-805: Submit for approval (Draft → Requested) is offered to Engineer', () => {
     mockEffectiveRole = 'Engineer';
     detailState.data = { ...baseProcurement, status: 'Draft' };
     renderPage();
-    expect(screen.getByRole('button', { name: /submit request/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /submit for approval/i })).toBeInTheDocument();
   });
 
   it('AC-805: Paid status shows no transition actions (terminal)', () => {
@@ -632,12 +665,11 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     mockEffectiveRole = 'Finance';
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    const rejectBtn = screen.getByRole('button', { name: /reject/i });
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    const rejectBtn = within(header).getByRole('menuitem', { name: /reject/i });
     // at rest: outline (background fill + input border), NOT the solid destructive fill
-    expect(rejectBtn.className).toContain('border-input');
-    expect(rejectBtn.className).toContain('bg-background');
-    expect(rejectBtn.className).not.toContain('bg-destructive');
-    // opening the confirm dialog surfaces the solid red confirm (the only solid fill)
+    // Reject remains in the overflow menu; its destructive confirmation is the actual action.
     await userEvent.click(rejectBtn);
     const dialog = await screen.findByRole('alertdialog');
     const confirm = within(dialog).getByRole('button', { name: /reject/i });
@@ -670,7 +702,7 @@ describe('AC-805: transition mutations called on action click', () => {
     ));
   });
 
-  it('AC-805 / AC-IXD-WP-003: clicking Submit (a routine forward step) fires the transition on a SINGLE click — no confirm (OD-UX-1)', async () => {
+  it('AC-805 / AC-IXD-WP-003: clicking Submit for approval (a routine forward step) fires the transition on a SINGLE click — no confirm (OD-UX-1)', async () => {
     mockEffectiveRole = 'Engineer';
     // AC-W3-D10: Submit is only enabled when ≥1 line item exists; give the fixture an item.
     detailState.data = {
@@ -680,7 +712,7 @@ describe('AC-805: transition mutations called on action click', () => {
       items: [{ id: 'it1', org_id: 'org-1', procurement_id: 'proc-001', name: 'Widget', description: null, quantity: 1, rate: 500, amount: 500 }],
     };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /submit request/i }));
+    await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
     // OD-UX-1: routine reversible forward steps are single-click + a toast, no modal.
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -705,8 +737,6 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
   it('AC-805: entering notes + Approve + confirm calls transition mutation with the notes argument', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    // IxD Change 1: Notes is progressive-disclosure — reveal the optional field first.
-    await userEvent.click(screen.getByTestId('procurement-notes-reveal'));
     await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Within budget — approved.');
     await userEvent.click(screen.getByRole('button', { name: /approve/i }));
     await confirmInDialog(/approve/i);
@@ -717,16 +747,17 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     );
   });
 
-  it('AC-805 / P2: entering notes + Reject opens a destructive confirm; confirm passes the notes', async () => {
+  it('AC-805 / #1578: Reject confirm requires a rejection comment, then passes it as the notes', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    // IxD Change 1: reveal the progressive-disclosure Notes field before typing.
-    await userEvent.click(screen.getByTestId('procurement-notes-reveal'));
-    await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Over budget.');
-    await userEvent.click(screen.getByRole('button', { name: /reject/i }));
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(within(header).getByRole('menuitem', { name: /reject/i }));
     // Reject is destructive → alertdialog surface
-    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    const dialog = await screen.findByRole('alertdialog');
     expect(mockTransition).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole('button', { name: /reject/i })).toBeDisabled();
+    await userEvent.type(within(dialog).getByLabelText(/rejection comment/i), 'Over budget.');
     await confirmInDialog(/reject/i);
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(
@@ -742,14 +773,9 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     expect(screen.queryByTestId('procurement-notes-reveal')).not.toBeInTheDocument();
   });
 
-  it('AC-805 / IxD: at rest (Approve available) the Notes textarea is hidden behind a reveal link', async () => {
+  it('AC-805 / IxD: an approver can enter an optional note beside the approval action', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    // Progressive disclosure: only the "Add a note" link shows at rest, no textarea.
-    expect(screen.queryByTestId('procurement-notes-input')).not.toBeInTheDocument();
-    const reveal = screen.getByTestId('procurement-notes-reveal');
-    expect(reveal).toBeInTheDocument();
-    await userEvent.click(reveal);
     expect(screen.getByTestId('procurement-notes-input')).toBeInTheDocument();
   });
 });
@@ -794,12 +820,48 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
 
   it('renders VQ number, PO number, GR number and status from Ordered procurement', () => {
     detailState.data = orderedProcurement;
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'timeline');
     // Numbers may appear in both the doc-trail panel and the section body — use getAllByText
     expect(screen.getAllByText('PO-2601100001').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('VQ-2601100001').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('GR-2601100001').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Partial').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('AC-PR-019 one page shows the stage tracker, history, both IDs per record, without navigating away', async () => {
+    mockEffectiveRole = 'Admin';
+    detailState.data = {
+      ...paidProcurement,
+      purchase_requests: [
+        { ...orderedProcurement.purchase_requests[0], pr_number: 'PR-2509100001', reference_number: 'REQ-2025-0142' },
+      ],
+      purchase_orders: [
+        { ...orderedProcurement.purchase_orders[0], po_number: 'PO-2509200001', reference_number: 'PO-SV-2509-0142' },
+      ],
+      statusEvents: [
+        { id: 'event-1', procurement_id: 'proc-001', from_status: 'Requested', to_status: 'Approved', actor_id: 'u-finance', notes: 'Within approved project budget', created_at: '2026-06-04T00:00:00Z', org_id: 'org-1', actor: { full_name: 'Finance User' } },
+      ],
+    };
+    renderPage();
+
+    expect(screen.getByTestId('procurement-stage-tracker')).toBeInTheDocument();
+    const timeline = screen.getByTestId('procurement-timeline');
+    expect(within(timeline).getAllByRole('listitem').length).toBeGreaterThan(0);
+
+    // The Files tab is reached through the tab bar (navigation is stubbed here, so land on it by URL).
+    await userEvent.click(screen.getByRole('tab', { name: /^Files/ }));
+    expect(navigate).toHaveBeenCalledWith(expect.stringContaining('/procurement/proc-001/files'), expect.anything());
+    cleanup();
+    renderPage('proc-001', 'files');
+    const ledger = await screen.findByTestId('procurement-ledger');
+    expect(within(ledger).getByText('System #')).toBeInTheDocument();
+    expect(within(ledger).getByText('External ref')).toBeInTheDocument();
+    expect(within(ledger).getAllByText('PR-2509100001').length).toBeGreaterThanOrEqual(1);
+    expect(within(ledger).getByText('REQ-2025-0142')).toBeInTheDocument();
+    expect(within(ledger).getAllByText('PO-2509200001').length).toBeGreaterThanOrEqual(1);
+    expect(within(ledger).getByText('PO-SV-2509-0142')).toBeInTheDocument();
+    // Still the same case page (the shell never left it).
+    expect(screen.getByTestId('record-header')).toBeInTheDocument();
   });
 
   it('renders VI number and status from Paid procurement', () => {
@@ -808,12 +870,16 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
     expect(screen.getAllByText('VI-2601100001').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders total_value via formatCurrency (money never raw)', () => {
+  it('renders total_value formatted and grouped, never raw (money never raw)', () => {
     detailState.data = { ...baseProcurement, total_value: 50000, currency: 'USD' };
     renderPage();
-    // formatCurrency(50000) = "$50,000"
-    // May appear in multiple places (header + DecisionSupportPanel stat tiles) — any occurrence is proof.
-    expect(screen.getAllByText('$50,000').length).toBeGreaterThanOrEqual(1);
+    // Money-honesty rework: figures render grouped WITHOUT an inline "$" — the money card's
+    // "Money · USD, before tax" head carries the currency, and the tile shows formatNumber(50000).
+    // The oracle is unchanged: total_value is never rendered raw. Justification: the symbol-on-figure
+    // journey this test pinned was deliberately replaced by label-on-card + grouped figure.
+    expect(screen.getAllByText('50,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Money · USD, before tax')).toBeInTheDocument();
+    expect(screen.queryByText('50000')).not.toBeInTheDocument();
   });
 
   it('renders procurement title in the header', () => {
@@ -833,13 +899,13 @@ describe('Action bar covers mid-flow transitions', () => {
     mockEffectiveRole = 'Finance';
   });
 
-  it('Received status shows Mark Vendor Invoiced for Finance', () => {
+  it('Received status offers Record supplier invoice for Finance', () => {
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other' };
     renderPage();
-    expect(screen.getByRole('button', { name: /mark vendor invoiced/i })).toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header')).getByRole('button', { name: 'Record supplier invoice' })).toBeInTheDocument();
   });
 
-  it('Vendor Invoiced status shows Mark as Paid for Finance (not the approver)', () => {
+  it('Vendor Invoiced status offers Record payment for Finance (not the approver)', () => {
     detailState.data = {
       ...baseProcurement,
       status: 'Vendor Invoiced',
@@ -847,10 +913,10 @@ describe('Action bar covers mid-flow transitions', () => {
       approved_by_id: 'u-someone-else',
     };
     renderPage();
-    expect(screen.getByRole('button', { name: /mark as paid/i })).toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header')).getByRole('button', { name: 'Record payment' })).toBeInTheDocument();
   });
 
-  it('SoD-b: Mark as Paid is NOT offered to the Finance user who approved the request', () => {
+  it('SoD-b: Record payment is NOT offered to the Finance user who approved the request', async () => {
     // current user is u-alice (Finance). They also approved → the RPC's SoD-b
     // ALWAYS rejects pay-by-approver, so the UI must not offer the action.
     mockEffectiveRole = 'Finance';
@@ -861,32 +927,213 @@ describe('Action bar covers mid-flow transitions', () => {
       approved_by_id: 'u-alice',
     };
     renderPage();
-    expect(screen.queryByRole('button', { name: /mark as paid/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record payment' })).not.toBeInTheDocument();
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(header).queryByRole('menuitem', { name: /mark as paid/i })).not.toBeInTheDocument();
   });
 
-  it('Quote Selected status shows Generate Purchase Order for Finance', () => {
+  it('FR-PFE-005 payment-first: a Draft purchase with a recorded payment shows Mark as Paid to Finance, not to its approver', async () => {
+    const withPayment = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other', payments: [{ id: 'pay-1', status: 'Scheduled', amount: 100 }] };
+    detailState.data = { ...withPayment, approved_by_id: 'u-someone-else' };
+    const first = renderPage();
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(header).getByRole('menuitem', { name: /mark as paid/i })).toBeInTheDocument();
+    first.unmount();
+    detailState.data = { ...withPayment, approved_by_id: 'u-alice' };
+    renderPage();
+    const newHeader = screen.getByTestId('record-header');
+    await userEvent.click(within(newHeader).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(newHeader).queryByRole('menuitem', { name: /mark as paid/i })).not.toBeInTheDocument();
+  });
+
+  it('a Draft purchase with no payment recorded has no secondary paid transition', async () => {
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other', payments: [] };
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(header).queryByRole('menuitem', { name: /mark as paid/i })).not.toBeInTheDocument();
+  });
+
+  it('ADR-0093: a Requested purchase offers no record action; an approver is told to approve, the requester to wait', () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    const first = renderPage('proc-001', 'files');
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(screen.queryByTestId('ledger-capture-open')).not.toBeInTheDocument();
+    first.unmount();
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
+    renderPage('proc-001', 'files');
+    expect(screen.getAllByText('Waiting for approval').length).toBeGreaterThan(0);
+    expect(screen.queryByTestId('ledger-capture-open')).not.toBeInTheDocument();
+  });
+
+  it('AC-PFE-010: Record another document is filtered by what the role may record', async () => {
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+    renderPage('proc-001', 'files');
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
+    // Finance may request, source, invoice and pay; it is not the requester and not a receiver, so no receipt.
+    const menu = within(header).getByRole('menu', { name: /record another document/i });
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Purchase request', 'Quote request', 'Purchase order', 'Supplier invoice', 'Payment',
+      'Add quotation', 'Link from accounting system',
+    ]);
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Supplier invoice' }));
+    expect(screen.getByTestId('form-create-vi')).toBeInTheDocument();
+  });
+
+  it('D2 C1/C2: a goods receipt chosen as the first document is written through the page confirm, and only then reported', async () => {
+    mockEffectiveRole = 'Project Manager';
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+    mockCreateReceipt.mockClear(); toast.mockClear();
+    renderPage('proc-001', 'files');
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
+    await userEvent.click(within(header).getByRole('menuitem', { name: 'Receipt' }));
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    // Staged, not written: nothing is created and nothing is toasted until the confirm.
+    expect(mockCreateReceipt).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
+    expect(await screen.findByText(/This records a complete goods receipt against procurement case/)).toBeInTheDocument();
+    await confirmInDialog(/save gr/i);
+    await waitFor(() => expect(mockCreateReceipt).toHaveBeenCalledTimes(1));
+    expect(mockCreateReceipt).toHaveBeenCalledWith(expect.objectContaining({ status: 'Complete' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Goods receipt recorded', undefined, 'success'));
+  });
+
+  it('D2 C1/C2: a supplier invoice chosen as the first document is written through the page confirm, and only then reported', async () => {
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+    mockCreateInvoice.mockClear(); toast.mockClear();
+    renderPage('proc-001', 'files');
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
+    await userEvent.click(within(header).getByRole('menuitem', { name: 'Supplier invoice' }));
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    expect(mockCreateInvoice).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
+    await confirmInDialog(/save supplier invoice/i);
+    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Supplier invoice recorded', undefined, 'success'));
+  });
+
+  it('AC-OPP-081 an Odoo org\'s picked taxes travel from the form, through the confirm, into the bill', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+    mockCreateInvoice.mockClear();
+    renderPage('proc-001', 'files');
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
+    await userEvent.click(within(header).getByRole('menuitem', { name: 'Supplier invoice' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'PPN 11%' }));
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    await confirmInDialog(/save supplier invoice/i);
+    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledWith(expect.objectContaining({ taxIds: ['7'] })));
+  });
+
+  it('AC-OPP-090 saving a purchase order from the procurement capture form creates it', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+    mockCreatePurchaseOrder.mockClear().mockResolvedValue({ id: 'po-new' });
+    renderPage('proc-001', 'files');
+    await chooseRecordKind('Purchase order');
+    await userEvent.type(screen.getByTestId('purchase_order-ref-input'), 'PO-090');
+    await userEvent.type(screen.getByTestId('purchase_order-amount-input'), '1000');
+    await userEvent.click(screen.getByTestId('purchase_order-save-btn'));
+
+    await waitFor(() => expect(mockCreatePurchaseOrder).toHaveBeenCalledWith(expect.objectContaining({
+      referenceNumber: 'PO-090',
+      status: 'Draft',
+      amount: 1000,
+    })));
+    expect(screen.queryByTestId('form-capture-purchase_order')).not.toBeInTheDocument();
+  });
+
+  it('AC-OPP-080 what Odoo has not settled shows on the case\'s first screen, not only under the documents tab', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+    odooPurchase.commands = [{ id: 'c1', kind: 'payment', state: 'held', lastError: null, updatedAt: new Date().toISOString(), actorUserId: 'someone-else' }];
+    try {
+      renderPage('proc-001');
+      expect(await screen.findByTestId('odoo-case-status')).toHaveTextContent('Needs a decision');
+    } finally { odooPurchase.commands = []; }
+  });
+
+  it('FR-SCA-051 routes the existing supplier-invoice form through the capped subcontract RPC', async () => {
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Vendor Invoiced',
+      requested_by_id: 'u-other',
+      is_subcontract: true,
+      purchase_orders: [{ id: 'po-sub-1', procurement_id: 'proc-001', po_number: 'PO-SUB-1', status: 'Issued', date: '2026-10-20', amount: 10000, currency: 'IDR', org_id: 'org-1', created_at: '2026-10-20T00:00:00Z' }],
+      invoices: [],
+    };
+    subcontractPosition.data = [{
+      boq_item_id: 'boq-1', item_code: 'L1', description: 'Concrete', unit: 'm3', rate: 100,
+      po_qty: 100, revision: 1, verified: 100, verified_not_on_po: 0, verified_at: null,
+      disputed: 0, billed: 0, payable: 100,
+    }];
+    mockCreateInvoice.mockClear();
+    mockCaptureSubcontractVendorInvoice.mockClear();
+    renderPage('proc-001', 'files');
+    await chooseRecordKind('Supplier invoice');
+    const line = await screen.findByRole('textbox', { name: 'L1 Concrete' });
+    await waitFor(() => expect(line).toHaveValue('100'));
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    await confirmInDialog(/save supplier invoice/i);
+
+    await waitFor(() => expect(mockCaptureSubcontractVendorInvoice).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 10000,
+      lines: [{ boqItemId: 'boq-1', quantity: 100, rate: 100 }],
+    })));
+    expect(mockCreateInvoice).not.toHaveBeenCalled();
+  });
+
+  it('an Engineer can record a receipt for their procurement but sees no Finance document kinds', async () => {
+    mockEffectiveRole = 'Engineer';
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-alice' };
+    renderPage('proc-001', 'files');
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
+    expect(within(header).getByRole('menuitem', { name: 'Receipt' })).toBeInTheDocument();
+    expect(within(header).queryByRole('menuitem', { name: 'Supplier invoice' })).toBeNull();
+    expect(within(header).queryByRole('menuitem', { name: 'Payment' })).toBeNull();
+  });
+
+  it('D2 C3: Mark as Paid is not offered on a purchase with nothing on it, and one line says why', () => {
+    detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', approved_by_id: 'u-someone-else', total_value: 0, items: [], invoices: [] };
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Record payment' })).not.toBeInTheDocument();
+    expect(screen.getByText('Add a line item or a document with an amount before marking this paid.')).toBeInTheDocument();
+  });
+
+  it('Quote Selected status shows Record order for Finance', () => {
     detailState.data = { ...baseProcurement, status: 'Quote Selected', requested_by_id: 'u-other' };
     renderPage();
-    expect(screen.getByRole('button', { name: /generate purchase order/i })).toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header')).getByRole('button', { name: 'Record order' })).toBeInTheDocument();
   });
 
   it('Rejected status shows Rework button for requester', () => {
     mockEffectiveRole = 'Engineer';
     detailState.data = { ...baseProcurement, status: 'Rejected', requested_by_id: 'u-alice' };
     renderPage();
-    expect(screen.getByRole('button', { name: /rework/i })).toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header')).getByRole('button', { name: 'Rework' })).toBeInTheDocument();
   });
 
   it('renders approval_notes when present', () => {
-    detailState.data = { ...baseProcurement, status: 'Approved', approval_notes: 'Looks good.' };
+    detailState.data = { ...baseProcurement, status: 'Approved', statusEvents: [{ id: 'approved-note', procurement_id: 'proc-001', from_status: 'Requested', to_status: 'Approved', actor_id: 'u-alice', notes: 'Looks good.', created_at: '2026-06-05T00:00:00Z', org_id: 'org-1' }] };
     renderPage();
-    expect(screen.getByText('Looks good.')).toBeInTheDocument();
+    expect(screen.getAllByText('Looks good.').length).toBeGreaterThan(0);
   });
 
   it('renders rejection_notes when present', () => {
-    detailState.data = { ...baseProcurement, status: 'Rejected', rejection_notes: 'Over budget.' };
+    detailState.data = { ...baseProcurement, status: 'Rejected', statusEvents: [{ id: 'rejected-note', procurement_id: 'proc-001', from_status: 'Requested', to_status: 'Rejected', actor_id: 'u-alice', notes: 'Over budget.', created_at: '2026-06-05T00:00:00Z', org_id: 'org-1' }] };
     renderPage();
-    expect(screen.getByText('Over budget.')).toBeInTheDocument();
+    expect(screen.getAllByText('Over budget.').length).toBeGreaterThan(0);
   });
 });
 
@@ -939,7 +1186,7 @@ describe('Confirm severity + error-code classified toast (P1/P2, sub-task b)', (
       }],
     };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /mark as paid/i }));
+    await userEvent.click(within(screen.getByTestId('record-header')).getByRole('button', { name: 'Record payment' }));
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveTextContent('$620');
     expect(mockTransition).not.toHaveBeenCalled();
@@ -953,23 +1200,25 @@ describe('Confirm severity + error-code classified toast (P1/P2, sub-task b)', (
       approved_by_id: 'u-someone-else',
     };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /mark as paid/i }));
+    await userEvent.click(within(screen.getByTestId('record-header')).getByRole('button', { name: 'Record payment' }));
     // default tone => role="dialog", NOT alertdialog
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(mockTransition).not.toHaveBeenCalled();
   });
 
-  it('P2: a destructive action (Cancel request) opens an alertdialog; only confirm fires the transition', async () => {
+  it('P2: a destructive action (Cancel procurement) opens an alertdialog; only confirm fires the transition', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
     // requester (u-alice) may cancel a Requested PR (canCancel early). The page
-    // terminal action reads "Cancel request" (double-negative cleanup, polish #2).
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel request$/i }));
+    // terminal action reads "Cancel procurement" (double-negative cleanup, polish #2).
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(within(header).getByRole('menuitem', { name: 'Cancel procurement' }));
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
-    // commit button reads "Cancel request" (disambiguated from the dialog's own dismiss)
-    await confirmInDialog(/cancel request/i);
+    // commit button reads "Cancel procurement" (disambiguated from the dialog's own dismiss)
+    await confirmInDialog(/cancel procurement/i);
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(expect.objectContaining({ to: 'Cancelled' })),
     );
@@ -1024,45 +1273,78 @@ describe('GR creation panel (D3, AC-816 UI support)', () => {
     mockCreateReceipt.mockResolvedValue({ id: 'r-new' });
   });
 
-  it('shows Create Goods Receipt button for PM on Received status', () => {
+  it('offers a receipt capture for PM on Received status', async () => {
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
-    expect(screen.getByTestId('btn-create-gr')).toBeInTheDocument();
+    await chooseRecordKind('Receipt');
+    expect(screen.getByTestId('form-create-gr')).toBeInTheDocument();
   });
 
-  it('shows Create Goods Receipt button for PM on Ordered status', () => {
+  it('offers a receipt capture for PM on Ordered status', async () => {
     detailState.data = { ...baseProcurement, status: 'Ordered', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
-    expect(screen.getByTestId('btn-create-gr')).toBeInTheDocument();
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
+    expect(within(header).getByRole('menuitem', { name: 'Receipt' })).toBeInTheDocument();
   });
 
-  it('does NOT show Create GR button for Engineer who is NOT the requester', () => {
+  it('does NOT expose another requester’s receipt capture to an Engineer', () => {
     mockEffectiveRole = 'Engineer';
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
-    expect(screen.queryByTestId('btn-create-gr')).not.toBeInTheDocument();
+    expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
+  });
+
+  it('AC-OPP-090 mints a new command intent after a confirmed receipt before a bill is captured', async () => {
+    mockEffectiveRole = 'Admin';
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    detailState.data = { ...baseProcurement, status: 'Ordered', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    mockCreateReceipt.mockClear();
+    mockCreateInvoice.mockClear();
+    renderPage('proc-001', 'files');
+
+    await chooseRecordKind('Receipt');
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    await confirmInDialog(/save gr/i);
+    await waitFor(() => expect(mockCreateReceipt).toHaveBeenCalledTimes(1));
+    const receiptIntent = mockCreateReceipt.mock.calls[0][0].intent;
+    act(() => { detailState.data = { ...detailState.data, status: 'Received' }; });
+
+    await chooseRecordKind('Supplier invoice');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    await confirmInDialog(/save supplier invoice/i);
+    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledTimes(1));
+    const invoiceIntent = mockCreateInvoice.mock.calls[0][0].intent;
+
+    expect(receiptIntent?.idempotencyKey).toEqual(expect.any(String));
+    expect(invoiceIntent?.idempotencyKey).toEqual(expect.any(String));
+    expect(invoiceIntent?.idempotencyKey).not.toBe(receiptIntent?.idempotencyKey);
   });
 
   // AC-AUTHZ: GR form mirrors the Ordered→Received authority — requester OR PM, not Finance.
-  it('AC-AUTHZ: Engineer who IS the requester sees the GR form (mirrors RPC requester-OR-PM authority)', () => {
+  it('AC-AUTHZ: an Engineer requester can choose a receipt capture', async () => {
     mockEffectiveRole = 'Engineer';
     // u-alice is the mocked currentUser — making them the requester.
     detailState.data = { ...baseProcurement, status: 'Ordered', requested_by_id: 'u-alice', receipts: [], invoices: [] };
     renderPage();
-    expect(screen.getByTestId('btn-create-gr')).toBeInTheDocument();
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
+    expect(within(header).getByRole('menuitem', { name: 'Receipt' })).toBeInTheDocument();
   });
 
-  it('AC-AUTHZ: Finance does NOT see the GR form (Finance excluded from Ordered→Received authority)', () => {
+  it('AC-AUTHZ: Finance does NOT see the receipt capture (Finance excluded from Ordered→Received authority)', async () => {
     mockEffectiveRole = 'Finance';
     detailState.data = { ...baseProcurement, status: 'Ordered', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
-    expect(screen.queryByTestId('btn-create-gr')).not.toBeInTheDocument();
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
+    expect(within(header).queryByRole('menuitem', { name: 'Receipt' })).toBeNull();
   });
 
   it('clicking Create GR shows the form', async () => {
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
-    await userEvent.click(screen.getByTestId('btn-create-gr'));
+    await chooseRecordKind('Receipt');
     expect(screen.getByTestId('form-create-gr')).toBeInTheDocument();
     expect(screen.getByTestId('gr-status-select')).toBeInTheDocument();
   });
@@ -1070,7 +1352,7 @@ describe('GR creation panel (D3, AC-816 UI support)', () => {
   it('P3: submitting GR form opens a confirm; createReceipt fires only on confirm', async () => {
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
-    await userEvent.click(screen.getByTestId('btn-create-gr'));
+    await chooseRecordKind('Receipt');
     await userEvent.click(screen.getByTestId('btn-save-gr'));
     // confirm-before-write: not fired yet
     expect(mockCreateReceipt).not.toHaveBeenCalled();
@@ -1085,7 +1367,7 @@ describe('GR creation panel (D3, AC-816 UI support)', () => {
   it('cancelling GR form hides the form', async () => {
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
-    await userEvent.click(screen.getByTestId('btn-create-gr'));
+    await chooseRecordKind('Receipt');
     // The form Cancel is a type="button" without danger styling — find it within the form
     const form = screen.getByTestId('form-create-gr');
     const cancelBtns = screen.getAllByRole('button', { name: /^Cancel$/i });
@@ -1109,23 +1391,24 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
     mockCreateInvoice.mockResolvedValue({ id: 'i-new' });
   });
 
-  it('shows Create Vendor Invoice button for Finance on Vendor Invoiced status', () => {
+  it('offers a supplier invoice capture for Finance on an invoiced procurement', async () => {
     detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
-    expect(screen.getByTestId('btn-create-vi')).toBeInTheDocument();
+    await chooseRecordKind('Supplier invoice');
+    expect(screen.getByTestId('form-create-vi')).toBeInTheDocument();
   });
 
-  it('does NOT show Create VI button for Engineer', () => {
+  it('does NOT expose another requester’s supplier invoice capture to an Engineer', () => {
     mockEffectiveRole = 'Engineer';
     detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
-    expect(screen.queryByTestId('btn-create-vi')).not.toBeInTheDocument();
+    expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
   });
 
   it('clicking Create VI shows the form', async () => {
     detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
-    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await chooseRecordKind('Supplier invoice');
     expect(screen.getByTestId('form-create-vi')).toBeInTheDocument();
     expect(screen.getByTestId('vi-status-select')).toBeInTheDocument();
   });
@@ -1133,13 +1416,13 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
   it('P4: submitting VI form opens a confirm; createInvoice fires only on confirm', async () => {
     detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
-    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await chooseRecordKind('Supplier invoice');
     // #505: stating the tax treatment + amount is now part of recording a vendor invoice.
     await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '450');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     expect(mockCreateInvoice).not.toHaveBeenCalled();
-    await confirmInDialog(/save vi/i);
+    await confirmInDialog(/save supplier invoice/i);
     await waitFor(() =>
       expect(mockCreateInvoice).toHaveBeenCalledWith(
         // #505: the staged tax facts survive the confirm hop and reach the mutation.
@@ -1155,7 +1438,7 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
     orgDefault.value = undefined;
     detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
-    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await chooseRecordKind('Supplier invoice');
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
     expect(screen.getByTestId('btn-save-vi')).toBeDisabled();
     await userEvent.click(screen.getByTestId('btn-save-vi'));
@@ -1166,7 +1449,7 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
   it('cancelling VI form hides the form', async () => {
     detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
-    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await chooseRecordKind('Supplier invoice');
     // Two "Cancel" buttons now (GR and VI) — use getAllByRole and click the VI one (last)
     const cancelBtns = screen.getAllByRole('button', { name: /^Cancel$/i });
     await userEvent.click(cancelBtns[cancelBtns.length - 1]);
@@ -1213,6 +1496,26 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     expect(screen.getByText('Welding wire')).toBeInTheDocument();
   });
 
+  it('keeps external item values read-only when the case has external evidence', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    itemEligibility.data = false;
+    renderPage('proc-001', 'items');
+    await userEvent.click(screen.getByRole('button', { name: /edit welding wire/i }));
+    expect(screen.getByLabelText(/edit quantity for welding wire/i)).toBeDisabled();
+    expect(screen.getByLabelText(/edit unit price for welding wire/i)).toBeDisabled();
+    expect(screen.getByLabelText(/edit description for welding wire/i)).toBeEnabled();
+    expect(screen.getByTestId('line-item-add-row')).toBeInTheDocument();
+  });
+
+  it('keeps values read-only while a case command is being submitted', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    recordPush.status = 'pushing';
+    renderPage('proc-001', 'items');
+    await userEvent.click(screen.getByRole('button', { name: /edit welding wire/i }));
+    expect(screen.getByLabelText(/edit quantity for welding wire/i)).toBeDisabled();
+    expect(screen.getByLabelText(/edit unit price for welding wire/i)).toBeDisabled();
+  });
+
   it('AC-PROC-003: line items are READ-ONLY once the PR leaves Draft (no add-row)', () => {
     detailState.data = { ...draftByAlice, status: 'Approved' as const };
     renderPage('proc-001', 'items');
@@ -1222,14 +1525,57 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
 
   it('AC-PROC-002: the Draft-header edit affordance shows for the requester while Draft', () => {
     renderPage();
-    expect(screen.getByTestId('edit-header')).toBeInTheDocument();
+    const header = screen.getByTestId('record-header');
+    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(header).getByTestId('edit-header')).toBeInTheDocument();
+  });
+
+  it('offers header editing to the Engineer requester', () => {
+    mockEffectiveRole = 'Engineer';
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(header).getByTestId('edit-header')).toBeInTheDocument();
+  });
+
+  it('lets an Engineer requester save a Draft header', async () => {
+    mockEffectiveRole = 'Engineer';
+    mockUpdateHeader.mockResolvedValue(undefined);
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    fireEvent.click(within(header).getByTestId('edit-header'));
+    const form = screen.getByTestId('header-edit-card');
+    await userEvent.clear(within(form).getByLabelText(/Title/));
+    await userEvent.type(within(form).getByLabelText(/Title/), 'Updated request');
+    await userEvent.click(within(form).getByRole('button', { name: /save/i }));
+    expect(mockUpdateHeader).toHaveBeenCalledWith(expect.objectContaining({ title: 'Updated request' }));
+  });
+
+  it('keeps the header editor open and does not report a denied save as successful', async () => {
+    mockEffectiveRole = 'Engineer';
+    mockUpdateHeader.mockRejectedValueOnce({ code: '42501', message: 'denied' });
+    toast.mockClear();
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    fireEvent.click(within(header).getByTestId('edit-header'));
+    const form = screen.getByTestId('header-edit-card');
+    await userEvent.clear(within(form).getByLabelText(/Title/));
+    await userEvent.type(within(form).getByLabelText(/Title/), 'Updated request');
+    await userEvent.click(within(form).getByRole('button', { name: /save/i }));
+    await waitFor(() => expect(mockUpdateHeader).toHaveBeenCalled());
+    expect(screen.getByTestId('header-edit-card')).toBeInTheDocument();
+    expect(toast).not.toHaveBeenCalledWith('Procurement updated', 'Header saved', 'success');
   });
 
   it('AC-PROC-002: header-edit is HIDDEN for a non-requester (record-scoped gate)', () => {
     // Edit is scoped to Draft/Rejected AND requester/Admin — a non-requester PM must not see it.
     detailState.data = { ...draftByAlice, requested_by_id: 'u-someone-else' };
     renderPage();
-    expect(screen.queryByTestId('edit-header')).toBeNull();
+    const header = screen.getByTestId('record-header');
+    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(header).queryByTestId('edit-header')).toBeNull();
   });
 
   it('AC-PROC-004: the Select-quote action shows at Vendor Quoted for a sourcing role', () => {
@@ -1250,21 +1596,31 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     expect(screen.getAllByRole('button', { name: /select quote vq-2/i }).length).toBeGreaterThanOrEqual(1);
   });
 
-  it('AC-PROC-005: the Documents tab renders the case ledger for a manager (capture affordance shown)', () => {
+  it('AC-PROC-005: the Files tab renders the case ledger for a manager (capture affordance shown)', () => {
     // Slice 2: ProcurementDocumentsSection → ProcurementLedger (case ledger DataTable).
     // The 'documents-section' testid is replaced by 'procurement-ledger'; the 'add-document'
     // testid (old metadata form) is replaced by 'ledger-capture-row'.
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     expect(screen.getByTestId('procurement-ledger')).toBeInTheDocument();
     // canManageFiles (PM = MASTER_DATA write) → capture row shows
     expect(screen.getByTestId('ledger-capture-row')).toBeInTheDocument();
   });
 
-  it('AC-PROC-005: Documents capture affordance is HIDDEN for an Engineer (no procFile create)', () => {
+  it('AC-PROC-005: an Engineer sees the redacted document timeline without financial amounts', () => {
     mockEffectiveRole = 'Engineer';
-    // An Engineer who is not the requester cannot write files → capture row hidden.
-    renderPage('proc-001', 'documents');
-    expect(screen.getByTestId('procurement-ledger')).toBeInTheDocument();
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Vendor Invoiced',
+      requested_by_id: 'u-alice',
+      invoices: [{ id: 'invoice-1', procurement_id: 'proc-001', vi_number: 'VI-1', amount: 62000, currency: 'USD', status: 'Received', invoice_date: '2026-06-02', created_at: '2026-06-02T00:00:00Z', org_id: 'org-1' }],
+      payments: [{ id: 'payment-1', procurement_id: 'proc-001', amount: 12000, currency: 'USD', status: 'Paid', date: '2026-06-03', created_at: '2026-06-03T00:00:00Z', org_id: 'org-1' }],
+    };
+    renderPage('proc-001', 'files');
+    expect(screen.getByTestId('procurement-timeline')).toBeInTheDocument();
+    expect(screen.getByText('VI-1')).toBeInTheDocument();
+    expect(screen.getByText('Invoices and payments are handled by Finance.')).toBeInTheDocument();
+    expect(screen.queryByText('$62,000')).toBeNull();
+    expect(screen.queryByText('$12,000')).toBeNull();
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 
@@ -1289,7 +1645,7 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     mockEffectiveRole = 'Finance';
   });
 
-  // Polish #1 — Approve is the single primary blue; Reject stays a quiet outline.
+  // The primary approval action is blue; rejection stays in the overflow menu.
   it('polish#1: Approve renders as the PRIMARY blue (not success-green)', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
@@ -1298,34 +1654,58 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     expect(approve.className).not.toContain('bg-success');
   });
 
-  it('polish#1: Reject stays a quiet outline at rest (no solid fill competing with Approve)', () => {
+  it('UIP-009: a Requested procurement shows its Purchase Request status in the record header', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    const reject = screen.getByRole('button', { name: /^reject$/i });
-    expect(reject.className).toContain('border-input');
-    expect(reject.className).not.toContain('bg-destructive');
-    expect(reject.className).not.toContain('bg-success');
+    expect(within(screen.getByTestId('record-header')).getByText('Purchase Request', { exact: true })).toBeInTheDocument();
   });
 
-  // Polish #2 — the three "Cancel"s disambiguate: page action = "Cancel request",
+  it('AC-CONFIRM-001: Reject opens the existing destructive confirm without changing status', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /^Reject$/ }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByRole('button', { name: /^Reject$/ })).toBeVisible();
+    expect(mockTransition).not.toHaveBeenCalled();
+    expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
+    await userEvent.click(within(dialog).getByRole('button', { name: /cancel/i }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(mockTransition).not.toHaveBeenCalled();
+    expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
+  });
+
+  it('polish#1: Reject is available from the overflow menu', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(header).getByRole('menuitem', { name: /^reject$/i })).toBeInTheDocument();
+  });
+
+  // Polish #2 — the three "Cancel"s disambiguate: page action = "Cancel procurement",
   // and the confirm dialog's dismiss = "Keep request" (not "Cancel").
   it('polish#2: the PR cancel confirm dismiss reads "Keep request", not "Cancel"', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel request$/i }));
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(within(header).getByRole('menuitem', { name: 'Cancel procurement' }));
     const dialog = await screen.findByRole('alertdialog');
     // dismiss is the non-destructive button: "Keep request"
-    expect(within(dialog).getByRole('button', { name: /^keep request$/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /^keep procurement$/i })).toBeInTheDocument();
     // the dialog must NOT carry a bare "Cancel" dismiss (the double-negative tell)
     expect(within(dialog).queryByRole('button', { name: /^cancel$/i })).toBeNull();
   });
 
-  it('polish#2: "Keep request" dismisses the dialog WITHOUT firing the transition', async () => {
+  it('polish#2: "Keep procurement" dismisses the dialog WITHOUT firing the transition', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel request$/i }));
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    await userEvent.click(within(header).getByRole('menuitem', { name: 'Cancel procurement' }));
     const dialog = await screen.findByRole('alertdialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: /^keep request$/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^keep procurement$/i }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(mockTransition).not.toHaveBeenCalled();
   });
@@ -1356,6 +1736,28 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
 });
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({
+  useLinkedErpDocuments: () => ({ data: linkedDocsState.data, isError: false, isPending: false }),
+  useUnlinkErpDocument: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock('@/src/hooks/useErpJournalLines', () => import('@/pages/__tests__/helpers/erpJournalLinesMock'));
+vi.mock('@/src/hooks/useOdoo', () => ({
+  useMasterRecords: () => ({ data: { rows: [{ external_id: '7', name: 'PPN 11%', code: null, attrs: {} }], total: 1 }, isError: false }),
+  useMasterSummary: () => ({ data: { asOf: new Date().toISOString() } }),
+}));
+const odooPurchase = vi.hoisted(() => ({ commands: [] as unknown[] }));
+vi.mock('@/src/hooks/useOdooPurchase', () => ({
+  useOdooPurchaseCommands: () => ({ data: odooPurchase.commands, isError: false }),
+  useOdooUnreachable: () => ({ unreachable: false, lastOkAt: null }),
+  useResolveHeldPayment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock('@/src/hooks/useOdooRevenue', () => ({
+  useOdooRevenueCommands: () => ({ data: [], isError: false }),
+  useResolveHeldRevenueCommand: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpOrphans: () => ({ data: [], isError: false, isPending: false }) }));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));
 
@@ -1367,14 +1769,36 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     approved_by_id: 'u-approver',
     approved_total_value: 1000,
     paymentCeiling: { ok: false, reason: 'vendor bill exceeds approved amount', billedNet: 1200, approvedAmount: 1000 },
+    paymentEligibility: 'allowed',
   };
   beforeEach(() => {
     detailState.isPending = false;
+    detailState.isFetching = false;
     detailState.isError = false;
     mockEffectiveRole = 'Finance';
     mockApproveAmount.mockClear();
     mockSelectQuote.mockClear();
     toast.mockClear();
+  });
+
+  it('requires a current approval decision while confirming', async () => {
+    detailState.data = invoicedOver;
+    const view = renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Approve higher amount' }));
+    const refresh = () => view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001']}><Routes><Route path="/procurement/:procurementId" element={<ProcurementDetails />} /></Routes></MemoryRouter>);
+    detailState.isFetching = true; refresh();
+    expect(screen.getByText('Checking approval eligibility…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+    detailState.isFetching = false; detailState.isError = true; refresh();
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(mockApproveAmount).not.toHaveBeenCalled();
+    detailState.isError = false; detailState.data = { ...invoicedOver, paymentEligibility: 'routing' }; refresh();
+    expect(screen.queryByRole('button', { name: 'Approve higher amount' })).not.toBeInTheDocument();
+    expect(screen.getByText('A designated approver must approve the higher amount.')).toBeInTheDocument();
+    detailState.data = invoicedOver; refresh();
+    fireEvent.click(screen.getByRole('button', { name: 'Approve higher amount' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(mockApproveAmount).toHaveBeenCalledWith(1200));
   });
 
   it('AC-SEC-220: a blocked payment explains the overage and lets an eligible approver approve the billed amount', async () => {
@@ -1386,6 +1810,13 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     await waitFor(() => expect(mockApproveAmount).toHaveBeenCalledWith(1200));
   });
 
+  it('uses the server decision to explain why a bill recorder cannot approve', () => {
+    detailState.data = { ...invoicedOver, paymentEligibility: 'bill_recorder' };
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Approve higher amount' })).toBeNull();
+    expect(screen.getByText('The person who recorded the bill cannot approve the higher amount.')).toBeInTheDocument();
+  });
+
   it('AC-SEC-220: the requester sees the explanation but no approval action', () => {
     detailState.data = { ...invoicedOver, requested_by_id: 'u-alice' };
     renderPage();
@@ -1393,11 +1824,11 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     expect(screen.queryByRole('button', { name: 'Approve higher amount' })).toBeNull();
   });
 
-  it('AC-SEC-220: a role that cannot approve sees no approval action', () => {
+  it('AC-SEC-220: an Engineer cannot open another requester’s procurement or see its payment ceiling', () => {
     mockEffectiveRole = 'Engineer';
     detailState.data = invoicedOver;
     renderPage();
-    expect(screen.getByTestId('payment-ceiling-note')).toBeInTheDocument();
+    expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Approve higher amount' })).toBeNull();
   });
 
@@ -1439,7 +1870,7 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     await selectFirstQuote();
     await waitFor(() => expect(toast).toHaveBeenCalledWith(
       'Quote selected',
-      'The quote is above the approved amount, so the request went back for approval.',
+      'The quote is above the approved amount, so the procurement went back for approval.',
       'success',
     ));
   });
@@ -1448,6 +1879,228 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     detailState.data = quoted(900);
     renderPage('proc-001', 'quotes');
     await selectFirstQuote();
-    await waitFor(() => expect(toast).toHaveBeenCalledWith('Quote selected', 'The request advanced to Quote Selected', 'success'));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Quote selected', 'The procurement advanced to Quote Selected', 'success'));
+  });
+});
+
+describe('AC-1404: procurement detail composition and role-safe actions', () => {
+  beforeEach(() => {
+    detailState.data = { ...baseProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    linkedDocsState.data = [];
+    projectScopeState.data = { project_manager_id: 'u-alice' };
+    projectScopeState.isPending = false;
+    projectScopeState.isError = false;
+    mockEffectiveRole = 'Finance';
+  });
+
+  it('AC-1404: Finance sees one filled Record payment action on an invoiced procurement', () => {
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Vendor Invoiced',
+      requested_by_id: 'u-other',
+      invoices: [{ id: 'invoice-1', procurement_id: 'proc-001', vi_number: 'VI-1', amount: 62000, currency: 'USD', status: 'Received', invoice_date: '2026-06-02', created_at: '2026-06-02T00:00:00Z', org_id: 'org-1' }],
+    };
+    renderPage();
+
+    const headerAction = within(screen.getByTestId('record-header')).getByRole('button', { name: 'Record payment' });
+    expect(headerAction.className).toMatch(/bg-primary/);
+    expect(screen.getByRole('button', { name: 'Record payment' })).toBeInTheDocument();
+  });
+
+  it('AC-1404: an approver sees Approve and the approval-limit line, while the requester sees a waiting note', () => {
+    detailState.data = {
+      ...baseProcurement,
+      requested_by_id: 'u-other',
+      approvalRoute: { procurementId: 'proc-001', route: 'project', reason: 'within_budget', approvers: [{ id: 'u-alice', fullName: 'Alice Manager' }], requestAmount: 50000, lineBudget: 100000, lineUsed: 50000 },
+    };
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(screen.getAllByText('Within your limit').length).toBeGreaterThan(0);
+
+    detailState.data = { ...baseProcurement, requested_by_id: 'u-alice' };
+    renderPage();
+    expect(screen.getAllByText(/Waiting for approval/i).length).toBeGreaterThan(0);
+  });
+
+  it('#1591: the waiting note wraps instead of forcing the header wider than a 320px viewport', () => {
+    detailState.data = { ...baseProcurement, requested_by_id: 'u-alice' };
+    renderPage();
+    const note = screen.getAllByText(/Waiting for approval/i)[0];
+    expect(note.className).not.toContain('whitespace-nowrap');
+  });
+
+  it('AC-1404: Engineer sees no supplier-invoice or payment amounts', () => {
+    mockEffectiveRole = 'Engineer';
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Vendor Invoiced',
+      requested_by_id: 'u-alice',
+      invoices: [{ id: 'invoice-1', procurement_id: 'proc-001', vi_number: 'VI-1', amount: 62000, currency: 'USD', status: 'Received', invoice_date: '2026-06-02', created_at: '2026-06-02T00:00:00Z', org_id: 'org-1' }],
+      payments: [{ id: 'payment-1', procurement_id: 'proc-001', amount: 12000, currency: 'USD', status: 'Paid', date: '2026-06-03', created_at: '2026-06-03T00:00:00Z', org_id: 'org-1' }],
+    };
+    renderPage();
+
+    expect(screen.getByText('Invoices and payments are handled by Finance.')).toBeInTheDocument();
+    expect(screen.queryByText('$62,000')).toBeNull();
+    expect(screen.queryByText('$12,000')).toBeNull();
+  });
+
+  it('AC-1404: timeline orders a linked accounting-system invoice and an approval note by date', () => {
+    linkedDocsState.data = [{ id: 'erp-invoice-1', doctype: 'Purchase Invoice', name: 'ACC-INV-1', docDate: '2026-06-05', grandTotal: 62000, outstandingAmount: 62000 }];
+    detailState.data = {
+      ...baseProcurement,
+      statusEvents: [{ id: 'event-1', procurement_id: 'proc-001', from_status: 'Requested', to_status: 'Approved', actor_id: 'u-finance', notes: 'Within approved project budget', created_at: '2026-06-04T00:00:00Z', org_id: 'org-1', actor: { full_name: 'Finance User' } }],
+    };
+    renderPage('proc-001', 'timeline');
+
+    const rows = screen.getAllByTestId('procurement-timeline-row');
+    const noteRow = rows.findIndex((row) => row.textContent?.includes('Within approved project budget'));
+    const invoiceRow = rows.findIndex((row) => row.textContent?.includes('ACC-INV-1'));
+    expect(noteRow).toBeGreaterThanOrEqual(0);
+    expect(invoiceRow).toBeGreaterThan(noteRow);
+    expect(rows[invoiceRow]).toHaveTextContent('from accounting system');
+  });
+
+  it('AC-1404: ?record=receipt opens the receipt capture form on arrival', () => {
+    detailState.data = { ...orderedProcurement, requested_by_id: 'u-alice' };
+    renderPage('proc-001', 'timeline', '?record=receipt');
+
+    expect(screen.getByTestId('form-create-gr')).toBeInTheDocument();
+  });
+
+  it('AC-1404: a Project Manager can open only a procurement for a project they manage', () => {
+    mockEffectiveRole = 'Project Manager';
+    detailState.data = { ...baseProcurement, requested_by_id: 'u-other' };
+    const first = renderPage();
+    expect(screen.getByTestId('record-header')).toBeInTheDocument();
+
+    first.unmount();
+    projectScopeState.data = { project_manager_id: 'u-someone-else' };
+    renderPage();
+    expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
+  });
+
+  it('SEC-RS-1: a Project Manager opens an overhead procurement they raised (no project)', () => {
+    mockEffectiveRole = 'Project Manager';
+    projectScopeState.data = null;
+    detailState.data = { ...baseProcurement, status: 'Draft', project_id: null, project: null, requested_by_id: 'u-alice' };
+    renderPage();
+    expect(screen.queryByTestId('procurement-no-access')).toBeNull();
+    expect(screen.getByTestId('record-header')).toBeInTheDocument();
+  });
+
+  it("SEC-RS-1: a Project Manager opens their own procurement on another manager's project", () => {
+    mockEffectiveRole = 'Project Manager';
+    projectScopeState.data = { project_manager_id: 'u-someone-else' };
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-alice' };
+    renderPage();
+    expect(screen.queryByTestId('procurement-no-access')).toBeNull();
+    expect(screen.getByTestId('record-header')).toBeInTheDocument();
+  });
+
+  it("SEC-RS-1: a Project Manager still cannot open a colleague's overhead procurement", () => {
+    mockEffectiveRole = 'Project Manager';
+    projectScopeState.data = null;
+    detailState.data = { ...baseProcurement, project_id: null, project: null, requested_by_id: 'u-other' };
+    renderPage();
+    expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
+  });
+});
+
+describe('Procurement detail restructure fixes', () => {
+  beforeEach(() => {
+    detailState.data = { ...baseProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    detailState.error = null;
+    linkedDocsState.data = [];
+    projectScopeState.data = { project_manager_id: 'u-alice' };
+    projectScopeState.isPending = false;
+    projectScopeState.isError = false;
+    mockEffectiveRole = 'Finance';
+  });
+
+  it('shows a skipped request stage and an unknown requested amount when an order exists', () => {
+    detailState.data = {
+      ...orderedProcurement,
+      status: 'Vendor Invoiced',
+      total_value: 110500,
+      purchase_requests: [],
+      purchase_orders: [
+        { ...orderedProcurement.purchase_orders[0], id: 'po-first', po_number: 'PO-2609020001', amount: 84000, date: '2025-09-02', created_at: '2025-09-02T00:00:00Z' },
+        { ...orderedProcurement.purchase_orders[0], id: 'po-second', po_number: 'PO-2609180002', amount: 26500, date: '2025-09-18', created_at: '2025-09-18T00:00:00Z' },
+      ],
+      receipts: [],
+      invoices: [],
+      payments: [],
+    };
+
+    renderPage();
+
+    const tracker = screen.getByTestId('procurement-stage-tracker');
+    const requestLabel = within(tracker).getByText('Request');
+    expect(requestLabel).toHaveClass('text-muted-foreground');
+    expect(within(tracker).getAllByText('Not recorded')).toHaveLength(2);
+    expect(within(tracker).getByText(/Tue 2 Sep/)).toBeInTheDocument();
+
+    const money = screen.getByTestId('procurement-money-summary');
+    const requestedFigure = within(money).getByRole('button', { name: 'Requested calculation' }).parentElement?.parentElement;
+    expect(requestedFigure).toHaveTextContent('—');
+    expect(requestedFigure).toHaveTextContent('No purchase request: started at the order');
+    expect(requestedFigure).not.toHaveTextContent('$110,500');
+  });
+
+  it('labels empty ordered, invoiced, and paid figures as not recorded', () => {
+    renderPage();
+
+    const money = screen.getByTestId('procurement-money-summary');
+    expect(within(money).getAllByText('None recorded')).toHaveLength(3);
+    for (const kind of ['Ordered', 'Invoiced', 'Paid']) {
+      const figure = within(money).getByRole('button', { name: `${kind} calculation` }).parentElement?.parentElement;
+      expect(figure).toHaveTextContent('—');
+      expect(figure).toHaveTextContent('None recorded');
+      expect(figure).not.toHaveTextContent('$0');
+    }
+  });
+
+  it('keeps the engineer approval wait in the header actions without the floating paragraph', () => {
+    mockEffectiveRole = 'Engineer';
+    detailState.data = { ...baseProcurement };
+
+    renderPage();
+
+    const headerActions = screen.getByTestId('record-header-actions');
+    expect(within(headerActions).getByText('Waiting for approval by a project manager or Finance')).toBeInTheDocument();
+    expect(screen.queryByTestId('sod-ready-hint')).toBeNull();
+  });
+
+  it('shows the raised event and the complete status progression in the timeline', () => {
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Paid',
+      statusEvents: [
+        { id: 'submitted', procurement_id: 'proc-001', from_status: 'Draft', to_status: 'Requested', actor_id: 'u-alice', notes: null, created_at: '2026-06-04T01:00:00Z', org_id: 'org-1', actor: { full_name: 'Alice Manager' } },
+        { id: 'approved', procurement_id: 'proc-001', from_status: 'Requested', to_status: 'Approved', actor_id: 'u-finance', notes: 'Budget approved', created_at: '2026-06-05T01:00:00Z', org_id: 'org-1', actor: { full_name: 'Finance User' } },
+        { id: 'returned', procurement_id: 'proc-001', from_status: 'Requested', to_status: 'Rejected', actor_id: 'u-finance', notes: 'Choose a supplier first', created_at: '2026-06-06T01:00:00Z', org_id: 'org-1', actor: { full_name: 'Finance User' } },
+        { id: 'cancelled', procurement_id: 'proc-001', from_status: 'Approved', to_status: 'Cancelled', actor_id: 'u-alice', notes: 'Project cancelled', created_at: '2026-06-07T01:00:00Z', org_id: 'org-1', actor: { full_name: 'Alice Manager' } },
+        { id: 'paid', procurement_id: 'proc-001', from_status: 'Vendor Invoiced', to_status: 'Paid', actor_id: 'u-finance', notes: null, created_at: '2026-06-08T01:00:00Z', org_id: 'org-1', actor: { full_name: 'Finance User' } },
+      ],
+    };
+
+    renderPage('proc-001', 'timeline');
+
+    const rows = screen.getAllByTestId('procurement-timeline-row');
+    expect(rows).toHaveLength(6);
+    expect(rows[0]).toHaveTextContent('Procurement raised');
+    expect(rows[0]).toHaveTextContent('Alice Manager');
+    expect(rows[0]).toHaveTextContent('Thu 4 Jun');
+    expect(screen.getByText('Submitted for approval')).toBeInTheDocument();
+    expect(screen.getByText('Approved')).toBeInTheDocument();
+    expect(screen.getByText('Returned or rejected')).toBeInTheDocument();
+    expect(screen.getByText('Choose a supplier first')).toBeInTheDocument();
+    expect(screen.getByText('Cancelled')).toBeInTheDocument();
+    expect(rows[5]).toHaveTextContent('Paid');
   });
 });

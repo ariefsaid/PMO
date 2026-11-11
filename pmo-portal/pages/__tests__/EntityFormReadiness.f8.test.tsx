@@ -1,3 +1,5 @@
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
 vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -46,6 +48,15 @@ const { companiesState, createMut } = vi.hoisted(() => ({
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => companiesState,
+  // #1989: the directory reads one server page + a total + an on-demand export read.
+  useCompaniesPage: () => ({
+    data: { rows: companiesState.data, total: companiesState.data.length },
+    isPending: companiesState.isPending,
+    isError: companiesState.isError,
+    refetch: companiesState.refetch,
+  }),
+  useCompaniesTotal: () => ({ data: companiesState.data.length }),
+  useCompaniesExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
   useCompanyMutations: () => ({
     create: createMut,
     update: { mutateAsync: vi.fn(), isPending: false },

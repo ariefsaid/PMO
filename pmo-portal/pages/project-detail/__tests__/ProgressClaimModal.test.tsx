@@ -95,7 +95,7 @@ describe('ProgressClaimModal', () => {
 
   it('AC-PB-009 a project with a live down payment is not offered a second one', () => {
     renderModal({ hasDownPayment: true });
-    expect(optionTexts(/Claim type/)).toEqual(['Progress — quantities against the bill of quantities']);
+    expect(optionTexts(/Claim type/)).toEqual(['Progress: quantities against the bill of quantities']);
   });
 });
 
@@ -126,6 +126,29 @@ describe('ProgressClaimModal contract-quantity pre-fill', () => {
     expect(screen.getByLabelText(/SURVEY/)).toHaveValue('897');
     await user.click(screen.getByRole('button', { name: 'Create claim' }));
     expect(onSave).toHaveBeenCalledWith({ kind: 'progress', workOrderId: 'wo-1', lines: [{ boqItemId: 'b1', quantity: 897 }], recoverRemaining: false });
+  });
+
+  it('AC-1402 opening from a customer order selects that order and applies can-invoice quantities immediately', () => {
+    renderModal({
+      boqItems: BIG,
+      workOrders: WO2,
+      allocations: ORDERS,
+      contractLines: facts(997),
+      claimedByBoqItem: { b1: 150 },
+      initialWorkOrderId: 'wo-1',
+    });
+
+    expect(screen.getByLabelText(/Bills/)).toHaveValue('wo-1');
+    expect(screen.getByLabelText(/SURVEY/)).toHaveValue('897');
+  });
+
+  it('AC-1402 without an initial order keeps the existing empty scope and manual pre-fill flow', async () => {
+    const { user } = renderModal({ boqItems: BIG, workOrders: WO2, allocations: ORDERS, contractLines: facts(997), claimedByBoqItem: { b1: 150 } });
+
+    expect(screen.getByLabelText(/Bills/)).toHaveValue('');
+    await user.selectOptions(screen.getByLabelText(/Bills/), 'wo-1');
+    expect(screen.getByLabelText(/SURVEY/)).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Start from the accepted BAST quantities' })).toBeInTheDocument();
   });
 
   it('AC-CQ-013 a BAST of zero is a BAST: nothing is suggested, not the assessment fallback', async () => {

@@ -44,19 +44,21 @@ describe('ErrorBoundary (reliability harden #4 — render throw must not white-s
   });
 
   it('retry resets the boundary so a recovered child renders again', () => {
-    // The child throws while `crash` is true; after clicking retry with a now-healthy
+    // The child throws while `shouldCrash` is true; after clicking retry with a now-healthy
     // child, the boundary must clear its error state and re-render children.
-    function Harness(): React.ReactElement {
-      const [crash, setCrash] = React.useState(true);
-      return (
-        <ErrorBoundary onReset={() => setCrash(false)}>
-          <Boom crash={crash} />
-        </ErrorBoundary>
-      );
+    let shouldCrash = true;
+    function MaybeBoom(): React.ReactElement {
+      if (shouldCrash) throw new Error('kaboom');
+      return <div>recovered content</div>;
     }
-    render(<Harness />);
+    render(
+      <ErrorBoundary>
+        <MaybeBoom />
+      </ErrorBoundary>,
+    );
     expect(screen.getByRole('alert')).toBeInTheDocument();
 
+    shouldCrash = false;
     fireEvent.click(screen.getByRole('button', { name: /try again/i }));
 
     expect(screen.getByText('recovered content')).toBeInTheDocument();
@@ -76,10 +78,10 @@ describe('ErrorBoundary (reliability harden #4 — render throw must not white-s
 
 // ── PostHog exception capture (observability floor, S6) ─────────────────────
 // A second describe block in the same file, per the plan: ErrorBoundary.tsx
-// imports analyticsClient from '@/src/lib/analytics/client' directly (the barrel
-// deliberately does not export it) and safeTrack from the barrel
-// '@/src/lib/analytics'. Two separate vi.mock calls are needed because the two
-// specifiers point at different modules.
+// reaches PostHog through the analytics facade's captureHandledError helper
+// (src/ must not import client.ts directly — the client import boundary) and
+// wraps it in safeTrack from the same barrel. The client mock is still needed
+// because the real facade's helper calls into client.ts.
 const analyticsMock = vi.hoisted(() => ({
   captureException: vi.fn(),
 }));

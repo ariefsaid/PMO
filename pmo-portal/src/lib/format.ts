@@ -1,4 +1,8 @@
-import { parseISO, formatDistanceToNow } from 'date-fns';
+// Deep date-fns imports (see src/lib/locale/activeLocale.ts): format.ts is in
+// nearly every test file's module graph, and the `date-fns` root barrel costs
+// ~770 ms/file under Vitest per-file isolation (measured 2026-10-31, #1584).
+import { parseISO } from 'date-fns/parseISO';
+import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
 import { getActiveLocale, getDateFnsLocale, getDateLocale, getNumberLocale } from '@/src/lib/locale/activeLocale';
 
 /**
@@ -78,12 +82,21 @@ export function formatCurrency(value: number, currency: string): string {
   return currencyFormatterFor('whole', currency, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
 
-/** Format exact decimal money without converting its whole or fractional units through Number. */
+/**
+ * Format exact decimal money without converting its whole or fractional units through Number.
+ *
+ * `wholeUnits` (#1437, owner ruling 2026-10-27): read-only display surfaces print WHOLE currency
+ * units — no `.00` and no cents — so `1467628320.47` renders `IDR 1,467,628,320`. Rounding is
+ * half-up on magnitude, matching the Number path (`formatCurrency` / Intl's halfExpand), so a
+ * figure and its exact twin never disagree by a unit; a magnitude that rounds to zero drops its
+ * sign (`-0.49` → `$0`, never `−$0`). Exact decimals stay available to inputs, exports, tax
+ * output and reconciliation surfaces — pass no option there.
+ */
 export function formatExactMoney(
   value: string | null,
   currency: string,
   locale: string,
-  opts: { trimZeroFraction?: boolean } = {},
+  opts: { trimZeroFraction?: boolean; wholeUnits?: boolean; omitCurrency?: boolean } = {},
 ): string | null {
   if (value === null || !/^[A-Z]{3}$/.test(currency) || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
   const negative = value.startsWith('-');
@@ -91,6 +104,19 @@ export function formatExactMoney(
   const whole = BigInt(wholeText);
   const cents = BigInt(fraction.padEnd(2, '0'));
   try {
+    if (opts.wholeUnits === true) {
+      const rounded = cents >= 50n ? whole + 1n : whole;
+      const parts = numberFormatterFor(
+        opts.omitCurrency === true ? 'exact-number-whole' : 'exact-currency-whole',
+        locale,
+        opts.omitCurrency === true ? undefined : currency,
+        opts.omitCurrency === true
+          ? { minimumFractionDigits: 0, maximumFractionDigits: 0 }
+          : { style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: 0 },
+      ).formatToParts(rounded);
+      const body = parts.map((part) => part.value).join('');
+      return negative && rounded !== 0n ? `−${body}` : body;
+    }
     const trim = opts.trimZeroFraction === true && cents === 0n;
     const parts = numberFormatterFor(trim ? 'exact-currency-whole' : 'exact-currency', locale, currency, {
       style: 'currency', currency,
@@ -125,6 +151,20 @@ export function numberSymbols(locale = getNumberLocale()): { decimal: string; gr
     decimal: parts.find((part) => part.type === 'decimal')?.value ?? '.',
     group: parts.find((part) => part.type === 'group')?.value,
   };
+}
+
+/**
+ * A plain decimal string (`-1234.5`) shown with the viewer's grouping and decimal marks and exactly two decimals, no currency
+ * symbol. Exact: nothing passes through a float. Anything that is not a plain decimal comes back as given.
+ */
+export function formatExactDecimal(value: string, locale = getNumberLocale()): string {
+  const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(value);
+  if (!match) return value;
+  const [, sign, whole, fraction = ''] = match;
+  const cents = fraction.padEnd(2, '0');
+  const grouped = numberFormatterFor('exact-decimal-whole', locale, undefined, { maximumFractionDigits: 0 }).format(BigInt(whole));
+  const negative = sign === '-' && (BigInt(whole) !== 0n || cents !== '00');
+  return `${negative ? '−' : ''}${grouped}${numberSymbols(locale).decimal}${cents}`;
 }
 
 interface ParsedMoneyDraft {
@@ -206,6 +246,45 @@ function fitsMoneyScale(normalized: string, scale: number): boolean {
   return effectiveScale <= BigInt(scale);
 }
 
+/**
+ * Parse a localized screen value into a plain exact decimal string. Unlike the number-returning
+ * form parsers, this keeps every accepted digit as text for bigint-based financial calculations.
+ * Exponent notation is expanded exactly and values that exceed the requested scale are rejected.
+ */
+export function normalizeLocalizedDecimal(
+  raw: string,
+  scale: number,
+  locale = getNumberLocale(),
+): string | null {
+  if (/^\s*[+-]?0[xob]/i.test(raw)) return null;
+  const parsed = parseMoneyDraft(raw, locale);
+  if (!parsed || !fitsMoneyScale(parsed.normalized, scale)) return null;
+  const match = parsed.normalized.match(/^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
+  if (!match) return null;
+
+  const exponent = BigInt(match[4] ?? '0');
+  if (exponent < -64n || exponent > 64n) return null;
+  const sign = match[1] === '-' ? '-' : '';
+  const digits = `${match[2]}${match[3] ?? ''}`;
+  const decimalPosition = BigInt(match[2].length) + exponent;
+  if (decimalPosition < -64n || decimalPosition > 128n) return null;
+  const position = Number(decimalPosition);
+  const integerPart = position <= 0
+    ? '0'
+    : position >= digits.length
+      ? `${digits}${'0'.repeat(position - digits.length)}`
+      : digits.slice(0, position);
+  const fractionPart = position <= 0
+    ? `${'0'.repeat(-position)}${digits}`
+    : position >= digits.length
+      ? ''
+      : digits.slice(position);
+  const integer = integerPart.replace(/^0+(?=\d)/, '');
+  const fraction = fractionPart.replace(/0+$/, '');
+  if (fraction.length > scale) return null;
+  return `${sign}${integer}${fraction ? `.${fraction}` : ''}`;
+}
+
 /** Parse screen input using its viewer convention and reject values that require target rounding. */
 export function parseMoneyInputAtScale(
   raw: string,
@@ -250,11 +329,6 @@ const NEUTRAL_NUMBER_LOCALE = 'en-US';
 
 function parseNeutralMoneyDraft(raw: string): ParsedMoneyDraft | null {
   return parseMoneyDraft(raw, NEUTRAL_NUMBER_LOCALE);
-}
-
-/** Locale-independent decimal parser for neutral imports. */
-export function parseNeutralMoneyInput(raw: string): number | null {
-  return parseNeutralMoneyDraft(raw)?.value ?? null;
 }
 
 /**
@@ -332,9 +406,35 @@ export function formatMoneyInputValue(value: number, locale = getNumberLocale())
   return formatMoneyInputDraft(neutral.replace('.', numberSymbols(locale).decimal), locale);
 }
 
+/** Whole completion %: unfinished work (below 100) never rounds up to a complete-looking 100. */
+export function completionPct(value: number): number {
+  return value >= 100 ? Math.round(value) : Math.min(99, Math.round(value));
+}
+
 /** Format a nullable % value: null → '—'; numeric → '{rounded}%'. */
 export function pct(v: number | null): string {
-  return v == null ? '—' : `${Math.round(v)}%`;
+  return v == null ? '—' : `${formatNumberWhole(v)}%`;
+}
+
+/** Format a nullable ratio (0.25 → 25.0%) in a number locale, with an optional precision. */
+export function formatPercent(value: number | null, fractionDigits?: number): string;
+export function formatPercent(value: number | null, locale?: string, fractionDigits?: number): string;
+export function formatPercent(
+  value: number | null,
+  localeOrDigits: string | number = 1,
+  requestedDigits = 1,
+): string {
+  if (value == null) return '—';
+  const locale = typeof localeOrDigits === 'string' ? localeOrDigits : getNumberLocale();
+  const fractionDigits = typeof localeOrDigits === 'number' ? localeOrDigits : requestedDigits;
+  if (!Number.isInteger(fractionDigits) || fractionDigits < 0 || fractionDigits > 20) {
+    throw new RangeError('Percentage fraction digits must be an integer from 0 to 20.');
+  }
+  return numberFormatterFor(`percent-${fractionDigits}`, locale, undefined, {
+    style: 'percent',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
 }
 
 // Single source of truth for human date display (CW-7 coherence sweep). Routing ALL date cells
@@ -451,9 +551,8 @@ export function formatInstantDateNumeric(iso: string | null | undefined): string
 // all agree; a caller may still pass an explicit zone (tests; a future non-active-locale use).
 //
 // No timezone-database dependency: `Intl.DateTimeFormat` already carries the IANA tz database.
-// Instant -> wall time is a direct `formatToParts` read; wall time -> instant uses the standard
-// two-pass UTC-offset lookup (the same technique `date-fns-tz`/`luxon` use) so it converges
-// correctly across a DST transition.
+// Instant -> wall time is a direct `formatToParts` read; wall time -> instant samples nearby
+// offsets and validates the requested value by formatting each candidate back through the zone.
 
 interface WallTimeParts {
   year: number;
@@ -490,8 +589,15 @@ function readWallTimeParts(instant: Date, timeZone: string, withSeconds: boolean
 /** The UTC offset (ms) in effect for `instant` in `timeZone`; positive when the zone is ahead of UTC. */
 function wallTimeOffsetMs(instant: Date, timeZone: string): number {
   const p = readWallTimeParts(instant, timeZone, true);
-  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  const asUtc = wallPartsAsUtcMs(p);
   return asUtc - instant.getTime();
+}
+
+function wallPartsAsUtcMs(parts: WallTimeParts): number {
+  const wall = new Date(0);
+  wall.setUTCFullYear(parts.year, parts.month - 1, parts.day);
+  wall.setUTCHours(parts.hour, parts.minute, parts.second, 0);
+  return wall.getTime();
 }
 
 /** Format an instant as the wall-clock value a `datetime-local` input shows, in `timeZone`. */
@@ -503,19 +609,104 @@ export function instantToZonedDatetimeLocal(instant: Date, timeZone = getActiveL
 
 const DATETIME_LOCAL_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
 
+function wallTimeFromParts(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+): WallTimeParts | null {
+  if (
+    year < 1 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31 ||
+    hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59
+  ) return null;
+  const requested = { year, month, day, hour, minute, second };
+  const wall = new Date(0);
+  wall.setUTCFullYear(year, month - 1, day);
+  wall.setUTCHours(hour, minute, second, 0);
+  const roundTrip = {
+    year: wall.getUTCFullYear(),
+    month: wall.getUTCMonth() + 1,
+    day: wall.getUTCDate(),
+    hour: wall.getUTCHours(),
+    minute: wall.getUTCMinutes(),
+    second: wall.getUTCSeconds(),
+  };
+  return Object.keys(requested).every((key) =>
+    requested[key as keyof typeof requested] === roundTrip[key as keyof typeof roundTrip]
+  ) ? requested : null;
+}
+
+function sameWallTime(left: WallTimeParts, right: WallTimeParts): boolean {
+  return left.year === right.year && left.month === right.month && left.day === right.day &&
+    left.hour === right.hour && left.minute === right.minute && left.second === right.second;
+}
+
 /**
  * Parse a `datetime-local` value as wall-clock time IN `timeZone`, returning the instant it names.
- * `null` for a malformed value. Two offset lookups converge on the correct instant either side of
- * a DST transition (the literal skipped/repeated hour is inherently ambiguous for any converter).
+ * Invalid calendar fields and wall times skipped by a clock change return `null`. A repeated wall
+ * time resolves to its earlier instant, making the ambiguity deterministic for meeting edits.
  */
 export function zonedDatetimeLocalToInstant(value: string, timeZone = getActiveLocale().timezone): Date | null {
   const match = DATETIME_LOCAL_RE.exec(value);
   if (!match) return null;
   const [, y, mo, d, h, mi, s] = match;
-  const guessMs = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s ?? '0'));
-  const firstOffset = wallTimeOffsetMs(new Date(guessMs), timeZone);
-  const secondOffset = wallTimeOffsetMs(new Date(guessMs - firstOffset), timeZone);
-  return new Date(guessMs - secondOffset);
+  const requested = wallTimeFromParts(Number(y), Number(mo), Number(d), Number(h), Number(mi), Number(s ?? '0'));
+  if (!requested) return null;
+  const wallMs = wallPartsAsUtcMs(requested);
+  try {
+    // Sampling either side of the approximate instant captures both offsets at a repeated wall
+    // time. Exact round-trip checks reject gaps; sorting chooses the earlier candidate in a fold.
+    const offsets = new Set([
+      wallTimeOffsetMs(new Date(wallMs - 36 * 60 * 60 * 1000), timeZone),
+      wallTimeOffsetMs(new Date(wallMs), timeZone),
+      wallTimeOffsetMs(new Date(wallMs + 36 * 60 * 60 * 1000), timeZone),
+    ]);
+    const candidates = [...offsets]
+      .map((offset) => new Date(wallMs - offset))
+      .filter((candidate) => sameWallTime(readWallTimeParts(candidate, timeZone, true), requested))
+      .sort((left, right) => left.getTime() - right.getTime());
+    return candidates[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** First real instant that belongs to `date` in `timeZone`; skipped midnights advance to the first valid minute. */
+export function firstInstantOfZonedCalendarDay(
+  date: string,
+  timeZone = getActiveLocale().timezone,
+): Date | null {
+  const match = DATE_ONLY_RE.exec(date);
+  if (!match) return null;
+  const [, y, mo, d] = match;
+  const dateParts = wallTimeFromParts(Number(y), Number(mo), Number(d), 0, 0, 0);
+  if (!dateParts) return null;
+
+  const dateAsUtc = new Date(wallPartsAsUtcMs(dateParts));
+  for (let dateOffset = 0; dateOffset < 3; dateOffset += 1) {
+    const current = new Date(dateAsUtc);
+    current.setUTCDate(current.getUTCDate() + dateOffset);
+    const token = `${String(current.getUTCFullYear()).padStart(4, '0')}-${String(current.getUTCMonth() + 1).padStart(2, '0')}-${String(current.getUTCDate()).padStart(2, '0')}`;
+    // Most days return on the first attempt; quarter-hour probes bound the rare midnight gap,
+    // then inspect the preceding minutes to keep the boundary exact to the datetime-local input.
+    for (let minute = 0; minute < 24 * 60; minute += 15) {
+      const value = `${token}T${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+      const candidate = zonedDatetimeLocalToInstant(value, timeZone);
+      if (!candidate) continue;
+      const firstMinute = Math.max(0, minute - 14);
+      for (let earlier = firstMinute; earlier < minute; earlier += 1) {
+        const earlierValue = `${token}T${String(Math.floor(earlier / 60)).padStart(2, '0')}:${String(earlier % 60).padStart(2, '0')}`;
+        const earlierCandidate = zonedDatetimeLocalToInstant(earlierValue, timeZone);
+        if (earlierCandidate) return earlierCandidate;
+      }
+      return candidate;
+    }
+  }
+  return null;
 }
 
 /**
@@ -551,6 +742,18 @@ export function formatShortMoney(value: number, currency: string, opts: { code?:
   }).format(value).replace('-', '\u2212');
 }
 
+/**
+ * Compact number WITHOUT a currency (#1437: the currency is said once, in the block heading). A
+ * tile whose label already names the currency renders "1.2B", not "IDR 1.2B" above a "· IDR"
+ * label. Same shape as `formatShortMoney` (one decimal only when non-zero, true minus), just no
+ * currency token — pairing it with an exact `title` that carries the code keeps the metadata honest.
+ */
+export function formatShortAmount(value: number): string {
+  return numberFormatterFor('shortAmount', getNumberLocale(), undefined, {
+    notation: 'compact', minimumFractionDigits: 0, maximumFractionDigits: 1,
+  }).format(value).replace('-', '\u2212');
+}
+
 /** The currency's display glyph for input adornments (FR-L10N-020 — a hardcoded `$` prefix is
  *  the same weld formatCurrency had). Codes without a native symbol (IDR) honestly show the code. */
 export function currencySymbol(currency: string): string {
@@ -568,15 +771,7 @@ export function formatCurrencyCents(value: number, currency: string): string {
   return currencyFormatterFor('cents', currency, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
-// Money — default-fraction values (KPI tiles): "$1,234" / "$1,234.5" / "$1,234.56" (0–3 dp, no padding).
-// Uses `style: 'currency'` rather than welding a `$`, so a negative renders "-$1,234.5" exactly like
-// formatCurrencyCents/Fine. The welded form put the sign INSIDE the symbol ("$-1,234.5"), which left two
-// money values on one screen disagreeing about where the minus goes (#477 review). Positives are
-// byte-identical to the welded form — min 0 / max 3 reproduces the plain NumberFormat default range.
-export function formatCurrencyAuto(value: number, currency: string): string {
-  return currencyFormatterFor('auto', currency, { minimumFractionDigits: 0, maximumFractionDigits: 3 }).format(value);
-}
-
+// Money — whole-unit read-only display (#1437). Exact-cent reconciliation uses formatCurrencyCents.
 // Money — fine-grained agent/provider costs (sub-$1): "$0.0123" (2–4 dp, record currency).
 // Was duplicated verbatim in AdministrationUsage + AgentCostMetrics.
 export function formatCurrencyFine(value: number, currency: string): string {
@@ -621,6 +816,11 @@ export function formatMonthDay(d: Date): string {
   return dateFormatterFor('monthDay', getDateLocale(), { month: 'short', day: 'numeric' }).format(d);
 }
 
+/** "Jun" — short month name (dashboard period labels). */
+export function formatMonthShort(d: Date): string {
+  return dateFormatterFor('monthShort', getDateLocale(), { month: 'short' }).format(d);
+}
+
 /** "Sun" — short weekday (timesheet grid columns). */
 export function formatWeekday(d: Date): string {
   return dateFormatterFor('weekday', getDateLocale(), { weekday: 'short' }).format(d);
@@ -644,13 +844,9 @@ export function formatDateTime(d: Date): string {
   }).format(d);
 }
 
-/** "6/14/2026" — numeric M/D/YYYY; byte-identical to bare toLocaleDateString() in en-US. */
-export function formatDateNumeric(d: Date): string {
-  return dateFormatterFor('dateNumeric', getDateLocale(), {
-    month: 'numeric',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(d);
+/** "03:45 PM" — time of day only, in the org's zone (a state banner's "as of"). */
+export function formatClockTime(d: Date): string {
+  return dateFormatterFor('clockTime', getDateLocale(), { hour: '2-digit', minute: '2-digit', timeZone: getActiveLocale().timezone }).format(d);
 }
 
 /** "June 2026" — long month + year (calendar header). */
@@ -670,16 +866,9 @@ export function formatWeekdayMonthDay(d: Date): string {
   }).format(d);
 }
 
-/** UTC "Jun 14, 2026" — zone-stable business dates (a 23:00Z instant must not drift a day). */
-export function formatDateUtc(d: Date): string {
-  // ⛔ `timeZone: 'UTC'` is load-bearing and is NOT the resolved profile timezone: this formatter
-  // exists so a 23:00Z business date does not drift a day. Swap the LOCALE, keep the UTC pin.
-  return dateFormatterFor('dateUtc', getDateLocale(), {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(d);
+/** "Sun 14" — a compact column heading (weekday and day of month). */
+export function formatWeekdayDay(d: Date): string {
+  return dateFormatterFor('weekdayDay', getDateLocale(), { weekday: 'short', day: 'numeric' }).format(d);
 }
 
 /**
@@ -703,10 +892,20 @@ export function formatDayMonth(d: Date): string {
 
 /** UTC "Jun 26" — monthly chart axis ticks. */
 export function formatUtcMonthYear(d: Date): string {
-  // `timeZone: 'UTC'` load-bearing (see formatDateUtc); locale follows the viewer.
+  // `timeZone: 'UTC'` is load-bearing and is NOT the resolved profile timezone: a UTC-derived
+  // business date must not drift a day. Swap the LOCALE, keep the UTC pin.
   return dateFormatterFor('utcMonthYear', getDateLocale(), {
     month: 'short',
     year: '2-digit',
+    timeZone: 'UTC',
+  }).format(d);
+}
+
+/** UTC "Jun 2026" in the viewer's date locale: month + 4-digit year, so it never reads as a day. */
+export function formatUtcMonthYearFull(d: Date): string {
+  return dateFormatterFor('utcMonthYearFull', getDateLocale(), {
+    month: 'short',
+    year: 'numeric',
     timeZone: 'UTC',
   }).format(d);
 }
@@ -741,4 +940,14 @@ export function formatList(items: readonly string[]): string {
     formatterCache.set(key, formatter);
   }
   return formatter.format(items);
+}
+
+/** Exact decimal STRING formatting (stock quantities and unit costs, #1512): the digits are never routed through a JS float. */
+/** Currency style with up to 4 decimals (a stock unit cost); the string input keeps every digit exact. */
+export function formatCurrencyDecimal4(value: string, currency: string, locale: string): string {
+  return numberFormatterFor('cur-dec4', locale, currency, { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value as unknown as number);
+}
+
+export function formatDecimalString(value: string, locale: string, maxFractionDigits: number): string {
+  return numberFormatterFor(`dec${maxFractionDigits}`, locale, undefined, { maximumFractionDigits: maxFractionDigits }).format(value as unknown as number);
 }

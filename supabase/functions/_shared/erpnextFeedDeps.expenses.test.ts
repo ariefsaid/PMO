@@ -120,3 +120,11 @@ Deno.test('AC-EXP-126 a desk cancel of a posted payment is always surfaced (PMO 
   const insert = f.calls.find((c) => c.table === 'notifications' && c.op === 'insert');
   assertEquals(JSON.stringify(insert?.payload ?? '').includes('expense-posting-desk-cancelled'), true);
 });
+
+Deno.test('#1515 a desk cancel of a site float transfer raises imprest-posting-desk-cancelled, not the expense notice', async () => {
+  const f = fakeClient({ profiles: [{ id: 'admin-1' }] });
+  await createErpFeedDeps(f.client as never, 'org-1', 'imprest-transfer').tombstoneMirror(`${CLAIM}:replenishment`, '2026-10-08 10:00:00');
+  const body = JSON.stringify(f.calls.find((c) => c.table === 'notifications' && c.op === 'insert')?.payload ?? '');
+  assertEquals(body.includes('imprest-posting-desk-cancelled'), true);
+  assertEquals(body.includes('expense-posting-desk-cancelled'), false);
+});

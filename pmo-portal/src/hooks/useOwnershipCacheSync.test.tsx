@@ -57,6 +57,16 @@ describe('useOwnershipCacheSync', () => {
     expect(h.setTaskOwnership).not.toHaveBeenCalled();
   });
 
+  it('clears stale ownership data when its query reports an error', async () => {
+    h.useExternalDomainOwnership.mockReturnValue({ data: [], isSuccess: true, isError: false });
+    const { rerender } = renderHook(() => useOwnershipCacheSync(), { wrapper });
+    await waitFor(() => expect(h.setTaskOwnership).toHaveBeenCalled());
+    h.clearOwnershipCache.mockClear();
+    h.useExternalDomainOwnership.mockReturnValue({ data: [], isSuccess: false, isError: true });
+    rerender();
+    expect(h.clearOwnershipCache).toHaveBeenCalled();
+  });
+
   it('clears the cache on unmount (sign-out — the hook lives only in the authenticated Shell)', () => {
     h.useExternalDomainOwnership.mockReturnValue({ data: [], isSuccess: true });
     const { unmount } = renderHook(() => useOwnershipCacheSync(), { wrapper });

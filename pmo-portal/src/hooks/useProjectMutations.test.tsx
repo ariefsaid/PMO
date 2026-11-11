@@ -59,7 +59,8 @@ describe('useProjectMutations', () => {
       await result.current.create.mutateAsync(input);
     });
     expect(project.create).toHaveBeenCalledWith(input);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects'] });
+    // Keys are org-scoped (projectQueryKeys); 'projects' + 'org-1' is the projects-list family.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects', 'org-1'] });
   });
 
   it('AC-W3-INTEG-001 (F1): create also invalidates the fk-options project picker (so procurement FK pickers do not serve a stale/missing project for ~5 min)', async () => {
@@ -80,6 +81,34 @@ describe('useProjectMutations', () => {
       await result.current.archive.mutateAsync('p1');
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['fk-options', 'project'] });
+  });
+
+  it('AC-001 #1325: create and alias edits refresh invoice, statement and reference identity caches only after success', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useProjectMutations(), { wrapper: wrap(client) });
+    await act(async () => { await result.current.create.mutateAsync(input); });
+    await act(async () => { await result.current.updateHeader.mutateAsync({ id: 'p9', input: {
+      name: input.name, short_name: 'Harbor', code: null, client_id: null, project_manager_id: null,
+      start_date: null, end_date: null,
+    } }); });
+    for (const queryKey of [
+      ['fk-options', 'invoice-project'],
+      ['financial-statements', 'mapped-project-name'],
+      ['uxs40', 'references'],
+      ['sales-pipeline', 'org-1'],
+      ['lost-deals', 'org-1'],
+    ]) expect(invalidate).toHaveBeenCalledWith({ queryKey });
+
+    invalidate.mockClear();
+    project.updateHeader.mockRejectedValueOnce(new Error('write refused'));
+    await expect(act(async () => {
+      await result.current.updateHeader.mutateAsync({ id: 'p9', input: {
+        name: input.name, short_name: 'Rejected', code: null, client_id: null, project_manager_id: null,
+        start_date: null, end_date: null,
+      } });
+    })).rejects.toThrow('write refused');
+    expect(invalidate).not.toHaveBeenCalled();
   });
 
   it('AC-PRJ-004: updateHeader invokes the repository with id + header input', async () => {
@@ -114,7 +143,8 @@ describe('useProjectMutations', () => {
       await result.current.remove.mutateAsync('p1');
     });
     expect(project.delete).toHaveBeenCalledWith('p1');
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects'] });
+    // Keys are org-scoped (projectQueryKeys); the delete invalidates the whole project family.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects', 'org-1'] });
   });
 
   it('AC-PRJ-006 (#513): setContractValue passes the value AND its stated tax basis through to the SoD RPC repository', async () => {
@@ -137,13 +167,28 @@ describe('useProjectMutations', () => {
 });
 
 describe('ERP setup after native creation', () => {
-  it('AC-SETUP-001 keeps the saved project identity when ERP setup fails, so linking retries cannot recreate it', async () => {
+  it('AC-SETUP-001 project creation completes while the ERP project request is still unresolved', async () => {
+    integrations.getBinding.mockResolvedValueOnce({ status: 'active', config: { company: 'Example Company' } } as never);
+    integrations.ensureErpProject.mockReturnValueOnce(new Promise(() => {}));
+    const { result } = renderHook(() => useProjectMutations(), { wrapper: wrap(freshClient()) });
+    const input = { name: 'Delivery', status: 'Leads' as const, client_id: 'c1', project_manager_id: null, contract_value: 0, tax_treatment: 'exclusive' as const, tax_amount: 0, start_date: null, end_date: null };
+
+    await act(async () => {
+      await result.current.create.mutateAsync(input);
+    });
+
+    expect(project.create).toHaveBeenCalledWith(input);
+    expect(integrations.ensureErpProject).toHaveBeenCalledWith('p9');
+    await waitFor(() => expect(result.current.create.isSuccess).toBe(true));
+  });
+
+  it('AC-SETUP-001 keeps the saved project identity while ERP setup is handled in the background', async () => {
     integrations.getBinding.mockResolvedValueOnce({status:'active',config:{company:'Example Company'}} as never);
     integrations.ensureErpProject.mockRejectedValueOnce(new Error('unavailable'));
     const {result}=renderHook(()=>useProjectMutations(),{wrapper:wrap(freshClient())});
     let saved: {id:string;erpSetup?:string} | undefined;
     await act(async()=>{ saved=await result.current.create.mutateAsync({name:'Delivery',status:'Leads',client_id:'c1',project_manager_id:null,contract_value:0,start_date:null,end_date:null}); });
-    expect(saved).toMatchObject({id:'p9',erpSetup:'pending'});
+    expect(saved).toMatchObject({id:'p9',erpSetup:'syncing'});
     await waitFor(() => expect(result.current.create.isSuccess).toBe(true));
     expect(integrations.ensureErpProject).toHaveBeenCalledWith('p9');
     expect(project.create).toHaveBeenCalledTimes(1);

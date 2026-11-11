@@ -36,6 +36,9 @@ export interface BudgetBackstopVersionRow {
   status: string;
   /** The ADR-0059 §4 state stamp. `null` ⇒ never activated — never a push candidate. */
   activated_at: string | null;
+  /** ⚑ rm-1472 — the project whose archive-cancellation fence governs a parked unit. Present on the
+   *  live read; absent ⇒ the resume cannot prove the fence and leaves the unit parked. */
+  project_id?: string | null;
 }
 
 /** One row of the mirror's own work queue (FR-BUD-123). */
@@ -52,9 +55,15 @@ export interface BudgetMirrorCandidateRow {
    * scopes PMO's budget column by: a guessed year here becomes a wrong-year figure on the money screen.
    */
   fiscal_year?: string | null;
+  to_fiscal_year?: string | null;
   erp_account?: string | null;
   budget_intent?: 'ensure' | 'remove' | null;
+  /** ⚑ rm-1472 — the row's own recorded reason. The sweep must not treat a unit the gate PARKED on
+   *  a known, self-resolving cause (`BUDGET_ARCHIVE_CANCEL_WAIT`) as an outbox-orphan defect. */
+  push_error?: string | null;
   created_at?: string | null;
+  /** The fair-queue order key (0427): when this row was last selected by a pass; null = never. */
+  last_attempt_at?: string | null;
   id?: string | null;
 }
 
@@ -73,6 +82,11 @@ export interface BudgetBackstopDeps {
    *  outbox's own 23505 collision), never duplicated. Resolves (or marks `held` + surfaces
    *  action-required, never silently drops) when there is nothing resolvable to finalize with. */
   driveBudgetPush(row: BudgetMirrorCandidateRow, version: BudgetBackstopVersionRow): Promise<void>;
+  /** Stamp the listed rows' last attempt BEFORE any is driven (THEME-BACK-06): `listPendingBudgetPushes`
+   *  serves never-attempted rows first, then the longest-waiting, so a page of skipped / waiting /
+   *  failing rows rotates behind the rest instead of hiding every newer eligible push. Rows with no
+   *  mirror row of their own (`absent` outbox orphans) are skipped by the live implementation. */
+  markAttempted?(orgId: string, rows: BudgetMirrorCandidateRow[]): Promise<void>;
 }
 
 export interface ReconcileOrgBudgetPushesResult {
@@ -99,6 +113,7 @@ export async function reconcileOrgBudgetPushes(
   org: { orgId: string },
 ): Promise<ReconcileOrgBudgetPushesResult> {
   const candidates = await deps.listPendingBudgetPushes(org.orgId, BUDGET_BACKSTOP_TICK_LIMIT);
+  if (candidates.length > 0) await deps.markAttempted?.(org.orgId, candidates);
   let driven = 0;
   let skipped = 0;
   const errors: Array<{ budgetVersionId: string; error: string }> = [];

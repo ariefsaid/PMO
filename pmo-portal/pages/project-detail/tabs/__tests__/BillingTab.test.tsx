@@ -1,35 +1,49 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import i18next from 'i18next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { I18nextProvider } from 'react-i18next';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatNumberMax2 } from '@/src/lib/format';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
+  effectiveRole: null as string | null,
   userId: 'u-fin',
   connected: true,
+  revenueMode: null as 'native' | 'erp' | null,
+  tmInvoice: vi.fn(),
+  loadItems: vi.fn(),
   routeReady: true,
   billing: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
   boq: [] as unknown[],
   claims: [] as unknown[],
   docs: [] as unknown[],
+  docsState: { isPending: false, isError: false, refetch: vi.fn() },
+  ordersState: { isPending: false, isError: false, refetch: vi.fn() },
+  tmClaims: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
+  tmMutation: vi.fn().mockResolvedValue(undefined),
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
+// #1457: the invoice-overdue figure is bounded by the org's business day (fixed here per test file).
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-06-01', isPending: false, isError: false, retry: vi.fn() }),
+}));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.effectiveRole ?? h.role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
   return { usePermission: () => (action: never, entity: never, ctx: Record<string, unknown> = {}) => can(action, entity, { realRole: h.role, ...ctx } as never) };
 });
-vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.connected, loadOptions: vi.fn() }) }));
-vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.connected, loadOptions: h.loadItems }) }));
+// Who raises invoices follows the ERP connection unless a test pins it.
+vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.revenueMode ?? (h.connected ? 'erp' : 'native') }));
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => h.routeReady }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useProjectBilling: () => h.billing,
@@ -37,13 +51,33 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
   useProjectClaims: () => ({ data: h.claims, isPending: false, isError: false, refetch: vi.fn() }),
   useProgressBillingMutations: () => h.m,
 }));
-vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [], ...h.ordersState }) }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, ...h.docsState }) }));
+vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssets: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
+  useTmRateLines: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
+  useTmRateAssignees: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
+  useTmClaims: () => h.tmClaims,
+  useTmClaimPreview: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
+  useTmClaimSources: () => ({ data: { rows: [], truncated: false, totalCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }),
+  useDeselectTmSource: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useSaveTmRateLine: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useSetTmRateAssignee: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useEndTmRateAssignee: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useEndTmRateLine: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useAssembleTmClaim: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  usePrepareTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useWithdrawTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useConfirmTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useInvoiceTmClaimNative: () => ({ mutateAsync: h.tmInvoice, isPending: false }),
+}));
 import BillingTab from '../BillingTab';
+import { summarizeInvoiceSettlement } from '../../ContractCascade';
 
 const FACTS = {
   currency: 'IDR', contractNet: 1_000_000, workBilled: 250_000, dpBilled: 200_000, dpRecovered: 40_000, notSubmitted: 40_000,
@@ -65,26 +99,38 @@ const CLAIMS = [
   claim('k3', { invoice: { si_number: 'ACC-SINV-1', status: 'Unpaid', amount: 160000 } }),
 ];
 const DOCS = [{ id: 'doc-1', org_id: 'o', project_id: 'p1', code: null, category: 'Report', title: 'Progress report', revision: 'A', status: 'Issued', doc_date: null, author_id: null, file_path: 'docs/report.pdf', created_at: '' }];
-// jest-dom collapses whitespace (incl. the currency's no-break space) in the element text, so normalise the expectation the same way.
-const money = (value: number) => formatCurrencyCents(value, 'IDR').replace(/\s+/g, ' ');
+// C5/C6: summary figures are whole bare numbers; the currency and tax basis sit once in the summary heading.
+const money = (value: number) => formatNumberMax2(value);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.role = 'Finance'; h.userId = 'u-fin'; h.connected = true; h.routeReady = true;
+  h.role = 'Finance'; h.effectiveRole = null; h.userId = 'u-fin'; h.connected = true; h.routeReady = true;
   h.billing = { data: FACTS, isPending: false, isError: false, refetch: vi.fn() };
   h.boq = BOQ; h.claims = CLAIMS; h.docs = DOCS;
+  h.docsState = { isPending: false, isError: false, refetch: vi.fn() };
+  h.ordersState = { isPending: false, isError: false, refetch: vi.fn() };
+  h.tmClaims = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+  h.tmMutation.mockReset().mockResolvedValue(undefined);
+  h.revenueMode = null; h.tmInvoice.mockReset().mockResolvedValue('tm-1');
   h.m = Object.fromEntries(['createBoq', 'updateBoq', 'deleteBoq', 'recordAssessment', 'createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice']
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
 
-function renderTab(clientId: string | null = 'c1') {
-  render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+function renderTab(clientId: string | null = 'c1', initialEntry = '/', mode: 'full' | 'contract-tools' = 'full') {
+  render(<MemoryRouter initialEntries={[initialEntry]}><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" mode={mode} /><RouteSearch /></ToastProvider></MemoryRouter>);
   return userEvent.setup();
 }
+
+const RouteSearch = () => {
+  const location = useLocation();
+  return <output data-testid="billing-route-search" aria-hidden="true">{location.search}</output>;
+};
 
 // #891: the withdrawn-claim refusal headline is LOCALIZED — assertions pin the REAL shipped copy.
 const readCatalogue = (lng: 'en' | 'id') =>
   JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/common.json`), 'utf8')) as Record<string, unknown>;
+const readProjectCatalogue = (lng: 'en' | 'id') =>
+  JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/project.json`), 'utf8')) as Record<string, unknown>;
 
 async function renderTabLocalized(lng: 'en' | 'id') {
   const i18n = i18next.createInstance();
@@ -92,7 +138,9 @@ async function renderTabLocalized(lng: 'en' | 'id') {
     lng,
     fallbackLng: 'en',
     defaultNS: 'common',
-    resources: { en: { common: readCatalogue('en') }, id: { common: readCatalogue('id') } },
+    fallbackNS: 'common',
+    ns: ['common', 'project'],
+    resources: { en: { common: readCatalogue('en'), project: readProjectCatalogue('en') }, id: { common: readCatalogue('id'), project: readProjectCatalogue('id') } },
     parseMissingKeyHandler,
     returnEmptyString: false,
   });
@@ -105,8 +153,34 @@ async function renderTabLocalized(lng: 'en' | 'id') {
 }
 
 describe('BillingTab', () => {
+  it('AC-1402 counts only fully-paid invoices when any submitted invoice balance is unknown', () => {
+    const invoices = [
+      { status: 'Unpaid', amount: 10_000.01, erp_outstanding_amount: 4_000.01 },
+      { status: 'Paid', amount: 2_000, erp_outstanding_amount: 0 },
+      { status: 'Unpaid', amount: 5_000, erp_outstanding_amount: null },
+      { status: 'Draft', amount: 500, erp_outstanding_amount: null },
+      { status: 'Cancelled', amount: 900, erp_outstanding_amount: 0 },
+    ] as const;
+
+    expect(summarizeInvoiceSettlement(invoices)).toEqual({
+      invoiced: 17_000.01,
+      paid: 2_000,
+      unpaid: null,
+      balancesKnown: false,
+    });
+  });
+
+  it('AC-1402 adds partial payments only when every invoice balance is known', () => {
+    expect(summarizeInvoiceSettlement([
+      { status: 'Unpaid', amount: 10_000.01, erp_outstanding_amount: 4_000.01 },
+      { status: 'Paid', amount: 2_000, erp_outstanding_amount: 0 },
+    ])).toEqual({ invoiced: 12_000.01, paid: 8_000, unpaid: 4_000.01, balancesKnown: true });
+  });
+
   it('AC-PB-008 the summary shows contract, billed, assessed, the gap, DP held, not yet billed and not submitted, net of tax', () => {
     renderTab();
+    expect(screen.getByRole('heading', { name: /Billing summary/ })).toHaveTextContent('IDR · excl. PPN');
+    expect(screen.getByTestId('billing-contract')).not.toHaveTextContent(/\.00|Rp|IDR/);
     expect(screen.getByTestId('billing-contract')).toHaveTextContent(money(1_000_000));
     expect(screen.getByTestId('billing-billed')).toHaveTextContent(money(250_000));
     expect(screen.getByTestId('billing-assessed')).toHaveTextContent(money(600_000));
@@ -114,6 +188,16 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('billing-dp-held')).toHaveTextContent(money(160_000));
     expect(screen.getByTestId('billing-remaining')).toHaveTextContent(money(750_000));
     expect(screen.getByTestId('billing-not-submitted')).toHaveTextContent(money(40_000));
+  });
+
+  it('AC-1402 an Engineer does not see contract totals, claim amounts, or BoQ rates on a direct billing route', () => {
+    h.role = 'Engineer';
+    renderTab('c1', '/projects/p1/billing?open=k1&openType=billingClaim');
+
+    expect(screen.queryByTestId('billing-contract')).not.toBeInTheDocument();
+    expect(screen.queryByText(money(50_000))).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Billing claims' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
   });
 
   it("AC-PB-008 the not-submitted figure says it counts claims only — never mistaken for the Work orders tab's not yet submitted, which also counts draft invoices (#785 Discover)", () => {
@@ -136,6 +220,33 @@ describe('BillingTab', () => {
     expect(screen.queryByTestId('billing-billed')).toBeNull();
   });
 
+  it('FR-STK-050 the material allowance editor is offered to the project\'s own PM and Finance, not to an Engineer or another PM', async () => {
+    i18next.addResourceBundle('en', 'stock', { allowance: { action: 'Material allowance' } }, true, true);
+    const offered = () => screen.queryAllByRole('button', { name: 'Material allowance' }).length > 0;
+    h.role = 'Finance'; h.userId = 'u-fin';
+    const a = render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(offered()).toBe(true);
+    a.unmount();
+    h.role = 'Project Manager'; h.userId = 'pm-1';
+    const b = render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(offered()).toBe(true);
+    b.unmount();
+    h.role = 'Project Manager'; h.userId = 'pm-2';
+    const c = render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(offered()).toBe(false);
+    c.unmount();
+    h.role = 'Engineer'; h.userId = 'u-eng';
+    render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(offered()).toBe(false);
+  });
+
+  it('FR-STK-050 the material allowance editor is not offered while an Admin views as another role (view-only)', () => {
+    i18next.addResourceBundle('en', 'stock', { allowance: { action: 'Material allowance' } }, true, true);
+    h.role = 'Admin'; h.userId = 'u-admin'; h.effectiveRole = 'Engineer';
+    render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(screen.queryAllByRole('button', { name: 'Material allowance' })).toHaveLength(0);
+  });
+
   it('AC-PB-008 the BoQ shows assessed, claimed and left-to-claim quantities and flags over-claiming', () => {
     renderTab();
     expect(screen.getByTestId('boq-assessed-b1')).toHaveTextContent('6');
@@ -143,6 +254,140 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('boq-remaining-b1')).toHaveTextContent('5');
     expect(screen.getByTestId('boq-assessed-b2')).toHaveTextContent('—');
     expect(screen.getByTestId('boq-remaining-b2')).toHaveTextContent('Over-claimed');
+  });
+
+  it('shows fractional lump-sum claimed and remaining as percentages in the table and detail', async () => {
+    h.boq = [{ ...BOQ[0], earning_basis: 'lump_sum', unit: 'lot', quantity: 1 }];
+    h.billing = { ...h.billing, data: { ...FACTS, claimedByBoqItem: { b1: 0.4 } } };
+    const user = renderTab();
+    expect(screen.getByTestId('boq-claimed-b1')).toHaveTextContent('40%');
+    expect(screen.getByTestId('boq-remaining-b1')).toHaveTextContent('60%');
+    await user.click(screen.getByRole('button', { name: /Open SURVEY/ }));
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByText('40%')).toBeInTheDocument();
+    expect(within(drawer).getByText('60%')).toBeInTheDocument();
+  });
+
+  it('AC-1402 opens a claim drawer from the row with sourced amounts and evidence', async () => {
+    const user = renderTab();
+    await user.click(screen.getAllByRole('button', { name: /Open Progress claim from/ })[0]);
+
+    expect(screen.getByRole('heading', { name: 'Progress' })).toBeInTheDocument();
+    expect(screen.getByTestId('billing-route-search')).toHaveTextContent('open=k1&openType=billingClaim');
+    expect(screen.getByText('No evidence attached yet.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
+  });
+
+  it.each(['full', 'contract-tools'] as const)('AC-TM-016 opens the existing invoice confirmation with a signed-off T&M claim preselected from %s mode', async (mode) => {
+    h.claims = [claim('tm-1', {
+      kind: 'time_materials', gross_amount: 400000, dp_recovery_amount: 0,
+      evidence: [{ id: 'tm-evidence', document_id: 'doc-1', document_status: 'active', document_revision: 'A' }],
+    })];
+    h.tmClaims = { data: { rows: [{
+      id: 'tm-1', work_order_id: null, period_from: '2026-11-01', period_to: '2026-11-30', status: 'SignedOff',
+      currency: 'IDR', gross_amount: 400000, prepared_by: 'u-pm', signoff_prepared_by: 'u-pm', confirmed_by: 'u-fin',
+      confirm_basis: 'standard', document_id: 'doc-1', note: null, created_at: '2026-11-03T00:00:00Z', lines: [],
+    }], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    const user = renderTab('c1', '/', mode);
+
+    await user.click(await screen.findByRole('button', { name: /Create invoice/ }));
+
+    const dialog = screen.getByRole('dialog', { name: "Raise this claim's invoice?" });
+    expect(within(dialog).getByText(/Claimed IDR/)).toBeInTheDocument();
+  });
+
+  describe('#1817 an organisation with no ERP invoices a signed-off T&M claim in PMO', () => {
+    const tmRow = (status: string) => ({
+      id: 'tm-1', work_order_id: null, period_from: '2026-11-01', period_to: '2026-11-30', status,
+      currency: 'IDR', gross_amount: 400000, prepared_by: 'u-pm', signoff_prepared_by: 'u-pm', confirmed_by: status === 'SignedOff' ? 'u-fin' : null,
+      confirm_basis: 'standard', document_id: 'doc-1', note: null, created_at: '2026-11-03T00:00:00Z', lines: [],
+    });
+    const given = (status: string, claimExtra: Record<string, unknown> = {}) => {
+      h.connected = false;
+      h.claims = [claim('tm-1', {
+        kind: 'time_materials', gross_amount: 400000, dp_recovery_amount: 0,
+        evidence: [{ id: 'tm-evidence', document_id: 'doc-1', document_status: 'active', document_revision: 'A' }], ...claimExtra,
+      })];
+      h.tmClaims = { data: { rows: [tmRow(status)], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    };
+
+    it('AC-TM-020 UI: no ERP, a signed-off unraised T&M claim shows "Create invoice" to Finance', async () => {
+      given('SignedOff');
+      renderTab();
+      expect(await screen.findByRole('button', { name: /Create invoice/ })).toBeInTheDocument();
+    });
+
+    it('AC-TM-020 UI: confirm calls the native mutation, not the ERP raise', async () => {
+      given('SignedOff');
+      const user = renderTab();
+      await user.click(await screen.findByRole('button', { name: /Create invoice/ }));
+      const dialog = screen.getByRole('dialog', { name: 'Create this claim\'s invoice?' });
+      expect(within(dialog).getByText(/A draft invoice is created in PMO from this claim/)).toBeInTheDocument();
+      await user.click(within(dialog).getByRole('button', { name: 'Create invoice' }));
+      expect(h.tmInvoice).toHaveBeenCalledExactlyOnceWith('tm-1');
+      expect(h.m.raiseInvoice.mutateAsync).not.toHaveBeenCalled();
+      expect(await findToastAnnouncement('status', 'Invoice drafted in PMO')).toBeInTheDocument();
+    });
+
+    it('AC-TM-021 UI: no button for a Draft claim, a withdrawn claim or an already-invoiced claim', async () => {
+      given('Draft');
+      renderTab();
+      await screen.findByText(/Rate card/i);
+      expect(screen.queryByRole('button', { name: /Create invoice/ })).toBeNull();
+    });
+
+    it.each([
+      ['withdrawn', { withdrawn_at: '2026-11-04T00:00:00Z' }],
+      ['already invoiced', { invoice: { si_number: null, pmo_number: null, status: 'Draft', amount: 400000 } }],
+    ])('AC-TM-021 UI: no button for a %s claim', async (_name, extra) => {
+      given('SignedOff', extra);
+      renderTab();
+      await screen.findByText(/Rate card/i);
+      expect(screen.queryByRole('button', { name: /Create invoice/ })).toBeNull();
+    });
+
+    it('AC-TM-021 UI: an invoiced claim row reads the invoice status, then the PMO invoice number once approved', async () => {
+      given('SignedOff', { invoice: { si_number: null, pmo_number: 'INV-2611060001', status: 'Unpaid', amount: 400000 } });
+      renderTab();
+      expect(await screen.findByText('Invoiced · INV-2611060001')).toBeInTheDocument();
+    });
+
+    // An Engineer never sees the money section at all (canViewMoney), so only the Project Manager reaches the gate.
+    it('AC-TM-023 UI: no button for a Project Manager', async () => {
+      given('SignedOff');
+      h.role = 'Project Manager'; h.userId = 'pm-2';
+      renderTab();
+      await screen.findByText(/Rate card/i);
+      expect(screen.queryByRole('button', { name: /Create invoice/ })).toBeNull();
+    });
+
+    it('AC-TM-021 UI: a "claim already invoiced" refusal says so in plain words', async () => {
+      const { AppError } = await import('@/src/lib/appError');
+      given('SignedOff');
+      h.tmInvoice.mockRejectedValue(new AppError('this claim already has an invoice', 'claim-already-invoiced'));
+      const user = renderTab();
+      await user.click(await screen.findByRole('button', { name: /Create invoice/ }));
+      await user.click(within(screen.getByRole('dialog', { name: 'Create this claim\'s invoice?' })).getByRole('button', { name: 'Create invoice' }));
+      expect(await findToastAnnouncement('alert', 'This claim already has an invoice.')).toBeInTheDocument();
+    });
+
+    it('AC-TM-020 UI: with an ERP connected the ERP raise is used and the native one is never called', async () => {
+      given('SignedOff');
+      h.connected = true;
+      const user = renderTab();
+      await user.click(await screen.findByRole('button', { name: /Create invoice/ }));
+      await user.click(screen.getByRole('button', { name: 'Create ERP invoice' }));
+      expect(h.m.raiseInvoice.mutateAsync).toHaveBeenCalledWith({ claimId: 'tm-1', customerId: 'c1', intent: { id: 'tm-1', idempotencyKey: expect.any(String) } });
+      expect(h.tmInvoice).not.toHaveBeenCalled();
+    });
+  });
+
+  it('AC-1402 restores a billing record drawer from the open URL', async () => {
+    renderTab('c1', '/projects/p1/billing?open=b1&openType=billingBoq');
+
+    const drawer = await screen.findByRole('dialog');
+    expect(within(drawer).getByRole('heading', { name: 'Route survey' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
   });
 
   it('AC-PB-008 a claim without evidence can be evidenced but not raised', () => {
@@ -182,8 +427,8 @@ describe('BillingTab', () => {
     const user = renderTab();
     await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' }));
     await user.click(screen.getByRole('button', { name: 'Create ERP invoice' }));
-    const toast = await findToastAnnouncement('alert', "This claim was withdrawn — its invoice can't be raised.");
-    expect(toast).toHaveTextContent("This claim was withdrawn — its invoice can't be raised.");
+    const toast = await findToastAnnouncement('alert', "This claim was withdrawn. Its invoice can't be raised.");
+    expect(toast).toHaveTextContent("This claim was withdrawn. Its invoice can't be raised.");
     expect(toast).not.toHaveTextContent('Update failed');
   });
 
@@ -195,9 +440,73 @@ describe('BillingTab', () => {
     const { user } = await renderTabLocalized('id');
     await user.click(within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Terbitkan faktur' }));
     await user.click(screen.getByRole('button', { name: 'Buat faktur ERP' }));
-    const toast = await findToastAnnouncement('alert', 'Tagihan ini telah ditarik — fakturnya tidak dapat diterbitkan.');
-    expect(toast).toHaveTextContent('Tagihan ini telah ditarik — fakturnya tidak dapat diterbitkan.');
+    const toast = await findToastAnnouncement('alert', 'Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan.');
+    expect(toast).toHaveTextContent('Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan.');
     expect(toast).not.toHaveTextContent('Update failed');
+  });
+
+  it('keeps evidence unavailable while documents load and offers retry after failure', async () => {
+    h.docsState = { isPending: true, isError: false, refetch: vi.fn() };
+    const user = renderTab();
+    await user.click(within(screen.getByTestId('claim-actions-k1')).getByRole('button', { name: 'Attach evidence' }));
+    expect(screen.queryByText(/No issued or approved document/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Evidence document')).not.toBeInTheDocument();
+  });
+
+  it('offers document retry instead of an empty evidence state on read failure', async () => {
+    h.docsState = { isPending: false, isError: true, refetch: vi.fn() };
+    const user = renderTab();
+    await user.click(within(screen.getByTestId('claim-actions-k1')).getByRole('button', { name: 'Attach evidence' }));
+    expect(screen.queryByText(/No issued or approved document/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /retry|try again/i }));
+    expect(h.docsState.refetch).toHaveBeenCalled();
+  });
+
+  it('does not open a claim with unavailable customer orders', () => {
+    h.routeReady = false;
+    h.ordersState = { isPending: true, isError: false, refetch: vi.fn() };
+    renderTab();
+    expect(screen.queryByRole('button', { name: 'New claim' })).not.toBeInTheDocument();
+    expect(screen.getByText('Loading customer orders…')).toBeInTheDocument();
+  });
+
+  it('retains a claim draft while a required source fails and recovers', async () => {
+    h.routeReady = false;
+    const user = userEvent.setup();
+    const tree = () => <MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>;
+    const view = render(tree());
+    await user.click(screen.getByRole('button', { name: 'New claim' }));
+    const dialog = screen.getByRole('dialog', { name: 'New billing claim' });
+    await user.type(within(dialog).getByLabelText(/SURVEY.*Route survey/), '2.5');
+    h.ordersState.isPending = true;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('2.5');
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create claim' })).toBeDisabled();
+    h.ordersState.isPending = false;
+    h.ordersState.isError = true;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('2.5');
+    expect(within(screen.getByRole('dialog')).getByText("Couldn't load customer orders")).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create claim' })).toBeDisabled();
+    fireEvent.submit(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create claim' }).closest('form')!);
+    expect(h.m.createClaim.mutateAsync).not.toHaveBeenCalled();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /retry/i }));
+    expect(h.ordersState.refetch).toHaveBeenCalled();
+    h.ordersState.isError = false;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('2.5');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create claim' }));
+    expect(h.m.createClaim.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ lines: [{ boqItemId: 'b1', quantity: 2.5 }] }));
+  });
+
+  it('offers retry for failed customer-order data without opening a claim', async () => {
+    h.routeReady = false;
+    h.ordersState = { isPending: false, isError: true, refetch: vi.fn() };
+    const user = renderTab();
+    expect(screen.queryByRole('button', { name: 'New claim' })).not.toBeInTheDocument();
+    expect(screen.getByText("Couldn't load customer orders")).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /retry/i }));
+    expect(h.ordersState.refetch).toHaveBeenCalled();
   });
 
   it('AC-PB-008 attaching evidence sends the claim and the chosen document', async () => {
@@ -223,11 +532,12 @@ describe('BillingTab', () => {
     expect(screen.queryByRole('button', { name: 'Record progress' })).toBeNull();
   });
 
-  it('AC-PB-008 Finance gets no billing buttons without an ERP connection', () => {
+  it('AC-PB-008 Finance can start an invoice without ERP but cannot create a new claim', () => {
     h.connected = false;
     renderTab();
     expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
+    expect(within(summaryHeader!).getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
   });
 
   it('AC-PB-008 Finance gets no billing buttons when the project has no client', () => {
@@ -275,16 +585,18 @@ describe('BillingTab', () => {
       expect(screen.getByText('Bill of quantities').closest('details')).toBeNull();
     });
 
-    it('SUB-B "New claim" is hidden while "Start invoice" is offered, and shown when it is not', () => {
+    it('M18 "New claim" is hidden while "Raise invoice" is offered, and shown when it is not', () => {
       renderTab();
-      expect(screen.getByRole('button', { name: 'Start invoice' })).toBeInTheDocument();
+      const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
+      expect(within(summaryHeader!).getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
     });
 
     it('SUB-B Finance without a resolved revenue route keeps the "New claim" button', () => {
       h.routeReady = false;
       renderTab();
-      expect(screen.queryByRole('button', { name: 'Start invoice' })).toBeNull();
+      const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
+      expect(within(summaryHeader!).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
       expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
     });
   });

@@ -1,0 +1,60 @@
+/**
+ * external-set-company — the Odoo router (#1504 S2, PQ-12): the same function and verbs as ERPNext, `tier: 'odoo'`.
+ * The router owns the active-member check and the per-verb role gates, because later Odoo verbs (S3+) allow
+ * Finance and project managers where the ERPNext path is Admin-only.
+ */
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { activate, listCompanies } from './activate.ts';
+import { linkProject, listProjects, setAnalyticPlan, unlinkProject } from './projectLinks.ts';
+import { employDomain, proposeConfig, saveDefaults } from './purchasing.ts';
+import { recheck } from './recheck.ts';
+import { refresh, resetKind } from './sweepVerbs.ts';
+import { erpSyncFeatureDecision } from '../featureGate.ts';
+
+export interface OdooCtx {
+  sc: SupabaseClient;
+  orgId: string;
+  userId: string;
+  role: string;
+  operator: boolean;
+  body: Record<string, unknown>;
+  respond: (body: unknown, status?: number) => Response;
+}
+
+const adminOrOperator = (c: OdooCtx) => c.role === 'Admin' || c.operator;
+const adminOrFinance = (c: OdooCtx) => c.role === 'Admin' || c.role === 'Finance';
+// The one-time map keys (FR-ODC-090) are Admin/Finance only; the RPC re-checks the role against the live profile.
+const saveDefaultsGate = (c: OdooCtx) => ['tax_prepaid_account_id', 'account_defaults', 'unit_map', 'default_warehouse_id'].some((k) => Object.hasOwn(c.body, k))
+  ? adminOrFinance(c)
+  : adminOrFinance(c) || c.operator;
+const GATES: Record<string, (c: OdooCtx) => boolean> = {
+  'list-companies': adminOrOperator, activate: adminOrOperator, recheck: adminOrOperator, refresh: adminOrFinance, 'reset-kind': adminOrOperator,
+  // The actor-checked RPCs decide who may link or un-link (the Admin, an Operator, the project's own PM); the plan is an Admin's choice.
+  'list-projects': () => true, 'link-project': () => true, 'unlink-project': () => true, 'set-analytic-plan': adminOrOperator,
+  // The journal setter keeps 0509's platform Operator path; tax-prepaid is Admin/Finance only, while the advance setter enforces that role in its RPC.
+  'employ-domain': adminOrOperator, 'propose-config': (c) => adminOrFinance(c) || (c.operator && c.body.map !== true), 'save-defaults': saveDefaultsGate,
+};
+const VERBS: Record<string, (c: OdooCtx) => Promise<Response>> = {
+  'list-companies': listCompanies, activate, recheck, refresh, 'reset-kind': resetKind,
+  'list-projects': listProjects, 'link-project': linkProject, 'unlink-project': unlinkProject, 'set-analytic-plan': setAnalyticPlan,
+  'employ-domain': employDomain, 'propose-config': proposeConfig, 'save-defaults': saveDefaults,
+};
+const UNGATED_READ_OR_CLEANUP = new Set(['list-companies', 'list-projects', 'unlink-project']);
+
+export function odooError(c: OdooCtx, message: string, code: string, status: number): Response {
+  return c.respond({ error: code, message }, status);
+}
+
+export async function routeOdoo(c: OdooCtx): Promise<Response> {
+  const verb = typeof c.body.setupAction === 'string' ? c.body.setupAction : 'activate';
+  const { data: state, error } = await c.sc.rpc('actor_authorization_state', { p_org_id: c.orgId, p_user_id: c.userId });
+  if (error || (state as { active?: unknown } | null)?.active !== true) return odooError(c, 'Only an active member can do this', 'FORBIDDEN', 403);
+  if (!Object.hasOwn(VERBS, verb)) return odooError(c, 'Unknown action', 'BAD_REQUEST', 400);
+  if (!GATES[verb](c)) return odooError(c, 'Not allowed for your role', 'FORBIDDEN', 403);
+  if (!UNGATED_READ_OR_CLEANUP.has(verb)) {
+    const decision = await erpSyncFeatureDecision(c.sc, c.orgId);
+    if (decision === 'unavailable') return odooError(c, 'Could not resolve the plan switch', 'INTERNAL', 500);
+    if (decision === 'off') return odooError(c, 'ERP integration is not enabled for this organization', 'feature_off', 409);
+  }
+  return await VERBS[verb](c);
+}

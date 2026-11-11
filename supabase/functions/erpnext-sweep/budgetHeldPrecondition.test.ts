@@ -201,3 +201,17 @@ Deno.test('⚑ HIGH-1: a genuinely attempt-exhausted row (a `failed` command 013
   assert(mirror.push_state === 'held', `expected 'held', got '${mirror.push_state}'`);
   assert(mirror.push_error === 'budget-push-attempts-exhausted', `expected the exhausted reason, got ${JSON.stringify(mirror.push_error)}`);
 });
+
+// AC-ENA-CAD-004 (C1): a `failed` command waiting out its 0357 retry delay is NOT exhausted. It is absent
+// from the candidate set only until the delay passes; holding it would end automatic recovery after ONE
+// rejection (and undo an operator's hold release within a minute).
+Deno.test('AC-ENA-CAD-004 a failed budget command inside its retry delay is left for a later tick, never held', async () => {
+  const outbox = {
+    id: 'outbox-1', domain: 'budget', pmo_record_id: VERSION, idempotency_key: 'k',
+    state: 'failed', external_record_id: null, canonical: null, claim_generation: 0, payload_digest: null,
+  };
+  const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, fiscal_year: FY, push_state: 'failed', erp_cancelled_at: null };
+  const deps = budgetBackstopDepsLive(fakeDb(mirror, outbox), ORG_BINDING, [], new Set(['outbox-1']));
+  await deps.driveBudgetPush(CANDIDATE, ACTIVE_VERSION).catch(() => undefined);
+  assert(mirror.push_state === 'failed', `a command waiting out its retry delay was parked '${mirror.push_state}'`);
+});

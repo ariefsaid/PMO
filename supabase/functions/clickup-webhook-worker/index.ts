@@ -44,6 +44,7 @@ import {
   createClickUpMirrorCallbacks,
 } from '../_shared/clickupMirrorDeps.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -66,13 +67,22 @@ export interface ResolvedBinding {
   memberMap: ClickUpMemberMap;
 }
 
+interface ResolvedOrg {
+  orgId: string;
+  token: string;
+  /** False means the accepted inbox row stays pending until the switch is restored. */
+  featureEnabled?: boolean;
+}
+
+type ProcessOutcome = ApplyOutcome | { kind: 'held'; reason: 'feature-off:clickup_sync' };
+
 // ── processInboxRow — the re-GET + resolve-binding + apply core (unit-tested). ──────────────────────
 
 /** The narrow, injectable surface `processInboxRow` needs. */
 export interface ProcessRowDeps {
   /** Re-GET the task from ClickUp; `null` on a 404 (also used directly for `taskDeleted` — never
    *  called for that verb, there is nothing to re-GET). */
-  resolveOrg: (teamId: string | null) => Promise<{ orgId: string; token: string } | null>;
+  resolveOrg: (teamId: string | null) => Promise<ResolvedOrg | null>;
   /** Re-GET the task from ClickUp with the already-authorized org token; `null` on a 404. */
   getTask: (taskId: string, token: string) => Promise<ClickUpTask | null>;
   /** Resolve the org/project binding: mapped path (task_id, works with a `null` listId) → adopt path
@@ -90,13 +100,15 @@ export interface ProcessRowDeps {
  * the existing source-mod-guarded engine. A binding that fails to resolve is ack'd (no-op) — the
  * periodic sweep (ADR-0055 §3) is the safety net, matching the pre-fix ingress's "no-binding" stance.
  */
-export async function processInboxRow(row: InboxRow, deps: ProcessRowDeps): Promise<ApplyOutcome> {
+export async function processInboxRow(row: InboxRow, deps: ProcessRowDeps): Promise<ProcessOutcome> {
   const org = await deps.resolveOrg(row.team_id);
   if (!org) return { kind: 'no-op' };
+  if (org.featureEnabled === false) return { kind: 'held', reason: 'feature-off:clickup_sync' };
   const task = row.event === 'taskDeleted' ? null : await deps.getTask(row.task_id, org.token);
   const listId = task?.list?.id ?? null;
   const binding = await deps.resolveBinding(row.task_id, listId);
-  if (!binding) return { kind: 'no-op' };
+  // A delivery for one org's team never writes another org's project.
+  if (!binding || binding.orgId !== org.orgId) return { kind: 'no-op' };
   const applyDeps = deps.buildApplyDeps(binding);
   return applyWebhookEvent({ event: row.event, taskId: row.task_id, historyItems: row.history_items, task }, applyDeps);
 }
@@ -107,9 +119,10 @@ export interface WorkerBatchDeps {
   claimPending: (batchSize: number) => Promise<InboxRow[]>;
   markDone: (id: string) => Promise<void>;
   markFailed: (id: string, error: string) => Promise<void>;
+  markHeld: (id: string, reason: string) => Promise<void>;
   /** Record a binding miss on the inbox row while acknowledging it; this is the P4 health signal. */
   markUnresolvable: (id: string, reason: string) => Promise<void>;
-  processRow: (row: InboxRow) => Promise<ApplyOutcome>;
+  processRow: (row: InboxRow) => Promise<ProcessOutcome>;
 }
 
 export interface WorkerBatchResult {
@@ -132,6 +145,10 @@ export async function runWorkerBatch(deps: WorkerBatchDeps, batchSize = 25): Pro
   for (const row of rows) {
     try {
       const outcome = await deps.processRow(row);
+      if (outcome.kind === 'held') {
+        await deps.markHeld(row.id, outcome.reason);
+        continue;
+      }
       if (outcome.kind === 'no-op') {
         await deps.markUnresolvable(row.id, 'ClickUp task could not be resolved to an active PMO project binding');
       } else {
@@ -156,14 +173,12 @@ export async function runWorkerBatch(deps: WorkerBatchDeps, batchSize = 25): Pro
 
 // ── The real wiring the Deno.serve wrapper uses (DB + ClickUp HTTP + mirror callbacks). ────────────
 
-export function getTaskWithToken(taskId: string, token: string): Promise<ClickUpTask | null> {
-  return clickUpGetTaskRaw(taskId, { fetchImpl: fetch, token });
-}
-
-async function resolveOrgForTeam(
+/** The org + token for a ClickUp team. `null` only for a confirmed absence (no binding row, or the
+ *  bound org's vault secret is empty); a failed binding or vault read throws so the row is retried. */
+export async function resolveOrgForTeam(
   serviceClient: SupabaseClient,
   teamId: string | null,
-): Promise<{ orgId: string; token: string } | null> {
+): Promise<ResolvedOrg | null> {
   if (!teamId) return null;
   const { data: binding, error } = await serviceClient
     .from('external_org_bindings')
@@ -171,9 +186,16 @@ async function resolveOrgForTeam(
     .eq('external_tier', CLICKUP_TIER)
     .eq('config->>clickup_team_id', teamId)
     .maybeSingle();
-  if (error || !binding) return null;
+  if (error) throw new AppError(error.message, error.code);
+  if (!binding) return null;
   const orgId = (binding as { org_id?: string }).org_id;
   if (!orgId) return null;
+  const { data: clickupSyncOn, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
+    p_org_id: orgId,
+    p_key: 'clickup_sync',
+  });
+  if (featureError) throw new AppError('ClickUp entitlement could not be resolved', featureError.code);
+  if (clickupSyncOn !== true) return { orgId, token: '', featureEnabled: false };
   const connectEnabled = externalConnectEnabled();
   if (!connectEnabled) return null;
   const result = await resolvePerOrgSecret({
@@ -183,11 +205,14 @@ async function resolveOrgForTeam(
     lookupBinding: async () => binding as { secret_ref?: string | null },
     readVaultSecret: async (ref) => {
       const { data, error: vaultError } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-      if (vaultError) return null;
+      if (vaultError) throw new AppError(vaultError.message, vaultError.code);
       return (data as string | null) ?? null;
     },
   });
-  return result.kind === 'resolved' ? { orgId, token: result.secret } : null;
+  if (result.kind === 'read-failed') {
+    throw new AppError('ClickUp credentials could not be read for this org', 'external-unreachable');
+  }
+  return result.kind === 'resolved' ? { orgId, token: result.secret, featureEnabled: true } : null;
 }
 
 function bindingFromRow(row: { org_id: string; project_id: string; config: unknown }): ResolvedBinding {
@@ -204,23 +229,25 @@ export async function resolveBindingLive(
 ): Promise<ResolvedBinding | null> {
   // 1. Mapped path: external_refs(task_id) -> org + pmo_record_id -> the task row's project. Works
   //    with NO listId (also serves the taskDeleted / re-GET-404 branch).
-  const { data: ref } = await serviceClient
+  const { data: ref, error: refError } = await serviceClient
     .from('external_refs')
     .select('org_id, pmo_record_id')
     .eq('domain', CLICKUP_TASKS_DOMAIN)
     .eq('external_record_id', taskId)
     .maybeSingle();
+  if (refError) throw new AppError(refError.message, refError.code);
   const mappedRef = ref as { org_id: string; pmo_record_id: string } | null;
   if (mappedRef) {
-    const { data: taskRow } = await serviceClient
+    const { data: taskRow, error: taskError } = await serviceClient
       .from('tasks')
       .select('project_id')
       .eq('org_id', mappedRef.org_id)
       .eq('id', mappedRef.pmo_record_id)
       .maybeSingle();
+    if (taskError) throw new AppError(taskError.message, taskError.code);
     const projectId = (taskRow as { project_id: string } | null)?.project_id;
     if (projectId) {
-      const { data } = await serviceClient
+      const { data, error: bindingError } = await serviceClient
         .from('external_project_bindings')
         .select('org_id, project_id, config')
         .eq('org_id', mappedRef.org_id)
@@ -228,6 +255,7 @@ export async function resolveBindingLive(
         .eq('external_tier', CLICKUP_TIER)
         .is('disconnected_at', null)
         .maybeSingle();
+      if (bindingError) throw new AppError(bindingError.message, bindingError.code);
       const row = data as { org_id: string; project_id: string; config: unknown } | null;
       if (row) return bindingFromRow(row);
     }
@@ -237,13 +265,14 @@ export async function resolveBindingLive(
   //    2026-07-20 fix: `listId` is the worker's re-GET (`task.list.id`), NEVER the payload — the
   //    payload never carries a list_id on a real delivery, which made this path unreachable before.
   if (listId) {
-    const { data: byList } = await serviceClient
+    const { data: byList, error: byListError } = await serviceClient
       .from('external_project_bindings')
       .select('org_id, project_id, config')
       .eq('external_tier', CLICKUP_TIER)
       .eq('external_container_id', listId)
       .is('disconnected_at', null)
       .maybeSingle();
+    if (byListError) throw new AppError(byListError.message, byListError.code);
     const row = byList as { org_id: string; project_id: string; config: unknown } | null;
     if (row) return bindingFromRow(row);
   }
@@ -253,14 +282,14 @@ export async function resolveBindingLive(
 }
 
 /** Build the full `WebhookApplyDeps` bag for a resolved binding: the shared mirror callbacks
- *  (resolvePmoRecordId/updateMirror/mintMirror/watermark/recordExternalRef) + tombstoneMirror +
- *  archiveMirror. `archiveMirror` writes `tasks.archived_at` — that column ships on migration 0123
- *  (`origin/feat/task-model-fields`), NOT on `dev` yet (see docs/plans/2026-07-20-clickup-integration-
- *  completion.md's OD-INT-9 note). This write path is coded AGAINST that column now (the correct
- *  shipped behavior once merged); it will 42703 (undefined column) if actually exercised against a `dev`
- *  DB before that migration lands. Nothing exercises this path today (the flag is off, no live archive
- *  events occur) — see the ONE skipped integration-style test in index.test.ts naming this dependency. */
-function buildApplyDepsLive(serviceClient: SupabaseClient, binding: ResolvedBinding): WebhookApplyDeps {
+ *  (resolvePmoRecordId/updateMirror/mintMirror/watermark/recordExternalRef + the CLAIM-first adopt
+ *  strategy) + tombstoneMirror + archiveMirror. Exported for the shipped-wiring unit test (the
+ *  binding guard requires tests to import the shipped module, not a copy). `archiveMirror` writes
+ *  `tasks.archived_at` — the column ships on migration 0140 (`task_model_fields`). The write is
+ *  exercised end-to-end in index.test.ts's OD-INT-9 archive test (#1883) against an in-memory
+ *  supabase-js-shaped client; the pure apply + a MOCKED archiveMirror stay covered in
+ *  webhookApply.test.ts. */
+export function buildApplyDepsLive(serviceClient: SupabaseClient, binding: ResolvedBinding): WebhookApplyDeps {
   const mirrorCallbacks = createClickUpMirrorCallbacks({
     serviceClient,
     orgId: binding.orgId,
@@ -268,6 +297,8 @@ function buildApplyDepsLive(serviceClient: SupabaseClient, binding: ResolvedBind
   });
   return {
     ...mirrorCallbacks,
+    // The bound project is the child's landing project — the cross-project parent guard's reference.
+    childProjectId: binding.projectId,
     statusMap: binding.statusMap,
     memberMap: binding.memberMap,
     tombstoneMirror: async (pmoRecordId) => {
@@ -294,15 +325,36 @@ function buildApplyDepsLive(serviceClient: SupabaseClient, binding: ResolvedBind
   };
 }
 
-async function claimPendingLive(serviceClient: SupabaseClient, batchSize: number): Promise<InboxRow[]> {
-  const { data, error } = await serviceClient
+/** A failed row is reclaimed until it has failed this many times, then it stays `failed` for an operator.
+ *  ponytail: no per-row backoff (reclaimed every tick) — add `processed_at` spacing if a long outage burns the cap. */
+export const MAX_INBOX_ATTEMPTS = 5;
+
+export async function claimPendingLive(serviceClient: SupabaseClient, batchSize: number): Promise<InboxRow[]> {
+  // Pending rows plus failed rows still under the attempt cap, oldest first. Two reads (not one `or`) so
+  // each stays a plain filter. Fresh rows (processed_at IS NULL) take priority, then retried rows rotate
+  // by their latest attempt time; original received_at is retained as the stable tie-breaker.
+  const cols = 'id, event, task_id, team_id, history_items, received_at, processed_at';
+  const pendingRead = await serviceClient
     .from('clickup_webhook_inbox')
-    .select('id, event, task_id, team_id, history_items')
+    .select(cols)
     .eq('status', 'pending')
+    .order('processed_at', { ascending: true, nullsFirst: true })
     .order('received_at', { ascending: true })
     .limit(batchSize);
-  if (error) throw new AppError(error.message, error.code);
-  const rows = (data as InboxRow[] | null) ?? [];
+  if (pendingRead.error) throw new AppError(pendingRead.error.message, pendingRead.error.code);
+  const failedRead = await serviceClient
+    .from('clickup_webhook_inbox')
+    .select(cols)
+    .eq('status', 'failed')
+    .lt('attempts', MAX_INBOX_ATTEMPTS)
+    .order('processed_at', { ascending: true, nullsFirst: true })
+    .order('received_at', { ascending: true })
+    .limit(batchSize);
+  if (failedRead.error) throw new AppError(failedRead.error.message, failedRead.error.code);
+  const rows = [...((pendingRead.data as Array<InboxRow & { received_at: string; processed_at: string | null }> | null) ?? []), ...((failedRead.data as Array<InboxRow & { received_at: string; processed_at: string | null }> | null) ?? [])]
+    .sort((a, b) => (a.processed_at ?? '').localeCompare(b.processed_at ?? '') || a.received_at.localeCompare(b.received_at))
+    .slice(0, batchSize)
+    .map(({ received_at: _receivedAt, processed_at: _processedAt, ...row }) => row);
   // Best-effort claim: mark processing before working the batch (not a fenced/SKIP LOCKED claim — the
   // apply path is idempotent under a rare double-dequeue by a second concurrent tick, so at-least-once
   // is acceptable here; see the plan's "simplest thing that survives a >7s budget" stance).
@@ -333,10 +385,19 @@ async function markUnresolvableLive(serviceClient: SupabaseClient, id: string, r
   if (error) throw new AppError(error.message, error.code);
 }
 
-async function markFailedLive(serviceClient: SupabaseClient, id: string, message: string): Promise<void> {
-  // Best-effort read-then-increment (matches the best-effort claim above — no fencing needed, this is
-  // an operator-visible retry counter, not a correctness guard).
-  const { data } = await serviceClient.from('clickup_webhook_inbox').select('attempts').eq('id', id).maybeSingle();
+async function markHeldLive(serviceClient: SupabaseClient, id: string, reason: string): Promise<void> {
+  const { error } = await serviceClient
+    .from('clickup_webhook_inbox')
+    .update({ status: 'pending', last_error: reason, processed_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new AppError(error.message, error.code);
+}
+
+export async function markFailedLive(serviceClient: SupabaseClient, id: string, message: string): Promise<void> {
+  // Best-effort read-then-increment (matches the best-effort claim above). It now bounds reclaim, so a
+  // failed read throws rather than silently resetting the count to 0.
+  const { data, error: readError } = await serviceClient.from('clickup_webhook_inbox').select('attempts').eq('id', id).maybeSingle();
+  if (readError) throw new AppError(readError.message, readError.code);
   const currentAttempts = (data as { attempts: number } | null)?.attempts ?? 0;
   const { error } = await serviceClient
     .from('clickup_webhook_inbox')
@@ -350,37 +411,49 @@ async function markFailedLive(serviceClient: SupabaseClient, id: string, message
   if (error) throw new AppError(error.message, error.code);
 }
 
-if (import.meta.main) {
-  serveWithErrorReporting('clickup-webhook-worker', async (req: Request): Promise<Response> => {
-    // The DEDICATED worker secret (NOT the master service_role key — least-privilege, mirrors
-    // clickup-sweep's CLICKUP_SWEEP_SECRET pattern). The pg_cron tick (migration 0143) presents this
-    // same secret from Vault; the master key never crosses into the DB.
-    const workerSecret = Deno.env.get('CLICKUP_WEBHOOK_WORKER_SECRET') ?? '';
-    const authHeader = req.headers.get('Authorization') ?? '';
-    if (!workerSecret || !(await constantTimeBearerEquals(authHeader, `Bearer ${workerSecret}`))) {
-      return json({ error: 'UNAUTHORIZED' }, 401);
-    }
+/** job_run summary (#1532 S3): rows processed; any failed row fails the run. */
+export function summarizeWebhookWorker(body: unknown): JobSummary | null {
+  const b = body as { processed?: number; failed?: number } | null;
+  if (!b || typeof b.processed !== 'number') return null;
+  return { items: b.processed, ...(b.failed ? { failedCode: 'ROWS_FAILED' } : {}) };
+}
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    if (!supabaseUrl || !serviceRoleKey) {
-      return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
-    }
-    const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+export const jobHandler = withJobRun('clickup-webhook-worker', async (req: Request): Promise<Response> => {
+  // The DEDICATED worker secret (NOT the master service_role key — least-privilege, mirrors
+  // clickup-sweep's CLICKUP_SWEEP_SECRET pattern). The pg_cron tick (migration 0143) presents this
+  // same secret from Vault; the master key never crosses into the DB.
+  const workerSecret = Deno.env.get('CLICKUP_WEBHOOK_WORKER_SECRET') ?? '';
+  const authHeader = req.headers.get('Authorization') ?? '';
+  if (!workerSecret || !(await constantTimeBearerEquals(authHeader, `Bearer ${workerSecret}`))) {
+    return json({ error: 'UNAUTHORIZED' }, 401);
+  }
 
-    const result = await runWorkerBatch({
-      claimPending: (batchSize) => claimPendingLive(serviceClient, batchSize),
-      markDone: (id) => markDoneLive(serviceClient, id),
-      markFailed: (id, message) => markFailedLive(serviceClient, id, message),
-      markUnresolvable: (id, reason) => markUnresolvableLive(serviceClient, id, reason),
-      processRow: (row) =>
-        processInboxRow(row, {
-          resolveOrg: (teamId) => resolveOrgForTeam(serviceClient, teamId),
-          getTask: (taskId, token) => getTaskWithToken(taskId, token),
-          resolveBinding: (taskId, listId) => resolveBindingLive(serviceClient, taskId, listId),
-          buildApplyDeps: (binding) => buildApplyDepsLive(serviceClient, binding),
-        }),
-    });
-    return json({ ok: true, ...result });
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  if (!supabaseUrl || !serviceRoleKey) {
+    return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
+  }
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
   });
+
+  const result = await runWorkerBatch({
+    claimPending: (batchSize) => claimPendingLive(serviceClient, batchSize),
+    markDone: (id) => markDoneLive(serviceClient, id),
+    markFailed: (id, message) => markFailedLive(serviceClient, id, message),
+    markHeld: (id, reason) => markHeldLive(serviceClient, id, reason),
+    markUnresolvable: (id, reason) => markUnresolvableLive(serviceClient, id, reason),
+    processRow: (row) =>
+      processInboxRow(row, {
+        resolveOrg: (teamId) => resolveOrgForTeam(serviceClient, teamId),
+        getTask: (taskId, token) => clickUpGetTaskRaw(taskId, { fetchImpl: fetch, token }),
+        resolveBinding: (taskId, listId) => resolveBindingLive(serviceClient, taskId, listId),
+        buildApplyDeps: (binding) => buildApplyDepsLive(serviceClient, binding),
+      }),
+  });
+  return json({ ok: true, ...result });
+}, { summarize: summarizeWebhookWorker });
+
+if (import.meta.main) {
+  serveWithErrorReporting('clickup-webhook-worker', jobHandler);
 }

@@ -1,3 +1,5 @@
+import { parseExactCents, formatExactCents } from './exactDecimal';
+import type { BillingKind } from './billingKind';
 import { formatExactMoney } from './format';
 
 export type ExactMoney = string;
@@ -23,9 +25,22 @@ export type ProjectReceiptCash =
   | { state: 'incomplete'; buckets: []; receipt_count: number; reasons: ReceiptCashReason[] }
   | { state: 'unavailable'; buckets: []; reason: 'not-reported' | 'invalid-reading' };
 
+export interface ContractExcessContributor {
+  invoice_id: string;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  /** Normalized contribution on the contract's tax basis (exact decimal text). */
+  contribution: ExactMoney;
+}
+export type ContractExcess =
+  | { state: 'known'; amount: ExactMoney; contractBilling: ExactMoney; contributors: ContractExcessContributor[] }
+  | { state: 'incomplete'; amount: ExactMoney };
+
 export interface ProjectFinances {
   project_id: string;
   cash_received?: ProjectReceiptCash;
+  /** #1471: present only when comparable Contract billing exceeds a known contract value. Absent on a payload from before 0410. */
+  contract_excess?: ContractExcess | null;
   contract_invoiced: ExactMoney | null;
   remaining_to_invoice: ExactMoney | null;
   invoices: InvoiceFinanceBucket[];
@@ -41,11 +56,21 @@ export interface ProjectFinances {
     currency: string | null;
     as_of: string | null;
     total: ExactMoney | null;
+    /** #1271 (0376): `total` = tagged (ERP project) + attributed (cost rule). Absent on a payload from before 0376. */
+    tagged_total?: ExactMoney | null;
+    attributed_total?: ExactMoney | null;
+    /** #1519 (0473, OQ-3): the hire-rate equipment charge already inside `total`, stated separately. Absent on a payload
+     *  from before 0473; null when the charge exists but cannot be stated (an unmapped category). */
+    equipment_charge_total?: ExactMoney | null;
     excludes_restricted_rows: boolean;
     categories: Array<{
       category: string;
       mapped: boolean;
       amount: ExactMoney | null;
+      tagged_amount?: ExactMoney | null;
+      attributed_amount?: ExactMoney | null;
+      /** #1519 (0473, OQ-3): this category's share of the hire-rate equipment charge. Absent before 0473. */
+      equipment_charge_amount?: ExactMoney | null;
     }>;
   };
 }
@@ -73,9 +98,15 @@ export type ProjectMoneyPositionInput = {
   contractValue: number | null;
   activeBudget: number | undefined;
   ledgerBasis: ActualPosition['basis'];
-  committedSpend: number | undefined;
-  commitmentPending: boolean;
-  commitmentError: boolean;
+  /**
+   * PMO basis only: the recorded spend on the Budget tab's Spent basis (pre-tax paid purchases + the hire charge).
+   * It used to carry the full ordered purchase total, which is what made a half-paid order read as fully spent
+   * (#1739). The open remainder is a separate figure — see `deriveBudgetConsumption`.
+   */
+  pmoSpent: number | string | undefined;
+  pmoSpentPending: boolean;
+  pmoSpentError: boolean;
+  pmoSpentComplete?: boolean;
   actuals: ProjectFinances['actuals'] | undefined;
 };
 
@@ -91,17 +122,21 @@ export type ProjectMoneyPosition = {
 
 export function deriveActualPosition(input: {
   ledgerBasis: 'pmo' | 'erp' | 'unavailable';
-  committedSpend: number | undefined;
-  commitmentPending: boolean;
-  commitmentError: boolean;
+  pmoSpent: number | string | undefined;
+  pmoSpentPending: boolean;
+  pmoSpentError: boolean;
+  pmoSpentComplete?: boolean;
   projectCurrency: string;
   actuals: ProjectFinances['actuals'] | undefined;
 }): ActualPosition {
   if (input.ledgerBasis === 'pmo') {
-    if (input.commitmentPending || input.commitmentError || input.committedSpend === undefined || !Number.isFinite(input.committedSpend)) {
+    const units = typeof input.pmoSpent === 'string' ? moneyUnits(input.pmoSpent)
+      : input.pmoSpent !== undefined && Number.isFinite(input.pmoSpent)
+        ? BigInt(Math.round(input.pmoSpent * 100)) : null;
+    if (input.pmoSpentPending || input.pmoSpentError || input.pmoSpentComplete === false || units === null) {
       return { amount: null, currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: false };
     }
-    return { amount: moneyText(BigInt(Math.round(input.committedSpend * 100))), currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: true };
+    return { amount: moneyText(units), currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: true };
   }
   if (input.ledgerBasis === 'unavailable') {
     return { amount: null, currency: null, asOf: null, basis: 'unavailable', complete: false };
@@ -138,7 +173,7 @@ export function buildProjectMoneyPosition(input: ProjectMoneyPositionInput): Pro
   const contractAfterCostTone = remainingUnits === null ? undefined : remainingUnits < 0n ? 'neg' : 'pos';
   const headlineState: ProjectMoneyPosition['headlineState'] = actual.complete && actual.amount !== null && actual.currency
     ? 'available'
-    : input.ledgerBasis === 'pmo' && input.commitmentPending
+    : input.ledgerBasis === 'pmo' && input.pmoSpentPending
       ? 'loading'
       : categories.some((row) => !row.mapped) || input.actuals?.excludes_restricted_rows
         ? 'partial'
@@ -155,6 +190,36 @@ export function buildProjectMoneyPosition(input: ProjectMoneyPositionInput): Pro
     contractAfterCost,
     contractAfterCostTone,
     spendPercent,
+  };
+}
+
+export type BudgetConsumptionInput = {
+  ledgerBasis: 'pmo' | 'erp' | 'unavailable';
+  /** Recorded spend: the collection's `actuals.total` (PMO paid spend, or the ledger Actual). */
+  spent: ExactMoney | null | undefined;
+  /** PMO open commitment: the collection's `actuals.committedTotal`. Absent on an ERP read or a pre-0700 payload. */
+  committed?: ExactMoney | null;
+  spentComplete?: boolean;
+  committedComplete?: boolean;
+};
+
+/**
+ * The one budget-consumption figure — what a single-figure budget surface is allowed to show (#1739).
+ *
+ * A PMO org consumes spent + open commitment: the purchase total, once, exactly as the Budget tab's Spent +
+ * Committed columns add up (OD-1530-COMMIT). A ledger org consumes its ledger Actual, unchanged. Unknown is
+ * never a partial sum: an unreadable part withholds the figure.
+ */
+export function deriveBudgetConsumption(input: BudgetConsumptionInput): { amount: ExactMoney | null; complete: boolean } {
+  if (input.ledgerBasis === 'unavailable') return { amount: null, complete: false };
+  const spentUnits = moneyUnits(input.spent ?? null);
+  const committedUnits = moneyUnits(input.committed ?? null) ?? 0n;
+  const complete = input.spentComplete !== false
+    && (input.ledgerBasis !== 'pmo' || input.committedComplete !== false);
+  if (spentUnits === null || !complete) return { amount: null, complete: false };
+  return {
+    amount: moneyText(input.ledgerBasis === 'pmo' ? spentUnits + committedUnits : spentUnits),
+    complete: true,
   };
 }
 
@@ -192,7 +257,7 @@ export function isActualComplete(input: {
   coverageTotal?: number | null;
   budgetedCategories?: readonly string[];
 }): boolean {
-  if (input.basis === 'pmo') return input.readSucceeded;
+  if (input.basis === 'pmo') return input.readSucceeded && input.complete !== false;
   if (input.basis !== 'erp' || !input.readSucceeded) return false;
   if (input.complete !== null && input.complete !== undefined) return input.complete;
   if (input.actuals) return categoriesComplete(input.actuals, input.budgetedCategories);
@@ -206,15 +271,6 @@ export function isActualComplete(input: {
     && !input.excludesRestrictedRows;
 }
 
-export function deriveContractRemainingAfterCost(
-  contractValue: number | null,
-  actuals: ProjectFinances['actuals'],
-  currency: string,
-): ExactMoney | null {
-  if (!hasCompleteActuals(actuals)) return null;
-  return deriveContractRemainingFromPosition(contractValue, { amount: actuals.total, currency: actuals.currency }, currency);
-}
-
 export function deriveContractRemainingFromPosition(
   contractValue: number | null,
   actual: { amount: ExactMoney | null; currency: string | null },
@@ -226,30 +282,29 @@ export function deriveContractRemainingFromPosition(
   return contract === null || cost === null ? null : moneyText(contract - cost);
 }
 
+/** Signed whole-unit display money (#1437): the minus stays exact, cents do not survive to a display surface. */
 export function formatSignedExactMoney(value: ExactMoney, currency: string, locale: string): string | null {
   const units = moneyUnits(value);
   if (units === null) return null;
-  const formatted = formatExactMoney(moneyText(units < 0n ? -units : units), currency, locale);
-  return formatted === null ? null : `${units < 0n ? '−' : ''}${formatted}`;
+  const formatted = formatExactMoney(moneyText(units < 0n ? -units : units), currency, locale, { wholeUnits: true });
+  // A magnitude that rounds to zero loses its sign (−0.49 → "$0", never "−$0"), matching formatExactMoney.
+  return formatted === null ? null : `${units <= -50n ? '−' : ''}${formatted}`;
 }
 
 export interface AssignInvoiceProjectInput {
   siId: string;
   projectId: string;
   oldProjectId: string | null;
+  /** #1471: with the same project this is the kind-only correction; omitted = leave the stored kind. */
+  billingKind?: BillingKind;
 }
 
 export function moneyUnits(value: ExactMoney | null): bigint | null {
-  if (value === null || !/^-?\d+(?:\.\d{1,2})?$/.test(value)) return null;
-  const negative = value.startsWith('-');
-  const [whole, fraction = ''] = (negative ? value.slice(1) : value).split('.');
-  const units = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
-  return negative ? -units : units;
+  return value === null ? null : parseExactCents(value);
 }
 
 export function moneyText(units: bigint): ExactMoney {
-  const n = units < 0n ? -units : units;
-  return `${units < 0n ? '-' : ''}${n / 100n}.${String(n % 100n).padStart(2, '0')}`;
+  return formatExactCents(units);
 }
 
 const receiptCashReasons: readonly ReceiptCashReason[] = [
@@ -259,6 +314,32 @@ const receiptCashReasons: readonly ReceiptCashReason[] = [
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** The excess is always derived from `remaining_to_invoice` (so a negative is never shown bare); the contributor
+ *  detail is trusted only if it reconciles exactly to the contract billing and to that excess. */
+export function parseContractExcess(raw: unknown, remaining: ExactMoney | null): ContractExcess | null {
+  const remainingUnits = moneyUnits(remaining);
+  if (remainingUnits === null || remainingUnits >= 0n) return null;
+  const amount = moneyText(-remainingUnits);
+  const incomplete: ContractExcess = { state: 'incomplete', amount };
+  if (!isRecord(raw) || typeof raw.amount !== 'string' || typeof raw.contract_billing !== 'string'
+      || !Array.isArray(raw.contributors)) return incomplete;
+  if (moneyUnits(raw.amount) !== -remainingUnits) return incomplete;
+  const billing = moneyUnits(raw.contract_billing);
+  const contributors: ContractExcessContributor[] = [];
+  let sum = 0n;
+  for (const c of raw.contributors) {
+    if (!isRecord(c) || typeof c.invoice_id !== 'string' || typeof c.contribution !== 'string') return incomplete;
+    const units = moneyUnits(c.contribution);
+    if (units === null) return incomplete;
+    sum += units;
+    contributors.push({ invoice_id: c.invoice_id,
+      invoice_number: typeof c.invoice_number === 'string' ? c.invoice_number : null,
+      invoice_date: typeof c.invoice_date === 'string' ? c.invoice_date : null, contribution: c.contribution });
+  }
+  if (billing === null || sum !== billing || contributors.length === 0) return incomplete;
+  return { state: 'known', amount, contractBilling: raw.contract_billing, contributors };
 }
 
 function isReceiptCount(value: unknown): value is number {
@@ -307,6 +388,18 @@ export function parseProjectReceiptCash(value: unknown): ProjectReceiptCash {
   }
 
   return unavailableCash('invalid-reading');
+}
+
+/**
+ * #1271 AC-3: the attributed part of an actual, or null when there is none to show. Screens without cost rules
+ * (attributed zero, absent, or not a readable amount) stay exactly as they were — the split appears only when
+ * attributed cost is nonzero. `tagged` is returned only when it is itself a readable amount.
+ */
+export function attributedSplit(value: { tagged?: ExactMoney | null; attributed?: ExactMoney | null }):
+  { attributed: ExactMoney; tagged: ExactMoney | null } | null {
+  const attributed = moneyUnits(value.attributed ?? null);
+  if (attributed === null || attributed === 0n) return null;
+  return { attributed: value.attributed as ExactMoney, tagged: moneyUnits(value.tagged ?? null) === null ? null : (value.tagged as ExactMoney) };
 }
 
 export function deriveMargin(

@@ -54,6 +54,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
+  useWonDeals: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
@@ -71,7 +72,7 @@ import SalesPipeline from '../../pages/SalesPipeline';
 const renderPage = () =>
   render(
     <ImpersonationProvider realRole="Project Manager">
-      <MemoryRouter initialEntries={['/sales?view=table']}>
+      <MemoryRouter initialEntries={['/sales?view=table&scope=Open']}>
         <ToastProvider>
           <SalesPipeline />
         </ToastProvider>
@@ -95,9 +96,8 @@ describe('OD-TAX-1 §2: the pipeline table states each deal’s own tax basis (#
 
   it('AC-TAX-308: a LOST deal states its basis too — that column is fed by useLostDeals, not the RPC', async () => {
     renderPage();
-    // The table opens scoped to Open deals, so reaching a lost one means taking the same step a
-    // user takes: switch the scope. Driving the real journey rather than asserting whatever the
-    // default render happens to show — a bare figure on the Lost scope is still a bare figure.
+    // This journey starts with an explicit Open scope, so reaching a lost one means taking the
+    // same step a user takes: switch the scope. A bare figure on the Lost scope is still a bare figure.
     await userEvent.click(screen.getByRole('tab', { name: 'Lost' }));
     expect(within(rowFor('Lost Deal Delta')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
   });

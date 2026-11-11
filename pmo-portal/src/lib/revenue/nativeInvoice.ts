@@ -5,6 +5,7 @@
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { calculateStandaloneTax, type TaxBaseFraction } from '@/src/lib/taxTreatment';
 import { decimalUnits } from '@/src/lib/taxNormalize';
+import { lineCents } from '../linePricing';
 
 export interface InvoiceDraftLineAmount {
   qty: number;
@@ -52,8 +53,7 @@ export function previewInvoiceDraft(
       return { subtotal: null, tax: null, total: null, reason: 'invalid-lines' };
     }
 
-    // qty(1/1000) × rate(cents) gives 1/1000 cents; round half-up per line.
-    subtotalCents += (qtyThousandths * rateCents + 500n) / 1000n;
+    subtotalCents += lineCents(line.qty, line.rate)!;
     if (subtotalCents >= 100_000_000_000_000n) {
       return { subtotal: null, tax: null, total: null, reason: 'invalid-lines' };
     }

@@ -10,6 +10,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 const h = vi.hoisted(() => ({
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  customersPending: false,
   customers: [
     { value: 'company-canonical-1', label: 'Northwind Services', sub: 'Client' },
     { value: 'company-canonical-2', label: 'Borealis Engineering', sub: 'Client' },
@@ -36,7 +37,12 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-finance', org_id: 'org-1' }, role: 'Finance' }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useClientCompanyOptions: () => ({ data: h.customers, isPending: false, isError: false, refetch: vi.fn() }),
+  useClientCompanyOptions: () => ({
+    data: h.customersPending ? undefined : h.customers,
+    isPending: h.customersPending,
+    isError: false,
+    refetch: vi.fn(),
+  }),
   useInvoiceProjectOptions: () => ({ data: h.projects, isPending: false, isError: false, refetch: vi.fn(async () => ({ data: h.projects, error: null })) }),
 }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-18', isPending: false, isError: false, retry: vi.fn() }) }));
@@ -106,8 +112,8 @@ const LocationProbe = () => {
   return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
 };
 
-function renderAt(url: string) {
-  return render(
+function salesInvoicesAt(url: string) {
+  return (
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <ImpersonationProvider realRole="Finance">
         <MemoryRouter initialEntries={[url]}>
@@ -120,14 +126,19 @@ function renderAt(url: string) {
           </ToastProvider>
         </MemoryRouter>
       </ImpersonationProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+}
+
+function renderAt(url: string) {
+  return render(salesInvoicesAt(url));
 }
 
 beforeEach(() => {
   h.invoices.data = [...SEED];
   h.invoices.isPending = false;
   h.invoices.isError = false;
+  h.customersPending = false;
 });
 
 describe('SalesInvoices customer collections deep link (AC-S36-004)', () => {
@@ -139,7 +150,7 @@ describe('SalesInvoices customer collections deep link (AC-S36-004)', () => {
     expect(within(table).queryByText('INV-C1-P1-CURRENT')).not.toBeInTheDocument();
     expect(within(table).queryByText('INV-C1-P2-OVERDUE')).not.toBeInTheDocument();
     expect(within(table).queryByText('INV-C2-P1-OVERDUE')).not.toBeInTheDocument();
-    expect(within(table).getByRole('row', { name: /INV-C1-P1-OVERDUE/ })).toHaveTextContent('$1,000.00');
+    expect(within(table).getByRole('row', { name: /INV-C1-P1-OVERDUE/ })).toHaveTextContent('$1,000');
     expect(screen.getByTestId('customer-filter')).toHaveTextContent('Customer: Northwind Services');
   });
 
@@ -159,5 +170,43 @@ describe('SalesInvoices customer collections deep link (AC-S36-004)', () => {
     const table = screen.getByRole('table');
     for (const row of SEED) expect(within(table).queryByText(row.si_number!)).not.toBeInTheDocument();
     expect(within(table).getByText('No invoices match your filters')).toBeInTheDocument();
+  });
+
+  /**
+   * #1175 — a saved filter that IS still valid was labelled "unavailable" for as long as the
+   * customer option request was in flight, so the list stated a fact it had not yet resolved. The
+   * label is now "loading" until the request resolves; only a resolved-and-missing customer is
+   * unavailable. Filtering by the exact saved id is unaffected at every step.
+   */
+  it('#1175 labels a saved customer as loading until the option request resolves, then unavailable only if it resolved missing', () => {
+    h.customersPending = true;
+    const view = renderAt('/sales-invoices?customer=company-canonical-1&project=project-1');
+
+    const filter = screen.getByTestId('customer-filter');
+    expect(filter).toHaveTextContent('Customer: Loading customer…');
+    expect(filter).not.toHaveTextContent('Selected customer is unavailable');
+    // Filtering stays exact while the display label is still unknown — no fallback to all invoices.
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('INV-C1-P1-OVERDUE')).toBeInTheDocument();
+    expect(within(table).getByText('INV-C1-P1-CURRENT')).toBeInTheDocument();
+    expect(within(table).queryByText('INV-C1-P2-OVERDUE')).not.toBeInTheDocument();
+    expect(within(table).queryByText('INV-C2-P1-OVERDUE')).not.toBeInTheDocument();
+
+    // Resolves WITHOUT this company: now — and only now — the label says unavailable.
+    h.customersPending = false;
+    h.customers = [{ value: 'company-canonical-2', label: 'Borealis Engineering', sub: 'Client' }];
+    view.rerender(salesInvoicesAt('/sales-invoices?customer=company-canonical-1&project=project-1'));
+
+    expect(screen.getByTestId('customer-filter')).toHaveTextContent('Selected customer is unavailable');
+    expect(screen.getByTestId('customer-filter')).not.toHaveTextContent('Loading customer…');
+    // Still exact: the label is missing, the saved id still governs the rows.
+    const resolvedTable = screen.getByRole('table');
+    expect(within(resolvedTable).getByText('INV-C1-P1-OVERDUE')).toBeInTheDocument();
+    expect(within(resolvedTable).queryByText('INV-C2-P1-OVERDUE')).not.toBeInTheDocument();
+
+    // Resolves WITH this company: the real label replaces the loading state.
+    h.customers = [{ value: 'company-canonical-1', label: 'Northwind Services', sub: 'Client' }];
+    view.rerender(salesInvoicesAt('/sales-invoices?customer=company-canonical-1&project=project-1'));
+    expect(screen.getByTestId('customer-filter')).toHaveTextContent('Customer: Northwind Services');
   });
 });

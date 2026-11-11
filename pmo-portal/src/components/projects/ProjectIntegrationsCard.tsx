@@ -25,10 +25,9 @@ import { proposeTaskListMatches } from '@/src/lib/repositories/taskListMatchRevi
  * (ADR-0016: can() is UX-only).
  * DEFER(P4/owner): per-project ERPNext company link — ERPNext is org-level; revisit as an org-settings enhancement
  */
-export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?: string; compact?: boolean }> = ({
+export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?: string }> = ({
   projectId,
   projectName = '',
-  compact = false,
 }) => {
   const { t } = useTranslation();
   const may = usePermission();
@@ -58,15 +57,16 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
 
   // Determine if ClickUp is connected at org level
   const clickupConnected = clickupBinding?.status === 'active';
-  const cardClass = compact ? 'p-3' : 'p-4';
+  const cardClass = 'p-3';
 
   // UI state
   const [linkError, setLinkError] = useState<string | null>(null);
   // Failed-unlink detail lives on the card (the link modal is closed), separate from linkError.
-  const [unlinkError, setUnlinkError] = useState<string | null>(null);
+  // #1223: `unconfirmed` marks the timeout family — the request ended without a usable answer, so
+  // the card may not claim the link survived; it re-reads the bindings instead.
+  const [unlinkFailure, setUnlinkFailure] = useState<{ detail: string; unconfirmed: boolean } | null>(null);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
-  const [unlinkTier, setUnlinkTier] = useState<'clickup' | null>(null);
-  const [confirmUnlinkBindingId, setConfirmUnlinkBindingId] = useState<string | null>(null);
+  const [isUnlinkConfirmOpen, setIsUnlinkConfirmOpen] = useState(false);
 
   const matchProposal = proposeTaskListMatches(
     [{ id: projectId, name: projectName }],
@@ -96,24 +96,28 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
     }
   };
 
-  const handleUnlinkClick = (bindingId: string) => {
-    setUnlinkTier('clickup');
-    setConfirmUnlinkBindingId(bindingId);
+  const handleUnlinkClick = () => {
+    setIsUnlinkConfirmOpen(true);
   };
 
   const handleUnlinkConfirm = async () => {
-    if (!confirmUnlinkBindingId) return;
     try {
       await unlinkProject.mutateAsync({ tier: 'clickup', projectId });
-      setUnlinkError(null);
-      setUnlinkTier(null);
-      setConfirmUnlinkBindingId(null);
+      setUnlinkFailure(null);
+      setIsUnlinkConfirmOpen(false);
       refetchBindings();
     } catch (err) {
-      const { detail } = classifyMutationError(err);
-      setUnlinkError(detail);
-      setUnlinkTier(null);
-      setConfirmUnlinkBindingId(null);
+      // AC-ERR-002: the classification decides the wording — a REQUEST_TIMEOUT means we never heard
+      // back, so the outcome is unknown. #1223: neutral copy for that family, and the bindings are
+      // re-read so the card shows the state the server actually holds rather than the one it assumed.
+      const { detail, classification } = classifyMutationError(err, undefined, {
+        detailOverrides: {
+          REQUEST_TIMEOUT: t('uxs21.unlinkTimeoutDetail', 'The request timed out before the server answered.'),
+        },
+      });
+      setUnlinkFailure({ detail, unconfirmed: classification === 'timeout' });
+      setIsUnlinkConfirmOpen(false);
+      void refetchBindings();
     }
   };
 
@@ -146,7 +150,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
               size="sm"
               className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
               aria-label={`Unlink from ${tierLabel('clickup')}`}
-              onClick={() => handleUnlinkClick(binding.id)}
+              onClick={handleUnlinkClick}
               disabled={unlinkProject.isPending}
             >
               {t('projectTabs:clickup.unlink', 'Unlink')}
@@ -171,7 +175,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
             </Button>
           </div>
         )}
-        {unlinkError && (
+        {unlinkFailure && (
           <div
             role="alert"
             className="flex max-w-[65ch] items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3 py-2 text-sm"
@@ -179,9 +183,11 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
             <Icon name="alert" className="mt-px size-4 shrink-0 text-destructive" aria-hidden="true" />
             <div className="min-w-0">
               <p className="font-medium text-destructive-text">
-                {t('uxs21.unlinkFailed', 'Could not unlink from ClickUp. The project is still linked. Use Unlink from ClickUp to try again.')}
+                {unlinkFailure.unconfirmed
+                  ? t('uxs21.unlinkUnconfirmed', "We couldn't confirm the unlink. The link details are refreshing — check the current state before trying again.")
+                  : t('uxs21.unlinkFailed', 'Could not unlink from ClickUp. The project is still linked. Use Unlink from ClickUp to try again.')}
               </p>
-              <p className="mt-0.5 text-muted-foreground">{unlinkError}</p>
+              <p className="mt-0.5 text-muted-foreground">{unlinkFailure.detail}</p>
             </div>
           </div>
         )}
@@ -273,16 +279,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
   if (!clickupConnected && !projectClickUpBinding && !isBindingsError) return null;
 
   return (
-    <div className={compact ? 'mt-5 max-w-3xl' : 'space-y-3.5'} data-testid={compact ? 'project-integrations-compact' : undefined}>
-      {!compact && (
-        <div className="flex items-center justify-between">
-          <h3 className="text-[15px] font-semibold text-foreground">External Integrations</h3>
-          <p className="text-[12px] text-muted-foreground">
-            Link this project to ClickUp for bi-directional sync.
-          </p>
-        </div>
-      )}
-
+    <div className="mt-5 max-w-3xl" data-testid="project-integrations-compact">
       <div className="flex flex-col gap-3.5" data-testid="project-integrations-cards">
         {renderClickUpCard()}
       </div>
@@ -305,20 +302,15 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
 
       {/* Unlink ConfirmDialog */}
       <ConfirmDialog
-        open={!!unlinkTier}
+        open={isUnlinkConfirmOpen}
         tone="destructive"
         title={`Unlink from ${tierLabel('clickup')}?`}
         description="Synced tasks are retained; syncing stops. You can relink later with the same or different settings."
         confirmLabel={`Unlink from ${tierLabel('clickup')}`}
         loading={unlinkProject.isPending}
         onConfirm={handleUnlinkConfirm}
-        onCancel={() => {
-          setUnlinkTier(null);
-          setConfirmUnlinkBindingId(null);
-        }}
+        onCancel={() => setIsUnlinkConfirmOpen(false)}
       />
     </div>
   );
 };
-
-export default ProjectIntegrationsCard;

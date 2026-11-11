@@ -17,7 +17,7 @@ export function makeProcurementImportDescriptor(
   requestedById: string,
 ): ImportDescriptor<NewProcurementInput> {
   const project = makeRefLookup(projects, 'Project');
-  const vendor = makeRefLookup(vendors, 'Vendor');
+  const vendor = makeRefLookup(vendors, 'Supplier');
   return {
     entity: 'Procurement',
     fields: [
@@ -28,7 +28,7 @@ export function makeProcurementImportDescriptor(
         validate: (raw) => (raw.trim() ? null : 'Title is required.'),
       },
       { key: 'projectId', label: 'Project', required: false, validate: refValidate(project, false) },
-      { key: 'vendorId', label: 'Vendor', required: false, validate: refValidate(vendor, false) },
+      { key: 'vendorId', label: 'Supplier', required: false, validate: refValidate(vendor, false) },
     ],
     toInput: (cells) => ({
       title: cells.title.trim(),

@@ -19,6 +19,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import { BahasaProvider } from '@/test/bahasa';
 
 // ---------------------------------------------------------------------------
 // Mock useProjectBudget + useProjectCommittedSpend — controlled per-test
@@ -30,11 +31,15 @@ const budgetState = {
 };
 const committedState = {
   data: undefined as number | undefined,
+  otherCurrencies: [] as Array<{ currency: string; amount: number }>,
   isPending: false,
   isError: false,
 };
 const reservedState = {
   data: 0 as number | undefined,
+  projectCurrency: 'USD' as string | null,
+  budgetCurrency: 'USD' as string | null,
+  otherCurrencies: [] as Array<{currency: string | null; amount: number}>,
   isPending: false,
   isError: false,
 };
@@ -65,14 +70,16 @@ let viewerRole: Role = 'Project Manager';
 function renderPanel(
   props: Omit<React.ComponentProps<typeof DecisionSupportPanel>, 'status' | 'currency'> &
     Partial<Pick<React.ComponentProps<typeof DecisionSupportPanel>, 'status' | 'currency'>>,
+  locale?: 'id',
 ) {
-  return render(
+  const content = (
     <ImpersonationProvider realRole={viewerRole}>
       <MemoryRouter>
         <DecisionSupportPanel status="Requested" currency="USD" {...props} />
       </MemoryRouter>
-    </ImpersonationProvider>,
+    </ImpersonationProvider>
   );
+  return render(locale === 'id' ? <BahasaProvider locale="id">{content}</BahasaProvider> : content);
 }
 
 /** The value element of the stat tile whose label matches `label` (exact, case-insensitive). */
@@ -84,6 +91,7 @@ function tileValue(label: RegExp): HTMLElement {
 }
 
 beforeEach(() => {
+  committedState.otherCurrencies = [];
   budgetState.data = undefined;
   budgetState.isPending = false;
   budgetState.isError = false;
@@ -91,6 +99,9 @@ beforeEach(() => {
   committedState.isPending = false;
   committedState.isError = false;
   reservedState.data = 0;
+  reservedState.projectCurrency = 'USD';
+  reservedState.budgetCurrency = 'USD';
+  reservedState.otherCurrencies = [];
   reservedState.isPending = false;
   reservedState.isError = false;
   viewerRole = 'Project Manager';
@@ -147,7 +158,7 @@ describe('AC-IXD-PROC-W5-2b — loading state', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     expect(screen.getByText(/budget impact/i)).toBeInTheDocument();
     expect(document.querySelectorAll('.skel').length).toBeGreaterThan(0);
-    expect(screen.queryByText(/this request/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this procurement/i)).not.toBeInTheDocument();
   });
 
   it('shows skeleton rows while committed spend is pending (either source blocks)', () => {
@@ -155,7 +166,7 @@ describe('AC-IXD-PROC-W5-2b — loading state', () => {
     committedState.isPending = true;
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     expect(document.querySelectorAll('.skel').length).toBeGreaterThan(0);
-    expect(screen.queryByText(/this request/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this procurement/i)).not.toBeInTheDocument();
   });
 
   it('does not show the over-budget advisory while loading', () => {
@@ -173,7 +184,7 @@ describe('AC-IXD-PROC-W5-2c — budget error / unavailable', () => {
     budgetState.isError = true;
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     expect(screen.getByText(/budget unavailable/i)).toBeInTheDocument();
-    expect(screen.queryByText(/this request/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this procurement/i)).not.toBeInTheDocument();
   });
 
   it('shows quiet "budget unavailable" message on committed-spend error', () => {
@@ -181,7 +192,7 @@ describe('AC-IXD-PROC-W5-2c — budget error / unavailable', () => {
     committedState.isError = true;
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     expect(screen.getByText(/budget unavailable/i)).toBeInTheDocument();
-    expect(screen.queryByText(/this request/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this procurement/i)).not.toBeInTheDocument();
   });
 
   it('shows quiet fallback when budget is 0 (no active budget)', () => {
@@ -200,11 +211,17 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
     committedState.data = 986600; // committed spend (Σ PO Ordered..Paid)
   });
 
-  it('renders "This request" label with total_value formatted as currency', () => {
+  it('renders "This procurement" label with total_value formatted as currency', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
-    const labels = screen.getAllByText(/this request/i);
+    const labels = screen.getAllByText(/this procurement/i);
     expect(labels.length).toBeGreaterThan(0);
     expect(screen.getByText(/\$48,000/)).toBeInTheDocument();
+  });
+
+  it('AC-1438 shows the procurement term in Bahasa budget-impact labels', () => {
+    renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' }, 'id');
+    expect(screen.getByText('Pengadaan ini')).toBeInTheDocument();
+    expect(screen.getByText('Setelah pengadaan ini')).toBeInTheDocument();
   });
 
   it('AC-RD-MONEY-002: approval money is the exact full amount, never a short unit (OD-MONEY-FMT: KPI cards only)', () => {
@@ -229,10 +246,10 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
     expect(screen.getByText(/\$1,200,000/)).toBeInTheDocument();
   });
 
-  it('renders "After this request" label with available−totalValue + percent (Requested)', () => {
+  it('renders "After this procurement" label with available−totalValue + percent (Requested)', () => {
     // available=213,400; totalValue=48,000 → after=165,400; % = 165400/1200000 ≈ 13.8%
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
-    expect(screen.getByText(/after this request/i)).toBeInTheDocument();
+    expect(screen.getByText(/after this procurement/i)).toBeInTheDocument();
     expect(screen.getByText(/\$165,400/)).toBeInTheDocument();
     expect(screen.getByText(/13\.8%/)).toBeInTheDocument();
   });
@@ -246,12 +263,13 @@ describe('AC-IXD-PROC-W5-2e — over-budget advisory', () => {
     budgetState.data = 1200000;
   });
 
-  it('shows a non-blocking advisory with exact dollar overage when request exceeds available', () => {
+  it('shows a non-blocking advisory with exact dollar overage when procurement exceeds available', () => {
     // committed=1,100,000; reserved=0 → available=100,000; totalValue=120,000 → over by $20,000
     committedState.data = 1100000;
     renderPanel({ projectId: 'proj-1', totalValue: 120000, projectName: 'HQ Fit-Out' });
     // Non-blocking advisory: role="status", NOT role="alert"
     const advisory = screen.getByRole('status');
+    expect(advisory.textContent).toMatch(/this procurement exceeds available budget/i);
     expect(advisory.textContent).toMatch(/exceeds available budget/i);
     expect(advisory.textContent).toMatch(/\$20,000/);
     expect(advisory.textContent).toMatch(/advisory only/i);
@@ -282,7 +300,9 @@ describe('AC-IXD-PROC-W5-2f — heading + no progress bar', () => {
 
   it('renders the five budget figures in a five-column strip at sm+ so no empty sixth cell appears', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
-    expect(screen.getByTestId('stat-tiles').className).toContain('sm:grid-cols-5');
+    const tiles = within(screen.getByTestId('stat-tiles')).getAllByTestId('stat-tile');
+    expect(tiles).toHaveLength(5);
+    for (const tile of tiles) expect(tile).not.toBeEmptyDOMElement();
   });
 
   it('does NOT render a progress bar (uninformative 0% bar removed — I1)', () => {
@@ -317,6 +337,22 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     // Scope to the Available tile (After this request also shows $500 here).
     expect(tileValue(/^available$/i).textContent).toMatch(/\$500\b/);
   });
+  it('0373: commitments in other currencies are named under Available, never subtracted as project currency', () => {
+    budgetState.data = 1000;
+    committedState.data = 300;
+    committedState.otherCurrencies = [{ currency: 'EUR', amount: 90 }];
+    reservedState.data = 200;
+    renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
+    expect(tileValue(/^available$/i).textContent).toMatch(/\$500\b/);
+    expect(screen.getByText('Not counting commitments in other currencies: €90')).toBeInTheDocument();
+  });
+  it('0373: no other-currency note when every commitment is in the project currency', () => {
+    budgetState.data = 1000;
+    committedState.data = 300;
+    reservedState.data = 200;
+    renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
+    expect(screen.queryByText(/other currencies/)).not.toBeInTheDocument();
+  });
   it('AC-RB-004: Available tile uses neg tone when negative', () => {
     budgetState.data = 1000;
     committedState.data = 800;
@@ -331,6 +367,8 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     budgetState.data = 1000;
     committedState.data = 300;
     reservedState.data = 200;
+    reservedState.projectCurrency = 'EUR';
+    reservedState.budgetCurrency = 'EUR';
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested', currency: 'EUR' });
     const availableLabel = screen.getByText(/^available$/i);
     const availableTile = availableLabel.closest('[data-testid="stat-tile"]') as HTMLElement;
@@ -363,7 +401,7 @@ describe('AC-RB-006 — After = Available − thisRequest at Requested', () => {
     committedState.data = 100;
     reservedState.data = 100;
     renderPanel({ projectId: 'p1', totalValue: 120, projectName: 'X', status: 'Requested' });
-    expect(screen.getByText(/after this request/i)).toBeInTheDocument();
+    expect(screen.getByText(/after this procurement/i)).toBeInTheDocument();
     expect(screen.getByText(/\$380\b/)).toBeInTheDocument();
   });
 });
@@ -375,7 +413,7 @@ describe('AC-RB-007 — After = Available at Approved (no double-subtract)', () 
     reservedState.data = 100; // available = 500
     renderPanel({ projectId: 'p1', totalValue: 120, projectName: 'X', status: 'Approved' });
     // After this request == Available ($500) — thisRequest (120) is NOT subtracted again.
-    expect(tileValue(/after this request/i).textContent).toMatch(/\$500\b/);
+    expect(tileValue(/after this procurement/i).textContent).toMatch(/\$500\b/);
     // The naïve "always subtract thisRequest" answer ($380) must NOT appear anywhere.
     expect(screen.queryByText(/\$380\b/)).not.toBeInTheDocument();
   });
@@ -419,7 +457,7 @@ describe('AC-RB-010 — loading state (reserved read pending)', () => {
     reservedState.isPending = true;
     renderPanel({ projectId: 'p1', totalValue: 10, projectName: 'X', status: 'Requested' });
     expect(document.querySelectorAll('.skel').length).toBeGreaterThan(0);
-    expect(screen.queryByText(/this request/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this procurement/i)).not.toBeInTheDocument();
   });
 });
 
@@ -429,7 +467,7 @@ describe('AC-RB-011 — error state (reserved read error)', () => {
     reservedState.isError = true;
     renderPanel({ projectId: 'p1', totalValue: 10, projectName: 'X', status: 'Requested' });
     expect(screen.getByText(/budget unavailable/i)).toBeInTheDocument();
-    expect(screen.queryByText(/this request/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this procurement/i)).not.toBeInTheDocument();
   });
 });
 
@@ -474,4 +512,66 @@ describe('AC-RB-014 — already-reserved: no false advisory; over-budget info in
     expect(advisory.textContent).toMatch(/over budget/i);
     expect(advisory.textContent).toMatch(/\$200\b/);
   });
+});
+
+describe('currency-aware budget position', () => {
+  it('does not compare a foreign request with the project budget', () => {
+    budgetState.data = 1000;
+    committedState.data = 100;
+    renderPanel({ projectId: 'proj-1', totalValue: 200, projectName: 'Project', currency: 'EUR' });
+    expect(screen.getByText(/not compared with the budget/i)).toBeInTheDocument();
+    expect(screen.queryByText(/headroom remaining/i)).not.toBeInTheDocument();
+  });
+});
+
+  it('reports foreign reserved demand separately from project headroom', () => {
+    budgetState.data = 1000;
+    committedState.data = 100;
+    reservedState.data = 200;
+    reservedState.otherCurrencies = [{ currency: 'EUR', amount: 300 }];
+    renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project' });
+    expect(screen.getByText(/\$700/)).toBeInTheDocument();
+    expect(screen.getByText(/€300/)).toBeInTheDocument();
+  });
+
+  it('marks the comparison unavailable when a budget currency is missing', () => {
+    budgetState.data = 1000;
+    reservedState.budgetCurrency = null;
+    renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project' });
+    expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText(/headroom remaining/i)).not.toBeInTheDocument();
+  });
+
+it('does not compare a budget in a different currency to project commitments', () => {
+  budgetState.data = 1000;
+  reservedState.budgetCurrency = 'EUR';
+  renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project' });
+  expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
+});
+
+it('#1354 labels each figure in its own currency: the request in its currency, budget figures in the budget currency, no cross-currency After', () => {
+  budgetState.data = 1000;
+  committedState.data = 300;
+  reservedState.data = 200;
+  renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project', currency: 'EUR' });
+  const valueOf = (label: RegExp) => within(screen.getByText(label).closest('[data-testid="stat-tile"]') as HTMLElement);
+  expect(valueOf(/^this procurement$/i).getByText(/€50\b/)).toBeInTheDocument();
+  expect(valueOf(/^project budget$/i).getByText(/\$1,000\b/)).toBeInTheDocument();
+  expect(valueOf(/^available$/i).getByText(/\$500\b/)).toBeInTheDocument();
+  expect(valueOf(/^reserved$/i).getByText(/\$200\b/)).toBeInTheDocument();
+  expect(screen.queryByText(/headroom remaining/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/over available budget/i)).not.toBeInTheDocument();
+});
+
+it('does not compare amounts when the project currency is missing', () => {
+  budgetState.data = 1000;
+  reservedState.projectCurrency = null;
+  renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project' });
+  expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
+});
+
+it('marks an amount outside exact representation as unavailable', () => {
+  budgetState.data = 100_000_000_000_000;
+  renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project' });
+  expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
 });

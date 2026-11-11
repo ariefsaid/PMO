@@ -16,6 +16,8 @@ import {
   extractRegistry,
   hasCallSite,
   isRunAsMain,
+  extractServerRegistry,
+  checkServerEvents,
 } from '../../../../scripts/check-dashboard-tiles.mjs';
 
 describe('isRunAsMain — BLOCKING (code-quality review): percent-encoding-safe entrypoint check', () => {
@@ -95,5 +97,24 @@ describe('hasCallSite — requires a real CALL shape, not a bare mention (SECURI
   it('a call site with whitespace before the paren still counts', () => {
     const sources = `trackSaveFailed ('a', 'b', 'c', 'd');`;
     expect(hasCallSite(sources, 'trackSaveFailed')).toBe(true);
+  });
+});
+
+describe('AC-PHO-006 server-emitted tiles need a producer call', () => {
+  const reg = "  job_run: { producer: 'withJobRun', kind: 'server' },\n  $ai_span: { producer: 'emitAiSpan', kind: 'server' },\n";
+  it('parses the registry (including $-prefixed event names)', () => {
+    expect([...extractServerRegistry(reg).keys()]).toEqual(['job_run', '$ai_span']);
+  });
+  it('passes when the producer is called outside _shared', () => {
+    expect(checkServerEvents(new Set(['job_run']), extractServerRegistry(reg), "x = withJobRun('a', h)")).toEqual([]);
+  });
+  it('fails when the call is removed (mutation: delete an emitter)', () => {
+    expect(checkServerEvents(new Set(['job_run']), extractServerRegistry(reg), '// withJobRun is great')).toHaveLength(1);
+  });
+  it('fails for a tile event in neither registry', () => {
+    expect(checkServerEvents(new Set(['nope']), new Map(), '', new Set())).toHaveLength(1);
+  });
+  it('skips events the browser registry owns', () => {
+    expect(checkServerEvents(new Set(['agent_run_started']), new Map(), '', new Set(['agent_run_started']))).toEqual([]);
   });
 });

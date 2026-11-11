@@ -42,7 +42,8 @@ const h = vi.hoisted(() => {
   });
   const rpc = vi.fn((name: string, args: unknown) => {
     calls.rpc.push([name, args]);
-    return Promise.resolve(rpcResult.value);
+    const query = { order: () => query, range: () => query, then: (resolve: (value: unknown) => unknown) => resolve(rpcResult.value) };
+    return query;
   });
   return { from, rpc, calls, result, rpcResult };
 });

@@ -7,6 +7,7 @@
  * PMO has not adopted yet is kept by its ERP number with no link and no currency, never guessed.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 
 export interface ErpAllocation { reference_name: string; allocated_amount: string | null }
 export interface AllocationDetail { invoice_id: string | null; invoice_number: string; amount: string | null; currency: string | null }
@@ -28,12 +29,15 @@ export async function buildAllocationDetails(
 /** The org-scoped PMO Sales Invoice behind an ERP invoice name (external_refs → sales_invoices.currency). */
 export function salesInvoiceLookup(serviceClient: SupabaseClient, orgId: string): InvoiceLookup {
   return async (erpName) => {
-    const { data: ref } = await serviceClient.from('external_refs').select('pmo_record_id')
+    const { data: ref, error: refError } = await serviceClient.from('external_refs').select('pmo_record_id')
       .eq('org_id', orgId).eq('domain', 'revenue').eq('external_record_id', erpName).maybeSingle();
+    if (refError) throw new AppError(refError.message, refError.code);
     const id = (ref as { pmo_record_id?: string } | null)?.pmo_record_id;
     if (!id) return null;
-    const { data: inv } = await serviceClient.from('sales_invoices').select('currency').eq('org_id', orgId).eq('id', id).maybeSingle();
-    return { id, currency: (inv as { currency?: string | null } | null)?.currency ?? null };
+    const { data: inv, error: invoiceError } = await serviceClient.from('sales_invoices').select('id,currency').eq('org_id', orgId).eq('id', id).maybeSingle();
+    if (invoiceError) throw new AppError(invoiceError.message, invoiceError.code);
+    if (!inv) return null;
+    return { id, currency: (inv as { currency?: string | null }).currency ?? null };
   };
 }
 

@@ -10,7 +10,13 @@ import { formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format'
 import type { BudgetCategory, ExpenseClaimInput, ExpenseKind, ExpenseLineInput, ExpenseType } from '@/src/lib/db/expenseClaims';
 import { RECEIPT_INPUT_ACCEPT } from '@/src/lib/db/expenseReceipts';
 import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadiness';
+import { floatChoiceOptions } from '@/src/lib/imprest/floatDisplay';
+import { useImprestFloatChoices } from '@/src/hooks/useImprest';
 import { expenseTypeLabel } from './expenseLabels';
+import { AdvanceLoadNotice } from './AdvanceLoadNotice';
+import { ProjectLoadNotice } from './ProjectLoadNotice';
+import type { ProjectLoad } from './useProjectChoices';
+import type { OwnAdvanceOptions } from './useOwnAdvanceOptions';
 
 /** S-12 (RF-060): before a NEW draft exists, say plainly when it will not reach accounting. PMO-only capture
  *  stays available; this is display only — it never blocks, switches posting on, or re-queues older claims. */
@@ -35,6 +41,8 @@ export interface ExpenseClaimFormInitial {
   purpose: string | null;
   amount: number;
   advanceId: string | null;
+  /** The site float this Draft is charged to (#1515); null = none. */
+  imprestFloatId?: string | null;
 }
 
 interface FormValues {
@@ -44,6 +52,7 @@ interface FormValues {
   purpose: string;
   amount: string;
   advanceId: string;
+  imprestFloatId: string;
   expenseDate: string;
   expenseType: string;
   expenseDescription: string;
@@ -72,6 +81,10 @@ export interface ExpenseClaimFormModalProps {
   kind: ExpenseKind;
   projectOptions: { value: string; label: string }[];
   advanceOptions: { value: string; label: string }[];
+  /** Load state of `advanceOptions`: a NEW claim is not saved while it is pending or failed (unknown is not "no advance"). */
+  advanceLoad: Pick<OwnAdvanceOptions, 'isPending' | 'isError' | 'refetch'>;
+  /** Load state of `projectOptions`; while unresolved the project choice cannot be saved. */
+  projectLoad: ProjectLoad;
   categoryPrecedents?: ExpenseCategoryPrecedent[];
   captureRecovery?: ExpenseCaptureRecoveryView | null;
   initial?: ExpenseClaimFormInitial;
@@ -81,7 +94,7 @@ export interface ExpenseClaimFormModalProps {
 }
 
 export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
-  kind, projectOptions, advanceOptions, categoryPrecedents = [], captureRecovery = null, initial, onClose, onOpenSavedDraft, onSubmit,
+  kind, projectOptions, projectLoad, advanceOptions, advanceLoad, categoryPrecedents = [], captureRecovery = null, initial, onClose, onOpenSavedDraft, onSubmit,
 }) => {
   const { t } = useTranslation();
   const validate = useMemo(
@@ -112,6 +125,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
       purpose: initial?.purpose ?? '',
       amount: initial && kind === 'advance' ? formatMoneyInputValue(initial.amount) : '',
       advanceId: initial?.advanceId ?? '',
+      imprestFloatId: initial?.imprestFloatId ?? '',
       expenseDate: '',
       expenseType: '',
       expenseDescription: '',
@@ -128,6 +142,18 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
   const purposeField = form.fieldProps('purpose');
   const amountField = form.fieldProps('amount');
   const advanceField = form.fieldProps('advanceId');
+  const floatField = form.fieldProps('imprestFloatId');
+  // #1515: an advance is charged to a site float on creation; a Draft can be moved to another float or released in edit.
+  const floatChoices = useImprestFloatChoices(
+    kind === 'advance' || initial ? form.values.projectId || undefined : undefined, (form.values.budgetCategory || null) as BudgetCategory | null,
+  ).data;
+  const floatOptions = useMemo(() => {
+    const options = floatChoiceOptions(floatChoices ?? []);
+    if (initial?.imprestFloatId && !options.some((o) => o.value === initial.imprestFloatId)) {
+      options.unshift({ value: initial.imprestFloatId, label: t('imprest:form.currentFloat', 'The float it is charged to') });
+    }
+    return options;
+  }, [floatChoices, initial?.imprestFloatId, t]);
   const expenseDateField = form.fieldProps('expenseDate');
   const expenseTypeField = form.fieldProps('expenseType');
   const expenseDescriptionField = form.fieldProps('expenseDescription');
@@ -164,8 +190,12 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
   const currentCategoryPrecedent = categoryPrecedents.find((item) => item.projectId === projectField.value);
   const recoveryPending = Boolean(captureRecovery?.draftSaved && captureRecovery.phase !== 'complete');
 
+  const advancesNotReady = kind === 'claim' && !initial && (advanceLoad.isPending || advanceLoad.isError);
+  const projectsNotReady = projectLoad.isPending || projectLoad.isError;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (advancesNotReady || projectsNotReady) return;
     void form.handleSubmit(async (values) => {
       const input: ExpenseClaimInput = {
         kind,
@@ -175,6 +205,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
         budgetCategory: (values.budgetCategory || null) as BudgetCategory | null,
         ...(kind === 'advance' ? { amount: parseMoneyInputAtScale(values.amount, 2) ?? 0 } : {}),
         ...(kind === 'claim' ? { advanceId: values.advanceId || null } : {}),
+        ...(kind === 'advance' || initial ? { imprestFloatId: values.imprestFloatId || null } : {}),
       };
       try {
         const lineAmount = parseMoneyInputAtScale(values.expenseAmount, 2);
@@ -223,7 +254,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
       onClose={() => { if (!recoveryPending) onClose(); }}
       loading={form.isSubmitting}
       dirty={form.isDirty || receiptFile !== null}
-      submitDisabled={!form.isComplete}
+      submitDisabled={!form.isComplete || advancesNotReady || projectsNotReady}
       errorSummary={errorSummary}
       submitError={saveError}
     >
@@ -314,15 +345,17 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
             disabled={recoveryPending}
             onChange={(v) => {
               projectField.onChange(v);
+              form.setValue('imprestFloatId', '');
               if (!categoryManuallyEdited) {
                 const precedent = categoryPrecedents.find((item) => item.projectId === v);
                 form.setValue('budgetCategory', precedent?.budgetCategory ?? '');
               }
             }} onBlur={projectField.onBlur}
             options={[{ value: '', label: t('expenses.form.project.none', 'Overhead (no project)') }, ...projectOptions]} />
+          <ProjectLoadNotice projects={projectLoad} />
           <SelectField id={categoryField.id} label={t('expenses.form.category.label', 'Budget category')} value={categoryField.value}
             disabled={recoveryPending}
-            onChange={(v) => { setCategoryManuallyEdited(true); categoryField.onChange(v); }} onBlur={categoryField.onBlur} options={categoryOptions}
+            onChange={(v) => { setCategoryManuallyEdited(true); categoryField.onChange(v); form.setValue('imprestFloatId', ''); }} onBlur={categoryField.onBlur} options={categoryOptions}
             helper={t('expenses.form.category.helper', "Decides who approves: spend within the project's budget for this category goes to the project's approver.")} />
           {!initial && !categoryManuallyEdited && currentCategoryPrecedent && (
             <p className="col-span-full text-xs text-muted-foreground" role="note">
@@ -333,6 +366,13 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
             <TextField id={amountField.id} label={t('expenses.form.amount.label', 'Amount')} required inputMode="decimal"
               value={amountField.value} onChange={amountField.onChange} onBlur={amountField.onBlur} error={amountField.error} />
           )}
+          {(kind === 'advance' || initial) && floatOptions.length > 0 && (
+            <SelectField id={floatField.id} label={t('imprest:form.chargeToFloat', 'Charge to site float')} value={floatField.value}
+              onChange={(v) => floatField.onChange(v)} onBlur={floatField.onBlur} disabled={recoveryPending}
+              options={[{ value: '', label: t('imprest:form.noFloat', 'Not charged to a float') }, ...floatOptions]}
+              helper={t('imprest:form.helper', 'Cash paid out of site cash held by the custodian.')} />
+          )}
+          {kind === 'claim' && <AdvanceLoadNotice advances={advanceLoad} />}
           {kind === 'claim' && advanceOptions.length > 0 && (
             <SelectField id={advanceField.id} label={t('expenses.form.advance.label', 'Settle against advance')} value={advanceField.value}
               onChange={(v) => advanceField.onChange(v)} onBlur={advanceField.onBlur}

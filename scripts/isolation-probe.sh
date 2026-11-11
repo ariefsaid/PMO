@@ -40,9 +40,10 @@ code=$(req "${hdr_service[@]}" "$BASE/rest/v1/platform_operators?select=user_id&
 A_MEMBER_EMAIL=''
 while IFS=$'\t' read -r table pk id; do
   [ -n "$table" ] || continue
+  [ "$table" != org_plans ] || { echo "skip org_plans (#1838)" >&2; continue; }
   select_columns=org_id; [ "$table" != profiles ] || select_columns=org_id,email
   code=$(req "${hdr_service[@]}" "$BASE/rest/v1/$table?select=$select_columns&$pk=eq.$id&limit=1")
-  [ "$code" = 200 ] && jq -e --arg org "$A_ORG" 'type=="array" and length==1 and .[0].org_id==$org' "$BODY" >/dev/null 2>&1 || { echo 'isolation-probe: A_ROWS_JSON target not verified as belonging to A' >&2; exit 4; }
+  [ "$code" = 200 ] && jq -e --arg org "$A_ORG" 'type=="array" and length==1 and .[0].org_id==$org' "$BODY" >/dev/null 2>&1 || { echo "isolation-probe: A_ROWS_JSON target not verified as belonging to A: $table code=$code body=$(head -c 160 "$BODY")" >&2; exit 4; }
   [ "$table" != profiles ] || A_MEMBER_EMAIL=$(jq -r '.[0].email // ""' "$BODY")
 done < <(jq -r '.[] | [.table,.pk,.id] | @tsv' "$A_ROWS_JSON")
 [ "${ISOLATION_VALIDATE_ONLY:-0}" != 1 ] || exit 0
@@ -77,6 +78,7 @@ if [ "${RPC_ONLY:-0}" != 1 ]; then
   while IFS=$'\t' read -r t has_org pk columns expectation by_id; do
     select_columns=$columns
     [ "$t" != work_order_acceptance_lines ] || select_columns='acceptance_id,acceptance:work_order_acceptances(org_id)'
+    [ "$t" != subcontract_acceptance_lines ] || select_columns='acceptance_id,acceptance:subcontract_acceptances(org_id)'
     code=$(req "${hdr_b[@]}" "$BASE/rest/v1/$t?select=$select_columns&limit=3")
     org_key=org_id; [ "$has_org" = true ] || org_key=$pk
     table_read "table $t blind read" "$code" "$expectation" "$org_key"
@@ -116,6 +118,15 @@ rpc(){
       if [ -n "$shape" ] && [ "$code" != 200 ]; then probe_error "rpc $fn unexpected shape HTTP $code"; return; fi
       if [ "$rpc_class" = read ]; then
         if [ "$shape" = must-deny ]; then flag "rpc $fn unexpectedly returned cross-tenant read data"; return; fi
+        if [ "$shape" = own-org-no-foreign-ids ]; then
+          # Own-org read: B legitimately gets a body, but it must hold no id or org id of tenant A.
+          jq -e --arg a_org "$A_ORG" --slurpfile rows "$A_ROWS_JSON" 'tojson as $t | ($rows[0] | map(.id)) + [$a_org] | all(.[]; . as $id | ($t | contains($id)) | not)' "$BODY" >/dev/null || { flag "rpc $fn returned other-tenant ids"; return; }
+          say "  PASS  rpc $fn (own-org read, no other-tenant ids)" >&2; return
+        fi
+        if [ "$shape" = null ]; then
+          jq -e '.==null' "$BODY" >/dev/null && { say "  EXPECTED-DENIAL  rpc $fn (invisible tenant snapshot)" >&2; return; }
+          flag "rpc $fn returned a cross-tenant snapshot"; return
+        fi
         jq -e 'type=="boolean"' "$BODY" >/dev/null || { probe_error "rpc $fn expected boolean"; return; }
         say "  PASS  rpc $fn (own-org boolean read)" >&2
         return
@@ -153,8 +164,14 @@ c=$(rpc reserve_credits "{\"p_org_id\":\"$A_ORG\",\"p_amount\":0.01,\"p_run_id\"
 c=$(rpc claim_erp_sweep_lock "{\"p_org_id\":\"$A_ORG\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_ttl\":\"15 minutes\"}")
 c=$(rpc mark_erp_statement_report_refresh_attempt "{\"p_org_id\":\"$A_ORG\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_binding\":{}}")
 c=$(rpc release_erp_sweep_lock "{\"p_org_id\":\"$A_ORG\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\"}")
+c=$(rpc claim_ops_job_lease "{\"p_job\":\"probe\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_ttl\":\"1 minute\"}")
+c=$(rpc release_ops_job_lease "{\"p_job\":\"probe\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\"}")
 c=$(rpc replace_erp_account_chart "{\"p_org_id\":\"$A_ORG\",\"p_company\":\"Probe\",\"p_rows\":[]}")
 c=$(rpc finish_erp_gl_replay "{\"p_org_id\":\"$A_ORG\",\"p_company\":\"Probe\",\"p_replay_id\":\"b0000000-0000-4000-8000-0000000000ac\",\"p_watermark\":\"0\"}")
+c=$(rpc replace_erp_gl_voucher_rows "{\"p_org_id\":\"$A_ORG\",\"p_company\":\"Probe\",\"p_voucher_type\":\"Journal Entry\",\"p_voucher_no\":\"Probe\",\"p_rows\":[],\"p_current_names\":[\"Probe\"]}")
+c=$(rpc replace_erp_ple_voucher_rows "{\"p_org_id\":\"$A_ORG\",\"p_company\":\"Probe\",\"p_voucher_type\":\"Journal Entry\",\"p_voucher_no\":\"Probe\",\"p_rows\":[],\"p_current_names\":[\"Probe\"]}")
+c=$(rpc erp_ledger_voucher_replace_check "{\"p_org_id\":\"$A_ORG\",\"p_company\":\"Probe\",\"p_voucher_type\":\"Journal Entry\",\"p_voucher_no\":\"Probe\",\"p_rows\":[],\"p_current_names\":[\"Probe\"]}")
+c=$(rpc finish_erp_ple_voucher_backfill "{\"p_org_id\":\"$A_ORG\",\"p_company\":\"Probe\"}")
 c=$(rpc mark_erp_statement_replay_for_missing_accounts "{\"p_org_id\":\"$A_ORG\",\"p_company\":\"Probe\"}")
 c=$(rpc create_vault_secret_for_org "{\"p_org_id\":\"$A_ORG\",\"p_external_tier\":\"clickup\",\"p_secret_value\":\"probe\",\"p_secret_name\":\"probe_b_forgery\",\"p_actor_id\":\"$A_PROFILE\"}")
 c=$(rpc m365_disconnect_cascade "{\"p_org_id\":\"$A_ORG\",\"p_user_id\":\"$A_PROFILE\",\"p_reason\":\"probe\"}")
@@ -174,12 +191,28 @@ else
 fi
 A_PROJECT=$(jq -r '.[]|select(.table=="projects")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
+  A_TM_CLAIM=$(jq -r '.[]|select(.table=="tm_claims")|.id' "$A_ROWS_JSON")
+  rate_key=b0000000-0000-4000-8000-0000000000ac
+  c=$(rpc save_contract_rate_line "$(jq -nc --arg project "$A_PROJECT" '{p_line:{project_id:$project,line_key:"b0000000-0000-4000-8000-0000000000ac",kind:"labour",label:"Isolation probe",unit:"hour",rate:1,currency:"IDR",effective_from:"2026-01-01"}}')")
+  c=$(rpc end_contract_rate_line "{\"p_project\":\"$A_PROJECT\",\"p_line_key\":\"$rate_key\",\"p_effective_to\":\"2026-01-01\",\"p_expected_version\":1}")
+  c=$(rpc end_contract_rate_assignee "{\"p_project\":\"$A_PROJECT\",\"p_assignee\":\"$A_PROFILE\",\"p_effective_to\":\"2026-01-01\"}")
+  c=$(rpc set_contract_rate_assignee "{\"p_project\":\"$A_PROJECT\",\"p_line_key\":\"$rate_key\",\"p_user\":\"$A_PROFILE\",\"p_from\":\"2026-01-01\",\"p_to\":\"2026-01-01\"}")
+  c=$(rpc assemble_tm_claim "{\"p_project\":\"$A_PROJECT\",\"p_from\":\"2026-01-01\",\"p_to\":\"2026-01-31\"}")
+  if [ -n "$A_TM_CLAIM" ] && [ "$A_TM_CLAIM" != null ]; then
+    c=$(rpc list_tm_claim_source_details "{\"p_claim\":\"$A_TM_CLAIM\"}")
+  else skip "list_tm_claim_source_details (tm_claims)"; fi
+  c=$(rpc deselect_tm_source "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\",\"p_source\":\"b0000000-0000-4000-8000-0000000000ae\"}")
+  c=$(rpc prepare_tm_signoff "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\",\"p_document\":\"b0000000-0000-4000-8000-0000000000af\",\"p_note\":\"probe\"}")
+  c=$(rpc withdraw_tm_signoff "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\"}")
+  c=$(rpc confirm_tm_signoff "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\"}")
+  c=$(rpc create_native_tm_invoice "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\"}")
   c=$(rpc get_financial_statement_catalogue "$(jq -nc --arg project "$A_PROJECT" '{p_project_id:$project}')")
   c=$(rpc get_financial_statement "$(jq -nc --arg project "$A_PROJECT" '{p_period_kind:"month",p_period_start:"2026-09-01",p_statement:"profit_and_loss",p_project_id:$project,p_view_kind:"project_totals",p_unassigned:false}')")
 else
   skip "get_financial_statement_catalogue (projects)"
   skip "get_financial_statement (projects)"
 fi
+c=$(rpc get_finance_hub_figures "{}")
 A_COMPANY=$(jq -r '.[]|select(.table=="companies")|.id' "$A_ROWS_JSON")
 A_SI=$(jq -r '.[]|select(.table=="sales_invoices")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
@@ -190,11 +223,20 @@ if [ -n "$A_SI" ] && [ "$A_SI" != null ] && [ -n "$A_PROJECT" ] && [ "$A_PROJECT
 else
   skip "assign_sales_invoice_project (sales_invoices/projects)"
 fi
+if [ -n "$A_SI" ] && [ "$A_SI" != null ]; then
+  c=$(rpc set_sales_invoice_billing_kind "{\"p_si_id\":\"$A_SI\",\"p_billing_kind\":\"other\"}")
+  c=$(rpc update_odoo_sales_invoice_draft "{\"p_org_id\":\"$A_ORG\",\"p_si_id\":\"$A_SI\",\"p_actor_id\":\"$A_PROFILE\",\"p_update_native_lines\":false,\"p_native_lines\":null,\"p_amount\":null,\"p_update_reference_number\":true,\"p_reference_number\":\"probe\"}")
+else
+  skip "set_sales_invoice_billing_kind (sales_invoices)"
+  skip "update_odoo_sales_invoice_draft (sales_invoices)"
+fi
 A_PI=$(jq -r '.[]|select(.table=="procurement_invoices")|.id' "$A_ROWS_JSON")
 A_CLAIM=$(jq -r '.[]|select(.table=="expense_claims")|.id' "$A_ROWS_JSON")
 A_BUDGET=$(jq -r '.[]|select(.table=="budget_versions")|.id' "$A_ROWS_JSON")
 A_SLIP=$(jq -r '.[]|select(.table=="vendor_withholding_slips")|.id' "$A_ROWS_JSON")
 A_VENDOR_BILL=$(jq -r '.[]|select(.table=="procurement_invoices")|.id' "$A_ROWS_JSON")
+A_PO=$(jq -r '.[]|select(.table=="purchase_orders")|.id' "$A_ROWS_JSON")
+A_SCA=$(jq -r '.[]|select(.table=="subcontract_acceptances")|.id' "$A_ROWS_JSON")
 A_WO=$(jq -r '.[]|select(.table=="work_orders")|.id' "$A_ROWS_JSON")
 A_ACCEPTANCE=$(jq -r '.[]|select(.table=="work_order_acceptances")|.id' "$A_ROWS_JSON")
 A_ACCEPTANCE_WORK_ORDER=$(jq -r '.[]|select(.table=="work_order_acceptances")|.work_order_id // empty' "$A_ROWS_JSON")
@@ -203,6 +245,40 @@ for id in A_PROJECT A_COMPANY; do value=${!id}; [ -n "$value" ] && [ "$value" !=
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc create_progress_claim "{\"p_project_id\":\"$A_PROJECT\",\"p_kind\":\"down_payment\",\"p_work_order_id\":null,\"p_lines\":null,\"p_down_payment_amount\":1,\"p_recovery_pct\":1,\"p_recover_remaining\":false}")
 else skip "create_progress_claim (projects)"; fi
+if [ -n "$A_PO" ] && [ "$A_PO" != null ]; then
+  c=$(rpc set_subcontract_po_lines "{\"p_po_id\":\"$A_PO\",\"p_lines\":[{\"boq_item_id\":\"$A_PO\",\"quantity\":1,\"rate\":1,\"unit\":\"ls\"}]}")
+  c=$(rpc issue_subcontract_po_lines "{\"p_po_id\":\"$A_PO\"}")
+else skip "set_subcontract_po_lines (purchase_orders)"; skip "issue_subcontract_po_lines (purchase_orders)"; fi
+if [ -n "$A_PO" ] && [ "$A_PO" != null ]; then
+  c=$(rpc prepare_subcontract_acceptance "{\"p_po_id\":\"$A_PO\",\"p_acceptance_date\":\"2026-09-08\",\"p_lines\":[{\"boq_item_id\":\"$A_PO\",\"quantity\":1}]}")
+else skip "prepare_subcontract_acceptance (purchase_orders)"; fi
+if [ -n "$A_PROC" ] && [ "$A_PROC" != null ]; then
+  c=$(rpc capture_subcontract_vendor_invoice "{\"p_procurement_id\":\"$A_PROC\",\"p_status\":\"Received\",\"p_invoice_date\":\"2026-09-08\",\"p_lines\":[{\"boq_item_id\":\"$A_PROC\",\"quantity\":1,\"rate\":1}]}")
+else skip "capture_subcontract_vendor_invoice (procurements)"; fi
+if [ -n "$A_PI" ] && [ "$A_PI" != null ]; then
+  c=$(rpc attribute_subcontract_bill_lines "{\"p_invoice_id\":\"$A_PI\",\"p_lines\":[{\"boq_item_id\":\"$A_PI\",\"quantity\":1,\"rate\":1}]}")
+else skip "attribute_subcontract_bill_lines (procurement_invoices)"; fi
+A_VAR=$(jq -r '.[]|select(.table=="po_variations")|.id' "$A_ROWS_JSON")
+A_BOQ=$(jq -r '.[]|select(.table=="boq_items")|.id' "$A_ROWS_JSON")
+if [ -n "$A_PO" ] && [ "$A_PO" != null ] && [ -n "$A_BOQ" ] && [ "$A_BOQ" != null ]; then
+  c=$(rpc request_po_variation "{\"p_po_id\":\"$A_PO\",\"p_origin\":\"pre_work\",\"p_lines\":[{\"boq_item_id\":\"$A_BOQ\",\"additional_quantity\":1}],\"p_reason\":\"probe\"}")
+else skip "request_po_variation (purchase_orders, boq_items)"; fi
+if [ -n "$A_VAR" ] && [ "$A_VAR" != null ]; then
+  c=$(rpc decide_po_variation "{\"p_id\":\"$A_VAR\",\"p_approve\":true}")
+  c=$(rpc issue_po_revision "{\"p_variation_id\":\"$A_VAR\"}")
+  c=$(rpc link_po_variation "{\"p_variation_id\":\"$A_VAR\",\"p_work_order_id\":null,\"p_not_passed_reason\":\"probe\"}")
+else
+  skip "decide_po_variation (po_variations fixture)"
+  skip "issue_po_revision (po_variations fixture)"
+  skip "link_po_variation (po_variations fixture)"
+fi
+if [ -n "$A_SCA" ] && [ "$A_SCA" != null ]; then
+  c=$(rpc confirm_subcontract_acceptance "{\"p_id\":\"$A_SCA\"}")
+  c=$(rpc withdraw_subcontract_acceptance "{\"p_id\":\"$A_SCA\"}")
+else
+  skip "confirm_subcontract_acceptance (subcontract_acceptances fixture)"
+  skip "withdraw_subcontract_acceptance (subcontract_acceptances fixture)"
+fi
 if [ -n "$A_ACCEPTANCE_WORK_ORDER" ] && [ -n "$A_ACCEPTANCE_LINES" ] \
   && [ "$A_ACCEPTANCE_LINES" != null ] \
   && jq -e 'type=="array" and length>0 and all(.[]; (.boq_item_id|type)=="string" and (.quantity|type)=="number" and .quantity>0)' <<< "$A_ACCEPTANCE_LINES" >/dev/null; then
@@ -222,6 +298,12 @@ if [ -n "$A_SI" ] && [ "$A_SI" != null ]; then
   c=$(rpc transition_native_sales_invoice "{\"p_id\":\"$A_SI\",\"p_to\":\"Cancelled\"}")
   c=$(rpc record_native_receipt "{\"p_sales_invoice_id\":\"$A_SI\",\"p_amount\":1,\"p_received_amount\":1,\"p_withheld_amount\":0,\"p_date\":\"2026-09-08\"}")
 else skip "transition_native_sales_invoice (sales_invoices)"; skip "record_native_receipt (sales_invoices)"; fi
+if [ -n "$A_SI" ] && [ "$A_SI" != null ] && [ -n "$A_COMPANY" ] && [ "$A_COMPANY" != null ]; then
+  c=$(rpc record_native_on_account_receipt "{\"p_customer_id\":\"$A_COMPANY\",\"p_amount\":1,\"p_received_amount\":1,\"p_withheld_amount\":0,\"p_date\":\"2026-09-08\",\"p_receipt_id\":\"b0000000-0000-4000-8000-0000000000ab\"}")
+  c=$(rpc apply_native_receipt "{\"p_receipt_id\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_allocations\":[{\"invoice_id\":\"$A_SI\",\"amount\":1}],\"p_request_id\":\"b0000000-0000-4000-8000-0000000000ac\"}")
+else skip "record_native_on_account_receipt (companies/sales_invoices)"; skip "apply_native_receipt (companies/sales_invoices)"; fi
+A_ALLOC=$(jq -r '.[]|select(.table=="incoming_payment_allocations")|.id' "$A_ROWS_JSON")
+if [ -n "$A_ALLOC" ] && [ "$A_ALLOC" != null ]; then c=$(rpc unapply_native_allocation "{\"p_allocation_id\":\"$A_ALLOC\"}"); else skip "unapply_native_allocation (incoming_payment_allocations)"; fi
 A_RECEIPT=$(jq -r '.[]|select(.table=="incoming_payments")|.id' "$A_ROWS_JSON")
 if [ -n "$A_RECEIPT" ] && [ "$A_RECEIPT" != null ]; then c=$(rpc cancel_native_receipt "{\"p_receipt_id\":\"$A_RECEIPT\"}"); else skip "cancel_native_receipt (incoming_payments)"; fi
 for target in "set_sales_invoice_efaktur:A_SI:p_si_id" "set_procurement_invoice_efaktur:A_PI:p_invoice_id"; do fn=${target%%:*}; rest=${target#*:}; id=${rest%%:*}; arg=${rest#*:}; value=${!id}; if [ -n "$value" ] && [ "$value" != null ]; then c=$(rpc "$fn" "{\"$arg\":\"$value\",\"p_efaktur_number\":\"123.456\",\"p_efaktur_date\":\"2026-09-08\"}"); else skip "$fn ($id)"; fi; done
@@ -234,7 +316,37 @@ if [ -n "$A_SLIP" ] && [ "$A_SLIP" != null ]; then
   c=$(rpc void_vendor_withholding_slip "{\"p_slip_id\":\"$A_SLIP\",\"p_expected_revision\":1,\"p_reason\":\"probe\"}")
 else skip "correct_vendor_withholding_slip (vendor_withholding_slips)"; skip "void_vendor_withholding_slip (vendor_withholding_slips)"; fi
 if [ -n "$A_CLAIM" ] && [ "$A_CLAIM" != null ]; then c=$(rpc record_expense_advance_return "{\"p_id\":\"$A_CLAIM\",\"p_amount\":0.01,\"p_reference\":\"probe\"}"); else skip "record_expense_advance_return (expense_claims)"; fi
-if [ -n "$A_BUDGET" ] && [ "$A_BUDGET" != null ]; then c=$(rpc activate_budget_version "{\"version_id\":\"$A_BUDGET\"}"); else skip "activate_budget_version (budget_versions)"; fi
+if [ -n "$A_BUDGET" ] && [ "$A_BUDGET" != null ]; then
+  c=$(rpc switch_budget_draft_mode "{\"p_version\":\"$A_BUDGET\",\"p_target_mode\":\"whole_project\",\"p_expected_lines\":[],\"p_assignments\":[]}")
+  c=$(rpc get_budget_distribution_snapshot "{\"p_version_id\":\"$A_BUDGET\"}")
+  c=$(rpc budget_distribution_gaps "{\"p_version\":\"$A_BUDGET\"}")
+  c=$(rpc save_budget_distribution "{\"p_version\":\"$A_BUDGET\",\"p_method\":\"by_days\",\"p_inputs\":{},\"p_basis\":{},\"p_rows\":[]}")
+  c=$(rpc activate_budget_version "{\"version_id\":\"$A_BUDGET\"}")
+  c=$(rpc return_budget_version "{\"version_id\":\"$A_BUDGET\",\"reason\":\"probe\"}")
+  c=$(rpc resubmit_budget_version "{\"version_id\":\"$A_BUDGET\"}")
+else
+  skip "switch_budget_draft_mode (budget_versions)"
+  skip "get_budget_distribution_snapshot (budget_versions)"
+  skip "budget_distribution_gaps (budget_versions)"
+  skip "save_budget_distribution (budget_versions)"
+  skip "activate_budget_version (budget_versions)"
+  skip "return_budget_version (budget_versions)"
+  skip "resubmit_budget_version (budget_versions)"
+fi
+if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then c=$(rpc get_budget_comparison "{\"p_project_id\":\"$A_PROJECT\"}"); else skip "get_budget_comparison (projects)"; fi
+A_IMPREST_FLOAT=$(jq -r '.[]|select(.table=="imprest_floats")|.id' "$A_ROWS_JSON")
+A_IMPREST_CHANGE=$(jq -r '.[]|select(.table=="imprest_float_changes")|.id' "$A_ROWS_JSON")
+A_IMPREST_PLAN=$(jq -r '.[]|select(.table=="imprest_plans")|.id' "$A_ROWS_JSON")
+if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then c=$(rpc establish_imprest_float "{\"p_project\":\"$A_PROJECT\",\"p_custodian\":\"b0000000-0000-4000-8000-0000000000aa\",\"p_amount\":1}"); else skip "establish_imprest_float (projects)"; fi
+if [ -n "$A_IMPREST_FLOAT" ] && [ "$A_IMPREST_FLOAT" != null ]; then c=$(rpc propose_imprest_float_amount "{\"p_float\":\"$A_IMPREST_FLOAT\",\"p_amount\":1}"); else skip "propose_imprest_float_amount (imprest_floats)"; fi
+if [ -n "$A_IMPREST_CHANGE" ] && [ "$A_IMPREST_CHANGE" != null ]; then c=$(rpc decide_imprest_float_change "{\"p_change\":\"$A_IMPREST_CHANGE\",\"p_approve\":false}"); else skip "decide_imprest_float_change (imprest_float_changes)"; fi
+if [ -n "$A_IMPREST_PLAN" ] && [ "$A_IMPREST_PLAN" != null ]; then c=$(rpc transition_imprest_plan "{\"p_id\":\"$A_IMPREST_PLAN\",\"p_to\":\"Cancelled\"}"); else skip "transition_imprest_plan (imprest_plans)"; fi
+# Counts are append-only, so a write that slipped through could never be removed: probe with an invalid amount. The org
+# check runs first (P0002); a regression reaches the amount check instead (P0001) and fails the run without writing a row.
+if [ -n "$A_IMPREST_FLOAT" ] && [ "$A_IMPREST_FLOAT" != null ]; then c=$(rpc record_imprest_count "{\"p_float\":\"$A_IMPREST_FLOAT\",\"p_counted\":-1,\"p_note\":\"probe\"}"); else skip "record_imprest_count (imprest_floats)"; fi
+if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then c=$(rpc imprest_float_choices "{\"p_project\":\"$A_PROJECT\"}"); else skip "imprest_float_choices (projects)"; fi
+A_BUDGET_LINE=$(jq -r '.[]|select(.table=="budget_line_items")|.id' "$A_ROWS_JSON")
+if [ -n "$A_BUDGET_LINE" ] && [ "$A_BUDGET_LINE" != null ]; then c=$(rpc recategorise_budget_lines "{\"p_line_ids\":[\"$A_BUDGET_LINE\"],\"p_category\":\"Vehicle\"}"); else skip "recategorise_budget_lines (budget_line_items)"; fi
 checks=$(wc -l < "$_work/checks" | tr -d ' ')
 leaks=$(wc -l < "$_work/leaks" | tr -d ' ')
 errors=$(wc -l < "$_work/errors" | tr -d ' ')

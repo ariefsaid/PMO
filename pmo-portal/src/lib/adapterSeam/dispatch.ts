@@ -130,8 +130,9 @@ export interface DispatchMoneyOutboxDeps {
   markOutboxFailed: (id: string, lastError: string, claimGeneration: number) => Promise<number>;
   /** Recovery probe: does ERP already hold a doc stamped with this idempotency key (the `remarks`
    *  anchor, ADR-0058 §3)? Used by the claim winner to adopt an orphaned prior commit instead of
-   *  blindly re-POSTing. */
-  probeByRemarksKey: (domain: string, idempotencyKey: string) => Promise<{ externalRecordId: string; canonical?: PmoRecord } | null>;
+   *  blindly re-POSTing. `recovery` is false only on a row's FIRST claim (claim_generation 1): nothing can have been
+   *  created yet, so a probe that looks for an un-anchored look-alike (Odoo's composite) has no business running. */
+  probeByRemarksKey: (domain: string, idempotencyKey: string, probe?: { recovery: boolean }) => Promise<{ externalRecordId: string; canonical?: PmoRecord } | null>;
   /** A short backoff before re-reading a fresh (non-reclaimable) `committing` row owned by another
    *  live caller. Injected so tests run instantly; production wires a small real delay. */
   backoff: () => Promise<void>;
@@ -139,6 +140,10 @@ export interface DispatchMoneyOutboxDeps {
    *  insert and compared against a re-read row's stored digest to reject idempotency-key reuse with a
    *  different payload. Absent ⇒ the binding check is skipped (P0/P1 and pre-M-3 callers). */
   payloadDigest?: string;
+  /** Digests an OLDER dispatch stored for this SAME command before a field it wrongly bound was dropped
+   *  from the payload (e.g. a budget Retry's request-scoping `target_fiscal_year`). A stored row matching
+   *  one of these is the same command, not key reuse. Absent ⇒ only `payloadDigest` is accepted. */
+  legacyPayloadDigests?: readonly string[];
   /**
    * FIX 2 (round-9 cross-family SHOULD-FIX): re-assert the recorded actor's CURRENT authorization at a
    * post-window RECOVERY REISSUE — a `quarantined` immutable-anchor claim whose probe MISSES, about to
@@ -325,6 +330,7 @@ async function claimAndCommit(
   const isRecoveryReissue = opts.isRecoveryReissue ?? false;
   const token = claimed.claimGeneration;
   const outboxRecordId = deps.outboxRecordId ?? command.record.id;
+  const isRangeBudget = command.record.erp_doc_kind === 'budget' && command.record.budget_mode === 'whole_project';
 
   // ⚑ Luna round-3 SHOULD-FIX 3 — A DETERMINISTIC RECOVERY FAILURE IS NOT AN UNKNOWN.
   // The probe re-fetches the ERP doc and maps it through the kind's `fromDoc`, which can fail the same
@@ -334,29 +340,31 @@ async function claimAndCommit(
   // never reach a confirmed mirror or an operator's attention. A RETRYABLE transport failure is a real
   // transient unknown and still leaves the row in-flight (untouched, as shipped); a NON-retryable one is
   // HELD for an operator (the C-1 outcome, with its audited `release_outbox_hold` route out).
-  let probed: { externalRecordId: string; canonical?: PmoRecord } | null;
-  try {
-    probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!);
-  } catch (error) {
-    if (isRetryableTransport(error)) throw toDispatchError(error);
-    const heldCount = await money.markOutboxHeld(claimed.id, `recovery-probe-failed: ${redactErrorForOutbox(error)}`, token);
-    if (heldCount === 0) {
-      // Fencing loss: a reclaimer superseded this token — the row's CURRENT state is the truth.
-      const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
-      return reconcileOutbox(fresh!, deps);
+  let probed: { externalRecordId: string; canonical?: PmoRecord } | null = null;
+  if (!isRangeBudget) {
+    try {
+      probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!, { recovery: token > 1 });
+    } catch (error) {
+      if (isRetryableTransport(error)) throw toDispatchError(error);
+      const heldCount = await money.markOutboxHeld(claimed.id, `recovery-probe-failed: ${redactErrorForOutbox(error)}`, token);
+      if (heldCount === 0) {
+        // Fencing loss: a reclaimer superseded this token — the row's CURRENT state is the truth.
+        const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
+        return reconcileOutbox(fresh!, deps);
+      }
+      console.error(
+        `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
+          `the recovery probe failed deterministically and would fail identically on every retry ` +
+          `(${redactErrorForOutbox(error)}); awaiting operator resolution (Admin: release_outbox_hold)`,
+      );
+      // The hold is on THIS exact row at THIS token — carry both so the served mirror writer can record
+      // the outcome against the precise row+generation (a generation-exact CAS, round-6 BLOCK 1/2).
+      throw markCommandHeldOutbox(
+        new AppError('money command held for operator resolution — the recovery probe failed deterministically', 'command-held'),
+        claimed.id,
+        token,
+      );
     }
-    console.error(
-      `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
-        `the recovery probe failed deterministically and would fail identically on every retry ` +
-        `(${redactErrorForOutbox(error)}); awaiting operator resolution (Admin: release_outbox_hold)`,
-    );
-    // The hold is on THIS exact row at THIS token — carry both so the served mirror writer can record
-    // the outcome against the precise row+generation (a generation-exact CAS, round-6 BLOCK 1/2).
-    throw markCommandHeldOutbox(
-      new AppError('money command held for operator resolution — the recovery probe failed deterministically', 'command-held'),
-      claimed.id,
-      token,
-    );
   }
   let externalRecordId: string;
   let canonical: PmoRecord;
@@ -365,7 +373,7 @@ async function claimAndCommit(
     // Adopting an orphaned/in-flight doc found only by its remarks key: the probe carries the ERP
     // record when it can, else we fall back to the id stub (a later sweep/read-back reconciles fields).
     canonical = probed.canonical ?? { id: command.record.id };
-  } else if (isRecoveryReissue && !money.reissueOnInconclusiveAbsence) {
+  } else if (isRecoveryReissue && !isRangeBudget && !money.reissueOnInconclusiveAbsence) {
     // C-1 DIRECTOR RULING: a post-window recovery for a MUTABLE-anchor money doc (Payment Entry) found
     // NO doc — but the mutable anchor means absence is NOT conclusive (the original POST may have
     // committed and had its `reference_no` edited ERP-side). Reissuing would risk a double-pay. HOLD the
@@ -410,22 +418,27 @@ async function claimAndCommit(
     if (isRecoveryReissue && money.reauthorizeRecoveryReissue) {
       const auth = await money.reauthorizeRecoveryReissue();
       if (!auth.ok) {
-        const heldCount = await money.markOutboxHeld(claimed.id, `recovery-reissue-unauthorized: ${auth.message}`, token);
+        const isSuperseded = auth.message === 'revision_superseded' || auth.message === 'revision-superseded' || auth.message?.startsWith('revision-superseded') || auth.message?.startsWith('revision_superseded');
+        const holdReason = isSuperseded ? `revision-superseded: ${auth.message}` : `recovery-reissue-unauthorized: ${auth.message}`;
+        const heldCount = await money.markOutboxHeld(claimed.id, holdReason, token);
         if (heldCount === 0) {
           // Fencing loss: another claimant superseded this token before the hold landed — surface the
           // row's CURRENT (possibly confirmed) state, not this claimant's stale hold.
           const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
           return reconcileOutbox(fresh!, deps);
         }
+        const causeLog = isSuperseded
+          ? `the revision is superseded (${auth.message})`
+          : `the recorded actor is no longer authorized (${auth.message})`;
+        const causeError = isSuperseded
+          ? (auth.message ? `revision is superseded (${auth.message})` : 'revision is superseded')
+          : (auth.message || 'actor no longer authorized');
         console.error(
           `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
-            `recovery reissue blocked: the recorded actor is no longer authorized (${auth.message}); awaiting operator resolution`,
+            `recovery reissue blocked: ${causeLog}; awaiting operator resolution`,
         );
         throw markCommandHeldOutbox(
-          new AppError(
-            `money command held for operator resolution — recovery reissue blocked: ${auth.message}`,
-            'command-held',
-          ),
+          new AppError(`money command held for operator resolution — recovery reissue blocked: ${causeError}`, 'command-held'),
           claimed.id,
           token,
         );
@@ -459,8 +472,27 @@ async function claimAndCommit(
       // command with the absolute deadline this claim was admitted for and let the adapter's transport
       // refuse the non-idempotent write at the POST site. Per-attempt metadata only — the command's
       // identity (domain/operation/record/idempotencyKey, and therefore its payload digest) is unchanged.
-      result = await adapter.commit({ ...command, commitDeadlineAtMs: opts.claimStartedAtMs + MONEY_COMMIT_CLAIM_BUDGET_MS });
+      result = await adapter.commit({
+        ...command,
+        commitDeadlineAtMs: opts.claimStartedAtMs + MONEY_COMMIT_CLAIM_BUDGET_MS,
+        ...(isRangeBudget ? {
+          outboxCommit: {
+            id: claimed.id,
+            generation: token,
+            payloadDigest: claimed.payloadDigest,
+            identity: outboxRecordId,
+          },
+        } : {}),
+      });
     } catch (error) {
+      if (error instanceof AppError && error.code === 'command-held') {
+        const heldCount = await money.markOutboxHeld(claimed.id, `adapter-held: ${redactErrorForOutbox(error)}`, token);
+        if (heldCount === 0) {
+          const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
+          return reconcileOutbox(fresh!, deps);
+        }
+        throw markCommandHeldOutbox(error, claimed.id, token);
+      }
       if (!isRetryableTransport(error)) {
         // a non-retryable (commit-rejected) failure — mark failed under the current fencing token.
         // M-4: the persisted last_error is REDACTED (bounded + token-scrubbed), never the raw ERP body.
@@ -507,7 +539,16 @@ const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
  * can only be resolved by lease expiry + the sweep, so waiting longer just hangs the request. */
 const COMMITTING_WAIT_BUDGET_MS = 3_000;
 
-async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, committingSince?: number): Promise<CommandResult> {
+/** How many times the `committed` finalize may be refused (`record_outbox_ref` → 0 on a row that is still
+ * `committed`) before the request gives up. A genuine supersede changes the row's state on the first
+ * re-read; a refusal that repeats is a rule refusing, and re-asking it cannot change the answer. */
+const MAX_FINALIZE_REFUSALS = 3;
+
+/** Thrown when the finalize keeps refusing a still-`committed` row. The code is the recorded reason: the
+ * budget push writes it to the mirror (`push_error`) so the screen names it instead of going silent. */
+export const OUTBOX_FINALIZE_REFUSED = 'outbox-finalize-refused';
+
+async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, committingSince?: number, finalizeRefusals = 0): Promise<CommandResult> {
   const { command, money } = deps;
   const outboxRecordId = deps.outboxRecordId ?? command.record.id;
   switch (row.state) {
@@ -542,7 +583,10 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
       if (finalized === 0) {
         // F3 — superseded before the finalize writes landed; reconcile off the current state.
         const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
-        return reconcileOutbox(fresh!, deps);
+        if (fresh?.state === 'committed' && finalizeRefusals + 1 >= MAX_FINALIZE_REFUSALS) {
+          throw new AppError('the ERP document is committed but PMO could not record its reference', OUTBOX_FINALIZE_REFUSED);
+        }
+        return reconcileOutbox(fresh!, deps, undefined, finalizeRefusals + 1);
       }
       return { externalRecordId: row.externalRecordId!, canonical: row.canonical ?? { id: command.record.id } };
     }
@@ -596,7 +640,9 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
     case 'pending':
     case 'failed': {
       const claimStartedAtMs = nowMs(money);   // BLOCK 1 — see the quarantined branch above.
-      const claimed = await money.claimOutboxForCommit(row.id);
+      // A failed row re-enters the in-flight set at the claim: while another payment holds the bill the per-bill
+      // constraint refuses it (23505) — the named, localized refusal, not the raw database error.
+      const claimed = await money.claimOutboxForCommit(row.id).catch((error: unknown) => { throw toDispatchError(error); });
       if (claimed) return claimAndCommit(claimed, deps, { claimStartedAtMs });
       // lost the race for this row — another caller claimed it first; re-read and reconcile
       // (never POST).
@@ -645,7 +691,8 @@ export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps): Promise<
   // different payload (a DIFFERENT amount/party/references digest) must be REJECTED, never silently
   // reconciled to the original command (which could hide a wrong-amount money doc). Skipped when either
   // digest is absent (P0/P1 / pre-M-3 rows).
-  if (row.payloadDigest && money.payloadDigest && row.payloadDigest !== money.payloadDigest) {
+  if (row.payloadDigest && money.payloadDigest && row.payloadDigest !== money.payloadDigest &&
+      !money.legacyPayloadDigests?.includes(row.payloadDigest)) {
     throw toDispatchError(new AdapterError('commit-rejected', 'idempotency-key-payload-mismatch'));
   }
   return reconcileOutbox(row, deps);
@@ -664,14 +711,22 @@ export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps): Promise<
  * table (and the mirror tables), and the name alone would match any message that merely mentions it.
  */
 const OUTBOX_IN_FLIGHT_INDEX = 'external_command_outbox_one_inflight_per_record';
+/** 0508: at most one in-flight Odoo payment command per bill, whatever the intent (two payers can each pass the residual check). */
+const OUTBOX_PAYMENT_PER_BILL_INDEX = 'external_command_outbox_one_inflight_odoo_payment_per_bill';
+/** 0682: one ERPNext vendor-payment reservation per org and referenced bill. */
+const OUTBOX_ERPNEXT_PAYMENT_PER_BILL_CONSTRAINT = 'external_command_outbox_one_inflight_erpnext_payment_per_bill';
+/** 0512: at most one in-flight Odoo receipt command per invoice, including held/recovery rows. */
+const OUTBOX_RECEIPT_PER_INVOICE_INDEX = 'external_command_outbox_one_inflight_odoo_receipt_per_invoice';
 export const COMMAND_IN_FLIGHT_FOR_RECORD = 'command-in-flight-for-record';
+const PAYMENT_IN_FLIGHT_FOR_BILL = 'payment-in-flight-for-bill';
 
-function isOutboxInFlightConflict(error: unknown): boolean {
+function violatesIndex(error: unknown, index: string): boolean {
   const e = error as { code?: unknown; message?: unknown; details?: unknown } | null | undefined;
   if (e?.code !== '23505') return false;
   const text = `${typeof e.message === 'string' ? e.message : ''} ${typeof e.details === 'string' ? e.details : ''}`;
-  return text.includes(OUTBOX_IN_FLIGHT_INDEX);
+  return text.includes(index);
 }
+const isOutboxInFlightConflict = (error: unknown): boolean => violatesIndex(error, OUTBOX_IN_FLIGHT_INDEX);
 
 /** A structurally-present string `code`, or undefined. Mirrors `appError.ts`'s private `readCode`. */
 function readThrownCode(error: unknown): string | undefined {
@@ -684,6 +739,18 @@ function readThrownCode(error: unknown): string | undefined {
  *  there dropped the `.code` of a plain-`Error` subclass (`BudgetCategoryUnmappedError`, thrown from
  *  `resolveBudgetRefs`'s pre-flight) and turned a precise 422 into a bare, code-less 400. */
 export function toDispatchError(error: unknown): AppError {
+  if (violatesIndex(error, OUTBOX_ERPNEXT_PAYMENT_PER_BILL_CONSTRAINT)) {
+    return new AppError(
+      'A payment for this bill is already in progress. Wait for it to finish before paying again.',
+      PAYMENT_IN_FLIGHT_FOR_BILL,
+    );
+  }
+  if (violatesIndex(error, OUTBOX_PAYMENT_PER_BILL_INDEX)) {
+    return new AppError('payment already in progress for this bill', COMMAND_IN_FLIGHT_FOR_RECORD);
+  }
+  if (violatesIndex(error, OUTBOX_RECEIPT_PER_INVOICE_INDEX)) {
+    return new AppError('receipt already in progress for this invoice', COMMAND_IN_FLIGHT_FOR_RECORD);
+  }
   if (isOutboxInFlightConflict(error)) {
     return new AppError(
       'another command for this record is already in flight — wait for it to settle (or resolve it) before dispatching again',
@@ -715,15 +782,18 @@ export function toDispatchError(error: unknown): AppError {
   return new AppError('An unexpected error occurred');
 }
 
+/** The tiers whose writes move money: each registers a money-outbox resolver in adapter-dispatch (`MONEY_OUTBOX_RESOLVERS`). */
+const MONEY_TIERS: ReadonlySet<string> = new Set(['erpnext', 'odoo']);
+
 export async function dispatchExternallyOwnedWrite(
   deps: DispatchExternallyOwnedWriteDeps,
 ): Promise<CommandResult> {
-  // ADR-0058: an `erpnext`-tier non-read-only command always takes the money-idempotency path
-  // (which itself enforces the required idempotencyKey). Every other tier — P0 `reference`, P1
+  // ADR-0058: a money-tier (`erpnext`, `odoo`) non-read-only command always takes the money-idempotency
+  // path (which itself enforces the required idempotencyKey). Every other tier — P0 `reference`, P1
   // `clickup`, and any future non-money tier — is completely unaffected (byte-for-byte).
-  if (deps.adapter.tier === 'erpnext' && (deps.command.operation as string) !== 'read') {
+  if (MONEY_TIERS.has(deps.adapter.tier) && (deps.command.operation as string) !== 'read') {
     if (!deps.money) {
-      throw toDispatchError(new Error('erpnext money command dispatched without outbox deps'));
+      throw toDispatchError(new Error(`${deps.adapter.tier} money command dispatched without outbox deps`));
     }
     return dispatchMoneyWrite(deps as DispatchMoneyWriteDeps);
   }

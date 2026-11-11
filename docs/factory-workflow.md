@@ -133,11 +133,13 @@ a signed brief; unsigned/ad-hoc issues keep the classic per-issue checkpoints.
 
 ## Executor routing (which machine runs the middle)
 
+> **Superseded 2026-10-27:** executors are now Orca workers — `docs/orca-dispatch.md`. The ADW rows below are history; the money/auth and `adws/` carve-outs still apply, dispatched through Orca.
+
 | Issue shape | Executor |
 |---|---|
-| Bounded code slice — incl. ordinary schema/migration work | **SSSF ADW — default chain `adws/adw_simple_sdlc.py`** (plan → build → gate-fix ×3 → cross-family review-revise ×2 → retest → commit → document). The gate = typecheck + lint + vitest, **+ pgTAP under one db-lock hold when the run touches `supabase/`** (`adw_modules/quality.py`). Run per `/sssf` + `docs/pi-delegation.md` substrate rules. |
+| Bounded code slice — incl. ordinary schema/migration work | **SSSF ADW — default chain `adws/adw_simple_sdlc.py`** (plan → build → gate-fix ×3 → cross-family review-revise ×2 → retest → commit → document). The gate = typecheck + lint + vitest, **+ pgTAP under one db-lock hold when the run touches `supabase/`** (`adw_modules/quality.py`). Run per `/sssf` + `docs/archive/pi-delegation.md` substrate rules. |
 | Bounded FE/UI slice | **Same chain, FE roster:** `adw_simple_sdlc.py --builder fe_builder --reviewer fe_reviewer`. fe_builder builds to `ui-implementer.md` (DESIGN.md tokens, agent-browser rendered self-check); fe_reviewer audits rendered DOM/a11y to `design-reviewer.md`, saving screenshots to the run's `context_handoff/screenshots/`. **The Director's pixel/taste lens on those screenshots is still the exit gate** — text models judge the a11y tree, not pixels. |
-| Money-path, SoD, auth/token-custody — anything `review-money`-tier | **Director-dispatched per-issue loop** (`pi-dispatch` per `docs/pi-delegation.md`) — Luna-max review with no fallback, mutation-checks-against-neighbours, prod-parity judgment. On this class green gates themselves have been the repeat offender; the exit is adversarial, not mechanical. |
+| Money-path, SoD, auth/token-custody — anything `review-money`-tier | **Director-dispatched per-issue loop** (`pi-dispatch` per `docs/archive/pi-delegation.md`) — Luna-max review with no fallback, mutation-checks-against-neighbours, prod-parity judgment. On this class green gates themselves have been the repeat offender; the exit is adversarial, not mechanical. |
 | **Anything under `adws/`** — the factory's own code, chains, or config | **Director-dispatched, never the factory.** `protected_files` in `sssf.config.yaml` bars every agent from `adws/adw_modules/`, `adws/adw_sssf_config/` and `adws/adw_*.py`; a builder that touches them has its changes **rolled back** and the run aborts with `PermissionBreach`. The guard is correct — an agent that can edit the harness running it can disable its own gates — so this is a permanent carve-out, not a bug to work around. (Verified the hard way 2026-08-19: a run dispatched to fix #482/#493 died this way.) |
 | Foggy / multi-issue / decision-shaped | `/wayfinder` first; what exits enters the loop as ordinary issues. |
 | Throwaway question | `/prototype`, bridged by `/handoff`. |
@@ -168,7 +170,7 @@ The **role contract is the skill carrier.** `.claude/agents/*.md` (tracked, in e
 encode each role's disciplines inline — TDD iron law, no-placeholder plans, review lenses, and the
 UI family's exact skill commands (`ui-ux-pro-max`, `taste`, `agent-browser`). Delivery per surface:
 
-- **pi dispatches** — the Director appends the contract (`--append-system-prompt`, pi-delegation §3).
+- **pi dispatches** — the Director appends the contract (`--append-system-prompt`, docs/archive/pi-delegation.md §3).
   A brief without its role contract is malformed.
 - **ADW agents** — the runner **appends each agent's contract to its system prompt mechanically**
   (`contract:` in `sssf.config.yaml`, injected by `adw_modules/agents.py` — not an instruction the
@@ -184,7 +186,7 @@ run `scripts/sync-agent-surfaces.mjs --write`, done once.
 
 - Archive `adws/adw_data/` out of a worktree **before** `git worktree remove` — the trace is the
   owner's review surface (`docs/reviews/2026-08-06-sssf-trial-record.md`).
-- Substrate ladder, briefs-as-files, background-dispatch mechanics: `docs/pi-delegation.md`.
+- Substrate ladder, briefs-as-files, background-dispatch mechanics: `docs/archive/pi-delegation.md`.
 - **Substrate rulings land in TWO places:** the `pi-dispatch` ladders (`~/.local/bin/pi-dispatch`)
   AND `adws/adw_sssf_config/sssf.config.yaml` — the ADW calls raw `pi` with pinned models (its own
   tracer/ledger; no fallback by design — both substrates down = wait). Neither tool supersedes the

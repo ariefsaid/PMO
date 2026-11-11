@@ -78,6 +78,67 @@ describe('Combobox: open + load + select', () => {
   });
 });
 
+describe('Combobox: disabled while open', () => {
+  it('closes the open picker, blocks stale interactions and permits selection after re-enabling', async () => {
+    const onChange = vi.fn();
+    const props = { label: 'Client company', value: null, onChange, loadOptions: loadOk };
+    const view = render(<Combobox {...props} />);
+    await userEvent.click(screen.getByRole('combobox'));
+    const option = await screen.findByRole('option', { name: /Cascade Port Authority/ });
+    const search = screen.getByRole('searchbox');
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    view.rerender(<Combobox {...props} disabled />);
+    expect(screen.getByRole('combobox')).toBeDisabled();
+    expect(screen.getByRole('combobox')).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    fireEvent.click(option);
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(onChange).not.toHaveBeenCalled();
+    view.rerender(<Combobox {...props} />);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('combobox'));
+    await userEvent.click(await screen.findByRole('option', { name: /Camden Waterworks/ }));
+    expect(onChange).toHaveBeenCalledWith('c2', OPTIONS[1]);
+  });
+
+  it('disables the clear action with the selected picker', async () => {
+    const onClear = vi.fn();
+    const view = render(<Combobox label="Client company" value="c1" selectedOption={OPTIONS[0]} onChange={() => {}} loadOptions={loadOk} clearable onClear={onClear} disabled />);
+    expect(screen.getByRole('button', { name: /clear option/i })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: /clear option/i }));
+    expect(onClear).not.toHaveBeenCalled();
+    view.rerender(<Combobox label="Client company" value="c1" selectedOption={OPTIONS[0]} onChange={() => {}} loadOptions={loadOk} clearable onClear={onClear} />);
+    await userEvent.click(screen.getByRole('button', { name: /clear option/i }));
+    expect(onClear).toHaveBeenCalledOnce();
+  });
+
+  it('clearWhileDisabled keeps the clear action usable while browsing stays locked (AC-S11-002/004)', async () => {
+    const onClear = vi.fn();
+    render(<Combobox label="Down payment item" noun="item" value="c1" selectedOption={OPTIONS[0]} onChange={() => {}} loadOptions={loadOk} clearable onClear={onClear} disabled clearWhileDisabled />);
+    const clear = screen.getByRole('button', { name: /clear item/i });
+    expect(clear).toBeEnabled();
+    expect(screen.getByRole('combobox')).toBeDisabled();
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    await userEvent.click(clear);
+    expect(onClear).toHaveBeenCalledOnce();
+  });
+
+  it('discards an in-flight load on disable and reloads after re-enabling', async () => {
+    let resolveFirst!: (options: ComboboxOption[]) => void;
+    const loadOptions = vi.fn().mockImplementationOnce(() => new Promise<ComboboxOption[]>((resolve) => { resolveFirst = resolve; })).mockResolvedValueOnce([OPTIONS[1]]);
+    const props = { label: 'Client company', value: null, onChange: vi.fn(), loadOptions };
+    const view = render(<Combobox {...props} />);
+    await userEvent.click(screen.getByRole('combobox'));
+    expect(await screen.findByTestId('combo-loading')).toBeInTheDocument();
+    view.rerender(<Combobox {...props} disabled />);
+    await act(async () => { resolveFirst([OPTIONS[0]]); });
+    view.rerender(<Combobox {...props} />);
+    await userEvent.click(screen.getByRole('combobox'));
+    expect(await screen.findByRole('option', { name: /Camden Waterworks/ })).toBeVisible();
+    expect(screen.queryByRole('option', { name: /Cascade Port Authority/ })).not.toBeInTheDocument();
+  });
+});
+
 describe('Combobox: keyboard navigation', () => {
   it('ArrowDown moves active option (aria-activedescendant) and Enter selects it', async () => {
     const onChange = vi.fn();
@@ -167,26 +228,6 @@ describe('Combobox: load states', () => {
     await screen.findByRole('option', { name: /Cascade Port Authority/ });
     await userEvent.type(screen.getByRole('searchbox'), 'zzzz');
     expect(screen.getByText(/No .*matches/i)).toBeInTheDocument();
-  });
-
-  it('offers an inline create action in the empty state when onCreate is given', async () => {
-    const onCreate = vi.fn();
-    render(
-      <Combobox
-        label="Client company"
-        value={null}
-        onChange={() => {}}
-        loadOptions={loadOk}
-        onCreate={onCreate}
-        createLabel="Create company"
-      />,
-    );
-    await userEvent.click(screen.getByRole('combobox'));
-    await screen.findByRole('option', { name: /Cascade Port Authority/ });
-    await userEvent.type(screen.getByRole('searchbox'), 'Zephyr Tech');
-    const createBtn = screen.getByRole('button', { name: /Create company/i });
-    await userEvent.click(createBtn);
-    expect(onCreate).toHaveBeenCalledWith('Zephyr Tech');
   });
 
   it('drops a STALE load that resolves after the popover closed (no setState leak, no stale options)', async () => {
@@ -282,5 +323,89 @@ describe('Combobox: required + invalid wiring', () => {
     expect(trigger).toHaveAttribute('aria-required', 'true');
     expect(trigger).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByRole('alert')).toHaveTextContent('Select a client company.');
+  });
+});
+
+describe('Combobox: long sub-lines never hide the option label', () => {
+  it('D1 render: the sub-line yields before the label and keeps its full text as a tooltip', async () => {
+    const sub = 'VoltEdge Inverters · Purchase Order · different supplier · different currency';
+    render(
+      <Combobox
+        label="Purchase"
+        value={null}
+        onChange={() => {}}
+        loadOptions={() => Promise.resolve([{ value: 'p1', label: 'Central Inverters & Transformers', sub }])}
+      />,
+    );
+    await userEvent.click(screen.getByRole('combobox'));
+    const option = await screen.findByRole('option', { name: /Central Inverters/ });
+    const subEl = option.querySelector(`[title="${sub}"]`);
+    expect(subEl).not.toBeNull();
+    // The sub shrinks faster than the label, so the label keeps its room.
+    expect(subEl!.className).toMatch(/shrink-\[3\]/);
+    expect(subEl!.className).toMatch(/truncate/);
+  });
+});
+
+describe('short-name project picker disclosure (AC-002 #1325)', () => {
+  it('keeps the contractual title on the selected trigger when the alias is visible', () => {
+    render(<Combobox label="Project" value="p1" selectedOption={{ value: 'p1', label: 'Depot', sub: 'Contractual Project Name' }} onChange={() => {}} loadOptions={loadOk} />);
+    expect(screen.getByRole('combobox', { name: 'Project' })).toHaveAttribute('title', 'Depot — Contractual Project Name');
+    expect(screen.getByText('Depot')).toBeInTheDocument();
+  });
+});
+
+describe('Combobox: dynamic popover positioning (CMP-017)', () => {
+  it('flips above a trigger near the bottom of the viewport', async () => {
+    const viewportHeight = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(600);
+    const popoverHeight = vi
+      .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
+      .mockImplementation(function (this: HTMLElement) {
+        return this.style.position === 'fixed' ? 260 : 0;
+      });
+    const rect = { top: 540, bottom: 572, left: 50, right: 250, width: 200, height: 32 } as DOMRect;
+
+    try {
+      render(
+        <Combobox label="Company" value={null} onChange={() => {}} loadOptions={loadOk} />
+      );
+      const trigger = screen.getByRole('combobox');
+      vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue(rect);
+
+      await userEvent.click(trigger);
+      const listbox = await screen.findByRole('listbox');
+      const popover = listbox.closest('div[style*="position: fixed"]') as HTMLElement;
+
+      await waitFor(() => {
+        expect(popover.style.top).toBe('275px');
+      });
+    } finally {
+      popoverHeight.mockRestore();
+      viewportHeight.mockRestore();
+    }
+  });
+
+  it('updates popover position on scroll and fits within viewport', async () => {
+    let rect = { top: 100, bottom: 132, left: 50, right: 250, width: 200, height: 32 } as DOMRect;
+    render(
+      <Combobox label="Company" value={null} onChange={() => {}} loadOptions={loadOk} />
+    );
+    const trigger = screen.getByRole('combobox');
+    vi.spyOn(trigger, 'getBoundingClientRect').mockImplementation(() => rect);
+
+    await userEvent.click(trigger);
+    const listbox = await screen.findByRole('listbox');
+    const popover = listbox.closest('div[style*="position: fixed"]') as HTMLElement;
+    expect(popover).toBeInTheDocument();
+    expect(popover.style.top).toBe('137px');
+    expect(popover.style.left).toBe('50px');
+
+    // Simulate scroll moving trigger
+    rect = { top: 200, bottom: 232, left: 80, right: 280, width: 200, height: 32 } as DOMRect;
+    fireEvent.scroll(window);
+    await waitFor(() => {
+      expect(popover.style.top).toBe('237px');
+      expect(popover.style.left).toBe('80px');
+    });
   });
 });

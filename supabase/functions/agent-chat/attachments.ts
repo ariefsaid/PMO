@@ -2,7 +2,6 @@ import type { ModelMessage } from '../_shared/modelClient.ts';
 import type { DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 
 export const AGENT_ATTACHMENT_TEXT_CHAR_CAP = 16_000;
-const BUCKET = 'agent-attachments';
 
 export type AttachmentTextStatus = 'pending' | 'ready' | 'failed' | 'skipped';
 
@@ -25,11 +24,6 @@ interface AttachmentRow {
 }
 
 interface AttachmentStorageLike {
-  storage?: {
-    from(bucket: string): {
-      download(path: string): PromiseLike<{ data: Blob | null; error: unknown }>;
-    };
-  };
   from(table: string): {
     select(columns: string): {
       in(column: string, values: string[]): {
@@ -39,21 +33,7 @@ interface AttachmentStorageLike {
         limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
       };
     };
-    update?(patch: object): {
-      eq(column: string, value: string): PromiseLike<{ data: unknown; error: unknown }>;
-    };
   };
-}
-
-export interface PdfExtractionResult {
-  text: string | null;
-  status: Extract<AttachmentTextStatus, 'ready' | 'failed' | 'skipped'>;
-}
-
-export type ExtractPdfText = (bytes: Uint8Array) => Promise<PdfExtractionResult>;
-
-async function defaultExtractPdfText(_bytes: Uint8Array): Promise<PdfExtractionResult> {
-  return { text: null, status: 'skipped' };
 }
 
 function boundText(text: string): { text: string; truncated: boolean } {
@@ -99,39 +79,21 @@ function contextForAttachment(attachment: ResolvedAttachment): string {
   ].filter(Boolean).join('\n');
 }
 
-export function buildAttachmentContextMessages(
-  attachments: ResolvedAttachment[],
-): ModelMessage[] {
-  return attachments.map((attachment) => ({
-    role: 'user',
-    content: contextForAttachment(attachment),
-  }));
-}
-
-async function blobToBytes(blob: Blob): Promise<Uint8Array> {
-  return new Uint8Array(await blob.arrayBuffer());
-}
-
-async function updateExtractionStatus(
-  supabase: AttachmentStorageLike,
-  attachmentId: string,
-  result: PdfExtractionResult,
-): Promise<void> {
-  try {
-    const update = supabase
-      .from('agent_attachments')
-      .update?.({
-        extracted_text_status: result.status,
-        extracted_text: result.text,
-        extracted_text_chars: result.text?.length ?? null,
-      });
-    if (update) {
-      await update.eq('id', attachmentId);
-    }
-  } catch {
-    // Extraction cache updates are best-effort. The bounded context for this
-    // turn is already built from the in-memory extraction result.
-  }
+/**
+ * IMPORTANT-7 (FR-AT2-ATT-009, T-10 #1538 slice 2): a requested attachment id that resolved
+ * to NO row — deleted, archived, another conversation, or a failed lookup — is announced as
+ * an explicit bounded 'unavailable' block. The turn must show the model the file could not
+ * be read (name the id, forbid fabrication) instead of silently pretending the file was
+ * never mentioned. Carries no row content, so nothing leaks about other conversations/orgs.
+ */
+function unavailableAttachmentContext(attachmentId: string): string {
+  return [
+    `[Attachment unavailable: ${attachmentId}]`,
+    `Attachment id: ${attachmentId}`,
+    `The attachment with id "${attachmentId}" could not be loaded — it may have been deleted, archived, or belong to a different conversation.`,
+    `Do not fabricate, invent, or guess the contents of this file. Tell the user you could not read this file.`,
+    `[/Attachment unavailable]`,
+  ].join('\n');
 }
 
 async function resolveAttachmentRows(
@@ -165,11 +127,7 @@ async function resolveAttachmentRows(
     .filter((row): row is AttachmentRow => Boolean(row));
 }
 
-async function resolveOneAttachment(
-  row: AttachmentRow,
-  ctx: DeputyContext,
-  extractPdfText: ExtractPdfText,
-): Promise<ResolvedAttachment> {
+function resolveOneAttachment(row: AttachmentRow): ResolvedAttachment {
   if (row.extracted_text_status === 'ready' && row.extracted_text) {
     return {
       id: row.id,
@@ -180,52 +138,47 @@ async function resolveOneAttachment(
     };
   }
 
-  if (row.mime_type !== 'application/pdf') {
-    return {
-      id: row.id,
-      originalFilename: row.original_filename,
-      mimeType: row.mime_type,
-      extractedTextStatus: 'skipped',
-      extractedText: null,
-    };
-  }
-
-  const supabase = ctx.supabase as unknown as AttachmentStorageLike;
-  const downloaded = await supabase.storage?.from(BUCKET).download(row.storage_path);
-  if (!downloaded?.data || downloaded.error) {
-    return {
-      id: row.id,
-      originalFilename: row.original_filename,
-      mimeType: row.mime_type,
-      extractedTextStatus: 'failed',
-      extractedText: null,
-    };
-  }
-
-  const result = await extractPdfText(await blobToBytes(downloaded.data));
-  await updateExtractionStatus(supabase, row.id, result);
+  // Text extraction has no production implementation yet (FR-AT2-ATT-008's text path is
+  // not built): every not-yet-extracted file — PDF or otherwise — resolves as skipped
+  // directly: no Storage download, no byte conversion, no extraction cache write. An
+  // extraction seam returns only together with a real extractor. Rows already carrying
+  // 'failed' from earlier versions keep their honest 'extraction failed' announcement
+  // via contextForAttachment.
   return {
     id: row.id,
     originalFilename: row.original_filename,
     mimeType: row.mime_type,
-    extractedTextStatus: result.status,
-    extractedText: result.text,
+    extractedTextStatus: 'skipped',
+    extractedText: null,
   };
 }
 
-export function createAttachmentResolver(
-  opts: { extractPdfText?: ExtractPdfText } = {},
-): {
+export function createAttachmentResolver(): {
   resolveAttachmentMessages(attachmentIds: string[], deputyCtx: DeputyContext, threadId?: string): Promise<ModelMessage[]>;
 } {
-  const extractPdfText = opts.extractPdfText ?? defaultExtractPdfText;
   return {
     async resolveAttachmentMessages(attachmentIds, deputyCtx, threadId) {
+      const cleanIds = [...new Set(attachmentIds.map((id) => id.trim()).filter(Boolean))];
       const rows = await resolveAttachmentRows(attachmentIds, deputyCtx, threadId);
-      const resolved = await Promise.all(
-        rows.map((row) => resolveOneAttachment(row, deputyCtx, extractPdfText)),
-      );
-      return buildAttachmentContextMessages(resolved);
+      const resolved = rows.map(resolveOneAttachment);
+      // IMPORTANT-7: emit one message per requested id, in requested order — the resolved
+      // attachment's bounded context where the row resolved, an explicit unavailable
+      // placeholder where it did not (missing/archived/cross-thread/failed lookup). A
+      // requested file can never silently vanish from the turn.
+      const resolvedById = new Map(resolved.map((attachment) => [attachment.id, attachment]));
+      const emitted = new Set<string>();
+      const messages: ModelMessage[] = [];
+      for (const id of cleanIds) {
+        if (emitted.has(id)) continue;
+        emitted.add(id);
+        const attachment = resolvedById.get(id);
+        messages.push(
+          attachment
+            ? { role: 'user', content: contextForAttachment(attachment) }
+            : { role: 'user', content: unavailableAttachmentContext(id) },
+        );
+      }
+      return messages;
     },
   };
 }

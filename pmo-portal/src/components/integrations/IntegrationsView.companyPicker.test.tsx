@@ -64,7 +64,6 @@ describe('OD-INT-6 ERPNext Company selection (org-level)', () => {
     org_id: 'org-1',
     external_tier: 'erpnext',
     site_url: 'https://erp.example.com',
-    secret_ref: 'erpnext_token_org_1',
     status: 'active',
     connected_by: 'u1',
     connected_at: '2026-01-01T00:00:00Z',
@@ -98,7 +97,7 @@ describe('OD-INT-6 ERPNext Company selection (org-level)', () => {
 
   it('OD-INT-6 shows connected-but-not-activated for ERPNext with no Company', async () => {
     wrapWithRole('Admin', <IntegrationsView />);
-    await waitFor(() => expect(screen.getByText('Awaiting activation — select a Company to activate')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Awaiting activation: select a Company to activate')).toBeInTheDocument());
     expect(screen.getByText(/ERP sync is paused until a Company is selected/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Select Company$/i })).toBeInTheDocument();
   });
@@ -137,7 +136,6 @@ describe('AC-IRUX-005 ERPNext Company picker states', () => {
     org_id: 'org-1',
     external_tier: 'erpnext',
     site_url: 'https://erp.example.com',
-    secret_ref: 'erpnext_token_org_1',
     status: 'active',
     connected_by: 'u1',
     connected_at: '2026-01-01T00:00:00Z',
@@ -276,7 +274,7 @@ describe('AC-IRUX-005 ERPNext Company picker states', () => {
       withErpActivationRefusal(new AppError('server text', 'CONFIG_REJECTED'), { kind: 'unsupported-version', versionMajor: 14, supportedMajors: [15, 16] }),
       () => wrapWithRoleAndLocale('Admin', 'id', <IntegrationsView />),
     );
-    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent(/ERPNext 14 tidak didukung — PMO mendukung ERPNext 15 dan 16/));
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent(/ERPNext 14 tidak didukung\. PMO mendukung ERPNext 15 dan 16/));
   });
 
   it('#656 the missing-read refusal is translated (Bahasa Indonesia)', async () => {

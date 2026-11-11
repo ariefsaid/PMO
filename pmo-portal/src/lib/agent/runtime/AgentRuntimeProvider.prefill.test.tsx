@@ -26,7 +26,8 @@ vi.mock('./pmoNativeRuntime', () => ({
   },
 }));
 
-vi.mock('@/src/lib/features', () => ({
+vi.mock('@/src/lib/features', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/src/lib/features')>(),
   isFeatureEnabled: (key: string) => key === 'agentAssistant',
   FEATURES: { agentAssistant: true },
 }));
@@ -53,12 +54,13 @@ describe('AgentRuntimeProvider prefill', () => {
 
     act(() => ctx!.openPanel('over budget cases'));
     expect(ctx!.open).toBe(true);
-    expect(ctx!.consumePrefill!()).toBe('over budget cases');
-    expect(ctx!.consumePrefill!()).toBeNull();
+    expect(ctx!.pendingPrefill).toBe('over budget cases');
+    act(() => ctx!.clearPrefill!());
+    expect(ctx!.pendingPrefill).toBeNull();
 
     act(() => ctx!.closePanel());
     act(() => ctx!.openPanel());
     expect(ctx!.open).toBe(true);
-    expect(ctx!.consumePrefill!()).toBeNull();
+    expect(ctx!.pendingPrefill).toBeNull();
   });
 });

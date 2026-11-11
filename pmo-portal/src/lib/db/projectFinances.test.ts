@@ -4,7 +4,7 @@ const h = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: vi.fn() } }));
 
 import { AppError } from '@/src/lib/appError';
-import { getProjectFinances, setSalesInvoiceProject } from './revenue';
+import { getProjectFinances, setSalesInvoiceBillingKind, setSalesInvoiceProject } from './revenue';
 
 const projectId = '02900000-0000-0000-0000-000000000001';
 const financePayload = {
@@ -27,12 +27,46 @@ describe('project finance DAL', () => {
     });
   });
 
+  it('FR-003 assigns project and kind with the kind as a third RPC argument', async () => {
+    h.rpc.mockResolvedValueOnce({ error: null });
+    await setSalesInvoiceProject('invoice-1', 'project-1', 'other');
+    expect(h.rpc).toHaveBeenCalledExactlyOnceWith('assign_sales_invoice_project',
+      { p_si_id: 'invoice-1', p_project_id: 'project-1', p_billing_kind: 'other' });
+  });
+
+  it('FR-004 corrects only the kind through the narrow RPC', async () => {
+    h.rpc.mockResolvedValueOnce({ error: null });
+    await setSalesInvoiceBillingKind('invoice-1', 'contract');
+    expect(h.rpc).toHaveBeenCalledExactlyOnceWith('set_sales_invoice_billing_kind',
+      { p_si_id: 'invoice-1', p_billing_kind: 'contract' });
+  });
+
+  it('FR-004 surfaces a refusal with its SQLSTATE', async () => {
+    h.rpc.mockResolvedValueOnce({ error: { message: 'not authorized', code: '42501' } });
+    await expect(setSalesInvoiceBillingKind('invoice-1', 'other')).rejects.toMatchObject({ code: '42501' });
+  });
+
   it('AC-PFIN-014 reads one project through the checked RPC payload and reports legacy cash as not-reported', async () => {
     h.rpc.mockResolvedValueOnce({ data: financePayload, error: null });
     await expect(getProjectFinances(projectId)).resolves.toEqual({ ...financePayload,
       cash_received: { state: 'unavailable', buckets: [], reason: 'not-reported' },
+      contract_excess: null,
     });
     expect(h.rpc).toHaveBeenCalledExactlyOnceWith('get_project_finances', { p_project_id: projectId });
+  });
+
+  it('FR-009 returns the parsed contract excess, and null when the payload carries none', async () => {
+    const contributors = [
+      { invoice_id: 'a', invoice_number: 'SI-A', invoice_date: '2026-02-01', contribution: '700.00' },
+      { invoice_id: 'b', invoice_number: 'SI-B', invoice_date: '2026-02-02', contribution: '400.00' },
+    ];
+    h.rpc.mockResolvedValueOnce({ data: { ...financePayload, contract_invoiced: '1100.00', remaining_to_invoice: '-100.00',
+      contract_excess: { amount: '100.00', contract_billing: '1100.00', contributors } }, error: null });
+    await expect(getProjectFinances(projectId)).resolves.toMatchObject({
+      contract_excess: { state: 'known', amount: '100.00', contractBilling: '1100.00', contributors },
+    });
+    h.rpc.mockResolvedValueOnce({ data: financePayload, error: null });
+    await expect(getProjectFinances(projectId)).resolves.toMatchObject({ contract_excess: null });
   });
 
   it('AC-UWC-009 normalizes known and incomplete cash without changing the legacy finance readings', async () => {

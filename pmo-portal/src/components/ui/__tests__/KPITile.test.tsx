@@ -31,23 +31,20 @@ describe('KPITile', () => {
     expect(screen.getByText('$1,200,000', { selector: '.sr-only' })).toBeInTheDocument();
   });
 
-  it('AC-RD-UNAVAIL-001: unavailable figure is a dash whose reason opens on keyboard focus, with no always-visible reason text', async () => {
+  it('AC-MONEY-DISPLAY: omits an unknown amount and shows its reason in plain text', () => {
     render(
       <MemoryRouter>
         <KPITile icon="dollar" tone="blue" label="Pipeline" value="Not available yet" unavailableReason="No active budget" to="/x" linkLabel="Open x" />
       </MemoryRouter>,
     );
-    const dash = screen.getByRole('button', { name: 'No active budget' });
-    expect(dash).toHaveTextContent('—');
+    const reason = screen.getByRole('status');
+    expect(reason).toHaveTextContent('No active budget');
+    expect(screen.queryByText('—')).not.toBeInTheDocument();
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
-    expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'No active budget' })).not.toBeInTheDocument();
     expect(screen.queryByText('Not available yet')).not.toBeInTheDocument();
     // Never nested inside the tile's drill link (no interactive-in-interactive).
-    expect(dash.closest('a')).toBeNull();
-    await userEvent.tab();
-    await userEvent.tab();
-    expect(dash).toHaveFocus();
-    expect(screen.getByRole('tooltip')).toHaveTextContent('No active budget');
+    expect(reason.closest('a')).toBeNull();
   });
 
   it('AC-RD-GEOM-001 (unit): the figure can shrink and wrap instead of crossing the card edge', () => {

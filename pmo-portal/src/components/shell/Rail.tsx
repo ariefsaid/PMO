@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Link, NavLink, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -6,7 +6,12 @@ import { useIsOperator } from '@/src/auth/useIsOperator';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
-import { isFeatureEnabled } from '@/src/lib/features';
+import { Badge } from '@/src/components/ui/StatusPill';
+import { usePermission } from '@/src/auth/usePermission';
+import { useOverdueInvoiceCount } from '@/src/hooks/useOverdueInvoiceCount';
+import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
+import { AuthContext } from '@/src/auth/AuthContext';
+import { useFeature } from '@/src/auth/useFeature';
 import { AppVersion } from '@/src/components/AppVersion';
 import { ApprovalsNavCount } from './ApprovalsNavCount';
 import {
@@ -15,7 +20,7 @@ import {
 } from '@/src/lib/features';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { useUserViews } from '@/src/hooks/useUserViews';
-import { MODULES } from './routeMatch';
+import { MODULES, railParentForPath } from './routeMatch';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -48,32 +53,37 @@ interface NavItem {
   feature?: OrgFeatureKey;
   /** Show only when this entitlement is OFF (the item's job is done elsewhere when it is on). */
   unlessFeature?: OrgFeatureKey;
-  /** This destination uses the real authorization role while other legacy items keep preview-role behavior. */
+  /** Finance destinations require both the signed-in role and the selected preview role. */
   realRoleOnly?: boolean;
 }
 
 // Role arrays preserved VERBATIM from Sidebar.tsx getNavItems (AC-AUTH-003/009/010/011).
-const ALL_ITEMS: NavItem[] = [
+// Exported for the navigation-registry parity guard (⌘K Navigate reads MODULES; this is the
+// rail's own registry — the guard keeps the two from drifting apart). The `ALL_ITEMS` name is
+// load-bearing: scripts/check-module-completeness.mjs parses this block by it.
+// eslint-disable-next-line react-refresh/only-export-components -- registry constant co-located with its rail; HMR-only lint concern
+export const ALL_ITEMS: NavItem[] = [
   { to: '/', text: 'Dashboard', icon: 'dashboard', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // FIN-S9: the personal "My integrations" doorway (/integrations) moved into the account menu.
   { to: '/projects', text: 'Projects', icon: 'projects', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'CRM', feature: 'sales_pipeline', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Delivery', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/stock', text: 'Stock', icon: 'inbox', group: 'Delivery', feature: 'stock', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // #1519: every member logs equipment usage; the Assets and approvals views gate by role inside the page.
+  { to: '/equipment', text: 'Equipment', icon: 'clock', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
   { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  // B-2 (AC-W2-IXD-003 / OD-W2-2): Approvals nav is limited to roles that CAN approve.
-  // Engineer approval stays OFF (OD-W2-2 decision) — an IC landing on /approvals sees only
-  // "sheets from your reports" which is misleading. Finance is now included: Finance approves
-  // *procurement* (policy.ts `transition: allow([...MASTER_DATA])`) and reaches /approvals
-  // only via a dashboard tile without the rail. Fix #7: add Finance to this list.
+  // #1515: floats are visible to approval rank (policy imprestFloat.view = master-data roles); Engineers see none.
+  { to: '/imprest', text: 'Site cash', icon: 'expenses', group: 'Workforce', feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // Ordinary role access is supplemented by record-scoped timesheet eligibility below.
   { to: '/approvals', text: 'Approvals', icon: 'approvals', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
   // (rbac-visibility §M.1: Tasks are reached through project detail, not a top-level nav).
   { to: '/companies', text: 'Companies', icon: 'companies', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Contacts (CRM v1): master-data directory of people, mirrors Companies — Exec·PM·Finance·Admin (Engineer = ○).
   // Without CRM there is no Companies item, so PM and Finance keep a direct path to vendors.
-  { to: '/companies?type=Vendor', text: 'Vendors', icon: 'companies', group: 'Delivery', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/companies?type=Vendor', text: 'Suppliers', icon: 'companies', group: 'Delivery', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
   // Gated behind the `incidents` feature flag (UI-hide-first); currently hidden (features.ts).
@@ -83,19 +93,20 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/meetings', text: 'Meetings', icon: 'cal', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // UXS-007: PMs get a discoverable assignee-scoped doorway; project Tasks remain for oversight.
   // Engineer and Admin entries remain available; Executive navigation is intentionally unchanged.
-  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'Workforce', roles: [UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
-  // Finance section — gated by the `revenue` feature flag (an org entitlement). OD-NAR-2 (owner,
+  // Finance works assigned tasks like an Engineer (owner, 2026-10-23), so it gets the same doorway.
+  // #1982: Calendar — what is due across projects. Reads are RLS-scoped, so every role gets it.
+  { to: '/calendar', text: 'Calendar', icon: 'cal', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'Workforce', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // Finance section — gated by the relevant org entitlements. OD-NAR-2 (owner,
   // 2026-10-07, #784; supersedes DD-NAR-14 for navigation): with NO explicit org_features row the
   // entitlement follows revenue ownership — ON when no ERP owns revenue (PMO-native invoicing is
   // the default), OFF once an ERP owns it; an explicit row still wins, so an Operator can turn it
-  // off. Resolution lives in useOrgFeatures (one place). Shown to Finance, PM, Exec and Admin.
-  { to: '/sales-invoices', text: 'Sales Invoices', icon: 'invoices', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/incoming-payments', text: 'Incoming Payments', icon: 'payments', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/financial-statements', text: 'Financial statements', icon: 'table', group: 'Finance', realRoleOnly: true, roles: [UserRole.Admin, UserRole.Executive, UserRole.Finance] },
-  { to: '/revenue-by-project', text: 'Revenue by Project', icon: 'table', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  // #765: the Reports module's first report — the monthly management pack. Same read set and the same
-  // `revenue` entitlement as the other Finance items (it is built from sales invoices).
-  { to: '/reports', text: 'Management pack', icon: 'reports', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // off. Resolution lives in useOrgFeatures (one place). Shown to Finance, Executive and Admin.
+  { to: '/finance', text: 'Finance', icon: 'dollar', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/receivables', text: 'Receivables', icon: 'invoices', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/payables', text: 'Payables', icon: 'procurement', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/reports', text: 'Reports', icon: 'reports', group: 'Finance', feature: 'management_pack', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/statements', text: 'Statements', icon: 'reports', group: 'Finance', feature: 'financial_statements', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
 ];
 
 const GROUP_ORDER: NavItem['group'][] = ['Overview', 'CRM', 'Delivery', 'Finance', 'Workforce'];
@@ -105,10 +116,25 @@ const MAX_NAV_VIEWS = 8;
 
 /** Base classes shared by every nav anchor (primary items + Administration foot). */
 const NAV_LINK_BASE =
-  'flex h-9 w-full items-center gap-[11px] rounded-md px-2.5 text-[13.5px] font-medium transition-colors [&_svg]:size-[17px] [&_svg]:shrink-0';
+  'touch-target flex h-[var(--control-height)] w-full items-center gap-3 rounded-md px-2.5 text-control font-medium transition-colors [&_svg]:size-5 [&_svg]:shrink-0';
 
 /** The two items that get stage-aware active-state overrides on `/projects/:id`. */
 const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);
+
+const FinanceOverdueCount: React.FC = () => {
+  // Rail unit harnesses can render without an AuthProvider; in the application the provider is
+  // always present. Keep the data query behind that boundary so such shell-only renders stay pure.
+  const auth = useContext(AuthContext);
+  if (!auth) return null;
+  return <FinanceOverdueCountValue />;
+};
+
+const FinanceOverdueCountValue: React.FC = () => {
+  const { t } = useTranslation();
+  const { data: count, isPending, isError } = useOverdueInvoiceCount();
+  if (isPending || isError || count === undefined) return null;
+  return <Badge aria-label={t('financeHub:hub.overdueCount', '{{count}} overdue invoices', { count })}>{count}</Badge>;
+};
 
 export interface RailProps {
   onNavigate?: () => void;
@@ -126,7 +152,7 @@ export interface RailProps {
   railActiveOverride?: 'salesPipeline' | 'projects' | null;
   /**
    * Callback fired when the flag-gated "Assistant" toggle button is clicked (FR-AP-005).
-   * Only rendered when isFeatureEnabled('agentAssistant') is true; absent when flag is off.
+   * Only rendered when the deployment flag AND the org's `agent_assistant` entitlement hold; absent otherwise.
    */
   onOpenAssistant?: () => void;
   /**
@@ -135,23 +161,49 @@ export interface RailProps {
    * Defaults to false when not provided.
    */
   assistantPanelOpen?: boolean;
+  /**
+   * #1834: fired with a rail link's `href` on hover, focus and pointerdown, so
+   * the destination's code starts downloading before the click. The app wires
+   * this to `preloadForPath`; absent, the rail never preloads (tests, storybook).
+   */
+  onPreloadHref?: (href: string) => void;
 }
 
-export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false }) => {
+export const Rail: React.FC<RailProps> = React.memo(function Rail(props) {
+  const auth = useContext(AuthContext);
+  const { effectiveRole } = useEffectiveRole();
+  return auth && effectiveRole === 'Engineer' ? <RailWithTimesheetEligibility {...props} /> : <RailContent {...props} />;
+});
+
+const RailWithTimesheetEligibility: React.FC<RailProps> = (props) => {
+  const pending = useTimesheetsAwaitingApproval();
+  const corrections = useReopenableApprovedTimesheets();
+  return <RailContent {...props} hasEligibleTimesheets={Boolean(pending.data?.length || corrections.data?.length || pending.isPending || corrections.isPending || pending.isError || corrections.isError)} />;
+};
+
+const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false, hasEligibleTimesheets = false, onPreloadHref }) => {
   const { t } = useTranslation();
   const location = useLocation();
   const { effectiveRole, realRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
   const realRoleValue = toUserRole(realRole);
+  const may = usePermission();
+  const canViewStatements = may('view', 'financialStatements');
 
   // Must call hooks unconditionally BEFORE early returns (rules-of-hooks).
-  const { data: userViews } = useUserViews();
   // ops-admin-surface S6: resolve per-org entitlements ONCE. `data` is undefined while loading;
   // each gated item then falls back to its FEATURE_ENV_DEFAULT (the rail resolves gracefully on
   // first paint — an always-on module is never hidden by a loading state).
   const { data: orgFeatures } = useOrgFeatures();
   const featureEnabled = (key: OrgFeatureKey): boolean =>
     orgFeatures?.[key] ?? FEATURE_ENV_DEFAULT[key];
+  // The two deployment-gated keys resolve through useFeature so their ENV KILL SWITCH stays an
+  // additional AND over the entitlement (S3 constraint): an Operator cannot re-enable a capability
+  // the deployment turned off, and flipping the env var still hides the surface for every org.
+  const userViewsEnabled = useFeature('user_views');
+  // The saved-views read only runs for an org that has the module (the rail is on every page).
+  const { data: userViews } = useUserViews(userViewsEnabled);
+  const agentAssistantEnabled = useFeature('agent_assistant');
 
   // AC-ADMIA-002: a REAL server-confirmed platform Operator (any base role) can reach
   // /administration by URL, so the rail's Administration footer must be discoverable for them.
@@ -163,13 +215,13 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
 
   const items = ALL_ITEMS.filter(
     (i) => (i.realRoleOnly
-      ? realRoleValue !== null && i.roles.includes(realRoleValue)
-      : i.roles.includes(role)) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)),
+      ? role !== null && realRoleValue !== null && i.roles.includes(role) && i.roles.includes(realRoleValue)
+      : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
   );
-  // My Views group + the Assistant toggle remain env-flag-driven (NOT org entitlements — plan M5):
-  // `userViews`/`agentAssistant` are env-only sub-flags until the entitlements system absorbs them.
+  // My Views group + the Assistant toggle follow BOTH the entitlement and their deployment kill
+  // switch (resolved inside useFeature), not the env flag alone.
   const showMyViews =
-    isFeatureEnabled('userViews') &&
+    userViewsEnabled &&
     Array.isArray(userViews) &&
     userViews.length > 0;
   const myViewsItems = showMyViews
@@ -189,21 +241,30 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     '/projects': t('shell.nav.projects', 'Projects'),
     '/sales': t('shell.nav.sales', 'Sales Pipeline'),
     '/procurement': t('shell.nav.procurement', 'Procurement'),
+    '/stock': t('shell.nav.stock', 'Stock'),
     '/timesheets': t('shell.nav.timesheets', 'Timesheets'),
     '/expenses': t('shell.nav.expenses', 'Expenses'),
+    '/imprest': t('imprest:nav.siteCash', 'Site cash'),
+    '/equipment': t('equipment:nav.equipment', 'Equipment'),
+    '/finance': t('financeHub:nav.finance', 'Finance'),
+    '/finance/receivables': t('financeHub:hub.receivables', 'Receivables'),
+    '/finance/payables': t('financeHub:hub.payables', 'Payables'),
+    '/finance/reports': t('financeHub:hub.reports', 'Reports'),
+    '/finance/statements': t('financeHub:hub.statements', 'Statements'),
     '/approvals': t('shell.nav.approvals', 'Approvals'),
     '/companies': t('shell.nav.companies', 'Companies'),
     // No rail item any more (FIN-S9), but the breadcrumb and command palette share this key.
-    '/companies?type=Vendor': t('shell.nav.vendors', 'Vendors'),
+    '/companies?type=Vendor': t('shell.nav.vendors', 'Suppliers'),
     '/contacts': t('shell.nav.contacts', 'Contacts'),
     '/incidents': t('shell.nav.incidents', 'Incidents'),
     '/meetings': t('shell.nav.meetings', 'Meetings'),
+    '/calendar': t('shell.nav.calendar', 'Calendar'),
     '/my-tasks': t('shell.nav.myTasks', 'My Tasks'),
     '/sales-invoices': t('shell.nav.salesInvoices', 'Sales Invoices'),
     '/incoming-payments': t('shell.nav.incomingPayments', 'Incoming Payments'),
     '/revenue-by-project': t('shell.nav.revenueByProject', 'Revenue by Project'),
     '/financial-statements': t('shell.nav.financialStatements', 'Financial statements'),
-    '/reports': t('shell.nav.managementPack', 'Management pack'),
+    '/reports': t('shell.nav.managementPack', 'Reports'),
   };
   const navLabels: Record<string, string> = Object.fromEntries(
     items.map((item) => {
@@ -234,6 +295,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         </>
       );
     }
+    if (item.to === '/finance') return <><span>{label}</span><FinanceOverdueCount /></>;
     return <span>{label}</span>;
   };
 
@@ -253,7 +315,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           aria-current={active ? 'page' : undefined}
           className={cn(
             NAV_LINK_BASE,
-            active ? 'bg-primary/10 font-semibold text-nav-active-text' : 'text-foreground hover:bg-accent',
+            active ? 'bg-nav-selected-surface font-semibold text-nav-active-text' : 'text-foreground hover:bg-surface-hover',
           )}
         >
           <Icon name={item.icon} />
@@ -267,24 +329,38 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         (item.to === '/projects' && railActiveOverride === 'projects') ||
         (item.to === '/sales' && railActiveOverride === 'salesPipeline');
       return (
-        <NavLink
+        <Link
           key={item.to}
           to={item.to}
-          end={item.to === '/' || item.to.includes('?')}
           onClick={onNavigate}
-          // Ignore NavLink's built-in isActive; use the override decision.
-          className={() =>
-            cn(
-              NAV_LINK_BASE,
-              overrideActive
-                ? 'bg-primary/10 font-semibold text-nav-active-text'
-                : 'text-foreground hover:bg-accent',
-            )
-          }
+          aria-current={overrideActive ? 'page' : undefined}
+          className={cn(
+            NAV_LINK_BASE,
+            overrideActive
+              ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
+              : 'text-foreground hover:bg-surface-hover',
+          )}
         >
           <Icon name={item.icon} />
           {renderLabel(item)}
-        </NavLink>
+        </Link>
+      );
+    }
+
+    // Child routes outside the parent's URL (e.g. /erp-purchases under Procurement)
+    // use the parent decision for both the selected treatment and its accessible state.
+    if (railParentForPath(location.pathname) === item.to) {
+      return (
+        <Link
+          key={item.to}
+          to={item.to}
+          onClick={onNavigate}
+          aria-current="page"
+          className={cn(NAV_LINK_BASE, 'bg-nav-selected-surface font-semibold text-nav-active-text')}
+        >
+          <Icon name={item.icon} />
+          {renderLabel(item)}
+        </Link>
       );
     }
 
@@ -292,15 +368,16 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
       <NavLink
         key={item.to}
         to={item.to}
-        end={item.to === '/' || item.to.includes('?')}
+        end={item.to === '/' || item.to.includes('?') || item.to.startsWith('/finance')}
         onClick={onNavigate}
         className={({ isActive }: { isActive: boolean }) => {
-          const active = isActive;
+          // A child page outside the module's URL (e.g. /erp-purchases under Procurement) lights its parent.
+          const active = isActive || railParentForPath(location.pathname) === item.to;
           return cn(
             NAV_LINK_BASE,
             active
-              ? 'bg-primary/10 font-semibold text-nav-active-text'
-              : 'text-foreground hover:bg-accent',
+              ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
+              : 'text-foreground hover:bg-surface-hover',
           );
         }}
       >
@@ -310,9 +387,18 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     );
   };
 
+  // #1834: hovering, focusing or pressing a rail link starts the destination's
+  // route chunk downloading BEFORE the click, so navigation pays only for the
+  // data. Container-level (focus via capture) covers every link variant —
+  // NavLink, Link, views, administration — without touching each one.
+  const preloadFromEvent = (event: React.PointerEvent<HTMLElement> | React.FocusEvent<HTMLElement>) => {
+    const href = (event.target as HTMLElement).closest('a')?.getAttribute('href');
+    if (href) onPreloadHref?.(href);
+  };
+
   return (
     <aside
-      className="flex min-h-0 flex-col border-r border-border bg-card"
+      className="flex min-h-0 flex-col border-r border-border bg-[hsl(var(--surface-panel))]"
       style={{ gridArea: 'rail' }}
     >
       <div
@@ -331,6 +417,9 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
       <nav
         aria-label={t('shell.rail.primaryNavigation', 'Primary navigation')}
         className="flex min-h-0 flex-1 flex-col"
+        onPointerOver={preloadFromEvent}
+        onPointerDown={preloadFromEvent}
+        onFocusCapture={preloadFromEvent}
       >
         {items.some((item) => item.to === '/approvals') && (
           <div data-rail-pinned-approvals className="shrink-0 border-b border-border p-2.5">
@@ -343,7 +432,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
             if (groupItems.length === 0) return null;
             return (
               <React.Fragment key={group}>
-                <div className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                <div className="px-2 pb-1.5 pt-3.5 text-support font-semibold text-muted-foreground">
                   {groupLabels[group]}
                 </div>
                 {groupItems.map(renderItem)}
@@ -352,7 +441,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           })}
           {showMyViews && (
             <div role="group" aria-label={myViewsLabel}>
-              <div className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              <div className="px-2 pb-1.5 pt-3.5 text-support font-semibold text-muted-foreground">
                 {myViewsLabel}
               </div>
               {myViewsItems.map((view) => (
@@ -364,8 +453,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
                     cn(
                       NAV_LINK_BASE,
                       isActive
-                        ? 'bg-primary/10 font-semibold text-nav-active-text'
-                        : 'text-foreground hover:bg-accent',
+                        ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
+                        : 'text-foreground hover:bg-surface-hover',
                     )
                   }
                 >
@@ -381,7 +470,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
       {/* FR-AP-005 / AC-AP-004: "Assistant" toggle — flag-gated, visible to ALL roles.
           Not a NavLink (routes nowhere) — a <button> with aria-pressed (toggle
           semantics). Placed above the Administration footer. */}
-      {isFeatureEnabled('agentAssistant') && (
+      {agentAssistantEnabled && (
         <div className="flex-shrink-0 border-t border-border p-2.5">
           <button
             type="button"
@@ -390,7 +479,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
               onOpenAssistant?.();
               onNavigate?.();
             }}
-            className={cn(NAV_LINK_BASE, 'w-full text-foreground hover:bg-accent')}
+            className={cn(NAV_LINK_BASE, 'w-full text-foreground hover:bg-surface-hover aria-pressed:bg-nav-selected-surface aria-pressed:text-nav-active-text')}
           >
             <Icon name="message" />
             <span>{t('shell.rail.assistant', 'Assistant')}</span>
@@ -407,8 +496,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
               cn(
                 NAV_LINK_BASE,
                 isActive
-                  ? 'bg-primary/10 font-semibold text-nav-active-text'
-                  : 'text-foreground hover:bg-accent',
+                  ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
+                  : 'text-foreground hover:bg-surface-hover',
               )
             }
           >
@@ -422,7 +511,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           <NavLink
             to="/administration/users"
             onClick={onNavigate}
-            className="touch-target flex min-h-11 items-center gap-2 rounded-md px-2.5 text-sm text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+            className="touch-target flex min-h-11 items-center gap-3 rounded-md px-2.5 text-control text-foreground hover:bg-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&_svg]:size-5"
           >
             <Icon name="admin" aria-hidden="true" />
             <span>{t('admin.access.checkEntry', 'Check Administration access')}</span>

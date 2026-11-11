@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import en from '../../public/locales/en/common.json';
-import id from '../../public/locales/id/common.json';
+import en from '../../public/locales/en/project.json';
+import id from '../../public/locales/id/project.json';
 import tabsEn from '../../public/locales/en/projectTabs.json';
 import tabsId from '../../public/locales/id/projectTabs.json';
 
@@ -20,6 +20,11 @@ const usedQuantityKeys = (files: string[]) =>
   files.flatMap((file) => [...readFileSync(join(process.cwd(), file), 'utf8').matchAll(KEY)].map((match) => match[1]));
 const WORK_ORDER_SCREENS = [
   'pages/project-detail/tabs/WorkOrdersTab.tsx',
+  'pages/project-detail/tabs/WorkOrderCustomerOrderCard.tsx',
+  'pages/project-detail/tabs/WorkOrdersClaimsCard.tsx',
+  'pages/project-detail/tabs/WorkOrdersDraftOrders.tsx',
+  'pages/project-detail/tabs/WorkOrdersDrawers.tsx',
+  'pages/project-detail/tabs/WorkOrdersModals.tsx',
   'pages/project-detail/WorkOrderLinesModal.tsx',
   'pages/project-detail/WorkOrderAcceptanceModal.tsx',
   'pages/project-detail/WorkOrderAcceptances.tsx',
@@ -41,8 +46,8 @@ describe('progress billing strings', () => {
     for (const [key, value] of [...Object.entries(english), ...Object.entries(indonesian)]) {
       expect(value.trim(), key).not.toBe('');
     }
-    expect(((en as unknown as Tree).projectDetail as Tree).tabs).toHaveProperty('billing');
-    expect(((id as unknown as Tree).projectDetail as Tree).tabs).toHaveProperty('billing');
+    expect(((en as unknown as Tree).projectDetail as Tree).tabs).toHaveProperty('contract');
+    expect(((id as unknown as Tree).projectDetail as Tree).tabs).toHaveProperty('contract');
   });
 
   it('AC-PB-014 every key the billing screens use is in the catalogue', () => {

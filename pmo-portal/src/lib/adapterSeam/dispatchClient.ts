@@ -16,8 +16,9 @@ interface DispatchErrorBody {
 }
 
 /** `BW001` (the work-order over-invoice fence, 0262) and `55000` (a withdrawn claim raises no invoice, 0250) are the
- *  database's own 422 refusals, raised before any ERP write: the caller names them in the user's language (#785). */
-const KNOWN_CODES = new Set(['commit-rejected', 'external-unreachable', 'BW001', '55000']);
+ *  database's own 422 refusals, raised before any ERP write: the caller names them in the user's language (#785).
+ *  `payment-in-flight-for-bill` is the 409 for a second ERPNext payment on a bill that already has one in flight. */
+const KNOWN_CODES = new Set(['commit-rejected', 'external-unreachable', 'BW001', '55000', 'payment-in-flight-for-bill']);
 
 /**
  * Reads the edge function's JSON error body off a `FunctionsHttpError`'s `.context` Response
@@ -44,7 +45,7 @@ function hasHttpResponse(error: unknown): boolean {
 
 /**
  * Pure classification of a dispatch error into `{ code, message }` (review fix #5). The precedence:
- *   1. a KNOWN structured code from the body (`commit-rejected` | `external-unreachable` | `BW001` | `55000`) wins;
+ *   1. a KNOWN structured code from the body (`commit-rejected` | `external-unreachable` | `BW001` | `55000` | `payment-in-flight-for-bill`) wins;
  *   2. a NETWORK failure (no HTTP response on `.context`) → `external-unreachable` with a GENERIC
  *      message — the raw fetch string ('name resolution failed', 'Failed to send a request…') is
  *      NEVER surfaced to the user;

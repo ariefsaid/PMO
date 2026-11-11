@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
@@ -101,4 +101,50 @@ describe('useDocumentVerification', () => {
     rerender();
     await waitFor(() => expect(check).toHaveBeenCalledTimes(2));
   });
+  it('AC-M365DOC-064 keeps a pending visible-row retry scoped to its project and display', async () => {
+    const client = clientWith();
+    let releaseA!: () => void;
+    check.mockRejectedValueOnce(new Error('initial failure'))
+      .mockImplementationOnce(() => new Promise<void>((resolve) => { releaseA = resolve; }))
+      .mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(
+      ({ project, rows }) => useDocumentVerification(project, rows),
+      { initialProps: { project: 'p1', rows: [doc('a')] }, wrapper: wrapper(client) },
+    );
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    act(() => result.current.retry([doc('drawer-a')]));
+    await waitFor(() => expect(check).toHaveBeenCalledWith(['drawer-a']));
+    rerender({ project: 'p2', rows: [doc('b')] });
+    await waitFor(() => expect(check).toHaveBeenCalledTimes(3));
+    expect(check.mock.calls[2][0]).toEqual(['b']);
+    await act(async () => { releaseA(); });
+  });
+
+  it('AC-M365DOC-064 settling an older retry does not clear a newer display retry', async () => {
+    const client = clientWith();
+    let releaseA!: () => void;
+    let releaseB!: () => void;
+    check.mockRejectedValueOnce(new Error('initial failure'))
+      .mockImplementationOnce(() => new Promise<void>((resolve) => { releaseA = resolve; }))
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(() => new Promise<void>((resolve) => { releaseB = resolve; }))
+      .mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(
+      ({ project, rows }) => useDocumentVerification(project, rows),
+      { initialProps: { project: 'p1', rows: [doc('a')] }, wrapper: wrapper(client) },
+    );
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    act(() => result.current.retry([doc('drawer-a')]));
+    await waitFor(() => expect(check).toHaveBeenCalledTimes(2));
+    rerender({ project: 'p2', rows: [doc('b')] });
+    await waitFor(() => expect(check).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(result.current.checking).toBe(false));
+    act(() => result.current.retry([doc('drawer-b')]));
+    await waitFor(() => expect(check).toHaveBeenCalledTimes(4));
+    await act(async () => { releaseA(); });
+    await act(async () => { await client.refetchQueries({ queryKey: ['m365-document-check', 'org-1', 'user-1', 'p2'] }); });
+    expect(check.mock.calls[4][0]).toEqual(['drawer-b']);
+    await act(async () => { releaseB(); });
+  });
+
 });

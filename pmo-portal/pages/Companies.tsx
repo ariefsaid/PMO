@@ -1,6 +1,6 @@
-import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ListPage,
   SearchMini,
@@ -9,39 +9,32 @@ import {
   DataTable,
   StatusPill,
   ConfirmDialog,
-  EntityFormModal,
-  TextField,
-  SelectField,
-  FormSection,
-  FormGrid,
   GateNotice,
   AccessDenied,
-  useEntityForm,
   useToast,
   Button,
   Icon,
-  type SubmitError,
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
-import { ExportButton } from '@/src/components/export';
+import { ExportAllButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { companyImportDescriptor } from '@/src/lib/import';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
+import { useCompaniesExportAll, useCompaniesPage, useCompaniesTotal, useCompanyMutations } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import type { CompanyTypeFilter } from '@/src/lib/listWorkingSet';
-import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
+import type { CompanyListRow } from '@/src/lib/db/companies';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
-import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
-import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
+import { CompanyFormModal } from './company/CompanyFormModal';
+import { typeLabels } from './company/companyTypeLabels';
+import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 
 /** Type filter segments: All + the three company_type enum values (Internal / Client / Vendor).
  *  Reuses the URL codec's own `CompanyTypeFilter` type so the toolbar and the `type`/`q` URL
@@ -49,53 +42,26 @@ import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/
 type TypeFilter = CompanyTypeFilter;
 const TYPE_FILTERS: TypeFilter[] = ['All', 'Internal', 'Client', 'Vendor'];
 
+/** The server page size (#1989): 50, the established Odoo-directory/AdminUsers page size. */
+const PAGE_SIZE = 50;
+
 // Company-type pill comes from the single status registry's CATEGORY family
 // (`companyTypeVariant`): Client = categorical `violet` (the highlighted type),
 // Vendor / Internal = `neutral`. Per the Freed-Blue Status Rule, a type pill never
 // uses the action-blue (`open`) and never borrows a workflow tint (`won`/`lost`);
 // the distinct LABEL carries identity, so the types read apart by label + dot.
 
-/**
- * The display label for each `company_type` value, resolved once per render. The VALUE is the
- * database enum and is never translated (it is filter state, an export cell, and a policy input);
- * only the label a person reads is. One map so the filter segment, the form's Type select and the
- * row pill can never drift into three different words for the same type.
- */
-const typeLabels = (t: TFunction): Record<CompanyType, string> => ({
-  Client: t('companies.type.client', 'Client'),
-  Vendor: t('companies.type.vendor', 'Vendor'),
-  Internal: t('companies.type.internal', 'Internal'),
-});
-
-interface FormValues {
-  name: string;
-  short_name: string;
-  type: CompanyType;
-  clientNumberSegment: string;
-}
-
-/**
- * `t` has to be threaded in: the message is user-visible, and a module-level literal cannot reach
- * the active locale. The validation SHAPE is unchanged — same fields, same trigger, same keys.
- */
-const makeValidate =
-  (t: TFunction) =>
-  (v: FormValues): Partial<Record<keyof FormValues, string>> => {
-    const errors: Partial<Record<keyof FormValues, string>> = {};
-    if (!v.name.trim())
-      errors.name = t('companies.form.errors.nameRequired', 'Company name is required.');
-    return errors;
-  };
-
 const Companies: React.FC = () => {
   const { t } = useTranslation();
+  const ownership = useDomainOwnershipMode('companies');
+  const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data, isPending, isError, refetch } = useCompanies();
   // `?? IDLE_PENDING_PUSH` — existing hook mocks (RBAC/export test suites) predate this field.
   const { create, update, setProjectNumberSegment, archive, remove, pendingPush = IDLE_PENDING_PUSH } = useCompanyMutations();
+  const exportAll = useCompaniesExportAll();
 
   // A-5 (rbac-visibility §D): Companies directory view = Admin·Exec·PM·Finance; Engineer = ○
   // (no nav, no page). The rail hides it but the ROUTE does not — so an Engineer reaching
@@ -109,46 +75,61 @@ const Companies: React.FC = () => {
   // Back return restores the list's scroll once its rows have loaded (`contentReady`).
   const { workingSet, setWorkingSet, search, setSearch, clearFilters } =
     useListSearchWorkingSet('companies');
-  const { openRecord } = useListReturn({ list: 'companies', contentReady: !isPending && !isError });
   const filter = workingSet.type;
+  const [page, setPage] = useState(1);
+  // #1989 (the Master-data pattern): the directory reads ONE server page with the type filter and
+  // search applied SERVER-side, plus the exact matching total. The whole directory is no longer
+  // loaded to filter it in the browser.
+  const directory = useCompaniesPage({ type: filter, search, page, pageSize: PAGE_SIZE });
+  const { openRecord } = useListReturn({ list: 'companies', contentReady: !directory.isPending && !directory.isError });
+  const unfiltered = filter === 'All' && !search.trim();
+  // "Showing X of Y" keeps its meaning on a filtered view: Y is the whole directory, read as one
+  // head count only while a filter/search is active (unfiltered, X IS Y — one request, not two).
+  const totalCount = useCompaniesTotal({ enabled: !unfiltered });
+  const pageRows = useMemo(() => directory.data?.rows ?? [], [directory.data]);
+  const total = directory.data?.total ?? 0;
+  const directoryTotal = unfiltered ? total : (totalCount.data ?? total);
+
+  // A committed filter/search change (typing pause, a tab switch, or a Back-restore of the URL
+  // working set) makes the old page number meaningless — always land on page 1.
+  useEffect(() => { setPage(1); }, [filter, search]);
+
+  // Out-of-range correction (the AdminUsers ruling): a deletion or a narrowing filter can leave
+  // `page` past the last page — an empty page-N is corrected down instead of shown as truth.
+  useEffect(() => {
+    if (!directory.data || pageRows.length > 0 || total === 0 || page <= 1) return;
+    setPage(Math.max(1, Math.ceil(total / PAGE_SIZE)));
+  }, [directory.data, pageRows.length, total, page]);
 
   // Modal: null = closed; { company: null } = create; { company } = edit.
-  const [formTarget, setFormTarget] = useState<{ company: CompanyRow | null } | null>(null);
-  const [archiveTarget, setArchiveTarget] = useState<CompanyRow | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<CompanyRow | null>(null);
+  const [formTarget, setFormTarget] = useState<{ company: CompanyListRow | null } | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<CompanyListRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CompanyListRow | null>(null);
   // In-use delete block (23503): the company whose hard-delete the RPC refused
   // because it is still referenced. Drives the inline GateNotice + Archive-instead
   // recovery path (crud-components §5.3).
-  const [blockedCompany, setBlockedCompany] = useState<CompanyRow | null>(null);
+  const [blockedCompany, setBlockedCompany] = useState<CompanyListRow | null>(null);
 
-  const canCreate = may('create', 'company');
-  const canEdit = may('edit', 'company');
-  const canArchive = may('archive', 'company');
-  const canDelete = may('delete', 'company');
+  const canCreate = ownershipReady && may('create', 'company');
+  const canEdit = ownershipReady && may('edit', 'company');
+  const canArchive = ownershipReady && may('archive', 'company');
+  const canDelete = ownership.mode === 'pmo' && may('delete', 'company');
   const canRowWrite = canEdit || canArchive || canDelete;
-
-  const all = useMemo(() => data ?? [], [data]);
 
   const typeLabel = typeLabels(t);
   const filterLabel = (f: TypeFilter) => (f === 'All' ? t('companies.filters.all', 'All') : typeLabel[f]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return all
-      .filter((c) => filter === 'All' || c.type === filter)
-      .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.short_name ?? '').toLowerCase().includes(q));
-  }, [all, search, filter]);
-
-  // AC-LRC-012: the DataTable's `empty` branch below (with `clearFilters`) only ever renders when
-  // `all.length > 0` (the collection-empty case is the page-level `state === 'empty'`), so a
+  // AC-LRC-012 (server-page form): the DataTable's `empty` branch below (with `clearFilters`)
+  // only ever renders when the DIRECTORY holds rows (`unfiltered` false ⇒ the zero-match is a
+  // filtered zero-match; the collection-empty case is the page-level `state === 'empty'`), so a
   // zero-match result there is always a filtered zero-match — clearing both controls is safe.
 
   // ── States ──────────────────────────────────────────────────────────────
-  const state: 'loading' | 'empty' | 'error' | undefined = isPending
+  const state: 'loading' | 'empty' | 'error' | undefined = directory.isPending
     ? 'loading'
-    : isError || !data
+    : directory.isError || !directory.data
       ? 'error'
-      : all.length === 0
+      : total === 0 && unfiltered
         ? 'empty'
         : undefined;
 
@@ -167,7 +148,7 @@ const Companies: React.FC = () => {
     );
   }
 
-  const columns: Column<CompanyRow>[] = [
+  const columns: Column<CompanyListRow>[] = [
     {
       key: 'name',
       header: t('companies.columns.name', 'Company'),
@@ -191,7 +172,7 @@ const Companies: React.FC = () => {
     },
   ];
 
-  const rowMenu = (c: CompanyRow): RowMenuItem[] => {
+  const rowMenu = (c: CompanyListRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
     if (canEdit)
       items.push({
@@ -260,9 +241,11 @@ const Companies: React.FC = () => {
   return (
     <ListPage
       title={t('companies.title', 'Companies')}
+      count={directory.data ? total : undefined}
+      total={directory.data && !unfiltered ? directoryTotal : undefined}
       description={t(
         'companies.description',
-        'Clients and vendors used across projects and procurement. Master data shared by the whole organisation.',
+        'Clients and suppliers used across projects and procurement. Master data shared by the whole organisation.',
       )}
       primaryAction={
         canCreate && (
@@ -325,7 +308,7 @@ const Companies: React.FC = () => {
             onChange={(e) => setSearch(e.target.value)}
             searchSurface="companies-list"
             module="companies"
-            resultCount={filtered.length}
+            resultCount={total}
             // Below `sm` the toolbar stacks: `basis-full` forces the search onto
             // its own full-width row and `min-w-0` drops the base min-w-[190px]
             // clip, so it shrinks to the viewport and stays reachable at 375px. At
@@ -336,26 +319,40 @@ const Companies: React.FC = () => {
       }
       exportAction={
         state !== 'loading' && (
-          <ExportButton rows={filtered} columns={columns} entity="Companies" />
+          // #1989: the page holds ONE server page, but Export still delivers EVERY company
+          // matching the current filter/search — the full set is read at click time.
+          <ExportAllButton
+            entity="Companies"
+            columns={columns}
+            hasRows={total > 0}
+            fetchRows={() =>
+              exportAll.mutateAsync({
+                type: filter === 'All' ? undefined : filter,
+                search: search.trim() || undefined,
+              })
+            }
+          />
         )
       }
       /* Bulk import (ADR-0027): role-gated via can('create','company'); reuses the
          entity's create repository so RLS stamps org_id + gates the write role. On a
          successful import the wizard close refetches the list. */
       importAction={
-        state !== 'loading' && (
+        state !== 'loading' && canCreate && (
           <ImportButton
             entity="company"
             descriptor={companyImportDescriptor}
-            onImported={() => void refetch()}
+            onImported={() => void directory.refetch()}
           />
         )
       }
     >
       {/* Body */}
+      {!ownershipReady && <p className="mb-3 text-sm text-muted-foreground">{ownership.mode === 'error' ? t('crm:ownershipError', 'Ownership could not be loaded. Try again.') : t('crm:ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('crm:retry', 'Retry')}</Button>}</p>}
+      {ownership.mode === 'external' && may('delete', 'company') && <p className="mb-3 text-sm text-muted-foreground">{t('crm:deleteManaged', 'Records managed in ERP can be archived here.')}</p>}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="table" columns={6} rows={6} />
         </div>
       )}
 
@@ -364,7 +361,7 @@ const Companies: React.FC = () => {
           variant="error"
           title={t('companies.states.errorTitle', "Couldn't load companies")}
           sub={t('companies.states.errorSub', 'The request failed. Check your connection and try again.')}
-          onRetry={() => refetch()}
+          onRetry={() => directory.refetch()}
         />
       )}
 
@@ -375,7 +372,7 @@ const Companies: React.FC = () => {
           title={t('companies.states.emptyTitle', 'No companies yet')}
           sub={t(
             'companies.states.emptySub',
-            'Add your first client or vendor to start linking projects and purchase requests to a directory.',
+            'Add your first client or supplier to start linking projects and procurement cases to a directory.',
           )}
           stateId="companies-empty"
           role={realRole ?? undefined}
@@ -392,29 +389,69 @@ const Companies: React.FC = () => {
       )}
 
       {state === undefined && (
-        <DataTable<CompanyRow>
-          rows={filtered}
-          columns={columns}
-          rowKey={(c) => c.id}
-          // CW-4b: rows now NAVIGATE to the routable `/companies/:id` record page (the
-          // drawer-as-record is retired). Create/edit-in-modal are unchanged.
-          // list-working-set-return (#683): capture the current filtered/searched Companies URL
-          // + scroll position as return context (AC-LRC-006) instead of a bare navigate.
-          onActivate={(c) => openRecord(`/companies/${c.id}`)}
-          // ⚑ Not extracted — embeds a value; see the interpolation note above.
-          rowLabel={(c) => `Open ${companyDisplayName(c)}`}
-          rowMenu={canRowWrite ? rowMenu : undefined}
-          state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('companies.table.emptyTitle', 'No companies match your filters')}
-          emptySub={t('companies.table.emptySub', 'Try a different type or clear the search.')}
-          emptyAction={{ label: t('companies.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
-        tableId="companies-table" />
+        <>
+          <DataTable<CompanyListRow>
+            rows={pageRows}
+            columns={columns}
+            rowKey={(c) => c.id}
+            // CW-4b: rows now NAVIGATE to the routable `/companies/:id` record page (the
+            // drawer-as-record is retired). Create/edit-in-modal are unchanged.
+            // list-working-set-return (#683): capture the current filtered/searched Companies URL
+            // + scroll position as return context (AC-LRC-006) instead of a bare navigate.
+            onActivate={(c) => openRecord(`/companies/${c.id}`)}
+            // ⚑ Not extracted — embeds a value; see the interpolation note above.
+            rowLabel={(c) => `Open ${companyDisplayName(c)}`}
+            rowMenu={canRowWrite ? rowMenu : undefined}
+            state={pageRows.length === 0 ? 'empty' : undefined}
+            emptyTitle={t('companies.table.emptyTitle', 'No companies match your filters')}
+            emptySub={t('companies.table.emptySub', 'Try a different type or clear the search.')}
+            emptyAction={{ label: t('companies.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
+          tableId="companies-table" />
+
+          {/* #1989: the pager under the server page — the Master-data/AdminUsers anatomy. */}
+          <nav aria-label={t('companies.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
+            <span>
+              {total === 0
+                ? ''
+                : t('companies.pager.range', '{{from}}–{{to}} of {{total}}', {
+                    from: (page - 1) * PAGE_SIZE + 1,
+                    to: Math.min(page * PAGE_SIZE, total),
+                    total,
+                  })}
+            </span>
+            <span className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1 || directory.isFetching}
+                onClick={() => setPage((p) => p - 1)}
+                aria-label={t('companies.pager.prev', 'Previous page')}
+              >
+                <Icon name="back" aria-hidden="true" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page * PAGE_SIZE >= total || directory.isFetching}
+                onClick={() => setPage((p) => p + 1)}
+                aria-label={t('companies.pager.next', 'Next page')}
+              >
+                <Icon name="chev" aria-hidden="true" />
+              </Button>
+            </span>
+          </nav>
+        </>
       )}
 
-      {/* Create / edit modal */}
+      {/* Create / edit modal — the ONE shared company form (PGA02-003/OE01-005). The record
+          page's edit modal uses the same module, so field/validation/error behavior can only
+          ever be one thing. The edit save separates the company row from the client-number
+          segment: a segment failure after the row committed is reported as PARTIAL success
+          in-dialog (PGA02-001), not as a failed save that invites a blind retry. */}
       {formTarget && (
         <CompanyFormModal
           company={formTarget.company}
+          ownership={ownership.mode}
           pendingPush={pendingPush}
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
@@ -424,7 +461,12 @@ const Companies: React.FC = () => {
           }}
           onUpdate={async (id, input, segment) => {
             await update.mutateAsync({ id, input });
-            await setProjectNumberSegment.mutateAsync({ id, segment });
+            try {
+              await setProjectNumberSegment.mutateAsync({ id, segment });
+            } catch (segmentSaveError) {
+              // The company row is already saved — the shared form states the partial truth.
+              return { segmentSaveError };
+            }
             toast(t('companies.toast.updated', 'Company updated'), input.name, 'success');
             setFormTarget(null);
           }}
@@ -474,172 +516,6 @@ const Companies: React.FC = () => {
         onCancel={() => setDeleteTarget(null)}
       />
     </ListPage>
-  );
-};
-
-// ── Create / edit form modal ────────────────────────────────────────────────
-
-interface CompanyFormModalProps {
-  company: CompanyRow | null;
-  onClose: () => void;
-  onCreate: (input: CompanyInput) => Promise<void>;
-  onUpdate: (id: string, input: CompanyInput, segment: string | null) => Promise<void>;
-  onError: (err: unknown) => void;
-  /** ADR-0056/FR-EAS-060..063 pending-push state for a flipped org's Vendor/Client write. */
-  pendingPush: PendingPushState;
-}
-
-const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
-  company,
-  onClose,
-  onCreate,
-  onUpdate,
-  onError,
-  pendingPush,
-}) => {
-  const { t } = useTranslation();
-  const isEdit = !!company;
-  const nativeReadOnly = isEdit && company.type !== 'Internal' && routeDomainWrite('companies') === 'external';
-  // Identity changes only when `t` does (i.e. on a language change), so `useEntityForm`'s
-  // `runValidate` memo behaves exactly as it did with the old module-level function.
-  const validate = useMemo(() => makeValidate(t), [t]);
-  const typeOptions = useMemo(() => {
-    const labels = typeLabels(t);
-    return [
-      { value: 'Client', label: labels.Client },
-      { value: 'Vendor', label: labels.Vendor },
-      { value: 'Internal', label: labels.Internal },
-    ];
-  }, [t]);
-  const form = useEntityForm<FormValues>({
-    initialValues: { name: company?.name ?? '', short_name: company?.short_name ?? '', type: company?.type ?? 'Client', clientNumberSegment: company?.client_number_segment ?? '' },
-    validate,
-    idPrefix: 'company-form',
-    // F8 (AC-IXD-FORM-F8): submit stays disabled until the required name is present.
-    requiredFields: ['name'],
-    module: 'companies',
-  });
-
-  const nameField = form.fieldProps('name');
-  const shortNameField = form.fieldProps('short_name');
-  const typeField = form.fieldProps('type');
-  const clientNumberSegmentField = form.fieldProps('clientNumberSegment');
-
-  // AC-ERR-001: a rejected save gets PERSISTENT in-dialog evidence, not only the corner
-  // toast (which auto-dismisses, leaving the modal indistinguishable from a pristine form
-  // with data in it). `suppressCapture` because the page's `onError` classifies the same
-  // rejection for the toast and owns the single `save_failed` event.
-  const [saveError, setSaveError] = useState<SubmitError | null>(null);
-
-  const errorSummary = form.errors.name
-    ? [{ fieldId: nameField.id, message: form.errors.name }]
-    : undefined;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    void form.handleSubmit(async (values) => {
-      const input: CompanyInput = {
-        name: values.name.trim(),
-        type: values.type,
-        ...(nativeReadOnly || values.short_name.trim() || company?.short_name
-          ? { short_name: values.short_name.trim() || null }
-          : {}),
-      };
-      try {
-        if (isEdit && company) {
-          await onUpdate(company.id, input, values.clientNumberSegment.trim() || null);
-        } else await onCreate(input);
-      } catch (err) {
-        const { headline, detail } = classifyMutationError(err, undefined, {
-          module: 'companies',
-          operation: isEdit ? 'update' : 'create',
-          suppressCapture: true,
-        });
-        setSaveError({ headline, detail });
-        onError(err);
-      }
-    });
-  };
-
-  return (
-    <EntityFormModal
-      open
-      title={
-        isEdit
-          ? t('companies.form.editTitle', 'Edit company')
-          : t('companies.form.newTitle', 'New company')
-      }
-      subtitle={
-        isEdit
-          ? t('companies.form.editSubtitle', 'Update this company record')
-          : t('companies.form.newSubtitle', 'Add a client or vendor to the directory')
-      }
-      submitLabel={
-        isEdit
-          ? t('companies.form.editSubmit', 'Save company')
-          : t('companies.form.newSubmit', 'Create company')
-      }
-      onSubmit={handleSubmit}
-      onClose={onClose}
-      loading={form.isSubmitting}
-      dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
-      errorSummary={errorSummary}
-      submitError={saveError}
-    >
-      {pendingPush.status !== 'idle' && (
-        <div className="mb-3.5 flex justify-end">
-          <TaskPushBadge state={pendingPush} />
-        </div>
-      )}
-      <FormSection legend={t('companies.form.sections.identity', 'Identity')}>
-        <FormGrid>
-          <TextField
-            disabled={nativeReadOnly}
-            id={nameField.id}
-            label={t('companies.form.name.label', 'Company name')}
-            required
-            value={nameField.value}
-            onChange={nameField.onChange}
-            onBlur={nameField.onBlur}
-            error={nameField.error}
-            placeholder={t('companies.form.name.placeholder', 'e.g. Cascade Port Authority')}
-            autoComplete="organization"
-            fullWidth
-          />
-          <TextField
-            id={shortNameField.id}
-            label={t('companies.form.shortName.label', 'Short name')}
-            helper={t('companies.form.shortName.hint', 'Optional display name used across PMO. The legal name stays unchanged.')}
-            value={shortNameField.value}
-            onChange={shortNameField.onChange}
-            onBlur={shortNameField.onBlur}
-            fullWidth
-          />
-          <SelectField
-            disabled={nativeReadOnly}
-            id={typeField.id}
-            label={t('companies.form.type.label', 'Type')}
-            required
-            value={typeField.value}
-            onChange={(v) => typeField.onChange(v as CompanyType)}
-            onBlur={typeField.onBlur}
-            options={typeOptions}
-          />
-          {isEdit && (
-            <TextField
-              id={clientNumberSegmentField.id}
-              label={t('companies.form.clientNumberSegment.label', 'Client number segment')}
-              value={clientNumberSegmentField.value}
-              onChange={clientNumberSegmentField.onChange}
-              onBlur={clientNumberSegmentField.onBlur}
-              placeholder={t('companies.form.clientNumberSegment.placeholder', 'e.g. RIS')}
-              mono
-            />
-          )}
-        </FormGrid>
-      </FormSection>
-    </EntityFormModal>
   );
 };
 

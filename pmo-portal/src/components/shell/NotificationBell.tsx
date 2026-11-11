@@ -2,7 +2,7 @@
  * NotificationBell — the shell ContextBar's notification bell + inbox popover
  * (FR-AAN-034/035/036, AC-AAN-032..035, NFR-AAN-A11Y-001..003).
  *
- * REC-3: an OWN component with its OWN query against `src/lib/db/notifications` —
+ * REC-3: an OWN component with its OWN query against the notification repository —
  * it does NOT consume a `notificationCount` prop (that dead prop is dropped from
  * `ContextBarProps` in the same change, OBS-AAN-001). Mounted for every
  * signed-in user by `ContextBar` (#788; was behind `agentAssistant`, FR-AAN-038).
@@ -24,13 +24,8 @@ import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui/icons';
 import { cn } from '@/src/components/ui/cn';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
-import {
-  listNotificationsPage,
-  listUnreadCount,
-  markNotificationRead,
-  type NotificationCursor,
-  type NotificationListItem as NotificationRow,
-} from '@/src/lib/db/notifications';
+import { repositories } from '@/src/lib/repositories';
+import type { NotificationCursor, NotificationListItem as NotificationRow } from '@/src/lib/db/notifications';
 import { formatRelativeTime } from '@/src/lib/format';
 
 /** Notification severity → { dot color token, AA label text class }. Mirrors the
@@ -56,6 +51,7 @@ const ENTITY_ROUTE_BASE: Record<string, string> = {
   contact: '/contacts',
   opportunity: '/sales',
   expense_claim: '/expenses',
+  sales_invoice: '/sales-invoices',
 };
 
 /** Workflow hand-offs (#788) whose destination is a queue/list page with no `/x/:id` detail route:
@@ -63,6 +59,8 @@ const ENTITY_ROUTE_BASE: Record<string, string> = {
 const ENTITY_LIST_ROUTE: Record<string, string> = {
   timesheet: '/timesheets',
   task: '/my-tasks',
+  imprest_plan: '/imprest',
+  imprest_replenishment: '/imprest',
 };
 
 interface NotificationEntity {
@@ -110,7 +108,7 @@ export const NotificationBell: React.FC = () => {
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const refreshUnreadCount = useCallback(() => {
-    listUnreadCount()
+    repositories.notification.unreadCount()
       .then(setUnread)
       .catch(() => {
         // Fail-quiet on the count query — the badge simply doesn't update; opening
@@ -132,13 +130,17 @@ export const NotificationBell: React.FC = () => {
     generation.current += 1;
     setLoadingMore(false);
     setLoadMoreError(false);
+    const gen = generation.current;
     setInbox({ status: 'loading' });
-    listNotificationsPage()
+    repositories.notification.listPage()
       .then(({ rows, nextCursor }) => {
+        if (gen !== generation.current) return;
         setInbox({ status: 'ready', rows, nextCursor });
         refreshUnreadCount();
       })
-      .catch(() => setInbox({ status: 'error' }));
+      .catch(() => {
+        if (gen === generation.current) setInbox({ status: 'error' });
+      });
   }, [refreshUnreadCount]);
 
   // Keyset "Load more" (#843): append the next page; a failure keeps the rows already shown.
@@ -147,7 +149,7 @@ export const NotificationBell: React.FC = () => {
     const gen = generation.current;
     setLoadingMore(true);
     setLoadMoreError(false);
-    listNotificationsPage({ cursor: inbox.nextCursor })
+    repositories.notification.listPage({ cursor: inbox.nextCursor })
       .then(({ rows, nextCursor }) => {
         if (gen !== generation.current) return;
         setInbox((prev) =>
@@ -206,7 +208,7 @@ export const NotificationBell: React.FC = () => {
 
       try {
         if (wasUnread) {
-          await markNotificationRead(row.id);
+          await repositories.notification.markRead(row.id);
           // item 9: reconcile the badge against the server's actual count after a successful
           // mark-read — the optimistic decrement above is immediate-feel; this is the source of
           // truth (guards drift from a concurrent notification elsewhere).
@@ -262,7 +264,7 @@ export const NotificationBell: React.FC = () => {
       {open && (
         <div
           aria-labelledby="notification-bell-inbox-heading"
-          className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-1.5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
+          className="menu-pop-anim [--menu-origin:top_right] motion-reduce:animate-none absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-1.5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
         >
           <h2 id="notification-bell-inbox-heading" className="sr-only">
             {t('shell.notifications.inboxHeading', 'Notifications inbox')}

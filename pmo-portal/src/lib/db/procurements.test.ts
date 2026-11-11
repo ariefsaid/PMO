@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockSelect, mockFrom, mockRange, mockEq } = vi.hoisted(() => {
+const { mockSelect, mockFrom, mockRange, mockEq, rpcSpy } = vi.hoisted(() => {
+  const rpcSpy = vi.fn();
   const mockSelect = vi.fn();
   const mockEq = vi.fn();
   const mockFrom = vi.fn();
   const mockRange = vi.fn();
-  return { mockSelect, mockFrom, mockRange, mockEq };
+  return { mockSelect, mockFrom, mockRange, mockEq, rpcSpy };
 });
 
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom, rpc: rpcSpy } }));
 
 import {
   listProcurements,
@@ -24,6 +25,9 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
     select: mockSelect,
     range: mockRange,
     eq: mockEq,
+    order: () => builder,
+    gt: () => builder,
+    limit: () => builder,
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(resolved).then(resolve, reject),
   };
@@ -51,22 +55,83 @@ describe('listProcurements', () => {
     const result = await listProcurements();
     expect(mockFrom).toHaveBeenCalledWith('procurements');
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name)',
+      '*, project:projects(name,short_name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), open_commitment:procurement_open_commitment',
     );
     expect(result[0].project?.name).toBe('Innovate Corp HQ Fit-Out');
     expect(result[0].requested_by?.full_name).toBe('Alice Manager');
     expect(result[0].vendor).toBeNull();
   });
 
+  it('PERF-APPR-1: { status } filters server-side and keeps the default select', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProcurements({ status: 'Requested' });
+    expect(mockEq).toHaveBeenCalledWith('status', 'Requested');
+    expect(mockSelect.mock.calls.at(-1)![0]).toMatch(/open_commitment:procurement_open_commitment$/);
+    mockEq.mockClear();
+    await listProcurements();
+    expect(mockEq).not.toHaveBeenCalled();
+  });
+
   it('AC-EXT-001: the shared select carries NO record-reference embeds; only { withRefs: true } adds them', async () => {
     makeBuilder({ data: [], error: null });
     await listProcurements();
     expect(mockSelect.mock.calls.at(-1)![0]).not.toMatch(/external_ref/);
-    await listProcurements(undefined, { withRefs: true });
+    await listProcurements({ withRefs: true });
     const sel = mockSelect.mock.calls.at(-1)![0] as string;
     expect(sel).toContain('pr_refs:purchase_requests(external_ref)');
     expect(sel).toContain('po_refs:purchase_orders(external_ref)');
     expect(sel).toContain('vi_refs:procurement_invoices(external_ref)');
+    expect(sel).not.toContain('purchase_requests(amount,date,created_at,external_ref)');
+  });
+
+  it('AC-1402: the shared list gets batched money, stage, and project-manager inputs', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProcurements({ withRefs: true, withSharedDetails: true });
+    const sel = mockSelect.mock.calls.at(-1)![0] as string;
+    expect(sel).toContain('project:projects(name,short_name,code,project_manager_id)');
+    expect(sel).toContain('purchase_requests(amount,date,created_at,external_ref)');
+    expect(sel).toContain('purchase_orders(amount,date,created_at,external_ref)');
+    expect(sel).toContain('receipts:procurement_receipts(receipt_date,created_at)');
+    expect(sel).toContain('procurement_invoices(amount,invoice_date,created_at,erp_outstanding_amount,external_ref)');
+    expect(sel).toContain('payments(amount,date,created_at,status)');
+    expect(sel).toContain('status_events:procurement_status_events(to_status,created_at)');
+  });
+
+  it('PERF-PROC-1: the shared list drops the per-row open-commitment embed and attaches it from one set-based RPC', async () => {
+    rpcSpy.mockReset().mockResolvedValue({ data: [{ procurement_id: 'a', amount: '400.50' }, { procurement_id: 'b', amount: null }], error: null });
+    makeBuilder({ data: [{ id: 'a', status: 'Ordered' }, { id: 'b', status: 'Paid' }, { id: 'c', status: 'Draft' }], error: null });
+    const rows = await listProcurements({ withRefs: true, withSharedDetails: true });
+    expect(mockSelect.mock.calls.at(-1)![0]).not.toContain('open_commitment');
+    expect(rpcSpy).toHaveBeenCalledWith('procurement_open_commitments', { p_ids: ['a', 'b', 'c'] });
+    expect(rows.map((r) => r.open_commitment)).toEqual([400.5, null, undefined]);
+  });
+
+  it('PERF-PROC-1: a failed open-commitment read throws instead of falling back to total_value', async () => {
+    rpcSpy.mockReset().mockResolvedValue({ data: null, error: { message: 'boom' } });
+    makeBuilder({ data: [{ id: 'a', status: 'Ordered' }], error: null });
+    await expect(listProcurements({ withRefs: true, withSharedDetails: true })).rejects.toThrow('boom');
+  });
+
+  it('PERF-DASH-1: the lean list keeps the money/stage inputs but drops the SQL open commitment and the record-reference embeds', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProcurements({ lean: true });
+    const sel = mockSelect.mock.calls.at(-1)![0] as string;
+    expect(sel).toContain('project:projects(name,short_name,code,project_manager_id)');
+    expect(sel).toContain('procurement_invoices(amount,invoice_date,created_at,erp_outstanding_amount,external_ref)');
+    expect(sel).toContain('payments(amount,date,created_at,status)');
+    expect(sel).toContain('status_events:procurement_status_events(to_status,created_at)');
+    expect(sel).not.toContain('open_commitment');
+    expect(sel).not.toMatch(/pr_refs|po_refs|vi_refs/);
+  });
+
+  it('PERF-FIN-1: withoutRoutes skips the approval-route read for a Requested row; the default lean list keeps it', async () => {
+    rpcSpy.mockReset().mockResolvedValue({ data: [], error: null });
+    makeBuilder({ data: [{ id: 'r1', status: 'Requested' }], error: null });
+    await listProcurements({ lean: true, withoutRoutes: true });
+    expect(rpcSpy).not.toHaveBeenCalled();
+    makeBuilder({ data: [{ id: 'r1', status: 'Requested' }], error: null });
+    await listProcurements({ lean: true });
+    expect(rpcSpy).toHaveBeenCalledWith('get_procurement_approval_routes', { p_ids: ['r1'] });
   });
 
   it('sends no org_id (RLS scopes it) (FR-DAL-PROC-001)', async () => {
@@ -80,17 +145,37 @@ describe('listProcurements', () => {
     await expect(listProcurements()).rejects.toThrow('boom');
   });
 
+  it('T-11: loads the whole accessible list past the 1000-row cap, keyset-ordered by id', async () => {
+    const mk = (n: number) => ({ id: String(n).padStart(6, '0') });
+    const all = Array.from({ length: 1500 }, (_, i) => mk(i));
+    const gtSpy = vi.fn();
+    const orderSpy = vi.fn();
+    let after: string | null = null;
+    const builder: Record<string, unknown> = {
+      select: mockSelect,
+      order: (...a: unknown[]) => { orderSpy(...a); return builder; },
+      gt: (_c: string, v: string) => { gtSpy(v); after = v; return builder; },
+      limit: () => builder,
+      then: (resolve: (v: unknown) => void) => {
+        const rows = all.filter((r) => after === null || r.id > after).slice(0, 1000);
+        after = null;
+        return Promise.resolve({ data: rows, error: null }).then(resolve);
+      },
+    };
+    mockSelect.mockReturnValue(builder);
+    mockFrom.mockReturnValue(builder);
+    const result = await listProcurements();
+    expect(result).toHaveLength(1500);
+    expect(orderSpy).toHaveBeenCalledWith('id', { ascending: true });
+    expect(gtSpy).toHaveBeenCalledWith('000999');
+  });
+
   it('data-layer perf hardening #4: does NOT range-bound the query when called with no params (opt-in pagination)', async () => {
     makeBuilder({ data: [], error: null });
     await listProcurements();
     expect(mockRange).not.toHaveBeenCalled();
   });
 
-  it('data-layer perf hardening #4: applies an explicit page/pageSize range', async () => {
-    makeBuilder({ data: [], error: null });
-    await listProcurements({ page: 2, pageSize: 10 });
-    expect(mockRange).toHaveBeenCalledWith(20, 29);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -107,34 +192,41 @@ function makeChainedBuilder(resolved: { data: unknown; error: unknown }) {
   return { mockEq, mockIn };
 }
 
+// FR-PFE-037: the committed figure is SQL's `project_committed_spend` (one definition). The shipped tests here asserted the
+// old `.from('procurements').in('status', …)` client sum, which is the duplicate logic this change removes.
 describe('getProjectCommittedSpend', () => {
-  it('sums total_value over Ordered..Paid PRs for the project (OD-W5-4 committed basis)', async () => {
-    const { mockEq, mockIn } = makeChainedBuilder({
-      data: [{ total_value: 120000 }, { total_value: 30000 }, { total_value: 50000 }],
-      error: null,
-    });
-    const total = await getProjectCommittedSpend('proj-1');
-    expect(mockFrom).toHaveBeenCalledWith('procurements');
-    expect(mockSelect).toHaveBeenCalledWith('total_value');
-    expect(mockEq).toHaveBeenCalledWith('project_id', 'proj-1');
-    // The exact dashboard basis (0009): Ordered / Received / Vendor Invoiced / Paid.
-    expect(mockIn).toHaveBeenCalledWith('status', ['Ordered', 'Received', 'Vendor Invoiced', 'Paid']);
-    expect(total).toBe(200000);
+  beforeEach(() => rpcSpy.mockReset());
+
+  it('FR-PFE-037: committed spend is the server open commitment, not a client sum', async () => {
+    rpcSpy.mockResolvedValueOnce({ data: [{ currency: 'IDR', amount: 400, is_project_currency: true }], error: null });
+    await expect(getProjectCommittedSpend('p1')).resolves.toEqual({ amount: 400, otherCurrencies: [] });
+    expect(rpcSpy).toHaveBeenCalledWith('project_committed_spend', { p_project_id: 'p1' });
+    expect(mockFrom).not.toHaveBeenCalledWith('procurements');
   });
 
-  it('returns 0 when there are no committed POs', async () => {
-    makeChainedBuilder({ data: [], error: null });
-    await expect(getProjectCommittedSpend('proj-1')).resolves.toBe(0);
+  it('keeps amounts in other currencies apart from the project-currency figure (never added together)', async () => {
+    rpcSpy.mockResolvedValueOnce({ data: [
+      { currency: 'IDR', amount: 100, is_project_currency: true },
+      { currency: 'USD', amount: '50.25', is_project_currency: false },
+    ], error: null });
+    await expect(getProjectCommittedSpend('p1')).resolves.toEqual({ amount: 100, otherCurrencies: [{ currency: 'USD', amount: 50.25 }] });
+  });
+
+  it('returns 0 and no other currencies when the server returns nothing', async () => {
+    rpcSpy.mockResolvedValueOnce({ data: null, error: null });
+    await expect(getProjectCommittedSpend('proj-1')).resolves.toEqual({ amount: 0, otherCurrencies: [] });
+    rpcSpy.mockResolvedValueOnce({ data: [], error: null });
+    await expect(getProjectCommittedSpend('proj-1')).resolves.toEqual({ amount: 0, otherCurrencies: [] });
   });
 
   it('sends no org_id (RLS scopes it)', async () => {
-    makeChainedBuilder({ data: [], error: null });
+    rpcSpy.mockResolvedValueOnce({ data: [], error: null });
     await getProjectCommittedSpend('proj-1');
-    expect(JSON.stringify(mockSelect.mock.calls)).not.toContain('org_id');
+    expect(JSON.stringify(rpcSpy.mock.calls)).not.toContain('org_id');
   });
 
   it('throws on PostgREST error', async () => {
-    makeChainedBuilder({ data: null, error: { message: 'kaboom' } });
+    rpcSpy.mockResolvedValueOnce({ data: null, error: { message: 'kaboom' } });
     await expect(getProjectCommittedSpend('proj-1')).rejects.toThrow('kaboom');
   });
 });
@@ -143,33 +235,39 @@ describe('getProjectCommittedSpend', () => {
 // AC-RB-001 — getProjectReservedSpend (reserved basis, ADR-0034)
 // ---------------------------------------------------------------------------
 describe('getProjectReservedSpend', () => {
-  it('AC-RB-001: sums total_value over Approved/Vendor Quoted/Quote Selected for the project', async () => {
-    const { mockEq, mockIn } = makeChainedBuilder({
-      data: [{ total_value: 80000 }, { total_value: 40000 }, { total_value: 30000 }],
-      error: null,
-    });
-    const total = await getProjectReservedSpend('proj-1');
-    expect(mockFrom).toHaveBeenCalledWith('procurements');
-    expect(mockSelect).toHaveBeenCalledWith('total_value');
-    expect(mockEq).toHaveBeenCalledWith('project_id', 'proj-1');
-    expect(mockIn).toHaveBeenCalledWith('status', ['Approved', 'Vendor Quoted', 'Quote Selected']);
-    expect(total).toBe(150000);
+  beforeEach(() => rpcSpy.mockReset());
+  const emptyPosition = { project_currency: 'USD', budget_currency: 'USD', positions: [] };
+  it('AC-RB-001: returns the project reserved position from the server', async () => {
+    rpcSpy.mockResolvedValueOnce({ data: [{ ...emptyPosition, positions: [{ currency: 'USD', amount: 150000 }] }], error: null });
+    const result = await getProjectReservedSpend('proj-1');
+    expect(rpcSpy).toHaveBeenCalledWith('project_reserved_position', { p_project_id: 'proj-1' });
+    expect(result.amount).toBe(150000);
   });
-
   it('AC-RB-001: returns 0 when there are no reserved procurements', async () => {
-    makeChainedBuilder({ data: [], error: null });
-    await expect(getProjectReservedSpend('proj-1')).resolves.toBe(0);
+    rpcSpy.mockResolvedValueOnce({ data: [emptyPosition], error: null });
+    expect((await getProjectReservedSpend('proj-1')).amount).toBe(0);
   });
-
   it('AC-RB-001: sends no org_id (RLS scopes it)', async () => {
-    makeChainedBuilder({ data: [], error: null });
+    rpcSpy.mockResolvedValueOnce({ data: [emptyPosition], error: null });
     await getProjectReservedSpend('proj-1');
-    expect(JSON.stringify(mockSelect.mock.calls)).not.toContain('org_id');
+    expect(JSON.stringify(rpcSpy.mock.calls)).not.toContain('org_id');
   });
-
   it('AC-RB-001: throws on PostgREST error', async () => {
-    makeChainedBuilder({ data: null, error: { message: 'kaboom' } });
+    rpcSpy.mockResolvedValueOnce({ data: null, error: { message: 'kaboom' } });
     await expect(getProjectReservedSpend('proj-1')).rejects.toThrow('kaboom');
+  });
+  it('treats an inaccessible project or malformed position as unavailable', async () => {
+    rpcSpy.mockResolvedValueOnce({ data: [], error: null });
+    await expect(getProjectReservedSpend('proj-1')).rejects.toThrow('unavailable');
+    rpcSpy.mockResolvedValueOnce({ data: [{ ...emptyPosition, positions: [{ currency: 'USD', amount: 'invalid' }] }], error: null });
+    await expect(getProjectReservedSpend('proj-1')).rejects.toThrow('unavailable');
+    rpcSpy.mockResolvedValueOnce({ data: [{ ...emptyPosition, positions: [{ currency: 'USD', amount: '100000000000000' }] }], error: null });
+    await expect(getProjectReservedSpend('proj-1')).rejects.toThrow('unavailable');
+  });
+  it('keeps an unknown currency separate', async () => {
+    rpcSpy.mockResolvedValueOnce({ data: [{ project_currency: null, budget_currency: null, positions: [{ currency: null, amount: '10.25' }] }], error: null });
+    const result = await getProjectReservedSpend('proj-1');
+    expect(result).toEqual({ amount: 0, projectCurrency: null, budgetCurrency: null, otherCurrencies: [{ currency: null, amount: 10.25 }] });
   });
 });
 
@@ -186,14 +284,52 @@ describe('AC-RB-003: Committed and Reserved sets are disjoint', () => {
   });
 });
 
+describe('listProcurementsByProject complete reads', () => {
+  it('returns every project purchase beyond the server cap and rejects a later page failure', async () => {
+    const rows = Array.from({ length: 1001 }, (_, i) => ({ id: String(i).padStart(4, '0'), status: 'Ordered' }));
+    rpcSpy.mockReset().mockResolvedValue({ data: [], error: null });
+    let fail = false;
+    const builder = { select: () => builder, eq: () => builder, order: () => builder,
+      gt: (_column: string, cursor: string) => { after = cursor; return builder; },
+      limit: () => builder,
+      then: (resolve: (value: unknown) => void) => resolve(fail && after ? { data: null, error: { message: 'page failed' } }
+        : { data: rows.filter((row) => !after || row.id > after).slice(0, 1000), error: null }) };
+    let after = '';
+    mockFrom.mockImplementation(() => { after = ''; return builder; });
+    const result = await listProcurementsByProject('proj-1');
+    expect(result).toHaveLength(1001);
+    expect(rpcSpy.mock.calls.map((c) => (c[1] as { p_ids: string[] }).p_ids.length)).toEqual([1000, 1]);
+    fail = true;
+    await expect(listProcurementsByProject('proj-1')).rejects.toThrow('page failed');
+  });
+});
+
 describe('listProcurementsByProject', () => {
   it('AC-OVERFETCH-002 filters server-side with project_id and keeps the list row shape', async () => {
     const rows = [{ id: 'pr1', project_id: 'proj-1', status: 'Draft', title: 'T' }];
+    rpcSpy.mockReset().mockResolvedValue({ data: [{ procurement_id: 'pr1', amount: 12 }], error: null });
     makeBuilder({ data: rows, error: null });
     const out = await listProcurementsByProject('proj-1');
     expect(mockFrom).toHaveBeenCalledWith('procurements');
-    expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining('project:projects(name,code)'));
+    expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining('project:projects(name,short_name,code,project_manager_id)'));
+    expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining('status_events:procurement_status_events(to_status,created_at)'));
     expect(mockEq).toHaveBeenCalledWith('project_id', 'proj-1');
     expect(out.map((r) => r.id)).toEqual(['pr1']);
+    expect(out[0].open_commitment).toBe(12);
+  });
+});
+
+describe('project reserved positions', () => {
+  it('preserves currency positions and explicit budget and project currencies', async () => {
+    makeChainedBuilder({ data: [{ total_value: 250.25 }, { total_value: 19.75 }], error: null });
+    rpcSpy.mockResolvedValueOnce({ data: [
+      { project_currency: 'USD', budget_currency: 'USD', positions: [
+        { currency: 'USD', amount: 250.25 }, { currency: 'EUR', amount: 19.75 },
+      ] },
+    ], error: null });
+    await expect(getProjectReservedSpend('proj-1')).resolves.toEqual({
+      amount: 250.25, projectCurrency: 'USD', budgetCurrency: 'USD',
+      otherCurrencies: [{ currency: 'EUR', amount: 19.75 }],
+    });
   });
 });

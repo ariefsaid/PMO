@@ -538,8 +538,8 @@ verify_jwt = false
 
 # ── Edge Function: clickup-webhook ─────────────────────────────────────────────
 # verify_jwt = false: a PUBLIC, unauthenticated surface — ClickUp (not a browser) POSTs task
-# webhooks here. The X-Signature HMAC-SHA256 of the raw body (keyed by CLICKUP_WEBHOOK_SECRET) is
-# the SOLE trust boundary (FR-CUA-041, NFR-CUA-SEC-002): an absent/invalid signature ⇒ 401 with no
+# webhooks here. The X-Signature HMAC-SHA256 of the raw body (keyed by the org's own webhook
+# secret, resolved from its binding) is the SOLE trust boundary (FR-CUA-041, NFR-CUA-SEC-002): an absent/invalid signature ⇒ 401 with no
 # side effect (STRIDE spoofing/tampering). The handler verifies the signature itself before any apply.
 [functions.clickup-webhook]
 verify_jwt = false
@@ -583,6 +583,12 @@ verify_jwt = false
 # (FR-ENA-080/081, AC-ENA-071). Registered-but-idle per the 0094 precedent until the operator sets the
 # Vault secrets.
 [functions.erpnext-sweep]
+verify_jwt = false
+
+# ── Edge Function: odoo-sweep ──────────────────────────────────────────────────
+# verify_jwt = false: invoked by pg_cron (odoo_sweep_tick, migration 0421); the handler verifies the
+# dedicated Odoo sweep secret itself, constant-time, exactly like erpnext-sweep.
+[functions.odoo-sweep]
 verify_jwt = false
 
 [analytics]

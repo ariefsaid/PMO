@@ -10,7 +10,7 @@
   min-width: 0;
   max-width: 100%;
   color: hsl(var(--foreground));
-  font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: "Hanken Grotesk", system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 14px;
   line-height: 1.45;
 }
@@ -29,7 +29,7 @@
   --bn-colors-selected-background: hsl(var(--secondary));
   --bn-colors-side-menu: hsl(var(--muted-foreground));
   --bn-colors-border: hsl(var(--border));
-  --bn-font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --bn-font-family: "Hanken Grotesk", system-ui, -apple-system, 'Segoe UI', sans-serif;
   --bn-border-radius: var(--radius);
   --bn-shadow-medium: 0 4px 12px hsl(var(--scrim) / 0.12);
 }

@@ -109,3 +109,13 @@ describe('S-38 preview coverage window (RF-054: Finance sees what the file actua
     expect(preview.new).toBe(2);
   });
 });
+
+it('summarizes a centuries-long coverage gap in bounded form', () => {
+  const parsed: FxParsed = { rows: [
+    { rate_date: '0100-01-01', rate: 16000 },
+    { rate_date: '2026-01-01', rate: 16000 },
+  ], rejected: [], duplicates: 0 };
+  const coverage = buildFxPreview(parsed, []).coverage;
+  expect(coverage.missingDates).toEqual([]);
+  expect(coverage.gapSummary).toEqual({ count: 703456, ranges: [{ first: '0100-01-02', last: '2025-12-31' }] });
+});

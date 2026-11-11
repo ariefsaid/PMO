@@ -32,7 +32,7 @@
 -- shape, the Draft budget line-item editor, an Admin's project hard-delete, and the whole legitimate
 -- two-person win.
 begin;
-select plan(99);
+select plan(121);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — an unattributed BYPASSRLS authority, exempt by design).
@@ -109,16 +109,16 @@ insert into project_documents (id, org_id, project_id, code, category, title, re
    'DOC-SCC-2','Drawing','Still a draft','A','2026-02-01','01710000-0000-0000-0000-0000000000a1',null,'Draft');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
--- A. budget_versions UPDATE — THE ROUND TRIP THAT VOIDED budget_line_items_draft_guard.
---    0176 closed INSERT, 0177 closed DELETE, and UPDATE was never touched.
+-- A. budget_versions UPDATE — status writes now go through the durable archive RPC, and activation
+--    remains owned by activate_budget_version. The underlying transition guard remains defense in depth.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 select is(
   (select coalesce(string_agg(distinct column_name, ',' order by column_name), '')
      from information_schema.column_privileges
     where table_schema = 'public' and table_name = 'budget_versions'
       and grantee in ('authenticated','anon') and privilege_type = 'UPDATE'),
-  'status',
-  'AC-SCC-010 `status` is the ONLY client-UPDATEable column on budget_versions — activated_at (the ADR-0059 push key) and the identity columns are withheld');
+  '',
+  'AC-SCC-010 no budget_versions column is client-UPDATEable — status transitions use the archive or activation RPC');
 
 select is(
   (select count(*)::int from information_schema.table_privileges
@@ -127,6 +127,9 @@ select is(
   0,
   'AC-SCC-010 …and no TABLE-level UPDATE grant survives (a table grant covers every column and is not reduced by a column revoke — 0075 re-opened 0010 exactly this way)');
 
+-- Temporarily grant only status UPDATE inside this rolled-back test so the transition trigger's
+-- defense-in-depth errors remain covered separately from the real client privilege fence above.
+grant update (status) on public.budget_versions to authenticated;
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -159,6 +162,7 @@ select throws_ok(
   'AC-SCC-013 activated_at cannot be forged — it is the ADR-0059 deterministic ERPNext budget-push key, i.e. a witness of an activation the DB never performed');
 
 reset role;
+revoke update (status) on public.budget_versions from authenticated;
 select is(
   (select budgeted_amount from public.budget_line_items where id = '01710000-0000-0000-0000-0000000000e1'),
   1000000.00::numeric,
@@ -173,9 +177,13 @@ select is(
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select lives_ok(
+select throws_ok(
   $$ update public.budget_versions set status = 'Archived' where id = '01710000-0000-0000-0000-0000000000f1' $$,
-  'AC-SCC-015 CONTROL archiveVersion (budgets.ts:382, rendered on Active only) still works — it is the ONE transition a client may make');
+  '42501', 'permission denied for table budget_versions',
+  'AC-SCC-015 direct status UPDATE is unavailable; archiving uses the durable archive RPC');
+select lives_ok(
+  $$ select public.archive_budget_version_with_cancel_intent('01710000-0000-0000-0000-0000000000f1', false) $$,
+  'AC-SCC-015 CONTROL archiveVersion still works through the durable archive RPC');
 
 select lives_ok(
   $$ select activate_budget_version('01710000-0000-0000-0000-0000000000f2'::uuid) $$,
@@ -668,8 +676,10 @@ set local request.jwt.claims =
 --   reproduction — the exploit IS a PM driving their own deal the length of the pipeline alone.
 insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
   ('01710000-0000-0000-0000-0000000000b5','01710000-0000-0000-0000-000000000001','SCC Self-set deal','Leads',99999999,'exclusive',0);
-select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,'PQ Submitted'::project_status);
 select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,'Quotation Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,'PQ Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,'Tender Submitted'::project_status);
+select is(public.project_win_eligibility('01710000-0000-0000-0000-0000000000b5'), 'reviewer_required', 'AC-SCC-070: self-authored value is ineligible before win');
 select throws_ok(
   $$ select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-SCC-2', '2026-03-02'::date) $$,
@@ -695,7 +705,7 @@ select throws_ok(
 reset role;
 select is(
   (select status::text from public.projects where id = '01710000-0000-0000-0000-0000000000b5'),
-  'Quotation Submitted',
+  'Tender Submitted',
   'AC-SCC-071 ROW 2 …and the deal did not move');
 
 -- ── ROW 3: the PM's LINE MANAGER ratifies -> ALLOWED, whatever their role ───────────────────────
@@ -721,6 +731,7 @@ select lives_ok(
   'AC-SCC-072 ROW 3 the PM''s line manager re-sets the value');
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.project_win_eligibility('01710000-0000-0000-0000-0000000000b5'), 'allowed', 'AC-SCC-072: manager-authored value is eligible before win');
 select lives_ok(
   $$ select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-SCC-2', '2026-03-02'::date) $$,
@@ -733,8 +744,9 @@ set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
   ('01710000-0000-0000-0000-0000000000b6','01710000-0000-0000-0000-000000000001','SCC Finance-ratified','Leads',250000,'exclusive',0);
-select transition_project('01710000-0000-0000-0000-0000000000b6'::uuid,'PQ Submitted'::project_status);
 select transition_project('01710000-0000-0000-0000-0000000000b6'::uuid,'Quotation Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b6'::uuid,'PQ Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b6'::uuid,'Tender Submitted'::project_status);
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok(
@@ -742,6 +754,7 @@ select lives_ok(
   'AC-SCC-073 ROW 4 a FINANCE user ratifies the PM''s figure — at the SAME number, which is the ratifier''s natural act and which must still re-stamp the witness');
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.project_win_eligibility('01710000-0000-0000-0000-0000000000b6'), 'allowed', 'AC-SCC-073: senior-authored value is eligible before win');
 select lives_ok(
   $$ select transition_project('01710000-0000-0000-0000-0000000000b6'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-SCC-3', '2026-03-02'::date) $$,
@@ -756,8 +769,9 @@ set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
   ('01710000-0000-0000-0000-0000000000b7','01710000-0000-0000-0000-000000000001','SCC Finance own deal','Leads',88888,'exclusive',0);
-select transition_project('01710000-0000-0000-0000-0000000000b7'::uuid,'PQ Submitted'::project_status);
 select transition_project('01710000-0000-0000-0000-0000000000b7'::uuid,'Quotation Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b7'::uuid,'PQ Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b7'::uuid,'Tender Submitted'::project_status);
 select lives_ok(
   $$ select transition_project('01710000-0000-0000-0000-0000000000b7'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-SCC-4', '2026-03-02'::date) $$,
@@ -772,8 +786,9 @@ set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
   ('01710000-0000-0000-0000-0000000000b8','01710000-0000-0000-0000-000000000001','SCC Null-manager deal','Leads',640000,'exclusive',0);
-select transition_project('01710000-0000-0000-0000-0000000000b8'::uuid,'PQ Submitted'::project_status);
 select transition_project('01710000-0000-0000-0000-0000000000b8'::uuid,'Quotation Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b8'::uuid,'PQ Submitted'::project_status);
+select transition_project('01710000-0000-0000-0000-0000000000b8'::uuid,'Tender Submitted'::project_status);
 reset role;
 select ok(
   (select manager_id is null from profiles where id = '01710000-0000-0000-0000-0000000000a2'),
@@ -899,7 +914,12 @@ select ok(
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 insert into procurements (id, org_id, title, status, requested_by_id, vendor_id) values
   ('01710000-0000-0000-0000-0000000000d4','01710000-0000-0000-0000-000000000001','SCC SoD case','Requested',
+   '01710000-0000-0000-0000-0000000000a1','01710000-0000-0000-0000-0000000000c2'),
+  ('01710000-0000-0000-0000-0000000000df','01710000-0000-0000-0000-000000000001','SCC cancelled case','Cancelled',
    '01710000-0000-0000-0000-0000000000a1','01710000-0000-0000-0000-0000000000c2');
+create temp table scc_d8_before as select
+  (select count(*) from public.payments where procurement_id = '01710000-0000-0000-0000-0000000000d8') as payments,
+  (select count(*) from public.procurement_status_events where procurement_id = '01710000-0000-0000-0000-0000000000d8') as events;
 insert into timesheets (id, org_id, user_id, week_start_date, status, submitted_at) values
   ('01710000-0000-0000-0000-0000000000d5','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000a1','2026-03-16','Submitted',now());
 insert into project_documents (id, org_id, project_id, code, category, title, revision, doc_date, author_id, status) values
@@ -915,10 +935,14 @@ select throws_ok(
   '42501', 'separation of duties: requester cannot approve/reject own procurement',
   'AC-CPS-070 transition_procurement''s requester-!=-approver SoD still fires');
 
-select throws_ok(
+-- AMENDED BY 0362 (FR-PFE-006): Paid -> Paid is an idempotent no-op that writes nothing; Cancelled -> Paid is still refused.
+select lives_ok(
   $$ select transition_procurement('01710000-0000-0000-0000-0000000000d8'::uuid,'Paid'::procurement_status) $$,
-  'P0001', 'illegal transition Paid -> Paid',
-  'AC-CPS-070 …and its transition map still refuses a re-entry into a terminal state');
+  'AC-CPS-070 …asking for Paid on a Paid purchase is a no-op (FR-PFE-006)');
+select throws_ok(
+  $$ select transition_procurement('01710000-0000-0000-0000-0000000000df'::uuid,'Paid'::procurement_status) $$,
+  'P0001', 'illegal transition Cancelled -> Paid',
+  'AC-CPS-070 …and its transition map still refuses leaving a terminal state');
 
 select throws_ok(
   $$ select transition_document_status('01710000-0000-0000-0000-0000000000d6'::uuid,'Approved'::doc_status) $$,
@@ -931,12 +955,19 @@ select throws_ok(
   'AC-CPS-070 transition_timesheet''s nobody-approves-their-own SoD still fires (even an Admin cannot)');
 
 reset role;
+select is(
+  (select (select count(*) from public.payments where procurement_id = '01710000-0000-0000-0000-0000000000d8') - b.payments
+       || '/' || (select count(*) from public.procurement_status_events where procurement_id = '01710000-0000-0000-0000-0000000000d8') - b.events
+       || '/' || (select status::text from public.procurements where id = '01710000-0000-0000-0000-0000000000d8')
+     from scc_d8_before b),
+  '0/0/Paid',
+  'AC-CPS-070 …and it writes nothing: no new payment, no status event, status unchanged');
 -- ⚑ b8 (ROW 6: no line manager, peer-PM ratifier -> REFUSED), NOT b5. b5 is deliberately WON earlier
 -- by ROW 3, so asserting it here would go red for the right reason and prove nothing about the SoD.
 -- It did exactly that on the rank ruling. Pick the deal the rule actually holds back.
 select is(
   (select status::text from public.projects where id = '01710000-0000-0000-0000-0000000000b8'),
-  'Quotation Submitted',
+  'Tender Submitted',
   'AC-CPS-070 transition_project''s money SoD still holds an un-ratified deal out of Won');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -1018,6 +1049,102 @@ select is(
       and grantee in ('authenticated','anon') and privilege_type in ('INSERT','UPDATE')),
   0,
   'AC-SCC-097 no client role holds a COLUMN-level INSERT/UPDATE on the billing claim tables — the RPCs are the sole writers');
+
+reset role;
+set local request.jwt.claims = '{}';
+insert into public.projects(id, org_id, name, status) values
+  ('01710000-0000-0000-0000-0000000000ee','01710000-0000-0000-0000-000000000002','Other project','Leads');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.project_win_eligibility('01710000-0000-0000-0000-0000000000ee'), null::text, 'cross-organization win eligibility reveals no detail');
+select is(public.project_win_eligibility('01710000-0000-0000-0000-000000009999'), null::text, 'missing win eligibility reveals no detail');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select is(public.project_win_eligibility('01710000-0000-0000-0000-0000000000b5'), null::text, 'inactive callers receive no win eligibility detail');
+reset role;
+select ok(not has_function_privilege('anon','public.project_win_eligibility(uuid)','EXECUTE'), 'anonymous callers cannot read win eligibility');
+
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- L. equipment_usage_entries / equipment_costing_settings (0447 / 0460, #1519) — usage becomes money once approved
+--    (hire-rate charges, attributed cost). Entries move only through transition_equipment_usage (approver ≠ author,
+--    checked before authority); settings are written only by the Admin/Finance RPCs. The same-person two-step is the
+--    cell this section closes: an Admin or Finance author must not be able to approve their own usage.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+reset role;
+set local request.jwt.claims = '{}';
+insert into equipment_assets (id, org_id, code, name) values
+  ('01710000-0000-0000-0000-0000000000d1','01710000-0000-0000-0000-000000000001','SCC-EQ','SCC loader');
+insert into equipment_usage_entries (id, org_id, asset_id, project_id, work_date, quantity, unit, status, author_id) values
+  ('01710000-0000-0000-0000-0000000000d2','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000d1',
+   '01710000-0000-0000-0000-0000000000b1','2026-09-01',8,'hours','Submitted','01710000-0000-0000-0000-0000000000a4'),   -- Finance's own
+  ('01710000-0000-0000-0000-0000000000d3','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000d1',
+   '01710000-0000-0000-0000-0000000000b1','2026-09-02',8,'hours','Submitted','01710000-0000-0000-0000-0000000000a3'),   -- Admin's own
+  ('01710000-0000-0000-0000-0000000000d4','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000d1',
+   '01710000-0000-0000-0000-0000000000b1','2026-09-03',8,'hours','Submitted','01710000-0000-0000-0000-0000000000a2');   -- the Colleague's
+select is(
+  (select count(*)::int from information_schema.table_privileges
+    where table_schema = 'public' and table_name in ('equipment_usage_entries','equipment_costing_settings')
+      and grantee in ('authenticated','anon') and privilege_type in ('INSERT','UPDATE')),
+  0,
+  'AC-SCC-098 no client role holds a TABLE-level INSERT/UPDATE on equipment usage entries or costing settings');
+select is(
+  (select count(*)::int from information_schema.column_privileges
+    where table_schema = 'public' and table_name in ('equipment_usage_entries','equipment_costing_settings')
+      and grantee in ('authenticated','anon') and privilege_type in ('INSERT','UPDATE')),
+  0,
+  'AC-SCC-099 no client role holds a COLUMN-level INSERT/UPDATE on them either: the RPCs are the sole writers');
+select is(
+  (select count(*)::int from information_schema.table_privileges
+    where table_schema = 'public' and table_name = 'equipment_costing_settings'
+      and grantee in ('authenticated','anon') and privilege_type = 'DELETE'),
+  0,
+  'AC-SCC-100 no client role can delete a costing setting');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d2','Approved') $$,
+  '42501', 'separation of duties: cannot decide own equipment usage',
+  'AC-SCC-101 a Finance author cannot approve their own equipment usage');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d3','Approved') $$,
+  '42501', 'separation of duties: cannot decide own equipment usage',
+  'AC-SCC-102 an Admin author cannot approve their own equipment usage');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d4','Approved') $$,
+  '42501', 'not authorized',
+  'AC-SCC-103 a Project Manager who does not manage the project cannot approve its usage');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d4','Approved') $$,
+  '42501', null,
+  'AC-SCC-104 a disabled approver is refused');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select lives_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d2','Approved') $$,
+  'AC-SCC-105 …but a second person (Admin) approves the Finance author''s usage — the gate closes the forgery, not the workflow');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select lives_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d3','Approved') $$,
+  'AC-SCC-106 …and Finance approves the Admin author''s usage');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d3','Draft') $$,
+  '42501', 'separation of duties: cannot reopen own equipment usage',
+  'AC-SCC-107 an Admin cannot reopen their own approved usage');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$ select save_equipment_costing('{"asset_id":"01710000-0000-0000-0000-0000000000d1","basis":"none","effective_from":"2026-01-01"}') $$,
+  '42501', 'not authorized',
+  'AC-SCC-108 a Project Manager approves hours but cannot set what an hour is worth');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select lives_ok(
+  $$ select save_equipment_costing('{"asset_id":"01710000-0000-0000-0000-0000000000d1","basis":"none","effective_from":"2026-01-01"}') $$,
+  'AC-SCC-109 Finance saves a costing setting');
+reset role;
 
 select * from finish();
 rollback;

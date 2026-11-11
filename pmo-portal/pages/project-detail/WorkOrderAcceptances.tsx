@@ -14,7 +14,7 @@ import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAccepta
  * active operator confirm their own preparation and refuses it otherwise with its reason — with a hint, never a
  * silent hide. `can()` is UX only; the database decides.
  */
-export interface WorkOrderAcceptancesProps {
+interface WorkOrderAcceptancesProps {
   workOrder: { id: string; status: string };
   boqItems: BoqItemRow[];
   documents: ProjectDocumentRow[];
@@ -37,7 +37,7 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
   workOrder, boqItems, documents, acceptances, state, onRetry, currentUserId, projectManagerId, hasAllocations,
   onPrepare, onEdit, onWithdraw, onConfirm,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const may = usePermission();
   const itemOf = new Map(boqItems.map((b) => [b.id, b]));
   const canPrepare = workOrder.status === 'Issued' && hasAllocations
@@ -76,7 +76,7 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
             const canEdit = draft && workOrder.status === 'Issued'
               && may('create', 'workOrderAcceptance', { currentUserId, record: { status: workOrder.status, project_manager_id: projectManagerId } });
             const canWithdraw = draft && may('withdraw', 'workOrderAcceptance', { currentUserId, record: { status: a.status, prepared_by: a.prepared_by } });
-            const canConfirm = draft && may('confirm', 'workOrderAcceptance', { currentUserId, record: { status: a.status, prepared_by: a.prepared_by } });
+            const canConfirm = draft && workOrder.status === 'Issued' && may('confirm', 'workOrderAcceptance', { currentUserId, record: { status: a.status, prepared_by: a.prepared_by } });
             return (
               <li key={a.id} data-testid={`bast-${a.id}`} className="flex flex-col gap-1 rounded-md border border-border p-2.5">
                 <div className="flex flex-wrap items-center gap-2 text-[13px]">

@@ -4,7 +4,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
   supabase: { rpc: vi.fn() },
 }));
 
-import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects, getWinRate, getSalesPipeline } from './dashboard';
+import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects, getWinRate, getLossBreakdown, getSalesPipeline } from './dashboard';
 import { supabase } from '@/src/lib/supabase/client';
 
 const rpc = supabase.rpc as ReturnType<typeof vi.fn>;
@@ -124,6 +124,28 @@ describe('getWinRate', () => {
   });
 });
 
+// ---- Loss breakdown ----
+describe('getLossBreakdown', () => {
+  it('AC-LR-008: getLossBreakdown marshals a Date range like getWinRate, returns the payload, throws on error', async () => {
+    const payload = {
+      by_reason: [{ reason: 'price', losses_count: 2, declined_count: 1 }],
+      by_client: [{ client_id: 'c1', client_name: 'Acme', wins_count: 2, losses_count: 1 }],
+    };
+    rpc.mockResolvedValue({ data: payload, error: null });
+    const result = await getLossBreakdown(new Date('2026-02-01'), new Date('2026-02-28'));
+    expect(rpc).toHaveBeenCalledWith('get_loss_breakdown', { p_from: '2026-02-01', p_to: '2026-02-28' });
+    expect(result).toEqual(payload);
+
+    rpc.mockReset();
+    rpc.mockResolvedValue({ data: payload, error: null });
+    await getLossBreakdown();
+    expect(rpc).toHaveBeenCalledWith('get_loss_breakdown', {});
+
+    rpc.mockResolvedValue({ data: null, error: { message: 'lb-error' } });
+    await expect(getLossBreakdown()).rejects.toThrow('lb-error');
+  });
+});
+
 // ---- Sales pipeline ----
 describe('getSalesPipeline', () => {
   it('AC-1113: getSalesPipeline returns typed stages + projects; throws on error (FR-SPD-009)', async () => {
@@ -133,7 +155,7 @@ describe('getSalesPipeline', () => {
         { status: 'PQ Submitted', count: 1, total_value: 800000, win_probability: 0.25, weighted_value: 200000 },
       ],
       projects: [
-        { id: 'p2', name: 'Northwind ERP Rollout', client_name: 'Northwind', status: 'Tender Submitted', contract_value: 1200000, win_probability: 0.5 },
+        { id: 'p2', name: 'Contractual Northwind Rollout', short_name: 'Northwind Site', client_name: 'Northwind', status: 'Tender Submitted', contract_value: 1200000, win_probability: 0.5 },
       ],
     };
     rpc.mockResolvedValue({ data: pipelinePayload, error: null });
@@ -142,6 +164,7 @@ describe('getSalesPipeline', () => {
     expect(result.stages).toHaveLength(2);
     expect(result.stages[0].status).toBe('Tender Submitted');
     expect(result.projects[0].client_name).toBe('Northwind');
+    expect(result.projects[0]).toMatchObject({ name: 'Contractual Northwind Rollout', short_name: 'Northwind Site' });
 
     // error branch
     rpc.mockResolvedValue({ data: null, error: { message: 'sp-error' } });

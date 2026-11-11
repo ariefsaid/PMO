@@ -207,6 +207,22 @@ describe('NotificationBell', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/my-tasks'));
   });
 
+  it('FR-IMP-074 selecting a site cash plan or replenishment notification opens Site cash', async () => {
+    listUnreadCount.mockResolvedValue(2);
+    listNotifications.mockResolvedValue([
+      row({ id: 'n1', title: 'Plan awaiting', metadata: { entity: { type: 'imprest_plan', id: 'pl-1', label: 'P' } } }),
+      row({ id: 'n2', title: 'Replenishment ready', metadata: { entity: { type: 'imprest_replenishment', id: 'r-1', label: 'R' } } }),
+    ]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /plan awaiting/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/imprest'));
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /replenishment ready/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(2));
+    expect(mockNavigate).toHaveBeenLastCalledWith('/imprest');
+  });
+
   it('AC-AAN-035 selecting a notification with only metadata.run_id opens that run', async () => {
     listUnreadCount.mockResolvedValue(1);
     listNotifications.mockResolvedValue([
@@ -363,6 +379,17 @@ describe('NotificationBell', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/expenses/ec-7'));
   });
 
+  it('AC-AIN-NAT-002 selecting a customer-invoice hand-off opens the invoice', async () => {
+    listUnreadCount.mockResolvedValue(1);
+    listNotifications.mockResolvedValue([
+      row({ id: 'n1', title: 'Customer invoice awaiting your approval', metadata: { entity: { type: 'sales_invoice', id: 'si-9', label: 'PT Client' } } }),
+    ]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /customer invoice awaiting/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/sales-invoices/si-9'));
+  });
+
   it('AC-843-005 requests one page on open; "Load more" shows only with a next cursor and appends the next page', async () => {
     const cursor = { createdAt: '2026-07-02T00:00:00.000Z', id: 'n2' };
     listNotifications
@@ -466,5 +493,40 @@ describe('NotificationBell', () => {
     expect(busy).toHaveAttribute('aria-busy', 'true');
     resolveMore({ rows: [], nextCursor: null });
     await waitFor(() => expect(screen.queryByRole('button', { name: /loading…/i })).not.toBeInTheDocument());
+  });
+
+  it('T-10: a slow FAILURE from an earlier open does not replace the newer inbox with an error', async () => {
+    const user = userEvent.setup();
+    let rejectFirst!: (e: unknown) => void;
+    listNotifications
+      .mockReturnValueOnce(new Promise((_, rej) => { rejectFirst = rej; }))
+      .mockResolvedValueOnce([row({ id: 'n-new', title: 'Newer item' })]);
+    renderBell();
+    const bell = await screen.findByRole('button', { name: /notifications/i });
+    await user.click(bell);
+    await user.click(bell);
+    await user.click(bell);
+    expect(await screen.findByText('Newer item')).toBeInTheDocument();
+    rejectFirst(new Error('late failure'));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByText('Newer item')).toBeInTheDocument();
+  });
+
+  it('T-10: a slow first-page response from an earlier open does not overwrite the newer one', async () => {
+    const user = userEvent.setup();
+    let resolveFirst!: (v: unknown) => void;
+    listNotifications
+      .mockReturnValueOnce(new Promise((r) => { resolveFirst = r; }))
+      .mockResolvedValueOnce([row({ id: 'n-new', title: 'Newer item' })]);
+    renderBell();
+    const bell = await screen.findByRole('button', { name: /notifications/i });
+    await user.click(bell); // open -> slow load #1
+    await user.click(bell); // close
+    await user.click(bell); // reopen -> load #2 resolves first
+    expect(await screen.findByText('Newer item')).toBeInTheDocument();
+    resolveFirst([row({ id: 'n-old', title: 'Older item' })]);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText('Older item')).not.toBeInTheDocument();
+    expect(screen.getByText('Newer item')).toBeInTheDocument();
   });
 });

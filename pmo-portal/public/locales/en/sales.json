@@ -1,6 +1,75 @@
 {
+  "goProbability": "% Go",
+  "getProbability": "% Get",
+  "goShort": "Go",
+  "getShort": "Get",
+  "column": {
+    "goPct": "% Go",
+    "getPct": "% Get"
+  },
   "pipeline": {
     "endCustomerLine": "for {{name}}",
-    "mixedCurrency": "Mixed currencies, so no single total"
+    "mixedCurrency": "Mixed currencies, so no single total",
+    "staleBid": "Stale bid · stage unchanged for 90+ days"
+  },
+  "scope": {
+    "all": "All",
+    "won": "Won"
+  },
+  "results": {
+    "one": "{{count}} project",
+    "many": "{{count}} projects",
+    "showing": "Showing {{shown}} of {{total}} projects",
+    "showingOne": "Showing {{shown}} of {{total}} project"
+  },
+  "wonError": {
+    "sub": "Something went wrong fetching won projects.",
+    "title": "Couldn't load won projects"
+  },
+  "tableEmpty": {
+    "won": {
+      "sub": "Projects marked won will appear here.",
+      "title": "No won projects"
+    }
+  },
+  "stageDate": {
+    "lead": "Lead",
+    "pq": "Pre-qual sent",
+    "quoted": "Quoted",
+    "tender": "Tender sent",
+    "negotiation": "Negotiation",
+    "signed": "Signed",
+    "lost": "Lost",
+    "declined": "Declined",
+    "started": "Started",
+    "onHold": "On hold",
+    "closedOut": "Closed out",
+    "internal": "Internal",
+    "daysShort": "d"
+  },
+  "options": {
+    "staleReason": "In {{stage}} for {{days}} days",
+    "idleReason": "Untouched for {{days}} days",
+    "openDeal": "Open deal",
+    "lastUpdate": "Last update",
+    "dealPanel": "Deal",
+    "decisionBand": "Where this stands",
+    "dealFiguresLabel": "Deal figures",
+    "figuresLabel": "Pipeline figures",
+    "weightedForecast": "Weighted forecast",
+    "weightedNote": "Value × chance it proceeds × chance we win",
+    "openValue": "Open value",
+    "openCount": "{{n}} open projects",
+    "needsYou": "Needs attention",
+    "needsYouNote": "Untouched 30+ days or 90+ days in one stage",
+    "outcomes": "Won · Lost",
+    "outcomesNote": "Decided projects on this board",
+    "ofOpen": "of {{value}} open across {{n}} projects",
+    "mixAria": "Weighted forecast by stage",
+    "viewByStage": "By stage",
+    "quickView": "Quick view",
+    "stageNav": "Pipeline stages",
+    "needsYouHeading": "Needs you · {{n}}",
+    "showAllAttention": "Show all {{n}}"
   }
 }

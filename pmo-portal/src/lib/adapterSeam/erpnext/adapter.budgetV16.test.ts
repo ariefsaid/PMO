@@ -7,7 +7,7 @@ const VERSION = '44444444-4444-4444-8444-444444444444';
 const COMPANY = 'Test Co';
 const PROJECT = 'ERP-PROJ';
 
-type Scenario = { account: string; amount: string; oldName?: string; oldAmount?: string; intent?: 'ensure' | 'remove'; failCancelOnce?: boolean; wrongCompany?: boolean; wrongAccount?: boolean; wrongYear?: boolean; wrongProject?: boolean; draft?: boolean };
+type Scenario = { account: string; amount: string; oldName?: string; occupiedName?: string; oldAmount?: string; intent?: 'ensure' | 'remove'; failCancelOnce?: boolean; wrongCompany?: boolean; wrongAccount?: boolean; wrongYear?: boolean; wrongProject?: boolean; draft?: boolean };
 function harness(s: Scenario) {
   const calls: Array<{ method: string; url: string; body?: Record<string, unknown> }> = [];
   let status = s.draft ? 0 : 1;
@@ -44,7 +44,7 @@ function harness(s: Scenario) {
     client: { fetchImpl: transport, apiKey: 'key', apiSecret: 'secret', baseUrl: 'https://erp.test' },
     doctypeBodies: DOCTYPE_BODIES,
     ctx: {
-      refs: { project: PROJECT, ...(s.oldName ? { self: s.oldName } : {}) },
+      refs: { project: PROJECT, ...(s.oldName ? { self: s.occupiedName ?? s.oldName } : {}) },
       config: { company: COMPANY, category_account_map: [{ category: s.account, erp_account: s.account }] },
       versionMajor: 16, budgetAccount: { intent, predecessor: s.oldName ?? null },
     },
@@ -137,4 +137,12 @@ describe('AC-BV16-005 revises only changed accounts and removes the dropped acco
     await expect(commit(malformed)).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('account Salary') });
     expect(methodCalls(malformed)).toEqual(['GET']);
   });
+});
+
+// A removal must preserve its frozen predecessor even if supplied refs name a newer occupant.
+it('AC-BUD-122 removal never substitutes the current same-grain occupant', async () => {
+  const h = harness({ account: 'Travel', amount: '0.00', oldName: 'OLD-Travel', occupiedName: 'NEW-Travel', intent: 'remove' });
+  const result = await commit(h);
+  expect(result.externalRecordId).toBe('OLD-Travel');
+  expect(h.calls.filter((call) => call.method === 'PUT').map((call) => call.url.split('/').pop())).toEqual(['OLD-Travel']);
 });

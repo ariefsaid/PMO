@@ -96,6 +96,29 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     expect(navigate).toHaveBeenCalledWith('/projects/p1');
   });
 
+  it('AC-002 #1325: cached global search shows aliases, searches both names, falls back, and keeps duplicate aliases distinct by UUID', () => {
+    state.projects = { data: [
+      { id: 'active-one', name: 'Contractual North Terminal', short_name: 'North Terminal' },
+      { id: 'active-plain', name: 'Contractual South Terminal', short_name: '  ' },
+      { id: 'active-two', name: 'Contractual North Expansion', short_name: 'North Terminal' },
+    ], isPending: false, isError: false };
+    state.pipeline = { data: { stages: [], projects: [
+      { id: 'pipeline-1', name: 'Contractual West Package', short_name: 'West Package' },
+    ] }, isPending: false, isError: false };
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const active = result.current.records.find((record) => record.id === 'projects:active-one')!;
+    const pipeline = result.current.records.find((record) => record.id === 'sales:pipeline-1')!;
+    expect(active.title).toBe('North Terminal');
+    expect(active.sub).toContain('Contractual North Terminal');
+    expect(pipeline.title).toBe('West Package');
+    expect(pipeline.sub).toContain('Contractual West Package');
+    expect(result.current.records.find((record) => record.id === 'projects:active-plain')?.title).toBe('Contractual South Terminal');
+    expect(rankRecords(result.current.records, 'Contractual North Terminal').items.map((record) => record.id)).toContain('projects:active-one');
+    expect(rankRecords(result.current.records, 'North Terminal').items.map((record) => record.id)).toEqual(expect.arrayContaining(['projects:active-one', 'projects:active-two']));
+    active.run();
+    expect(navigate).toHaveBeenLastCalledWith('/projects/active-one');
+  });
+
   it('AC-CODE-003: indexes and ranks PMO Project Number and Client Project Code for active and pipeline projects', () => {
     state.projects = { data: [{ id: 'p771', name: 'Active site', pmo_project_number: 'PMO-26-7711', code: 'CLIENT-81' }], isPending: false, isError: false };
     state.pipeline = { data: { stages: [], projects: [{ id: 'o771', name: 'Pipeline site', pmo_project_number: 'PMO-26-7712', code: 'CLIENT-82' }] }, isPending: false, isError: false };

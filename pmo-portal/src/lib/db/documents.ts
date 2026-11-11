@@ -1,15 +1,18 @@
+import { toStorageAppError } from '@/src/lib/storageError';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { issueMicrosoftDocument } from '@/src/lib/m365/graphClient';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 
 /**
- * project_documents DAL — the per-project document REGISTER (metadata only).
+ * project_documents DAL — per-project document register and upload helpers.
  *
- * Storage is disabled, so this is metadata-only: there is NO file upload and the
- * `file_path` column is never written here (the "Attach file" affordance is a
- * disabled placeholder in the UI until Storage is re-enabled — crud-components §9.9/§9.6).
+ * A project-register entry can be a PMO-held upload, a linked Microsoft file, a
+ * reference-only Microsoft folder, or have no attached source yet. File upload is
+ * supported by prepareUpload/confirmUpload below; metadata create/edit writes do not
+ * set `file_path`.
  *
  * org_id is NEVER sent from the client — the column default + the `project_documents_write`
  * RLS policy (org_id = auth_org_id() AND the 4 write-roles AND the parent project is in-org)
@@ -55,18 +58,22 @@ const nullable = (v: string): string | null => {
 /**
  * List the document register for a project (AC-DOC-001). org_id is NEVER sent — RLS
  * (project_documents_select: org_id = auth_org_id()) scopes rows. Ordered by code (nulls
- * last via the DB default), then created_at, for a stable, scannable list. Throws an
+ * last via the DB default), then created_at and id, for a stable, scannable list. Throws an
  * `AppError` (code preserved) on failure.
  */
 export async function listProjectDocuments(projectId: string): Promise<ProjectDocumentRow[]> {
-  const { data, error } = await supabase
+  return fetchAllPages(async (from, to) => {
+    const result = await supabase
     .from('project_documents')
     .select('*')
     .eq('project_id', projectId)
     .order('code', { nullsFirst: false })
-    .order('created_at', { ascending: false });
-  if (error) throwWrite(error);
-  return data ?? [];
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: true })
+    .range(from, to);
+    if (result.error) throwWrite(result.error);
+    return result;
+  });
 }
 
 /**
@@ -83,11 +90,29 @@ export async function getProjectDocument(id: string): Promise<ProjectDocumentRow
   return data ?? null;
 }
 
+/** Validate a Microsoft reference and map it to the `project_documents` columns it is stored in. */
+function referenceColumns(reference: MicrosoftReferenceInput, failure = 'Cannot link this item.') {
+  try {
+    assertMicrosoftReference(reference);
+  } catch {
+    throw new AppError(failure, '23514', 'm365-reference-invalid');
+  }
+  return {
+    source: 'onedrive' as const,
+    ms_drive_id: reference.drive_id,
+    ms_item_id: reference.item_id,
+    ms_web_url: reference.web_url,
+    ms_item_name: reference.name,
+    ms_item_kind: reference.item_kind,
+  };
+}
+
 /**
  * Create a document register entry (AC-DOC-003). org_id is NEVER sent — the column default +
  * the `project_documents_write` WITH CHECK are the authority. `author_id` is stamped from the
  * current user id (passed by the hook) for the approver-≠-author SoD; `status` defaults to
- * `Draft` server-side and `file_path` is never written (Storage off). Returns the new row.
+ * `Draft` server-side. This metadata insert leaves `file_path` unset; uploads are supported
+ * separately through prepareUpload/confirmUpload below. Returns the new row.
  * Throws an `AppError` (code preserved, e.g. `42501`) on failure.
  */
 export async function createProjectDocument(
@@ -98,13 +123,7 @@ export async function createProjectDocument(
   if ((input.source === 'onedrive') !== Boolean(input.microsoft)) {
     throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
   }
-  if (input.microsoft) {
-    try {
-      assertMicrosoftReference(input.microsoft);
-    } catch {
-      throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
-    }
-  }
+  const reference = input.microsoft ? referenceColumns(input.microsoft) : {};
   const { data, error } = await supabase
     .from('project_documents')
     .insert({
@@ -115,14 +134,7 @@ export async function createProjectDocument(
       revision: nullable(input.revision),
       doc_date: nullable(input.doc_date),
       author_id: authorId,
-      ...(input.source === 'onedrive' && input.microsoft ? {
-        source: 'onedrive' as const,
-        ms_drive_id: input.microsoft.drive_id,
-        ms_item_id: input.microsoft.item_id,
-        ms_web_url: input.microsoft.web_url,
-        ms_item_name: input.microsoft.name,
-        ms_item_kind: input.microsoft.item_kind,
-      } : {}),
+      ...reference,
     })
     .select()
     .single();
@@ -140,21 +152,30 @@ export async function linkMicrosoftDocument(
   id: string,
   reference: MicrosoftReferenceInput,
 ): Promise<void> {
-  try {
-    assertMicrosoftReference(reference);
-  } catch {
-    throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
-  }
+  const columns = referenceColumns(reference);
   const { data, error } = await supabase
     .from('project_documents')
-    .update({
-      source: 'onedrive',
-      ms_drive_id: reference.drive_id,
-      ms_item_id: reference.item_id,
-      ms_web_url: reference.web_url,
-      ms_item_name: reference.name,
-      ms_item_kind: reference.item_kind,
-    })
+    .update(columns)
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Document not found or you do not have permission to edit it.');
+}
+
+/**
+ * Attach a file already stored in SharePoint (by the custody upload) to a Draft document, replacing any
+ * private upload on the row in the SAME statement (`source: upload -> onedrive`, `file_path -> null`). One
+ * UPDATE, so a refused write leaves the previous attachment untouched; migration 0409's guard and the
+ * source check are the authority (Draft, author or Admin).
+ */
+export async function attachMicrosoftUpload(
+  id: string,
+  reference: MicrosoftReferenceInput,
+): Promise<void> {
+  const columns = referenceColumns(reference, 'Cannot attach this file.');
+  const { data, error } = await supabase
+    .from('project_documents')
+    .update({ ...columns, file_path: null, ms_item_kind: 'file' })
     .eq('id', id)
     .select('id');
   if (error) throwWrite(error);
@@ -294,7 +315,7 @@ export async function prepareUpload(
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUploadUrl(path);
-  if (error) throwWrite({ message: error.message, code: error.name === 'StorageError' ? '42501' : undefined });
+  if (error) throw toStorageAppError(error);
   if (!data?.signedUrl) throw new AppError('Could not create upload URL');
 
   return { signedUrl: data.signedUrl, path: data.path, oldPath: doc.file_path };
@@ -337,16 +358,16 @@ export async function cleanupStorageObject(filePath: string): Promise<void> {
  */
 export async function getSignedDownloadUrl(
   filePath: string,
-  opts?: { download?: boolean },
+  opts?: { download?: boolean; expiresIn?: number },
 ): Promise<string> {
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUrl(
       filePath,
-      SIGNED_URL_EXPIRY_SECONDS,
+      opts?.expiresIn ?? SIGNED_URL_EXPIRY_SECONDS,
       opts?.download ? { download: filePath.split('/').pop() || 'file' } : undefined,
     );
-  if (error) throwWrite({ message: error.message, code: error.name === 'StorageError' ? '42501' : undefined });
+  if (error) throw toStorageAppError(error);
   if (!data?.signedUrl) throw new AppError('Could not generate download link');
   return data.signedUrl;
 }
@@ -362,13 +383,7 @@ export async function createDocumentRevision(
   authorId: string | null,
   microsoft?: MicrosoftReferenceInput,
 ): Promise<ProjectDocumentRow> {
-  if (microsoft) {
-    try {
-      assertMicrosoftReference(microsoft);
-    } catch {
-      throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
-    }
-  }
+  const reference = microsoft ? referenceColumns(microsoft) : {};
   const parent = await getProjectDocument(parentId);
   if (!parent) throw new AppError('Parent document not found');
 
@@ -385,14 +400,7 @@ export async function createDocumentRevision(
       author_id: authorId,
       parent_document_id: parentId,
       // One child INSERT carries the reference; the old pin/baseline is never inherited.
-      ...(microsoft ? {
-        source: 'onedrive' as const,
-        ms_drive_id: microsoft.drive_id,
-        ms_item_id: microsoft.item_id,
-        ms_web_url: microsoft.web_url,
-        ms_item_name: microsoft.name,
-        ms_item_kind: microsoft.item_kind,
-      } : {}),
+      ...reference,
     })
     .select()
     .single();

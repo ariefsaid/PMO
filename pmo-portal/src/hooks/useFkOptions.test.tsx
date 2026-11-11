@@ -7,7 +7,6 @@ import React from 'react';
 const { repo } = vi.hoisted(() => ({
   repo: {
     company: { list: vi.fn(), listClients: vi.fn() },
-    profile: { listProjectManagers: vi.fn() },
     project: { list: vi.fn() },
   },
 }));
@@ -22,11 +21,11 @@ import {
   useVendorOptions,
   useProjectOptions,
   useClientCompanyOptions,
-  useProjectManagerOptions,
   useInvoiceProjectOptions,
 } from './useFkOptions';
 import { I18nextProvider } from 'react-i18next';
-import { financeTestI18n } from '@/pages/__tests__/financeI18nTestInstance';
+import { act } from '@testing-library/react';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 function wrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -50,8 +49,8 @@ describe('useVendorOptions — vendor FK picker', () => {
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(repo.company.list).toHaveBeenCalledWith({ type: 'Vendor' });
     expect(result.current.data).toEqual([
-      { value: 'v1', label: 'Apex Supply', sub: 'Vendor' },
-      { value: 'v2', label: 'Bolt Co', sub: 'Vendor' },
+      { value: 'v1', label: 'Apex Supply', sub: 'Supplier' },
+      { value: 'v2', label: 'Bolt Co', sub: 'Supplier' },
     ]);
   });
 
@@ -61,9 +60,62 @@ describe('useVendorOptions — vendor FK picker', () => {
     expect(repo.company.list).not.toHaveBeenCalled();
     expect(result.current.data).toBeUndefined();
   });
+
+  // HKA-009: the vendor sub is translated at READ time in the queryFn while the cache key omits
+  // the language and the query stays fresh for five minutes — so switching the UI language left
+  // cached supplier subtitles in the previous language until a refetch. The cached data must be
+  // language-neutral (the short-name sub, no label) and the translated "Vendor" sub must be
+  // applied through `select`, exactly as useClientCompanyOptions does.
+  it('retranslates the Vendor sub on a language switch without refetching (references HKA-009)', async () => {
+    repo.company.list.mockResolvedValue([
+      { id: 'v1', name: 'Apex Supply', type: 'Vendor', archived_at: null, short_name: null },
+      { id: 'v2', name: 'Bolt Co', type: 'Vendor', archived_at: null, short_name: 'Bolt' },
+    ]);
+    await financeTestI18n.changeLanguage('id');
+    const { result } = renderHook(() => useVendorOptions(), {
+      wrapper: ({ children }: { children: React.ReactNode }) => (
+        <I18nextProvider i18n={financeTestI18n}>
+          <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+            {children}
+          </QueryClientProvider>
+        </I18nextProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    // The short-name case keeps its legal-name sub (AC-NICK-001); the type sub is translation
+    // and follows the language.
+    expect(result.current.data).toEqual([
+      { value: 'v1', label: 'Apex Supply', sub: financeTestI18n.t('companies.type.vendor') },
+      { value: 'v2', label: 'Bolt', sub: 'Bolt Co' },
+    ]);
+    expect(repo.company.list).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await financeTestI18n.changeLanguage('en');
+    });
+    // The cached 'Pemasok' sub must re-translate to the new language WITHOUT a refetch.
+    await waitFor(() => expect(result.current.data?.[0].sub).toBe('Supplier'));
+    // The re-translation came from `select` against the CACHED rows — no second fetch.
+    expect(repo.company.list).toHaveBeenCalledTimes(1);
+    await financeTestI18n.changeLanguage('en');
+  });
 });
 
 describe('useProjectOptions — project FK picker (archived-filtered)', () => {
+  it('AC-002 #1325 shows the alias first, keeps legal name and code searchable, and excludes archived rows', async () => {
+    repo.project.list.mockResolvedValue([
+      { id: 'p-alias', name: 'Contractual North Terminal', short_name: 'North Terminal', code: 'PRJ-1', archived_at: null },
+      { id: 'p2', name: 'Old Job', short_name: 'Old Alias', code: 'PRJ-2', archived_at: '2026-01-01T00:00:00Z' },
+      { id: 'p3', name: 'No Code', short_name: null, code: null, archived_at: null },
+    ]);
+    const { result } = renderHook(() => useProjectOptions(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data).toEqual([
+      { value: 'p-alias', label: 'North Terminal', sub: 'Contractual North Terminal · PRJ-1' },
+      { value: 'p3', label: 'No Code', sub: undefined },
+    ]);
+    expect(result.current.data?.map((option) => option.value)).toEqual(['p-alias', 'p3']);
+  });
+
   it('excludes archived projects and maps id→value, name→label, code→sub', async () => {
     repo.project.list.mockResolvedValue([
       { id: 'p1', name: 'HQ Fit-Out', code: 'PRJ-1', archived_at: null },
@@ -90,17 +142,6 @@ describe('useClientCompanyOptions — client FK picker', () => {
   });
 });
 
-describe('useProjectManagerOptions — PM FK picker', () => {
-  it('maps PM profiles into ComboboxOptions (id→value, full_name→label)', async () => {
-    repo.profile.listProjectManagers.mockResolvedValue([
-      { id: 'u1', full_name: 'Alice Manager', role: 'Project Manager' },
-    ]);
-    const { result } = renderHook(() => useProjectManagerOptions(), { wrapper: wrapper() });
-    await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(result.current.data).toEqual([{ value: 'u1', label: 'Alice Manager' }]);
-  });
-});
-
 
 it('company pickers prefer the short name and keep the legal name in searchable option text (references AC-NICK-001)', async () => {
   repo.company.listClients.mockResolvedValue([{ id: 'c1', name: 'Example Legal Company', short_name: 'Example', type: 'Client' }]);
@@ -118,9 +159,23 @@ describe('useInvoiceProjectOptions — the sales-invoice project picker (#784)',
     const { result } = renderHook(() => useInvoiceProjectOptions(), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(result.current.data).toEqual([
-      { value: 'p1', label: 'Alpha', sub: 'A-1', clientId: 'c1', subjectToVat: true, taxRate: 12, archived: false },
-      { value: 'p2', label: 'Beta', sub: undefined, clientId: null, subjectToVat: false, taxRate: null, archived: true },
+      { value: 'p1', label: 'Alpha', sub: 'A-1', contractualName: 'Alpha', clientId: 'c1', subjectToVat: true, taxRate: 12, archived: false },
+      { value: 'p2', label: 'Beta', sub: undefined, contractualName: 'Beta', clientId: null, subjectToVat: false, taxRate: null, archived: true },
     ]);
+  });
+
+  it('AC-002 #1325 keeps invoice selector display separate from its contractual document identity', async () => {
+    repo.project.list.mockResolvedValue([{
+      id: 'p-contract', name: 'Contractual Terminal Expansion', short_name: 'Terminal North', code: 'CLIENT-8',
+      client_id: 'c1', subject_to_vat: true, tax_rate: 12, archived_at: null,
+    }]);
+    const { result } = renderHook(() => useInvoiceProjectOptions(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data).toEqual([{
+      value: 'p-contract', label: 'Terminal North', sub: 'Contractual Terminal Expansion · CLIENT-8',
+      contractualName: 'Contractual Terminal Expansion', clientId: 'c1', subjectToVat: true,
+      taxRate: 12, archived: false,
+    }]);
   });
 
   it('AC-S15-002 carries project currency and the stored tax-base fraction without recomputing either', async () => {
@@ -135,7 +190,7 @@ describe('useInvoiceProjectOptions — the sales-invoice project picker (#784)',
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(result.current.data).toEqual([
       {
-        value: 'p-source', label: 'Source-currency project', sub: undefined,
+        value: 'p-source', label: 'Source-currency project', sub: undefined, contractualName: 'Source-currency project',
         clientId: 'c1', subjectToVat: true, taxRate: 12, archived: false,
         currency: 'EUR', taxBaseNumerator: 11, taxBaseDenominator: 12,
       },

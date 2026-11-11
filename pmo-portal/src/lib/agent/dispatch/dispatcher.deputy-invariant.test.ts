@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { runDispatchTick } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import type { AutomationRow } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
+import { makeDispatcherTestRpc } from './dispatcherTestRpc';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DISPATCH_DIR = resolve(HERE, '../../../../../supabase/functions/agent-dispatch');
@@ -71,7 +72,7 @@ function makeServiceClient(automations: AutomationRow[]) {
     return { select: selectMock, update: updateMock };
   });
 
-  return { client: { from }, tablesTouched, updateMock, updateEqMock };
+  return { client: { from, rpc: makeDispatcherTestRpc() }, tablesTouched, updateMock, updateEqMock };
 }
 
 /** A minted-client mock recording its own .from() calls (the fired run's business surface). */
@@ -92,7 +93,7 @@ function makeMintedClient() {
   }));
   const from = vi.fn((table: string) => {
     tablesTouched.push(table);
-    return { insert };
+    return { insert, update: () => ({ eq: () => Promise.resolve({ error: null }) }) };
   });
   return { client: { from, __identity: 'minted-A' }, tablesTouched, insert };
 }
@@ -221,10 +222,10 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
     const makeSelectChain = (isMock: ReturnType<typeof vi.fn>) => ({
       eq: () => ({ eq: () => ({ is: isMock }) }),
     });
-    const rpc = vi.fn().mockResolvedValue({
+    const rpc = makeDispatcherTestRpc(() => ({
       data: [{ id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-A' }],
       error: null,
-    });
+    }));
     const wmMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     const wmSelect = vi.fn().mockReturnValue({ eq: () => ({ maybeSingle: wmMaybeSingle }) });
     const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
@@ -247,8 +248,24 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       // table like watermarks — the claim insert().select() must SUCCEED (return a claimed row) so the
       // trigger proceeds to the mint/condition path this test exercises.
       if (table === 'agent_automation_fires') {
-        return { insert: vi.fn().mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [{ automation_id: 'trig-1' }], error: null }) }) };
+        return { update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }), }), }), insert: vi.fn().mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [{ automation_id: 'trig-1' }], error: null }) }) };
       }
+      // The trusted-usage path's identity verification (recordTrustedUsage) is the only sanctioned
+      // service_role read of these tables, and each read is pinned to its exact projection + key: a
+      // wider read (another column set, or keyed by anything but the owner / the audit run) throws.
+      const pinnedRead = (cols: string, key: string, value: string, row: Record<string, unknown>) => ({
+        select: (c: string) => {
+          if (c !== cols) throw new Error(`service_role ${table} read must select exactly '${cols}'; got: ${c}`);
+          return { eq: (k: string, v: string) => {
+            if (k !== key || v !== value) throw new Error(`service_role ${table} read must be keyed ${key}=${value}; got: ${k}=${v}`);
+            return { single: () => Promise.resolve({ data: row, error: null }) };
+          } };
+        },
+      });
+      if (table === 'profiles') return pinnedRead('org_id', 'id', 'user-A', { org_id: 'org-A' });
+      if (table === 'agent_runs') return pinnedRead('id, owner_id, org_id, thread_id', 'id', 'run-1', { id: 'run-1', owner_id: 'user-A', org_id: 'org-A', thread_id: 'thread-1' });
+      if (table === 'agent_threads') return pinnedRead('id, owner_id, org_id', 'id', 'thread-1', { id: 'thread-1', owner_id: 'user-A', org_id: 'org-A' });
+      if (table === 'agent_usage') return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ error: null }) }) }) };
       throw new Error(`service_role must never .from() business data; got: ${table}`);
     });
     const svcClient = { from, rpc };
@@ -306,8 +323,12 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       'select_trigger_events',
       expect.objectContaining({ p_source: 'procurement_status_events' }),
     );
+    // The condition call's trusted usage row (recordTrustedUsage: verified-identity profile read + the
+    // agent_usage insert) is the one sanctioned service_role metering write; no other business table.
+    // the pinned reads above were really exercised (a throw inside would have skipped the usage insert)
+    expect(tablesTouched).toContain('agent_usage');
     for (const t of new Set(tablesTouched)) {
-      expect(['agent_automations', 'agent_dispatch_watermarks', 'agent_automation_fires']).toContain(t);
+      expect(['agent_automations', 'agent_dispatch_watermarks', 'agent_automation_fires', 'profiles', 'agent_runs', 'agent_threads', 'agent_usage']).toContain(t);
     }
   });
 

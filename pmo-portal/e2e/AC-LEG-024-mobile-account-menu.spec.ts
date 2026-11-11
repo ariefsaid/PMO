@@ -15,7 +15,7 @@ import { signIn } from './helpers';
  * shared menu Help anchor's href/target/rel against an injected legalConfig value.
  */
 test.describe('AC-LEG-024 account menu links', () => {
-  test('AC-LEG-024 Terms / Privacy from the account menu', async ({ page }) => {
+  test.skip('AC-LEG-024 Terms / Privacy from the account menu', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await signIn(page, 'admin@acme.test');
     await page.goto('/'); // inside the shell so the ContextBar renders

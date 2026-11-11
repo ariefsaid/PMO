@@ -17,7 +17,7 @@ const h = vi.hoisted(() => {
     workPages: [] as Array<Array<Record<string, unknown>>>,
     /** Tables the DAL scanned, in order. */
     scanned: [] as string[],
-    projects: [] as Array<{ id: string; name: string }>,
+    projects: [] as Array<{ id: string; name: string; short_name?: string | null }>,
     /** Singular reads: data served by `.maybeSingle()` per table. */
     singles: {} as Record<string, Record<string, unknown> | null>,
     /** Every `.select(columns)` the DAL issued, in order. */
@@ -47,12 +47,15 @@ const h = vi.hoisted(() => {
     let cursor: string | null = null;
     let cap = Number.POSITIVE_INFINITY;
     let window: [number, number] | null = null;
+    /** `.is(column, value)` filters this query applied; the mock honours them on the rows it serves. */
+    const isFilters: Array<[string, unknown]> = [];
     const b = {
       select(columns?: string) {
         if (columns) state.columnCalls.push({ table, columns });
         return b;
       },
       eq(column: string, value: unknown) { state.eqCalls.push([column, value]); return b; },
+      is(column: string, value: unknown) { isFilters.push([column, value]); return b; },
       maybeSingle() { return Promise.resolve({ data: state.singles[table] ?? null, error: null }); },
       neq() { return b; },
       order(column: string, opts?: { ascending?: boolean }) {
@@ -80,7 +83,8 @@ const h = vi.hoisted(() => {
           if (mutate) { state.mutateAfterQuery = null; mutate(); }
           return resolve({ data: page, error: null });
         }
-        return resolve({ data: state.invoicePages.shift() ?? [], error: null });
+        const served = state.invoicePages.shift() ?? [];
+        return resolve({ data: served.filter((row) => isFilters.every(([c, v]) => (row[c] ?? null) === v)), error: null });
       },
     };
     return b;
@@ -102,7 +106,7 @@ import { getRevenueByProject, getSalesInvoice, getIncomingPayment, setSalesInvoi
 /** `n` invoices for one project, each `amount` billed with `outstanding` still open. Ids are unique
  *  and sort in insertion order — the keyset scan reads its cursor from the last row of each page. */
 let nextInvoiceId = 0;
-function invoices(n: number, projectId: string | null, amount: number, outstanding: number) {
+function invoices(n: number, projectId: string | null, amount: number, outstanding: number | null = 0) {
   return Array.from({ length: n }, () => ({
     id: `si-${String(nextInvoiceId++).padStart(6, '0')}`,
     project_id: projectId,
@@ -164,6 +168,14 @@ describe('AC-EFK-004 sales e-Faktur DAL', () => {
 });
 
 describe('db/revenue getRevenueByProject — net of tax, per currency, paged', () => {
+  it('AC-002 #1325: a short name rides beside the contractual project_name, which stays contractual for exports', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha Contractual', short_name: 'Alpha' }];
+    h.state.workPages = [work(1, 'proj-1', 100)];
+    h.state.invoicePages = [invoices(1, 'proj-1', 111, 40)];
+    const rows = await getRevenueByProject();
+    expect(rows[0]).toMatchObject({ project_name: 'Alpha Contractual', project_short_name: 'Alpha' });
+  });
+
   it('AC-831-1: sums the NET (shared work-billed view), never the gross amount, and reads Open AR from the invoices', async () => {
     h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
     // The view already nets tax out: a gross 111 PPN invoice arrives as net 100.
@@ -173,7 +185,7 @@ describe('db/revenue getRevenueByProject — net of tax, per currency, paged', (
     const rows = await getRevenueByProject();
 
     expect(rows).toEqual([
-      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 80, invoice_count: 2 },
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 80, open_ar_unknown_count: 0, invoice_count: 2 },
     ]);
     expect(h.state.scanned).toEqual(['sales_invoice_work_billed', 'sales_invoices']);
     // Down-payment invoices are advances, not work — filtered server-side, as the management pack does.
@@ -212,7 +224,7 @@ describe('db/revenue getRevenueByProject — net of tax, per currency, paged', (
     const rows = await getRevenueByProject();
 
     expect(rows).toEqual([
-      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 15_000, open_ar: 6_000, invoice_count: 1500 },
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 15_000, open_ar: 6_000, open_ar_unknown_count: 0, invoice_count: 1500 },
     ]);
     // Both scans kept paging until a SHORT page proved the end — bounded, cursor-advanced pages.
     expect(h.state.limits).toEqual([1000, 1000, 1000, 1000]);
@@ -249,7 +261,7 @@ describe('db/revenue getRevenueByProject — net of tax, per currency, paged', (
     const rows = await getRevenueByProject();
 
     expect(rows).toEqual([
-      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 300, open_ar: 75, invoice_count: 3 },
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 300, open_ar: 75, open_ar_unknown_count: 0, invoice_count: 3 },
     ]);
     expect(h.state.invoiceQueries).toBe(2);
   });
@@ -306,7 +318,7 @@ describe('db/revenue getRevenueByProject — net of tax, per currency, paged', (
     const rows = await getRevenueByProject();
 
     expect(rows).toEqual([
-      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 0, open_ar: 50_000, invoice_count: 1 },
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 0, open_ar: 50_000, open_ar_unknown_count: 0, invoice_count: 1 },
     ]);
   });
 
@@ -314,6 +326,106 @@ describe('db/revenue getRevenueByProject — net of tax, per currency, paged', (
     const rows = await getRevenueByProject();
     expect(rows).toEqual([]);
     expect(h.from).not.toHaveBeenCalledWith('projects');
+  });
+});
+
+describe('db/revenue getRevenueByProject — count once (ECA-5, PD-ECA-11)', () => {
+  it('AC-ECA-030 a paired PMO invoice is excluded from the client-side billed and open totals and from the invoice count', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    // The work view already leaves the paired copy out (server filter); the receivable scan must too.
+    h.state.workPages = [work(1, 'proj-1', 100)];
+    h.state.invoicePages = [[
+      ...invoices(1, 'proj-1', 111, 40),
+      { id: 'si-paired', project_id: 'proj-1', currency: 'USD', amount: 111, erp_outstanding_amount: 40, paired_erp_invoice_id: 'si-erp' },
+    ]];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toEqual([
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 100, open_ar: 40, open_ar_unknown_count: 0, invoice_count: 1 },
+    ]);
+  });
+});
+
+describe('db/revenue getRevenueByProject — unknown outstanding balance (issue #1475)', () => {
+  it('sums only known outstanding amounts and explicitly counts unknown balances when mixed', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [work(2, 'proj-1', 100)];
+    // 1 invoice with known outstanding 40, 1 invoice with unknown (null) outstanding
+    h.state.invoicePages = [[
+      ...invoices(1, 'proj-1', 111, 40),
+      ...invoices(1, 'proj-1', 111, null),
+    ]];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toEqual([
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 40, open_ar_unknown_count: 1, invoice_count: 2 },
+    ]);
+  });
+
+  it('reports open_ar: 0 with all-null outstanding balances and counts every unknown balance', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [work(2, 'proj-1', 100)];
+    h.state.invoicePages = [invoices(2, 'proj-1', 111, null)];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toEqual([
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 0, open_ar_unknown_count: 2, invoice_count: 2 },
+    ]);
+  });
+
+  it('handles zero known outstanding amounts honestly (distinguishing zero balance from unknown)', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [work(2, 'proj-1', 100)];
+    // 1 invoice fully paid (outstanding: 0), 1 invoice with unknown outstanding (null)
+    h.state.invoicePages = [[
+      ...invoices(1, 'proj-1', 111, 0),
+      ...invoices(1, 'proj-1', 111, null),
+    ]];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toEqual([
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 0, open_ar_unknown_count: 1, invoice_count: 2 },
+    ]);
+  });
+
+  it('multi-project: aggregates open AR and unknown count independently per project and currency', async () => {
+    h.state.projects = [
+      { id: 'proj-1', name: 'Alpha' },
+      { id: 'proj-2', name: 'Beta' },
+    ];
+    h.state.workPages = [
+      [
+        ...work(2, 'proj-1', 100, 'USD'),
+        ...work(1, 'proj-2', 50, 'USD'),
+        ...work(1, 'proj-2', 500_000, 'IDR'),
+      ],
+    ];
+    h.state.invoicePages = [
+      [
+        // proj-1 USD: 1 known 40, 1 null
+        ...invoices(1, 'proj-1', 111, 40),
+        ...invoices(1, 'proj-1', 111, null),
+        // proj-2 USD: 1 known 25, 0 null
+        ...invoices(1, 'proj-2', 55, 25),
+        // proj-2 IDR: 1 null
+        { id: `si-${String(nextInvoiceId++).padStart(6, '0')}`, project_id: 'proj-2', currency: 'IDR', amount: 555_000, erp_outstanding_amount: null },
+      ],
+    ];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toHaveLength(3);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 40, open_ar_unknown_count: 1, invoice_count: 2 },
+        { project_id: 'proj-2', project_name: 'Beta', currency: 'USD', total_amount: 50, open_ar: 25, open_ar_unknown_count: 0, invoice_count: 1 },
+        { project_id: 'proj-2', project_name: 'Beta', currency: 'IDR', total_amount: 500_000, open_ar: 0, open_ar_unknown_count: 1, invoice_count: 1 },
+      ]),
+    );
   });
 });
 
@@ -332,13 +444,26 @@ describe('db/revenue singular reads — getSalesInvoice / getIncomingPayment (AC
 
     expect(h.state.columnCalls).toContainEqual({
       table: 'sales_invoices',
-      columns: '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id)',
+      columns: '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id), project:projects!sales_invoices_project_id_fkey(subject_to_vat,receipt_withholding_article)',
     });
     expect(h.state.eqCalls).toContainEqual(['id', 'si-1']);
     expect(row?.customer_name).toBe('Acme Co');
     expect(row?.author_user_ids).toEqual(['u-1']);
     expect(row?.efaktur_number).toBe('010.001-26.12345678');
     expect(row?.efaktur_date).toBe('2026-10-01');
+  });
+
+  it("AC-WHA-007: a sales invoice row carries its project's default receipt article", async () => {
+    h.state.singles.sales_invoices = {
+      id: 'si-wha', companies: null, sales_invoice_authors: [],
+      project: { subject_to_vat: true, receipt_withholding_article: 'pph4_2' },
+    };
+    expect((await getSalesInvoice('si-wha'))?.project_receipt_withholding_article).toBe('pph4_2');
+    h.state.singles.sales_invoices = {
+      id: 'si-wha-2', companies: null, sales_invoice_authors: [],
+      project: { subject_to_vat: true, receipt_withholding_article: 'pph21' },
+    };
+    expect((await getSalesInvoice('si-wha-2'))?.project_receipt_withholding_article).toBeNull();
   });
 
   it('AC-EFK-004: absent sales e-Faktur fields hydrate as nullable facts', async () => {
@@ -361,7 +486,7 @@ describe('db/revenue singular reads — getSalesInvoice / getIncomingPayment (AC
 
     expect(h.state.columnCalls).toContainEqual({
       table: 'incoming_payments',
-      columns: '*, customer:companies!incoming_payments_customer_id_fkey(name)',
+      columns: '*, customer:companies!incoming_payments_customer_id_fkey(name), allocations:incoming_payment_allocations(id,sales_invoice_id,amount,cash_amount,withheld_amount,currency,reversed_at)',
     });
     expect(h.state.eqCalls).toContainEqual(['id', 'ip-1']);
     expect(row?.customer_name).toBe('Acme Co');

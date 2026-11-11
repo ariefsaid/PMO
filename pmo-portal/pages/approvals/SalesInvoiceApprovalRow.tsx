@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ApprovalRow, Button, Icon, ProjectNameLink, TaxBasisLabel } from '@/src/components/ui';
 import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
@@ -14,11 +14,11 @@ const EYEBROW = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-mute
  * I-1 (#784, FR-NAR-006): what the approver reads before approving a PMO draft — project, customer, customer PO, who
  * raised it, every line, and net / tax / total due. Display only; migration 0275 fixed every figure at creation.
  */
-export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showFx?: boolean }> = ({ inv, showFx = false }) => {
+export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showFx?: boolean; hideLines?: boolean }> = ({ inv, showFx = false, hideLines = false }) => {
   const { t } = useTranslation();
   const { data: projects } = useInvoiceProjectOptions();
   const { data: profiles } = useAssignableProfiles();
-  const projectName = useMemo(() => projects?.find((p) => p.value === inv.project_id)?.label ?? null, [projects, inv.project_id]);
+  const projectName = useMemo(() => projects?.find((p) => p.value === inv.project_id)?.contractualName ?? null, [projects, inv.project_id]);
   const authorName = useMemo(() => profiles?.find((p) => p.id === inv.author_user_id)?.full_name ?? null, [profiles, inv.author_user_id]);
   const money = (n: number | null) => (n != null ? formatCurrencyCents(n, inv.currency) : '—');
   const net = invoiceNet(inv);
@@ -28,8 +28,10 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
     { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-[13px]" /> },
     // The record page (showFx) already headlines the customer; the approval card still names it.
     ...(showFx ? [] : [{ label: t('financeCopy.customer', 'Customer'), value: inv.customer_name ?? '—' }]),
+    ...(!inv.pmo_native && inv.invoice_date ? [{ label: t('finance:receivables.invoiceDate', 'Invoice date'), value: formatDateOnly(inv.invoice_date) }] : []),
     ...(inv.pmo_native || inv.reference_number ? [{ label: t('financeCopy.customerPO', 'Customer PO'), value: inv.reference_number ?? '—' }] : []),
     ...(inv.pmo_native ? [{ label: t('approvals.salesInvoices.raisedBy', 'Raised by'), value: authorName ?? '—' }] : []),
+    ...(!inv.pmo_native && inv.status === 'Draft' && !inv.si_number ? [{ label: t('finance:financeCopy.invoiceNumber', 'Invoice number'), value: t('finance:financeCopy.odooDraftNumber', 'Draft — Odoo assigns the number on approval') }] : []),
   ];
 
   return (
@@ -43,7 +45,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
         ))}
       </dl>
 
-      {inv.pmo_native ? (
+      {(inv.pmo_native || Boolean(lines.length)) && !hideLines ? (
         <section>
           <h3 className={`mb-2 ${EYEBROW}`}>{t('financeCopy.lineItemsSection', 'Line items')}</h3>
           <ul className="space-y-1.5" aria-label={t('financeCopy.lineItemsSection', 'Line items')}>
@@ -64,11 +66,13 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
             ))}
           </ul>
         </section>
-      ) : showFx ? null : (
-        <p className="text-sm text-muted-foreground">
-          {t('financeCopy.erpLineItemsStoredInErpNext', 'Line items are kept in ERPNext for this invoice.')}
-        </p>
-      )}
+      ) : !inv.pmo_native ? (
+        showFx ? null : (
+          <p className="text-sm text-muted-foreground">
+            {t('finance:financeCopy.erpLineItemsStoredExternally', 'Line items are kept in the accounting system for this invoice.')}
+          </p>
+        )
+      ) : null}
 
       <dl className="space-y-1 text-[13px]">
         <div className="flex items-baseline justify-between gap-3">

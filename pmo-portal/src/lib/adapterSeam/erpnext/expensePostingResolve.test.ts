@@ -11,12 +11,15 @@ const ACCOUNTS: Record<string, ErpAccountFacts> = {
   'Employee Advances - PSC': { name: 'Employee Advances - PSC', root_type: 'Asset', account_type: 'Payable', is_group: 0, disabled: 0, company: 'PMO Smoke Co', account_currency: 'IDR' },
   'Travel Expenses - PSC': { name: 'Travel Expenses - PSC', root_type: 'Expense', account_type: '', is_group: 0, disabled: 0, company: 'PMO Smoke Co', account_currency: 'IDR' },
   'Meals - PSC': { name: 'Meals - PSC', root_type: 'Expense', account_type: '', is_group: 0, disabled: 0, company: 'PMO Smoke Co', account_currency: 'IDR' },
+  'Project Direct Cost - PSC': { name: 'Project Direct Cost - PSC', root_type: 'Expense', account_type: 'Cost of Goods Sold', is_group: 0, disabled: 0, company: 'PMO Smoke Co', account_currency: 'IDR' },
 };
 
+// Default project is internal on purpose: the pre-0354 tests keep exercising the per-type accounts;
+// the direct-cost block below overrides it with project_is_internal: false.
 function truth(posting: ExpensePosting, over: Partial<ExpenseGateTruth> = {}): ExpenseGateTruth {
   return {
     mirror_id: 'm1', posting, posting_identity: `${CLAIM}:${posting}`, subject_id: CLAIM, claim_id: CLAIM,
-    claim_number: 'EXP-2610070001', claimant_id: 'user-e1', project_id: 'proj-1', currency: 'IDR', amount: '175.00',
+    claim_number: 'EXP-2610070001', claimant_id: 'user-e1', project_id: 'proj-1', project_is_internal: true, float_cash_account: null, currency: 'IDR', amount: '175.00',
     lines: [{ expense_type: 'Meals', amount: '25.00' }, { expense_type: 'Travel', amount: '150.00' }],
     state_stamp: '2026-10-07T10:00:00+00:00', posting_date: '2026-10-07', approval_posting_exists: true, actor_id: 'user-pm',
     ...over,
@@ -38,6 +41,31 @@ function deps(over: Partial<ExpenseResolveDeps> = {}): ExpenseResolveDeps & { ca
   return { ...base, ...over, calls };
 }
 
+describe('resolveExpensePosting on a float (AC-IMP-071)', () => {
+  const FLOAT = 'Site Cash F - PSC';
+  const floatCash: ErpAccountFacts = { name: FLOAT, account_type: 'Cash', is_group: 0, disabled: 0, company: 'PMO Smoke Co' };
+  const readAccounts = (facts: ErpAccountFacts | null) => async (names: string[]) =>
+    names.flatMap((n) => (n === FLOAT ? (facts ? [facts] : []) : ACCOUNTS[n] ? [ACCOUNTS[n]] : []));
+
+  it('AC-IMP-071 a float advance needs no company cash account when the float\'s account fits', async () => {
+    const noCompanyCash = async () => ({ company: 'PMO Smoke Co', cashAccount: null, costCenter: null, projectMap: {} });
+    expect(await resolveExpensePosting(truth('advance-payment', { float_cash_account: FLOAT }),
+      deps({ readBinding: noCompanyCash, readErpAccounts: readAccounts(floatCash) }))).toMatchObject({ outcome: 'ready' });
+  });
+
+  it('AC-IMP-071 an account that no longer fits is refused, not posted', async () => {
+    for (const facts of [null, { ...floatCash, account_type: 'Bank' }, { ...floatCash, company: 'Other Co' }, { ...floatCash, disabled: 1 }, { ...floatCash, is_group: 1 }]) {
+      expect(await resolveExpensePosting(truth('advance-payment', { float_cash_account: FLOAT }), deps({ readErpAccounts: readAccounts(facts) })))
+        .toMatchObject({ outcome: 'refuse', code: 'imprest-cash-account-unfit' });
+    }
+  });
+
+  it('AC-IMP-071 a journal posting on a float record does not read the float\'s account', async () => {
+    const d = deps({ readErpAccounts: readAccounts(null) });
+    expect(await resolveExpensePosting(truth('approval', { float_cash_account: FLOAT }), d)).toMatchObject({ outcome: 'ready' });
+  });
+});
+
 describe('resolveExpensePosting (AC-EXP-115)', () => {
   it('AC-EXP-115 approval: ready with exactly the accounts it needs', async () => {
     expect(await resolveExpensePosting(truth('approval'), deps())).toEqual({ outcome: 'ready', refs: {
@@ -52,8 +80,10 @@ describe('resolveExpensePosting (AC-EXP-115)', () => {
     expect(unlinked.calls).not.toContain('accounts');
     expect(await resolveExpensePosting(truth('approval'), deps({ readAccountMap: async () => ({ employee_payable: 'Employee Payable - PSC', Travel: 'Travel Expenses - PSC' }) })))
       .toMatchObject({ outcome: 'refuse', code: 'expense-account-unmapped', message: expect.stringContaining('Meals') });
-    expect(await resolveExpensePosting(truth('approval'), deps({ readBinding: async () => ({ company: 'PMO Smoke Co', cashAccount: 'Cash - PSC', costCenter: null, projectMap: {} }) })))
-      .toMatchObject({ outcome: 'refuse', code: 'project-unmapped' });
+    expect(await resolveExpensePosting(truth('approval', { project_is_internal: false }), deps({
+      readAccountMap: async () => ({ employee_payable: 'Employee Payable - PSC', project_direct_cost: 'Project Direct Cost - PSC' }),
+      readBinding: async () => ({ company: 'PMO Smoke Co', cashAccount: 'Cash - PSC', costCenter: null, projectMap: {} }),
+    }))).toMatchObject({ outcome: 'refuse', code: 'project-unmapped' });
     expect(await resolveExpensePosting(truth('advance-payment'), deps({ readBinding: async () => ({ company: 'PMO Smoke Co', cashAccount: null, costCenter: null, projectMap: {} }) })))
       .toMatchObject({ outcome: 'refuse', code: 'expense-cash-account-unconfigured' });
     expect(await resolveExpensePosting(truth('approval'), deps({ readBinding: async () => ({ company: null, cashAccount: null, costCenter: null, projectMap: {} }) })))
@@ -120,5 +150,60 @@ describe('resolveExpensePosting (AC-EXP-115)', () => {
       expect(await resolveExpensePosting(truth('approval-cancel'), d)).toEqual({ outcome: 'already-done', erpName: null });
       expect(d.calls).not.toContain('docstatus');
     }
+  });
+});
+
+describe('the debit account follows the project (AC-EXP-119, OD-EXP-PB-1 2026-10-23)', () => {
+  const DIRECT = 'Project Direct Cost - PSC';
+  const MAP_WITH_DIRECT = {
+    employee_payable: 'Employee Payable - PSC', employee_advance: 'Employee Advances - PSC', project_direct_cost: DIRECT,
+    Travel: 'Travel Expenses - PSC', Meals: 'Meals - PSC',
+  };
+  const withDirect = (over: Partial<ExpenseResolveDeps> = {}) => deps({ readAccountMap: async () => MAP_WITH_DIRECT, ...over });
+  const unlinked: Partial<ExpenseResolveDeps> = {
+    readBinding: async () => ({ company: 'PMO Smoke Co', cashAccount: 'Cash - PSC', costCenter: 'Main - PSC', projectMap: {} }),
+  };
+
+  it('AC-EXP-119 a delivery-project approval debits the direct-cost account for every type and keeps the ERP project', async () => {
+    expect(await resolveExpensePosting(truth('approval', { project_is_internal: false }), withDirect())).toEqual({ outcome: 'ready', refs: {
+      company: 'PMO Smoke Co', employee: 'HR-EMP-00002', payableAccount: 'Employee Payable - PSC', advanceAccount: null,
+      expenseAccounts: { Meals: DIRECT, Travel: DIRECT }, erpProject: 'PROJ-0001', costCenter: 'Main - PSC',
+      cashAccount: 'Cash - PSC', approvalJournal: null } });
+  });
+
+  it('AC-EXP-119 with no direct-cost account mapped a delivery approval is refused unmapped before any ERP read — the type accounts never stand in', async () => {
+    const d = deps(); // payable, advance, Travel, Meals mapped — no project_direct_cost
+    expect(await resolveExpensePosting(truth('approval', { project_is_internal: false }), d))
+      .toMatchObject({ outcome: 'refuse', code: 'expense-account-unmapped', message: expect.stringMatching(/: project_direct_cost$/) });
+    expect(d.calls).not.toContain('accounts');
+    expect(d.calls).not.toContain('company');
+  });
+
+  it('AC-EXP-119 a linked Internal Project approval debits each type\'s own account and keeps the ERP project', async () => {
+    expect(await resolveExpensePosting(truth('approval', { project_is_internal: true }), withDirect())).toMatchObject({ outcome: 'ready', refs: {
+      expenseAccounts: { Meals: 'Meals - PSC', Travel: 'Travel Expenses - PSC' }, erpProject: 'PROJ-0001' } });
+  });
+
+  it('AC-EXP-119 an unlinked Internal Project posts as overhead with no project; an unlinked delivery project is still refused', async () => {
+    expect(await resolveExpensePosting(truth('approval', { project_is_internal: true }), withDirect(unlinked))).toMatchObject({ outcome: 'ready', refs: {
+      expenseAccounts: { Meals: 'Meals - PSC', Travel: 'Travel Expenses - PSC' }, erpProject: null } });
+    expect(await resolveExpensePosting(truth('approval', { project_is_internal: false }), withDirect(unlinked)))
+      .toMatchObject({ outcome: 'refuse', code: 'project-unmapped' });
+  });
+
+  it('AC-EXP-119 an untagged approval is overhead with no project, even with the direct-cost account mapped', async () => {
+    expect(await resolveExpensePosting(truth('approval', { project_id: null, project_is_internal: false }), withDirect())).toMatchObject({ outcome: 'ready', refs: {
+      expenseAccounts: { Meals: 'Meals - PSC', Travel: 'Travel Expenses - PSC' }, erpProject: null } });
+  });
+
+  it('AC-EXP-119 the direct-cost account is checked against ERPNext before posting', async () => {
+    expect(await resolveExpensePosting(truth('approval', { project_is_internal: false }), deps({
+      readAccountMap: async () => ({ ...MAP_WITH_DIRECT, project_direct_cost: 'Employee Payable - PSC' }),
+    }))).toEqual({ outcome: 'refuse', code: 'expense-account-invalid', message: 'project_direct_cost: Employee Payable - PSC must be an Expense account' });
+  });
+
+  it('AC-EXP-119 a claim payment on a delivery project never needs the direct-cost account', async () => {
+    expect(await resolveExpensePosting(truth('claim-payment', { project_is_internal: false, approval_posting_exists: false }), deps()))
+      .toMatchObject({ outcome: 'ready', refs: { expenseAccounts: {}, payableAccount: 'Employee Payable - PSC' } });
   });
 });

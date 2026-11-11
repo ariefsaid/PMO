@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { getPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
+import { setTaskOwnership, setProjectBindings } from '@/src/lib/adapterSeam/ownershipCache';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -18,6 +19,7 @@ const seed = [
 
 const projectsState = { data: seed, isPending: false, isError: false, refetch: vi.fn() };
 const committedSpendState = { data: 2_350_000 };
+const projectProcurementsState = { data: [] as unknown[] };
 // The by-id opportunity read (the fallback for a record outside the active cache) — mutable so a test
 // can fail it independently of the list read.
 const oppState = { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() };
@@ -44,6 +46,7 @@ const { roleBox, desktopBox, projectMutations, projectTransition, budgetVersions
     isPending: false,
   },
 }));
+vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   // #840: the detail route reads ONE project by id (any stage), never the whole list. `oppState`
@@ -72,24 +75,38 @@ vi.mock('@/src/hooks/useBudget', () => ({
   // line-items). Return 4,700,000 to match the seed project so the 50% util assertion holds.
   useProjectBudget: () => ({ data: 4_700_000, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: budgetVersionsBox.value, isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetDistribution: () => ({ data: null, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }),
+  useBudgetActivationPrecheck: () => ({ data: undefined, isPending: false, isError: false }),
+  useBudgetArchiveTargets: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: vi.fn() }, activate: { mutateAsync: vi.fn() },
     archive: { mutateAsync: vi.fn() }, cloneVersion: { mutateAsync: vi.fn() },
+    returnVersion: { mutateAsync: vi.fn(), isPending: false },
+    resubmitVersion: { mutateAsync: vi.fn(), isPending: false },
     deleteDraft: { mutateAsync: vi.fn() }, createLineItem: { mutateAsync: vi.fn() },
     deleteLineItem: { mutateAsync: vi.fn() },
+    switchDraftMode: { mutateAsync: vi.fn() },
+    saveDistribution: { mutateAsync: vi.fn() },
   }),
 }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({
   useProjectFinances: () => ({ data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: 'USD', total: '2350000.00', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '2350000.00' }] } }, isPending: false, isError: false }),
 }));
+vi.mock('@/src/hooks/useProgressBilling', () => ({
+  useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectBilling: () => ({ data: { contractLines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectProcurements: () => ({ data: projectProcurementsState.data, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectCommittedSpend: (...args: unknown[]) => committedSpendHook(...args),
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => projectTransition,
+  // ProjectStatusControl composes the win-eligibility preflight (3700397d9); the shell tests here
+  // assert layout/journeys, so the preflight answers 'allowed' without a QueryClient.
+  useProjectWinEligibility: () => ({ data: 'allowed' }),
 }));
 // Model B: ProjectDetail falls back to a by-id opportunity fetch for records not in the active
 // projects cache. The seed here is on-hand (in the cache), so this is disabled — stub it to
@@ -120,6 +137,7 @@ vi.mock('@/src/hooks/useTasks', () => ({
     removeDependency: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => <div data-testid="project-erp-link">ERP link</div> }));
 // The Documents tab is now a real register (no longer a deferred placeholder); stub its
 // data hooks so the shell test stays a pure shell test (no network / no QueryClient needed).
 vi.mock('@/src/hooks/useDocuments', () => ({
@@ -142,12 +160,31 @@ vi.mock('react-router', async (orig) => {
 // B-9 (AC-W2-IA-004): all tabs are now deep-linkable via /projects/:projectId/:tab.
 // Both the `:tab` route and the bare `:projectId` route are registered so navigation
 // after a tab click (which goes to /projects/:projectId/:tab) keeps rendering ProjectDetail.
+// Tab bodies are React.lazy chunks; under a parallel test run their first import can exceed findBy's 1s default.
+const LAZY_TAB_TIMEOUT = 5000;
 const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+const preloadTab = async (path: string | { pathname: string }) => {
+  const pathname = typeof path === 'string' ? path : path.pathname;
+  const tab = pathname.split('/')[3] ?? 'overview';
+  switch (tab) {
+    case 'budget': await import('../tabs/BudgetTab'); break;
+    case 'procurement': await import('../tabs/ProcurementTab'); break;
+    case 'tasks': await import('../tabs/TasksTab'); break;
+    case 'documents': await import('../tabs/DocumentsTab'); break;
+    case 'work-orders': await import('../tabs/WorkOrdersTab'); break;
+    case 'billing': await import('../tabs/BillingTab'); break;
+    // The approved redesign renders OverviewContent inside ProjectSections; it is not a lazy tab module.
+    default: break;
+  }
+};
 
 // list-working-set-return (#682, AC-LRC-003): a plain string entry is the direct-link case (no
 // captured list context); an { pathname, state } entry lets a test seed a validated
 // `pmoListReturn` context as though the record were opened from a narrowed Projects list.
 const renderAt = async (path: string | { pathname: string; state?: unknown }) => {
+  // These tests cover the settled shell; route-chunk loading has separate coverage.
+  await preloadTab(path);
   const view = render(
     <QueryClientProvider client={freshClient()}>
       <MemoryRouter initialEntries={[path]}>
@@ -160,12 +197,26 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  // #1344: the old wait named project-detail-panel-loading, an id the demand-loading change
+  // (#1469) retired — it asserted nothing and returned before the panel's Suspense fallback
+  // cleared, racing the skeleton on a loaded machine (#1198 fixed the defaultTab fixture;
+  // same binding here). When a tabpanel is up, its demand-loaded chunk (primed by preloadTab
+  // above) must have landed before any panel assertion. The pending-skeleton, not-found and
+  // load-error paths have no tabpanel — their settled views render straight from the mocked
+  // record and several tests assert exactly those — so the wait is satisfied there.
+  await waitFor(() => {
+    const panel = screen.queryByRole('tabpanel');
+    if (panel) expect(within(panel).queryAllByTestId('project-detail-panel-loading')).toHaveLength(0);
+  }, { timeout: LAZY_TAB_TIMEOUT });
   return view;
 };
 
 describe('ProjectDetail shell (decomposition)', () => {
   beforeEach(() => {
+    // TasksTab gates its write affordances on the synced per-project route (ADR-0056); seed the
+    // module cache so a PM's structure permissions are evaluated against a known route.
+    setTaskOwnership([]);
+    setProjectBindings([]);
     projectsState.data = seed;
     projectsState.isPending = false;
     projectsState.isError = false;
@@ -175,6 +226,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     oppState.isError = false;
     oppState.refetch.mockReset();
     committedSpendState.data = 2_350_000;
+    projectProcurementsState.data = [];
     committedSpendHook.mockReset();
     committedSpendHook.mockImplementation(() => ({ data: committedSpendState.data, isPending: false, isError: false, commitmentSource: 'pmo', ledgerBasis: 'erp', refetch: vi.fn() }));
     budgetVersionsBox.value = [];
@@ -188,43 +240,66 @@ describe('ProjectDetail shell (decomposition)', () => {
     });
   });
 
-  it('UIP-005: Overview owns the full phase planner below the tab navigation', async () => {
-    await renderAt('/projects/p1');
-    const panel = screen.getByRole('tabpanel');
-    expect(within(panel).getByTestId('milestone-strip-empty')).toBeInTheDocument();
-    expect(within(panel).getByRole('button', { name: 'Plan delivery phases' })).toBeInTheDocument();
-    expect(screen.getByRole('tablist', { name: /Project sections/i }).compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it('UIP-005 / PD-A: Tasks with no phases shows no phase line at all and not the full planner', async () => {
-    await renderAt('/projects/p1/tasks');
-    expect(screen.queryByTestId('milestone-strip-empty')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('milestone-summary')).not.toBeInTheDocument();
-    expect(screen.queryByText('No delivery phases yet')).not.toBeInTheDocument();
-    expect(screen.getByRole('tabpanel')).toHaveTextContent('Tasks');
-  });
-
-  it('renders the header from the real cached row, defaults to Overview, and moves record details into the persistent rail (L3-RECORD)', async () => {
+  it('renders the cached identity and opens project details and actions from the header menu', async () => {
     await renderAt('/projects/p1');
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
     const tabs = screen.getByRole('tablist', { name: /project sections/i });
     expect(within(tabs).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
 
-    const rail = screen.getByTestId('project-detail-rail');
-    expect(within(rail).getByText('Details')).toBeInTheDocument();
-    expect(within(rail).getByText('Customer')).toBeInTheDocument();
-    expect(within(rail).getByText('Innovate Corp')).toBeInTheDocument();
-    expect(within(rail).getByText('Project manager')).toBeInTheDocument();
-    expect(within(rail).getByText('Alice Manager')).toBeInTheDocument();
-    expect(within(rail).getByText('Customer PO ref')).toBeInTheDocument();
-    expect(within(rail).getByText('CPO-2026-001')).toBeInTheDocument();
-    expect(within(rail).getByText('Project details and actions')).toBeInTheDocument();
-    expect(rail.querySelector('details')).not.toHaveAttribute('open');
-    // PD-A: the header status pill is the one status display; the rail has no Status row or help paragraph.
-    expect(within(rail).queryByText('Status')).not.toBeInTheDocument();
-    expect(within(rail).queryByText(/Move the project through its delivery stages/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('More actions'));
+    const menu = screen.getByLabelText('More actions').closest('details');
+    expect(menu).not.toBeNull();
+    expect(within(menu!).getByRole('button', { name: 'Project details' })).toHaveAttribute('aria-expanded', 'false');
+    expect(within(menu!).getByRole('button', { name: 'Change status' })).toBeInTheDocument();
+    expect(within(menu!).getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
+    expect(within(menu!).getByTestId('project-erp-link')).toBeInTheDocument();
+
+    await userEvent.click(within(menu!).getByRole('button', { name: 'Project details' }));
+    const details = within(menu!).getByTestId('project-detail-rail');
+    expect(within(menu!).getByRole('button', { name: 'Project details' })).toHaveAttribute('aria-expanded', 'true');
+    expect(within(details).getByText('Customer')).toBeInTheDocument();
+    expect(within(details).getByText('Innovate Corp')).toBeInTheDocument();
+    expect(within(details).getByText('Project manager')).toBeInTheDocument();
+    expect(within(details).getByText('Alice Manager')).toBeInTheDocument();
+    expect(within(details).getByText('Customer PO ref')).toBeInTheDocument();
+    expect(within(details).getByText('CPO-2026-001')).toBeInTheDocument();
+    expect(within(details).getByText('Contract date')).toBeInTheDocument();
+    // PD-A: the header status is the one status display; project details carry no Status row or help paragraph.
+    expect(within(details).queryByText('Status')).not.toBeInTheDocument();
+    expect(within(details).queryByText(/Move the project through its delivery stages/)).not.toBeInTheDocument();
 
     expect(screen.queryByText('Project information')).not.toBeInTheDocument();
+  });
+
+  it('UIP-005: Overview owns the phase planner below the tab navigation', async () => {
+    await renderAt('/projects/p1');
+    const panel = screen.getByRole('tabpanel');
+    expect(screen.getByRole('tablist', { name: /Project sections/i }).compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(panel).getByRole('heading', { name: 'Phase timeline' })).toBeInTheDocument();
+    // L10: the Overview shows the phases; a PM opens the planner from the phase block itself.
+    await userEvent.click(within(panel).getByRole('button', { name: 'Update phases' }));
+    expect(within(panel).getByTestId('milestone-strip-empty')).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Plan delivery phases' })).toBeInTheDocument();
+  });
+
+  it('UIP-005 / PD-A: Tasks with no phases shows no phase line at all and not the full planner', async () => {
+    await renderAt('/projects/p1/tasks');
+    expect(await screen.findByText(/no tasks yet/i, undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
+    expect(screen.queryByTestId('milestone-strip-empty')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('milestone-summary')).not.toBeInTheDocument();
+    expect(screen.queryByText('No delivery phases yet')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Phase timeline' })).not.toBeInTheDocument();
+  });
+
+  it('UX-002: mobile keeps record-wide transitions discoverable without a fixed action covering the selected work', async () => {
+    desktopBox.value = false;
+    await renderAt('/projects/p1/documents');
+
+    expect(document.querySelector('[data-mobile-action-bar]')).toBeNull();
+    expect(await within(screen.getByRole('tabpanel')).findByText('Document register', undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('More actions'));
+    const menu = screen.getByLabelText('More actions').closest('details');
+    expect(within(menu!).getByRole('button', { name: /change status/i })).toBeInTheDocument();
   });
 
   it('CW-7: /projects/:id defaults to Overview for EVERY role — the URL is role-invariant (Engineer)', async () => {
@@ -237,62 +312,51 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(tabs).getByRole('tab', { name: 'Tasks' })).toHaveAttribute('aria-selected', 'false');
   });
 
-  it('uses Change status as the only rail primary and keeps Edit as a single header entry point', async () => {
+  it('opens the project edit form from the single header Edit action', async () => {
     await renderAt('/projects/p1');
+    const editActions = within(screen.getByTestId('record-header-actions')).getAllByRole('button', { name: /^Edit$/i });
+    expect(editActions.length).toBeGreaterThan(0); // desktop action + responsive menu action share one edit behavior
 
-    const rail = screen.getByTestId('project-detail-rail');
-    await userEvent.click(within(rail).getByText('Project details and actions'));
-    const changeStatus = within(rail).getByRole('button', { name: /change status/i });
-    expect(changeStatus).toBeInTheDocument();
-    expect(changeStatus.className).toContain('bg-primary');
-    expect(within(rail).queryByRole('button', { name: /edit project/i })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /^Edit$/i })).toHaveLength(1);
-
-    await userEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
+    await userEvent.click(editActions[0]);
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
   });
 
-  it('I-2: record-tab create buttons are demoted to outline so Change status stays the one blue primary', async () => {
-    const cases = [
-      ['/projects/p1/budget', /new version/i],
-      ['/projects/p1/procurement', /new request/i],
-      ['/projects/p1/tasks', /new task/i],
-      ['/projects/p1/documents', /add document/i],
-    ] as const;
-
-    for (const [path, name] of cases) {
-      const { unmount } = await renderAt(path);
-      const rail = screen.getByTestId('project-detail-rail');
-      await userEvent.click(within(rail).getByText('Project details and actions'));
-      expect(within(rail).getByRole('button', { name: /change status/i }).className).toContain('bg-primary');
-      const tabCta = screen.getAllByRole('button', { name })[0];
-      expect(tabCta.className).toContain('bg-background');
-      expect(tabCta.className).not.toContain('bg-primary');
-      unmount();
-    }
-  });
-
-  it('UX-002: mobile keeps record-wide transitions discoverable without a fixed action covering the selected work', async () => {
-    desktopBox.value = false;
-    await renderAt('/projects/p1/documents');
-
-    expect(screen.queryByTestId('mobile-sticky-action')).not.toBeInTheDocument();
-    expect(screen.getByRole('tabpanel')).toHaveTextContent('Document register');
-    const rail = screen.getByTestId('project-detail-rail');
-    await userEvent.click(within(rail).getByText('Project details and actions'));
-    expect(within(rail).getByRole('button', { name: /change status/i })).toBeInTheDocument();
-  });
-
-  it('passes committed PO spend through to the header and Overview budget use', async () => {
+  it('keeps complete Actual separate from PMO purchase commitments in Budget vs actual', async () => {
     committedSpendState.data = 2_350_000;
-    budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000, line_items: [] }];
+    // L12: the committed figure is the Budget tab's category-row total (Ordered…Paid procurements, Uncategorized included).
+    projectProcurementsState.data = [
+      { status: 'Ordered', budget_category: 'Labor', approved_total_value: 2_000_000, total_value: 2_000_000, currency: 'USD' },
+      { status: 'Paid', budget_category: null, approved_total_value: null, total_value: 350_000, currency: 'USD' },
+    ];
+    budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000,
+      line_items: [{ id: 'li1', category: 'Labor', budgeted_amount: 4_700_000 }] }];
     await renderAt('/projects/p1');
 
-    expect(screen.getByText('PMO purchase orders')).toBeInTheDocument();
-    expect(screen.getAllByText('$2,350,000.00').length).toBeGreaterThanOrEqual(2);
-    // PD-B: budget use lives in the Budget snapshot's Budget position.
-    expect(screen.getByTestId('budget-used')).toHaveTextContent('50% of budget');
+    expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
+    expect(screen.getByText('Budget vs actual')).toBeInTheDocument();
+    expect(screen.getByText(/Spent 2,350,000 of 4,700,000/)).toBeInTheDocument();
+    expect(screen.getByText(/Plus 2,350,000 committed in purchase orders/)).toBeInTheDocument();
+  });
+
+  it.each(['Project Manager', 'Finance'])('UIP-006: %s contract and committed values remain visible', async (role) => {
+    roleBox.value = role;
+    projectsState.data = [{ ...seed[0], tax_treatment: 'exclusive' } as unknown as ProjectWithRefs];
+    committedSpendState.data = 2_360_000;
+    projectProcurementsState.data = [
+      { status: 'Paid', budget_category: 'Labor', approved_total_value: 1_680_000, total_value: 1_680_000, currency: 'USD' },
+      { status: 'Ordered', budget_category: 'Labor', approved_total_value: 680_000, total_value: 680_000, currency: 'USD' },
+    ];
+    budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000,
+      line_items: [{ id: 'li1', category: 'Labor', budgeted_amount: 4_700_000 }] }];
+    await renderAt('/projects/p1');
+
+    const contractAmount = within(screen.getByRole('region', { name: 'Money position' })).getByTestId('contract-value-amount');
+    expect(contractAmount).toBeVisible();
+    const budgetActual = screen.getByRole('region', { name: 'Budget vs actual' });
+    expect(budgetActual).toHaveTextContent('USD · excl. PPN');
+    expect(within(budgetActual).getByText('Plus 2,360,000 committed in purchase orders')).toBeVisible();
+    projectsState.data = seed;
   });
 
   it('AC-SEC-229: an Engineer sees no project-wide purchase-order or spend figure — their purchasing read covers only their own requests', async () => {
@@ -301,14 +365,13 @@ describe('ProjectDetail shell (decomposition)', () => {
     budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000, line_items: [] }];
     await renderAt('/projects/p1');
 
-    // The Engineer's financial summary still renders (Contract), but no figure summed over the
-    // project's requests: the project-wide read is not issued and nothing derived from it shows.
-    expect(screen.getByText('Contract')).toBeInTheDocument();
+    // Engineer's limited purchasing read must not produce a project-wide spend figure.
     expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
     expect(screen.queryByText('$2,350,000.00')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('budget-used')).not.toBeInTheDocument();
-    expect(committedSpendHook).toHaveBeenCalled();
-    for (const [projectId] of committedSpendHook.mock.calls) expect(projectId).toBeNull();
+    expect(screen.queryByText(/committed in purchase orders/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Money position' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Budget vs actual' })).not.toBeInTheDocument();
+    expect(committedSpendHook).not.toHaveBeenCalled();
   });
 
   it('switches to the Procurement tab and shows its real (empty) state', async () => {
@@ -320,7 +383,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(navigate).toHaveBeenCalledWith('/projects/p1/procurement', expect.anything());
     view.unmount();
     await renderAt('/projects/p1/procurement');
-    expect(await within(screen.getByRole('tabpanel')).findByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
+    expect(await within(screen.getByRole('tabpanel')).findByText(/No procurement on this project yet/i, undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
   });
 
   it('AC-LRC-003: a tab switch forwards the current location.state so return context survives it', async () => {
@@ -341,9 +404,9 @@ describe('ProjectDetail shell (decomposition)', () => {
     // MemoryRouter URL; direct URL navigation is the correct way to test URL-driven tab content.)
     await renderAt('/projects/p1/tasks');
     // Tasks is now a real CRUD surface (no longer a "coming soon" placeholder).
-    expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no tasks yet/i, undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
     // PM (a structure write-role) sees the gated New task affordance.
-    expect(screen.getAllByRole('button', { name: /new task/i }).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('button', { name: /new task/i }, { timeout: LAZY_TAB_TIMEOUT })).length).toBeGreaterThan(0);
   });
 
   it('AC-DOC-001: the Documents tab mounts the real document register (empty state, gated Add for the PM)', async () => {
@@ -351,9 +414,9 @@ describe('ProjectDetail shell (decomposition)', () => {
     await renderAt('/projects/p1/documents');
     // The deferred "coming soon" placeholder is gone — this is now a real register.
     expect(screen.queryByText(/Document management is coming soon/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/No documents yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No documents yet/i, undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
     // PM is a master-data write-role → the gated Add document affordance is present (header CTA only).
-    expect(screen.getAllByRole('button', { name: /Add document/i })).toHaveLength(1);
+    expect(await screen.findAllByRole('button', { name: /Add document/i }, { timeout: LAZY_TAB_TIMEOUT })).toHaveLength(1);
   });
 
   it('does NOT render a Timesheets tab (removed placeholder, tracked in backlog)', async () => {
@@ -363,12 +426,13 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(tabs).not.toContain('Timesheets');
   });
 
-  it('pre-selects the Budget tab on the /budget deep-link route and keeps the right rail mounted across tabs', async () => {
+  it('pre-selects the Budget tab on the /budget deep-link route and keeps project details available', async () => {
     await renderAt('/projects/p1/budget');
     const tabs = screen.getByRole('tablist', { name: /project sections/i });
     expect(within(tabs).getByRole('tab', { name: 'Budget' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByTestId('project-detail-rail')).toBeInTheDocument();
-    expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('More actions'));
+    const menu = screen.getByLabelText('More actions').closest('details');
+    expect(within(menu!).getByRole('button', { name: 'Project details' })).toBeInTheDocument();
     // AC-W6-IXD-BUDHEAD (deliberate UX change): the redundant "Project Budget" <h2>
     // was dropped — the selected "Budget" tab is the section label and the "Active
     // budget" line is the section lead. Oracle updated per the BDD authoring rule:
@@ -377,7 +441,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
     // SUB-D: with no versions at all the tab says nothing extra — "+ New version" and the empty state remain,
     // and "$0" is never presented as a budget.
-    expect(await screen.findByText('No budget versions yet')).toBeInTheDocument();
+    expect(await screen.findByText('No budget versions yet', undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
   });
 
   it('shows a loading state on a cold deep-link before the cache resolves', async () => {
@@ -482,5 +546,12 @@ describe('ProjectDetail shell (decomposition)', () => {
     await renderAt('/projects/p1');
     const back = screen.getByRole('button', { name: /Back to Projects/i });
     expect(back.parentElement!.className).toContain('max-[920px]:flex');
+  });
+
+  it('AC-PSH-013: the won-page "Sales history" disclosure contains only its summary heading without duplicate Stage history h2', async () => {
+    await renderAt('/projects/p1');
+    const summary = screen.getByText('Sales history');
+    expect(summary).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: /stage history/i })).not.toBeInTheDocument();
   });
 });

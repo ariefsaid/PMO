@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { AllocationFacts, ContractLineFacts, EarningBasis, ProjectBillingFacts } from '@/src/lib/progressBilling';
@@ -24,7 +25,7 @@ export interface ProgressClaimWithInvoice extends ProgressClaimRow {
   lines: ProgressClaimLineRow[];
   evidence: ClaimEvidenceRef[];
   /** The claim's invoice mirror (id = claim id), or null when not yet raised. */
-  invoice: { si_number: string | null; status: string; amount: number | null } | null;
+  invoice: { si_number: string | null; pmo_number: string | null; status: string; amount: number | null } | null;
 }
 
 export interface BoqItemInput {
@@ -63,14 +64,22 @@ function fail(error: { message: string; code?: string }): never {
   throw new AppError(error.message, error.code);
 }
 
+/**
+ * One project's whole bill of quantities, in contract order (line_no nulls last, then
+ * created_at, then id — a TOTAL order, which paging requires).
+ *
+ * ⚑ #1774 — a BOQ line is not a money sum, but a truncated BOQ is still silently wrong: past
+ * 1,000 lines the tail vanished with no error. Reads every page via the shared seam.
+ */
 export async function listBoqItems(projectId: string): Promise<BoqItemRow[]> {
-  const { data, error } = await supabase.from('boq_items').select('*')
-    .eq('project_id', projectId)
-    .order('line_no', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (error) fail(error);
-  return data ?? [];
+  return fetchAllPages<BoqItemRow>((from, to) =>
+    supabase.from('boq_items').select('*')
+      .eq('project_id', projectId)
+      .order('line_no', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
 }
 
 export async function createBoqItem(projectId: string, input: BoqItemInput): Promise<BoqItemRow> {
@@ -105,12 +114,12 @@ export async function listProjectClaims(projectId: string): Promise<ProgressClai
   const claims = (data ?? []) as Array<ProgressClaimRow & { lines: ProgressClaimLineRow[]; evidence: ClaimEvidenceRef[] }>;
   if (claims.length === 0) return [];
   const { data: invoices, error: invoiceError } = await supabase.from('sales_invoices')
-    .select('id,si_number,status,amount').in('id', claims.map((claim) => claim.id));
+    .select('id,si_number,pmo_number,status,amount').in('id', claims.map((claim) => claim.id));
   if (invoiceError) fail(invoiceError);
   const byId = new Map((invoices ?? []).map((invoice) => [invoice.id, invoice]));
   return claims.map((claim) => {
     const invoice = byId.get(claim.id);
-    return { ...claim, invoice: invoice ? { si_number: invoice.si_number, status: invoice.status, amount: invoice.amount } : null };
+    return { ...claim, invoice: invoice ? { si_number: invoice.si_number, pmo_number: invoice.pmo_number, status: invoice.status, amount: invoice.amount } : null };
   });
 }
 
@@ -195,9 +204,8 @@ function parseContractLine(line: Record<string, unknown>): ContractLineFacts {
   };
 }
 
-export async function getProjectBilling(projectId: string): Promise<ProjectBillingFacts | null> {
-  const { data, error } = await supabase.rpc('get_project_billing', { p_project_id: projectId });
-  if (error) fail(error);
+/** Validates a `get_project_billing` payload; shared by the per-endpoint read and the Overview read-model. */
+export function parseProjectBilling(data: unknown): ProjectBillingFacts | null {
   if (data === null || data === undefined) return null;
   const raw = data as Record<string, unknown>;
   const num = (key: string): number => finite(raw[key], key);
@@ -227,4 +235,10 @@ export async function getProjectBilling(projectId: string): Promise<ProjectBilli
     earnedValue: num('earned_value'),
     contractLines: boq.map(parseContractLine),
   };
+}
+
+export async function getProjectBilling(projectId: string): Promise<ProjectBillingFacts | null> {
+  const { data, error } = await supabase.rpc('get_project_billing', { p_project_id: projectId });
+  if (error) fail(error);
+  return parseProjectBilling(data);
 }

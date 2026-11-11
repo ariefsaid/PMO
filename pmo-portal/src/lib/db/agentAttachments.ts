@@ -1,3 +1,4 @@
+import { toStorageAppError } from '@/src/lib/storageError';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import {
@@ -43,14 +44,15 @@ function validateAttachmentUpload(input: PrepareAgentAttachmentUploadInput): voi
 }
 
 /**
- * Prepare a per-conversation attachment upload.
+ * Prepare a per-conversation attachment upload (internal step of
+ * `prepareAgentAttachmentFileUpload` — OE17R02-002: not a supported public entry point).
  *
  * Creates the RLS-scoped metadata row first so the Storage policy can verify
  * the signed-upload object's path against an owner-private `agent_attachments`
  * row. org_id/owner_id/storage_path are stamped by the database trigger and
  * policy; the client supplies only thread + file metadata.
  */
-export async function prepareAgentAttachmentUpload(
+async function prepareAgentAttachmentUpload(
   input: PrepareAgentAttachmentUploadInput,
 ): Promise<PreparedAgentAttachmentUpload> {
   validateAttachmentUpload(input);
@@ -75,7 +77,7 @@ export async function prepareAgentAttachmentUpload(
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUploadUrl(row.storage_path);
-  if (error) throwWrite({ message: error.message, code: error.name === 'StorageError' ? '42501' : undefined });
+  if (error) throw toStorageAppError(error);
   if (!data?.signedUrl) throw new AppError('Could not create upload URL');
 
   return {

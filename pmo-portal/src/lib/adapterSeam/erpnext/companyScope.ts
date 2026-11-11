@@ -58,6 +58,7 @@ const COMPANY_SCOPED_KINDS: ReadonlySet<string> = new Set<ErpDocKind>([
   'expense-journal',
   'expense-payment',
   'expense-receipt',
+  'imprest-transfer',
 ]);
 
 /** Does this kind's ERP doctype carry a `company` dimension? */

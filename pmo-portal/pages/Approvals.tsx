@@ -1,45 +1,33 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { Trans, useTranslation } from 'react-i18next';
-import { AccessDenied, Badge, Card, Checkbox, ConfirmDialog, ListState, StatusPill, TextArea, ViewToggle, useToast } from '@/src/components/ui';
-import { describePushMutationError } from '@/src/lib/adapterSeam/pushErrorCopy';
+import { useTranslation } from 'react-i18next';
+import { AccessDenied, Badge, Card, ListState, ViewToggle } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
-import {
-  useTimesheetsAwaitingApproval,
-  usePushesNeedingAttention,
-  useEmployeeLinkConfirm,
-  useReopenableApprovedTimesheets,
-  useTimesheetMutations,
-} from '@/src/hooks/useTimesheetApproval';
+import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
-import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove, weekLabel, type BulkController } from './timesheets/TimesheetBulkApprove';
+import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove } from './timesheets/TimesheetBulkApprove';
+import { ProcurementBulkConfirm, ProcurementBulkSelect, ProcurementBulkToolbar } from './approvals/ProcurementBulkApprove';
+import { useProcurementBulkApprove } from './approvals/useProcurementBulkApprove';
 import { ExpenseClaimApprovalSection } from './approvals/ExpenseClaimApprovalSection';
+import { ImprestApprovalSection } from './approvals/ImprestApprovalSection';
 import { SalesInvoiceApprovalSection } from './approvals/SalesInvoiceApprovalSection';
+import { PushAttentionSection } from './approvals/PushAttentionSection';
+import { EmployeeLinkConfirmSection } from './approvals/EmployeeLinkConfirmSection';
+import { ReopenableApprovedSection } from './approvals/ReopenableApprovedSection';
+import { QueueGroup, type QueueItem } from './approvals/ApprovalQueue';
 import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { approvalPopulation, pendingProcurementApprovals, type ApprovalPopulationEntry, type ApprovalScope } from '@/src/lib/selectors/approvals';
 import { useExpenseClaimsAwaitingDecision, type ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatCurrency } from '@/src/lib/format';
-import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
-import { EmployeeLinkConfirm } from '@/src/components/timesheets/EmployeeLinkConfirm';
-import { employeeChoiceLabels } from '@/src/components/timesheets/employeeChoiceLabels';
-import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { REOPENABLE_WINDOW_DAYS } from '@/src/lib/db/timesheetTransition';
-import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 
 /** `lg` breakpoint — the two-pane triage activates here. */
 const TRIAGE_QUERY = '(min-width: 1024px)';
 
 type Scope = ApprovalScope;
-
-type QueueItem =
-  | { key: string; kind: 'procurement'; row: ProcurementWithRefs }
-  | { key: string; kind: 'timesheets'; row: TimesheetAwaitingApproval };
 
 function useIsLargeScreen(): boolean {
   const [matches, setMatches] = useState(() => {
@@ -59,563 +47,6 @@ function useIsLargeScreen(): boolean {
   return matches;
 }
 
-
-function sumHours(sheet: TimesheetAwaitingApproval): number {
-  return sheet.entries.reduce((sum, e) => sum + e.hours, 0);
-}
-
-function QueueButton({
-  item,
-  selected,
-  onSelect,
-  bulk,
-}: {
-  item: QueueItem;
-  selected: boolean;
-  onSelect: () => void;
-  bulk?: BulkController;
-}) {
-  const { t } = useTranslation();
-  if (item.kind === 'procurement') {
-    const row = item.row;
-    return (
-      <button
-        type="button"
-        onClick={onSelect}
-        aria-pressed={selected}
-        className={[
-          'w-full rounded-lg border px-3 py-3 text-left transition-colors',
-          selected ? 'border-foreground/20 bg-secondary/70' : 'border-transparent hover:border-border hover:bg-secondary/40',
-        ].join(' ')}
-      >
-        <div className="min-w-0">
-          <div className="line-clamp-2 break-words text-sm font-medium" title={row.title}>{row.title}</div>
-          <StatusPill variant={workflowVariant(row.status)} className="mt-1">{row.status}</StatusPill>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span>{row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}</span>
-            <span>·</span>
-            <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span>
-          </div>
-        </div>
-        <div className="mt-2 text-xs text-muted-foreground">
-          <span className="block break-words">{row.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
-          <span className="mt-1 block tabular font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</span>
-        </div>
-      </button>
-    );
-  }
-
-  const row = item.row;
-  const canSelect = bulk?.approvableIds.has(row.id) ?? false;
-  const rowButton = (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={[
-        'min-w-0 flex-1 rounded-lg border px-3 py-3 text-left transition-colors',
-        selected ? 'border-foreground/20 bg-secondary/70' : 'border-transparent hover:border-border hover:bg-secondary/40',
-      ].join(' ')}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium">
-            {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
-            <span>{weekLabel(row.week_start_date, t)}</span>
-            <span>·</span>
-            <span>{row.entries[0]?.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
-          </div>
-        </div>
-        <StatusPill variant={workflowVariant(row.status)}>{row.status}</StatusPill>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[12px] text-muted-foreground">
-        <span>
-          {row.entries.length}{' '}
-          {row.entries.length === 1
-            ? t('approvals.entryOne', 'entry')
-            : t('approvals.entryOther', 'entries')}
-        </span>
-        <span className="tabular font-medium text-foreground">{sumHours(row).toFixed(1)} h</span>
-      </div>
-    </button>
-  );
-  return bulk?.selecting && canSelect ? (
-    <div className="flex items-center gap-2">
-      <Checkbox checked={bulk.selected.has(row.id)} onChange={() => bulk.toggleSelected(row.id)} label={t('approvals.bulk.rowSelect', "Select {{owner}}'s {{week}}", { owner: row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown'), week: weekLabel(row.week_start_date, t) })} />
-      {rowButton}
-    </div>
-  ) : rowButton;
-}
-
-function QueueGroup({
-  title,
-  count,
-  items,
-  selectedKey,
-  onSelect,
-  isPending,
-  isError,
-  onRetry,
-  emptyTitle,
-  emptySub,
-  bulk,
-}: {
-  title: string;
-  count: number;
-  items: QueueItem[];
-  selectedKey: string | null;
-  onSelect: (key: string) => void;
-  isPending: boolean;
-  isError: boolean;
-  onRetry: () => void;
-  emptyTitle: string;
-  emptySub: string;
-  bulk?: BulkController;
-}) {
-  const { t } = useTranslation();
-  return (
-    <section>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-          {title}
-        </h2>
-        <Badge>{count}</Badge>
-      </div>
-
-      {isPending ? (
-        <ListState variant="loading" rows={2} className="rounded-lg border border-border/70 p-0" />
-      ) : isError ? (
-        <ListState
-          variant="error"
-          title={t('approvals.queue.loadError', "Couldn't load {{queue}}", {
-            queue: title.toLowerCase(),
-          })}
-          sub={t('approvals.queue.loadErrorSub', 'Try again to refresh this queue.')}
-          onRetry={onRetry}
-        />
-      ) : items.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border/80">
-          <ListState variant="empty" title={emptyTitle} sub={emptySub} className="px-4 py-8" />
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          {items.map((item) => (
-            <QueueButton
-              key={item.key}
-              item={item}
-              selected={selectedKey === item.key}
-              onSelect={() => onSelect(item.key)}
-              bulk={bulk}
-            />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-/**
- * P3b (FR-TSP-085) — the "needs attention" ERP-push queue. Every `failed`/`held` push visible to the
- * caller (RLS is the only scoping authority, task 4.x). NOTHING renders when the list is empty — an
- * unflipped org, or one with no failures, sees no trace of this section (FR-TSP-173).
- */
-function PushAttentionSection() {
-  const { t } = useTranslation();
-  const { currentUser } = useAuth();
-  const may = usePermission();
-  const { toast } = useToast();
-  const { data, isPending, isError, retry: retryMutation } = usePushesNeedingAttention();
-  const [retryingId, setRetryingId] = useState<string | null>(null);
-
-  if (isPending || isError || !data || data.length === 0) return null;
-
-  return (
-    <section
-      className="mb-4"
-      aria-label={t('approvals.pushAttention.title', 'ERP pushes needing attention')}
-    >
-      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-        {t('approvals.pushAttention.title', 'ERP pushes needing attention')}
-      </h2>
-      <div className="space-y-1.5">
-        {data.map((row) => {
-          const canRetry = may('push_timesheet', 'timesheet', {
-            currentUserId: currentUser?.id,
-            record: { approved_by: row.approved_by },
-          });
-          return (
-            <div
-              key={row.timesheet_id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2.5"
-            >
-              <div className="min-w-0">
-                <div className="text-sm font-medium">{row.owner_name}</div>
-                <div className="mt-0.5 text-[12px] text-muted-foreground">
-                  {weekLabel(row.week_start_date, t)}
-                </div>
-              </div>
-              <PushStateBadge
-                state={{ push_state: row.push_state, push_error: row.push_error, ts_number: row.ts_number }}
-                canRetry={canRetry}
-                retryLoading={retryingId === row.timesheet_id && retryMutation.isPending}
-                // ⚑ I-13 (rendered Discover pass, 2026-07-22) — this Retry gave ZERO feedback: no
-                // toast, no state change, no console error, while the budget surface's Retry two
-                // screens away toasts both outcomes. A silent retry is indistinguishable from a dead
-                // button, so an operator either gives up or clicks it repeatedly. BOTH outcomes are
-                // now stated, at the call site that knows which row they belong to.
-                onRetry={() => {
-                  setRetryingId(row.timesheet_id);
-                  retryMutation.mutate(
-                    { timesheetId: row.timesheet_id },
-                    {
-                      onSuccess: () =>
-                        toast(
-                          t('approvals.pushAttention.retrySuccess', 'Timesheet pushed to ERPNext'),
-                          `${row.owner_name} · ${weekLabel(row.week_start_date, t)}`,
-                          'success',
-                        ),
-                      // ⚑ NEW-2 (rendered re-verification, 2026-07-22) — I-13 gave this Retry a
-                      // voice and gave it the WRONG one. `classifyMutationError` is the generic CRUD
-                      // classifier: it passes the server's message through as `detail`, so the toast
-                      // read "That timesheet could not be pushed — timesheet-not-approved (status
-                      // Submitted)" — a raw adapter token on an operator surface, the precise thing
-                      // `pushErrorCopy` exists to prevent and which the badge two lines above already
-                      // obeys. A push failure is translated by the push vocabulary, on EVERY path.
-                      onError: (err) => {
-                        const copy = describePushMutationError(err);
-                        toast(
-                          t(
-                            'approvals.pushAttention.retryFailure',
-                            'That timesheet could not be pushed',
-                          ),
-                          copy.remedy ? `${copy.message} ${copy.remedy}` : copy.message,
-                          'warning',
-                        );
-                      },
-                      onSettled: () => setRetryingId(null),
-                    },
-                  );
-                }}
-              />
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-/**
- * P3b (OQ-TSP-10(C) — the owner ruling) — the Employee-adopt-link Admin queue. Renders nothing when
- * there is no proposed link (the common case for every org that hasn't flipped `timesheets`).
- */
-function EmployeeLinkConfirmSection() {
-  const { t } = useTranslation();
-  const may = usePermission();
-  const { links, profiles, confirm } = useEmployeeLinkConfirm();
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
-  const profileOptions = useMemo(() => employeeChoiceLabels(
-    (Array.isArray(profiles) ? profiles : []).map((profile) => ({
-      value: profile.id,
-      name: profile.full_name,
-      email: profile.email,
-    })),
-  ), [profiles]);
-
-  if (links.isPending || links.isError || !links.data || links.data.length === 0) return null;
-
-  return (
-    <section
-      className="mb-4"
-      aria-label={t('approvals.employeeLinks.title', 'Employee links awaiting confirmation')}
-    >
-      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-        {t('approvals.employeeLinks.title', 'Employee links awaiting confirmation')}
-      </h2>
-      <EmployeeLinkConfirm
-        links={links.data}
-        profileOptions={profileOptions}
-        canConfirm={may('confirm_employee_link', 'employeeLink')}
-        confirmingId={confirmingId}
-        onConfirm={async (link) => {
-          setConfirmingId(link.id);
-          try {
-            await confirm.mutateAsync({ erpEmployeeId: link.id, profileId: link.profile_id! });
-          } finally {
-            setConfirmingId(null);
-          }
-        }}
-      />
-    </section>
-  );
-}
-
-/**
- * Slice A (FR-TSC-060, AC-TSC-R3, FENCE 5) — the Approved sheets an approver may re-open for
- * correction.
- *
- * ⚑ SURFACE HONESTY IS THE POINT, not the button. An Approved sheet may return to Draft ONLY while
- * ERP holds no document for it; the RPC is the authority and it FAILS CLOSED on any doubt. So a row
- * that cannot be re-opened must say WHY — a disabled control with no reason reads as a dead button
- * (the I-13 lesson two sections up: a silent affordance is indistinguishable from a broken one).
- * Hence four distinct renderings, never a greyed-out button:
- *   • no mirror row                    → "Re-open for correction" (the action)
- *   • mirror.ts_number set             → "Already pushed to ERP — correction path coming" (Slice B)
- *   • mirror.post_submit_unknown_at    → "ERP result unknown — an administrator must confirm what
- *                                        ERPNext holds" (⚑ round-8 BLOCK: NOT visible from push_state,
- *                                        which reads an ordinary `failed` once a hold is released)
- *   • push in flight                   → "Push in progress" (transient; retry later)
- * The RPC's own refusals (`reopen-erp-document-held` / `reopen-push-outcome-unknown` /
- * `reopen-push-in-flight`) are classified to the
- * same honest wording — the client's read can be stale, so the server always gets the last word.
- */
-function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
-  const { t } = useTranslation();
-  const may = usePermission();
-  const { toast } = useToast();
-  const { data, isPending, isError } = useReopenableApprovedTimesheets();
-  const { reopenApproved, attestNoErpDocument } = useTimesheetMutations();
-  const [reopeningId, setReopeningId] = useState<string | null>(null);
-  // ⚑ SHOULD-FIX 1 (Luna FU-1a round-12) — the attestation is the ONLY route out of an ERP unknown.
-  // Admin-only on the REAL role (`can()` is UX; the RPC re-asserts org + Admin + active membership).
-  // Reason-required (the RPC demands it), so the confirm is a dialog, not a one-click write.
-  const canAttest = may('manage', 'pushHold');
-  const [attestFor, setAttestFor] = useState<{ id: string; owner: string } | null>(null);
-  const [attestReason, setAttestReason] = useState('');
-
-  const closeAttest = () => {
-    setAttestFor(null);
-    setAttestReason('');
-  };
-
-  const submitAttest = () => {
-    if (!attestFor || attestReason.trim() === '') return;
-    const target = attestFor;
-    attestNoErpDocument.mutate(
-      { id: target.id, reason: attestReason.trim() },
-      {
-        onSuccess: () => {
-          closeAttest();
-          toast(
-            t('approvals.reopen.attestSuccess', 'Confirmed — the week is clear to re-open'),
-            `${target.owner}: ${t('approvals.reopen.attestSuccessDetail', 'ERPNext holds no document')}`,
-            'success',
-          );
-        },
-        // I-13: a silent affordance reads as broken, so BOTH outcomes speak. The server's fail-closed
-        // refusals (42501 not-authorized, P0001 nothing-to-attest) are surfaced in the user's terms.
-        onError: (err: unknown) => {
-          const msg = err instanceof Error ? err.message : String(err);
-          toast(t('approvals.reopen.attestFailure', 'Could not confirm the ERP result'), msg, 'warning');
-        },
-      },
-    );
-  };
-
-  if (isPending || isError || !data || data.length === 0) return null;
-
-  return (
-    <section
-      className="mb-4"
-      aria-label={t(
-        'approvals.reopen.sectionLabel',
-        'Approved timesheets from the last {{days}} days that can be re-opened for correction',
-        { days: String(REOPENABLE_WINDOW_DAYS) },
-      )}
-    >
-      <details open={!hasPending} className="rounded-lg border border-border/70 px-3 py-2">
-        <summary className="cursor-pointer text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-          {t('approvals.reopen.heading', 'Approved history and corrections')} <span className="tabular text-muted-foreground">{data.length}</span> <span className="text-xs font-normal text-muted-foreground">({t('approvals.reopen.window', 'last {{days}} days', { days: String(REOPENABLE_WINDOW_DAYS) })})</span>
-        </summary>
-        <div className="mt-2 space-y-1.5">
-        {data.map((row) => {
-          // The SAME two pieces of evidence the RPC's precondition weighs (migration 0151 §A): a live
-          // mirror document, and a NON-TERMINAL push command. ⚑ SHOULD-FIX 4 (Luna code review): the
-          // in-flight test used to read `mirror.push_state`, but the mirror row is written only AFTER
-          // the ERP call settles — so a queued/committing/committed push arrived here as `mirror: null`
-          // and rendered an ACTIVE button the server would refuse, while the two states it did test for
-          // (`pending`/`pushing`) are written by no shipped writer at all.
-          const pushed = Boolean(row.mirror?.ts_number) && !row.mirror?.erp_cancelled_at;
-          // ⚑ Luna FU-1a round-8 BLOCK — the week whose ERP outcome PMO never learned. Independent of
-          // push_state on purpose: once an Admin releases the hold (to restore the backstop route) this
-          // row reads `failed` like any rejected push, and the server still refuses it. Classifying on
-          // the witness is the only way the surface agrees with the RPC.
-          // ⚑ Luna FU-1a round-10 S3 — the mirror's own `held` state is the SAME server refusal. 0157 §4
-          // keeps `push_state = 'held'` as an INDEPENDENT predicate for the pre-0157 residue (a row parked
-          // `held` before the witness column existed), so classifying on the witness alone rendered an
-          // active button the server could only refuse.
-          const hasWitness = !pushed && Boolean(row.mirror?.post_submit_unknown_at);
-          const outcomeUnknown = hasWitness || (!pushed && row.mirror?.push_state === 'held');
-          const inFlight = !pushed && !outcomeUnknown && row.pushCommandState !== null;
-          // The attestation clears a WITNESS (0157 §5). A pre-0157-residue `held` mirror carries none,
-          // so the RPC would refuse it — offer the affordance ONLY where it can succeed (a real
-          // witness). Those residue rows keep the note; their route out is documented separately.
-          const offerAttest = canAttest && hasWitness;
-          return (
-            <div
-              key={row.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2.5"
-            >
-              <div className="min-w-0">
-                <div className="text-sm font-medium">
-                  {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
-                </div>
-                <div className="mt-0.5 text-[12px] text-muted-foreground">
-                  {weekLabel(row.week_start_date, t)}
-                </div>
-              </div>
-              {pushed ? (
-                <span className="text-[12px] text-muted-foreground">
-                  {t('approvals.reopen.alreadyPushed', 'Already pushed to ERP — correction path coming')}
-                </span>
-              ) : outcomeUnknown ? (
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  <span className="text-[12px] text-muted-foreground">
-                    {t(
-                      'approvals.reopen.outcomeUnknown',
-                      'ERP result unknown — an administrator must confirm what ERPNext holds',
-                    )}
-                  </span>
-                  {offerAttest && (
-                    <button
-                      type="button"
-                      className="h-8 rounded-md border border-border px-3 text-[12px] font-medium hover:bg-accent"
-                      onClick={() => {
-                        setAttestReason('');
-                        setAttestFor({
-                          id: row.id,
-                          owner: row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown'),
-                        });
-                      }}
-                    >
-                      {t('approvals.reopen.confirmErpButton', 'Confirm what ERPNext holds')}
-                    </button>
-                  )}
-                </div>
-              ) : inFlight ? (
-                <span className="text-[12px] text-muted-foreground">
-                  {t('approvals.reopen.pushInProgress', 'Push in progress')}
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="h-8 rounded-md border border-border px-3 text-[12px] font-medium hover:bg-accent disabled:opacity-50"
-                  disabled={reopeningId === row.id && reopenApproved.isPending}
-                  onClick={() => {
-                    setReopeningId(row.id);
-                    reopenApproved.mutate(
-                      { id: row.id },
-                      {
-                        onSuccess: () => {
-                          setReopeningId(null);
-                          toast(
-                            t(
-                              'approvals.reopen.success',
-                              'Re-opened — the week is back in Draft for editing.',
-                            ),
-                            'success',
-                          );
-                        },
-                        onError: (err: unknown) => {
-                          setReopeningId(null);
-                          const msg = err instanceof Error ? err.message : String(err);
-                          // The server's fail-closed refusals, said in the user's terms. Anything
-                          // else is surfaced verbatim rather than flattened to "something went wrong".
-                          if (msg.includes('reopen-erp-document-held')) {
-                            toast(
-                              t(
-                                'approvals.reopen.errorDocumentHeld',
-                                'Already in ERP — this week cannot be re-opened yet.',
-                              ),
-                              'error',
-                            );
-                          } else if (msg.includes('reopen-push-outcome-unknown')) {
-                            // Migrations 0152 §B / 0157 §4: the ERP push SUCCEEDED and its read-back
-                            // failed, so nobody knows whether ERPNext holds a document for this week.
-                            // "Try again shortly" would be false, and so would "an administrator must
-                            // release the held push" (⚑ round-8 BLOCK): a release re-queues the command
-                            // and learns nothing about ERPNext, so it does NOT lift this refusal. The
-                            // only true instruction is that someone must go and establish what ERP holds.
-                            toast(
-                              t(
-                                'approvals.reopen.errorOutcomeUnknown',
-                                'This week’s ERP result is unknown — an administrator must confirm what ERPNext holds before it can be re-opened.',
-                              ),
-                              'error',
-                            );
-                          } else if (msg.includes('reopen-push-in-flight')) {
-                            toast(
-                              t(
-                                'approvals.reopen.errorPushInFlight',
-                                'A push is in flight for this week — try again shortly.',
-                              ),
-                              'error',
-                            );
-                          } else {
-                            toast(`${t('approvals.reopen.errorGeneric', 'Could not re-open')}: ${msg}`, 'error');
-                          }
-                        },
-                      },
-                    );
-                  }}
-                >
-                  {t('approvals.reopen.action', 'Re-open for correction')}
-                </button>
-              )}
-            </div>
-          );
-        })}
-        </div>
-      </details>
-
-      {/* ⚑ SHOULD-FIX 1 — the attestation confirm. Reason-required (the confirm is gated until the
-          textarea is non-empty, matching the RPC's own P0001 refusal on an empty reason). Nothing
-          writes on a single click (owner rule); the RPC is Admin-only + audited. */}
-      <ConfirmDialog
-        open={attestFor !== null}
-        title={t('approvals.attest.title', 'Confirm what ERPNext holds')}
-        description={
-          <div className="space-y-3">
-            <p>
-              {/* #571 — ONE sentence, not five fragments: the emphasis and the person are
-                  placeholders a translator moves, so a language that orders the clause
-                  differently still reads as prose. */}
-              <Trans
-                i18nKey="approvals.attest.body"
-                defaults="Certify that you have checked ERPNext and it holds <strong>no Timesheet</strong> for {{person}}’s week. This records an audited attestation and re-opens the week for correction — it does not contact ERPNext."
-                values={{
-                  person: attestFor
-                    ? attestFor.owner
-                    : t('approvals.attest.thisPerson', 'this person'),
-                }}
-                components={{ strong: <strong /> }}
-              />
-            </p>
-            <TextArea
-              label={t('approvals.attest.reasonLabel', 'What did you check in ERPNext?')}
-              required
-              value={attestReason}
-              onChange={setAttestReason}
-              placeholder={t(
-                'approvals.attest.reasonPlaceholder',
-                'e.g. Searched Timesheets for this employee and week — none exists.',
-              )}
-            />
-          </div>
-        }
-        confirmLabel={t('approvals.attest.confirmLabel', 'Confirm — no ERP document')}
-        cancelLabel={t('approvals.attest.cancelLabel', 'Cancel')}
-        loading={attestNoErpDocument.isPending}
-        confirmDisabled={attestReason.trim() === ''}
-        onConfirm={submitAttest}
-        onCancel={closeAttest}
-      />
-    </section>
-  );
-}
-
 const ApprovalsPage: React.FC = () => {
   const { t } = useTranslation();
   const may = usePermission();
@@ -627,12 +58,14 @@ const ApprovalsPage: React.FC = () => {
   const isLargeScreen = useIsLargeScreen();
 
   const canApproveProcurement = may('transition', 'procurement');
-  const canApproveTimesheets = may('transition', 'approval');
+  const hasTimesheetRole = may('transition', 'approval');
   const canApproveExpenses = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(realRole ?? '');
   const canApproveInvoices = may('transition', 'salesInvoice');
 
-  const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
+  const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements({ status: 'Requested' });
   const { data: timesheets, isPending: tsPending, isError: tsError, refetch: refetchTimesheets } = useTimesheetsAwaitingApproval();
+  const { data: correctionSheets, isPending: correctionPending, isError: correctionError } = useReopenableApprovedTimesheets();
+  const canApproveTimesheets = hasTimesheetRole || Boolean(timesheets?.length || correctionSheets?.length || tsPending || tsError || correctionPending || correctionError);
   // #784 C-1: the same source the "Customer invoices awaiting you" section lists, so the page never claims "all caught
   // up" above a waiting invoice.
   const invoices = useInvoicesAwaitingViewer();
@@ -650,8 +83,9 @@ const ApprovalsPage: React.FC = () => {
     ),
     [procurements, selfId, realRole],
   );
-  const timesheetRows = useMemo(() => timesheets ?? [], [timesheets]);
-  const timesheetBulk = useTimesheetBulkApprove(timesheetRows);
+  const timesheetRows = useMemo(() => tsError ? [] : timesheets ?? [], [timesheets, tsError]);
+  const timesheetBulk = useTimesheetBulkApprove(timesheetRows, true);
+  const procurementBulk = useProcurementBulkApprove(procurementRows);
 
   const canShowExpenses = canApproveExpenses && (expenseRows.length > 0 || expenseQuery.isPending || expenseQuery.isError);
   const canShowInvoices = canApproveInvoices && (invoices.rows.length > 0 || invoices.isPending || invoices.isError);
@@ -682,13 +116,13 @@ const ApprovalsPage: React.FC = () => {
   const pendingTs = canApproveTimesheets ? timesheetRows.length : 0;
 
   const procSettledEmpty = !canApproveProcurement || (!procPending && !procError && pendingProc === 0);
-  const tsSettledEmpty = !canApproveTimesheets || (!tsPending && !tsError && pendingTs === 0);
+  const tsSettledEmpty = !tsPending && !tsError && !correctionPending && !correctionError && pendingTs === 0;
   const pendingInv = canShowInvoices ? invoices.rows.length : 0;
   const pendingExpense = canShowExpenses ? expenseRows.length : 0;
   const invSettledEmpty = !invoices.isPending && !invoices.isError && pendingInv === 0;
   const expenseSettledEmpty = !expenseQuery.isPending && !expenseQuery.isError && pendingExpense === 0;
   const allCaughtUp = procSettledEmpty && tsSettledEmpty && invSettledEmpty && expenseSettledEmpty;
-  const allScopePending = (canApproveProcurement && procPending) || (canApproveTimesheets && tsPending) || (canShowExpenses && expenseQuery.isPending) || (canShowInvoices && invoices.isPending);
+  const allScopePending = (canApproveProcurement && procPending) || (canApproveTimesheets && (tsPending || correctionPending)) || (canShowExpenses && expenseQuery.isPending) || (canShowInvoices && invoices.isPending);
 
   const allPopulation = useMemo(() => approvalPopulation<unknown>([
     ...(canApproveProcurement ? procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, createdAt: row.created_at, row })) : []),
@@ -699,7 +133,7 @@ const ApprovalsPage: React.FC = () => {
   const countFor = (kind: Scope) => allPopulation.filter((entry: ApprovalPopulationEntry) => entry.kind === kind).length;
   const scopeLabels: Record<Scope, string> = {
     all: t('approvals.scope.all', 'All pending'),
-    procurement: t('approvals.scope.procurement', 'Purchase requests'),
+    procurement: t('approvals.scope.procurement', 'Procurement cases'),
     timesheets: t('approvals.scope.timesheets', 'Timesheets'),
     expense: t('approvals.scope.expense', 'Expense claims'),
     invoice: t('approvals.scope.invoice', 'Customer invoices'),
@@ -748,7 +182,7 @@ const ApprovalsPage: React.FC = () => {
         title={t('approvals.accessDenied.title', "You don't have access to approvals")}
         sub={t(
           'approvals.accessDenied.sub',
-          'Approvals are for the roles that sign off purchase requests or timesheets. Your work lives on your dashboard, projects, and tasks.',
+          'Approvals are for the roles that sign off procurement or timesheets. Your work lives on your dashboard, projects, and tasks.',
         )}
         onBack={() => navigate('/')}
       />
@@ -760,15 +194,15 @@ const ApprovalsPage: React.FC = () => {
     const includesExpenses = (activeScope === 'all' || activeScope === 'expense') && canShowExpenses;
     const includesInvoices = (activeScope === 'all' || activeScope === 'invoice') && canShowInvoices;
     const currentPending = activeScope === 'procurement' ? procPending
-      : activeScope === 'timesheets' ? tsPending
+      : activeScope === 'timesheets' ? tsPending || correctionPending
         : activeScope === 'expense' ? expenseQuery.isPending
           : activeScope === 'invoice' ? invoices.isPending
-            : (canApproveProcurement && procPending) || (canApproveTimesheets && tsPending) || (includesExpenses && expenseQuery.isPending) || (includesInvoices && invoices.isPending);
+            : (canApproveProcurement && procPending) || (canApproveTimesheets && (tsPending || correctionPending)) || (includesExpenses && expenseQuery.isPending) || (includesInvoices && invoices.isPending);
     const currentError = activeScope === 'procurement' ? procError
-      : activeScope === 'timesheets' ? tsError
+      : activeScope === 'timesheets' ? tsError || correctionError
         : activeScope === 'expense' ? expenseQuery.isError
           : activeScope === 'invoice' ? invoices.isError
-            : (canApproveProcurement && procError) || (canApproveTimesheets && tsError) || (includesExpenses && expenseQuery.isError) || (includesInvoices && invoices.isError);
+            : (canApproveProcurement && procError) || (canApproveTimesheets && (tsError || correctionError)) || (includesExpenses && expenseQuery.isError) || (includesInvoices && invoices.isError);
 
     if (currentPending) return <ListState variant="loading" rows={4} />;
     if (currentError) {
@@ -790,7 +224,7 @@ const ApprovalsPage: React.FC = () => {
         title={t('approvals.previewEmpty.title', 'Select an approval item')}
         sub={t(
           'approvals.previewEmpty.sub',
-          'When a pending request is available, its preview and actions appear here.',
+          'When a pending procurement case is available, its preview and actions appear here.',
         )}
       />
     );
@@ -805,7 +239,7 @@ const ApprovalsPage: React.FC = () => {
         <p className="mt-0.5 max-w-[72ch] text-sm text-muted-foreground">
           {t(
             'approvals.subtitle',
-            'Needs my approval — everything waiting on your decision: purchase requests, timesheets, expense claims and customer invoices.',
+            'Needs my approval. Everything waiting on your decision: procurement, timesheets, expense claims and customer invoices.',
           )}
         </p>
       </div>
@@ -851,6 +285,7 @@ const ApprovalsPage: React.FC = () => {
       ) : activeScope === 'expense' || activeScope === 'invoice' ? (
         <div className="space-y-5">
           {activeScope === 'expense' && canShowExpenses && <ExpenseClaimApprovalSection />}
+          {activeScope === 'expense' && canApproveExpenses && <ImprestApprovalSection />}
           {activeScope === 'invoice' && canShowInvoices && <SalesInvoiceApprovalSection />}
         </div>
       ) : (
@@ -874,23 +309,31 @@ const ApprovalsPage: React.FC = () => {
                   )}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && <TimesheetBulkSelect controller={timesheetBulk} />}
+                {(activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement && <ProcurementBulkSelect controller={procurementBulk} />}
                 <Badge>{queueItems.length}</Badge>
               </div>
             </div>
 
             {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && (
               <>
-                <TimesheetBulkToolbar controller={timesheetBulk} />
+                <TimesheetBulkToolbar controller={timesheetBulk} sheets={timesheetRows} />
                 <TimesheetBulkConfirm controller={timesheetBulk} sheets={timesheetRows} />
+              </>
+            )}
+
+            {(activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement && (
+              <>
+                <ProcurementBulkToolbar controller={procurementBulk} />
+                <ProcurementBulkConfirm controller={procurementBulk} procurements={procurementRows} />
               </>
             )}
 
             <div className="space-y-5">
               {(activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement && (
                 <QueueGroup
-                  title={t('approvals.group.procurement.title', 'Purchase requests')}
+                  title={t('approvals.group.procurement.title', 'Procurement cases')}
                   count={pendingProc}
                   items={procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, row }))}
                   selectedKey={selectedKey}
@@ -900,12 +343,13 @@ const ApprovalsPage: React.FC = () => {
                   onRetry={() => refetchProc()}
                   emptyTitle={t(
                     'approvals.group.procurement.emptyTitle',
-                    'No requests awaiting your decision',
+                    'No procurement cases awaiting your decision',
                   )}
                   emptySub={t(
                     'approvals.group.procurement.emptySub',
-                    'Purchase requests that need your approval will appear here.',
+                    'Procurement cases that need your approval will appear here.',
                   )}
+                  procurementBulk={procurementBulk}
                 />
               )}
 
@@ -945,7 +389,7 @@ const ApprovalsPage: React.FC = () => {
               selectedItem.kind === 'procurement' ? (
                 <ProcurementApprovalPreview row={selectedItem.row} surface="panel" />
               ) : (
-                <TimesheetApprovalPreview sheet={selectedItem.row} surface="panel" />
+                <TimesheetApprovalPreview sheet={selectedItem.row} surface="panel" eligibleFromQueue />
               )
             ) : (
               previewFallback
@@ -955,9 +399,10 @@ const ApprovalsPage: React.FC = () => {
       )}
 
       {activeScope === 'all' && canShowExpenses && <ExpenseClaimApprovalSection />}
+      {activeScope === 'all' && canApproveExpenses && <ImprestApprovalSection />}
       {activeScope === 'all' && canShowInvoices && <SalesInvoiceApprovalSection />}
-      {canApproveTimesheets && <PushAttentionSection />}
-      {canApproveTimesheets && <EmployeeLinkConfirmSection />}
+      {hasTimesheetRole && <PushAttentionSection />}
+      {hasTimesheetRole && <EmployeeLinkConfirmSection />}
       {canApproveTimesheets && <ReopenableApprovedSection hasPending={allPopulation.length > 0 || procPending || tsPending || expenseQuery.isPending || invoices.isPending} />}
     </div>
   );

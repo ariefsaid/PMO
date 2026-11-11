@@ -98,8 +98,9 @@ deterministic cancel key** `tsc:<id>:<generation>`.
 ## 2. Scope
 
 ### In scope
-- One new transition: `Approved → Draft`, added to `transition_timesheet`'s map + its TS mirror
-  (`LEGAL_TIMESHEET_TRANSITIONS`), with a new authz branch (the approver population, F2) and a new
+- One new transition: `Approved → Draft`, added to `transition_timesheet`'s map
+  (the TS map literal behind it was removed in the #1710 re-home — the RPC is the single authority),
+  with a new authz branch (the approver population, F2) and a new
   generation-specific cancel-confirmed precondition (F1).
 - **A durable correction INTENT** (`timesheet_correction_intent`) created by the re-open RPC only AFTER the
   exact re-open authority passes, bound to the specific timesheet **generation** (the `approved_at_pushed`

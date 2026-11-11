@@ -54,4 +54,11 @@ describe('useManagementPack', () => {
     await act(() => result.current.mutateAsync({ projectId: 'p1', month: '2026-01-01', pctComplete: 10, note: null }));
     expect(spy).toHaveBeenCalledWith({ queryKey: ['managementPack'] });
   });
+
+  it('SEC-RS-3: recording progress from the project page also refreshes that project\'s billing summary', async () => {
+    const spy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useRecordProjectProgress(), { wrapper });
+    await act(() => result.current.mutateAsync({ projectId: 'p1', month: '2026-01-01', pctComplete: 10, note: null }));
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['project-billing'] });
+  });
 });

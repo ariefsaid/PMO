@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { procurementDocumentsKey } from '@/src/hooks/recordFolderState';
 import { procurementReference } from '@/src/lib/m365/reference';
 import { repositories } from '@/src/lib/repositories';
-import type { ProcurementDocumentRow } from '@/src/lib/db/procurementCrud';
+import type { DocumentTarget, ProcurementDocumentRow } from '@/src/lib/db/procurementCrud';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { useAuth } from '@/src/auth/useAuth';
 
@@ -35,6 +35,8 @@ export function matchingReferencePairs(
 export interface CreateProcurementReferenceArgs {
   reference: MicrosoftReferenceInput;
   metadata?: { referenceNumber?: string | null; date?: string | null };
+  /** FR-PFE-038: attach to a record of the purchase or a linked ERP document; omitted = the purchase itself. */
+  target?: DocumentTarget;
 }
 
 /**
@@ -56,8 +58,10 @@ export function useProcurementMicrosoftReferences(procurementId: string) {
     enabled: Boolean(orgId && procurementId),
   });
   const create = useMutation({
-    mutationFn: ({ reference, metadata }: CreateProcurementReferenceArgs) =>
-      repositories.procurement.createMicrosoftDocument(procurementId, reference, metadata),
+    mutationFn: ({ reference, metadata, target }: CreateProcurementReferenceArgs) =>
+      target
+        ? repositories.procurement.createMicrosoftDocument(procurementId, reference, metadata, target)
+        : repositories.procurement.createMicrosoftDocument(procurementId, reference, metadata),
     onSuccess: invalidate,
   });
   const link = useMutation({

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { KanbanCard, CompanyNameLink } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
@@ -11,6 +11,8 @@ export interface ProjectCardShellProps {
   initial: string;
   /** Project name — the activation target. */
   name: string;
+  /** Contractual title disclosed on hover when `name` is short-first. */
+  contractualName?: string;
   /** Customer name (em-dash fallback for a missing client). */
   client: string | null | undefined;
   /**
@@ -65,6 +67,7 @@ export interface ProjectCardShellProps {
 const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
   initial,
   name,
+  contractualName,
   client,
   clientId,
   pmoProjectNumber,
@@ -78,31 +81,35 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
   className,
 }) => {
   const { t } = useTranslation();
+  const legalId = useId();
+  const legal = contractualName && contractualName !== name ? contractualName : undefined;
   const isKanban = variant === 'kanban';
+  const pmoNumber = pmoProjectNumber?.trim() || null;
+  const clientCode = code?.trim() || null;
   const cardLabel = [
     name,
-    pmoProjectNumber && `${t('projects.identifiers.pmo', 'PMO Project Number')}: ${pmoProjectNumber}`,
-    code && `${t('projects.identifiers.client', 'Client Project Code')}: ${code}`,
+    pmoNumber && `${t('projects.identifiers.pmo', 'PMO Project Number')}: ${pmoNumber}`,
+    clientCode && `${t('projects.identifiers.client', 'Client Project Code')}: ${clientCode}`,
   ].filter(Boolean).join('. ');
-  const ids = [pmoProjectNumber, code].filter(Boolean).join(' · ');
+  const ids = [pmoNumber, clientCode].filter(Boolean).join(' · ');
   const iconSize = isKanban ? 'size-[26px] text-[12px]' : 'size-7 text-[11px]';
 
   const head = (
-    <div className={cn('flex items-start gap-2.5', isKanban && 'gap-2')}>
+    <div className={cn('grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2.5 gap-y-1', isKanban && 'gap-x-2')}>
       <span
         aria-hidden
-        className={cn('grid shrink-0 place-items-center rounded-md font-bold text-white', iconSize)}
+        className={cn('row-span-2 grid shrink-0 place-items-center rounded-md font-bold text-white sm:row-span-1', iconSize)}
         style={{ background: projectIconColor() }}
       >
         {initial}
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="col-start-2 min-w-0 sm:col-start-2">
         {isKanban ? (
           // Kanban: the KanbanCard wrapper is the single role=button activation
           // target, so the name is plain text (no nested button in role=button).
           <div
             className="block max-w-full break-words text-[13px] font-semibold text-foreground leading-5"
-            title={name}
+            title={contractualName ?? name}
           >
             {name}
           </div>
@@ -110,12 +117,14 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
           <button
             type="button"
             onClick={onOpen}
+            aria-describedby={legal ? legalId : undefined}
             className="block max-w-full break-words text-left text-sm font-semibold text-foreground line-clamp-2 leading-5 hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            title={name}
+            title={contractualName ?? name}
           >
             {name}
           </button>
         )}
+        {legal && <span id={legalId} className="sr-only">{legal}</span>}
         {isKanban && <div className="mt-1 flex min-w-0 items-center">{status}</div>}
         {isKanban ? (
           // Board: values only, one line — the labelled identities stay in the card's accessible name.
@@ -134,20 +143,20 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
             ) : (
               <span className="truncate">{client ?? '—'}</span>
             )}
-            {pmoProjectNumber && (
+            {pmoNumber && (
               <span className="break-all font-mono text-[11px]">
-                <span className="font-sans">{t('projects.identifiers.pmo', 'PMO Project Number')}:</span> {pmoProjectNumber}
+                <span className="font-sans">{t('projects.identifiers.pmo', 'PMO Project Number')}:</span> {pmoNumber}
               </span>
             )}
-            {code && (
+            {clientCode && (
               <span className="break-all font-mono text-[11px]">
-                <span className="font-sans">{t('projects.identifiers.client', 'Client Project Code')}:</span> {code}
+                <span className="font-sans">{t('projects.identifiers.client', 'Client Project Code')}:</span> {clientCode}
               </span>
             )}
           </div>
         )}
       </div>
-      {!isKanban && status}
+      {!isKanban && <div className="col-start-2 row-start-2 min-w-0">{status}</div>}
     </div>
   );
 
@@ -159,6 +168,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
         onActivate={onOpen}
         selected={selected}
         aria-label={cardLabel}
+        aria-describedby={legal ? legalId : undefined}
         data-testid="project-card"
         className={className}
       >

@@ -6,9 +6,11 @@
  * future record forks the verb into an ad-hoc placement, these tests fail.
  *
  * Covered pages:
- *   1. ProcurementDetails — the "Approve" / "Submit Request" / lifecycle actions
+ *   1. ProcurementDetails — the "Approve" / "Submit for approval" / lifecycle actions. Since the
+ *      procurement record restructure (#1404) they live in the RecordHeader actions slot
+ *      (`record-header-actions`, the header's canonical placement contract), not RecordActionZone.
  *   2. IncidentDetail — the "Start Investigating" / "Close Incident" advance button
- *   3. PipelineLens (pre-win) — the "Advance" / "Mark won" / "Mark lost" buttons
+ *   3. DealBand (pre-win) — the "Advance" / "Mark won" / "Mark lost" buttons
  *
  * ProjectDetail (delivery) has no delivery-advance verb at the record level
  * (delivery progress is tracked via tasks/milestone stepper, not a status button),
@@ -49,6 +51,9 @@ const { procDetailState, procMutations } = vi.hoisted(() => ({
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => procDetailState,
@@ -64,7 +69,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: vi.fn(), isPending: false },
     deleteDocument: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProcurementDocuments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/auth/impersonation', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
@@ -107,6 +111,11 @@ const procRecord = {
   quotations: [],
   receipts: [],
   invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
 vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
@@ -117,14 +126,14 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
 
 import ProcurementDetails from '../../../../pages/ProcurementDetails';
 
-describe('Enforcement: ProcurementDetails renders advance verbs through RecordActionZone', () => {
+describe('Enforcement: ProcurementDetails renders advance verbs in the canonical RecordHeader actions slot', () => {
   beforeEach(() => {
     procDetailState.data = procRecord;
     procDetailState.isPending = false;
     procDetailState.isError = false;
   });
 
-  it('AC-ENFORCE-PROC: the lifecycle action buttons live inside data-testid="record-action-zone"', () => {
+  it('AC-ENFORCE-PROC: the lifecycle action buttons live inside data-testid="record-header-actions"', () => {
     const qc = makeClient();
     render(
       <QueryClientProvider client={qc}>
@@ -137,11 +146,11 @@ describe('Enforcement: ProcurementDetails renders advance verbs through RecordAc
         </ToastProvider>
       </QueryClientProvider>,
     );
-    // The decision-card (and its action buttons) must live within the RecordActionZone.
-    const zone = screen.getByTestId('record-action-zone');
+    // The primary lifecycle action must live within the RecordHeader actions slot.
+    const zone = screen.getByTestId('record-header-actions');
     expect(zone).toBeInTheDocument();
-    // The Submit Request primary action is inside the zone.
-    const submitBtn = within(zone).getByRole('button', { name: /Submit Request/i });
+    // The Submit for approval primary action is inside the slot.
+    const submitBtn = within(zone).getByRole('button', { name: /Submit for approval/i });
     expect(submitBtn).toBeInTheDocument();
   });
 });
@@ -217,7 +226,7 @@ describe('Enforcement: IncidentDetail renders advance verbs through RecordAction
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. PipelineLens
+// 3. DealBand
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { pipelineMock, pipelineTransitionMock } = vi.hoisted(() => ({
@@ -243,10 +252,12 @@ vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject: pipelineTransitionMock };
 });
-vi.mock('@tanstack/react-query', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
-});
+// The merged tree's DealBand consumes react-query; render under a real QueryClientProvider
+// (as the ProcurementDetails section above already does) and stub the eligibility read at the
+// hook seam, mirroring the DealBand.queryStatus harness.
+vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectWinEligibility: () => ({ data: 'allowed' }),
+}));
 
 const pipelineProject = {
   id: 'd1',
@@ -267,16 +278,18 @@ const pipelineProject = {
   pm: { full_name: 'PM User' },
 } as never;
 
-import PipelineLens from '../../../../pages/project-detail/PipelineLens';
+import DealBand from '../../../../pages/sales/DealBand';
 
-describe('Enforcement: PipelineLens renders advance verbs through RecordActionZone', () => {
+describe('Enforcement: DealBand renders advance verbs through RecordActionZone', () => {
   it('AC-ENFORCE-PIPE: Advance / Mark won / Mark lost buttons live inside data-testid="record-action-zone"', () => {
     render(
-      <ImpersonationProvider realRole="Project Manager">
-        <ToastProvider>
-          <PipelineLens project={pipelineProject} />
-        </ToastProvider>
-      </ImpersonationProvider>,
+      <QueryClientProvider client={makeClient()}>
+        <ImpersonationProvider realRole="Project Manager">
+          <ToastProvider>
+            <MemoryRouter><DealBand project={pipelineProject} /></MemoryRouter>
+          </ToastProvider>
+        </ImpersonationProvider>
+      </QueryClientProvider>,
     );
     const zone = screen.getByTestId('record-action-zone');
     expect(zone).toBeInTheDocument();

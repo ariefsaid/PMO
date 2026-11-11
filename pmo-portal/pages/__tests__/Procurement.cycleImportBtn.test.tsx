@@ -9,12 +9,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 
-const { procState, createState } = vi.hoisted(() => ({
+const { procState, createState, auth } = vi.hoisted(() => ({
+  auth: { role: 'Admin' as string },
   procState: {
     data: [
       {
@@ -39,29 +41,34 @@ const { procState, createState } = vi.hoisted(() => ({
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u-admin', org_id: 'org-1' }, role: 'Admin' }),
+  useAuth: () => ({ currentUser: { id: 'u-admin', org_id: 'org-1' }, role: auth.role }),
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [] }),
   useVendorOptions: () => ({ data: [] }),
 }));
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }), useProject: () => ({ data: null }) }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState, useProjectProcurements: () => procState }));
 vi.mock('@/src/hooks/useProcurementCrud', () => ({ useCreateProcurement: () => createState }));
 import ProcurementPage from '../../pages/Procurement';
 
-const renderAs = (realRole: Role) =>
-  render(
-    <ImpersonationProvider realRole={realRole}>
-      <MemoryRouter>
-        <ToastProvider>
-          <ProcurementPage />
-        </ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+const renderAs = (realRole: Role) => {
+  auth.role = realRole; // the signed-in session role the shared list block reads
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ImpersonationProvider realRole={realRole}>
+        <MemoryRouter>
+          <ToastProvider>
+            <ProcurementPage />
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </QueryClientProvider>,
   );
+};
 
 beforeEach(() => {
   procState.isPending = false;

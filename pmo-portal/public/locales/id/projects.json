@@ -1,14 +1,88 @@
 {
   "coverage": {
+    "readError": "Data pengeluaran proyek tidak dapat dibaca.",
+    "unknown": "Data Aktual tidak diketahui pada {{count}} dari {{total}} proyek.",
     "partial": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek.",
     "partialUpdated": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek. Diperbarui {{date}}."
   },
+  "moneyFiguresUnavailable": "Beberapa nilai keuangan proyek masih dikonfirmasi.",
   "actual": {
     "restrictedTag": "Dikecualikan (terbatas)"
   },
   "create": {
     "accessDenied": "Anda tidak dapat membuat proyek",
     "leave": "Keluar",
-    "stay": "Tetap di sini"
+    "stay": "Tetap di sini",
+    "limitReached": "Batas proyek aktif pada paket Anda sudah tercapai",
+    "limitReachedDetail": "Tidak ada yang dibuat. Arsipkan proyek yang tidak lagi diperlukan, atau minta Operator meningkatkan paket."
+  },
+  "erpLink": {
+    "createdSyncing": "{{name}} tersimpan. Penghubungan ERP berjalan di latar belakang; proyek PMO siap digunakan."
+  },
+  "revive": {
+    "limitReached": "Batas proyek aktif pada paket Anda sudah tercapai",
+    "limitReachedDetail": "Proyek ini tidak dipulihkan. Arsipkan proyek aktif yang tidak lagi diperlukan, atau minta Operator meningkatkan paket, lalu coba lagi."
+  },
+  "shortName": {
+    "label": "Nama singkat (opsional)",
+    "hint": "Tampil di daftar. Nama kontrak tidak berubah.",
+    "searchProject": "Proyek · {{name}}",
+    "searchPipeline": "Proyek · Pipeline · {{name}}",
+    "contractName": "Nama kontrak",
+    "duplicate": "Proyek lain sudah memakai nama singkat ini"
+  },
+  "committed": {
+    "otherCurrencies": "Ditambah jumlah dalam mata uang lain: {{amounts}}"
+  },
+  "table": {
+    "selectRow": "Pilih {{row}}",
+    "selectAllRows": "Pilih semua baris"
+  },
+  "budgetConsumption": "{{used}} dari anggaran Aktif {{budget}}",
+  "filterBuilder": {
+    "addFilter": "Tambah filter",
+    "clearAll": "Hapus semua",
+    "searchFields": "Cari filter…",
+    "searchOperators": "Cari kondisi…",
+    "searchOptions": "Cari…",
+    "back": "Kembali",
+    "clear": "Hapus",
+    "apply": "Terapkan",
+    "discard": "Batalkan",
+    "empty": "Tidak ada hasil",
+    "loading": "Memuat…",
+    "error": "Gagal memuat",
+    "retry": "Coba lagi",
+    "remove": "Hapus filter",
+    "filtersLabel": "Filter aktif",
+    "selectCondition": "Kondisi",
+    "selectPlaceholder": "Pilih…",
+    "valuePlaceholder": "Nilai",
+    "noValue": "Semua",
+    "incomplete": "Belum lengkap",
+    "rangeSeparator": "sampai",
+    "rangeFrom": "{{field}} dari",
+    "rangeTo": "{{field}} sampai",
+    "valueCount": "{{count}} dipilih",
+    "itemCount": "{{count}} item",
+    "onOrAfter": "pada atau setelah",
+    "onOrBefore": "pada atau sebelum",
+    "between": "antara",
+    "is": "adalah",
+    "isAnyOf": "salah satu dari",
+    "contains": "mengandung",
+    "atLeast": "minimal",
+    "atMost": "maksimal",
+    "status": "Status",
+    "customer": "Pelanggan",
+    "endCustomer": "Pelanggan akhir",
+    "manager": "Manajer proyek",
+    "startDate": "Tanggal mulai",
+    "endDate": "Tanggal selesai",
+    "contractValue": "Nilai kontrak"
+  },
+  "receiptWithholding": {
+    "article": "Pasal pemotongan klien",
+    "articleHelper": "Mengisi otomatis penerimaan baru. Setiap penerimaan dapat mengubahnya."
   }
 }

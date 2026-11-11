@@ -22,7 +22,14 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import {
+  repositories,
+  type ProcurementError,
+  type PurchaseRequestRow,
+  type RfqRow,
+  type PurchaseOrderRow,
+  type PaymentRow,
+} from '@/src/lib/repositories';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
   IDLE_PENDING_PUSH,
@@ -30,21 +37,13 @@ import {
   pendingPushAfterWrite,
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
-import type {
-  PurchaseRequestRow,
-  RfqRow,
-  PurchaseOrderRow,
-  PaymentRow,
-} from '@/src/lib/db/procurementRecords';
-import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
+import { cachedProcurementProjectId, invalidateProcurementCase, procurementDetailKey } from '@/src/hooks/procurementQueryKeys';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
 // ---------------------------------------------------------------------------
 // Query key factory — org-scoped (mirrors useProcurementDetail shape)
 // ---------------------------------------------------------------------------
 
-const procurementDetailKey = (orgId: string | undefined, id: string) =>
-  ['procurement', orgId, id] as const;
 
 // ---------------------------------------------------------------------------
 // Input shapes (mirrored to RecordCaptureForm for type safety)
@@ -89,6 +88,8 @@ export interface CreatePaymentInput {
   status: string | null;
   date: string | null;
   amount: number | null;
+  /** #1505 P8: the Odoo payment journal chosen on the form (omitted = the organisation default). */
+  journalId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,22 +106,38 @@ export function useProcurementRecordMutations(procurementId: string) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
 
-  const invalidateDetail = () =>
-    qc.invalidateQueries({ queryKey: procurementDetailKey(orgId, procurementId) });
+  const invalidateDetail = () => {
+    invalidateProcurementCase(qc, orgId, procurementId, [cachedProcurementProjectId(qc, orgId, procurementId)]);
+    qc.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, procurementId] });
+  };
 
   // Shared pending-push state across the four record-creation kinds — only one capture form is
   // open at a time (LedgerCaptureRow, task FIX-1). Stays idle for PMO-owned orgs.
   const [pendingPush, setPendingPush] = useState<PendingPushState>(IDLE_PENDING_PUSH);
-  const isExternal = () => routeDomainWrite('procurement') === 'external';
-  const onMutate = () => {
-    if (isExternal()) setPendingPush(beginPush(IDLE_PENDING_PUSH));
-  };
-  const onSettledOk = () => {
-    invalidateDetail();
-    if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
-  };
-  const onSettledErr = (err: unknown) => {
-    if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+  // FR-ECA-030: a payment on a purchase ordered before the ERP connection is recorded in PMO (the repository routes it
+  // there), so it has no push state. The flag rides the loaded detail; the other kinds on that case are still sent.
+  const isPreCutover = () =>
+    qc.getQueriesData<{ pre_cutover?: boolean }>({ queryKey: procurementDetailKey(orgId, procurementId) }).some(([, d]) => d?.pre_cutover === true);
+  const handlers = (payment: boolean) => {
+    const isExternal = () => routeDomainWrite('procurement') === 'external' && !(payment && isPreCutover());
+    return {
+      onMutate: () => {
+        if (isExternal()) {
+          qc.setQueryData(['procurement-item-eligibility', orgId, procurementId], false);
+          setPendingPush(beginPush(IDLE_PENDING_PUSH));
+        }
+      },
+      onSuccess: () => {
+        invalidateDetail();
+        if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
+      },
+      onError: (err: unknown) => {
+        if (isExternal()) {
+          qc.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, procurementId] });
+          setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+        }
+      },
+    };
   };
 
   const createPurchaseRequestMut = useMutation<
@@ -132,17 +149,13 @@ export function useProcurementRecordMutations(procurementId: string) {
       externalRef
         ? repositories.procurement.createPurchaseRequest(procurementId, referenceNumber, status, date, amount, intent, externalRef)
         : repositories.procurement.createPurchaseRequest(procurementId, referenceNumber, status, date, amount, intent),
-    onMutate,
-    onSuccess: onSettledOk,
-    onError: onSettledErr,
+    ...handlers(false),
   });
 
   const createRfqMut = useMutation<RfqRow, ProcurementError, CreateRfqInput>({
     mutationFn: ({ referenceNumber, status, date, amount, intent }) =>
       repositories.procurement.createRfq(procurementId, referenceNumber, status, date, amount, intent),
-    onMutate,
-    onSuccess: onSettledOk,
-    onError: onSettledErr,
+    ...handlers(false),
   });
 
   const createPurchaseOrderMut = useMutation<
@@ -154,17 +167,15 @@ export function useProcurementRecordMutations(procurementId: string) {
       externalRef
         ? repositories.procurement.createPurchaseOrder(procurementId, referenceNumber, status, date, amount, intent, externalRef)
         : repositories.procurement.createPurchaseOrder(procurementId, referenceNumber, status, date, amount, intent),
-    onMutate,
-    onSuccess: onSettledOk,
-    onError: onSettledErr,
+    ...handlers(false),
   });
 
   const createPaymentMut = useMutation<PaymentRow, ProcurementError, CreatePaymentInput>({
-    mutationFn: ({ invoiceId, referenceNumber, status, date, amount, intent }) =>
-      repositories.procurement.createPayment(procurementId, invoiceId, referenceNumber, status, date, amount, intent),
-    onMutate,
-    onSuccess: onSettledOk,
-    onError: onSettledErr,
+    mutationFn: ({ invoiceId, referenceNumber, status, date, amount, intent, journalId }) =>
+      journalId
+        ? repositories.procurement.createPayment(procurementId, invoiceId, referenceNumber, status, date, amount, intent, journalId)
+        : repositories.procurement.createPayment(procurementId, invoiceId, referenceNumber, status, date, amount, intent),
+    ...handlers(true),
   });
 
   return {

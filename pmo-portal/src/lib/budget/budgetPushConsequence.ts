@@ -19,6 +19,9 @@ export interface ActivateAndPushDeps {
   /** Dispatch the push for `versionId`. Any rejection (ERP unreachable, a classified `commit-rejected`,
    *  or no ERPNext binding at all) is caught here and NEVER re-thrown. */
   dispatch(versionId: string): Promise<unknown>;
+  /** Called once the BACKGROUND dispatch settles (ADR-0062), so the surface can re-read the push status.
+   *  A throw here is swallowed: it must not turn into an unhandled rejection. */
+  onPushSettled?(state: 'pushed' | 'failed', dispatchResult: unknown): void;
 }
 
 export interface ActivateAndPushResult {
@@ -27,21 +30,31 @@ export interface ActivateAndPushResult {
   activated: boolean;
   /** Present only when `activated` is `false` — the RPC's own error. */
   error?: { message: string; code?: string };
-  /** Present only when `activated` is `true` — whether the push consequence succeeded. Durable failure
-   *  detail lives server-side in `budget_version_erp_mirror`, not on this in-memory result. */
-  pushState?: 'pushed' | 'failed';
+  /** Present only when `activated` is `true`. Always `'queued'` (ADR-0062): the push is started but never
+   *  awaited, so its outcome arrives via `onPushSettled` and the push-status read, not this result. */
+  pushState?: 'queued';
 }
 
 export async function activateAndPush(deps: ActivateAndPushDeps): Promise<ActivateAndPushResult> {
   const { error } = await deps.rpc('activate_budget_version', { version_id: deps.versionId });
   if (error) return { activated: false, error }; // a REAL activation failure — the PMO transition's own
 
-  try {
-    await deps.dispatch(deps.versionId);
-    return { activated: true, pushState: 'pushed' };
-  } catch {
-    // ⚑ ADR-0059 §3.2: never fail the user's action on ERP. The durable failure lives server-side
-    // (the gate/dispatch writes budget_version_erp_mirror); the sweep backstop re-drives it later.
-    return { activated: true, pushState: 'failed' };
-  }
+  // ⚑ ADR-0062: the PMO write is the act. The push is started, NOT awaited — a slow or down ERPNext must
+  // never hold the confirm dialog open. Every outcome (incl. a synchronous throw) is swallowed: the
+  // durable failure lives server-side (the gate/dispatch writes budget_version_erp_mirror), the sweep
+  // backstop re-drives it, and `onPushSettled` lets the surface re-read that status.
+  const settle = (state: 'pushed' | 'failed', result?: unknown) => {
+    try {
+      deps.onPushSettled?.(state, result);
+    } catch {
+      /* a refresh callback must not surface as an unhandled rejection */
+    }
+  };
+  void Promise.resolve()
+    .then(() => deps.dispatch(deps.versionId))
+    .then(
+      (result) => settle('pushed', result),
+      () => settle('failed'),
+    );
+  return { activated: true, pushState: 'queued' };
 }

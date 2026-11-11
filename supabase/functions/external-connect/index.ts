@@ -7,57 +7,57 @@
  *
  * Flow:
  * 1. Verify caller JWT locally (ES256, JWKS) → get `sub` (user id)
- * 2. Load profile (role, org_id) via service-role client
- * 3. Activation gate: Admin of the org OR platform Operator
- * 4. Validate credential against external system (injected fetch for testability)
+ * 2. Load profile (role, org_id, status) via service-role client
+ * 3. Standing gate: the caller must be an active org member right now (actor_authorization_state;
+ *    fail closed if it cannot be resolved)
+ * 4. Activation gate: Admin of the org OR platform Operator
+ * 5. Validate credential against external system (injected fetch for testability)
  *    - ClickUp: GET /api/v2/user with Bearer token
  *    - ERPNext: GET /api/method/frappe.auth.get_logged_user with token apiKey:apiSecret
  *    - SSRF hardening: reject private/loopback/link-local/metadata addresses for ERPNext
- * 5. On success: call create_vault_secret_for_org RPC (passes p_actor_id=sub for service-role path)
+ * 6. On success: call create_vault_secret_for_org RPC (passes p_actor_id=sub for service-role path)
  * 7. ERPNext: call set_external_binding_site_url(org, 'erpnext', siteUrl, userId) — persists the site
  *    URL the admin submitted (create_vault_secret_for_org writes site_url = ''); a failure is a 500
  *    SITE_URL_NOT_PERSISTED and the binding is left inert (site_url='')
  * 8. For ClickUp: call admin_change_domain_ownership(org, 'clickup', 'tasks', 'employ', userId)
- * 7. Return { ok: true, binding: { secret_ref, status: 'active' } }
+ * 9. Return { ok: true, binding: { secret_ref, status: 'active' } }
  *
  * Errors:
  * - 401: missing/invalid JWT
- * - 403: not Admin of org and not Operator
+ * - 403: caller lacks active membership standing, or is not Admin of org and not Operator
  * - 422: invalid credential (validation failed) — NO Vault write, NO binding row
  * - 400: unknown tier or malformed body
  * - 500: internal error
  */
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import {
   verifyCallerJwt,
   JwtVerifyError,
   jwksFromUrl,
   type JwksResolver,
+  bearerToken,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-import { isAdminOrOperator, type AdminOrOperatorClient } from '../_shared/adminOrOperator.ts';
-import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
+import {
+  hasActiveStanding,
+  isAdminOrOperator,
+  type AdminOrOperatorClient,
+} from '../_shared/adminOrOperator.ts';
+import { fetchBounded, FetchDeadlineError, readJsonBounded } from '../_shared/fetchWithDeadline.ts';
 import { isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
+import { connectOdoo, type OdooCredential } from './odoo.ts';
 
 interface ConnectBody {
-  tier: 'clickup' | 'erpnext';
-  credential: {
+  tier: 'clickup' | 'erpnext' | 'odoo';
+  credential: OdooCredential & {
     token?: string;           // ClickUp personal access token
     apiKey?: string;          // ERPNext API key
     apiSecret?: string;       // ERPNext API secret
     siteUrl?: string;         // ERPNext site URL (e.g., https://erp.example.com)
-  };
-}
-
-interface ConnectResponse {
-  ok: true;
-  binding: {
-    secret_ref: string;
-    status: 'active';
   };
 }
 
@@ -84,16 +84,10 @@ export const testSupabaseOptions = {
 };
 
 /** Strip a case-insensitive `Bearer ` prefix; return null if absent or malformed. */
-function bearerTokenFromHeader(authHeader: string | null): string | null {
-  if (!authHeader) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(authHeader);
-  return m ? m[1] : null;
-}
-
-function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', ...headers }, // #641: every answer is CORS-readable
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }, // #641: every answer is CORS-readable
   });
 }
 
@@ -119,6 +113,13 @@ interface ValidatorDeps {
  * validated fine (`res.ok`), so an unexpected wire shape must not block the connect; it only means the
  * echo-loop guard can't be armed for this org until a later reconnect gets a well-formed response.
  */
+/** 429 and 5xx are the upstream being unavailable (retry); any other refusal is the credential or request being rejected. */
+function upstreamRefusal(status: number, rejected: string, label: string): AppError {
+  return status === 429 || status >= 500
+    ? new AppError(`${label} is unavailable; try again`, 'external-unreachable')
+    : new AppError(rejected, 'config-rejected');
+}
+
 async function validateClickUpToken(
   token: string,
   deps: ValidatorDeps,
@@ -131,16 +132,17 @@ async function validateClickUpToken(
   } catch (err) {
     if (err instanceof AppError) throw err;
     if (err instanceof FetchDeadlineError) throw new AppError('ClickUp did not respond in time', 'external-unreachable');
-    throw new AppError('Invalid ClickUp token', 'config-rejected');
+    throw new AppError('ClickUp could not be reached; try again', 'external-unreachable');
   }
   if (!res.ok) {
-    throw new AppError('Invalid ClickUp token', 'config-rejected');
+    throw upstreamRefusal(res.status, 'Invalid ClickUp token', 'ClickUp');
   }
   try {
-    const body = (await res.json()) as { user?: { id?: number | string } };
+    const body = await readJsonBounded<{ user?: { id?: number | string } }>(res, 'ClickUp did not respond in time');
     const id = body.user?.id;
     return id !== undefined && id !== null ? String(id) : null;
-  } catch {
+  } catch (err) {
+    if (err instanceof AppError) throw err;
     return null;
   }
 }
@@ -155,13 +157,14 @@ async function validateClickUpTeam(token: string, deps: ValidatorDeps): Promise<
     if (err instanceof FetchDeadlineError) throw new AppError('ClickUp did not respond in time', 'external-unreachable');
     throw err;
   }
-  if (!res.ok) throw new AppError('Unable to resolve ClickUp workspace', 'config-rejected');
+  if (!res.ok) throw upstreamRefusal(res.status, 'Unable to resolve ClickUp workspace', 'ClickUp');
   try {
-    const body = (await res.json()) as { teams?: Array<{ id?: number | string }> };
+    const body = await readJsonBounded<{ teams?: Array<{ id?: number | string }> }>(res, 'ClickUp did not respond in time');
     const id = body.teams?.[0]?.id;
     if (id === undefined || id === null || String(id) === '') throw new Error('missing team id');
     return String(id);
-  } catch {
+  } catch (err) {
+    if (err instanceof AppError) throw err;
     throw new AppError('Unable to resolve ClickUp workspace', 'config-rejected');
   }
 }
@@ -201,7 +204,7 @@ async function validateErpNextCredentials(
     // for a valid credential, or `Guest` for the anonymous identity. Treat the credential as valid
     // ONLY on a 2xx whose body carries a non-empty, non-`Guest` `message`.
     if (!res.ok) {
-      throw new AppError('Invalid ERPNext credentials', 'config-rejected');
+      throw upstreamRefusal(res.status, 'Invalid ERPNext credentials', 'ERPNext');
     }
     let body: { message?: unknown };
     try {
@@ -218,7 +221,7 @@ async function validateErpNextCredentials(
     }
   } catch (err) {
     if (err instanceof AppError) throw err;
-    throw new AppError('Invalid ERPNext credentials', 'config-rejected');
+    throw new AppError('ERPNext could not be reached; try again', 'external-unreachable');
   }
 }
 
@@ -238,7 +241,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   }
 
   // 1. Extract and verify caller JWT (ADR-0057)
-  const jwt = bearerTokenFromHeader(req.headers.get('Authorization'));
+  const jwt = bearerToken(req.headers.get('Authorization'));
   if (!jwt) {
     return errorResponse('Missing Authorization header', 'UNAUTHORIZED', 401);
   }
@@ -265,10 +268,10 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   // 2. Service-role client for admin lookups (profile, operator check)
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
-  // 3. Load caller profile (role + org_id)
+  // 3. Load caller profile (role + org_id + status)
   const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
-    .select('org_id, role')
+    .select('org_id, role, status')
     .eq('id', userId)
     .single();
 
@@ -276,7 +279,18 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
   }
 
-  // 4. Activation gate: Admin of this org OR platform Operator. The shared predicate is only
+  // 4. Standing gate: the roles below authorize only while the membership is active NOW. A
+  // deactivated or banned caller with an unexpired JWT stops here, before any Vault write.
+  if (!(await hasActiveStanding({
+    stateClient: serviceClient,
+    orgId: profile.org_id,
+    userId,
+    profileStatus: profile.status,
+  }))) {
+    return errorResponse('Active organization member required', 'FORBIDDEN', 403);
+  }
+
+  // 5. Activation gate: Admin of this org OR platform Operator. The shared predicate is only
   // this activation decision; it is not the M365 member data-access gate.
   if (!(await isAdminOrOperator({
     profile,
@@ -286,7 +300,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);
   }
 
-  // 5. Parse body
+  // 6. Parse body
   let body: ConnectBody;
   try {
     body = (await req.json()) as ConnectBody;
@@ -295,16 +309,36 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   }
 
   const { tier, credential } = body;
-  if (tier !== 'clickup' && tier !== 'erpnext') {
-    return errorResponse('Unknown tier (must be clickup or erpnext)', 'BAD_REQUEST', 400);
+  if (tier !== 'clickup' && tier !== 'erpnext' && tier !== 'odoo') {
+    return errorResponse('Unknown tier (must be clickup, erpnext or odoo)', 'BAD_REQUEST', 400);
   }
 
-  // 6. The deployment kill-switch is checked before external validation and all writes.
+  const featureKey = tier === 'clickup' ? 'clickup_sync' : 'erp_sync';
+  const { data: integrationEnabled, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
+    p_org_id: profile.org_id,
+    p_key: featureKey,
+  });
+  if (featureError) return errorResponse('Could not resolve the plan switch', 'INTERNAL', 500);
+  if (integrationEnabled !== true) return errorResponse('Integration is not enabled for this organization', 'feature_off', 409);
+
+  // 7. The deployment kill-switch is checked before external validation and all writes.
   // It is an operator break-glass, never a client-side status signal.
   const killSwitchEnabled = externalConnectEnabled();
   if (!killSwitchEnabled) {
     return errorResponse('Integration disabled by operator; try again later', 'INTEGRATION_DISABLED', 503);
   }
+  if (!credential || typeof credential !== 'object') return errorResponse('credential is required', 'BAD_REQUEST', 400);
+  if (tier === 'odoo') return await connectOdoo(serviceClient, profile.org_id, userId, credential, killSwitchEnabled, json);
+
+  // FR-ODC-011 parity with Odoo: an ERPNext refusal leaves one audit row with its outcome class (never the credential
+  // or an upstream body). Best effort: a failed audit write never changes the answer.
+  const refuse = async (message: string, code: string, status: number): Promise<Response> => {
+    if (tier === 'erpnext') {
+      await serviceClient.rpc('log_audit', { p_action: 'integration.connect.refused', p_org_id: profile.org_id, p_actor_id: userId,
+        p_entity_id: null, p_detail: { tier, actor: userId, outcome_class: code } }).then(() => {}, () => {});
+    }
+    return errorResponse(message, code, status);
+  };
 
   // Validate credential against external system BEFORE any Vault write.
   const validatorDeps = { fetchImpl: fetch };
@@ -327,15 +361,23 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     }
   } catch (err) {
     if (err instanceof AppError && err.code === 'config-rejected') {
-      return errorResponse(err.message, err.code, 422);
+      return await refuse(err.message, err.code, 422);
     }
     if (err instanceof AppError && err.code === 'external-unreachable') {
-      return errorResponse(err.message, err.code, 502);
+      return await refuse(err.message, err.code, 502);
     }
-    return errorResponse('Credential validation failed', 'config-rejected', 422);
+    return await refuse('Credential validation failed', 'config-rejected', 422);
   }
 
-  // 7. Credential is valid → create Vault secret + upsert binding via RPC
+  // FR-ODC-008: one ERP tier per org. Checked before any write; a failed check refuses (fail closed).
+  if (tier === 'erpnext') {
+    const { data: odoo, error: odooError } = await serviceClient.from('external_org_bindings').select('external_tier')
+      .eq('org_id', profile.org_id).eq('external_tier', 'odoo').eq('status', 'active').maybeSingle();
+    if (odooError) return await refuse('Connection check failed; nothing was connected', 'CONNECT_NOT_COMMITTED', 500);
+    if (odoo) return await refuse('Another accounting system is already connected; disconnect it first.', 'another-erp-active', 409);
+  }
+
+  // 8. Credential is valid → create Vault secret + upsert binding via RPC
   //    The RPC handles: Vault write, binding upsert, audit log, secret rotation on reconnect
   const secretName = `${tier}_token_${profile.org_id}_${Date.now()}`;
   const secretValue = tier === 'clickup'
@@ -360,10 +402,10 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
 
   if (rpcError) {
     const pgCode = (rpcError as { code?: string }).code ?? 'INTERNAL';
-    return errorResponse(rpcError.message, pgCode, pgCode === '42501' ? 403 : 500);
+    return await refuse(rpcError.message, pgCode, pgCode === '42501' ? 403 : 500);
   }
 
-  // 7b. FR-EAC-101 — persist the site URL the admin submitted. `create_vault_secret_for_org` writes
+  // 8b. FR-EAC-101 — persist the site URL the admin submitted. `create_vault_secret_for_org` writes
   // `site_url = ''` (mig 0180) and its signature is on production, so this is a second, additive RPC
   // rather than a parameter change (ADR-0073 §1: a dropped 5-arg overload would PGRST202 the deployed
   // connect path during the deploy window).
@@ -379,13 +421,13 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
       // (FR-EAC-103) and activate_external_binding's own guard both refuse. The partial state is inert,
       // and a retry of Connect rotates it. See ADR-0073 "Costs and risks accepted".
       console.error('set_external_binding_site_url failed', siteUrlError);
-      return errorResponse(
+      return await refuse(
         'The ERPNext site URL could not be saved; no connection was activated. Please try connecting again.',
         'SITE_URL_NOT_PERSISTED', 500);
     }
   }
 
-  // 8. Readiness is exactly the valid token plus the real per-org Vault resolver. No extra
+  // 9. Readiness is exactly the valid token plus the real per-org Vault resolver. No extra
   // ClickUp API call is made. The final RPC is the only path that can employ ownership.
   if (tier === 'clickup') {
     const readiness = await resolvePerOrgSecret({
@@ -393,13 +435,15 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
       orgId: profile.org_id,
       tier: 'clickup',
       lookupBinding: async (orgId, externalTier) => {
-        const { data } = await serviceClient.from('external_org_bindings')
+        const { data, error } = await serviceClient.from('external_org_bindings')
           .select('secret_ref').eq('org_id', orgId).eq('external_tier', externalTier)
           .eq('status', 'active').maybeSingle();
+        if (error) throw new AppError('binding read failed', error.code); // a store error is not an absent row
         return data as { secret_ref?: string | null } | null;
       },
       readVaultSecret: async (ref) => {
-        const { data } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+        const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+        if (error) throw new AppError('vault read failed', error.code); // a store error is not a missing secret
         return typeof data === 'string' ? data : null;
       },
     });
@@ -414,6 +458,10 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
         await serviceClient.rpc('cleanup_external_connect_attempt', {
           p_org_id: profile.org_id, p_external_tier: tier, p_secret_ref: secretRef, p_actor_id: userId,
         });
+      }
+      // A store error is retryable and must not read as "not ready" (a clean miss): distinct class, same refusal.
+      if (readiness.kind === 'read-failed') {
+        return errorResponse('The secret store could not be read; no connection was activated. Please try again.', 'SECRET_STORE_UNAVAILABLE', 503);
       }
       return errorResponse('ClickUp sync is not ready; no connection was activated', 'SYNC_NOT_READY', 422);
     }
@@ -434,18 +482,26 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     }
 
     // Persist both identities atomically after the ownership/binding commit. They contain no secret.
-    const configPatch: Record<string, unknown> = {};
+    const configPatch: Record<string, unknown> = { identity_incomplete: false };
     if (clickUpUserId !== null) configPatch.clickup_actor_id = clickUpUserId;
     if (clickUpTeamId !== null) configPatch.clickup_team_id = clickUpTeamId;
-    if (Object.keys(configPatch).length > 0) {
-      const { error: configError } = await serviceClient.rpc('merge_external_org_binding_config', {
-        p_org_id: profile.org_id, p_external_tier: 'clickup', p_patch: configPatch,
+    const { error: configError } = await serviceClient.rpc('merge_external_org_binding_config', {
+      p_org_id: profile.org_id, p_external_tier: 'clickup', p_patch: configPatch,
+    });
+    if (configError) {
+      // Retryable: Connect again rotates the binding and rewrites the identity (same recovery as the site-url write).
+      console.error('external_org_bindings clickup identity persist failed', configError);
+      // Best effort: mark the committed connection incomplete (cleared by the next successful connect below).
+      await serviceClient.rpc('merge_external_org_binding_config', {
+        p_org_id: profile.org_id, p_external_tier: 'clickup', p_patch: { identity_incomplete: true },
       });
-      if (configError) console.error('external_org_bindings clickup identity persist failed', configError);
+      return errorResponse(
+        'ClickUp connected but its workspace could not be saved. Please try connecting again.',
+        'CONNECT_IDENTITY_NOT_SAVED', 500);
     }
   }
 
-  // 9. Return success
+  // 10. Return success
   return json({
     ok: true,
     binding: {
@@ -461,5 +517,5 @@ if (import.meta.main) {
 }
 
 // Export validators and SSRF helper for testability
-export { validateClickUpToken, validateErpNextCredentials };
+export { validateClickUpToken, validateClickUpTeam, validateErpNextCredentials };
 export type { ValidatorDeps };

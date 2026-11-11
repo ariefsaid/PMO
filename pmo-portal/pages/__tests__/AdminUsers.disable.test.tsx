@@ -1,10 +1,4 @@
-/**
- * AC-INV-004 — Disable/Re-enable row actions + invite modal (ops-admin-surface S4).
- * Renders the directory as the sole org-Admin; the row-menu "Disable" on themselves and on
- * the sole Admin both surface the classified lockout toast (RPC P0001) and the row stays
- * active; the disable confirm dialog (ConfirmDialog tone="destructive") appears for a
- * non-self target and commits on confirm.
- */
+/** AC-INV-004 — status actions respect the current account and active Admin boundary. */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -12,7 +6,6 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
-import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 const { listState, mutations } = vi.hoisted(() => ({
   listState: {
@@ -33,10 +26,37 @@ const { listState, mutations } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/src/hooks/useUsers', () => ({
-  useUsers: () => listState,
-  useUserMutations: () => mutations,
-}));
+vi.mock('@/src/hooks/useUsers', () => {
+  type MockUser = { full_name: string; email: string; org_id: string; role: string; status: string };
+  type MockState = { data?: readonly unknown[] | null; isPending?: boolean; isError?: boolean; refetch?: () => unknown };
+  const directoryPage = (state: MockState, input: { pageSize?: number; page?: number; search?: string } = {}) => {
+    const size = input.pageSize || 50;
+    const pageNo = input.page || 1;
+    const term = String(input.search || '').trim().toLowerCase();
+    const all = (state.data || []) as MockUser[];
+    const matched = term ? all.filter((u) => u.full_name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term)) : all;
+    return {
+      data: { rows: matched.slice((pageNo - 1) * size, pageNo * size), total: matched.length },
+      isPending: state.isPending, isError: state.isError, isFetching: false, refetch: state.refetch,
+    };
+  };
+  const adminCounts = (state: MockState) => {
+    const out: Record<string, number> = {};
+    for (const u of (state.data || []) as MockUser[]) {
+      if (out[u.org_id] === undefined) out[u.org_id] = 0;
+      if (u.role === 'Admin' && u.status === 'active') out[u.org_id] += 1;
+    }
+    return { data: out, isPending: false, isError: false };
+  };
+  return {
+    useUsers: () => listState,
+    useUsersPage: (input: { page?: number; pageSize?: number; search?: string }) => directoryPage(listState, input),
+    useActiveAdminCounts: () => adminCounts(listState),
+    useUserFocusPage: () => ({ data: null, isPending: false, isError: false }),
+    useManagerChoices: () => listState,
+    useUserMutations: () => mutations,
+  };
+});
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'self-admin', org_id: 'org-1' }, role: 'Admin' }),
 }));
@@ -55,13 +75,6 @@ vi.mock('@/src/lib/repositories', () => ({
     orgFeature: { listOwn: vi.fn().mockResolvedValue({}), toggle: vi.fn().mockResolvedValue(undefined) },
   },
 }));
-
-class LockoutError extends Error {
-  code = 'P0001';
-  constructor(message: string) {
-    super(message);
-  }
-}
 
 import AdminUsers from '../AdminUsers';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -121,21 +134,38 @@ describe('AdminUsers — Disable/Re-enable (AC-INV-004)', () => {
     );
   });
 
-  it('self-disable is rejected server-side (P0001 lockout) and surfaces a classified toast', async () => {
-    mutations.setStatus.mutateAsync.mockRejectedValue(new LockoutError('cannot disable yourself'));
+  it('omits self-disable and explains the sole Admin restriction', () => {
     renderPage();
-    const row = screen.getByText('Sole Admin').closest('tr') ?? screen.getByText('Sole Admin').closest('div');
-    const menuBtn = within(row as HTMLElement).getByRole('button', { name: /Row actions/i });
-    await userEvent.click(menuBtn);
-    const disableItem = await screen.findByRole('menuitem', { name: /disable/i });
-    await userEvent.click(disableItem);
+    const row = screen.getByText('Sole Admin').closest('tr') as HTMLElement;
+    expect(within(row).queryByRole('button', { name: /Row actions/i })).not.toBeInTheDocument();
+    expect(within(row).getByText(/only active admin/i)).toBeInTheDocument();
+  });
 
-    const dialog = await screen.findByRole('alertdialog');
-    const confirmBtn = within(dialog).getByRole('button', { name: /disable/i });
-    await userEvent.click(confirmBtn);
+  it('explains why a different sole Admin cannot be disabled', async () => {
+    const original = listState.data;
+    listState.data = [
+      { id: 'self-admin', full_name: 'Operator', email: 'operator@example.com', role: 'Engineer', manager_id: null, org_id: 'org-1', status: 'active' },
+      { id: 'other-admin', full_name: 'Other Admin', email: 'other@example.com', role: 'Admin', manager_id: null, org_id: 'org-1', status: 'active' },
+    ];
+    try {
+      renderPage();
+      const row = screen.getByText('Other Admin').closest('tr') as HTMLElement;
+      expect(within(row).getByText(/only active admin/i)).toBeInTheDocument();
+      await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
+      expect(screen.queryByRole('menuitem', { name: /^disable$/i })).not.toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: /edit role/i })).toBeInTheDocument();
+    } finally { listState.data = original; }
+  });
 
-    await waitFor(() => expect(mutations.setStatus.mutateAsync).toHaveBeenCalled());
-    expect(await findToastAnnouncement('alert', /only admin|lockout|can't disable|cannot disable/i)).toBeInTheDocument();
+  it('offers disabling another active Admin when more than one is visible', async () => {
+    const original = listState.data;
+    listState.data = [...original, { id: 'admin-2', full_name: 'Second Admin', email: 'second@example.com', role: 'Admin', manager_id: null, org_id: 'org-1', status: 'active' }];
+    try {
+      renderPage();
+      const row = screen.getByText('Second Admin').closest('tr') as HTMLElement;
+      await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
+      expect(screen.getByRole('menuitem', { name: /^disable$/i })).toBeInTheDocument();
+    } finally { listState.data = original; }
   });
 
   it('a disabled user shows a "Re-enable" action and a visible disabled StatusPill', async () => {

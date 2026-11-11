@@ -85,6 +85,50 @@ describe('CommandPalette', () => {
     expect(screen.getByTestId('cmdk-backdrop').className).toContain('bg-foreground/40');
   });
 
+  it('CMP-028: Tab cycles focus between input and Retry button when error is displayed', async () => {
+    setReferenceResult({ isError: true });
+    render(<CommandPalette open items={items} onClose={vi.fn()} />);
+    const input = screen.getByRole('combobox');
+    await userEvent.type(input, 'pr');
+    const retry = await screen.findByRole('button', { name: 'Retry' });
+    expect(input).toHaveFocus();
+
+    await userEvent.keyboard('{Tab}');
+    expect(retry).toHaveFocus();
+
+    await userEvent.keyboard('{Tab}');
+    expect(input).toHaveFocus();
+
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(retry).toHaveFocus();
+  });
+
+  it('CMP-009: acquires background inert on the app shell while open and releases on close', () => {
+    const shell = document.createElement('div');
+    shell.setAttribute('data-app-shell', 'root');
+    document.body.appendChild(shell);
+    try {
+      const { rerender } = render(<CommandPalette open={false} items={items} onClose={vi.fn()} />);
+      expect(shell).not.toHaveAttribute('inert');
+
+      rerender(<CommandPalette open={true} items={items} onClose={vi.fn()} />);
+      expect(shell).toHaveAttribute('inert');
+
+      rerender(<CommandPalette open={false} items={items} onClose={vi.fn()} />);
+      expect(shell).not.toHaveAttribute('inert');
+    } finally {
+      shell.remove();
+    }
+  });
+
+  it('DS-SPACING: command rows use the shared compact spacing scale', () => {
+    render(<CommandPalette open items={items} onClose={vi.fn()} />);
+    const row = screen.getAllByRole('option')[0];
+    expect(row.className.split(/\s+/)).toContain('gap-3');
+    expect(row.className.split(/\s+/)).toContain('px-3');
+    expect(row.className.split(/\s+/)).toContain('py-2');
+  });
+
   it('UXS-006: finds a destination by its localized route label', async () => {
     const run = vi.fn();
     render(
@@ -315,6 +359,23 @@ describe('CommandPalette', () => {
     expect(cachedProjectRun).not.toHaveBeenCalled();
   });
 
+  it('AC-002 #1325: an uncached reference result shows its short title with contractual context', async () => {
+    setReferenceResult({
+      data: referencePage({
+        kind: 'project', id: 'project-alias', title: 'North Terminal', context: 'Contractual terminal refurbishment',
+        reference: 'PO-ALIAS-42', aliases: ['PO-ALIAS-42'], exact: true,
+      }),
+    });
+    render(<CommandPalette open items={[]} onClose={vi.fn()} />);
+
+    await userEvent.type(screen.getByRole('combobox'), 'PO-ALIAS-42');
+    const result = await screen.findByRole('option', { name: /North Terminal/ });
+    expect(within(result).getByText('North Terminal')).toBeInTheDocument();
+    const context = within(result).getByText(/Contractual terminal refurbishment$/);
+    expect(context).toHaveClass('truncate');
+    expect(context).toHaveAttribute('title', 'Project · Contractual terminal refurbishment');
+  });
+
   it('AC-V24P-016: a server project hit already cached as a pipeline record appears once; distinct hits stay and open their canonical route', async () => {
     const hit = (id: string, title: string) => ({
       kind: 'project' as const, id, title, context: null, reference: 'REF-777', aliases: ['REF-777'], exact: true,
@@ -347,6 +408,41 @@ describe('CommandPalette', () => {
     expect(state.navigate).toHaveBeenCalledExactlyOnceWith('/projects/p-distinct');
     expect(cachedRun).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('#1164: a project appearing both as pipeline and project shows once', async () => {
+    setReferenceResult({
+      data: referencePage({
+        kind: 'project',
+        id: 'proj-omega',
+        title: 'Omega Expansion Project',
+        context: null,
+        reference: 'PROJ-OMEGA',
+        aliases: ['PROJ-OMEGA'],
+        exact: true,
+      }),
+    });
+    const cachedRun = vi.fn();
+    const cachedPipeline: PaletteItem = {
+      id: 'sales:proj-omega',
+      group: 'Records',
+      title: 'Omega Expansion Project',
+      sub: 'Project · Pipeline',
+      searchCodes: ['PROJ-OMEGA'],
+      icon: 'pipeline',
+      run: cachedRun,
+    };
+    render(<CommandPalette open items={[cachedPipeline, ...items]} onClose={vi.fn()} />);
+
+    await userEvent.type(screen.getByRole('combobox'), 'PROJ-OMEGA');
+    await screen.findByRole('option', { name: /Omega Expansion Project/ });
+
+    const rows = screen
+      .getAllByRole('option')
+      .filter((row) => row.textContent?.includes('Omega Expansion Project'));
+    // A project appearing both as pipeline and project shows once in the user-visible options.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent('Project · Pipeline');
   });
 
   it('AC-S40-004: wraps long reference labels at word boundaries so identifiers stay readable', async () => {

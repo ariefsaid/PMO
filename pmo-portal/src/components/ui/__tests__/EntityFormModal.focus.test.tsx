@@ -52,7 +52,7 @@ const RLS_DENIAL = Object.assign(
  * shape the Discover pass found unescapable, because tabbing out of field 1
  * surfaced its error and bounced focus back, and field 2 did the same.
  */
-const Harness: React.FC<{ onValid?: (v: Values) => Promise<void> }> = ({ onValid }) => {
+const Harness: React.FC<{ onValid?: (v: Values) => Promise<void>; onClose?: () => void }> = ({ onValid, onClose = () => {} }) => {
   const form = useEntityForm<Values>({
     initialValues: { full_name: '', company_id: '' },
     validate,
@@ -88,7 +88,7 @@ const Harness: React.FC<{ onValid?: (v: Values) => Promise<void> }> = ({ onValid
           }
         });
       }}
-      onClose={() => {}}
+      onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
       errorSummary={errorSummary.length ? errorSummary : undefined}
@@ -129,6 +129,38 @@ const flushMount = async () => {
 };
 
 describe('AC-A11Y-FORM-001: blur-surfaced errors must never move focus (WCAG 2.1.2)', () => {
+  it('AC-A11Y-FORM-002: keyboard escapes both required fields and reaches enabled Create contact', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    await flushMount();
+    const name = screen.getByLabelText(/^Full name/);
+    const company = screen.getByLabelText(/^Company/);
+    expect(name).toHaveFocus();
+    await user.tab();
+    expect(company).toHaveFocus();
+    await user.tab();
+    expect(screen.getByLabelText('Title')).toHaveFocus();
+    await user.tab({ shift: true });
+    await user.tab({ shift: true });
+    expect(name).toHaveFocus();
+    await user.type(name, 'Keyboard Contact');
+    await user.tab();
+    expect(company).toHaveFocus();
+    await user.selectOptions(company, 'co-1');
+    const submit = screen.getByRole('button', { name: 'Create contact' });
+    for (let i = 0; i < 20 && document.activeElement !== submit; i += 1) {
+      await user.tab();
+      expect(document.activeElement).not.toBe(name);
+      expect(document.activeElement).not.toBe(company);
+    }
+    expect(submit).toHaveFocus();
+    expect(submit).toBeEnabled();
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it('AC-A11Y-FORM-001: tabbing out of an empty required field moves focus onward and does not return', async () => {
     const user = userEvent.setup();
     render(<Harness />);

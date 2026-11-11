@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import type { Role } from '@/src/auth/AuthContext';
-import { clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership, setProjectBindings } from '@/src/lib/adapterSeam/ownershipCache';
 
 /**
  * AC-CUA-061 — PMO-owned task surfaces stay byte-for-byte: no `pushing`/`pushed`/`push-failed`
@@ -94,8 +94,10 @@ beforeEach(() => {
       (m as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
     }
   }
-  // Fail-closed default: an empty cache ⇒ routeTaskWrite() === 'pmo' (PMO-owned).
+  // The native route has resolved before exercising native write behavior.
   clearOwnershipCache();
+  setTaskOwnership([]);
+  setProjectBindings([]);
 });
 
 afterEach(() => {
@@ -107,8 +109,8 @@ describe('TasksTab — PMO-owned surfaces stay badge-free (AC-CUA-061)', () => {
     renderTab();
     await screen.findByText('Survey the site');
     expectNoPushBadge();
-    const statusCtl = screen.getByLabelText(/status for survey the site/i) as HTMLSelectElement;
-    await userEvent.selectOptions(statusCtl, 'Done');
+    await userEvent.click(screen.getByRole('button', { name: /status for survey the site/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /status for survey the site/i }), 'Done');
     await waitFor(() => expect(taskRepo.updateStatus).toHaveBeenCalledWith('t1', 'Done', 'p1'));
     expectNoPushBadge();
   });

@@ -23,6 +23,7 @@ import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocal
 const hoisted = vi.hoisted(() => ({
   payments: [] as Array<Record<string, unknown>>,
   invoices: [] as Array<Record<string, unknown>>,
+  incidents: [] as Array<Record<string, unknown>>,
   orgCurrency: 'USD',
   captured: [] as ArrayBuffer[],
 }));
@@ -51,9 +52,16 @@ vi.mock('@/src/hooks/useRevenue', () => ({
     cancelPayment: { mutateAsync: vi.fn(), isPending: false },
     create: { mutateAsync: vi.fn(), isPending: false },
     submitInvoice: { mutateAsync: vi.fn(), isPending: false },
+    setReceivedDate: { mutateAsync: vi.fn(), isPending: false },
+    setEfaktur: { mutateAsync: vi.fn(), isPending: false },
     cancelInvoice: { mutateAsync: vi.fn(), isPending: false },
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },
   }),
+}));
+vi.mock('@/src/hooks/useIncidents', () => ({
+  useIncidentsPage: () => ({ list: { data: { rows: hoisted.incidents, total: hoisted.incidents.length }, isPending: false, isError: false, refetch: vi.fn() }, allTotal: hoisted.incidents.length }),
+  useIncidentsExportAll: () => ({ mutateAsync: vi.fn(async () => hoisted.incidents), isPending: false }),
+  useIncidentMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: vi.fn() }, transition: { mutateAsync: vi.fn() }, remove: { mutateAsync: vi.fn() } }),
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [] }),
@@ -68,6 +76,7 @@ vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwne
 
 import IncomingPayments from '../IncomingPayments';
 import SalesInvoices from '../SalesInvoices';
+import Incidents from '../Incidents';
 
 const payment = {
   id: 'ip-1', org_id: 'org-1', customer_id: 'cust-1', customer_name: 'Acme Co', sales_invoice_id: null, ip_number: 'ACC-PAY-0001',
@@ -102,6 +111,7 @@ function renderPage(node: React.ReactElement) {
 beforeEach(() => {
   hoisted.payments = [payment];
   hoisted.invoices = [invoice];
+  hoisted.incidents = [{ id: 'incident-1', org_id: 'org-1', incident_date: '2026-07-04', type: 'Near Miss', severity: 'Low', location: 'Site A', description: '', status: 'Open', reported_by: 'u-1', created_at: '2026-07-04T00:00:00Z' }];
   hoisted.orgCurrency = 'IDR';
   hoisted.captured = [];
   URL.createObjectURL = vi.fn(() => 'blob:test');
@@ -146,6 +156,28 @@ describe('#731 the money lists are exportable', () => {
     expect(amount.value).toBe(1234567.89);
     expect(outstanding.type).toBe(ExcelJS.ValueType.Number);
     expect(outstanding.value).toBe(500.5);
+  });
+
+  it('#1552 I-2: Sales Invoices exports each date-only column as a date cell', async () => {
+    hoisted.invoices = [{ ...invoice, invoice_date: '2026-07-01', received_date: '2026-07-02', efaktur_date: '2026-07-03' }];
+    renderPage(<SalesInvoices />);
+    await userEvent.setup().click(screen.getByRole('button', { name: /export/i }));
+    const { ws, col } = await exportedSheet();
+
+    for (const [header, expected] of [['Date', '2026-07-01'], ['Received', '2026-07-02'], ['e-Faktur date', '2026-07-03']]) {
+      const cell = ws.getRow(2).getCell(col(header));
+      expect(cell.value).toBeInstanceOf(Date);
+      expect((cell.value as Date).toISOString().slice(0, 10)).toBe(expected);
+    }
+  });
+
+  it('#1552 I-2: Incidents exports incident_date as a date cell', async () => {
+    renderPage(<Incidents />);
+    await userEvent.setup().click(screen.getByRole('button', { name: /export/i }));
+    const { ws, col } = await exportedSheet();
+    const cell = ws.getRow(2).getCell(col('Date'));
+    expect(cell.value).toBeInstanceOf(Date);
+    expect((cell.value as Date).toISOString().slice(0, 10)).toBe('2026-07-04');
   });
 
   it('#731: Export is disabled when the search filters every row out (shared-button contract)', async () => {

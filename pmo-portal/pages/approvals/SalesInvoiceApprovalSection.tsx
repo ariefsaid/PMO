@@ -28,7 +28,7 @@ export const SalesInvoiceApprovalSection: React.FC = () => {
     return (
       <div className="mb-4">
         <ListState variant="error" title={t('approvals.salesInvoices.errorTitle', "Couldn't load invoices awaiting you")}
-          sub={t('approvals.salesInvoices.errorSub', 'Purchase requests and timesheets below are unaffected.')} onRetry={() => void refetch()} />
+          sub={t('approvals.salesInvoices.errorSub', 'Procurement and timesheets below are unaffected.')} onRetry={() => void refetch()} />
       </div>
     );
   }

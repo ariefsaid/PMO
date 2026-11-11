@@ -10,17 +10,15 @@
  *   - Live preview pane (ViewPreview component)
  *   - Compile-before-save invariant (FR-VB-040, NFR-VB-SEC-004)
  *   - Create/update via useUserViewMutations (FR-VB-041)
- *   - Dirty-discard via useBlocker (OD-VB-8)
+ *   - Dirty-discard via the shared in-app navigation guard (OD-VB-8)
  *   - Error classification via classifyMutationError (FR-VB-062)
  *
  * Layering (NFR-VB-LAYER-001): imports from src/lib/viewspec/, src/hooks/useUserViews,
  * src/auth/, src/components/ui/, src/lib/classifyMutationError, react-router.
  * Does NOT import from src/lib/db/* or src/lib/supabase/client.
  *
- * Test-only escape hatch: __testPanels?: PanelSpec[] — seeds the panel list in RTL tests
- * without requiring modal interaction. Undefined in production usage.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams, useLocation } from 'react-router';
 import {
@@ -38,6 +36,7 @@ import {
 import { useUserView, useUserViewMutations } from '@/src/hooks/useUserViews';
 import type { UserViewRow } from '@/src/lib/db/userViews';
 import { useAuth } from '@/src/auth/useAuth';
+import { usePermission } from '@/src/auth/usePermission';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';
 import { ValidationError } from '@/src/lib/viewspec/types';
 import { MAX_PANELS_PER_VIEW } from '@/src/lib/viewspec/types';
@@ -48,14 +47,9 @@ import PanelEditorForm from '@/src/components/builder/PanelEditorForm';
 import PanelList from '@/src/components/builder/PanelList';
 import ViewPreview from '@/src/components/builder/ViewPreview';
 import AIComposerModal from '@/src/components/builder/AIComposerModal';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
-export interface ViewBuilderPageProps {
-  mode: 'create' | 'edit';
-  /** TEST ONLY: seeds the panel list without requiring modal interaction. */
-  __testPanels?: PanelSpec[];
-}
-
-const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels }) => {
+const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const params = useParams<{ viewId: string }>();
@@ -63,11 +57,20 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   const viewId = mode === 'edit' ? (params.viewId ?? '') : undefined;
 
   const { currentUser } = useAuth();
+  const may = usePermission();
   const { toast } = useToast();
   const { create, update } = useUserViewMutations();
 
   // ── Edit mode: load existing view ────────────────────────────────────────
-  const { data: existingView, isPending: viewLoading } = useUserView(viewId);
+  const {
+    data: existingView,
+    isPending: viewLoading,
+    isError: viewError,
+    errorUpdatedAt: viewErrorUpdatedAt,
+    refetch: refetchView,
+  } = useUserView(viewId);
+
+  const canEditView = !!existingView && may('edit', 'userView', { currentUserId: currentUser?.id, record: { user_id: existingView.user_id } });
 
   // ── Metadata form state ───────────────────────────────────────────────────
   const [name, setName] = useState('');
@@ -75,7 +78,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   const [scope, setScope] = useState<'private' | 'shared_org'>('private');
 
   // ── Panel list state ──────────────────────────────────────────────────────
-  const [panels, setPanels] = useState<PanelSpec[]>(__testPanels ?? []);
+  const [panels, setPanels] = useState<PanelSpec[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [panelModalOpen, setPanelModalOpen] = useState(false);
 
@@ -88,7 +91,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   // carries the AI-composed spec. Seed panels + draft indicator on mount.
   useEffect(() => {
     const state = location.state as { composedSpec?: CompositionSpec } | null;
-    if (mode === 'create' && state?.composedSpec && __testPanels === undefined) {
+    if (mode === 'create' && state?.composedSpec) {
       setPanels(state.composedSpec.panels);
       setAIDraft(true);
     }
@@ -98,37 +101,24 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   // ── Save error state ──────────────────────────────────────────────────────
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [useCachedView, setUseCachedView] = useState(false);
+
+  useEffect(() => {
+    setUseCachedView(false);
+  }, [viewError, viewErrorUpdatedAt]);
 
   // ── Original values ref — populated when edit mode loads (for dirty detection) ──
-  const initialValuesRef = useRef({ name: '', description: '', scope: 'private' as 'private' | 'shared_org', panels: [] as PanelSpec[] });
+  const initialValuesRef = useRef({
+    name: '',
+    description: '',
+    scope: 'private' as 'private' | 'shared_org',
+    panels: [] as PanelSpec[],
+  });
+  const observedServerVersionRef = useRef<{ id: string; updatedAt: string | null } | null>(null);
+  const [remoteConflict, setRemoteConflict] = useState<UserViewRow | null>(null);
 
-  // ── Pre-populate in edit mode (FR-VB-070) ────────────────────────────────
-  useEffect(() => {
-    if (mode !== 'edit' || !existingView) return;
-    const loadedName = existingView.name;
-    const loadedDesc = existingView.description ?? '';
-    const loadedScope = (existingView.scope as 'private' | 'shared_org') ?? 'private';
-    const raw = existingView.spec as unknown as CompositionSpec;
-    const loadedPanels = raw && Array.isArray(raw.panels) ? raw.panels : [];
-    setName(loadedName);
-    setDescription(loadedDesc);
-    setScope(loadedScope);
-    setPanels(loadedPanels);
-    // Capture initial values so isDirty comparison can detect real changes
-    initialValuesRef.current = { name: loadedName, description: loadedDesc, scope: loadedScope, panels: loadedPanels };
-  }, [mode, existingView]);
-
-  // ── Seed test panels when __testPanels changes ────────────────────────────
-  useEffect(() => {
-    if (__testPanels !== undefined) {
-      setPanels(__testPanels);
-    }
-  }, [__testPanels]);
-
-  // ── Dirty detection for useBlocker ───────────────────────────────────────
   // In create mode: any non-empty field or panel counts as dirty.
-  // In edit mode: compare against the values loaded from the existing view so
-  // navigating away from an unmodified form does NOT trigger the discard dialog.
+  // In edit mode: compare against the values loaded from the existing view.
   const isDirty =
     mode === 'create'
       ? name !== '' || panels.length > 0 || description !== ''
@@ -137,25 +127,60 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
         scope !== initialValuesRef.current.scope ||
         JSON.stringify(panels) !== JSON.stringify(initialValuesRef.current.panels);
 
+  const applyViewToEditor = useCallback((view: UserViewRow) => {
+    const loadedName = view.name;
+    const loadedDesc = view.description ?? '';
+    const loadedScope = (view.scope as 'private' | 'shared_org') ?? 'private';
+    const raw = view.spec as unknown as CompositionSpec;
+    const loadedPanels = raw && Array.isArray(raw.panels) ? raw.panels : [];
+    setName(loadedName);
+    setDescription(loadedDesc);
+    setScope(loadedScope);
+    setPanels(loadedPanels);
+    initialValuesRef.current = {
+      name: loadedName,
+      description: loadedDesc,
+      scope: loadedScope,
+      panels: loadedPanels,
+    };
+    observedServerVersionRef.current = { id: view.id, updatedAt: view.updated_at ?? null };
+    setRemoteConflict(null);
+  }, []);
+
+  // ── Pre-populate once per view version (FR-VB-070) ────────────────────────
+  useEffect(() => {
+    if (mode !== 'edit' || !existingView) return;
+    const currentVersion = { id: existingView.id, updatedAt: existingView.updated_at ?? null };
+    const observedVersion = observedServerVersionRef.current;
+    if (observedVersion?.id !== existingView.id) {
+      applyViewToEditor(existingView);
+      return;
+    }
+    if (observedVersion.updatedAt === currentVersion.updatedAt) return;
+
+    observedServerVersionRef.current = currentVersion;
+    if (isDirty) {
+      setRemoteConflict(existingView);
+      return;
+    }
+    applyViewToEditor(existingView);
+  }, [mode, existingView, isDirty, applyViewToEditor]);
+
+  // ── Dirty detection for the shared navigation guard ──────────────────────
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
+  const guardLeave = useUnsavedChangesGuard({
+    dirty: isDirty,
+    guardHistory: true,
+    onBlocked: (leave) => {
+      setPendingLeave(() => leave);
+      setShowDiscardDialog(true);
+    },
+  });
   const scopeOptions: SelectOption[] = [
-    { value: 'private', label: t('viewBuilder.privateScope', 'Private — only you') },
+    { value: 'private', label: t('viewBuilder.privateScope', 'Private: only you') },
     { value: 'shared_org', label: t('viewBuilder.sharedScope', 'Shared with your organisation') },
   ];
-
-  // Guard unsaved changes (OD-VB-8). The app uses BrowserRouter (not a data
-  // router), so react-router's useBlocker is unavailable — it throws at render.
-  // Browser-level exits (tab close / refresh) warn via beforeunload; in-app exit
-  // is guarded explicitly by the Cancel button + the discard dialog below.
-  useEffect(() => {
-    if (!(isDirty && !isSaving)) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [isDirty, isSaving]);
 
   // ── Panel operations ──────────────────────────────────────────────────────
 
@@ -217,7 +242,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   const spec: CompositionSpec = { version: 1, panels };
 
   const handleSave = async () => {
-    if (!currentUser) return;
+    if (!currentUser || (mode === 'edit' && !canEditView)) return;
     setSaveError(null);
 
     // Compile-before-save invariant (NFR-VB-SEC-004)
@@ -267,6 +292,14 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   const nameIsEmpty = name.trim() === '';
   const noPanel = panels.length === 0;
   const saveDisabled = nameIsEmpty || noPanel || isSaving;
+  const hasCachedViewError =
+    mode === 'edit' &&
+    !viewLoading &&
+    viewError &&
+    existingView !== undefined &&
+    existingView !== null &&
+    existingView.archived_at === null;
+  const saveBlockedByCachedViewError = hasCachedViewError && !useCachedView;
 
   // ── Edit-mode guard states (FR-VB-071/072) ───────────────────────────────
   if (mode === 'edit' && viewLoading) {
@@ -275,6 +308,20 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
         <div aria-hidden className="skel h-7 w-2/5 rounded" />
         <div aria-hidden className="skel h-5 w-3/5 rounded" />
       </div>
+    );
+  }
+
+  if (mode === 'edit' && !viewLoading && viewError && !existingView) {
+    return (
+      <ListState
+        variant="error"
+        title={t('viewBuilder:viewLoadError', 'Could not load this view.')}
+        sub={t('viewBuilder:viewLoadErrorDescription', 'Check your connection and retry.')}
+        onRetry={() => {
+          setUseCachedView(false);
+          void refetchView();
+        }}
+      />
     );
   }
 
@@ -287,6 +334,10 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
         action={{ label: t('viewBuilder.goToMyViews', 'Go to My Views'), onClick: () => navigate('/views') }}
       />
     );
+  }
+
+  if (mode === 'edit' && !canEditView) {
+    return <ListState variant="empty" title={t('viewBuilder:editUnavailable', 'You cannot edit this view.')} action={{ label: t('viewBuilder.goToMyViews', 'Go to My Views'), onClick: () => navigate('/views') }} />;
   }
 
   const pageTitle = mode === 'create'
@@ -303,7 +354,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
           <div aria-live="polite" aria-atomic="true" className="min-h-[1.25rem]">
             {aiDraft && (
               <span className="text-[12px] font-medium text-warning-foreground">
-                {t('viewBuilder.aiDraftReview', 'AI-composed draft — review before saving')}
+                {t('viewBuilder.aiDraftReview', 'AI-composed draft: review before saving')}
               </span>
             )}
           </div>
@@ -322,16 +373,15 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
           <Button
             variant="ghost"
             onClick={() => {
-              if (isDirty) setShowDiscardDialog(true);
-              else navigate('/views');
+              guardLeave(() => navigate('/views'));
             }}
           >
             {t('viewBuilder.cancel', 'Cancel')}
           </Button>
           <Button
             variant="primary"
-            disabled={saveDisabled}
-            aria-disabled={saveDisabled}
+            disabled={saveDisabled || saveBlockedByCachedViewError}
+            aria-disabled={saveDisabled || saveBlockedByCachedViewError}
             onClick={handleSave}
           >
             {mode === 'create' ? t('viewBuilder.saveView', 'Save view') : t('viewBuilder.updateView', 'Update view')}
@@ -346,6 +396,46 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
           className="mb-4 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-[13px] text-destructive-text"
         >
           {saveError}
+        </div>
+      )}
+
+      {hasCachedViewError && (
+        <div role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-[13px]">
+          <p>{t('viewBuilder:cachedViewLoadError', 'Could not refresh this view. The last loaded version may be out of date; using it could overwrite newer changes.')}</p>
+          {useCachedView && (
+            <p className="mt-1">{t('viewBuilder:usingCachedView', 'You chose to continue with the last loaded version. Saving may overwrite newer changes.')}</p>
+          )}
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setUseCachedView(false);
+                void refetchView();
+              }}
+            >
+              {t('viewBuilder:retryView', 'Retry')}
+            </Button>
+            {!useCachedView && (
+              <Button variant="ghost" size="sm" onClick={() => setUseCachedView(true)}>
+                {t('viewBuilder:useCachedView', 'Continue with last loaded version')}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {remoteConflict && (
+        <div role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-[13px]">
+          <p>{t('viewBuilder:serverVersionChanged', 'The saved view changed while you were editing.')}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => applyViewToEditor(remoteConflict)}>
+              {t('viewBuilder:reloadSavedView', 'Reload saved view')}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setRemoteConflict(null)}>
+              {t('viewBuilder:continueEditing', 'Continue editing')}
+            </Button>
+          </div>
         </div>
       )}
 
@@ -436,10 +526,14 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
         cancelLabel={t('viewBuilder.keepEditing', 'Keep editing')}
         onConfirm={() => {
           setShowDiscardDialog(false);
-          navigate('/views');
+          const leave = pendingLeave;
+          setPendingLeave(null);
+          if (leave) leave();
+          else navigate('/views');
         }}
         onCancel={() => {
           setShowDiscardDialog(false);
+          setPendingLeave(null);
         }}
       />
     </div>

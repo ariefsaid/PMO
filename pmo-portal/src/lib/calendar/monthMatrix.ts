@@ -10,7 +10,9 @@
  * 6×7 grid (always 42 cells) so the month container never reflows between months.
  */
 
-import { addMonths as dfAddMonths, format as dfFormat, parseISO as dfParseISO } from 'date-fns';
+import { addMonths as dfAddMonths } from 'date-fns/addMonths';
+import { format as dfFormat } from 'date-fns/format';
+import { parseISO as dfParseISO } from 'date-fns/parseISO';
 import { formatMonthYear } from '../format';
 
 /** A displayed-month pointer. `month` is 0-based (0 = January) to match `Date`. */
@@ -24,8 +26,6 @@ export interface DayCell {
   iso: string;
   day: number;
   inMonth: boolean;
-  /** 0 = Sunday … 6 = Saturday. */
-  weekdayIndex: number;
   isToday: boolean;
 }
 
@@ -85,7 +85,6 @@ export function buildMonthMatrix(year: number, month: number): DayCell[][] {
         iso,
         day: cur.getDate(),
         inMonth: cur.getMonth() === month,
-        weekdayIndex: cur.getDay(),
         isToday: iso === todayIso,
       });
     }

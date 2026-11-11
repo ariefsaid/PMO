@@ -8,7 +8,7 @@ import { MemoryRouter } from 'react-router';
 import { axeViolations } from '@/src/components/__tests__/axe';
 import { AppError } from '@/src/lib/appError';
 import { MicrosoftDocumentPicker, type PickerContext } from './MicrosoftDocumentPicker';
-import { browseDrives, browseOneDrive, browseSites, getPersonalDrive, listChildren, listDrives, listSites, searchDrive, type GraphItem, type GraphReadRequest } from '@/src/lib/m365/graphClient';
+import { browseDrives, browseOneDrive, browseSites, getPersonalDrive, listChildren, searchDrive, type GraphItem, type GraphReadRequest } from '@/src/lib/m365/graphClient';
 
 const h = vi.hoisted(() => ({
   hook: {
@@ -24,8 +24,6 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/lib/m365/graphClient', () => ({
-  listSites: vi.fn(),
-  listDrives: vi.fn(),
   browseSites: vi.fn(),
   browseDrives: vi.fn(),
   getPersonalDrive: vi.fn(),
@@ -68,10 +66,8 @@ beforeEach(() => {
   h.hook.connection = { status: 'active', connected: true };
   h.hook.defaultLibrary = null; h.hook.isPending = false; h.hook.isError = false;
   h.hook.connectionError = null; h.hook.defaultError = null;
-  vi.mocked(listSites).mockResolvedValue(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }]));
-  vi.mocked(listDrives).mockResolvedValue(page([{ id: 'drive-1', name: 'Documents', web_url: 'https://example.invalid/drive' }]));
-  vi.mocked(browseSites).mockResolvedValue(page([]));
-  vi.mocked(browseDrives).mockResolvedValue(page([]));
+  vi.mocked(browseSites).mockResolvedValue(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }]));
+  vi.mocked(browseDrives).mockResolvedValue(page([{ id: 'drive-1', name: 'Documents', web_url: 'https://example.invalid/drive' }]));
   vi.mocked(getPersonalDrive).mockResolvedValue({ id: 'drive-2', name: 'OneDrive', web_url: 'https://example.invalid/me' });
   vi.mocked(listChildren).mockResolvedValue(page(ROOT));
   vi.mocked(browseOneDrive).mockResolvedValue(page([]));
@@ -86,7 +82,7 @@ describe('MicrosoftDocumentPicker selection and commit', () => {
     await openLibrary(user);
     const link = screen.getByRole('button', { name: 'Link from Microsoft 365' });
     expect(link).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: 'Select file Report.pdf' }));
+    await user.click(screen.getByRole('button', { name: 'Link this file Report.pdf' }));
     expect(spy.select).not.toHaveBeenCalled();
     expect(link).toBeEnabled();
     await user.click(link);
@@ -99,7 +95,7 @@ describe('MicrosoftDocumentPicker selection and commit', () => {
     const user = userEvent.setup();
     renderPicker();
     await openLibrary(user);
-    await user.click(screen.getByRole('button', { name: 'Select folder Folder' }));
+    await user.click(screen.getByRole('button', { name: 'Link this folder Folder' }));
     expect(spy.select).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
     await waitFor(() => expect(spy.select).toHaveBeenCalledWith({ drive_id: 'drive-1', item_id: 'folder-1', web_url: 'https://example.invalid/folder-1', name: 'Folder', item_kind: 'folder' }));
@@ -110,7 +106,7 @@ describe('MicrosoftDocumentPicker selection and commit', () => {
     const onSelect = vi.fn().mockRejectedValueOnce(new Error('synthetic-item-id raw-synthetic-error')).mockResolvedValueOnce(undefined);
     renderPicker({ kind: 'project', code: null }, { onSelect });
     await openLibrary(user);
-    await user.click(screen.getByRole('button', { name: 'Select file Report.pdf' }));
+    await user.click(screen.getByRole('button', { name: 'Link this file Report.pdf' }));
     await user.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
     const alert = await screen.findByTestId('entity-modal-save-error');
     expect(alert).toHaveTextContent('Could not link this Microsoft item.');
@@ -127,7 +123,7 @@ describe('MicrosoftDocumentPicker selection and commit', () => {
     const onSelect = vi.fn().mockRejectedValue(new AppError('violates check constraint "synthetic_raw"', '23514', 'm365-source-collision'));
     renderPicker({ kind: 'project', code: null }, { onSelect });
     await openLibrary(user);
-    await user.click(screen.getByRole('button', { name: 'Select file Report.pdf' }));
+    await user.click(screen.getByRole('button', { name: 'Link this file Report.pdf' }));
     await user.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
     const alert = await screen.findByTestId('entity-modal-save-error');
     expect(alert).toHaveTextContent('This entry already has a file or link; refresh and clear it before relinking.');
@@ -157,17 +153,17 @@ describe('MicrosoftDocumentPicker locations', () => {
     renderPicker();
     await user.click(await screen.findByRole('button', { name: 'SharePoint sites' }));
     await user.click(await screen.findByRole('button', { name: 'Synthetic site' }));
-    expect(listDrives).toHaveBeenCalledWith('site-1');
+    expect(browseDrives).toHaveBeenCalledWith('site-1');
     expect(screen.queryByRole('button', { name: /^Select / })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Link from Microsoft 365' })).toBeDisabled();
     await user.click(await screen.findByRole('button', { name: 'Documents' }));
-    expect(await screen.findByRole('button', { name: 'Select folder Folder' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Link this folder Folder' })).toBeInTheDocument();
     expect(listChildren).toHaveBeenCalledWith('drive-1', undefined);
   });
 
   it('continues sites and libraries only after an explicit Load more and de-duplicates entries', async () => {
     const user = userEvent.setup();
-    vi.mocked(listSites).mockResolvedValueOnce(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }], { path: '/sites?skip=opaque' }));
+    vi.mocked(browseSites).mockResolvedValueOnce(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }], { path: '/sites?skip=opaque' }));
     vi.mocked(browseSites).mockResolvedValueOnce(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }, { id: 'site-2', name: 'Second site', web_url: 'https://example.invalid/site2' }]));
     renderPicker();
     await user.click(await screen.findByRole('button', { name: 'SharePoint sites' }));
@@ -179,14 +175,14 @@ describe('MicrosoftDocumentPicker locations', () => {
 
   it('can retry a continuation page without dropping the cursor', async () => {
     const user = userEvent.setup();
-    vi.mocked(listSites).mockResolvedValueOnce(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }], { path: '/sites', query: { '$skiptoken': 'next' } }));
+    vi.mocked(browseSites).mockResolvedValueOnce(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }], { path: '/sites', query: { '$skiptoken': 'next' } }));
     vi.mocked(browseSites).mockRejectedValueOnce(new AppError('Synthetic', 'GRAPH_ERROR')).mockResolvedValueOnce(page([{ id: 'site-2', name: 'Second site', web_url: 'https://example.invalid/next' }]));
     renderPicker();
     await user.click(await screen.findByRole('button', { name: 'SharePoint sites' }));
     await user.click(await screen.findByRole('button', { name: 'Load more' }));
     await user.click(await screen.findByRole('button', { name: 'Retry' }));
     expect(await screen.findByRole('button', { name: 'Second site' })).toBeInTheDocument();
-    expect(browseSites).toHaveBeenCalledTimes(2);
+    expect(browseSites).toHaveBeenCalledTimes(3);
   });
 
   it('keeps continuation state with the current location during overlapping navigation', async () => {
@@ -194,8 +190,8 @@ describe('MicrosoftDocumentPicker locations', () => {
     const oldPage = deferred<Awaited<ReturnType<typeof browseSites>>>();
     const newPage = deferred<Awaited<ReturnType<typeof browseSites>>>();
     const first = page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }], { path: '/sites', query: { '$skiptoken': 'first' } });
-    vi.mocked(listSites).mockResolvedValue(first);
-    vi.mocked(browseSites).mockReturnValueOnce(oldPage.promise).mockReturnValueOnce(newPage.promise);
+    vi.mocked(browseSites).mockResolvedValueOnce(first).mockReturnValueOnce(oldPage.promise)
+      .mockResolvedValueOnce(first).mockReturnValueOnce(newPage.promise);
     renderPicker();
     await user.click(await screen.findByRole('button', { name: 'SharePoint sites' }));
     await user.click(await screen.findByRole('button', { name: 'Load more' }));
@@ -214,7 +210,7 @@ describe('MicrosoftDocumentPicker locations', () => {
   it('continues library pages once and ends a repeated cursor', async () => {
     const user = userEvent.setup();
     const next = { path: '/sites/site-1/drives', query: { '$skiptoken': 'next' } };
-    vi.mocked(listDrives).mockResolvedValueOnce(page([{ id: 'drive-1', name: 'Documents', web_url: 'https://example.invalid/drive' }], next));
+    vi.mocked(browseDrives).mockResolvedValueOnce(page([{ id: 'drive-1', name: 'Documents', web_url: 'https://example.invalid/drive' }], next));
     vi.mocked(browseDrives).mockResolvedValueOnce(page([{ id: 'drive-1', name: 'Documents', web_url: 'https://example.invalid/drive' }, { id: 'drive-2', name: 'Other documents', web_url: 'https://example.invalid/other' }], next));
     renderPicker();
     await user.click(await screen.findByRole('button', { name: 'SharePoint sites' }));
@@ -232,7 +228,7 @@ describe('MicrosoftDocumentPicker locations', () => {
     renderPicker();
     await user.click(await screen.findByRole('button', { name: 'My OneDrive' }));
     expect(getPersonalDrive).toHaveBeenCalledTimes(1);
-    await user.click(await screen.findByRole('button', { name: 'Select file Mine.docx' }));
+    await user.click(await screen.findByRole('button', { name: 'Link this file Mine.docx' }));
     expect(listChildren).toHaveBeenCalledWith('drive-2', undefined);
     await user.click(screen.getByRole('button', { name: 'Change location' }));
     expect(screen.getByRole('button', { name: 'SharePoint sites' })).toBeInTheDocument();
@@ -246,7 +242,7 @@ describe('MicrosoftDocumentPicker locations', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('The Microsoft 365 connection expired. Reconnect to link more documents.');
     expect(screen.getByRole('button', { name: 'SharePoint sites' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'My OneDrive' })).toBeDisabled();
-    expect(listSites).not.toHaveBeenCalled();
+    expect(browseSites).not.toHaveBeenCalled();
   });
 
   it('AC-M365DOC-054 chooser: an absent connection links to setup, and a failed connection-status read is not shown as "not connected"', async () => {
@@ -269,13 +265,13 @@ describe('MicrosoftDocumentPicker locations', () => {
     renderPicker();
     await openLibrary(user);
     expect(listChildren).toHaveBeenCalledTimes(1);
-    await user.click(screen.getByRole('button', { name: 'Select folder Folder' }));
+    await user.click(screen.getByRole('button', { name: 'Link this folder Folder' }));
     expect(listChildren).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Select folder Folder' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Link this folder Folder' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Selected folder: Folder')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Browse Folder' }));
     expect(listChildren).toHaveBeenLastCalledWith('drive-1', 'folder-1');
-    expect(await screen.findByRole('button', { name: 'Select file Inner.docx' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Link this file Inner.docx' })).toBeInTheDocument();
     expect(spy.select).not.toHaveBeenCalled();
   });
 
@@ -284,13 +280,13 @@ describe('MicrosoftDocumentPicker locations', () => {
     vi.mocked(listChildren).mockImplementation(async (_d, folderId) => page(folderId === 'folder-1' ? [mk('inner', 'file', 'Inner.docx')] : ROOT));
     renderPicker();
     await openLibrary(user);
-    await user.click(screen.getByRole('button', { name: 'Select file Report.pdf' }));
+    await user.click(screen.getByRole('button', { name: 'Link this file Report.pdf' }));
     await user.click(screen.getByRole('button', { name: 'Browse Folder' }));
     const nav = await screen.findByRole('navigation', { name: 'Microsoft location' });
     expect(within(nav).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Documents', 'Folder']);
     expect(nav.textContent).not.toMatch(/folder-1|drive-1/);
     await user.click(within(nav).getByRole('button', { name: 'Documents' }));
-    expect(await screen.findByRole('button', { name: 'Select file Report.pdf' })).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findByRole('button', { name: 'Link this file Report.pdf' })).toHaveAttribute('aria-pressed', 'true');
     expect(listChildren).toHaveBeenLastCalledWith('drive-1', undefined);
     expect(screen.getByText('Selected file: Report.pdf')).toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Microsoft location' })).getAllByRole('listitem')).toHaveLength(1);
@@ -300,12 +296,12 @@ describe('MicrosoftDocumentPicker locations', () => {
     const user = userEvent.setup();
     renderPicker();
     await openLibrary(user);
-    const row = screen.getByRole('button', { name: 'Select file Report.pdf' }).closest('li')!;
+    const row = screen.getByRole('button', { name: 'Link this file Report.pdf' }).closest('li')!;
     expect(within(row).queryByText('Selected')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Select file Report.pdf' }));
+    await user.click(screen.getByRole('button', { name: 'Link this file Report.pdf' }));
     expect(within(row).getByText('Selected')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Select file Report.pdf' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Select folder Folder' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Link this file Report.pdf' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Link this folder Folder' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('AC-M365DOC-054 geometry: browse and breadcrumb buttons may wrap a long name (the button base has no-wrap, so the override must win)', async () => {
@@ -325,10 +321,10 @@ describe('MicrosoftDocumentPicker default library', () => {
   it('AC-M365DOC-056 an accessible default opens at its root, shows where it is, and never writes the setting', async () => {
     h.hook.defaultLibrary = LIBRARY;
     renderPicker({ kind: 'budget' });
-    expect(await screen.findByRole('button', { name: 'Select folder Folder' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Link this folder Folder' })).toBeInTheDocument();
     expect(listChildren).toHaveBeenCalledWith('drive-d', undefined);
     expect(screen.getByText('Default library: Synthetic site / Project library')).toBeInTheDocument();
-    expect(listSites).not.toHaveBeenCalled();
+    expect(browseSites).not.toHaveBeenCalled();
     expect(h.setDefaultLibrary).not.toHaveBeenCalled();
   });
 
@@ -376,14 +372,14 @@ describe('MicrosoftDocumentPicker default library', () => {
     const user = userEvent.setup();
     vi.mocked(listChildren).mockImplementation(async (d) => page(d === 'drive-d' ? ROOT : [mk('x', 'file', 'Other.pdf')]));
     const first = renderPicker({ kind: 'budget' });
-    await screen.findByRole('button', { name: 'Select folder Folder' });
+    await screen.findByRole('button', { name: 'Link this folder Folder' });
     await user.click(screen.getByRole('button', { name: 'Change location' }));
     await user.click(screen.getByRole('button', { name: 'My OneDrive' }));
-    await screen.findByRole('button', { name: 'Select file Other.pdf' });
+    await screen.findByRole('button', { name: 'Link this file Other.pdf' });
     first.unmount();
     vi.mocked(listChildren).mockClear();
     renderPicker({ kind: 'budget' });
-    await screen.findByRole('button', { name: 'Select folder Folder' });
+    await screen.findByRole('button', { name: 'Link this folder Folder' });
     expect(listChildren).toHaveBeenCalledWith('drive-d', undefined);
   });
 });
@@ -410,7 +406,7 @@ describe('MicrosoftDocumentPicker contextual suggestions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Browse P-100 Alpha' }));
     expect(listChildren).toHaveBeenCalledWith('drive-d', 'm-P-100 Alpha');
-    expect(await screen.findByRole('button', { name: 'Select file Plan.docx' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Link this file Plan.docx' })).toBeInTheDocument();
     expect(spy.select).not.toHaveBeenCalled();
   });
 
@@ -442,7 +438,7 @@ describe('MicrosoftDocumentPicker contextual suggestions', () => {
     h.hook.defaultLibrary = LIBRARY;
     vi.mocked(searchDrive).mockResolvedValue(page([projectMatch('Q-200 Unrelated')]));
     renderPicker(PROJECT);
-    expect(await screen.findByRole('button', { name: 'Select folder Folder' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Link this folder Folder' })).toBeInTheDocument();
     expect(listChildren).toHaveBeenCalledWith('drive-d', undefined);
     expect(screen.getByText('No folder suggestion for P-100. Browse this library or choose another location.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^(Create|New) /i })).not.toBeInTheDocument();
@@ -452,7 +448,7 @@ describe('MicrosoftDocumentPicker contextual suggestions', () => {
     h.hook.defaultLibrary = LIBRARY;
     vi.mocked(searchDrive).mockRejectedValue(new AppError('raw-synthetic-error', 'GRAPH_ERROR'));
     const { unmount } = renderPicker(PROJECT);
-    expect(await screen.findByRole('button', { name: 'Select folder Folder' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Link this folder Folder' })).toBeInTheDocument();
     expect(screen.queryByText(/raw-synthetic-error/)).not.toBeInTheDocument();
     expect(screen.queryByText(/does not exist|no such folder/i)).not.toBeInTheDocument();
     unmount();
@@ -461,7 +457,7 @@ describe('MicrosoftDocumentPicker contextual suggestions', () => {
     vi.mocked(browseOneDrive).mockResolvedValue(page([], { path: '/more' }));
     vi.mocked(listChildren).mockClear(); vi.mocked(searchDrive).mockClear();
     renderPicker(PROJECT);
-    expect(await screen.findByRole('button', { name: 'Select folder Folder' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Link this folder Folder' })).toBeInTheDocument();
     expect(searchDrive).toHaveBeenCalledTimes(1);
     expect(browseOneDrive).toHaveBeenCalledTimes(2);
   });
@@ -469,14 +465,14 @@ describe('MicrosoftDocumentPicker contextual suggestions', () => {
   it('AC-M365DOC-057 a project without a code skips the search and opens the default root', async () => {
     h.hook.defaultLibrary = LIBRARY;
     renderPicker({ kind: 'project', code: null });
-    expect(await screen.findByRole('button', { name: 'Select folder Folder' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Link this folder Folder' })).toBeInTheDocument();
     expect(searchDrive).not.toHaveBeenCalled();
   });
 
   it('AC-M365DOC-057 a budget context bypasses suggestions entirely: no search and no hint', async () => {
     h.hook.defaultLibrary = LIBRARY;
     renderPicker({ kind: 'budget' });
-    expect(await screen.findByRole('button', { name: 'Select folder Folder' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Link this folder Folder' })).toBeInTheDocument();
     expect(searchDrive).not.toHaveBeenCalled();
     expect(screen.queryByText(/No folder suggestion/)).not.toBeInTheDocument();
     expect(spy.select).not.toHaveBeenCalled();
@@ -523,7 +519,7 @@ describe('MicrosoftDocumentPicker paging and search', () => {
     vi.mocked(browseOneDrive).mockRejectedValueOnce(new AppError('raw-synthetic-error', 'GRAPH_ERROR')).mockResolvedValueOnce(page(many(3, 2)));
     renderPicker();
     await openLibrary(user);
-    await user.click(screen.getByRole('button', { name: 'Select file Report.pdf' }));
+    await user.click(screen.getByRole('button', { name: 'Link this file Report.pdf' }));
     await user.click(screen.getByRole('button', { name: 'Load more' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Microsoft could not load this location');
     expect(document.body.textContent).not.toMatch(/raw-synthetic-error/);
@@ -544,7 +540,7 @@ describe('MicrosoftDocumentPicker paging and search', () => {
     renderPicker();
     await openLibrary(user);
     await user.click(screen.getByRole('button', { name: 'Load more' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Select file File 2' })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Link this file File 2' })).toHaveFocus());
   });
 
   it('AC-M365DOC-067 debounce: loading shows immediately, no request at 299ms, exactly one at 300ms', async () => {
@@ -577,7 +573,7 @@ describe('MicrosoftDocumentPicker paging and search', () => {
     fireEvent.change(input, { target: { value: '' } });
     await act(async () => { await vi.advanceTimersByTimeAsync(10); });
     expect(listChildren).toHaveBeenCalledWith('drive-1', undefined);
-    expect(screen.getByRole('button', { name: 'Select file Report.pdf' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Link this file Report.pdf' })).toBeInTheDocument();
   });
 
   it('AC-M365DOC-067 stale: an older search response that arrives after a newer one is ignored', async () => {
@@ -596,7 +592,7 @@ describe('MicrosoftDocumentPicker paging and search', () => {
     expect(searchDrive).toHaveBeenCalledTimes(2);
     await act(async () => { second.resolve(page([mk('new', 'file', 'Newer result')])); });
     await act(async () => { first.resolve(page([mk('old', 'file', 'Older result')])); });
-    expect(screen.getByRole('button', { name: 'Select file Newer result' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Link this file Newer result' })).toBeInTheDocument();
     expect(screen.queryByText('Older result')).not.toBeInTheDocument();
   });
 
@@ -608,10 +604,10 @@ describe('MicrosoftDocumentPicker paging and search', () => {
     await openLibrary(user);
     await user.click(screen.getByRole('button', { name: 'Browse Folder' }));
     await user.click(within(screen.getByRole('navigation', { name: 'Microsoft location' })).getByRole('button', { name: 'Documents' }));
-    await screen.findByRole('button', { name: 'Select file Report.pdf' });
+    await screen.findByRole('button', { name: 'Link this file Report.pdf' });
     await act(async () => { late.resolve(page([mk('inner', 'file', 'Inner.docx')])); });
     expect(screen.queryByText('Inner.docx')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Select file Report.pdf' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Link this file Report.pdf' })).toBeInTheDocument();
   });
 
   it('AC-M365DOC-067 stale: a late response after the picker closes changes nothing and raises no error', async () => {
@@ -658,7 +654,7 @@ describe('MicrosoftDocumentPicker keyboard, states and accessibility', () => {
     await tabTo(user, 'Synthetic site'); await user.keyboard('{Enter}');
     await tabTo(user, 'Documents'); await user.keyboard('{Enter}');
     await tabTo(user, 'Browse Folder'); await user.keyboard('{Enter}');
-    await tabTo(user, 'Select file Inner.docx'); await user.keyboard('{Enter}');
+    await tabTo(user, 'Link this file Inner.docx'); await user.keyboard('{Enter}');
     expect(screen.getByText('Selected file: Inner.docx')).toBeInTheDocument();
     await tabTo(user, 'Link from Microsoft 365'); await user.keyboard('{Enter}');
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ item_id: 'inner', item_kind: 'file' })));
@@ -712,7 +708,7 @@ describe('MicrosoftDocumentPicker keyboard, states and accessibility', () => {
     expect(screen.getByRole('textbox', { name: 'Search this location' })).toBeEnabled();
     expect(screen.queryByText('No items found')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(await screen.findByRole('button', { name: 'Select file Report.pdf' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Link this file Report.pdf' })).toBeInTheDocument();
     expect(listChildren).toHaveBeenCalledTimes(2);
   });
 
@@ -738,8 +734,8 @@ describe('MicrosoftDocumentPicker keyboard, states and accessibility', () => {
     expect((await axeViolations(document.body)).blocking).toEqual([]);
     await user.click(screen.getByRole('button', { name: 'Synthetic site' }));
     await user.click(await screen.findByRole('button', { name: 'Documents' }));
-    await screen.findByRole('button', { name: 'Select file Report.pdf' });
-    await user.click(screen.getByRole('button', { name: 'Select file Report.pdf' }));
+    await screen.findByRole('button', { name: 'Link this file Report.pdf' });
+    await user.click(screen.getByRole('button', { name: 'Link this file Report.pdf' }));
     expect((await axeViolations(document.body)).blocking).toEqual([]);
     view.unmount();
 
@@ -782,11 +778,13 @@ describe('#1020 Discover fixes', () => {
     renderPicker();
     expect(await screen.findByRole('dialog', { name: 'Pilih dokumen Microsoft' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Pilih lokasi' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'OneDrive saya' })).toBeInTheDocument();
+    expect(screen.queryByText('Choose a location')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Situs SharePoint' }));
     await user.click(await screen.findByRole('button', { name: 'Synthetic site' }));
     await user.click(await screen.findByRole('button', { name: 'Documents' }));
     expect(await screen.findByLabelText('Cari di lokasi ini')).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: 'Pilih berkas Report.pdf' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Tautkan berkas ini Report.pdf' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Muat lebih banyak' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tautkan dari Microsoft 365' })).toBeInTheDocument();
     expect(screen.queryByText('Load more')).not.toBeInTheDocument();
@@ -806,7 +804,7 @@ describe('#1020 Discover fixes', () => {
     vi.mocked(listChildren).mockResolvedValue(page([mk('long', 'file', LONG), ...ROOT]));
     renderPicker();
     await openLibrary(user);
-    await user.click(screen.getByRole('button', { name: `Select file ${LONG}` }));
+    await user.click(screen.getByRole('button', { name: `Link this file ${LONG}` }));
     const row = rendered()[0];
     const nameEl = row.querySelector(`[title="${LONG}"]`) as HTMLElement;
     expect(nameEl).not.toBeNull();
@@ -814,6 +812,18 @@ describe('#1020 Discover fixes', () => {
     const badge = within(row).getByText('Selected');
     expect(badge.parentElement).toBe(nameEl.parentElement);
     expect(row.querySelector('button[aria-pressed]')?.className).toContain('shrink-0');
+  });
+
+  it('F12: browse rows use the suggestions verbs; a folder name opens (chevron), the button links', async () => {
+    const user = userEvent.setup();
+    vi.mocked(listChildren).mockResolvedValue(page([mk('f1', 'folder', 'Folder'), mk('d1', 'file', 'Report.pdf')]));
+    renderPicker();
+    await openLibrary(user);
+    const [folderRow, fileRow] = rendered();
+    expect(within(folderRow).getByRole('button', { name: 'Browse Folder' }).querySelector('[data-icon="chev"]')).not.toBeNull();
+    expect(within(folderRow).getByRole('button', { name: 'Link this folder Folder' })).toHaveTextContent('Link this folder');
+    expect(within(fileRow).getByRole('button', { name: 'Link this file Report.pdf' })).toHaveTextContent('Link this file');
+    expect(screen.queryByRole('button', { name: /^Select/ })).toBeNull();
   });
 
   it('F10: breadcrumb entries for a long folder name wrap (title + anywhere-wrap) instead of running past the dialog', async () => {
@@ -846,7 +856,7 @@ describe('#1020 Discover fixes', () => {
     await user.click(screen.getByRole('button', { name: 'Change location' }));
     expect(screen.queryByText(/Default library:/)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'My OneDrive' }));
-    await screen.findByRole('button', { name: 'Select file Report.pdf' });
+    await screen.findByRole('button', { name: 'Link this file Report.pdf' });
     expect(screen.queryByText(/Default library:/)).not.toBeInTheDocument();
   });
 

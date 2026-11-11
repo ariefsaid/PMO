@@ -24,13 +24,13 @@ describe('procurementStatusTone (new AC — chart status-tone)', () => {
     expect(procurementStatusTone('Rejected')).not.toBe(procurementStatusTone('Paid'));
   });
 
-  it('C1: Draft maps to primary (was violet) — at most 4 status hues, no categorical violet', () => {
-    // Draft is "not-yet-started" (in-flight default), not a category — it must
-    // use the blue primary, not the categorical violet (5th hue = the rainbow).
-    expect(procurementStatusTone('Draft')).toBe(chartTheme.series.primary);
+  it('C1: in-flight stages are neutral (Freed-Blue rule) — at most 4 status hues, no categorical violet or action blue', () => {
+    // Draft is "not-yet-started" (in-flight default), not a category: neutral, never the
+    // categorical violet (5th hue = the rainbow) nor the action blue (DESIGN.md Freed-Blue rule).
+    expect(procurementStatusTone('Draft')).toBe(chartTheme.series.neutral);
     // Preserve the meaning-carrying status mappings.
     expect(procurementStatusTone('Received')).toBe(chartTheme.series.success);
-    expect(procurementStatusTone('Ordered')).toBe(chartTheme.series.primary);
+    expect(procurementStatusTone('Ordered')).toBe(chartTheme.series.neutral);
     expect(procurementStatusTone('Requested')).toBe(chartTheme.series.warning);
     expect(procurementStatusTone('Cancelled')).toBe(chartTheme.series.destructive);
     // No status maps to the categorical violet anymore (≤4 hues on the chart).
@@ -38,6 +38,7 @@ describe('procurementStatusTone (new AC — chart status-tone)', () => {
       Constants.public.Enums.procurement_status.map((s) => procurementStatusTone(s)),
     );
     expect(tones.has(chartTheme.series.violet)).toBe(false);
+    expect(tones.has(chartTheme.series.primary)).toBe(false);
     expect(tones.size).toBeLessThanOrEqual(4);
   });
 });

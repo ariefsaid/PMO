@@ -21,6 +21,11 @@
 import type { ExpenseGateTruth, ExpenseResolvedRefs } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingCommand.ts';
 import type { ExpenseResolution } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingResolve.ts';
 
+/** What a resolver answers; generic over the refs so the imprest pass (imprestPostingBackstop.ts) reuses this orchestration. */
+export type BackstopResolution<Refs = ExpenseResolvedRefs> =
+  | Exclude<ExpenseResolution, { outcome: 'ready' }>
+  | { outcome: 'ready'; refs: Refs };
+
 /** NFR-EXP-013 — bounded per org per tick (index-served), equal to the timesheet/budget twins. */
 export const EXPENSE_BACKSTOP_TICK_LIMIT = 200;
 
@@ -36,6 +41,8 @@ export interface ExpenseIntentRow {
   state_stamp: string;
   push_state: string;
   push_error: string | null;
+  /** 0358: failures so far — the queue's retry delay grows with it. */
+  attempt_count?: number;
 }
 
 export interface ExpenseOutboxRef {
@@ -43,7 +50,7 @@ export interface ExpenseOutboxRef {
   state: string;
 }
 
-export type ExpenseGateOutcome = { ok: true; truth: ExpenseGateTruth } | { ok: false; reason: string };
+export type ExpenseGateOutcome<Truth = ExpenseGateTruth> = { ok: true; truth: Truth } | { ok: false; reason: string };
 
 export interface ExpenseOutcome {
   state: 'failed' | 'held' | 'pushed';
@@ -51,18 +58,22 @@ export interface ExpenseOutcome {
   erpName?: string | null;
 }
 
-export interface ExpenseBackstopDeps {
-  listPending(orgId: string, limit: number): Promise<ExpenseIntentRow[]>;
-  findOutbox(row: ExpenseIntentRow): Promise<ExpenseOutboxRef | null>;
-  replay(row: ExpenseIntentRow, outbox: ExpenseOutboxRef): Promise<void>;
-  assertGate(row: ExpenseIntentRow): Promise<ExpenseGateOutcome>;
-  resolve(truth: ExpenseGateTruth): Promise<ExpenseResolution>;
-  recordOutcome(row: ExpenseIntentRow, outcome: ExpenseOutcome): Promise<void>;
-  driveFresh(row: ExpenseIntentRow, truth: ExpenseGateTruth, refs: ExpenseResolvedRefs): Promise<void>;
+/** What a replay did: finished the command, left it for a later tick (not due), parked it held, was refused by the
+ *  actor re-check, or hit a dispatch failure. The last three are already recorded on the intent. */
+export type ReplayDisposition = 'completed' | 'waiting' | 'held' | 'refused' | 'failed';
+
+export interface ExpenseBackstopDeps<Row extends { id: string } = ExpenseIntentRow, Truth = ExpenseGateTruth, Refs = ExpenseResolvedRefs> {
+  listPending(orgId: string, limit: number): Promise<Row[]>;
+  findOutbox(row: Row): Promise<ExpenseOutboxRef | null>;
+  replay(row: Row, outbox: ExpenseOutboxRef): Promise<ReplayDisposition>;
+  assertGate(row: Row): Promise<ExpenseGateOutcome<Truth>>;
+  resolve(truth: Truth): Promise<BackstopResolution<Refs>>;
+  recordOutcome(row: Row, outcome: ExpenseOutcome): Promise<void>;
+  driveFresh(row: Row, truth: Truth, refs: Refs): Promise<void>;
   /** Stamp the listed intents' last attempt (the round-robin order of `listPending`). */
   markAttempted(orgId: string, intentIds: string[]): Promise<void>;
   /** Outbox commands left `committed` whose intent is already `pushed` — finished by a finalize-only replay. */
-  listStranded(orgId: string): Promise<Array<{ row: ExpenseIntentRow; outbox: ExpenseOutboxRef }>>;
+  listStranded(orgId: string): Promise<Array<{ row: Row; outbox: ExpenseOutboxRef }>>;
 }
 
 export interface ReconcileOrgExpensePostingsResult {
@@ -71,19 +82,23 @@ export interface ReconcileOrgExpensePostingsResult {
   driven: number;
   replayed: number;
   waiting: number;
+  /** Replays parked held (recorded on the intent). */
+  held: number;
   refused: number;
+  /** Replays whose dispatch failed (recorded on the intent, retried later). */
+  failed: number;
   errors: Array<{ intentId: string; error: string }>;
 }
 
-export async function reconcileOrgExpensePostings(
-  deps: ExpenseBackstopDeps,
+export async function reconcileOrgExpensePostings<Row extends { id: string } = ExpenseIntentRow, Truth = ExpenseGateTruth, Refs = ExpenseResolvedRefs>(
+  deps: ExpenseBackstopDeps<Row, Truth, Refs>,
   org: { orgId: string },
 ): Promise<ReconcileOrgExpensePostingsResult> {
-  const result: ReconcileOrgExpensePostingsResult = { finished: 0, driven: 0, replayed: 0, waiting: 0, refused: 0, errors: [] };
+  const result: ReconcileOrgExpensePostingsResult = { finished: 0, driven: 0, replayed: 0, waiting: 0, held: 0, refused: 0, failed: 0, errors: [] };
   for (const { row, outbox } of await deps.listStranded(org.orgId)) {
     try {
-      await deps.replay(row, outbox);
-      result.finished += 1;
+      // Only a completed finish counts; a not-due or recorded outcome is retried next tick.
+      if ((await deps.replay(row, outbox)) === 'completed') result.finished += 1;
     } catch (err) {
       // The intent is already pushed: nothing to record on it; the next tick retries the finalize.
       result.errors.push({ intentId: row.id, error: err instanceof Error ? err.message : String(err) });
@@ -95,8 +110,9 @@ export async function reconcileOrgExpensePostings(
     try {
       const outbox = await deps.findOutbox(row);
       if (outbox) {
-        await deps.replay(row, outbox);
-        result.replayed += 1;
+        const disposition = await deps.replay(row, outbox);
+        if (disposition === 'completed') result.replayed += 1;
+        else result[disposition] += 1;
         continue;
       }
       const gate = await deps.assertGate(row);
@@ -132,4 +148,13 @@ export async function reconcileOrgExpensePostings(
     }
   }
   return result;
+}
+
+/** The sweep pass's summary. `driven` counts fresh drives attempted (a driveFresh that recorded a failure still counts), plus completed replays and finished strandeds; `error` is set when any intent threw or a posting recorded a failure. */
+export function backstopPassResult(result: ReconcileOrgExpensePostingsResult, noun: string): { driven: number; error?: string } {
+  const problems = [
+    result.errors.length ? `${result.errors.length} ${noun} intent(s) failed` : '',
+    result.failed ? `${result.failed} ${noun} posting(s) failed` : '',
+  ].filter(Boolean);
+  return { driven: result.driven + result.replayed + result.finished, ...(problems.length ? { error: problems.join('; ') } : {}) };
 }

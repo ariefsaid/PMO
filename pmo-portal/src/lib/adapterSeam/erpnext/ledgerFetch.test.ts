@@ -92,6 +92,17 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     expect(rows.map((r) => [r.name, r.is_cancelled])).toEqual([['GLE-ORIG', true], ['GLE-REV', true], ['GLE-LIVE', false]]);
   });
 
+  it('AC-JEC-013: the GL request asks for remarks and a fetched row keeps it', async () => {
+    let fields: string[] = [];
+    const fetchImpl = async (url: string | URL | Request) => {
+      fields = JSON.parse(new URL(String(url)).searchParams.get('fields') ?? '') as string[];
+      return jsonResponse({ data: [{ name: 'GLE-R', account: 'A', debit: '1', credit: '0', modified: '2026-10-07', remarks: 'Vendor X inv 12', docstatus: 1 }] });
+    };
+    const { rows } = await fetchGlEntries(client(fetchImpl), { company: 'PMO Smoke Co' });
+    expect(fields).toContain('remarks');
+    expect(rows[0].remarks).toBe('Vendor X inv 12');
+  });
+
   it('#901 a GL row in docstatus 2 crosses as cancelled (the old fetch excluded it; it must never read as live)', async () => {
     const fetchImpl = async () => jsonResponse({ data: [
       { name: 'GLE-D2', account: 'A', debit: '1', credit: '0', modified: '2026-10-07', is_cancelled: 0, docstatus: 2 },
@@ -127,25 +138,28 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     expect(JSON.parse(new URL(urls[0]).searchParams.get('filters') ?? '')).toEqual([['company', '=', 'PMO Smoke Co']]);
   });
 
-  it('paging accumulates ALL rows across pages (a full page 0 → a page-1 request with limit_start=pageSize → a short page stops the loop), and EVERY page request carries the stable order', async () => {
+  it('paging accumulates ALL rows across pages by KEYSET (a full page → the tie-group read after its last row → a later-instant read → a short page stops the loop), and EVERY request carries the stable order and never an offset', async () => {
     const urls: string[] = [];
     const fullPage = Array.from({ length: 2 }, (_, i) => ({ name: `GLE-${i}`, account: 'A', debit: '1.0', credit: '0', modified: '2026-07-12 00:00:0' + i, is_cancelled: 0, docstatus: 1 }));
     const shortPage = [{ name: 'GLE-2', account: 'A', debit: '3.0', credit: '0', modified: '2026-07-12 00:00:02', is_cancelled: 0, docstatus: 1 }];
+    const responses = [fullPage, [], shortPage];
     const fetchImpl = async (url: string) => {
       urls.push(url);
-      return jsonResponse({ data: url.includes('limit_start=0') || !url.includes('limit_start=') ? fullPage : shortPage });
+      return jsonResponse({ data: responses[urls.length - 1] });
     };
-    // page 0 returns exactly pageSize (2) → must request page 1; page 1 returns 1 (< pageSize) → stop.
-    const { rows, caughtUp } = await fetchGlEntries(client(fetchImpl), { company: 'PMO Smoke Co', since: '2026-07-01', pageSize: 2 });
-    expect(urls).toHaveLength(2);
-    expect(decodeURIComponent(urls[0])).toContain('limit_start=0');
-    expect(decodeURIComponent(urls[1])).toContain('limit_start=2');
-    // #901 fix round (High-1): the stable `modified asc, name asc` order rides on EVERY page request
-    // (URL-encoded Frappe order_by) — page N+1 is defined relative to page N only if the order is total.
-    for (const u of urls) expect(new URL(u).searchParams.get('order_by')).toBe('modified asc, name asc');
-    expect(rows).toHaveLength(3); // 2 + 1 — ALL rows accumulated
+    const { rows, caughtUp, cursor } = await fetchGlEntries(client(fetchImpl), { company: 'PMO Smoke Co', since: '2026-07-01', pageSize: 2 });
+    expect(urls).toHaveLength(3);
+    const filtersOf = (u: string) => JSON.parse(new URL(u).searchParams.get('filters') ?? '[]');
+    expect(filtersOf(urls[0])).toContainEqual(['modified', '>=', '2026-07-01']);
+    expect(filtersOf(urls[1])).toEqual(expect.arrayContaining([['modified', '=', '2026-07-12 00:00:01'], ['name', '>', 'GLE-1']]));
+    expect(filtersOf(urls[2])).toContainEqual(['modified', '>', '2026-07-12 00:00:01']);
+    for (const u of urls) {
+      expect(new URL(u).searchParams.get('order_by')).toBe('modified asc, name asc');
+      expect(new URL(u).searchParams.has('limit_start')).toBe(false);
+    }
     expect(rows.map((r) => r.name)).toEqual(['GLE-0', 'GLE-1', 'GLE-2']);
     expect(caughtUp).toBe(true); // the short page (not the budget) ended the fetch
+    expect(cursor).toBe('2026-07-12 00:00:02.000000|GLE-2');
   });
 
   it('#901 fix round (High-2) the per-tick page budget stops a full-page source: what was read is returned, caughtUp=false, and NO further page is requested', async () => {
@@ -154,13 +168,13 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     const rowsSource = Array.from({ length: 6 }, (_, i) => ({ name: `GLE-${i}`, account: 'A', debit: '1.0', credit: '0', modified: `2026-07-12 00:00:${String(i).padStart(2, '0')}`, is_cancelled: 0, docstatus: 1 }));
     const fetchImpl = async (url: string) => {
       urls.push(url);
-      const start = Number(new URL(url).searchParams.get('limit_start') ?? 0);
-      return jsonResponse({ data: rowsSource.slice(start, start + 2) });
+      return jsonResponse({ data: rowsSource.slice((urls.length - 1) * 2, urls.length * 2) });
     };
-    const { rows, caughtUp } = await fetchGlEntries(client(fetchImpl), { company: 'PMO Smoke Co', pageSize: 2, maxPages: 2 });
+    const { rows, caughtUp, cursor } = await fetchGlEntries(client(fetchImpl), { company: 'PMO Smoke Co', pageSize: 2, maxPages: 2 });
     expect(urls).toHaveLength(2); // the budget, not a short page, ended the fetch
     expect(rows.map((r) => r.name)).toEqual(['GLE-0', 'GLE-1', 'GLE-2', 'GLE-3']);
-    expect(caughtUp).toBe(false); // the source was NOT drained — resume from the watermark next tick
+    expect(caughtUp).toBe(false); // the source was NOT drained — resume from the cursor next tick
+    expect(cursor).toBe('2026-07-12 00:00:03.000000|GLE-3');
   });
 
   it('money fields are returned as decimal-strings (R4) — a Frappe number is coerced, null stays null', async () => {
@@ -184,6 +198,30 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     const { rows, caughtUp } = await fetchGlEntries(client(fetchImpl), { company: 'PMO Smoke Co', since: '2026-07-01' });
     expect(rows).toEqual([]);
     expect(caughtUp).toBe(true); // an empty page IS the drained source
+  });
+});
+
+describe('erpnext/ledgerFetch — one voucher\'s current row set', () => {
+  for (const [label, fetcher, doctype] of [
+    ['GL Entry', fetchGlEntries, 'GL%20Entry'],
+    ['Payment Ledger Entry', fetchPaymentLedgerEntries, 'Payment%20Ledger%20Entry'],
+  ] as const) {
+    it(`${label}: a voucher read filters company + voucher_type + voucher_no and never the modified cursor`, async () => {
+      const urls: string[] = [];
+      const c = client(async (url) => { urls.push(url); return jsonResponse({ data: [] }); });
+      const r = await fetcher(c, { company: 'Synthetic Co', voucher: { type: 'Journal Entry', no: 'ACC-JV-2026-00070' } });
+      expect(r.caughtUp).toBe(true);
+      expect(urls[0]).toContain(`/api/resource/${doctype}?`);
+      expect(JSON.parse(new URL(urls[0]).searchParams.get('filters')!)).toEqual([
+        ['company', '=', 'Synthetic Co'], ['voucher_type', '=', 'Journal Entry'], ['voucher_no', '=', 'ACC-JV-2026-00070'],
+      ]);
+    });
+  }
+
+  it('Payment Ledger Entry rows carry their own voucher_type/voucher_no', async () => {
+    const c = client(async () => jsonResponse({ data: [{ name: 'p1', account: 'Creditors - SYN', voucher_type: 'Purchase Invoice', voucher_no: 'ACC-PINV-2026-00006', modified: '2026-10-25 11:52:16.308551' }] }));
+    const { rows } = await fetchPaymentLedgerEntries(c, { company: 'Synthetic Co' });
+    expect(rows[0]).toMatchObject({ voucher_type: 'Purchase Invoice', voucher_no: 'ACC-PINV-2026-00006' });
   });
 });
 
@@ -219,17 +257,21 @@ describe('erpnext/ledgerFetch — fetchPaymentLedgerEntries', () => {
     expect(rows.map((r) => [r.name, r.delinked])).toEqual([['PLE-ORIG', true], ['PLE-REV', true], ['PLE-D2', true], ['PLE-LIVE', false]]);
   });
 
-  it('paging accumulates Payment Ledger Entry rows across pages, carrying the stable order on EVERY page request', async () => {
+  it('paging accumulates Payment Ledger Entry rows across pages, carrying the stable order on EVERY request and never an offset', async () => {
     const urls: string[] = [];
     const full = Array.from({ length: 2 }, (_, i) => ({ name: `PLE-${i}`, account: 'A', amount: '1.0', modified: '2026-07-12 00:00:0' + i, docstatus: 1 }));
     const short = [{ name: 'PLE-2', account: 'A', amount: '3.0', modified: '2026-07-12 00:00:02', docstatus: 1 }];
+    const responses = [full, [], short];
     const fetchImpl = async (url: string) => {
       urls.push(url);
-      return jsonResponse({ data: url.includes('limit_start=0') || !url.includes('limit_start=') ? full : short });
+      return jsonResponse({ data: responses[urls.length - 1] });
     };
     const { rows } = await fetchPaymentLedgerEntries(client(fetchImpl), { company: 'PMO Smoke Co', pageSize: 2 });
     expect(rows).toHaveLength(3);
-    for (const u of urls) expect(new URL(u).searchParams.get('order_by')).toBe('modified asc, name asc');
+    for (const u of urls) {
+      expect(new URL(u).searchParams.get('order_by')).toBe('modified asc, name asc');
+      expect(new URL(u).searchParams.has('limit_start')).toBe(false);
+    }
   });
 });
 
@@ -312,12 +354,10 @@ describe('erpnext/ledgerFetch — T1a real-response source boundary', () => {
       });
 
       it('rejects a malformed later page instead of returning a valid prefix', async () => {
-        const fetchImpl = vi.fn(async (url: string) => {
-          const start = Number(new URL(url).searchParams.get('limit_start') ?? 0);
-          return start === 0
-            ? rawLedgerResponse(JSON.stringify({ data: [source.row('ROW-1'), source.row('ROW-2')] }))
-            : rawLedgerResponse('{"data":[');
-        });
+        let call = 0;
+        const fetchImpl = vi.fn(async () => (call++ === 0
+          ? rawLedgerResponse(JSON.stringify({ data: [source.row('ROW-1'), source.row('ROW-2')] }))
+          : rawLedgerResponse('{"data":[')));
         await expect(source.fetch(client(fetchImpl), { company: 'Synthetic Co', pageSize: 2 })).rejects.toMatchObject({
           name: 'AppError',
           code: 'external-unreachable',
@@ -342,17 +382,15 @@ describe('erpnext/ledgerFetch — T1a real-response source boundary', () => {
       });
 
       it('reads an explicit empty page after exact-multiple full pages', async () => {
-        const fetchImpl = vi.fn(async (url: string) => {
-          const start = Number(new URL(url).searchParams.get('limit_start') ?? 0);
-          if (start === 0) return rawLedgerResponse(JSON.stringify({ data: [source.row('ROW-1'), source.row('ROW-2')] }));
-          if (start === 2) return rawLedgerResponse(JSON.stringify({ data: [source.row('ROW-3'), source.row('ROW-4')] }));
-          return rawLedgerResponse('{"data":[]}');
-        });
+        // keyset: page, same-instant tie read (full), tie read (empty = group drained), later-instant read (empty).
+        const pages = [['ROW-1', 'ROW-2'], ['ROW-3', 'ROW-4'], [], []];
+        let call = 0;
+        const fetchImpl = vi.fn(async () => rawLedgerResponse(JSON.stringify({ data: pages[call++]!.map((n) => source.row(n)) })));
         const result = await source.fetch(client(fetchImpl), { company: 'Synthetic Co', pageSize: 2 });
         expect(result).toMatchObject({ rows: [
           { name: 'ROW-1' }, { name: 'ROW-2' }, { name: 'ROW-3' }, { name: 'ROW-4' },
         ], caughtUp: true });
-        expect(fetchImpl).toHaveBeenCalledTimes(3);
+        expect(fetchImpl).toHaveBeenCalledTimes(4);
       });
 
       it('rejects a response page larger than the requested page size', async () => {
@@ -402,7 +440,25 @@ describe('erpnext/ledgerFetch — T1a real-response source boundary', () => {
     });
   }
 
-  it('does not mutate mirror or watermark state or finish a full replay after a real GL page is followed by malformed JSON', async () => {
+  it('the lower-level fetch rejects a malformed page after returning an earlier full page', async () => {
+    const urls: string[] = [];
+    const fetchImpl = vi.fn(async (url: string) => {
+      urls.push(url);
+      if (urls.length === 1) {
+        return rawLedgerResponse(JSON.stringify({ data: [
+          { name: 'GL-1', company: 'Synthetic Co', account: 'Cash', debit: '1.00', credit: '0.00', modified: '2026-01-02' },
+          { name: 'GL-2', company: 'Synthetic Co', account: 'Cash', debit: '2.00', credit: '0.00', modified: '2026-01-03' },
+        ] }));
+      }
+      return rawLedgerResponse('{"data":[');
+    });
+    await expect(fetchGlEntries(client(fetchImpl), { company: 'Synthetic Co', pageSize: 2, maxPages: 2 }))
+      .rejects.toMatchObject({ name: 'AppError', code: 'external-unreachable' });
+    expect(urls).toHaveLength(2);
+    expect(urls.every((url) => url.includes('/api/resource/GL%20Entry'))).toBe(true);
+  });
+
+  it('a malformed later GL page leaves both mirrors and watermarks unchanged and cannot finish a full replay', async () => {
     const [{ feedLedgerMirrors }, { FakePostgrest }] = await Promise.all([
       import('./ledgerMirrorFeed.ts'),
       import('@/test/postgrestFake.ts'),
@@ -424,27 +480,33 @@ describe('erpnext/ledgerFetch — T1a real-response source boundary', () => {
     });
     const before = Object.fromEntries(Object.keys(initialTables).map((table) => [table, structuredClone(fake.rowsOf(table))]));
     const urls: string[] = [];
+    const firstPage = Array.from({ length: 500 }, (_, i) => ({
+      name: `GL-${String(i).padStart(3, '0')}`,
+      company: 'Synthetic Co',
+      account: 'Cash',
+      debit: '1.00',
+      credit: '0.00',
+      modified: `2026-01-${String(Math.floor(i / 1440) + 2).padStart(2, '0')} ${String(Math.floor((i % 1440) / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}:00`,
+    }));
     const fetchImpl = vi.fn(async (url: string) => {
       urls.push(url);
-      const start = Number(new URL(url).searchParams.get('limit_start') ?? 0);
-      if (start === 0) {
-        return rawLedgerResponse(JSON.stringify({ data: [
-          { name: 'GL-1', company: 'Synthetic Co', account: 'Cash', debit: '1.00', credit: '0.00', modified: '2026-01-02' },
-          { name: 'GL-2', company: 'Synthetic Co', account: 'Cash', debit: '2.00', credit: '0.00', modified: '2026-01-03' },
-        ] }));
-      }
-      return rawLedgerResponse('{"data":[');
+      return urls.length === 1
+        ? rawLedgerResponse(JSON.stringify({ data: firstPage }))
+        : rawLedgerResponse('{"data":[');
     });
     const rpc = vi.fn(async () => ({ data: { deleted: 0 }, error: null }));
     const serviceClient = Object.assign(fake, { rpc });
 
     await expect(feedLedgerMirrors(serviceClient as never, {
-      client: client(fetchImpl), orgId: 'org-1', company: 'Synthetic Co', fullReplay: true, pageSize: 2, maxPages: 2,
+      client: client(fetchImpl), orgId: 'org-1', company: 'Synthetic Co', fullReplay: true,
     })).rejects.toMatchObject({ name: 'AppError', code: 'external-unreachable' });
 
-    for (const table of Object.keys(initialTables)) expect(fake.rowsOf(table)).toEqual(before[table as keyof typeof before]);
+    for (const table of Object.keys(initialTables)) {
+      expect(fake.rowsOf(table)).toEqual(before[table as keyof typeof before]);
+    }
     expect(rpc).not.toHaveBeenCalledWith('finish_erp_gl_replay', expect.anything());
     expect(urls).toHaveLength(2);
     expect(urls.every((url) => url.includes('/api/resource/GL%20Entry'))).toBe(true);
+    expect(new URL(urls[0]!).searchParams.get('limit_page_length')).toBe('500');
   });
 });

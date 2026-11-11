@@ -29,7 +29,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 
-import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
+import { expensePostingsRepository, listExpenseAccountMap, listExpensePostings } from './expensePostings';
 
 beforeEach(() => {
   h.calls.length = 0;
@@ -68,5 +68,17 @@ describe('expense posting reads (AC-EXP-132)', () => {
     h.set({ data: null, error: { message: 'permission denied', code: '42501' } });
     await expect(listExpensePostings('claim-1')).rejects.toMatchObject({ code: '42501' });
     await expect(listExpenseAccountMap()).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+describe('expensePostingsRepository (ADR-0017 seam)', () => {
+  it('listForClaim and listAccountMap run the same reads and surface errors with their code', async () => {
+    h.set({ data: [{ account_key: 'employee_payable', erp_account: 'EP', updated_at: 't' }], error: null });
+    expect(await expensePostingsRepository.listAccountMap()).toEqual([{ accountKey: 'employee_payable', erpAccount: 'EP', updatedAt: 't' }]);
+    h.set({ data: [], error: null });
+    expect(await expensePostingsRepository.listForClaim('claim-1')).toEqual([]);
+    expect(h.calls).toContainEqual(['eq', ['claim_id', 'claim-1']]);
+    h.set({ data: null, error: { message: 'denied', code: '42501' } });
+    await expect(expensePostingsRepository.listForClaim('claim-1')).rejects.toMatchObject({ code: '42501' });
   });
 });

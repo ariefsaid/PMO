@@ -1,8 +1,8 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from './projectTransitions';
-import { resolveRange, type PageParams } from '@/src/lib/pagination';
 import type { TaxTreatment } from './procurementLifecycle';
 import type { ProjectClassification } from '../projectClassification';
 
@@ -125,6 +125,8 @@ export interface ProjectContractTaxColumns {
 /** The create-form fields that have nothing to do with the contract value. */
 interface CreateProjectBase extends ProjectClassification {
   name: string;
+  /** Optional display identity; contractual `name` remains required. */
+  short_name?: string | null;
   /** Must be an origination status (Leads / Internal Project). */
   status: ProjectStatus;
   /** Optional, separately supplied Client Project Code (OD-ID-1). */
@@ -177,6 +179,8 @@ export type CreateProjectInput = CreateProjectBase &
 /** The editable header fields (name/code/client/PM/dates). NOT contract_value (SoD) / status (RPC). */
 export interface ProjectHeaderInput extends ProjectClassification {
   name: string;
+  /** Omitted preserves the existing alias; null/blank clears it. */
+  short_name?: string | null;
   code: string | null;
   client_id: string | null;
   /** The end customer, nullable (#758) — editable alongside the client. */
@@ -184,6 +188,8 @@ export interface ProjectHeaderInput extends ProjectClassification {
   project_manager_id: string | null;
   start_date: string | null;
   end_date: string | null;
+  /** #1275: the client's default tax article for this project's receipts (pre-fill only). Omitted preserves it. */
+  receipt_withholding_article?: 'pph23' | 'pph4_2' | null;
 }
 
 /**
@@ -198,46 +204,82 @@ export interface ProjectHeaderInput extends ProjectClassification {
  * scope is live-only via `.is('archived_at', null)`; explicit id and client-history reads
  * use their separate functions and retain their own archive semantics.
  *
- * Paginated (data-layer performance hardening #4, OPT-IN): passing `params.page`/
- * `params.pageSize` range-bounds the query; omitting both preserves the original unbounded
- * read for every existing caller (e.g. the ⌘K CommandPalette record search).
+ * ⚑ #1774 — this is the WHOLE project table's active scope, so it pages (`fetchAllPages`):
+ * PostgREST truncates at 1,000 rows silently, and an org with more than 1,000 live projects
+ * would have shown a short list with no error. Paging needs a TOTAL order, so the rows come
+ * back ordered by `id` (nothing depended on the previous, unspecified order).
  */
 export async function listProjects(
-  params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string } & PageParams,
+  params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string },
 ): Promise<ProjectWithRefs[]> {
-  // `any` is a localized escape hatch: PostgREST's TypeScript builder types
-  // make it difficult to accumulate `.eq()`/`.in()` chains conditionally without
-  // widening the type here. The pattern is intentional and contained — do not
-  // propagate `any` beyond this function.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let q: any = supabase.from('projects').select(SELECT);
-  if (params?.statuses?.length) {
-    // Multi-status override (e.g. the Lost column = Loss Tender + Declined, #774).
-    q = q.in('status', params.statuses as string[]);
-  } else if (params?.status) {
-    // Explicit override → a precise single-status filter (e.g. the Lost partition).
-    q = q.eq('status', params.status);
-  } else {
-    // Default → the active Projects partition (on-hand ∪ internal), disjoint from the pipeline.
-    q = q.in('status', ACTIVE_PROJECT_STATUSES as string[]);
-  }
-  q = q.is('archived_at', null);
-  if (params?.pmId) q = q.eq('project_manager_id', params.pmId);
-  const range = resolveRange(params);
-  if (range) q = q.range(range.from, range.to);
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as ProjectWithRefs[];
+  const data = await fetchAllPages<ProjectWithRefs>((from, to) => {
+    // `any` is a localized escape hatch: PostgREST's TypeScript builder types
+    // make it difficult to accumulate `.eq()`/`.in()` chains conditionally without
+    // widening the type here. The pattern is intentional and contained — do not
+    // propagate `any` beyond this function.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = supabase.from('projects').select(SELECT);
+    if (params?.statuses?.length) {
+      // Multi-status override (e.g. the Lost column = Loss Tender + Declined, #774).
+      q = q.in('status', params.statuses as string[]);
+    } else if (params?.status) {
+      // Explicit override → a precise single-status filter (e.g. the Lost partition).
+      q = q.eq('status', params.status);
+    } else {
+      // Default → the active Projects partition (on-hand ∪ internal), disjoint from the pipeline.
+      q = q.in('status', ACTIVE_PROJECT_STATUSES as string[]);
+    }
+    q = q.is('archived_at', null);
+    if (params?.pmId) q = q.eq('project_manager_id', params.pmId);
+    return q.order('id', { ascending: true }).range(from, to);
+  });
+  return data;
+}
+
+/** The columns a project picker reads; no joins. */
+export type ProjectPickerOption = Pick<ProjectRow, 'id' | 'name' | 'short_name' | 'code' | 'status' | 'project_manager_id'>;
+
+/**
+ * Picker read: the same rows as `listProjects()` (active partition, unarchived, ordered by `id`
+ * for total-order paging, #1774) but only the columns pickers use and none of the three joins.
+ */
+export async function listProjectPickerOptions(): Promise<ProjectPickerOption[]> {
+  return fetchAllPages<ProjectPickerOption>((from, to) =>
+    supabase
+      .from('projects')
+      .select('id,name,short_name,code,status,project_manager_id')
+      .in('status', ACTIVE_PROJECT_STATUSES)
+      .is('archived_at', null)
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
 }
 
 /**
- * One project by id at ANY stage (on-hand, internal, pipeline or lost) — the project detail route's
- * read. Same select as the list, so the row shape is identical; `null` when absent / not visible.
+ * Every project's id + name, at ANY stage (on-hand, internal, pipeline or lost) — the
+ * cross-org identity lookup behind record search and the pipeline's project labels.
+ *
+ * ⚑ #1774 — the whole table, so it pages: the 1,000-row response cap would otherwise cut
+ * the identity map short and make existing projects look unknown. Ordered by `id` so the
+ * scan is total (the previous read had no order at all).
  */
 export async function listProjectIdentity(): Promise<Array<Pick<ProjectRow, 'id' | 'name'>>> {
-  const { data, error } = await supabase.from('projects').select('id,name');
+  return fetchAllPages<Pick<ProjectRow, 'id' | 'name'>>((from, to) =>
+    supabase.from('projects').select('id,name').order('id', { ascending: true }).range(from, to),
+  );
+}
+
+/** Read only project numbers for an explicit dashboard card set in one request. */
+export async function listProjectNumbers(ids: readonly string[]): Promise<Array<Pick<ProjectRow, 'id' | 'pmo_project_number'>>> {
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id,pmo_project_number')
+    .in('id', uniqueIds)
+    .limit(uniqueIds.length);
   if (error) throw new Error(error.message);
-  return data ?? [];
+  return (data ?? []) as Array<Pick<ProjectRow, 'id' | 'pmo_project_number'>>;
 }
 
 export async function getProject(id: string): Promise<ProjectWithRefs | null> {
@@ -282,6 +324,7 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
     .from('projects')
     .insert({
       name: input.name,
+      ...(input.short_name !== undefined ? { short_name: input.short_name?.trim() || null } : {}),
       status: input.status,
       ...(input.code !== undefined ? { code: input.code } : {}),
       ...(input.pmo_project_number !== undefined ? { pmo_project_number: input.pmo_project_number } : {}),
@@ -341,6 +384,7 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
     .from('projects')
     .update({
       name: input.name,
+      ...(input.short_name !== undefined ? { short_name: input.short_name?.trim() || null } : {}),
       code: input.code,
       client_id: input.client_id,
       end_client_id: input.end_client_id,
@@ -352,10 +396,39 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
       ...(input.location !== undefined ? { location: input.location } : {}),
       ...(input.award_type !== undefined ? { award_type: input.award_type } : {}),
       ...(input.bidding_entity !== undefined ? { bidding_entity: input.bidding_entity } : {}),
+      ...(input.receipt_withholding_article !== undefined ? { receipt_withholding_article: input.receipt_withholding_article } : {}),
     })
     .eq('id', id)
     .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Project not found or you do not have permission to edit it.');
+}
+
+/** Update an open opportunity's independent % Get estimate. */
+export async function updateProjectGetProbability(id: string, probability: number): Promise<void> {
+  if (!Number.isFinite(probability) || probability < 0 || probability > 1) {
+    throw new Error('Get probability must be between 0 and 1.');
+  }
+  const { data, error } = await supabase
+    .from('projects')
+    .update({ get_probability: probability })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error as PostgrestErrorLike);
+  assertWriteLanded(data, 'Project not found or you do not have permission to edit it.');
+}
+
+/** Update an open opportunity's per-project % Go override. */
+export async function updateProjectGoProbability(id: string, probability: number): Promise<void> {
+  if (!Number.isFinite(probability) || probability < 0 || probability > 1) {
+    throw new Error('Go probability must be between 0 and 1.');
+  }
+  const { data, error } = await supabase
+    .from('projects')
+    .update({ go_probability: probability })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error as PostgrestErrorLike);
   assertWriteLanded(data, 'Project not found or you do not have permission to edit it.');
 }
 

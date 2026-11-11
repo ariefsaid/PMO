@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
-import type {
-  WorkOrderInput,
-  WorkOrderPatch,
-  WorkOrderStatus,
-  SetWorkOrderValueInput,
-} from '@/src/lib/db/workOrders';
+import {
+  repositories,
+  type WorkOrderInput,
+  type WorkOrderPatch,
+  type WorkOrderStatus,
+  type SetWorkOrderValueInput,
+} from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -18,7 +18,7 @@ export function useProjectWorkOrders(projectId: string) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery({
-    queryKey: ['work-orders', orgId, projectId],
+    queryKey: ['work-orders', orgId, projectId, currentUser?.id, currentUser?.role, currentUser?.manager_id],
     queryFn: () => repositories.workOrder.list(projectId),
     enabled: Boolean(orgId) && Boolean(projectId),
   });

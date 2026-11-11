@@ -61,15 +61,15 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
 
   it('AC-NAV-004 (FIX-2): a pipeline-status project at /projects/:id ALWAYS roots at "Projects", never "Sales Pipeline"', () => {
     // The breadcrumb is URL-driven; "Sales Pipeline" is a filter lens, not the record home.
-    // Even when recordStatusGroup='pipeline', /projects/:id must read "Projects > <name>".
+    // The breadcrumb API takes no status input at all — /projects/:id must read "Projects > <name>".
     const navigate = vi.fn();
-    const pipelineCrumbs = breadcrumbForPath('/projects/abc', 'Pre-Win Deal', navigate, true, 'pipeline');
+    const pipelineCrumbs = breadcrumbForPath('/projects/abc', 'Pre-Win Deal', navigate, true);
     expect(pipelineCrumbs[0].label).toBe('Projects');
     pipelineCrumbs[0].onClick!();
     expect(navigate).toHaveBeenCalledWith('/projects');
     expect(pipelineCrumbs[1]).toEqual({ label: 'Pre-Win Deal' });
 
-    const lostCrumbs = breadcrumbForPath('/projects/xyz', 'Lost Deal', navigate, true, 'lost');
+    const lostCrumbs = breadcrumbForPath('/projects/xyz', 'Lost Deal', navigate, true);
     expect(lostCrumbs[0].label).toBe('Projects');
     expect(lostCrumbs[1]).toEqual({ label: 'Lost Deal' });
   });
@@ -182,7 +182,6 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
       'Harbor Co',
       navigate,
       true,
-      undefined,
       contextualParent,
     );
 

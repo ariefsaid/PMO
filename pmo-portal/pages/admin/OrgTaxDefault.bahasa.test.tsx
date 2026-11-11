@@ -50,8 +50,8 @@ beforeEach(() => {
 describe('OrgTaxDefault in Bahasa (#693 F-1)', () => {
   it('#693: the Admin select offers Bahasa option labels', async () => {
     renderPanel();
-    expect(await screen.findByRole('option', { name: 'Inclusive — jumlahnya sudah termasuk pajak' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Exclusive — pajak ditambahkan di atas jumlahnya' })).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: 'Inclusive: jumlahnya sudah termasuk pajak' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Exclusive: pajak ditambahkan di atas jumlahnya' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /the amount already includes tax/ })).toBeNull();
   });
 });

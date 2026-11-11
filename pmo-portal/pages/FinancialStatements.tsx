@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
@@ -12,7 +13,10 @@ import { Button } from '@/src/components/ui/Button';
 import { FormGrid, SelectField } from '@/src/components/ui/FormFields';
 import { ListPage } from '@/src/components/ui/ListPage';
 import { ListState } from '@/src/components/ui/ListState';
+import { OdooStatementsSection } from '@/src/components/financial-statements/OdooStatementsSection';
 import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
+import { useOdooLedgerMode } from '@/src/hooks/useOdooLedger';
+import { LedgerModeNotice } from '@/src/components/odoo-ledger/LedgerModeNotice';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead, FinancialStatementScope } from '@/src/lib/financialStatements';
 import { formatDateOnly } from '@/src/lib/format';
@@ -21,6 +25,17 @@ import { repositories } from '@/src/lib/repositories';
 const STATEMENTS = ['trial_balance', 'profit_and_loss', 'balance_sheet'] as const;
 type Statement = typeof STATEMENTS[number];
 const COMPANY_SCOPE = 'company';
+
+// #1930: the acceptance only queues the org refresh (available_at is +5 minutes); the sweep
+// republishes later. Poll the read until the published generation changes or the window closes.
+const REFRESH_POLL_INTERVAL_MS = 30_000;
+// available_at (+5 min) plus a margin, rounded up to one cap: 10 minutes from acceptance.
+const REFRESH_POLL_CAP_MS = 10 * 60 * 1000;
+
+type RefreshWatch = {
+  baseline: { asOf: string; snapshotId: string } | null;
+  deadline: number;
+};
 
 function latestSuppliedPair(periods: readonly FinancialStatementPair[], kind: StatementPeriodKind): FinancialStatementPair | null {
   const choices = periods.filter((pair) => pair.kind === kind).slice().sort((left, right) => left.currentStart.localeCompare(right.currentStart));
@@ -32,12 +47,6 @@ function latestSuppliedPair(periods: readonly FinancialStatementPair[], kind: St
 
 function pairLabel(pair: FinancialStatementPair, priorLabel: string): string {
   return `${formatDateOnly(pair.currentStart)} – ${formatDateOnly(pair.currentEnd)} · ${priorLabel}: ${formatDateOnly(pair.priorStart)} – ${formatDateOnly(pair.priorEnd)}`;
-}
-
-function reportTitle(statement: Statement, t: (key: string, fallback: string) => string): string {
-  if (statement === 'trial_balance') return t('financialStatements.trialBalance', 'Trial balance');
-  if (statement === 'profit_and_loss') return t('financialStatements.profitAndLoss', 'Profit and loss');
-  return t('financialStatements.balanceSheet', 'Balance sheet');
 }
 
 function completeDetailRead(value: FinancialStatementRead | undefined): value is FinancialStatementRead & {
@@ -59,7 +68,9 @@ const FinancialStatements: React.FC = () => {
   const identityReady = !loading && profileError === null && session?.user.id === currentUser?.id &&
     currentUser?.status === 'active' && Boolean(currentUser.org_id?.trim()) && realRole === currentUser.role;
   const companyReadAllowed = identityReady && may('view', 'financialStatements');
-  const catalogueQuery = useFinancialStatementCatalogue({ kind: 'company' }, companyReadAllowed);
+  // #1507 S7: an Odoo organisation reads its statements from the Odoo ledger; the saved-report path below is not asked for them.
+  const odooMode = useOdooLedgerMode(companyReadAllowed);
+  const catalogueQuery = useFinancialStatementCatalogue({ kind: 'company' }, companyReadAllowed && !odooMode.odoo);
   const catalogue = catalogueQuery.data;
 
   const [periodKind, setPeriodKind] = useState<StatementPeriodKind>('month');
@@ -77,21 +88,20 @@ const FinancialStatements: React.FC = () => {
     () => admittedProjectScopes.flatMap((scope) => scope.projectId ? [scope.projectId] : []),
     [admittedProjectScopes],
   );
-  const projectNameQueries = useQueries({
-    queries: admittedProjectIds.map((projectId) => ({
-      queryKey: ['financial-statements', 'mapped-project-name', currentUser?.org_id, currentUser?.id, realRole, projectId],
-      queryFn: () => repositories.project.get(projectId),
-      enabled: Boolean(catalogueQuery.eligible && catalogue?.state === 'complete' && currentUser?.org_id),
-    })),
+  const projectNames = useQuery({
+    queryKey: ['financial-statements', 'mapped-project-name', currentUser?.org_id, currentUser?.id, realRole, [...admittedProjectIds].sort()],
+    queryFn: () => repositories.project.getMany(admittedProjectIds),
+    enabled: Boolean(catalogueQuery.eligible && catalogue?.state === 'complete' && currentUser?.org_id && admittedProjectIds.length > 0),
   });
-  const namedProjectOptions = admittedProjectIds.flatMap((projectId, index) => {
-    const query = projectNameQueries[index];
-    if (!query || query.isError) return [];
-    const project = query.data;
-    if (!project || typeof project.name !== 'string' || project.name.trim() === '') return [];
-    const label = project.code ? `${project.code} · ${project.name}` : project.name;
-    return [{ value: projectId, label }];
-  });
+  const namedProjectOptions = useMemo(() => {
+    if (projectNames.isError) return [];
+    const byId = new Map((projectNames.data ?? []).map((project) => [project.id, project]));
+    return admittedProjectIds.flatMap((projectId) => {
+      const project = byId.get(projectId);
+      if (!project || typeof project.name !== 'string' || project.name.trim() === '') return [];
+      return [{ value: projectId, label: projectCodedPickerLabel(project) }];
+    });
+  }, [admittedProjectIds, projectNames.data, projectNames.isError]);
 
   useEffect(() => {
     if (selectedScope !== COMPANY_SCOPE && selectedScope !== null && !namedProjectOptions.some((option) => option.value === selectedScope)) {
@@ -119,8 +129,7 @@ const FinancialStatements: React.FC = () => {
     ? companyScope
     : selectedProjectScope;
   const scopeAdmitsStatement = Boolean(selectedProjectHasReadableName && currentScope && currentScope.statements.includes(statement) && currentScope.viewKinds.includes('account_breakdown'));
-  const validPeriod = selectedPair !== null && selectedPair.currentStart === pickerPeriod;
-  const selection: GetFinancialStatementInput | null = catalogue?.state === 'complete' && validPeriod && scopeAdmitsStatement && selectedScope !== null
+  const selection: GetFinancialStatementInput | null = catalogue?.state === 'complete' && selectedPair !== null && scopeAdmitsStatement && selectedScope !== null
     ? {
         periodKind,
         periodStart: selectedPair.currentStart,
@@ -129,9 +138,32 @@ const FinancialStatements: React.FC = () => {
         viewKind: 'account_breakdown',
       }
     : null;
-  const readQuery = useFinancialStatement(selection, Boolean(catalogueQuery.eligible && selection));
+  const queryClient = useQueryClient();
+  // The generation shown while "Refresh now" was accepted; the poll stops once the published
+  // generation differs (new asOf or snapshot id), or the cap passes. Declared before the read
+  // query: react-query invokes the refetchInterval callback outside render, never in it.
+  const [refreshWatch, setRefreshWatch] = useState<RefreshWatch | null>(null);
+  const displayedGenerationRef = useRef<{ asOf: string; snapshotId: string } | null>(null);
+  const pollStatementRead = (query: { state: { data?: FinancialStatementRead } }): number | false => {
+    if (!refreshWatch) return false;
+    const data = query.state.data;
+    if (!data || data.state !== 'complete' || data.generation === null || !refreshWatch.baseline) {
+      return Date.now() < refreshWatch.deadline ? REFRESH_POLL_INTERVAL_MS : false;
+    }
+    const published = data.generation;
+    const changed = published.asOf !== refreshWatch.baseline.asOf || published.snapshotId !== refreshWatch.baseline.snapshotId;
+    if (changed) return false;
+    return Date.now() < refreshWatch.deadline ? REFRESH_POLL_INTERVAL_MS : false;
+  };
+  const readQuery = useFinancialStatement(selection, Boolean(catalogueQuery.eligible && selection), pollStatementRead);
   const detailRead = readQuery.data;
   const isValidRead = selection !== null && completeDetailRead(detailRead);
+  if (isValidRead && detailRead !== undefined && detailRead.state === 'complete' && detailRead.generation !== null) {
+    displayedGenerationRef.current = {
+      asOf: detailRead.generation.asOf,
+      snapshotId: detailRead.generation.snapshotId,
+    };
+  }
   const unexpectedResult = selection !== null && detailRead?.state === 'complete' && detailRead.result !== null &&
     detailRead.result.viewKind !== 'account_breakdown';
 
@@ -145,10 +177,36 @@ const FinancialStatements: React.FC = () => {
     { value: 'profit_and_loss', label: t('financialStatements.profitAndLoss', 'Profit and loss') },
     { value: 'balance_sheet', label: t('financialStatements.balanceSheet', 'Balance sheet') },
   ];
+  const statementTitle = statementOptions.find((option) => option.value === statement)?.label ?? '';
   const scopeOptions = [
     { value: COMPANY_SCOPE, label: t('financialStatements.companyScope', 'Company') },
     ...namedProjectOptions,
   ];
+
+  const refreshNowMutation = useMutation({
+    mutationFn: () => repositories.financialStatements.refreshNow(),
+    // #1930: once the refresh intent is accepted, the sweep republishes the statement; refetch
+    // immediately, then poll on an interval until the new figures reach the screen (or the cap
+    // closes the window) so no manual reload is needed. Coalesced/unavailable poll nothing.
+    onSuccess: (result) => {
+      if (result === 'accepted') {
+        void queryClient.invalidateQueries({
+          queryKey: ['financial-statements'],
+          predicate: (query) => query.queryKey.includes('read'),
+        });
+        setRefreshWatch({ baseline: displayedGenerationRef.current, deadline: Date.now() + REFRESH_POLL_CAP_MS });
+      }
+    },
+  });
+  const refreshNote = refreshNowMutation.isError
+    ? t('financialStatements.refreshNowError', 'Could not request a refresh. Try again.')
+    : refreshNowMutation.data === 'accepted'
+      ? t('financialStatements.refreshNowQueued', 'Refresh requested. New figures appear shortly.')
+      : refreshNowMutation.data === 'coalesced'
+        ? t('financialStatements.refreshNowCoalesced', 'A refresh was requested recently.')
+        : refreshNowMutation.data === 'unavailable'
+          ? t('financialStatements.refreshNowUnavailable', 'Refresh is not available yet.')
+          : undefined;
 
   let sectionState: FinancialStatementsSectionState;
   let sectionRetry = () => undefined;
@@ -185,7 +243,7 @@ const FinancialStatements: React.FC = () => {
   if (loading || (session !== null && currentUser === null && profileError === null)) {
     return (
       <ListPage title={t('shell.nav.financialStatements', 'Financial statements')}>
-        <ListState variant="loading" />
+        <ListState variant="loading" shape="detail" />
       </ListPage>
     );
   }
@@ -204,6 +262,14 @@ const FinancialStatements: React.FC = () => {
             {t('financialStatements.backToDashboard', 'Back to dashboard')}
           </Button>
         </section>
+      </ListPage>
+    );
+  }
+
+  if (odooMode.odoo) {
+    return (
+      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')} className="min-w-0">
+        <OdooStatementsSection />
       </ListPage>
     );
   }
@@ -242,6 +308,7 @@ const FinancialStatements: React.FC = () => {
      
       className="min-w-0"
     >
+      {odooMode.error && <LedgerModeNotice className="mb-4" onRetry={odooMode.retry} />}
       {catalogue?.state === 'complete' && (
         <div className="mb-4 flex min-w-0 flex-col gap-4">
           <FormGrid className="min-w-0">
@@ -293,15 +360,21 @@ const FinancialStatements: React.FC = () => {
         </div>
       )}
       <FinancialStatementsSection
-        title={reportTitle(statement, t)}
+        title={statementTitle}
         state={sectionState}
         labels={sectionLabels}
         onRetry={sectionRetry}
+        refreshNow={{
+          label: t('financialStatements.refreshNow', 'Refresh now'),
+          pending: refreshNowMutation.isPending,
+          note: refreshNote,
+          onClick: () => refreshNowMutation.mutate(),
+        }}
       >
         {isValidRead && detailRead && detailRead.result.viewKind === 'account_breakdown' && (
           <NativeStatementPair
             pair={detailRead.result.payload}
-            reportTitle={reportTitle(statement, t)}
+            reportTitle={statementTitle}
             companyLabel={detailRead.companyLabel}
             currency={detailRead.generation.currency}
             presentation={detailRead.generation.presentation}

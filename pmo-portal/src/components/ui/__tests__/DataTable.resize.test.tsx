@@ -68,6 +68,16 @@ describe('DataTable column resizing', () => {
     expect(separator).toHaveAttribute('aria-valuenow', '112');
   });
 
+  it('a column whose header is not plain text names its resize handle with a capitalised key', () => {
+    desktop();
+    const nodeColumns: Column<Row>[] = [
+      { key: 'document', header: <span>Document</span>, cell: (row) => row.name, size: 180 },
+      { key: 'amount', header: 'Amount', cell: (row) => row.amount, align: 'num', size: 100 },
+    ];
+    renderTable({ rows, columns: nodeColumns, rowKey: (row) => row.id, tableId: 'resize-node-header' });
+    expect(screen.getByRole('separator', { name: 'Resize Document column' })).toBeInTheDocument();
+  });
+
   it('AC-TBL-RESIZE-001: Shift+Arrow adjusts by 64px, Enter resets, and Escape restores the pre-adjustment width', () => {
     desktop();
     renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'resize-keyboard' });

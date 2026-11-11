@@ -9,6 +9,8 @@ import { ToastProvider } from '@/src/components/ui';
  * resolves. Plan: W1-T12b
  */
 
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-pm', org_id: 'org-1' }, role: 'Project Manager' }),
 }));

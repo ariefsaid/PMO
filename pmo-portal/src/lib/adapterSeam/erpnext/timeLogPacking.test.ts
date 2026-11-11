@@ -94,6 +94,35 @@ describe('erpnext/timeLogPacking', () => {
     ).toThrow('daily-hours-exceed-24');
   });
 
+  it('packs hundredth-hour rows exactly in seconds and preserves ordering', () => {
+    const entries = [
+      { project_id: 'p-b', entry_date: '2026-07-20', hours: '0.02' },
+      { project_id: 'p-a', entry_date: '2026-07-20', hours: '0.01' },
+    ];
+    const logs = packTimeLogs(entries, '09:00:00');
+    expect(logs.map(({ from_time, to_time }) => [from_time, to_time])).toEqual([
+      ['2026-07-20 09:00:00', '2026-07-20 09:00:36'],
+      ['2026-07-20 09:00:36', '2026-07-20 09:01:48'],
+    ]);
+    expect(packTimeLogs([...entries].reverse(), '09:00:00')).toEqual(logs);
+  });
+
+  it('allows the exact end of the day and rejects later endpoints', () => {
+    const entry = { project_id: 'p-a', entry_date: '2026-12-31', hours: '15' };
+    expect(packTimeLogs([entry], '09:00:00')[0].to_time).toBe('2027-01-01 00:00:00');
+    expect(() => packTimeLogs([{ ...entry, hours: '15.01' }], '09:00:00')).toThrow('daily-hours-exceed-24');
+    expect(packTimeLogs([{ ...entry, hours: '0.01' }], '23:59:24')[0].to_time).toBe('2027-01-01 00:00:00');
+    expect(() => packTimeLogs([{ ...entry, hours: '0.02' }], '23:59:24')).toThrow('daily-hours-exceed-24');
+  });
+
+  it('rejects precision that cannot be represented exactly in seconds', () => {
+    expect(() => packTimeLogs([{ project_id: 'p-a', entry_date: '2026-07-20', hours: '0.001' }], '09:00:00')).toThrow(/unparseable hours/);
+  });
+
+  it('rejects an invalid configured start clock', () => {
+    expect(() => packTimeLogs([{ project_id: 'p-a', entry_date: '2026-07-20', hours: '1' }], '24:00:00')).toThrow('invalid-timesheet-day-start');
+  });
+
   it('AC-TSP-033 rejects an unparseable hours value rather than silently packing NaN minutes', () => {
     expect(() => packTimeLogs([{ project_id: 'p-a', entry_date: '2026-07-20', hours: 'abc' }], '09:00:00')).toThrow(
       /unparseable hours/,

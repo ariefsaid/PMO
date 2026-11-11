@@ -33,7 +33,7 @@ vi.mock(
 import { repositories } from "./index";
 import {
   clearOwnershipCache,
-  setDomainOwnership,
+  setTaskOwnership,
 } from "@/src/lib/adapterSeam/ownershipCache";
 beforeEach(() => {
   vi.clearAllMocks();
@@ -49,7 +49,7 @@ describe("contact repository routing", () => {
     notes: "Example note",
   };
   it("AC-CON-003 connected contact creation uses the companies command path and never inserts locally", async () => {
-    setDomainOwnership([{ domain: "companies", externalTier: "erpnext" }]);
+    setTaskOwnership([{ domain: "companies", externalTier: "erpnext" }]);
     await repositories.contact.create(input);
     expect(h.invoke).toHaveBeenCalledWith(
       "adapter-dispatch",

@@ -1,18 +1,14 @@
 import { LinkExistingRecordFolders } from '@/src/components/m365/LinkExistingRecordFolders';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, ConfirmDialog, EntityFormModal, FormGrid, Icon, ListState, SelectField, useEntityForm, type SubmitError } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { listDrives, listSites } from '@/src/lib/m365/graphClient';
+import { browseDrives, browseSites } from '@/src/lib/m365/graphClient';
 import { useDocumentLinkPermissions } from '@/src/components/m365/DocumentLinkPermissions';
 import { useMicrosoftDocuments, useSetDefaultLibrary } from '@/src/hooks/useMicrosoftDocuments';
-
-export interface M365DefaultLibraryCardProps {
-  /** Stable mount slot beside the Admin actions, e.g. a "Link existing folders" button. */
-  children?: React.ReactNode;
-}
 
 /**
  * Org default document library (AC-M365DOC-055/056/060). A singleton, Admin-managed starting point for
@@ -21,7 +17,7 @@ export interface M365DefaultLibraryCardProps {
  * plain database write and needs no connection at all. A failed read is shown as unavailable, never as
  * "None", and the setting is never changed by a member's Microsoft denial. Impersonation is view-only.
  */
-export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ children }) => {
+export const M365DefaultLibraryCard: React.FC = () => {
   const { t } = useTranslation();
   const permissions = useDocumentLinkPermissions();
   const { connection, defaultLibrary, isPending, defaultError, refetch } = useMicrosoftDocuments();
@@ -29,6 +25,11 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
   const [chooseOpen, setChooseOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const [clearError, setClearError] = useState<SubmitError | null>(null);
+
+  // Arriving by the "Choose the default document library" link: bring this card into view.
+  useEffect(() => {
+    if (window.location.hash === '#m365-default-library') document.getElementById('m365-default-library')?.scrollIntoView?.({ block: 'start' });
+  }, []);
 
   const canManage = permissions.manageDefault() && setDefault !== null;
   const connected = connection?.connected === true && connection.status === 'active';
@@ -49,7 +50,8 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
   }
 
   return (
-    <Card className="mb-3.5 p-4" data-testid="m365-default-library">
+    <>
+    <Card id="m365-default-library" className="mb-3.5 scroll-mt-4 p-4" data-testid="m365-default-library">
       <div className="flex items-center gap-2">
         <Icon name="folder" aria-hidden="true" />
         <h3 className="text-[15px] font-semibold text-foreground">
@@ -90,13 +92,14 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
               {t('m365Documents.defaultLibrary.clear', 'Clear default')}
             </Button>
           )}
-          <LinkExistingRecordFolders defaultAvailable={Boolean(defaultLibrary) && !readFailed} />
-          {children}
         </div>
       )}
       {canManage && !connected && !isPending && (
         <p className="mt-2 text-[12px] text-muted-foreground">
-          {t('m365Documents.defaultLibrary.connectHint', 'Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.')}
+          {t('m365Documents.defaultLibrary.connectHint', 'Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.')}{' '}
+          <Link to="/integrations" className="font-medium text-foreground underline underline-offset-2">
+            {t('m365Documents.defaultLibrary.connectLink', 'Open My integrations')}
+          </Link>
         </p>
       )}
 
@@ -122,6 +125,23 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
         onCancel={() => { setClearOpen(false); setClearError(null); }}
       />
     </Card>
+    {canManage && (
+      <Card className="mb-3.5 p-4" data-testid="m365-link-existing-folders-card">
+        <div className="flex items-center gap-2">
+          <Icon name="folder" aria-hidden="true" />
+          <h3 className="text-[15px] font-semibold text-foreground">
+            {t('m365Documents.linkFolders.heading', 'Link existing folders to records')}
+          </h3>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t('m365Documents.linkFolders.description', 'Match folders already in the default library to projects and cases that have none. This links folders only; it never creates one.')}
+        </p>
+        <div className="mt-3">
+          <LinkExistingRecordFolders defaultAvailable={Boolean(defaultLibrary)} readFailed={readFailed} />
+        </div>
+      </Card>
+    )}
+    </>
   );
 };
 
@@ -137,13 +157,13 @@ function ChooseLibraryModal({ onClose }: { onClose: () => void }) {
 
   const sites = useQuery({
     queryKey: ['m365-default-sites', orgId, userId],
-    queryFn: async () => (await listSites()).value,
+    queryFn: async () => (await browseSites()).value,
     retry: false,
   });
   const siteId = form.values.site;
   const drives = useQuery({
     queryKey: ['m365-default-drives', orgId, userId, siteId],
-    queryFn: async () => (await listDrives(siteId)).value,
+    queryFn: async () => (await browseDrives(siteId)).value,
     enabled: siteId !== '',
     retry: false,
   });

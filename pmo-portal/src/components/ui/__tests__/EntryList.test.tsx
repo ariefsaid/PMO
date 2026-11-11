@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { EntryList } from '../EntryList';
-import type { FlatEntry } from '@/src/lib/timesheet-derive';
+import type { TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
 
 const makeEntry = (
   id: string,
@@ -12,7 +12,7 @@ const makeEntry = (
   projectName: string,
   code: string | null,
   notes: string | null,
-): FlatEntry =>
+): TimesheetEntryWithProject =>
   ({
     id,
     timesheet_id: 'ts1',
@@ -21,11 +21,10 @@ const makeEntry = (
     entry_date,
     project_id: 'p1',
     notes,
-    sheetId: 'ts1',
     project: { name: projectName, code },
-  }) as unknown as FlatEntry;
+  }) as TimesheetEntryWithProject;
 
-const entries: FlatEntry[] = [
+const entries: TimesheetEntryWithProject[] = [
   makeEntry('e1', 8, '2026-06-02', 'Alpha Project', 'A001', 'Status call'),
   makeEntry('e2', 4, '2026-06-01', 'Beta Corp', null, null),
   makeEntry('e3', 2, '2026-05-30', 'Gamma', 'G002', ''),

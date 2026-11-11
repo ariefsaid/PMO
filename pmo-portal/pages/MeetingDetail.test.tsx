@@ -16,8 +16,8 @@ const { meetingState, attendeesState, grantsState, actionItemsState, profilesSta
       isError: false,
       refetch: vi.fn(),
     },
-    attendeesState: { data: [] as unknown[], isPending: false, isError: false },
-    grantsState: { data: [] as unknown[], isPending: false, isError: false },
+    attendeesState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+    grantsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
     actionItemsState: { data: [] as unknown[], isPending: false, isError: false },
     profilesState: {
       data: [
@@ -31,6 +31,7 @@ const { meetingState, attendeesState, grantsState, actionItemsState, profilesSta
       create: { mutateAsync: vi.fn(), isPending: false },
       update: { mutateAsync: vi.fn(), isPending: false },
       archive: { mutateAsync: vi.fn(), isPending: false },
+      restore: { mutateAsync: vi.fn(), isPending: false },
       remove: { mutateAsync: vi.fn(), isPending: false },
       addAttendee: { mutateAsync: vi.fn(), isPending: false },
       removeAttendee: { mutateAsync: vi.fn(), isPending: false },
@@ -50,7 +51,7 @@ vi.mock('@/src/hooks/useMeetings', () => ({
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade' }], isPending: false }),
+  useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }], isPending: false }),
 }));
 
 vi.mock('@/src/hooks/useTasks', () => ({
@@ -255,7 +256,13 @@ beforeEach(() => {
   meetingState.isPending = false;
   meetingState.isError = false;
   attendeesState.data = [];
+  attendeesState.isPending = false;
+  attendeesState.isError = false;
+  attendeesState.refetch.mockReset();
   grantsState.data = [];
+  grantsState.isPending = false;
+  grantsState.isError = false;
+  grantsState.refetch.mockReset();
   actionItemsState.data = [];
   profilesState.data = [
     { id: 'author-1', full_name: 'Ari Author', role: 'Engineer' },
@@ -308,16 +315,32 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
     expect(savedEvent.defaultPrevented).toBe(false);
   });
 
+  it('guards header edits during navigation and document unload with shared draft wording', async () => {
+    renderRoutedWithBreadcrumb();
+    await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+    await userEvent.type(screen.getByLabelText(/Title/), ' updated');
+
+    const dirtyEvent = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(dirtyEvent);
+    expect(dirtyEvent.defaultPrevented).toBe(true);
+
+    await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
+    expect(dialog).toHaveTextContent(/header or minutes/i);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
+    expect(screen.queryByTestId('meetings-index-probe')).not.toBeInTheDocument();
+  });
+
   it('blocks ordinary same-origin anchor activation while dirty; Stay preserves edits', async () => {
     renderRoutedWithBreadcrumb();
     await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
     await userEvent.click(screen.getByTestId('stub-type'));
 
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
 
-    expect(screen.queryByRole('dialog', { name: 'Unsaved minutes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Unsaved meeting changes' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('meetings-index-probe')).not.toBeInTheDocument();
     expect(screen.getByTestId('minutes-save')).toBeEnabled();
   });
@@ -336,7 +359,7 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
     await userEvent.click(screen.getByTestId('stub-type'));
 
     await userEvent.click(screen.getByRole('button', { name: /back to meetings/i }));
-    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
     expect(screen.queryByTestId('meetings-index-probe')).not.toBeInTheDocument();
 
     await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
@@ -384,7 +407,7 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
     await userEvent.click(screen.getByTestId('stub-type'));
 
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
 
     expect(await screen.findByTestId('state-probe')).toHaveTextContent('?project=p1|{"restoreScroll":120}');
@@ -396,7 +419,7 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
     await userEvent.click(screen.getByTestId('stub-type'));
 
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
 
     expect(await screen.findByTestId('meetings-index-probe')).toHaveTextContent('Meetings index');
@@ -537,6 +560,85 @@ describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
         userId: 'pm-1',
       }),
     );
+  });
+
+  it('keeps attendee loading independent and withholds access suggestions until both reads succeed', () => {
+    attendeesState.isPending = true;
+    renderPage('Engineer');
+
+    expect(screen.getByTestId('meeting-attendees-loading')).toBeInTheDocument();
+    expect(screen.getByTestId('grants-list')).toBeInTheDocument();
+    expect(screen.queryByText(/No attendees recorded/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('share-suggest-pm')).not.toBeInTheDocument();
+  });
+
+  it('keeps attendee loading from hiding a successful empty share list', () => {
+    grantsState.isPending = true;
+    renderPage('Engineer');
+
+    expect(screen.getByTestId('attendees-list')).toBeInTheDocument();
+    expect(screen.getByTestId('meeting-grants-loading')).toBeInTheDocument();
+    expect(screen.queryByText('Not shared with anyone yet.')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('share-suggest-pm')).not.toBeInTheDocument();
+  });
+
+  it('keeps cached attendees visible during failure, then uses recovered access for suggestions', async () => {
+    attendeesState.data = [{
+      id: 'a-cached', meeting_id: 'm1', profile_id: 'peer-1', contact_id: null, display_name: null,
+      profile: { id: 'peer-1', full_name: 'Putri Peer' }, contact: null,
+    }];
+    attendeesState.isError = true;
+    const view = renderPage('Engineer');
+
+    expect(screen.getByTestId('meeting-attendees-error')).toBeInTheDocument();
+    expect(within(screen.getByTestId('attendees-list')).getByText('Putri Peer')).toBeInTheDocument();
+    expect(screen.queryByText(/No attendees recorded/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('share-suggest-pm')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry attendees' }));
+    expect(attendeesState.refetch).toHaveBeenCalled();
+
+    attendeesState.data = [];
+    attendeesState.isError = false;
+    view.rerender(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>);
+    expect(await screen.findByTestId('share-suggest-pm')).toBeInTheDocument();
+  });
+
+  it('disables attendee writes while the attendee access list is unavailable', async () => {
+    attendeesState.data = [];
+    attendeesState.isError = true;
+    renderPage('Engineer');
+
+    expect(screen.getByTestId('meeting-attendees-error')).toBeInTheDocument();
+    await userEvent.type(screen.getByRole('textbox', { name: /^External guest$/ }), 'Guest One');
+    expect(screen.getByRole('combobox', { name: 'Add attendee' })).toBeDisabled();
+    expect(screen.getByTestId('attendee-add-guest')).toBeDisabled();
+  });
+
+  it('shows a retryable grant failure without offering access-dependent suggestions', async () => {
+    grantsState.data = [{
+      id: 'g-cached', meeting_id: 'm1', user_id: 'peer-1', granted_by: 'author-1',
+      granted_at: '2026-08-21T00:00:00Z', user: { id: 'peer-1', full_name: 'Putri Peer' },
+      granter: { id: 'author-1', full_name: 'Ari Author' },
+    }];
+    grantsState.isError = true;
+    const view = renderPage('Engineer');
+
+    expect(screen.getByTestId('meeting-grants-error')).toBeInTheDocument();
+    expect(within(screen.getByTestId('grants-list')).getByText('Putri Peer')).toBeInTheDocument();
+    expect(screen.queryByText('Not shared with anyone yet.')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('share-suggest-pm')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry sharing' }));
+    expect(grantsState.refetch).toHaveBeenCalled();
+
+    grantsState.data = [{
+      id: 'g-recovered', meeting_id: 'm1', user_id: 'pm-1', granted_by: 'author-1',
+      granted_at: '2026-08-22T00:00:00Z', user: { id: 'pm-1', full_name: 'Paula PM' },
+      granter: { id: 'author-1', full_name: 'Ari Author' },
+    }];
+    grantsState.isError = false;
+    view.rerender(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>);
+    expect(await within(screen.getByTestId('grants-list')).findByText('Paula PM')).toBeInTheDocument();
+    expect(screen.queryByTestId('share-suggest-pm')).not.toBeInTheDocument();
   });
 
   it('the PM suggestion disappears once the PM already holds a grant (never a duplicate)', () => {
@@ -684,6 +786,32 @@ describe('MeetingDetail — states', () => {
     expect(screen.getByTestId('meeting-delete')).toBeInTheDocument();
   });
 
+  it('restores an archived meeting for its author and hides restore from another viewer', async () => {
+    meetingState.data = { ...baseMeeting, archived_at: '2026-08-21T09:00:00Z' };
+    const view = renderPage('Engineer');
+    await userEvent.click(screen.getByTestId('meeting-restore'));
+    await waitFor(() => expect(mutations.restore.mutateAsync).toHaveBeenCalledWith('m1'));
+
+    view.unmount();
+    currentUserId = 'peer-1';
+    renderPage('Project Manager');
+    expect(screen.queryByTestId('meeting-restore')).not.toBeInTheDocument();
+  });
+
+  it('AC-002 #1325: the header project link shows the short name and titles the contractual one', () => {
+    meetingState.data = { ...baseMeeting, project: { ...baseMeeting.project, short_name: 'Harbour' } };
+    currentUserId = 'peer-1'; // a non-author sees the read-only header, where the project is a link
+    renderPage('Project Manager');
+    expect(screen.getByRole('link', { name: 'Harbour' })).toHaveAttribute('title', 'Harbour Upgrade');
+  });
+
+  it('AC-002 #1325: meeting header project selector shows the short name only on the selected project id', () => {
+    renderPage('Engineer');
+    const select = screen.getByLabelText(/Project/);
+    expect(select).toHaveValue('p1');
+    expect(within(select).getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
+  });
+
   it('AC-MTG1-005: inline header edits show Save/Cancel only when dirty and Cancel restores values', async () => {
     renderPage('Engineer');
     expect(screen.queryByTestId('meeting-header-save')).not.toBeInTheDocument();
@@ -775,7 +903,7 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
     when.focus();
     await userEvent.clear(when);
     await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
-    expect(await screen.findByText(/valid date and time/i)).toBeInTheDocument();
+    expect(await screen.findByText(/local time that exists/i)).toBeInTheDocument();
     expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
   });
 });

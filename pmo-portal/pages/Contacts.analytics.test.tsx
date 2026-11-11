@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -9,14 +9,24 @@ import { ToastProvider } from '@/src/components/ui';
 // Contacts.test.tsx's mock harness; adds the analytics facade mock.
 type Analytics = typeof import('@/src/lib/analytics');
 const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn<Analytics['trackEmptyStateSeen']>() }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
+vi.mock('@/src/hooks/useCompanyPartyMappings', () => ({ useCompanyPartyMappings: () => ({ ids: [], isPending: false, isError: false }) }));
+
 vi.mock('@/src/lib/analytics', async importOriginal => ({
   ...await importOriginal<Analytics>(),
   trackEmptyStateSeen: analytics.trackEmptyStateSeen,
 } satisfies Analytics));
 
-const { contactsState, companiesState, mutations, navigateMock } = vi.hoisted(() => ({
-  contactsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
-  companiesState: { data: [] as unknown[], isPending: false, isError: false },
+const { h, mutations, navigateMock } = vi.hoisted(() => ({
+  // #1989: the page reads ONE SERVER page, so the mock is a server stub mirroring the directory
+  // read's contract (company filter + search applied before the window, exact total).
+  h: {
+    directory: [] as Array<Record<string, unknown>>,
+    pending: false,
+    error: false,
+    refetch: vi.fn(),
+  },
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -28,11 +38,28 @@ const { contactsState, companiesState, mutations, navigateMock } = vi.hoisted(()
 }));
 
 vi.mock('@/src/hooks/useContacts', () => ({
-  useContacts: () => contactsState,
+  useContactsPage: (input: { companyId: string; search: string; page: number; pageSize: number }) => {
+    const q = input.search.trim().toLowerCase();
+    const matching = h.directory.filter((c) => {
+      const companyOk = input.companyId === 'All' || c.company_id === input.companyId;
+      const searchOk = !q || String(c.full_name).toLowerCase().includes(q) || String(c.email ?? '').toLowerCase().includes(q);
+      return companyOk && searchOk;
+    });
+    const start = (input.page - 1) * input.pageSize;
+    return {
+      data: { rows: matching.slice(start, start + input.pageSize), total: matching.length },
+      isPending: h.pending,
+      isError: h.error,
+      isFetching: false,
+      refetch: h.refetch,
+    };
+  },
+  useContactsTotal: () => ({ data: null, isPending: false, isError: false }),
+  useContactsExportAll: () => ({ mutateAsync: vi.fn(async () => h.directory), isPending: false }),
   useContactMutations: () => mutations,
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => companiesState,
+  useCompanyOptions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router')>();
@@ -58,17 +85,20 @@ const renderPage = (role: Role = 'Admin') => {
 };
 
 beforeEach(() => {
-  contactsState.data = [];
-  contactsState.isPending = false;
-  contactsState.isError = false;
+  h.directory = [];
+  h.pending = false;
+  h.error = false;
   analytics.trackEmptyStateSeen.mockClear();
   realRole = 'Admin';
 });
 
 describe('Contacts: empty_state_seen fires when there are zero contacts (FIX 1)', () => {
-  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', () => {
+  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', async () => {
     renderPage('Finance');
     expect(screen.getByText('No contacts yet')).toBeInTheDocument();
-    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith('contacts-empty', 'Finance', 'contacts');
+    // The facade is loaded lazily (ListState defers the analytics chunk off the first paint).
+    await waitFor(() => {
+      expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith('contacts-empty', 'Finance', 'contacts');
+    });
   });
 });

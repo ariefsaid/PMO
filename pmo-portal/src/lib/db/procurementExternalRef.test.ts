@@ -46,7 +46,7 @@ describe('#769 external reference — ledger, list search keys, RPC args', () =>
     expect(h.rpc).toHaveBeenLastCalledWith('create_purchase_order', expect.objectContaining({ p_external_ref: 'PRO-002' }));
   });
 
-  it('AC-EXT-001: create / capture vendor invoice forward p_external_ref', async () => {
+  it('AC-EXT-001: create / capture supplier invoice forward p_external_ref', async () => {
     const base = { procurementId: 'p1', status: 'Received' as const, invoiceDate: '2026-01-04', taxTreatment: 'exclusive' as const, taxAmount: 0 };
     await createInvoice({ ...base, externalRef: 'PRO-002' });
     expect(h.rpc).toHaveBeenLastCalledWith('create_procurement_invoice', expect.objectContaining({ p_external_ref: 'PRO-002' }));

@@ -56,6 +56,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import TasksTab from '../tabs/TasksTab';
+import { clearOwnershipCache, setTaskOwnership, setProjectBindings } from '@/src/lib/adapterSeam/ownershipCache';
 
 const profiles = [{ id: 'pm-1', full_name: 'Pat Manager', role: 'Project Manager' }];
 
@@ -104,6 +105,9 @@ const openEditFor = async (taskName: string) => {
 };
 
 beforeEach(() => {
+    clearOwnershipCache();
+    setTaskOwnership([]);
+    setProjectBindings([]);
   listState.data = [seededTask];
   listState.isPending = false;
   listState.isError = false;
@@ -210,5 +214,15 @@ describe('TasksTab — edit pre-fills and clears description + priority (AC-TASK
     await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
     const arg = mutations.update.mutateAsync.mock.calls[0][0];
     expect(arg.patch.description).toBeNull();
+  });
+});
+
+describe('DAL03-005 — an edit that leaves the parent alone does not re-send it', () => {
+  it('saving an edit without touching the parent omits parent_task_id from the update patch (a flat mirror is never re-asserted as top-level on the connected system)', async () => {
+    renderTab();
+    const dialog = await openEditFor('Pour the slab');
+    await userEvent.click(within(dialog).getByRole('button', { name: /save task/i }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
+    expect(mutations.update.mutateAsync.mock.calls[0][0].patch).not.toHaveProperty('parent_task_id');
   });
 });

@@ -13,19 +13,20 @@ import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { DocumentDriftBadge } from '@/src/components/m365/DocumentDriftBadge';
 
 /**
- * Auto-bump the revision mark: A→B, 3→4. If the last char is a letter or digit,
- * increment it; otherwise return empty string for manual entry.
+ * Auto-bump the revision mark: A→B, 3→4. Increment a full numeric suffix, preserving its width, or the last letter; otherwise return empty string for manual entry.
  */
 function bumpRevision(rev: string | null): string {
   if (!rev) return '';
+  const numeric = rev.match(/(\d+)$/);
+  if (numeric) {
+    const suffix = numeric[1];
+    const next = (BigInt(suffix) + 1n).toString().padStart(suffix.length, '0');
+    return rev.slice(0, -suffix.length) + next;
+  }
   const last = rev[rev.length - 1];
   if (/[a-yA-Y]/.test(last)) {
     return rev.slice(0, -1) + String.fromCharCode(last.charCodeAt(0) + 1);
   }
-  if (/[0-8]/.test(last)) {
-    return rev.slice(0, -1) + String.fromCharCode(last.charCodeAt(0) + 1);
-  }
-  if (last === '9') return rev.slice(0, -1) + '10';
   if (last === 'z' || last === 'Z') return rev + 'A';
   return '';
 }

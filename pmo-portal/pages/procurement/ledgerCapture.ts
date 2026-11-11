@@ -66,8 +66,11 @@ function unlockedKindForStatus(status: ProcurementStatus): RecordKind | null {
 export function nextExpectedType(
   status: ProcurementStatus,
   existingTypes: ReadonlySet<RecordType>,
+  startAt: RecordKind | null = null,
 ): RecordKind | null {
   if (TERMINAL_STATUSES.has(status)) return null;
+  // FR-PFE-001: a purchase started at a later step captures that step's document first (Draft, empty ledger only).
+  if (startAt && status === 'Draft' && existingTypes.size === 0) return startAt;
 
   const kind = unlockedKindForStatus(status);
   if (kind === null) return null;

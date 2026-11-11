@@ -17,7 +17,7 @@ const POPULATED = {
   totals: [{ currency: 'USD', remaining: 1300, count: 2 }],
   incompleteCount: 1,
   rows: [
-    { workOrderId: 'wo-1', woNumber: 'WO-1', title: 'Survey', projectId: 'p1', projectName: 'Harbor Tower', status: 'Issued', currency: 'USD', remaining: 1000, daysSinceClosed: null, clientPoNumber: 'PO-77' },
+    { workOrderId: 'wo-1', woNumber: 'WO-1', title: 'Survey', projectId: 'p1', projectName: 'Harbor Tower', status: 'Issued', currency: 'USD', remaining: 1000, daysSinceClosed: null, daysSinceAcceptance: null, clientPoNumber: 'PO-77' },
   ],
   incomplete: [{ workOrderId: 'wo-8', woNumber: 'WO-8', title: 'Cabling', projectId: 'p2', projectName: 'Annex' }],
 };
@@ -101,7 +101,7 @@ describe('StillToInvoiceCard dashboard polish', () => {
   it('UIP-010: preserves populated totals, tax basis, work-order details, and canonical links', () => {
     renderCard();
 
-    expect(screen.getByTestId('still-to-invoice-totals')).toHaveTextContent('$1,300.00');
+    expect(screen.getByTestId('still-to-invoice-totals')).toHaveTextContent('$1,300');
     expect(screen.getByTestId('still-to-invoice-totals')).toHaveTextContent('excl. PPN');
     expect(screen.getByTestId('still-to-invoice-totals')).toHaveTextContent('Work orders: 2');
     expect(screen.getByRole('link', { name: /WO-1/ })).toHaveAttribute('href', '/projects/p1/work-orders?wo=wo-1');

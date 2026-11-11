@@ -39,14 +39,17 @@ describe('whats_overdue through the handler (#787)', () => {
     const text = events.filter((e) => e.type === 'assistant').map((e) => e.text).join(''); // the panel concatenates with no separator
     expect(text).toContain('— 1 task, 1 invoice');
     expect(text).toContain(`[Pour foundation](/projects/${P1}/tasks) — Harbor Tower · due 2 Oct (4 days late) · Budi`);
-    expect(text).toContain('[ACC-SINV-2026-00012](/sales-invoices?q=ACC-SINV-2026-00012) — PT Client');
+    expect(text).toContain('[ACC-SINV-2026-00012](/finance/receivables?q=ACC-SINV-2026-00012) — PT Client');
 
     expect(text).toMatch(/\n\nTwo things need you\.$/); // list and closing sentence are separate blocks
 
     const toolMsg = create.mock.calls[1][0].messages.at(-1);
     expect(toolMsg.role).toBe('tool');
-    expect(JSON.parse(toolMsg.content).note).toMatch(/query_entity counts cover all tasks the user can see.*panel's own\/managed scope/i);
-    expect(JSON.parse(toolMsg.content)).toMatchObject({
+    const envelope = JSON.parse(toolMsg.content);
+    expect(envelope.untrusted_record_data).toBe(true);
+    const body = envelope.result;
+    expect(envelope.note).toMatch(/query_entity counts cover all tasks the user can see.*panel's own\/managed scope/i);
+    expect(body).toMatchObject({
       ok: true, overdueTasks: 1, overdueInvoices: 1,
       tasks: [{ name: 'Pour foundation', projectId: P1, projectName: 'Harbor Tower', assigneeName: 'Budi', dueDate: '2026-10-02', daysOverdue: 4 }],
       invoices: [{ siNumber: 'ACC-SINV-2026-00012', customerName: 'PT Client', outstanding: 850000000, projectId: P1, dueDate: '2026-10-01', daysOverdue: 5 }],

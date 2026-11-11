@@ -109,8 +109,8 @@ const OrgTaxDefault: React.FC = () => {
           <p data-testid="org-tax-default-readonly" className="text-[13px]">
             <span className="font-semibold">
               {current === 'inclusive'
-                ? t('admin.taxDefault.value.inclusive', 'Inclusive — the amount already includes tax')
-                : t('admin.taxDefault.value.exclusive', 'Exclusive — tax is on top of the amount')}
+                ? t('admin.taxDefault.value.inclusive', 'Inclusive: the amount already includes tax')
+                : t('admin.taxDefault.value.exclusive', 'Exclusive: tax is on top of the amount')}
             </span>
             <span className="ml-2 text-muted-foreground">
               {t('admin.taxDefault.adminOnly', 'Only an Admin can change this.')}

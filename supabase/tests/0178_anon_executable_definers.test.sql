@@ -74,6 +74,157 @@
 -- approval route, with its separation-of-duties exclusions proved by
 -- supabase/tests/0349_procurement_payment_ceiling.test.sql (AC-SEC-211/215).
 --
+-- ⚑ AMENDED BY 0360 (#1319): `set_procurement_gates` joins the retained set (+1, count 75). A SECURITY DEFINER
+-- writer called under a member's JWT that re-asserts active membership, the Admin role and the caller's org,
+-- and refuses unknown keys / non-boolean values; proved by supabase/tests/procurement_flexible_foundation.test.sql
+-- (FR-PFE-011). The other 0360 definers are service-role-only or non-writers and are deliberately NOT listed.
+--
+-- ⚑ AMENDED BY 0361 (#1319): `link_erp_purchase_documents`, `unlink_erp_purchase_document` and
+-- `link_procurement_sharepoint_item` join the retained set (+3, count 78). Each is a SECURITY DEFINER writer
+-- called under a member's JWT that re-asserts active membership, the caller's org and its role set
+-- (link/SharePoint: Admin, Executive, Project Manager, Finance; unlink: Admin, Finance); linking refuses
+-- cross-org, closed, mismatched and gated targets. Proved by supabase/tests/procurement_erp_links.test.sql
+-- (FR-PFE-020, NFR-PFE-012, AC-PFE-023) and supabase/tests/erp_purchase_orphans.test.sql (AC-PFE-017).
+-- The other 0361 definers are non-writers (`procurement_ledger_held`) or have no client EXECUTE.
+--
+-- ⚑ AMENDED BY 0364 (#1319 AC-13): `mark_erp_purchase_documents` joins the retained set (+1, count 79). A SECURITY
+-- DEFINER writer called under a member's JWT that re-asserts active membership, the Admin/Finance role and the
+-- caller's org, and refuses linked documents; proved by supabase/tests/procurement_erp_set_aside.test.sql (AC-13d).
+-- The 0364 trigger functions (org stamp, clear-on-link) have no client EXECUTE and are deliberately NOT listed; the
+-- clear-on-link effect is proved in the same file.
+--
+-- ⚑ AMENDED BY 0366 (#1326): `recategorise_budget_lines` joins the retained set (+1, count 80 after rebasing onto 0364, re-derived by hand
+-- from the list). A SECURITY DEFINER writer called under a member's JWT (the app, `pmo rpc`) that re-asserts
+-- active membership, the Admin role and the caller's org, and refuses lines on a non-Draft version; proved by
+-- supabase/tests/budget_travel_vehicle_categories.test.sql (AC-TVC-003/005).
+--
+-- ⚑ AMENDED BY 0367 (#1270 A): `link_m365_documents_batch` joins the retained set (+1, count 81 after 0366's 80). A SECURITY
+-- DEFINER writer under a member's JWT: active Admin/Executive/PM/Finance, org-scoped, host-pinned; proved by
+-- supabase/tests/api_client_operator_reads.test.sql (AC-OPR-003/005).
+--
+-- ⚑ AMENDED BY 0376 (#1271): `save_cost_attribution_rule` and `end_cost_attribution_rule` join the retained set (+2,
+-- count 83 after 0367's 81). SECURITY DEFINER writers under a member's JWT: active Admin/Finance, org from the JWT,
+-- targets limited to the caller's org; proved by supabase/tests/cost_attribution.test.sql (AC-CAT-011).
+-- ⚑ AMENDED BY #1462: `get_budget_archive_targets` joins the retained set (+1, count 149 on the 148-row list).
+-- A SECURITY DEFINER READ invoked through PostgREST under a member's JWT; its body re-asserts active
+-- membership, the caller's org, project access and the archive role gate, and it exposes no internal
+-- reference. Graceful pairing: supabase/tests/budget_archive_cancel_intents.test.sql (AC-BUD-122).
+-- ⚑ AMENDED BY #1813 (S3): `budget_distribution_gaps` and `save_budget_distribution` join the retained set (+2).
+-- ⚑ AMENDED BY 0588 (#1514 D1): `list_tm_claim_source_details` joins the retained set (+1). This SECURITY DEFINER read
+-- gates to the same amounts audience as `list_tm_claims` and scopes the claim to the JWT org; its role, cross-org and
+-- API-client tier contract is proved in `tm_reads.test.sql`.
+-- ⚑ AMENDED BY 0687: `attach_erp_journal_lines` and `detach_erp_journal_line` join (+2, count 156). Role- and org-gated definers under a member's JWT; anon/PUBLIC revoked.
+-- ⚑ AMENDED BY #1472 (S6B): `switch_budget_draft_mode` joins (+1, count 157). SECURITY DEFINER writer, authenticated member JWTs
+-- only; re-asserts active membership, org and the four budget-writer roles; proved by supabase/tests/budget_draft_mode_switch.test.sql.
+-- ⚑ AMENDED BY 0731 (#1415): `record_native_on_account_receipt`, `apply_native_receipt` and `unapply_native_allocation` join (+3). Finance/Admin-gated
+-- SECURITY DEFINER writers under a member's JWT (membership, role, org re-asserted; anon/PUBLIC revoked), proven by 0731_payment_allocation_*.test.sql.
+-- ⚑ AMENDED BY 0765 (#1507 S6): `switch_odoo_ledger_basis` joins (+1). Active-Admin writer under a member's JWT; anon/PUBLIC revoked; proved by odoo_ledger_basis.test.sql.
+-- Current retained set: 165 names after #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3), 0704 (#1817, +1), 0792 (#1413, +2) and 0854 (#1511 F3, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
+-- ⚑ AMENDED BY 0704 (#1817): `create_native_tm_invoice` joins (+1). SECURITY DEFINER writer under a member's JWT: re-asserts active membership,
+-- Admin / Finance, the org's own claim and that no ERP owns revenue; proved by supabase/tests/tm_native_invoice.test.sql.
+-- ⚑ AMENDED BY 0792 (#1413): `return_budget_version` and `resubmit_budget_version` join (+2, count 164). Member-JWT definers; re-assert org, active membership, the four budget roles and (return) the activation SoD; proved by supabase/tests/budget_return_to_pm.test.sql.
+--
+-- ⚑ AMENDED BY #1422: `archive_budget_version_with_cancel_intent` joins the retained set (+1, count 84).
+-- It preserves the four-role archive gate while atomically recording the ERP cancellation decision;
+-- proved by supabase/tests/budget_archive_cancel_intents.test.sql (AC-BUD-122).
+--
+-- ⚑ AMENDED BY 0393: `update_procurement_header` joins the retained set (+1, count 85).
+-- It checks active membership, org, requester/Admin authority and editable state;
+-- supabase/tests/procurement_header_requester.test.sql exercises its contract and ACL.
+--
+-- ⚑ AMENDED BY 0419 (#1532 S9): `admin_set_feedback_surveys` joins the retained set (+1, count 89 on top of dev's 88,
+-- re-derived by hand). Active-Admin writer under a member's JWT; supabase/tests/0419_feedback_surveys_switch.test.sql proves it.
+-- Anonymous grants remain subject to the sweep even for retained names.
+--
+-- ⚑ AMENDED BY 0412 (#1512): `set_stock_warehouse_keeper` joins the retained set (+1, count 90 once both 0419 and 0412 are on dev). A SECURITY
+-- DEFINER writer (the keeper table has no client write grant); its body gates on active membership, org and
+-- Admin rank; supabase/tests/stock_master_data.test.sql proves the contract.
+--
+-- ⚑ AMENDED BY 0413 (#1512 S2a): `create_stock_document`, `save_stock_draft`, `post_stock_document` and
+-- `cancel_stock_document` join the retained set (+4, count 94 on dev's 90, re-derived by hand from the list). SECURITY DEFINER
+-- writers (documents, lines, ledger and balances have no client write grant); each gates on active membership and
+-- the JWT org, and posting on keeper-or-Admin; stock_posting_guards / stock_tenant_isolation prove the contract.
+--
+-- ⚑ AMENDED BY 0422 (#1515): five imprest writers join the retained set (+5, count 99). Each re-asserts org, active
+-- membership and role (or the plan author / route) in its body; proven by imprest_floats/imprest_plans pgTAP.
+--
+-- ⚑ AMENDED BY 0423 (#1515): two replenishment writers join (+2, count 101). transition_expense_claim and
+-- record_expense_advance_return were already retained. Proven by imprest_replenishment pgTAP.
+-- ⚑ AMENDED BY 0418 (#1512 S6): `set_stock_reorder_level` joins the retained set (+1, count 102, re-derived by hand from the list). A SECURITY
+-- DEFINER writer (reorder levels have no client write grant); it gates on active membership, rank >= 20 and the JWT org;
+-- stock_reorder.test.sql proves the contract.
+--
+-- ⚑ AMENDED BY 0424 (#1515): record_imprest_count joins (+1, count 103 with 0418, re-derived by hand from the list); it re-asserts org, active membership and
+-- custodian-eligible-or-Finance/Admin in its body. The position/usage reads are invoker; imprest_float_choices is a
+-- read. Proven by imprest_position pgTAP.
+-- ⚑ 0426 (#1515 fix round) adds no definer: get_expense_claim_approval_routes and get_imprest_position stay invoker, re-created under
+-- their own names, so the retained count stays 104 (recounted by hand from the list below: 104 rows).
+-- ⚑ AMENDED BY 0442 (#1639): preview_task_reminders and send_task_reminders join the retained set (+2; merged with 0447 the count is 110). Each
+-- asserts active membership and the caller's org in its body; proven by supabase/tests/task_reminders.test.sql.
+-- ⚑ AMENDED BY 0410 (#1471): `set_sales_invoice_billing_kind` joins the retained set (+1, count 104 on dev's 103, re-derived by hand from the list). SECURITY
+-- DEFINER writer under a member's JWT; re-asserts active membership, Admin/Finance and the caller's org; paired with
+-- supabase/tests/billing_kinds_roles.test.sql (AC-007). `assign_sales_invoice_project` and
+-- `create_native_sales_invoice` changed signature only (proname unchanged).
+-- ⚑ AMENDED BY 0447 (#1519 S1): `save_equipment_usage`, `transition_equipment_usage`, `approve_equipment_usage_week` and
+-- `archive_equipment_usage` join the retained set (+4, count 108 on dev's 104, re-derived by hand from the list). SECURITY
+-- DEFINER writers (entries have no client INSERT/UPDATE grant); each re-asserts active membership and the JWT org, the
+-- transition checks approver ≠ author before the approver role; proved by equipment_usage / equipment_rls pgTAP.
+-- ⚑ AMENDED BY 0460 (#1519 S2): `save_equipment_costing` and `end_equipment_costing` join the retained set (+2, count 112 on
+-- dev's 110, re-derived by hand from the list). SECURITY DEFINER writers (settings have no client write grant); each re-asserts
+-- active membership and Admin/Finance, and the shared writer pins the JWT org; proved by equipment_costing / equipment_rls pgTAP.
+-- The four reads and previews (list_equipment_costing, list_equipment_allocations, list_equipment_usage_totals,
+-- preview_equipment_costing) are STABLE definers with no write text, so the sweep does not see them as writers.
+-- ⚑ AMENDED BY 0449 (#1513 S1): `set_subcontract_po_lines` and `issue_subcontract_po_lines` join the retained set (+2, count 112 with dev's additions,
+-- re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership, the caller's
+-- org and a Project Manager / Finance / Admin role in its body. Proven by supabase/tests/subcontract_po_lines.test.sql.
+-- ⚑ AMENDED BY 0470 (#1513 S2): `prepare_subcontract_acceptance`, `withdraw_subcontract_acceptance` and `confirm_subcontract_acceptance` join
+-- the retained set (+3, count 119 on dev's 116, re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT: each
+-- re-asserts active membership and the caller's org; prepare also the project's progress authority, confirm Admin / Finance and
+-- preparer ≠ confirmer unless the sole active member. Proven by supabase/tests/subcontract_acceptances.test.sql.
+-- ⚑ AMENDED BY 0472 (#1513 S3): `capture_subcontract_vendor_invoice` joins the retained set (+1, count 120 on dev's 119,
+-- re-derived by hand from the 120 rows of the merged list). A SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, the caller's org and the
+-- invoice-capture role, then wraps capture_vendor_invoice (role/SoD unchanged) and the bill cap. `subcontract_po_position` is
+-- SECURITY INVOKER and deliberately NOT listed; the cap, the billed read and both guards are definers revoked from clients.
+-- Proven by supabase/tests/subcontract_bill_caps.test.sql.
+-- ⚑ AMENDED BY 0474 (#1513 S4): `request_po_variation`, `decide_po_variation`, `issue_po_revision` and `link_po_variation` join the retained
+-- set (+4, count 124 on dev's 120, re-derived by hand from the 124 rows of the list). SECURITY DEFINER writers under a member's JWT:
+-- each re-asserts active membership, the caller's org and its role gate in the body; decide also requester ≠ approver and the shipped
+-- spend-approval route, issue also issuer ≠ approver unless the sole active member. `po_variation_route`, `work_order_cost_variations`
+-- and `project_subcontract_exposure` are SECURITY INVOKER and deliberately NOT listed. Proven by supabase/tests/po_variations.test.sql
+-- and subcontract_tenancy.test.sql.
+-- ⚑ AMENDED BY 0475 (#1513 S5): `attribute_subcontract_bill_lines` joins the retained set (+1, count 125 on dev's 124, re-derived by
+-- hand from the 125 rows of the list). A SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, then the Admin/Finance
+-- role, then the caller's org, and runs the same bill cap (D3) as the capture. `subcontract_cap_exceptions` is SECURITY INVOKER and
+-- `po_revision_push_refusal` is service-role only; neither is listed. Proven by supabase/tests/subcontract_erp_guards.test.sql.
+-- ⚑ AMENDED BY 0448 (#1638): redate_stage_entry, add_skipped_stage_entry and import_project_stage_history join the retained set (+3, count 113 on dev's 110, re-derived by hand from the list). Each re-asserts org, active membership and role rank >= Project Manager through assert_stage_date_editor; proven by pipeline_stage_history_write.test.sql.
+--
+-- ⚑ AMENDED BY 0480 (#1605): `accept_connect_proposals`, `decide_connect_review` and `unlink_connect_match` join the retained
+-- set (+3, count 128 on dev's 125, re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT; each re-asserts the
+-- org, active membership and the Admin (Finance for account rows) role in its body; proved by
+-- supabase/tests/erp_connect_setup.test.sql (AC-ECA-004/007). The seven other 0480 functions are service-role-only or internal.
+-- ⚑ AMENDED BY 0495 (#1603 ECA-6, renumbered from 0483): `consent_budget_occupant_replace` joins the retained set (+1, count 129 on
+-- dev's 128, derived from the database after a reset, which matches the 129 rows of the list). A SECURITY DEFINER
+-- writer under a member's JWT; it re-asserts org, active membership and Admin/Finance; proven by budget_occupant_resolution.test.sql.
+-- ⚑ AMENDED BY 0450 (#1614): `create_vault_secret_for_org` LEAVES the retained set (-1, count 109, re-derived by hand
+-- from the list). Only external-connect calls it, through the service role with p_actor_id; the frontend never did.
+-- With it off the list, a renewed authenticated grant fails AC-ACL-004 by name.
+--
+-- ⚑ AMENDED BY 0494 (#1606): `retry_connect_send` joined the prior retained set (+1; count 130). S1 plans adds five Operator writers and two authenticated projections (+7; current count 141). A SECURITY DEFINER writer under a member's JWT; it re-asserts the
+-- org, active membership and the Admin role in its body (a held send is released and queued again, audited); proved by
+-- supabase/tests/erp_connect_sends.test.sql. The other 0494 functions are service-role-only or internal.
+--
+-- ⚑ AMENDED BY 0498 (#1602 ECA-5, renumbered from 0484): `accept_invoice_pairs` and `unpair_invoice` join the retained
+-- set (+2; final count 136 from dev's 134, re-derived by hand from the merged list). SECURITY DEFINER writers
+-- under a member's JWT: re-assert active membership, org and Admin/Finance (accept also the ERP-owns-revenue gate
+-- and re-checks every pair on locked rows); proven by supabase/tests/invoice_pairs.test.sql. The proposal and candidate
+-- functions are INVOKER and not listed.
+--
+-- The budget import and procurement import-run commands retain authenticated access;
+-- their owning proofs are 0397_budget_import_protocol.test.sql and
+-- 0399_procurement_import_identity_authority.test.sql. Atomic draft creation is
+-- exercised by procurement_atomic_create.test.sql and its interleave companion.
+-- Anonymous and PUBLIC grants remain subject to the sweep.
+--
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
 -- line is a real conflict that resolves to one side — leaving a list of 51 asserted as 50. That is
@@ -93,41 +244,84 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(5);
+select plan(7);
 
 -- This is duplicated from 0185 as a visible proof contract. A future client RPC must retain its
 -- authenticated grant explicitly after the default-privilege guard; otherwise the count below fails.
 -- The names are by proname, matching the migration's conservative overload-safe allow-list (42 literal
 -- frontend calls plus six existing authenticated RPC contracts).
+-- ⚑ AMENDED BY 0517 (#1514 T3): `prepare_tm_signoff`, `withdraw_tm_signoff` and `confirm_tm_signoff` join the retained set (+3, count 148 on dev's 145,
+-- re-derived by hand from the 146 rows of the list). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership and the caller's
+-- org; prepare also the project's progress authority, confirm Admin / Finance and preparer ≠ confirmer unless the sole active member. Proven by
+-- supabase/tests/tm_signoff.test.sql.
+-- ⚑ AMENDED BY 0854 (#1511 F3): `accept_equipment_asset_matches` joins the retained set (+1, count 165, re-derived by
+-- hand from the list). SECURITY DEFINER writer under a member's JWT that re-asserts active membership, the Admin role,
+-- the caller's org, the employment of `equipment` under Odoo and each row's org before it writes; proven by
+-- supabase/tests/odoo_equipment_adoption.test.sql (AC-OFM-021). `list_equipment_asset_matches` is SECURITY INVOKER and
+-- `record_odoo_asset_created` is service-role only, so neither is listed.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 insert into client_callable_rpc_names (proname) values
+  ('accept_connect_proposals'),
+  ('accept_equipment_asset_matches'),  -- ⚑ AMENDED BY 0854 (#1511)
   ('activate_budget_version'),
+  ('return_budget_version'),
+  ('resubmit_budget_version'),
+  ('add_skipped_stage_entry'),
   ('assign_sales_invoice_project'),
   ('admin_set_user_status'),
   ('approve_procurement_amount'),
+  ('archive_budget_version_with_cancel_intent'),
+  ('get_budget_archive_targets'),
   ('approved_timesheet_for_push'),
+  ('approve_equipment_usage_week'),
+  ('archive_equipment_usage'),
   ('attach_claim_evidence'),
+  ('attach_erp_journal_lines'),  -- 0687: Admin/Exec/PM/Finance, org from the session; 0687 pgTAP
+  ('detach_erp_journal_line'),  -- 0687: Admin/Finance, org-scoped; 0687 pgTAP
+  ('attribute_subcontract_bill_lines'),
   ('attest_timesheet_no_erp_document'),
   ('cancel_native_receipt'),
+  ('cancel_stock_document'),
+  ('capture_subcontract_vendor_invoice'),
   ('capture_vendor_invoice'),
   ('claim_sales_invoice_author'),
   ('clone_budget_version'),
+  ('budget_distribution_gaps'),
+  ('save_budget_distribution'),
   ('confirm_erp_employee_link'),
+  ('confirm_subcontract_acceptance'),
   ('confirm_work_order_acceptance'),
+  ('consent_budget_occupant_replace'),
   ('create_native_sales_invoice'),
+  ('create_native_tm_invoice'),  -- ⚑ AMENDED BY 0704 (#1817)
+  ('decide_connect_review'),
   ('create_payment'),
   ('create_procurement_invoice'),
+  ('create_procurement_with_items'),
+  ('create_stock_document'),
+  ('decide_imprest_float_change'),
+  ('decide_po_variation'),
+  ('end_contract_rate_line'),  -- ⚑ AMENDED BY 0515 (#1514)
+  ('assemble_tm_claim'),  -- ⚑ AMENDED BY 0516 (#1514)
+  ('deselect_tm_source'),  -- ⚑ AMENDED BY 0516 (#1514)
+  ('prepare_tm_signoff'),  -- ⚑ AMENDED BY 0517 (#1514)
+  ('withdraw_tm_signoff'),  -- ⚑ AMENDED BY 0517 (#1514)
+  ('confirm_tm_signoff'),  -- ⚑ AMENDED BY 0517 (#1514)
+  ('establish_imprest_float'),
+  ('propose_imprest_float_amount'),
   ('record_vendor_withholding_slip'),
   ('correct_vendor_withholding_slip'),
+  ('unpair_invoice'),
   ('void_vendor_withholding_slip'),
   ('create_procurement_quotation'),
   ('create_procurement_receipt'),
   ('create_progress_claim'),
+  ('prepare_subcontract_acceptance'),
   ('prepare_work_order_acceptance'),
   ('create_purchase_order'),
   ('create_purchase_request'),
   ('create_rfq'),
-  ('create_vault_secret_for_org'),
+  ('end_contract_rate_assignee'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('get_budget_projection'),
   ('get_budget_push_status'),
   ('get_executive_dashboard'),
@@ -138,42 +332,99 @@ insert into client_callable_rpc_names (proname) values
   ('get_projects_milestone_dates'),
   ('get_sales_pipeline'),
   ('get_win_rate'),
+  ('import_budget_line_v2'),
+  ('import_project_stage_history'),
   ('is_operator'),
+  ('issue_po_revision'),
+  ('issue_subcontract_po_lines'),
+  ('link_erp_purchase_documents'),
+  ('link_po_variation'),
+  ('link_procurement_sharepoint_item'),
+  ('mark_erp_purchase_documents'),
+  ('link_m365_documents_batch'),
+  ('save_cost_attribution_rule'),
+  ('save_contract_rate_line'),  -- ⚑ AMENDED BY 0515 (#1514)
+  ('save_equipment_usage'),
+  ('save_equipment_costing'),
+  ('save_stock_draft'),
+  ('end_cost_attribution_rule'),
+  ('end_equipment_costing'),
   ('admin_change_domain_ownership'),
+  ('admin_set_feedback_surveys'),
   ('list_budget_fiscal_years'),
+  ('list_tm_claim_source_details'),  -- ⚑ AMENDED BY 0588 (#1514 D1)
   ('operator_agent_run_stats'),
   ('operator_create_org'),
   ('operator_grant_credits'),
   ('operator_set_domain_ownership'),
+  ('operator_set_org_plan'),
+  ('operator_set_global_feature'),
+  ('operator_clear_feature_override'),
+  ('operator_set_plan_feature'),
+  ('operator_set_plan_limits'),
   ('operator_set_org_lifecycle_state'),
   ('operator_list_orgs'),
+  ('post_stock_document'),
+  ('preview_task_reminders'),
   ('operator_toggle_feature'),
   ('operator_usage_summary'),
   ('org_agent_run_stats'),
   ('org_credit_balance'),
   ('org_usage_summary'),
+  ('resolved_org_features'),
+  ('operator_resolved_org_features'),
   ('record_expense_advance_return'),
+  ('record_imprest_count'),
   ('record_native_receipt'),
+  ('record_native_on_account_receipt'),  -- 0731 (#1415)
+  ('apply_native_receipt'),              -- 0731 (#1415)
+  ('unapply_native_allocation'),         -- 0731 (#1415)
+  ('recategorise_budget_lines'),
+  ('redate_stage_entry'),
   ('release_credits'),
   ('release_outbox_hold'),
+  ('request_financial_statement_refresh'),  -- 0685: Refresh now (Admin/Finance/Executive, org from the session)
+  ('request_imprest_replenishment'),
+  ('resolve_held_outbox_command'),  -- ⚑ AMENDED BY 0508, 0512, 0513 (#1505 P6, #1506 C5/C6)
+  ('request_po_variation'),
   ('reserve_credits'),
+  ('retry_connect_send'),
   ('save_timesheet_week'),
+  ('send_task_reminders'),
   ('select_procurement_quote'),
   ('set_procurement_invoice_efaktur'),
+  ('set_contract_rate_assignee'),  -- ⚑ AMENDED BY 0515 (#1514)
+  ('set_procurement_gates'),
   ('set_project_contract_value'),
+  ('set_sales_invoice_billing_kind'),
+  ('accept_invoice_pairs'),
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
+  ('set_stock_reorder_level'),
+  ('set_stock_warehouse_keeper'),
+  ('set_subcontract_po_lines'),
+  ('set_imprest_procurement_limit'),
   ('set_vendor_tax_defaults'),
   ('set_work_order_value'),
+  ('start_procurement_import_run'),
   ('submit_sales_invoice'),
+  ('switch_budget_draft_mode'),
+  ('switch_odoo_ledger_basis'),
   ('transition_document_status'),
+  ('transition_equipment_usage'),
   ('transition_expense_claim'),
+  ('transition_imprest_plan'),
+  ('transition_imprest_replenishment'),
   ('transition_native_sales_invoice'),
   ('transition_procurement'),
   ('transition_project'),
   ('transition_timesheet'),
   ('transition_work_order'),
+  ('unlink_connect_match'),
+  ('unlink_erp_purchase_document'),
+  ('update_procurement_header'),
   ('withdraw_progress_claim'),
+  ('withdraw_subcontract_acceptance'),
   ('withdraw_work_order_acceptance');
 
 select ok(
@@ -196,9 +447,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  74,
-  'AC-ACL-002 all 74 retained client-callable RPC names still have a public function');
-
+  165,
+  'AC-ACL-002 all 165 retained client-callable RPC names still have a public function');
 select is(
   (select count(*)::int
      from pg_proc p
@@ -206,12 +456,12 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  74,
-  'AC-ACL-003 all 74 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  165,
+  'AC-ACL-003 all 165 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
--- granted to both roles from being named twice. The empty allow-list is intentional here: migration
--- 0185's allow-list is the only safe exemption, and this test checks its resulting surface.
+-- granted to both roles from being named twice. Retained names exempt authenticated grants only;
+-- an anonymous or PUBLIC grant is always reported, including for retained writers.
 create temp view anon_definer_write_sweep as
 select distinct p.oid, p.proname
   from pg_proc p
@@ -223,12 +473,21 @@ select distinct p.oid, p.proname
    and (a.grantee = 0 or grantee.rolname in ('anon', 'authenticated'))
    and a.privilege_type = 'EXECUTE'
    and pg_get_functiondef(p.oid) ~* '(insert\s+into|update\s+(public\.)?[a-z_]|delete\s+from|merge\s+into)'
-   and not exists (select 1 from client_callable_rpc_names c where c.proname = p.proname);
+   and (a.grantee = 0 or grantee.rolname = 'anon'
+        or not exists (select 1 from client_callable_rpc_names c where c.proname = p.proname));
 
 select is(
   (select coalesce(string_agg(proname, ', ' order by proname), '') from anon_definer_write_sweep),
   '',
   'AC-ACL-004 no SECURITY DEFINER writer outside the client allow-list is explicitly executable by anon or authenticated (offenders are named)');
+
+-- An authenticated client exemption must never exempt an anonymous grant.
+grant execute on function public.update_procurement_header(uuid,jsonb) to anon;
+select is(
+  (select coalesce(string_agg(proname, ', ' order by proname), '') from anon_definer_write_sweep),
+  'update_procurement_header',
+  'AC-ACL-006 anonymous grants to retained client writers are named');
+revoke execute on function public.update_procurement_header(uuid,jsonb) from anon;
 
 -- REGRESSION: mutate the exact ACL class that production exposed. The sweep must return the function
 -- name; a count-only or authenticated-only implementation is not sufficient. The transaction rollback
@@ -249,6 +508,16 @@ select is(
 
 revoke execute on function public.anon_definer_write_probe() from anon, authenticated;
 drop function public.anon_definer_write_probe();
+
+-- 0644 adds no client-callable surface: the nightly and manual entry points are service-only, and the
+-- scheduling helper is owner-only. Pinned explicitly so a future accidental grant is named here.
+select ok(not has_function_privilege('anon','public.record_erp_statement_nightly_due(uuid,uuid,uuid,timestamptz)','EXECUTE')
+  and not has_function_privilege('authenticated','public.record_erp_statement_nightly_due(uuid,uuid,uuid,timestamptz)','EXECUTE')
+  and not has_function_privilege('anon','public.request_erp_statement_manual_intent(uuid,uuid,uuid,timestamptz)','EXECUTE')
+  and not has_function_privilege('authenticated','public.request_erp_statement_manual_intent(uuid,uuid,uuid,timestamptz)','EXECUTE')
+  and not has_function_privilege('anon','public._erp_statement_nightly_due_at(date,text)','EXECUTE')
+  and not has_function_privilege('authenticated','public._erp_statement_nightly_due_at(date,text)','EXECUTE'),
+  'AC-NS-004 nightly surfaces add no anonymous or authenticated execute');
 
 select * from finish();
 rollback;

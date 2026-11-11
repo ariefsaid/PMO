@@ -72,6 +72,9 @@ function routes(unexpected: FetchCall[]): MockRoute[] {
     supabaseRpc('domain_owned_by_tier', () => jsonResponse(true)),
     supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(true)),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
+    supabaseRpc('pre_cutover_procurement', () => jsonResponse(false)), // ECA-4: a purchase ordered after the connection
+    // FR-PFE-010 (#1319): the org's purchase gates, read before any ERP work — all OFF here (the owner's default).
+    supabaseRpc('procurement_gate_violation', () => jsonResponse(null)),
     supabaseRpc('read_vault_secret', () => jsonResponse(null)),
     supabaseSelect('external_org_bindings', () => objectResponse({
       site_url: ERP_SITE_URL, secret_ref: SECRET_REF, activated_at: '2026-01-01T00:00:00+00:00', version_major: 15,
@@ -178,6 +181,8 @@ describe('#876 slice 2 — entered vendor tax through the served adapter-dispatc
     const posts = r.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST' && c.url.pathname === '/api/resource/Purchase%20Invoice');
     assertEquals(posts.length, 1, r.body);
     const body = posts[0].bodyJson as Record<string, unknown>;
+    // The bill states the binding's company (never the integration user's default on a multi-company ERP).
+    assertEquals(body.company, COMPANY);
     assertEquals(body.taxes_and_charges, '');
     assertEquals(body.taxes, [
       { charge_type: 'Actual', account_head: VAT_ACCOUNT, description: 'VAT', tax_amount: 110000, category: 'Total', add_deduct_tax: 'Add', included_in_print_rate: 0 },

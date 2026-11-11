@@ -22,6 +22,10 @@
  */
 import type { AgentEvent } from '../../src/lib/agent/runtime/port';
 import type { ModelClient, ModelClientParams } from '../../../supabase/functions/_shared/modelClient';
+import {
+  OpenRouterModelClient,
+  modelOverrideFromEnv,
+} from '../../../supabase/functions/_shared/openRouterModelClient';
 
 /**
  * The collected outcome of one deployed run, consumed by every scorer.
@@ -84,6 +88,42 @@ export function contains(needle: string | RegExp): Scorer {
   };
 }
 
+/** `notContains(needle)` — passes iff the merged answer text does NOT contain / match the needle. Free. */
+export function notContains(needle: string | RegExp): Scorer {
+  return (run) => {
+    const matched = typeof needle === 'string' ? run.answerText.includes(needle) : needle.test(run.answerText);
+    const label = typeof needle === 'string' ? `"${needle}"` : needle.toString();
+    return matched ? { pass: false, reason: `answer unexpectedly matches ${label}` } : { pass: true, reason: `answer does not match ${label}` };
+  };
+}
+
+/**
+ * The judge's model id: the eval transport override's model when set, so a run makes no
+ * OpenRouter call; otherwise the configured cheap judge tier.
+ */
+export function judgeModelFromEnv(env: {
+  AGENT_MODEL_ID?: string;
+  EVAL_JUDGE_MODEL?: string;
+}): string {
+  return env.AGENT_MODEL_ID?.trim() || env.EVAL_JUDGE_MODEL || 'deepseek/deepseek-v4-flash';
+}
+
+/**
+ * Build the judge's model client from process env — the SAME transport the agent-chat run uses:
+ * OpenRouter when no override is set, the env override (base URL + key + model) when it is.
+ */
+export function judgeClientFromEnv(env: {
+  AGENT_MODEL_BASE_URL?: string;
+  AGENT_MODEL_API_KEY?: string;
+  AGENT_MODEL_ID?: string;
+  OPENROUTER_API_KEY?: string;
+}): ModelClient {
+  return new OpenRouterModelClient({
+    apiKey: env.OPENROUTER_API_KEY,
+    override: modelOverrideFromEnv(env),
+  });
+}
+
 /**
  * `llmJudge(rubric, opts?)` — asks a cheap-tier model to grade the answer PASS/FAIL
  * against `rubric`. The ONLY scorer that costs a model call. FR-AT2-EV-002, DEC-5.
@@ -93,18 +133,19 @@ export function contains(needle: string | RegExp): Scorer {
  * fail-closed), NEVER executed or re-injected as an instruction (NFR-AT2-SEC-005).
  *
  * `judgeClient` is injected (DI) so the scorer logic is unit-testable with a fake
- * client (no network). The eval runner wires the real `OpenRouterModelClient`; the
- * unit test wires a stub. `judgeModel` defaults to `EVAL_JUDGE_MODEL` at the call site.
+ * client (no network). When omitted the caller uses `judgeClientFromEnv`, which honours
+ * the eval transport override (`AGENT_MODEL_*`) — so an override run's judge makes no
+ * OpenRouter call either. `judgeModel` defaults to `judgeModelFromEnv`.
  */
 export function llmJudge(
   rubric: string,
   opts: {
-    judgeClient: ModelClient;
+    judgeClient?: ModelClient;
     judgeModel?: string;
-  },
+  } = {},
 ): Scorer {
   return async (run) => {
-    const model = opts.judgeModel ?? process.env.EVAL_JUDGE_MODEL ?? 'deepseek/deepseek-v4-flash';
+    const model = opts.judgeModel ?? judgeModelFromEnv(process.env);
     const prompt = buildJudgePrompt(rubric, run.answerText);
     const params: ModelClientParams = {
       model,
@@ -121,7 +162,8 @@ export function llmJudge(
     };
     let resp;
     try {
-      resp = await opts.judgeClient.create(params);
+      const client = opts.judgeClient ?? judgeClientFromEnv(process.env);
+      resp = await client.create(params);
     } catch (err) {
       return {
         pass: false,
@@ -193,6 +235,33 @@ export function proposesAction(name: string, check?: (args: Record<string, unkno
     const args = (proposal.payload as { structuredArgs?: Record<string, unknown> }).structuredArgs ?? {};
     if (check && !check(args)) return { pass: false, reason: `proposal for "${name}" did not carry the expected arguments` };
     return { pass: true, reason: `run proposed "${name}"` };
+  };
+}
+
+/** The run did NOT propose the named action (over-trigger guard). */
+export function noProposal(name: string): Scorer {
+  return (run) => {
+    const hit = run.events.some((e) => {
+      const p = e.payload as { status?: string; actionName?: string } | undefined;
+      return e.type === 'status' && p?.status === 'needs-approval' && p.actionName === name;
+    });
+    return hit ? { pass: false, reason: `unexpected needs-approval proposal for "${name}"` } : { pass: true, reason: `no "${name}" proposal` };
+  };
+}
+
+/**
+ * `notUsesTool(name)` — passes iff the run NEVER dispatched the named tool. Free (no model call).
+ *
+ * Plans S4 (FR-PLN-008) is the reason it exists: with a module's switch OFF the tool must not be
+ * offered, so a run that still dispatches it is either a leaked catalog or a stale switch snapshot.
+ * Distinct from `noProposal` (which reads a needs-approval status event for a confirm action).
+ */
+export function notUsesTool(name: string): Scorer {
+  return (run) => {
+    const hit = run.toolCalls.find((t) => t.name === name);
+    return hit
+      ? { pass: false, reason: `unexpected tool "${name}" was called` }
+      : { pass: true, reason: `tool "${name}" was not called` };
   };
 }
 

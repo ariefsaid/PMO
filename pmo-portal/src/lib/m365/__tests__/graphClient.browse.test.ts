@@ -4,11 +4,11 @@ const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { functions: { invoke } } }));
 
 import {
-  browseOneDrive, listSites, listDrives, getPersonalDrive, listChildren, browseSites, browseDrives,
+  browseOneDrive, browseSites, browseDrives, getPersonalDrive, listChildren,
   parseNextLink, searchDrive, listVersions, getItem, issueMicrosoftDocument,
   checkMicrosoftDocuments, refreshMicrosoftReferences,
 } from '../graphClient';
-import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-custody/proxy';
+import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-custody/graphRead';
 
 describe('Graph metadata browse transport', () => {
   beforeEach(() => invoke.mockReset());
@@ -18,7 +18,7 @@ describe('Graph metadata browse transport', () => {
       id: 'synthetic-item', name: 'Synthetic item', webUrl: 'https://example.invalid/item',
       parentReference: { driveId: 'synthetic-drive', path: '/drive/root:/Folder' },
       file: { mimeType: 'application/pdf', hashes: { quickXorHash: 'secret' } },
-      cTag: 'synthetic-ctag', downloadUrl: 'https://example.invalid/download?secret',
+      cTag: 'synthetic-ctag', lastModifiedDateTime: '2026-05-04T10:00:00Z', downloadUrl: 'https://example.invalid/download?secret',
       access_token: 'synthetic-token',
     }], '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/drive/root/children?$skiptoken=x' }, error: null });
 
@@ -30,7 +30,7 @@ describe('Graph metadata browse transport', () => {
     expect(page.value).toEqual([{
       drive_id: 'synthetic-drive', item_id: 'synthetic-item',
       web_url: 'https://example.invalid/item', name: 'Synthetic item', item_kind: 'file',
-      parent_path: '/drive/root:/Folder', content_tag: 'synthetic-ctag', sharepoint_ids: null,
+      parent_path: '/drive/root:/Folder', content_tag: 'synthetic-ctag', modified_at: '2026-05-04T10:00:00Z', sharepoint_ids: null,
     }]);
     expect(page.unsupported_count).toBe(0);
     expect(JSON.stringify(page)).not.toMatch(/downloadUrl|secret|access_token|synthetic-token/);
@@ -42,8 +42,8 @@ describe('Graph metadata browse transport', () => {
         ? { data: { id: 'personal-drive', name: 'OneDrive', webUrl: 'https://example.invalid/drive' }, error: null }
         : { data: { value: [] }, error: null },
     ));
-    await listSites();
-    await listDrives('site-id');
+    await browseSites();
+    await browseDrives('site-id');
     await listChildren('drive-id');
     await listChildren('drive-id', 'folder-id');
     await getPersonalDrive();
@@ -61,7 +61,7 @@ describe('Graph metadata browse transport', () => {
       expect(request.path).not.toMatch(/mail|content/i);
     }
     expect(scopeCoversPath(['Files.Read', 'Files.Read.All', 'Sites.Read.All'], 'GET', '/me/messages')).toBe(false);
-    expect(() => listDrives('../mail')).toThrow();
+    expect(() => browseDrives('../mail')).toThrow();
     expect(() => listChildren('drive%2Fmail')).toThrow();
   });
 

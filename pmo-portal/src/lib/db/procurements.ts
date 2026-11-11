@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import { resolveRange, type PageParams } from '@/src/lib/pagination';
+import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 import { attachApprovalRoutes } from './approvalRoutes';
 import type { ApprovalRoute } from '@/src/lib/procurement/approvalRoute';
 
@@ -8,7 +8,7 @@ export type ProcurementRow = Tables<'procurements'>;
 
 /** A procurement row with project/vendor/requester names resolved in SQL (kills render-time .find()). */
 export type ProcurementWithRefs = ProcurementRow & {
-  project: { name: string; code: string | null; pmo_project_number?: string | null } | null;
+  project: { name: string; short_name?: string | null; code: string | null; pmo_project_number?: string | null; project_manager_id?: string | null } | null;
   vendor: { name: string } | null;
   requested_by: { full_name: string } | null;
   /** #803: present only on a Requested row whose route was read (see attachApprovalRoutes). */
@@ -17,6 +17,16 @@ export type ProcurementWithRefs = ProcurementRow & {
   pr_refs?: { external_ref: string | null }[];
   po_refs?: { external_ref: string | null }[];
   vi_refs?: { external_ref: string | null }[];
+  /** FR-PFE-037: the server's open commitment (SQL `procurement_open_commitment`); the list sums this, not total_value. */
+  open_commitment?: number | null;
+  /** Project-detail stage dates, loaded in one embedded query rather than one detail request per row. */
+  status_events?: Pick<Tables<'procurement_status_events'>, 'to_status' | 'created_at'>[];
+  /** Shared procurement list calculation inputs, fetched in the same query (no row-by-row detail reads). */
+  purchase_requests?: Pick<Tables<'purchase_requests'>, 'amount' | 'date' | 'created_at' | 'external_ref'>[];
+  purchase_orders?: Pick<Tables<'purchase_orders'>, 'amount' | 'date' | 'created_at' | 'external_ref'>[];
+  receipts?: Pick<Tables<'procurement_receipts'>, 'receipt_date' | 'created_at'>[];
+  procurement_invoices?: Pick<Tables<'procurement_invoices'>, 'amount' | 'invoice_date' | 'created_at' | 'erp_outstanding_amount' | 'external_ref'>[];
+  payments?: Pick<Tables<'payments'>, 'amount' | 'date' | 'created_at' | 'status'>[];
 };
 
 /** Every non-empty external reference on a case's PR / PO / vendor-invoice records, in that order. */
@@ -27,23 +37,47 @@ export function externalRefsOf(p: ProcurementWithRefs): string[] {
 }
 
 const SELECT =
-  '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name)';
+  '*, project:projects(name,short_name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), open_commitment:procurement_open_commitment';
 
-/** #769: the Procurement index's OWN select — adds the three record-reference embeds (search + export).
+/** The shared list's open commitment is NOT embedded: the per-row SQL function costs ~4.6 ms a row, so
+ *  `attachOpenCommitments` reads it for every listed row in one set-based call (`procurement_open_commitments`). */
+const SELECT_SHARED_LIST =
+  '*, project:projects(name,short_name,code,project_manager_id), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name)';
+
+const PROCUREMENT_LIST_DETAILS = [
+  'status_events:procurement_status_events(to_status,created_at)',
+  'purchase_requests(amount,date,created_at,external_ref)',
+  'purchase_orders(amount,date,created_at,external_ref)',
+  'receipts:procurement_receipts(receipt_date,created_at)',
+  'procurement_invoices(amount,invoice_date,created_at,erp_outstanding_amount,external_ref)',
+  'payments(amount,date,created_at,status)',
+].join(', ');
+
+/** Procurement index select: references for search plus the shared list's money/stage inputs.
  *  Approvals, dashboards and every other `listProcurements` caller keep the lean `SELECT`. */
 const SELECT_WITH_REFS =
   `${SELECT}, pr_refs:purchase_requests(external_ref), po_refs:purchase_orders(external_ref), vi_refs:procurement_invoices(external_ref)`;
 
+/** PERF-DASH-1: the dashboards' list. The shared list's money/stage inputs without the SQL open commitment (a
+ *  per-row function, most of the read's cost) and the search-only record-reference embeds, which no dashboard shows. */
+const SELECT_LEAN_DETAILS =
+  `*, project:projects(name,short_name,code,project_manager_id), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), ${PROCUREMENT_LIST_DETAILS}`;
+
+const SELECT_WITH_SHARED_DETAILS =
+  `${SELECT_SHARED_LIST}, ${PROCUREMENT_LIST_DETAILS}, pr_refs:purchase_requests(external_ref), po_refs:purchase_orders(external_ref), vi_refs:procurement_invoices(external_ref)`;
+
+/** The shared project list carries the same finance and stage inputs as the company-wide list. */
+const PROJECT_DETAIL_SELECT = `${SELECT_WITH_SHARED_DETAILS}`;
+
 /**
- * Committed-spend basis for ONE project (OD-W5-4): Σ procurement total_value where the PR is
- * Ordered / Received / Vendor Invoiced / Paid — the EXACT basis the dashboards use
- * (0009_dashboard_margin.sql `on_hand.spent`). org_id is NEVER sent — RLS scopes by org.
- * Returns 0 when the project has no committed POs.
- *
- * SINGLE DEFINITION (OD-BUDGET-2): committed spend = Σ(total_value) for statuses Ordered,
- * Received, Vendor Invoiced, Paid. The three implementations of this basis — this client hook,
- * projects.spent (0009), and get_projects_delivery.committed_spend (0026) — MUST agree. A pgTAP
- * drift guard (0069_dashboard_at_risk_boundary.test.sql) asserts the SQL pair stays in sync.
+ * Committed-spend statuses (OD-BUDGET-2): Ordered / Received / Vendor Invoiced / Paid. The spend
+ * basis itself is SQL `project_committed_spend` (0361; per currency since 0373): Σ open commitment
+ * (`procurement_open_commitment`) over purchases in these statuses. In an org that reads its
+ * ledger from the ERP, a purchase contributes its total minus the amounts the ledger already
+ * holds (floored at 0) — NOT a full case total; when no ledger is read, the full total is the
+ * PMO-proxy commitment. Dashboards label the DD-MONEY-1 actual separately ("Recorded spending"):
+ * mapped ledger cost when the org reads its ledger, else this committed-purchase basis.
+ * org_id is NEVER sent — RLS scopes by org. See getProjectCommittedSpend below (the RPC caller).
  */
 export const COMMITTED_STATUSES: ProcurementRow['status'][] = [
   'Ordered',
@@ -52,17 +86,33 @@ export const COMMITTED_STATUSES: ProcurementRow['status'][] = [
   'Paid',
 ];
 
-export async function getProjectCommittedSpend(projectId: string): Promise<number> {
-  const { data, error } = await supabase
-    .from('procurements')
-    .select('total_value')
-    .eq('project_id', projectId)
-    .in('status', COMMITTED_STATUSES);
+/** Committed spend for one project: the figure in the project's currency, and each other currency kept apart. */
+export interface ProjectCommittedSpend {
+  /** Open commitment in the project's currency. */
+  amount: number;
+  /** Open commitments in other currencies — never added to `amount` and never shown as the project currency. */
+  otherCurrencies: Array<{ currency: string; amount: number }>;
+}
+
+/**
+ * Committed spend for ONE project — SINGLE DEFINITION is SQL `project_committed_spend` (0361, FR-PFE-037; per currency
+ * since 0373): Σ open commitment over Ordered..Paid purchases; in an ERP-ledger org an invoice already on the ledger is
+ * not counted again (ADR-0093). No conversion: a purchase in another currency is its own position.
+ */
+export async function getProjectCommittedSpend(projectId: string): Promise<ProjectCommittedSpend> {
+  const { data, error } = await supabase.rpc('project_committed_spend', { p_project_id: projectId });
   if (error) throw new Error(error.message);
-  return (data ?? []).reduce(
-    (sum, row) => sum + Number((row as { total_value: number }).total_value ?? 0),
-    0,
-  );
+  return parseCommittedSpend(data ?? []);
+}
+
+/** Maps `project_committed_spend` rows; shared by the per-endpoint read and the Overview read-model. */
+export function parseCommittedSpend(rows: Array<{ currency: string; amount: number | string; is_project_currency: boolean }>): ProjectCommittedSpend {
+  const own = rows.find((row) => row.is_project_currency);
+  return {
+    amount: Number(own?.amount ?? 0),
+    otherCurrencies: rows.filter((row) => !row.is_project_currency)
+      .map((row) => ({ currency: row.currency, amount: Number(row.amount) })),
+  };
 }
 
 /**
@@ -77,36 +127,72 @@ export const RESERVED_STATUSES: ProcurementRow['status'][] = [
   'Quote Selected',
 ];
 
-export async function getProjectReservedSpend(projectId: string): Promise<number> {
-  const { data, error } = await supabase
-    .from('procurements')
-    .select('total_value')
-    .eq('project_id', projectId)
-    .in('status', RESERVED_STATUSES);
+export interface ProjectReservedSpend {
+  amount: number;
+  projectCurrency: string | null;
+  budgetCurrency: string | null;
+  otherCurrencies: Array<{ currency: string | null; amount: number }>;
+}
+
+export async function getProjectReservedSpend(projectId: string): Promise<ProjectReservedSpend> {
+  const { data, error } = await supabase.rpc('project_reserved_position', { p_project_id: projectId });
   if (error) throw new Error(error.message);
-  return (data ?? []).reduce(
-    (sum, row) => sum + Number((row as { total_value: number }).total_value ?? 0),
-    0,
-  );
+  if (!data?.length) throw new Error('Project budget position unavailable');
+  const { project_currency: projectCurrency, budget_currency: budgetCurrency, positions } = data[0];
+  if (!Array.isArray(positions)) throw new Error('Project budget position unavailable');
+  const amounts = positions.map((position) => {
+    if (!position || typeof position !== 'object' || Array.isArray(position) ||
+        !(typeof position.currency === 'string' || position.currency === null) ||
+        !['string', 'number'].includes(typeof position.amount) || !Number.isFinite(Number(position.amount)) ||
+        Math.abs(Number(position.amount)) >= 2 ** 46) {
+      throw new Error('Project budget position unavailable');
+    }
+    return { currency: position.currency, amount: Number(position.amount) };
+  });
+  const own = projectCurrency ? amounts.find((row) => row.currency === projectCurrency) : undefined;
+  return {
+    amount: own?.amount ?? 0, projectCurrency, budgetCurrency,
+    otherCurrencies: amounts.filter((row) => (!projectCurrency || row.currency !== projectCurrency) && row.amount !== 0),
+  };
+}
+
+const OPEN_COMMITMENT_CHUNK = 1000;
+
+/** FR-PFE-037: each row's `open_commitment`, one RPC per 1,000 rows. SECURITY INVOKER: RLS decides which ids exist.
+ *  A failed read throws: a silent fallback to `total_value` would show a different committed figure. */
+async function attachOpenCommitments<T extends { id: string }>(rows: T[]): Promise<(T & { open_commitment?: number | null })[]> {
+  if (rows.length === 0) return rows;
+  const chunks: string[][] = [];
+  for (let i = 0; i < rows.length; i += OPEN_COMMITMENT_CHUNK) chunks.push(rows.slice(i, i + OPEN_COMMITMENT_CHUNK).map((r) => r.id));
+  const results = await Promise.all(chunks.map((p_ids) => supabase.rpc('procurement_open_commitments' as never, { p_ids } as never) as unknown as PromiseLike<{
+    data: { procurement_id: string; amount: number | string | null }[] | null;
+    error: { message: string; code?: string } | null;
+  }>));
+  const byId = new Map<string, number | null>();
+  for (const { data, error } of results) {
+    if (error) throw new Error(error.message);
+    for (const r of data ?? []) byId.set(r.procurement_id, r.amount == null ? null : Number(r.amount));
+  }
+  return rows.map((r) => (byId.has(r.id) ? { ...r, open_commitment: byId.get(r.id) } : r));
 }
 
 /**
  * List procurements for the caller's org. org_id is NEVER sent — RLS (org_id = auth_org_id())
- * scopes rows (FR-DAL-PROC-001). Paginated (data-layer performance hardening #4, OPT-IN):
- * passing `params.page`/`params.pageSize` range-bounds the query; omitting `params` entirely
- * preserves the original unbounded read for every existing caller (e.g. the ⌘K CommandPalette
- * record search, which indexes the full cached list).
+ * scopes rows (FR-DAL-PROC-001). Reads every page by keyset (ordered by id) so the list is never cut at the row cap: the ⌘K CommandPalette record search indexes
+ * the full cached list. `status` filters server-side (the approvals queue reads only `Requested`).
  */
 export async function listProcurements(
-  params?: PageParams,
-  opts?: { withRefs?: boolean },
+  opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; withoutRoutes?: boolean; status?: ProcurementRow['status'] },
 ): Promise<ProcurementWithRefs[]> {
-  const range = resolveRange(params);
-  let q = supabase.from('procurements').select(opts?.withRefs ? SELECT_WITH_REFS : SELECT);
-  if (range) q = q.range(range.from, range.to);
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
-  return attachApprovalRoutes((data ?? []) as unknown as ProcurementWithRefs[]);
+  const selection = opts?.lean ? SELECT_LEAN_DETAILS : opts?.withSharedDetails ? SELECT_WITH_SHARED_DETAILS : opts?.withRefs ? SELECT_WITH_REFS : SELECT;
+  const data = await fetchAllRowsByKeyset((afterId, limit) => {
+    let query = supabase.from('procurements').select(selection).order('id', { ascending: true }).limit(limit);
+    if (opts?.status) query = query.eq('status', opts.status);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
+  });
+  const rows = selection === SELECT_WITH_SHARED_DETAILS ? await attachOpenCommitments(data) : data;
+  return opts?.withoutRoutes ? rows : attachApprovalRoutes(rows);
 }
 
 /**
@@ -116,24 +202,29 @@ export async function listProcurements(
  * RLS scopes rows.
  */
 export async function listProcurementsByProject(projectId: string): Promise<ProcurementWithRefs[]> {
-  const { data, error } = await supabase
-    .from('procurements')
-    .select(SELECT)
-    .eq('project_id', projectId);
-  if (error) throw new Error(error.message);
-  return attachApprovalRoutes((data ?? []) as unknown as ProcurementWithRefs[]);
+  const data = await fetchAllRowsByKeyset((afterId, limit) => {
+    let query = supabase.from('procurements').select(PROJECT_DETAIL_SELECT)
+      .eq('project_id', projectId).order('id', { ascending: true }).limit(limit);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
+  });
+  return attachApprovalRoutes(await attachOpenCommitments(data));
 }
 
 /**
  * List procurements for a given vendor company (AC-IFW-COMPANY-01). Returns all PRs where
  * `vendor_id = vendorId` so the company record shows the full procurement history. org_id is
  * NEVER sent — RLS (procurements select: org_id = auth_org_id()) scopes rows. No new RLS.
+ *
+ * ⚑ #1774 — a vendor's history has no natural ceiling, so this pages by KEYSET (like
+ * `listProcurements` / `listProcurementsByProject` beside it): PostgREST's 1,000-row cap would
+ * otherwise cut the company record's procurement history short with no error.
  */
 export async function listProcurementsByVendor(vendorId: string): Promise<ProcurementWithRefs[]> {
-  const { data, error } = await supabase
-    .from('procurements')
-    .select(SELECT)
-    .eq('vendor_id', vendorId);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as ProcurementWithRefs[];
+  return fetchAllRowsByKeyset((afterId, limit) => {
+    let query = supabase.from('procurements').select(SELECT)
+      .eq('vendor_id', vendorId).order('id', { ascending: true }).limit(limit);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
+  });
 }

@@ -690,7 +690,7 @@ The migration-0023 immutability bug behind this was fixed in PR #80; 0023 is byt
 ## ⟨COMPLETED — MERGED to `main`⟩ KANNA gap-closing (waves 0–3 + coherence; detail in `history.md`)
 > Not active. KANNA shipped long ago (via #118 + the squash PRs); `kanna-program.md` is archived. Kept below for reference only.
 **Execution plan + wave sequencing: [`docs/kanna-program.md`](kanna-program.md)** — read it before any fan-out.
-Gap analysis (what's missing): `docs/reviews/2026-06-11-kanna-gap-analysis.md`. Model: **parallel waves of ≤3–4
+Gap analysis (what's missing): (a competitor review, kept private). Model: **parallel waves of ≤3–4
 independent issues** (worktree + PR each; CI verifies in parallel on the public repo), with all owner-interactive
 gates (grill-with-docs + owner-approved mockup) **front-loaded & serialized through the Director** per wave.
 Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.

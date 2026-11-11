@@ -1,3 +1,4 @@
+import '@/test/stubGetAnimations';
 /**
  * AC-RD-SUB-PL-A — the Projects table says each fact once (v0.24 UI subtraction).
  * The default screen carries fewer elements: one help sentence, one Filters trigger, no
@@ -107,14 +108,14 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     expect(ids).toHaveClass('font-mono');
   });
 
-  it('classification fields live inside the one Filters disclosure (no second trigger)', async () => {
+  it('classification fields live inside the one filter builder (no second trigger)', async () => {
     renderPage();
     expect(screen.queryByRole('button', { name: /^Classification/ })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /^Filters/ })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /^Add filter$/ })).toHaveLength(1);
     expect(screen.queryByLabelText('Filter by service line')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /^Filters/ }));
-    expect(screen.getByLabelText('Filter by service line')).toBeInTheDocument();
-    expect(screen.getByLabelText('Filter by customer')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Add filter$/ }));
+    expect(await screen.findByRole('option', { name: 'Service line' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Customer' })).toBeInTheDocument();
   });
 
   it('Actual cells are amount only; one table note carries partial coverage and the date', () => {
@@ -125,9 +126,14 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     const notes = screen.getAllByText(/Actual is partial on/);
     expect(notes).toHaveLength(1);
     expect(notes[0]).toHaveTextContent('Actual is partial on 2 of 25 projects. Updated');
-    // null Actual stays unavailable, never 0
-    const partialRow = screen.getByText('Synthetic project 1').closest('tr')!;
-    expect(within(partialRow).getAllByText('Unavailable').length).toBeGreaterThan(0);
+    // Null Actual leaves the amount cell blank; the shared note explains the partial coverage.
+    const table = screen.getByRole('table');
+    const partialRow = [...table.querySelectorAll<HTMLTableRowElement>('tbody tr')].find((row) => row.textContent?.includes('Synthetic project 1'))!;
+    const actualColumn = [...table.querySelectorAll('thead th')].findIndex((header) => (header as HTMLElement).dataset.colKey === 'actual');
+    const actualCell = partialRow.cells.item(actualColumn);
+    expect(actualColumn).toBeGreaterThanOrEqual(0);
+    expect(actualCell).not.toBeNull();
+    expect(actualCell?.textContent?.trim()).toBe('');
     expect(within(partialRow).queryByText('$0.00')).not.toBeInTheDocument();
   });
 
@@ -149,7 +155,7 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     const body = document.querySelector('tbody')!;
     expect(within(body).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
     const bar = within(screen.getByText('Synthetic project 4').closest('tr')!).getByRole('progressbar', { name: '25% of Active budget' });
-    expect(bar.closest('[title]')).toHaveAttribute('title', '$1,000,004.00 of $4,000,000.00 Active budget');
+    expect(bar.closest('[title]')).toHaveAttribute('title', '$1,000,004 of $4,000,000 Active budget');
   });
 
   it('Progress without phases is a dash, not "No phases yet"', () => {
@@ -159,14 +165,15 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     expect(within(noPhases).getByRole('img', { name: 'No phases yet' })).toHaveTextContent('—');
   });
 
-  it('phone Filters panel drops the "Loading options…" and "No options available" lines', async () => {
+  it('phone filter builder drops the "Loading options…" and "No options available" lines', async () => {
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
       matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
       addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
     })));
     clientsState.data = []; companiesState.data = [];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Filters/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^Add filter$/ }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Customer' }));
     expect(screen.queryByText('No options available')).not.toBeInTheDocument();
     clientsState.isPending = true; companiesState.isPending = true;
     clientsState.isSuccess = false; companiesState.isSuccess = false;
@@ -183,8 +190,7 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     })));
     clientsState.isError = true; clientsState.isSuccess = false;
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Filters/ }));
-    const panel = screen.getByRole('region', { name: 'Filters' });
+    const panel = screen.getByTestId('project-filter-builder');
     expect(within(panel).getByRole('alert')).toHaveTextContent("Couldn't load options");
     expect(within(panel).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
     clientsState.isError = false; clientsState.isSuccess = true;

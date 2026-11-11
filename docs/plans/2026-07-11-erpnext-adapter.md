@@ -786,18 +786,21 @@ PE `paid_amount`/`allocated_amount` → `payments.amount` exactly; absent option
 (new). Each is the `toBody` for its registry entry — the **exact R9 minimal bodies**, no invented fields:
 
 ```ts
-// purchaseInvoice.ts (R9 §1)
-export const piToBody = (rec, ctx): object => ({ supplier: ctx.refs.supplier, items: rec.items.map(i => ({ item_code: i.item_code, qty: i.qty, rate: i.rate })) });
+// purchaseInvoice.ts (R9 §1): company from the binding (as MR already carried) so ERPNext cannot file the bill
+// under the integration user's default company on a multi-company ERP
+export const piToBody = (rec, ctx): object => ({ company: ctx.config.company, supplier: ctx.refs.supplier, items: rec.items.map(i => ({ item_code: i.item_code, qty: i.qty, rate: i.rate })) });
 // paymentEntry.ts (R9 §2 — the frozen core): adapter supplies paid_from/paid_to from binding config
 export const peToBody = (rec, ctx): object => ({ payment_type:'Pay', party_type:'Supplier', party: ctx.refs.supplier, paid_amount: rec.paid_amount, received_amount: rec.received_amount ?? rec.paid_amount, paid_from: ctx.config.default_cash_account ?? ctx.config.default_bank_account, paid_to: ctx.config.default_payable_account, references: rec.references ?? [] });
-// purchaseOrder.ts (R9 §3): schedule_date on the ITEM row is mandatory
-export const poToBody = (rec, ctx): object => ({ supplier: ctx.refs.supplier, items: rec.items.map(i => ({ item_code:i.item_code, qty:i.qty, rate:i.rate, schedule_date:i.schedule_date })) });
-// goodsReceipt.ts (R9 §4): purchase_order + purchase_order_item (the PO item CHILD-ROW name) per row
-export const grToBody = (rec, ctx): object => ({ supplier: ctx.refs.supplier, items: rec.items.map(i => ({ item_code:i.item_code, qty:i.qty, rate:i.rate, purchase_order: ctx.refs.po, purchase_order_item: i.po_item_child_name })) });
+// purchaseOrder.ts (R9 §3): company from the binding; schedule_date on the ITEM row is mandatory
+export const poToBody = (rec, ctx): object => ({ company: ctx.config.company, supplier: ctx.refs.supplier, items: rec.items.map(i => ({ item_code:i.item_code, qty:i.qty, rate:i.rate, schedule_date:i.schedule_date })) });
+// goodsReceipt.ts (R9 §4): company from the binding; purchase_order + purchase_order_item (the PO item CHILD-ROW name) per row
+export const grToBody = (rec, ctx): object => ({ company: ctx.config.company, supplier: ctx.refs.supplier, items: rec.items.map(i => ({ item_code:i.item_code, qty:i.qty, rate:i.rate, purchase_order: ctx.refs.po, purchase_order_item: i.po_item_child_name })) });
 // materialRequest.ts (R9 §0 + spec FR-ENA-110): material_request_type='Purchase', company from binding
 export const mrToBody = (rec, ctx): object => ({ material_request_type:'Purchase', company: ctx.config.company, items: rec.items.map(i => ({ item_code:i.item_code, qty:i.qty, rate:i.rate, schedule_date:i.schedule_date })) });
 // rfq.ts / supplierQuotation.ts: supplier + item rows (FR-ENA-111/112)
 ```
+Every MR / PO / PI / GR body states the binding's `company` and refuses `commit-rejected` when the binding
+names no company — never a body whose company ERPNext would default to the integration user's.
 Each `fromDoc` maps ERP `name`/`docstatus`/`modified`/`grand_total`/`outstanding_amount`/`paid_amount` into
 the PMO-shaped `PmoRecord` (decimal strings). **Verify:** `cd pmo-portal && npm run typecheck && npx vitest run src/lib/adapterSeam/erpnext` green.
 
@@ -1106,8 +1109,11 @@ reversal block. Re-run RED → GREEN.
 
 ### 5.2 — `purchaseOrder`/`goodsReceipt` registry wiring (R9 §3/§4 bodies from 2.7)
 
-`poToBody`: item-row `schedule_date` mandatory (R9 §3). `grToBody`: `purchase_order` + `purchase_order_item`
-(the PO item **child-row `name`**, fetched from the PO doc) per row (R9 §4). **Verify:** unit tests for both bodies.
+`poToBody`: `company` from the binding (an ERPNext site can hold several companies; an unstated company files the
+order under the integration user's default, which the sweep's `company`-scoped purchase mirror feed never reads)
+plus item-row `schedule_date` mandatory (R9 §3). `grToBody`: the same `company`, plus `purchase_order` +
+`purchase_order_item` (the PO item **child-row `name`**, fetched from the PO doc) per row (R9 §4). **Verify:** unit
+tests for both bodies.
 
 ### 5.3 — Multi-domain ref resolver: resolve Supplier + PO + PO-item-child-row (FR-ENA-103)
 
@@ -1173,8 +1179,8 @@ Re-run RED → GREEN.
 
 ### 6.2 — `purchaseInvoice`/`paymentEntry` registry wiring (R9 §1/§2 frozen bodies from 2.7)
 
-`piToBody` (R9 §1): `{supplier, items:[{item_code,qty,rate}]}`; ERP server-defaults `credit_to`,
-`posting_date`/`due_date`, totals. `peToBody` (R9 §2 frozen): the adapter supplies `paid_from`/`paid_to`
+`piToBody` (R9 §1): `{company, supplier, items:[{item_code,qty,rate}]}` — `company` from the binding, as for the
+PO/GR bodies; ERP server-defaults `credit_to`, `posting_date`/`due_date`, totals. `peToBody` (R9 §2 frozen): the adapter supplies `paid_from`/`paid_to`
 from binding `config` (`default_cash_account`/`default_bank_account`→`paid_from`;
 `default_payable_account`→`paid_to`), `received_amount` explicit, `references[]` to the PI. Client
 pre-validates non-empty items (the 500-TypeError guard). **Verify:** unit tests asserting the exact bodies.

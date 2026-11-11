@@ -106,8 +106,9 @@ decision** (the plan records "follows ADR-0012 pattern").
      OD-SP-3). `customer_contract_ref` / `contract_date` are left null.
    - **Pipeline / Internal / on-hand-to-on-hand moves** — leave `decided_at` and the customer fields
      **as-is** (null while in pipeline; unchanged once decided).
-5. **DAL + hooks:** a thin RPC wrapper `transitionProject(id, to, opts?)` over `transition_project`, plus a
-   pure `isLegalProjectTransition(from, to)` helper mirroring the SQL map (single TS source), a pure
+5. **DAL + hooks:** a thin RPC wrapper `transitionProject(id, to, opts?)` over `transition_project`, the
+   `LEGAL_PROJECT_TRANSITIONS` map literal (the drag/menu affordance seam, mirroring the SQL map; the
+   RPC is the only enforcement authority), a pure
    `projectStatusGroup(status)` helper returning `'pipeline' | 'onHand' | 'lost' | 'internal'` (the OD-SP-1
    membership, reused by #5), and a read DAL `listPipelineStageConfig()` returning the org's
    `(status, win_probability)` rows (which #5 consumes). The transition mutation hook
@@ -252,12 +253,13 @@ merge):
   to the UI without swallowing it: a thin wrapper `transitionProject(id, to, opts?)` over
   `transition_project` (opts = `{ customerContractRef?, contractDate? }` → `p_customer_contract_ref` /
   `p_contract_date`), sending no `org_id`.
-- **FR-PR-012** — The system shall expose pure helpers (single TS source mirroring the SQL):
-  `isLegalProjectTransition(from, to): boolean` (mirrors the FR-PR-003 map) and
-  `projectStatusGroup(status): 'pipeline' | 'onHand' | 'lost' | 'internal'` (the OD-SP-1 membership:
+- **FR-PR-012** — The system shall expose `projectStatusGroup(status): 'pipeline' | 'onHand' | 'lost' | 'internal'
+  (single TS source; the OD-SP-1 membership:
   pipeline = {Leads, PQ Submitted, Quotation Submitted, Tender Submitted, Negotiation}; onHand =
   {Won, Pending KoM, Ongoing Project, On Hold, Close Out}; lost = {Loss Tender}; internal =
-  {Internal Project}). These are the foundation #5 reuses for its lens membership.
+  {Internal Project}). These are the foundation #5 reuses for its lens membership. The map itself stays
+  as the `LEGAL_PROJECT_TRANSITIONS` data literal for the affordance seam; its legality is enforced
+  (and proven) only at the RPC.
 - **FR-PR-013** — The system shall expose a read DAL `listPipelineStageConfig()` returning the org's
   `(status, win_probability)` rows (org-scoped by RLS, no `org_id` sent), which #5 reads for weighted
   pipeline value.
@@ -298,8 +300,9 @@ AC range **AC-1000..AC-1011** (confirmed unused: Dashboard owns 701–711, Budge
 owns 800–816, Timesheet-approval owns 900–911; `grep -r 'AC-10\d\d'` across the repo finds nothing). Each
 AC names its id as the leading token (traceability) and is annotated with its **owning layer (ADR-0010)**.
 
-- **AC-1000** *(Unit)* — Transition map: legal pairs accepted, illegal rejected.
-  Given `isLegalProjectTransition`, When asked `Leads → PQ Submitted`, `Negotiation → Won, Pending KoM`,
+- **AC-1000** *(pgTAP)* — Transition map: legal pairs accepted, illegal rejected.
+  Given `transition_project()`'s transition map (a move through the RPC —
+  `supabase/tests/project_transition_map.test.sql`), When asked `Leads → PQ Submitted`, `Negotiation → Won, Pending KoM`,
   `Tender Submitted → Loss Tender`, `Won, Pending KoM → Ongoing Project`, `On Hold → Ongoing Project`,
   `Close Out → Ongoing Project`, `Loss Tender → Negotiation`, `Leads → Internal Project` Then each is legal;
   When asked `Leads → Won, Pending KoM` (illegal jump), `Internal Project → Leads` (terminal),
@@ -371,9 +374,9 @@ AC names its id as the leading token (traceability) and is annotated with its **
 
 | Requirement | AC(s) | Owning layer (ADR-0010) |
 |---|---|---|
-| FR-PR-001 (transition map legality) | AC-1000, AC-1006, AC-1011 | Unit (pgTAP gate; E2E end-to-end) |
+| FR-PR-001 (transition map legality) | AC-1000, AC-1006, AC-1011 | pgTAP (E2E end-to-end) |
 | FR-PR-002 (transitions via RPC) | AC-1002 | Unit |
-| FR-PR-003 (the permissive map) | AC-1000, AC-1006 | Unit (pgTAP gate) |
+| FR-PR-003 (the permissive map) | AC-1000, AC-1006 | pgTAP |
 | FR-PR-004 (internal authz: org + role gate) | AC-1005 | pgTAP |
 | FR-PR-005 (win capture + decided_at = contract_date) | AC-1007, AC-1006, AC-1004, AC-1011 | pgTAP (UI prompt at Unit; E2E) |
 | FR-PR-006 (loss: decided_at = now()) | AC-1008 | pgTAP |
@@ -382,14 +385,14 @@ AC names its id as the leading token (traceability) and is annotated with its **
 | FR-PR-009 (seed the OD-SP-2 defaults) | AC-1010 | pgTAP |
 | FR-PR-010 (org_id not client-supplied + anon-revoke) | AC-1010, AC-1005 | pgTAP |
 | FR-PR-011 (DAL error surfacing + params) | AC-1002, AC-1004 | Unit |
-| FR-PR-012 (legality + status-group helpers) | AC-1000, AC-1001 | Unit |
+| FR-PR-012 (legality + status-group helpers) | AC-1001 | Unit (the map's legality: AC-1000 at pgTAP) |
 | FR-PR-013 (listPipelineStageConfig read) | AC-1003 | Unit |
 | NFR-PR-ATOM-001 (atomic transition) | AC-1007, AC-1008 | pgTAP |
 | NFR-PR-UI-001 (inline error + refetch; states preserved) | AC-1004, AC-1011 | Unit (E2E end-to-end) |
 | NFR-PR-PERF-001 (PK lock + indexed config read) | AC-1007 (lock path exercised) | pgTAP (design-reviewed) |
 
-Per-layer AC split: **Unit** AC-1000/1001/1002/1003/1004 (**5**) · **pgTAP** AC-1005/1006/1007/1008/1009/
-1010 (**6**) · **E2E** AC-1011 (**1**, curated win-a-project journey). Authorization, tenancy, the
+Per-layer AC split: **Unit** AC-1001/1002/1003/1004 (**4**) · **pgTAP** AC-1000/1005/1006/1007/1008/1009/
+1010 (**7**) · **E2E** AC-1011 (**1**, curated win-a-project journey). Authorization, tenancy, the
 legal-map + win-input gates, the win/loss `decided_at` stamping, atomicity, and the config-table RLS/seed
 all sit at **pgTAP** (the DB is the real gate); the legality + status-group helpers, DAL error surfacing,
 the config-read DAL shape, and the UI control gating sit at **Unit**; one end-to-end win journey at **E2E**.

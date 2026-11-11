@@ -160,8 +160,6 @@ it('AC-AGP-013 resumed write matching journal is hard-blocked and returns the jo
     supabase,
     persistence: {
       supabase,
-      ownerId: 'user-1',
-      orgId: 'org-1',
       now: () => new Date('2026-07-03T00:00:00Z'),
       journaledWrites: [{ toolName: 'create_activity', argsHash: H, payload: { id: 'journaled-act' } }],
     },
@@ -205,8 +203,6 @@ it('AC-AGP-014 a repeated read is never blocked by the journal', async () => {
     supabase,
     persistence: {
       supabase,
-      ownerId: 'user-1',
-      orgId: 'org-1',
       now: () => new Date('2026-07-03T00:00:00Z'),
       // Journal contains a completed read with the SAME args-hash — must NOT block.
       journaledWrites: [{ toolName: 'query_entity', argsHash: readArgsHash, payload: { rowCount: 3 } }],
@@ -249,8 +245,6 @@ it('AC-AGP-015 a genuinely different-args write (different hash) is allowed to e
     supabase,
     persistence: {
       supabase,
-      ownerId: 'user-1',
-      orgId: 'org-1',
       now: () => new Date('2026-07-03T00:00:00Z'),
       journaledWrites: [{ toolName: 'create_activity', argsHash: differentArgsHash, payload: { id: 'other-act' } }],
     },
@@ -321,8 +315,6 @@ it('AC-AGP-016 heartbeat advances agent_runs.last_progress_at each tool round', 
     now: () => new Date(timestamps[Math.min(call, timestamps.length - 1)]),
     persistence: {
       supabase,
-      ownerId: 'user-1',
-      orgId: 'org-1',
       now: () => new Date(timestamps[Math.min(call++, timestamps.length - 1)]),
     },
   });
@@ -372,8 +364,6 @@ it('AC-AGP-017 a terminal status event persists agent_runs.status via setRunStat
     supabase,
     persistence: {
       supabase,
-      ownerId: 'user-1',
-      orgId: 'org-1',
       now: () => new Date('2026-07-03T00:00:00Z'),
     },
   });
@@ -466,8 +456,6 @@ it('AC-AGP-CONT-001 seq continues (no restart, no duplicates) across two handler
     supabase,
     persistence: {
       supabase,
-      ownerId: 'user-1',
-      orgId: 'org-1',
       now: () => new Date('2026-07-03T00:00:00Z'),
     },
   });
@@ -487,8 +475,6 @@ it('AC-AGP-CONT-001 seq continues (no restart, no duplicates) across two handler
     supabase,
     persistence: {
       supabase,
-      ownerId: 'user-1',
-      orgId: 'org-1',
       now: () => new Date('2026-07-03T00:00:05Z'),
       startSeq: maxSeqSoFar + 1,
     },
@@ -595,8 +581,6 @@ it('AC-AGP-JOURNAL-001 a tool event journal is populated in the SAME insert — 
     supabase,
     persistence: {
       supabase,
-      ownerId: 'user-1',
-      orgId: 'org-1',
       now: () => new Date('2026-07-03T00:00:00Z'),
     },
   });
@@ -659,7 +643,7 @@ function mockSupabaseWithRunExistence(runRow: { id: string } | null) {
 it('runExists returns true/false from the maybeSingle result and fails open on error', async () => {
   const deps = (row: unknown, error: unknown = null): PersistenceDeps => ({
     supabase: { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: row, error }) }) }) }) } as unknown as PersistenceDeps['supabase'],
-    ownerId: 'u', orgId: 'o', now: () => new Date(),
+    now: () => new Date(),
   });
   expect(await runExists(deps({ id: 'r1' }), 'r1')).toBe(true);
   expect(await runExists(deps(null), 'r1')).toBe(false);
@@ -670,7 +654,7 @@ it('CONTRACT-FIX: a fresh run with req.runId present but NO existing run row STI
   // The bug: with the old `!req.runId` gate, this exact request (runId present, no threadId) skipped
   // createThreadAndRun → the run row never existed → 42501 on every event.
   const { supabase, threadInsert, runInsert } = mockSupabaseWithRunExistence(null); // run does NOT exist
-  const deps = baseDeps({ supabase, persistence: { supabase, ownerId: 'user-1', orgId: 'org-1', now: () => new Date('2026-07-08T00:00:00Z') } });
+  const deps = baseDeps({ supabase, persistence: { supabase, now: () => new Date('2026-07-08T00:00:00Z') } });
 
   await collect(agentChatHandler({ runId: 'run-fresh-1', messages: [{ role: 'user', content: 'hi' }] }, deps));
 
@@ -681,7 +665,7 @@ it('CONTRACT-FIX: a fresh run with req.runId present but NO existing run row STI
 
 it('CONTRACT-FIX: a resume (run already exists) does NOT re-create the thread/run', async () => {
   const { supabase, threadInsert, runInsert } = mockSupabaseWithRunExistence({ id: 'run-resume-9' }); // exists
-  const deps = baseDeps({ supabase, persistence: { supabase, ownerId: 'user-1', orgId: 'org-1', now: () => new Date('2026-07-08T00:00:00Z') } });
+  const deps = baseDeps({ supabase, persistence: { supabase, now: () => new Date('2026-07-08T00:00:00Z') } });
 
   await collect(agentChatHandler({ runId: 'run-resume-9', messages: [{ role: 'user', content: 'hi again' }] }, deps));
 

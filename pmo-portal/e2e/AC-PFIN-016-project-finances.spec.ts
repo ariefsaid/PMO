@@ -1,7 +1,7 @@
 // @e2e-isolation: self-isolated — owns its project/invoice/ref and cleans them up.
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
+import { signIn, requireServiceRoleKey } from './helpers';
 
 // AC-PFIN-016 — Finance attributes an adopted ERP invoice's revenue to a project, end to end.
 //
@@ -10,11 +10,11 @@ import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
 // on failure. Touches NO org-global singleton (no ownership toggle, no feature flag, no budget).
 //
 // Journey (spec §AC-PFIN-016):
-//  1. Finance opens Revenue by Project; the Unassigned row opens the unassigned invoices.
+//  1. Finance opens the Reports surface; its Assign projects link opens unassigned invoices.
 //  2. It navigates to the filtered invoice list (/sales-invoices?attribution=unassigned).
 //  3. Finance opens the invoice's row menu → "Assign project" → picks the project → Save.
 //  4. The attribution persists: DB link + the invoice leaves the unassigned filter + the project
-//     Overview finance section reads USD 100.00 invoiced / 75.00 settled / 25.00 outstanding,
+//     Overview finance section reads USD 100 invoiced / 75 settled / 25 outstanding,
 //     "No budget" — and the same goal survives a reload.
 //  5. No adapter command (ERP push) is issued: PMO attribution only. The spy routes ONLY the
 //     adapter-dispatch endpoint — never the assignment RPC or read-model responses.
@@ -35,6 +35,16 @@ if (!svcKey) {
   );
 }
 const admin = createClient(SUPABASE_URL, svcKey, { auth: { persistSession: false } });
+
+async function expectUsdSettlement(usd: Locator): Promise<void> {
+  await expect(usd.getByRole('heading', { name: 'USD', exact: true })).toBeVisible();
+  const amountFor = (label: string) => usd.locator('dl > div').filter({ hasText: label }).locator('dd').first();
+  await expect(amountFor('Invoiced')).toHaveText('100');
+  await expect(amountFor('Settled')).toHaveText('75');
+  await expect(amountFor('Outstanding')).toHaveText('25');
+  // #1402 copy: unknown actual spending remains an explanation instead of a fabricated numeric margin.
+  await expect(amountFor('Margin')).toHaveText('Gross margin is left out until spending is linked for every budget category.');
+}
 
 let PROJECT_ID: string;
 let INVOICE_ID: string;
@@ -96,15 +106,14 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
 
   await signIn(page, 'finance@acme.test');
 
-  // ── Step 1: Revenue by Project → the Unassigned (USD) row opens the unassigned list ────────
-  await page.goto('/revenue-by-project');
-  // FIN-S6: the Unassigned row is one clickable row (no separate "Assign project" button); currency rides on the amounts.
-  const unassignedUsd = page.getByRole('button', { name: 'Open Unassigned (USD)' });
-  await expect(unassignedUsd).toBeVisible({ timeout: 20_000 });
-  await unassignedUsd.click();
+  // ── Step 1: Reports → the current Assign projects link opens the unassigned list ───────────
+  await page.goto('/finance/reports');
+  const assignProjects = page.getByRole('link', { name: 'Assign projects', exact: true });
+  await expect(assignProjects).toBeVisible({ timeout: 20_000 });
+  await assignProjects.click();
 
   // ── Step 2: the filtered invoice list ───────────────────────────────────────────────────────
-  await expect(page).toHaveURL(/\/sales-invoices\?attribution=unassigned/);
+  await expect(page).toHaveURL(/\/finance\/receivables\?attribution=unassigned/);
   await expect(page.getByText('Unassigned invoices')).toBeVisible({ timeout: 20_000 });
   const invoiceRow = page.locator('tbody tr', { hasText: SI_NUMBER });
   await expect(invoiceRow).toBeVisible({ timeout: 20_000 });
@@ -132,55 +141,28 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
 
   // ── Step 4c: the project Overview finance section reads the honest settlement ───────────────
   await page.goto(`/projects/${PROJECT_ID}`);
+  const moneyPosition = page.getByRole('region', { name: 'Money position' });
+  await moneyPosition.getByRole('button', { name: 'Details', exact: true }).click();
   const section = page.getByTestId('project-finances');
   await expect(section).toBeVisible({ timeout: 20_000 });
   const usd = page.getByTestId('project-finances-USD');
   await expect(usd).toBeVisible({ timeout: 20_000 });
-  await expect(usd).toContainText('$100.00'); // Invoiced
-  await expect(usd).toContainText('$75.00');  // Settled (100 − 25 outstanding)
-  await expect(usd).toContainText('$25.00');  // Outstanding
-  await expect(usd).not.toContainText('$0.00'); // no zero-masking of unknowns
+  await expectUsdSettlement(usd);
   // PD-C: the budget gap is no longer restated in Project finances (Overview shows no budget card).
   await expect(section).not.toContainText('No budget');
 
   // ── Step 5: the same goal survives a reload ─────────────────────────────────────────────────
   await page.reload();
+  await page.getByRole('region', { name: 'Money position' }).getByRole('button', { name: 'Details', exact: true }).click();
   await expect(page.getByTestId('project-finances')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('project-finances-USD')).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId('project-finances-USD')).toContainText('$100.00');
-  await expect(page.getByTestId('project-finances-USD')).toContainText('$75.00');
-  await expect(page.getByTestId('project-finances-USD')).toContainText('$25.00');
+  await expectUsdSettlement(page.getByTestId('project-finances-USD'));
   await expect(page.getByTestId('project-finances')).not.toContainText('No budget');
 
   // ── Step 6: no adapter command was ever dispatched ──────────────────────────────────────────
   expect(adapterCommands).toEqual([]);
 });
 
-// Support oracle (NOT a business journey — AC-PFIN-015 ownership stays with the RTL suite):
-// the section fits a 390px viewport, settlement copy is visible, and the modal is keyboard-operable.
-test('AC-PFIN-015 support: project finance mobile layout', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  const { error } = await admin.from('sales_invoices').update({ project_id: PROJECT_ID }).eq('id', INVOICE_ID);
-  expect(error?.message ?? '').toBe('');
-
-  await signIn(page, 'finance@acme.test');
-  await page.goto(`/projects/${PROJECT_ID}`);
-  const usd = page.getByTestId('project-finances-USD');
-  await expect(usd).toBeVisible({ timeout: 20_000 });
-  await waitForFonts(page);
-  await expect(usd).toContainText('$25.00');
-  const fits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
-  expect(fits).toBe(true);
-
-  await page.goto(`/sales-invoices?q=${SI_NUMBER}`);
-  const row = page.locator('tbody tr, [role="row"], li', { hasText: SI_NUMBER }).first();
-  await expect(row).toBeVisible({ timeout: 20_000 });
-  await row.getByRole('button', { name: 'Row actions' }).first().click();
-  await page.getByRole('menuitem', { name: /Assign project|Change project/ }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible({ timeout: 15_000 });
-  await page.keyboard.press('Tab');
-  await expect(dialog.locator(':focus')).toHaveCount(1);
-  await page.keyboard.press('Escape');
-  await expect(dialog).not.toBeVisible();
-});
+// Support oracle moved (phase 2, #1529): AC-PFIN-015's project-finance mobile-layout geometry now
+// lives in the /projects/:id layout sweep (e2e/layout/project-detail.layout.spec.ts), and its
+// assign-dialog keyboard assertions in pages/__tests__/SalesInvoices.assignProject.test.tsx.

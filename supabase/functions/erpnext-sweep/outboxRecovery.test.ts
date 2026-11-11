@@ -20,6 +20,7 @@
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { reconcileOrgOutbox } = await import('./index.ts');
 import { dispatchMoneyWrite, type OutboxRow, type DispatchMoneyOutboxDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { canonicalCommandDigest } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import type { Adapter, AdapterCommand, CommandResult, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 
@@ -252,4 +253,35 @@ Deno.test('Luna SoD/ownership — an org that owns NOTHING reconciles nothing (f
   );
   assert(dispatched === 0, 'no recorded ownership ⇒ no money is driven (fail-closed, same posture as sweepKindsForOrg)');
   assert(result.errors.length === 1, 'still reported, not dropped');
+});
+
+Deno.test('a failed payment whose bill another payment holds is deferred quietly, not reported as an error; any other failure still is', async () => {
+  const candidate = row('failed');
+  const { deps } = mockedDeps(candidate);
+  const attempt = async (message: string) => reconcileOrgOutbox(
+    async () => [candidate],
+    RECONCILE_ORG,
+    () => deps,
+    async () => { throw new Error(message); },
+  );
+  const blocked = await attempt('duplicate key value violates unique constraint "external_command_outbox_one_inflight_erpnext_payment_per_bill"');
+  assert(blocked.reconciled === 0 && blocked.errors.length === 0, `a blocked retry is a deferral, got ${JSON.stringify(blocked.errors)}`);
+  const other = await attempt('connection reset');
+  assert(other.errors.length === 1 && other.errors[0].error === 'connection reset', 'every other failure is still reported');
+});
+
+Deno.test('the classified payment-in-flight refusal is deferred quietly too — the constraint name never reaches this catch', async () => {
+  // The REAL retry path classifies the raw 23505 before this pass sees it: dispatch.ts
+  // (`toDispatchError`, case 'pending'/'failed') turns the constraint violation into the named
+  // `payment-in-flight-for-bill` AppError with a person-readable message, so the constraint-name
+  // deferral above can never match in production — the sweep must defer on the code as well (#1912).
+  const candidate = row('pending');
+  const { deps } = mockedDeps(candidate);
+  const result = await reconcileOrgOutbox(
+    async () => [candidate],
+    RECONCILE_ORG,
+    () => deps,
+    async () => { throw new AppError('A payment for this bill is already in progress. Wait for it to finish before paying again.', 'payment-in-flight-for-bill'); },
+  );
+  assert(result.reconciled === 0 && result.errors.length === 0, `a blocked retry stays a deferral after classification, got ${JSON.stringify(result.errors)}`);
 });

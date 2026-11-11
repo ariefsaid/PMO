@@ -35,6 +35,23 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe('uploadWithProgress content signature', () => {
+  it('refuses a renamed file before any request is made', async () => {
+    const exe = new File([new Uint8Array([0x4d, 0x5a, 0x90, 0x00, 0x03])], 'invoice.pdf');
+    await expect(uploadWithProgress('http://example.com/upload', exe, { contentType: 'application/pdf' })).rejects.toMatchObject({ status: 415 });
+    expect(xhrInstances).toHaveLength(0);
+    expect(classifyUploadError(new TransportError(415, 'File content does not match its type')).type).toBe('type');
+  });
+
+  it('sends a file whose bytes match its extension', async () => {
+    const pdf = new File([new TextEncoder().encode('%PDF-1.7')], 'a.pdf');
+    const promise = uploadWithProgress('http://example.com/upload', pdf, { contentType: 'application/pdf' });
+    await vi.waitFor(() => expect(xhrInstances).toHaveLength(1));
+    xhrInstances[0].onload?.();
+    await promise;
+  });
+});
+
 describe('uploadWithProgress', () => {
   it('sends PUT with Content-Type and x-upsert headers', async () => {
     const promise = uploadWithProgress('http://example.com/upload', new Blob(['data']), {

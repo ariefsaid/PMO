@@ -20,6 +20,10 @@ const NAMES = [
 const CONTRACTS = [63_400_000_000, 48_215_000_000, 21_870_500_000, 15_300_000_000, 7_925_000_000, 4_180_000_000];
 const SPENT = [24_812_225_000, 17_402_000_000, 9_115_750_000, 4_310_000_000, 2_120_800_000, 652_000_000];
 
+// Deterministic additional facts for independently loaded Finance and report figures.
+export const FINANCE_FIXTURE = { receivable: 58_412_775_000, payable: 24_812_225_000, contract: 160_890_500_000 } as const;
+
+
 const top = NAMES.map((name, i) => ({
   id: uuid(i + 1), name, client_name: `PT Klien Sintetis ${i + 1}`,
   contract_value: CONTRACTS[i], currency: 'IDR', budget: null, spent: SPENT[i], actual_currency: 'IDR', actual_complete: false,
@@ -56,6 +60,7 @@ const executive = {
   ],
   procurements_by_status: [{ status: 'Draft', count: 2 }, { status: 'Approved', count: 1 }],
   top_projects: top,
+  attention_projects: top.map((row, i) => ({ ...row, attention_signals: i === 0 ? 1 : 0, overdue_items: i === 0 ? 2 : 0, overdue_tasks: i === 0 ? 2 : 0, overdue_milestones: 0, overdue_invoices: 0, waiting_approvals: 0, over_budget: false, budget_used_ratio: null })),
 };
 
 const winRate = {
@@ -105,20 +110,104 @@ function toIdr(node: unknown, key?: string): unknown {
 
 const json = (body: unknown) => (route: Route) => route.fulfill({ json: body });
 
+/**
+ * #1889: a dashboard page can keep issuing reads while the test's browser context is torn
+ * down (the assertions have already settled); a rewrite handler that then calls
+ * route.fulfill holds an API response the teardown disposed, and the handler's rejection
+ * gets attributed to an otherwise-green test. Terminal lifecycle errors are NOT test
+ * faults — nobody is left to answer that request — so settle them quietly. Everything else
+ * (network failures, non-OK responses, rewrite faults) still surfaces, keeping active-page
+ * failures visible. All figure/overflow oracles are untouched.
+ */
+function isTerminalLifecycleError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /target (page|context|browser) has been closed|target closed|has been disposed/i.test(message);
+}
+
 async function rewriteRead(route: Route, rewrite: (body: unknown) => unknown) {
-  const response = await route.fetch();
-  let body: unknown;
   try {
-    body = await response.json();
-  } catch {
-    return route.fulfill({ response });
+    const response = await route.fetch({ maxRetries: 2 });
+    if (!response.ok()) return await route.fulfill({ response });
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      return await route.fulfill({ response });
+    }
+    return await route.fulfill({ response, json: rewrite(body) });
+  } catch (error) {
+    if (isTerminalLifecycleError(error)) return;
+    throw error;
   }
-  return route.fulfill({ response, json: rewrite(body) });
+}
+
+
+// Bind these read models to one deterministic IDR fact, independent of mutable seed totals.
+// These responses are read-only; the other dashboard stress inputs above are unchanged.
+function financeInvoiceFixture(body: unknown): unknown {
+  if (!Array.isArray(body)) return body;
+  return [{
+    id: uuid(9001), project_id: uuid(9003), customer_id: null, currency: 'IDR',
+    status: 'Unpaid', amount: FINANCE_FIXTURE.receivable,
+    erp_outstanding_amount: FINANCE_FIXTURE.receivable, invoice_date: '2020-01-01',
+    erp_due_date: '2020-01-31', received_date: null, created_at: '2020-01-01T00:00:00Z',
+    author_user_id: null, sales_invoice_authors: [], companies: null,
+  }];
+}
+function financeProcurementFixture(body: unknown): unknown {
+  if (!Array.isArray(body)) return body;
+  return [{
+    id: uuid(9002), project_id: uuid(9003), vendor_id: null, currency: 'IDR',
+    status: 'Vendor Invoiced', title: 'Synthetic supplier invoice',
+    total_value: FINANCE_FIXTURE.payable, vendor_invoiced_at: '2020-01-01T00:00:00Z',
+    updated_at: '2020-01-01T00:00:00Z', procurement_invoices: [{ amount: FINANCE_FIXTURE.payable }],
+    payments: [], project: null, vendor: null, requested_by: null,
+  }];
+}
+function reportFactsFixture(body: unknown): unknown {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return body;
+  const facts = body as Record<string, unknown>;
+  if (typeof facts.from !== 'string' || typeof facts.to !== 'string' || typeof facts.timezone !== 'string'
+      || typeof facts.org_currency !== 'string' || typeof facts.undated_invoice_count !== 'number'
+      || !Array.isArray(facts.projects) || !Array.isArray(facts.invoiced)
+      || !Array.isArray(facts.invoiced_before) || !Array.isArray(facts.progress)
+      || !facts.invoiced_before.every((row: unknown) => {
+        if (!row || typeof row !== 'object' || Array.isArray(row)) return false;
+        const count = (row as Record<string, unknown>).invoice_count;
+        return typeof count === 'number' && Number.isInteger(count) && count >= 0;
+      })) return body;
+  const month = facts.to;
+  const id = uuid(9003);
+  return { ...facts,
+    projects: [{ id, name: NAMES[0], pmo_project_number: null, code: null,
+      status: 'Ongoing Project', currency: 'IDR', contract_net: FINANCE_FIXTURE.contract,
+      start_date: null, end_date: null, project_manager_id: null, client_name: null }],
+    invoiced: [{ project_id: id, currency: 'IDR', month,
+      net: FINANCE_FIXTURE.receivable, invoice_count: 1 }],
+    invoiced_before: [],
+    progress: [{ project_id: id, month, pct_complete: 100,
+      entered_at: `${month}T00:00:00Z`, entered_by_name: null }],
+  };
+}
+
+/** #1988: the hub's three figures as the narrow RPC returns them — the same unbilled figure the
+ * pack fixture produced (recognised 100% of the contract minus the invoiced balance), no statements. */
+function financeHubFiguresFixture(): unknown {
+  return {
+    pack: {
+      as_at: '2026-11-01',
+      unbilled: [{ currency: 'IDR', cents: (FINANCE_FIXTURE.contract - FINANCE_FIXTURE.receivable) * 100 }],
+      contract_rows: 1,
+      invoiced_basis_rows: 0,
+    },
+    statement: { unpublished: true, period_start: null, net_profit: null, currency: null },
+  };
 }
 
 /** Route-mock the dashboard reads with the IDR-billions fixture (org default currency IDR). */
 export async function installIdrDashboardFixture(page: Page) {
   await page.route('**/rest/v1/rpc/get_executive_dashboard*', json(executive));
+  await page.route('**/rest/v1/rpc/get_finance_hub_figures*', json(financeHubFiguresFixture()));
   await page.route('**/rest/v1/rpc/get_win_rate*', json(winRate));
   await page.route('**/rest/v1/rpc/get_sales_pipeline*', json(pipeline));
   await page.route('**/rest/v1/rpc/get_pm_dashboard_projects*', json(pmProjects));
@@ -131,7 +220,16 @@ export async function installIdrDashboardFixture(page: Page) {
   for (const pattern of ['**/rest/v1/sales_invoice_work_billed?*', '**/rest/v1/sales_invoices?*', '**/rest/v1/rpc/get_management_pack*', '**/rest/v1/procurements?*']) {
     await page.route(pattern, (route) => {
       if (route.request().method() !== 'GET' && !/rpc/.test(route.request().url())) return route.fallback();
-      return rewriteRead(route, (body) => toIdr(body));
+      return rewriteRead(route, (body) => {
+        const scaled = toIdr(body);
+        const url = new URL(route.request().url());
+        if (url.pathname.endsWith('/sales_invoices') && !url.searchParams.has('project_id')
+            && !url.searchParams.has('status') && !url.searchParams.has('pmo_native')) return financeInvoiceFixture(scaled);
+        if (url.pathname.endsWith('/procurements') && !url.searchParams.has('project_id')
+            && !url.searchParams.has('vendor_id')) return financeProcurementFixture(scaled);
+        if (url.pathname.endsWith('/rpc/get_management_pack')) return reportFactsFixture(scaled);
+        return scaled;
+      });
     });
   }
 }
