@@ -74,7 +74,9 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useHasAnyIncomingPayment: () => ({ data: false, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
-  useManagementPack: () => ({ data: { totals: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+  // cad044df6: the on-hand "Left to bill" figure reads the pack's latest month and its contract rows,
+  // so the stub must be a whole pack (as CompanyDashboard.honesty.test.tsx already stubs it).
+  useManagementPack: () => ({ data: { months: [], rows: [], totals: [] }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: h.dash, isPending: false, isError: false, refetch: vi.fn() }),
