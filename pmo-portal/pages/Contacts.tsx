@@ -271,7 +271,7 @@ const Contacts: React.FC = () => {
             total={directory.data ? directoryTotal : 0}
             labels={{
               all: t('contacts.filters.allCompanies', 'All companies'),
-              clear: t('contacts.table.clearFilters', 'Clear filters'),
+              clear: 'Clear all',
             }}
           />
         )
