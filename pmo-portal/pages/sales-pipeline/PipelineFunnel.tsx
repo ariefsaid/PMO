@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Funnel, type FunnelStage } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
-import { formatPercent, type OpenFunnelStage, type SalesColumn } from '../../components/salesPipeline';
+import { type OpenFunnelStage, type SalesColumn } from '../../components/salesPipeline';
 import type { FunnelProjection } from './pipelineFunnelModel';
 
 export interface PipelineFunnelProps {
@@ -35,9 +35,12 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
     return {
       name: stageLabel(p.col),
       dotColor: p.col.dotColor,
-      prob: p.winProbability !== undefined ? formatPercent(p.winProbability) : undefined,
-      value: p.mixedStage ? unknownTotal : formatCurrency(p.totalValue, p.stageCurrency),
-      weighted: p.mixedStage
+      value: p.stage?.count === 0 || !p.stage
+        ? '0'
+        : p.mixedStage
+          ? unknownTotal
+          : formatCurrency(p.totalValue, p.stageCurrency),
+      weighted: p.stage?.count === 0 || !p.stage || p.mixedStage
         ? undefined
         : t('sales.funnel.weighted', '{{value}} weighted', {
             value: formatCurrency(p.weightedValue, p.stageCurrency),

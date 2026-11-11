@@ -160,10 +160,10 @@ export const NeedsAttentionCard: React.FC<{ m: SalesModel; onOpen: (p: PipelineP
       )}
       <div className="mt-3 flex gap-4 border-t border-border pt-3 text-control">
         <button type="button" className="font-medium text-primary-text hover:underline" onClick={() => m.setScope('Won')}>
-          {t('sales:options.wonCount', 'Won {{n}}', { n: m.won.length })}
+          {t('sales:options.wonCount', 'Won {{n}} all time', { n: m.won.length })}
         </button>
         <button type="button" className="font-medium text-primary-text hover:underline" onClick={() => m.setScope('Lost')}>
-          {t('sales:options.lostCount', 'Lost {{n}}', { n: m.lost.length })}
+          {t('sales:options.lostCount', 'Lost {{n}} all time', { n: m.lost.length })}
         </button>
       </div>
     </section>

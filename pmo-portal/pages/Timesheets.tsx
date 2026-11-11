@@ -121,20 +121,17 @@ const TimesheetsPage: React.FC = () => {
     commitSave, stepWeek, cancelWeekChange, confirmWeekChange, requestSubmit,
     cancelSubmit, commitSubmit } = editor.actions;
 
-  // ── Copy last week enablement (plain visible reason for every stable disabled state) ──
+  // ── Copy last week enablement ───────────────────────────────────────────────
   // While projects are still loading the reason is deliberately BLANK (transient — the picker's
   // own "Loading projects…" status already reports it; a second copy would break the unique-status
-  // oracle). The stable causes — not-a-draft, empty last week, nothing new — render their reason.
+  // oracle). A non-draft week with eligible source rows explains why copying is unavailable;
+  // when no rows can be added, the action and its sentence are both absent.
   const copyBusy = deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending;
   const copyDisabledReason = projectsPending
     ? null
     : !editable
       ? t('timesheets:copyLastWeek.reasonNotDraft', 'This week is no longer a draft')
-      : copyPlan.addedCount === 0
-        ? copyPlan.lastWeekHasRows
-          ? t('timesheets:copyLastWeek.reasonNothingNew', "Last week's projects are already in this week")
-          : t('timesheets:copyLastWeek.reasonEmpty', 'Nothing to copy — no time was logged last week')
-        : null;
+      : null;
   const copyDisabled = projectsPending || copyDisabledReason !== null || copyBusy;
 
   const actionProps = {
@@ -263,95 +260,102 @@ const TimesheetsPage: React.FC = () => {
         clip
         className={editable ? 'pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-0' : undefined}
       >
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3.5 py-2.5">
-          <StatusPill record="timesheet" state={status ?? TimesheetStatus.Draft} />
-          {/* ⚑ I-16/I-17 (rendered Discover pass, 2026-07-22) — the OWNER'S view of their own ERP
-              push. `timesheet_erp_mirror_select` RLS deliberately grants the sheet's owner this read,
-              and nothing consumed it: the person whose week it is — the one who has to re-do it if
-              the hours never reach payroll costing — was the only one who could not find out. No
-              Retry here: re-driving is the approver's act (`can('push_timesheet', …)`), and this
-              badge is supplementary — a null state renders nothing and never gates the page. */}
-          <PushStateBadge state={ownPushState ?? null} canRetry={false} />
-          {editable && (
-            <div className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-control font-medium text-muted-foreground">
-              <Icon name="plus" aria-hidden />
-              <span>{t('timesheets.addProject', 'Add project')}</span>
-              {/* max-w cap + min-w-0: the closed picker only shows the short placeholder,
-                  so capping its width is safe; options still show in full. Use the shared
-                  DS SelectField so dark mode keeps the tokened field shell. */}
-              <div className="min-w-0 max-w-[160px] flex-1">
-                {projectsPending ? (
-                  <span role="status">{t('timesheets:picker.loading', 'Loading projects…')}</span>
-                ) : projectsError ? (
-                  <span role="alert">
-                    {t('timesheets:picker.error', 'Could not load projects.')}
-                    <Button variant="outline" onClick={() => refetchProjects()}>
-                      {t('timesheets:picker.retry', 'Retry projects')}
-                    </Button>
+        <div className="border-b border-border px-3.5 py-2.5">
+          <div data-testid="timesheets-entry-header" className="flex min-w-0 flex-wrap items-center gap-2">
+            <StatusPill record="timesheet" state={status ?? TimesheetStatus.Draft} />
+            {/* ⚑ I-16/I-17 (rendered Discover pass, 2026-07-22) — the OWNER'S view of their own ERP
+                push. `timesheet_erp_mirror_select` RLS deliberately grants the sheet's owner this read,
+                and nothing consumed it: the person whose week it is — the one who has to re-do it if
+                the hours never reach payroll costing — was the only one who could not find out. No
+                Retry here: re-driving is the approver's act (`can('push_timesheet', …)`), and this
+                badge is supplementary — a null state renders nothing and never gates the page. */}
+            <PushStateBadge state={ownPushState ?? null} canRetry={false} />
+            {editable && (
+              <div
+                data-testid="timesheets-save-status"
+                role="status"
+                className="text-control text-muted-foreground md:ml-auto"
+              >
+                {deleteRow.isPending || isReconciling
+                  ? t('timesheets:reconcile.message', 'Refresh this week before continuing.')
+                  : dirty
+                  ? t('uxs28.save.dirty', 'Unsaved changes')
+                  : currentWeekEntries.length > 0
+                    ? t('uxs28.save.saved', 'All changes saved')
+                    : null}
+              </div>
+            )}
+            <span
+              data-testid="timesheets-weekly-total"
+              className="ml-auto text-control tabular text-muted-foreground max-md:hidden"
+            >
+              {t('timesheets.hoursThisWeek', '{{hours}} hours this week', {
+                hours: formatNumberExact(editable ? editTotals.weekly : weeklyTotal),
+              })}
+            </span>
+          </div>
+          <div data-testid="timesheets-entry-actions" className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+            {editable && (
+              <div
+                data-testid="timesheets-add-project-control"
+                className="inline-flex min-w-0 max-w-full flex-nowrap items-center gap-1.5 text-control font-medium text-muted-foreground"
+              >
+                <Icon name="plus" aria-hidden />
+                <span>{t('timesheets.addProject', 'Add project')}</span>
+                {/* max-w cap + min-w-0: the closed picker only shows the short placeholder,
+                    so capping its width is safe; options still show in full. Use the shared
+                    DS SelectField so dark mode keeps the tokened field shell. */}
+                <div className="min-w-0 max-w-[160px] flex-1">
+                  {projectsPending ? (
+                    <span role="status">{t('timesheets:picker.loading', 'Loading projects…')}</span>
+                  ) : projectsError ? (
+                    <span role="alert">
+                      {t('timesheets:picker.error', 'Could not load projects.')}
+                      <Button variant="outline" onClick={() => refetchProjects()}>
+                        {t('timesheets:picker.retry', 'Retry projects')}
+                      </Button>
+                    </span>
+                  ) : (
+                    <SelectField
+                      id="ts-add-project"
+                      hideLabel
+                      label={t('timesheets.addAProject', 'Add a project')}
+                      value=""
+                      onChange={(value) => {
+                        if (value) addProject(value);
+                      }}
+                      disabled={pickerOptions.length === 0}
+                      options={pickerOptions.map((p) => ({ value: p.id, label: projectCodedPickerLabel(p, PICKER_NAME_MAX) }))}
+                      placeholder={
+                        pickerOptions.length === 0
+                          ? t('timesheets.picker.none', 'No projects to add')
+                          : t('timesheets.picker.select', 'Select a project…')
+                      }
+                      className="touch-target min-w-0 max-w-[160px] text-control"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+            {canEnterTimesheet && (projectsPending || copyPlan.addedCount > 0) && (
+              <div data-testid="timesheets-copy-last-week" className="inline-flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={copyLastWeek}
+                  disabled={copyDisabled}
+                  title={copyDisabledReason ?? undefined}
+                >
+                  <Icon name="clipboard-check" aria-hidden />
+                  {t('timesheets:copyLastWeek.button', 'Copy last week')}
+                </Button>
+                {copyDisabledReason && (
+                  <span data-testid="timesheets-copy-reason" className="text-control text-muted-foreground">
+                    {copyDisabledReason}
                   </span>
-                ) : (
-                  <SelectField
-                    id="ts-add-project"
-                    hideLabel
-                    label={t('timesheets.addAProject', 'Add a project')}
-                    value=""
-                    onChange={(value) => {
-                      if (value) addProject(value);
-                    }}
-                    disabled={pickerOptions.length === 0}
-                    options={pickerOptions.map((p) => ({ value: p.id, label: projectCodedPickerLabel(p, PICKER_NAME_MAX) }))}
-                    placeholder={
-                      pickerOptions.length === 0
-                        ? t('timesheets.picker.none', 'No projects to add')
-                        : t('timesheets.picker.select', 'Select a project…')
-                    }
-                    className="touch-target min-w-0 max-w-[160px] text-control"
-                  />
                 )}
               </div>
-            </div>
-          )}
-          {canEnterTimesheet && (
-            <div data-testid="timesheets-copy-last-week" className="inline-flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={copyLastWeek}
-                disabled={copyDisabled}
-                title={copyDisabledReason ?? undefined}
-              >
-                <Icon name="clipboard-check" aria-hidden />
-                {t('timesheets:copyLastWeek.button', 'Copy last week')}
-              </Button>
-              {copyDisabledReason && (
-                <span data-testid="timesheets-copy-reason" className="text-control text-muted-foreground">
-                  {copyDisabledReason}
-                </span>
-              )}
-            </div>
-          )}
-          {editable && (
-            <span
-              data-testid="timesheets-save-status"
-              role="status"
-              className="text-control text-muted-foreground"
-            >
-              {deleteRow.isPending || isReconciling
-                ? t('timesheets:reconcile.message', 'Refresh this week before continuing.')
-                : dirty
-                ? t('uxs28.save.dirty', 'Unsaved changes')
-                : currentWeekEntries.length > 0
-                  ? t('uxs28.save.saved', 'All changes saved')
-                  : null}
-            </span>
-          )}
-          <span
-            data-testid="timesheets-weekly-total"
-            className="ml-auto text-control tabular text-muted-foreground max-md:hidden"
-          >
-            {t('timesheets.hoursThisWeek', '{{hours}} hours this week', {
-              hours: formatNumberExact(editable ? editTotals.weekly : weeklyTotal),
-            })}
-          </span>
+            )}
+          </div>
         </div>
 
         {editable ? (

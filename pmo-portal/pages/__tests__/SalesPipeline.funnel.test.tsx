@@ -19,7 +19,7 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
  * banner above the toolbar so it's present in both views.
  */
 
-const { pipelineState, lostState } = vi.hoisted(() => ({
+const { pipelineState, lostState, wonState } = vi.hoisted(() => ({
   pipelineState: {
     data: {
       stages: [
@@ -41,6 +41,7 @@ const { pipelineState, lostState } = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
   lostState: { data: [] as unknown[] },
+  wonState: { data: [] as unknown[] },
 }));
 
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
@@ -50,7 +51,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
-  useWonDeals: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useWonDeals: () => ({ data: wonState.data, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
@@ -97,6 +98,40 @@ beforeEach(() => {
   pipelineState.isPending = false;
   pipelineState.isError = false;
   lostState.data = [];
+  wonState.data = [];
+});
+
+describe('AC-SFA-001: sales pipeline stages use one open-value scale', () => {
+  it('shows open-value bars, keeps weighted values labelled, hides stage chances, and omits an empty-stage bar', () => {
+    renderPage();
+    const summary = screen.getByLabelText('Pipeline summary');
+    const leads = within(summary).getByRole('button', { name: /Leads/ });
+    const quotation = within(summary).getByRole('button', { name: /Quotation submitted/ });
+    const leadsBarFill = leads.querySelector('[data-funnel-stage-bar] > span') as HTMLElement;
+
+    expect(within(summary).queryByText(/\b\d+%/)).not.toBeInTheDocument();
+    expect(parseFloat(leadsBarFill.style.width)).toBeCloseTo((200_000 / 1_200_000) * 100);
+    expect(within(leads).getByText('$20,000 weighted')).toBeInTheDocument();
+    expect(within(quotation).getByText('0', { exact: true })).toBeInTheDocument();
+    expect(quotation.querySelector('[data-funnel-stage-bar]')).toBeNull();
+  });
+
+  it('labels the pipeline outcome counts as all time', () => {
+    wonState.data = [{
+      id: 'won-1', name: 'Won project', status: 'Won, Pending KoM', contract_value: 10_000,
+      currency: 'USD', win_probability: 1,
+    }];
+    lostState.data = [{
+      id: 'lost-1', name: 'Lost project', status: 'Loss Tender', contract_value: 5_000,
+      currency: 'USD', win_probability: 0,
+    }];
+
+    renderPage();
+
+    const needsAttention = screen.getByLabelText('Needs attention');
+    expect(within(needsAttention).getByRole('button', { name: 'Won 1 all time' })).toBeInTheDocument();
+    expect(within(needsAttention).getByRole('button', { name: 'Lost 1 all time' })).toBeInTheDocument();
+  });
 });
 
 describe('AC-JR-W4-03: Funnel stage click scopes the table', () => {

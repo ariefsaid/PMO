@@ -207,6 +207,26 @@ describe('Timesheets — Copy last week (draft weeks)', () => {
     // …and nothing was written: the copy is buffer state awaiting the explicit Save.
     expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent('Unsaved changes');
     expect(await screen.findByText('Rows copied from last week')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy last week' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the status in the entry header and the project picker together in the action row', () => {
+    const lastMon = lastWeekStr();
+    sheetsState.data = [
+      sheet('Draft', lastMon, [
+        entry('p-solar-1', 'Meridian Solar Phase 1', 'SP-2401', lastMon, 8),
+      ]),
+    ];
+    renderAtUrl();
+
+    const header = screen.getByTestId('timesheets-entry-header');
+    const actions = screen.getByTestId('timesheets-entry-actions');
+    const projectControl = screen.getByTestId('timesheets-add-project-control');
+    expect(within(header).getByText('Draft')).toBeInTheDocument();
+    expect(within(projectControl).getByText('Add project')).toBeInTheDocument();
+    expect(within(projectControl).getByRole('combobox', { name: 'Add a project' })).toBeInTheDocument();
+    expect(projectControl.parentElement).toBe(actions);
+    expect(within(actions).getByRole('button', { name: 'Copy last week' })).toBeEnabled();
   });
 
   it('duplicate guard: a project already present this week stays exactly one row with its own hours; only missing projects are added', async () => {
@@ -237,9 +257,13 @@ describe('Timesheets — Copy last week (draft weeks)', () => {
 
   it('is disabled with a plain reason when the week is not a draft', () => {
     const currentWeek = currentWeekStr();
+    const lastWeek = lastWeekStr();
     sheetsState.data = [
       sheet('Submitted', currentWeek, [
         entry('p-windmill-2', 'Windmill Grid Alpha', 'WG-2402', currentWeek, 4),
+      ]),
+      sheet('Draft', lastWeek, [
+        entry('p-solar-1', 'Meridian Solar Phase 1', 'SP-2401', lastWeek, 8),
       ]),
     ];
     renderAtUrl();
@@ -250,17 +274,15 @@ describe('Timesheets — Copy last week (draft weeks)', () => {
     );
   });
 
-  it('is disabled with a plain reason when last week has no logged time', () => {
+  it('hides the copy action and its reason when last week has no logged time', () => {
     sheetsState.data = [];
     renderAtUrl();
 
-    expect(copyButton()).toBeDisabled();
-    expect(screen.getByTestId('timesheets-copy-reason')).toHaveTextContent(
-      'Nothing to copy — no time was logged last week'
-    );
+    expect(screen.queryByRole('button', { name: 'Copy last week' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('timesheets-copy-reason')).not.toBeInTheDocument();
   });
 
-  it('is disabled with a plain reason when last week\u2019s projects are all already in this week', () => {
+  it('hides the copy action and its reason when last week\u2019s projects are all already in this week', () => {
     const currentWeek = currentWeekStr();
     const lastWeek = lastWeekStr();
     sheetsState.data = [
@@ -273,10 +295,8 @@ describe('Timesheets — Copy last week (draft weeks)', () => {
     ];
     renderAtUrl();
 
-    expect(copyButton()).toBeDisabled();
-    expect(screen.getByTestId('timesheets-copy-reason')).toHaveTextContent(
-      'already in this week'
-    );
+    expect(screen.queryByRole('button', { name: 'Copy last week' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('timesheets-copy-reason')).not.toBeInTheDocument();
   });
 });
 

@@ -72,8 +72,8 @@
     "stageNav": "Pipeline stages",
     "needsYouHeading": "Needs you · {{n}}",
     "nothingStale": "Nothing is stale",
-    "wonCount": "Won {{n}}",
-    "lostCount": "Lost {{n}}",
+    "wonCount": "Won {{n}} all time",
+    "lostCount": "Lost {{n}} all time",
     "showAllAttention": "Show all {{n}}"
   }
 }
