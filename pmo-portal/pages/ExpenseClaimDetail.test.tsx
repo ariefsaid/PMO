@@ -83,6 +83,8 @@ beforeEach(() => {
   h.floatState = 'ready';
   h.m.update.mutateAsync.mockReset();
   h.m.update.mutateAsync.mockResolvedValue(undefined);
+  h.m.transition.mutateAsync.mockReset();
+  h.m.transition.mutateAsync.mockResolvedValue(undefined);
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
 });
 afterEach(() => resetActiveLocale());
@@ -100,29 +102,44 @@ const renderAtWithI18n = () =>
 
 describe('ExpenseClaimDetail', () => {
   it('AC-RSN-005 shows rejection details on a returned claim', () => {
-    h.claim = { ...base, status: 'Rejected', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Approver Example' } };
+    h.claim = { ...base, status: 'Rejected', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Reviewer' } };
     as('eng', 'Engineer'); renderAt();
     expect(screen.getByText(/Add receipt/)).toBeInTheDocument();
-    expect(screen.getByText(/Approver Example/)).toBeInTheDocument();
+    expect(screen.getByText(/Reviewer/)).toBeInTheDocument();
+    expect(screen.getByTestId('expense-status')).toHaveTextContent('Returned');
+    const banner = screen.getByText(/Returned by Reviewer/).closest('[role="status"]') as HTMLElement;
+    expect(banner).toHaveTextContent('Returned by Reviewer');
+    expect(within(banner as HTMLElement).getByRole('button', { name: 'Edit and resubmit' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Edit and resubmit' })).toHaveLength(1);
   });
   it('AC-RSN-005 shows unavailable details for an older rejected claim', () => {
     h.claim = { ...base, status: 'Rejected', rejection_notes: null, rejected_at: null, rejecter: null };
     as('eng', 'Engineer'); renderAt();
     expect(screen.getByText(/Reason unavailable/)).toBeInTheDocument();
-    expect(screen.getByText(/Person unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText('Person unavailable')).not.toBeInTheDocument();
+  });
+
+  it('reopens a returned claim from its banner action', async () => {
+    h.claim = { ...base, status: 'Rejected', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Reviewer' } };
+    as('eng', 'Engineer');
+    const user = userEvent.setup();
+    renderAt();
+
+    await user.click(screen.getByRole('button', { name: 'Edit and resubmit' }));
+    await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Draft' }));
   });
 
   it('AC-RSN-005 retains the decision during correction and clears it after resubmission', () => {
-    h.claim = { ...base, status: 'Draft', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Approver Example' } };
+    h.claim = { ...base, status: 'Draft', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Reviewer' } };
     as('eng', 'Engineer');
     const { unmount } = renderAt();
     expect(screen.getByText(/Add receipt/)).toBeInTheDocument();
-    expect(screen.getByText(/Approver Example/)).toHaveTextContent('2026');
+    expect(screen.getByText(/Reviewer/)).toHaveTextContent('2026');
     unmount();
     h.claim = { ...base, status: 'Submitted', rejection_notes: null, rejected_at: null, rejecter: null };
     renderAt();
     expect(screen.queryByText(/Add receipt/)).toBeNull();
-    expect(screen.queryByText(/Approver Example/)).toBeNull();
+    expect(screen.queryByText(/Reviewer/)).toBeNull();
   });
 
   it('D4: shows minor units on the expense transaction record', () => {

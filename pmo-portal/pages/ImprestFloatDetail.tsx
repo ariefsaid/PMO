@@ -1,4 +1,4 @@
-import { RejectionDetails } from '@/src/components/ui/RejectionDetails';
+import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -125,8 +125,8 @@ const ImprestFloatDetail: React.FC = () => {
     { key: 'number', header: t('imprest:rep.number', 'Number'), rowHeader: true, cell: (r) => <span className="whitespace-nowrap font-medium">{r.number}</span> },
     { key: 'kind', header: t('imprest:rep.kind', 'Type'), cell: (r) => r.kind === 'funding' ? t('imprest:rep.funding', 'Funding') : t('imprest:rep.replenishment', 'Replenishment') },
     { key: 'amount', header: t('imprest:rep.amount', 'Amount'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.amount)}</span> },
-    { key: 'status', header: t('imprest:rep.status', 'Status'), cell: (r) => <span className="flex flex-wrap items-center gap-x-2">
-      <StatusPill record="imprest" state={r.status} />{posting(r.id)}{r.status === 'Rejected' && <RejectionDetails reason={r.decided_notes} person={r.rejecter?.full_name} at={r.rejected_at} />}</span> },
+    { key: 'status', header: t('imprest:rep.status', 'Status'), cell: (r) => <div className="flex flex-wrap items-center gap-x-2">
+      <StatusPill record="imprest" state={r.status} />{posting(r.id)}{r.status === 'Rejected' && <ReturnedBanner record="imprest" reason={r.decided_notes} person={r.rejecter?.full_name} at={r.rejected_at} className="mb-0" />}</div> },
     { key: 'actions', header: <span className="sr-only">{t('imprest:rep.actions', 'Actions')}</span>, cell: (r) => {
       const acts = availableReplenishmentActions({ userId, realRole, custodianId: flt.custodian_id, rep: r });
       const btn = (a: ImprestAction, label: string, variant: 'primary' | 'outline' | 'ghost') => acts.includes(a) &&

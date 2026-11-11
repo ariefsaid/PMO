@@ -56,7 +56,7 @@ export const STATUS_MAP = {
     Draft: e('neutral', (t) => t('status:expense.draft', 'Draft')),
     Submitted: e('waiting', (t) => t('status:expense.submitted', 'Submitted')),
     Approved: e('done', (t) => t('status:expense.approved', 'Approved')),
-    Rejected: e('exception', (t) => t('status:expense.rejected', 'Rejected')),
+    Rejected: e('exception', (t) => t('status:expense.rejected', 'Returned')),
     Paid: e('done', (t) => t('status:expense.paid', 'Paid')),
     Cancelled: e('neutral', (t) => t('status:expense.cancelled', 'Cancelled')),
   },
@@ -80,7 +80,7 @@ export const STATUS_MAP = {
     Draft: e('neutral', (t) => t('status:equipmentUsage.draft', 'Draft')),
     Submitted: e('waiting', (t) => t('status:equipmentUsage.submitted', 'Submitted')),
     Approved: e('done', (t) => t('status:equipmentUsage.approved', 'Approved')),
-    Rejected: e('exception', (t) => t('status:equipmentUsage.rejected', 'Rejected')),
+    Rejected: e('exception', (t) => t('status:equipmentUsage.rejected', 'Returned')),
   },
   task: {
     'To Do': e('neutral', (t) => t('status:task.toDo', 'To do')),

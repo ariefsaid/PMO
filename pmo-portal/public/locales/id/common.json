@@ -1477,7 +1477,6 @@
       "notFoundTitle": "Tidak ditemukan",
       "outstanding": "Belum diselesaikan",
       "reference": "Referensi pembayaran",
-      "rejectionNote": "Ditolak: {{note}}",
       "summary": "Ringkasan"
     },
     "filters": {
@@ -1584,14 +1583,6 @@
       "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
       "errorTitle": "Gagal memuat biaya"
     },
-    "status": {
-      "approved": "Disetujui",
-      "cancelled": "Dibatalkan",
-      "draft": "Draf",
-      "paid": "Dibayar",
-      "rejected": "Ditolak",
-      "submitted": "Diajukan"
-    },
     "table": {
       "emptyTitle": "Belum ada biaya",
       "rowLabel": "Buka {{title}}"
@@ -1602,7 +1593,6 @@
       "cancelled": "Dibatalkan",
       "created": "Dibuat",
       "paid": "Ditandai dibayar",
-      "rejected": "Ditolak",
       "reopened": "Kembali ke Draf",
       "returned": "Pengembalian dicatat",
       "submitted": "Diajukan untuk persetujuan"
@@ -3361,9 +3351,7 @@
     },
     "previousWeek": "Minggu sebelumnya",
     "returned": {
-      "revise": "Revisi minggu ini",
-      "sub": "Atasan Anda mengembalikan minggu ini. Perbaiki lalu ajukan lagi.",
-      "title": "Dikembalikan untuk diperbaiki"
+      "revise": "Revisi minggu ini"
     },
     "save": "Simpan",
     "status": {},

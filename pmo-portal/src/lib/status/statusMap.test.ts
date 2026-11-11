@@ -87,6 +87,13 @@ describe('status map', () => {
     expect(statusLabel('procurement', 'Ordered', echo)).toBe('Purchase order');
   });
 
+  it('names reversible decisions Returned and keeps terminal top-ups Rejected', () => {
+    expect(statusLabel('timesheet', 'Rejected', echo)).toBe('Returned');
+    expect(statusLabel('expense', 'Rejected', echo)).toBe('Returned');
+    expect(statusLabel('equipmentUsage', 'Rejected', echo)).toBe('Returned');
+    expect(statusLabel('imprest', 'Rejected', echo)).toBe('Rejected');
+  });
+
   it('uses sentence casing for common task states', () => {
     expect(statusLabel('task', 'To Do', echo)).toBe('To do');
     expect(statusLabel('task', 'In Progress', echo)).toBe('In progress');

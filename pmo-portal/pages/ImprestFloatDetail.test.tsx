@@ -67,14 +67,14 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
   });
 
   it('AC-RSN-005 shows each returned top-up decision on its own row', () => {
-    h.reps = ok({ rows: [{ ...REP, status: 'Rejected', decided_notes: 'More detail needed', rejected_at: '2026-11-03T10:00:00Z', rejecter: { full_name: 'Approver Example' } }, { ...REP, id: 'r2', number: 'REP-2', status: 'Rejected', decided_notes: null, rejecter: null }], truncated: false });
+    h.reps = ok({ rows: [{ ...REP, status: 'Rejected', decided_notes: 'More detail needed', rejected_at: '2026-11-03T10:00:00Z', rejecter: { full_name: 'Reviewer' } }, { ...REP, id: 'r2', number: 'REP-2', status: 'Rejected', decided_notes: null, rejecter: null }], truncated: false });
     renderPage();
     const row = screen.getByRole('row', { name: /REP-1/ });
     expect(within(row).getByText(/More detail needed/)).toBeInTheDocument();
-    expect(within(row).getByText(/Approver Example/)).toHaveTextContent('2026');
+    expect(within(row).getByText(/Reviewer/)).toHaveTextContent('2026');
     const legacy = within(screen.getByRole('row', { name: /REP-2/ }));
     expect(legacy.getByText(/Reason unavailable/)).toBeInTheDocument();
-    expect(legacy.getByText(/Person unavailable/)).toBeInTheDocument();
+    expect(legacy.queryByText('Person unavailable')).not.toBeInTheDocument();
   });
 
   it('AC-IMP-082 the detail shows the plan table with exception items marked', () => {
