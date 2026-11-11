@@ -114,8 +114,11 @@ const ROUTES: Route[] = [
   // independently fetched figure; at 390px the phone layout renders deal cards, so readiness binds
   // to the phone card's full amount instead of the desktop weighted-total testid.
   { name: 'sales pipeline', user: 'exec@acme.test', path: '/sales', ready: async (p, width) => {
+    // ux/1110 reformats the funnel figures as compact tile money (formatTileMoney, 3 significant
+    // digits, no title attr): the weighted total of the IDR fixture, 75,185,000,000, renders as
+    // "IDR 75.2B" on the desktop tiles. The 390px phone layout keeps the full amount on the card.
     const figure = width === 390 ? p.locator('main .tabular').filter({ hasText: /5,457,143,000/ }).first() : p.getByTestId('pipeline-weighted-total');
-    await expect(figure).toContainText(width === 390 ? /5,457,143,000/ : /75,185,000,000/);
+    await expect(figure).toContainText(width === 390 ? /5,457,143,000/ : /75\.2B/);
     await expect(figure).toBeVisible();
   }, widths: WIDTHS, bahasaWidths: [] },
 ];
