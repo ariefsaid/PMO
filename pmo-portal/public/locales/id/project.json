@@ -612,7 +612,15 @@
       "copyLink": "Salin tautan",
       "previewFileFor": "Pratinjau berkas untuk {{title}}",
       "previewFile": "Pratinjau berkas",
-      "changeContractValue": "Ubah nilai kontrak"
+      "changeContractValue": "Ubah nilai kontrak",
+      "unsavedValue": {
+        "title": "Nilai kontrak belum disimpan",
+        "description": "Perubahan nilai kontrak dan dasar pajak akan hilang jika Anda meninggalkan halaman ini.",
+        "discard": "Buang perubahan",
+        "leave": "Tinggalkan",
+        "keepEditing": "Lanjut mengedit",
+        "stay": "Tetap di sini"
+      }
     },
     "rail": {
       "contractDate": "Tanggal kontrak"

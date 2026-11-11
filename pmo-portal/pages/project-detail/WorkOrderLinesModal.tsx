@@ -36,17 +36,22 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
   const { t } = useTranslation('project');
   const own = new Map(allocations.map((row) => [row.boq_item_id, row]));
   const facts = new Map(contractLines.map((row) => [row.boqItemId, row]));
-  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(
+  const initialValues = () => Object.fromEntries(
     allocations.map((row) => [row.boq_item_id, formatMoneyInputValue(Number(row.quantity))]),
-  ));
+  );
+  const [values, setValues] = useState<Record<string, string>>(initialValues);
+  const [persistedValues, setPersistedValues] = useState<Record<string, string>>(initialValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [doneConfirmOpen, setDoneConfirmOpen] = useState(false);
   // A rejected save/remove is shown in the dialog's own persistent error region (focus returns there).
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
   const [removeFor, setRemoveFor] = useState<{ item: BoqItemRow; row: WorkOrderLineRow } | null>(null);
 
   const sourcesReady = sources.every((source) => !source.pending && !source.error);
   const editable = canEdit && (workOrder.status === 'Draft' || workOrder.status === 'Issued');
+  const dirty = [...new Set([...Object.keys(values), ...boqItems.map((item) => item.id)])]
+    .some((id) => (values[id] ?? '') !== (persistedValues[id] ?? ''));
   const woLabel = workOrder.wo_number ? `${workOrder.wo_number} — ${workOrder.title}` : workOrder.title;
   const setError = (id: string, message: string | null) =>
     setErrors((current) => {
@@ -87,9 +92,11 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
     setError(item.id, null);
     setSaveError(null);
     setBusy(item.id);
+    const submittedValue = values[item.id] ?? '';
     try {
       const row = own.get(item.id);
       if (row) await onUpdate(row.id, quantity); else await onCreate(item.id, quantity);
+      setPersistedValues((current) => ({ ...current, [item.id]: submittedValue }));
     } catch (err) {
       fail(item, err);
     } finally {
@@ -105,6 +112,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
     try {
       await onDelete(row.id);
       setValues((current) => { const next = { ...current }; delete next[item.id]; return next; });
+      setPersistedValues((current) => { const next = { ...current }; delete next[item.id]; return next; });
       setError(item.id, null);
     } catch (err) {
       fail(item, err);
@@ -120,9 +128,20 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
       width="lg"
       title={t('projectTabs:contractQuantities.workOrders.contractLines.title', 'Contract lines: {{wo}}', { wo: woLabel })}
       submitLabel={t('projectTabs:contractQuantities.workOrders.contractLines.done', 'Done')}
-      onSubmit={(e) => { e.preventDefault(); onClose(); }}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (dirty) setDoneConfirmOpen(true);
+        else onClose();
+      }}
       submitError={saveError}
       onClose={onClose}
+      dirty={dirty}
+      discardCopy={{
+        title: t('projectTabs:contractQuantities.workOrders.contractLines.discard.title', 'Discard unsaved line changes?'),
+        description: t('projectTabs:contractQuantities.workOrders.contractLines.discard.description', 'Allocation quantities that have not been saved will be lost.'),
+        confirmLabel: t('projectTabs:contractQuantities.workOrders.contractLines.discard.confirm', 'Discard'),
+        cancelLabel: t('projectTabs:contractQuantities.workOrders.contractLines.discard.cancel', 'Keep editing'),
+      }}
     >
       {sources.filter((source) => source.pending || source.error).map((source) => source.error
         ? <ListState key={source.name} variant="error" title={t('projectDetail.billing.sources.error', "Couldn't load {{source}}", { source: source.name })} onRetry={source.retry} />
@@ -210,6 +229,16 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
           onCancel={() => setRemoveFor(null)}
         />
       )}
+      <ConfirmDialog
+        open={doneConfirmOpen}
+        tone="destructive"
+        title={t('projectTabs:contractQuantities.workOrders.contractLines.discard.title', 'Discard unsaved line changes?')}
+        description={t('projectTabs:contractQuantities.workOrders.contractLines.discard.description', 'Allocation quantities that have not been saved will be lost.')}
+        confirmLabel={t('projectTabs:contractQuantities.workOrders.contractLines.discard.confirm', 'Discard')}
+        cancelLabel={t('projectTabs:contractQuantities.workOrders.contractLines.discard.cancel', 'Keep editing')}
+        onConfirm={() => { setDoneConfirmOpen(false); onClose(); }}
+        onCancel={() => setDoneConfirmOpen(false)}
+      />
       <p className="mt-3 text-sm text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.subtitle', 'Quantities this order takes from the contract. Each line saves on its own; ordering more than the balance is allowed and flagged.')}</p>
     </EntityFormModal>
   );
