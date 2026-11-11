@@ -198,6 +198,18 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(screen.getByRole('link', { name: /Prepare handover/ })).toHaveTextContent(/Due /);
   });
 
+  it('colors only the oldest overdue task and leaves later lateness in foreground text', () => {
+    state.tasks.data = [
+      { ...tasks[0], end_date: '2026-05-31' },
+      { ...tasks[0], id: 'second-overdue', name: 'Review estimates', end_date: '2026-06-01' },
+    ];
+    renderDashboard();
+
+    expect(within(screen.getByRole('link', { name: /Finalize drawings/ })).getByText('3 days late')).toHaveClass('text-destructive-text');
+    expect(within(screen.getByRole('link', { name: /Review estimates/ })).getByText('2 days late')).toHaveClass('text-foreground');
+    expect(screen.getByText('2 days late')).not.toHaveClass('text-destructive-text');
+  });
+
   it('N15: a task with no project still opens My Tasks', () => {
     state.tasks.data = [{ ...tasks[0], project_id: null, project_name: null }];
     renderDashboard();

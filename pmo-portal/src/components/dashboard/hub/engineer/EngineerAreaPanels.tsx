@@ -11,6 +11,8 @@ import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
 import { Icon } from '@/src/components/ui/icons';
 import { ListState } from '@/src/components/ui/ListState';
 import { StatusPill } from '@/src/components/ui/StatusPill';
+import { LateText } from '@/src/components/ui/LateText';
+import { isMostUrgentLateRow } from '@/src/components/ui/lateTextRows';
 import { MonthColumns } from '@/src/components/dashboard/charts';
 
 interface PanelState {
@@ -106,16 +108,17 @@ export function EngineerTasksCard({
                 <ul className="min-w-0 divide-y divide-border">
                   {rows.map((task) => {
                     const late = today && task.end_date && task.end_date < today ? overdueAgeDays(task.end_date, today) : null;
+                    const isUrgent = late !== null && isMostUrgentLateRow(oldestFirst, task);
                     return (
                       <li key={task.id} className="min-w-0">
                         <Link to={taskHref(task)} className="flex min-h-11 min-w-0 items-center justify-between gap-3 py-2 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-control font-medium">{task.name}</span>
+                            <span className="block truncate text-control font-normal">{task.name}</span>
                             <span className="block truncate text-control text-muted-foreground">{task.project_name ?? t('hub.engineer.noProject', 'No project')}</span>
                           </span>
-                          <span className={late !== null ? 'shrink-0 whitespace-nowrap text-control font-semibold text-destructive-text' : 'shrink-0 whitespace-nowrap text-control text-muted-foreground'}>
-                            {late !== null ? t('hub.engineer.daysLate', { count: late, defaultValue_one: '{{count}} day late', defaultValue_other: '{{count}} days late' }) : t('hub.engineer.dueDate', 'Due {{date}}', { date: formatDay(task.end_date) })}
-                          </span>
+                          {late !== null
+                            ? <LateText className="shrink-0 whitespace-nowrap" emphasis={isUrgent}>{t('hub.engineer.daysLate', { count: late, defaultValue_one: '{{count}} day late', defaultValue_other: '{{count}} days late' })}</LateText>
+                            : <span className="shrink-0 whitespace-nowrap text-control text-muted-foreground">{t('hub.engineer.dueDate', 'Due {{date}}', { date: formatDay(task.end_date) })}</span>}
                         </Link>
                       </li>
                     );
