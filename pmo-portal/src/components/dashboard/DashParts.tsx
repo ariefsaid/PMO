@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead } from '@/src/components/ui/Card';
@@ -7,6 +7,8 @@ import { ListState } from '@/src/components/ui/ListState';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { cn } from '@/src/components/ui/cn';
 import { statusLabel, statusTone, toneVariant } from '@/src/lib/status/statusMap';
+import { useMyTasks } from '@/src/hooks/useMyTasks';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 
 /** Colour means exception only: overdue / over budget = red (`lost`), waiting on someone = amber (`warn`), the rest grey. */
 export type DashTone = 'lost' | 'warn' | 'neutral';
@@ -74,6 +76,66 @@ export const WaitsOnYou: React.FC<{
               </ul>
             )}
     </Card>
+  );
+};
+
+/** Shared dashboard rows for the signed-in person's own overdue and due-today tasks. */
+export const DashboardWaitsOnYou: React.FC<{
+  rows: WaitRow[];
+  pending?: boolean;
+  error?: boolean;
+  onRetry?: () => void;
+  title?: string;
+  emptyLabel?: string;
+  testId?: string;
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId }) => {
+  const { t } = useTranslation('dashboard');
+  const tasks = useMyTasks();
+  const today = useOrgToday();
+
+  const taskRows = useMemo<WaitRow[]>(() => {
+    const open = (tasks.data ?? []).filter((task) => task.status !== 'Done');
+    const overdueCount = open.filter((task) => task.end_date !== null && task.end_date < today).length;
+    const dueTodayCount = open.filter((task) => task.end_date === today).length;
+    const next: WaitRow[] = [];
+
+    if (overdueCount > 0) {
+      next.push({
+        id: 'my-overdue-tasks',
+        count: overdueCount,
+        label: t(overdueCount === 1 ? 'needs.myTaskOverdueOne' : 'needs.myTaskOverdueOther', overdueCount === 1 ? 'task overdue' : 'tasks overdue'),
+        href: '/my-tasks',
+        tone: 'lost',
+      });
+    }
+    if (dueTodayCount > 0) {
+      next.push({
+        id: 'my-tasks-due-today',
+        count: dueTodayCount,
+        label: t(dueTodayCount === 1 ? 'needs.myTaskDueTodayOne' : 'needs.myTaskDueTodayOther', dueTodayCount === 1 ? 'task due today' : 'tasks due today'),
+        href: '/my-tasks',
+        tone: 'warn',
+      });
+    }
+    return next;
+  }, [tasks.data, today, t]);
+
+  const retry = () => {
+    onRetry?.();
+    void tasks.refetch();
+  };
+  const rowsWithTasks = [...taskRows, ...rows];
+
+  return (
+    <WaitsOnYou
+      rows={rowsWithTasks}
+      pending={pending || (tasks.isPending && rows.length === 0)}
+      error={error || (tasks.isError && rows.length === 0)}
+      onRetry={retry}
+      title={title}
+      emptyLabel={emptyLabel}
+      testId={testId}
+    />
   );
 };
 

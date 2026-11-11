@@ -25,7 +25,7 @@ import { PeriodPicker } from '@/src/components/dashboard/restructure/PeriodPicke
 import { usePeriod } from '@/src/components/dashboard/restructure/usePeriod';
 import type { DashboardFigure } from '@/src/components/dashboard/restructure/FigureGroup';
 import { moneyTileValue } from '@/src/components/dashboard/dashMoney';
-import { Analysis, ProjectRows, WaitsOnYou, type ProjectRow, type WaitRow } from '@/src/components/dashboard/DashParts';
+import { Analysis, DashboardWaitsOnYou, ProjectRows, type ProjectRow, type WaitRow } from '@/src/components/dashboard/DashParts';
 import { StatusBarChart } from '@/src/components/dashboard/StatusBarChart';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { chartTheme } from '@/src/components/ui/chartTheme';
@@ -242,7 +242,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const activeStatuses = new Set<string>(ACTIVE_PROJECT_STATUSES);
   const budgetRows = (budgetReview.data ?? []).filter((row) => activeStatuses.has(row.status)).slice(0, 5);
 
-  const waitsEl = <WaitsOnYou rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={needs.refetch} />;
+  const waitsEl = <DashboardWaitsOnYou rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={needs.refetch} />;
   const overdueCard = (
     <Card>
       <CardHead level={2} actions={cardLink('/finance/receivables?overdue=true', t('home.allOverdue', 'All overdue'))}>{t('home.overdueFromClients', 'Overdue from clients')}</CardHead>

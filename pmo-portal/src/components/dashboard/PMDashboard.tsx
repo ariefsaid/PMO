@@ -23,7 +23,7 @@ import { BarList, ChartCard, SeriesKey, type BarRow } from './charts';
 import { CardLink } from './hub/company/OverviewCards';
 import { cn } from '@/src/components/ui/cn';
 import { moneyTileValue } from './dashMoney';
-import { ProjectRows, WaitsOnYou, type ProjectRow, type WaitRow } from './DashParts';
+import { DashboardWaitsOnYou, ProjectRows, type ProjectRow, type WaitRow } from './DashParts';
 import {
   formatHours,
   projectAtRisk,
@@ -154,7 +154,7 @@ export const PMDashboard: React.FC = () => {
       <FigureHiddenLine compact />
     </div>
   );
-  const waitsEl = <WaitsOnYou rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />;
+  const waitsEl = <DashboardWaitsOnYou rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />;
   const projectsEl = (
     <ProjectRows
       title={t('home.myProjects', 'My projects')}
