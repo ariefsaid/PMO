@@ -109,9 +109,12 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
   const invoiced = invoicesKnown ? settlement.invoiced : null;
   const paid = invoicesKnown && settlement.balancesKnown ? settlement.paid : null;
   const cash = data.cash_received;
-  const cashReceived = cash?.state === 'known'
+  const cashSum = cash?.state === 'known'
     ? cash.buckets.filter((bucket) => bucket.currency === project.currency).reduce((sum, bucket) => sum + Number(bucket.amount), 0)
     : null;
+  // Zero received next to invoices is more likely receipts not synced yet than a real zero: unknown never reads as 0.
+  const cashUnconfirmed = cashSum === 0 && (invoiced ?? 0) > 0;
+  const cashReceived = cashUnconfirmed ? null : cashSum;
   const marginBucket = data.invoices.find((bucket) => bucket.currency === project.currency);
   const margin = marginBucket && data.actuals ? deriveMargin(marginBucket, data.actuals) : null;
   const marginAmount = margin && margin.reason === null && margin.amount !== null ? Number(margin.amount) : null;
@@ -132,7 +135,9 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
   const hidden = [
     ...(['ordered', 'delivered', 'invoiced', 'paid'] as const).filter((key) => !steps.some((step) => step.key === key)).map((key) => stepLabels[key]),
     ...(marginAmount === null ? [t('projectDetail.money.grossMargin', 'Gross margin')] : []),
-    ...(cashReceived === null ? [cash?.state === 'incomplete'
+    ...(cashReceived === null ? [cashUnconfirmed
+      ? t('projectDetail.money.cashUnmatchedShort', 'Cash received (no receipt matched yet)')
+      : cash?.state === 'incomplete'
       ? t('projectDetail.money.cashIncompleteShort', 'Cash received (receipts not allocated to invoices)')
       : cash?.state === 'unavailable' && cash.reason === 'invalid-reading'
         ? t('projectDetail.money.cashInvalidShort', 'Cash received (receipt reading not verified)')
@@ -151,7 +156,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
             t('projectDetail.money.leadInvoiced', '{{percent}}% invoiced', { percent: invoicedShare }),
             'text-2xl font-semibold leading-tight tabular-nums text-foreground')}
           {paidShare !== null && <span className="text-sm tabular-nums text-muted-foreground">{t('projectDetail.money.leadPaid', '{{percent}}% paid', { percent: paidShare })}</span>}
-          {cashReceived !== null && <span data-testid="money-lead-cash" className={cn('text-lg font-semibold tabular-nums', cashReceived === 0 ? 'text-destructive-text' : 'text-foreground')}>{t('projectDetail.money.cashLead', 'Received {{amount}}', { amount: whole(cashReceived) })}</span>}
+          {cashReceived !== null && <span data-testid="money-lead-cash" className="text-lg font-semibold tabular-nums text-foreground">{t('projectDetail.money.cashLead', 'Received {{amount}}', { amount: whole(cashReceived) })}</span>}
         </p>
       )}
       <dl className="grid min-w-0 gap-y-2" aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
@@ -189,7 +194,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
       {hidden.length > 0 && !invoices.isPending && (
         <Note>
           {t('projectDetail.money.hiddenFigures', 'Not shown: {{figures}}.', { figures: hidden.join(', ') })}{' '}
-          {cashReceived === null && cash?.state !== 'known' && <FixLink to="/finance/receivables?view=payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>}
+          {cashReceived === null && <FixLink to="/finance/receivables?view=payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>}
         </Note>
       )}
       {cashReceived !== null && paid !== null && paid > cashReceived && (
@@ -271,7 +276,10 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
   }
   const worst = pos.overRows[0];
   const summaryTooltip = t('projectDetail.cost.summaryTooltip', 'Compares mapped actual spending with the active project budget. Source: active budget categories and project finance records.');
+  const noActuals = pos.rows.every((row) => row.actual === null);
   const rows = pos.rows.slice().sort((a, b) => {
+    // Nothing spent to compare: the rows are a comparison across categories, largest budget first.
+    if (noActuals) return b.budget - a.budget;
     if (a.actual === null) return b.actual === null ? label(a.category).localeCompare(label(b.category)) : 1;
     if (b.actual === null) return -1;
     const aOver = a.actual > a.budget ? 1 : 0;
@@ -293,6 +301,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
     }))
     : null;
   const hasComparisons = !pos.canSeeActual || pos.rows.length > 0;
+  const maxBudget = Math.max(0, ...pos.rows.map((row) => row.budget));
 
   // L12: "used" and "remaining" mean what the Budget tab's "% used" and "Left" mean — spent plus committed — whenever
   // the committed figure is known, so the Overview and the Budget tab never show two different headrooms.
@@ -382,6 +391,9 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
                         ? whole(r.budget)
                         : t('projectDetail.cost.rowSpent', '{{spent}} of {{budget}}', { spent: whole(r.actual), budget: whole(r.budget) })}
                     </span>
+                    {pct === null && maxBudget > 0 && <span aria-hidden="true" data-testid="category-budget-bar" className="col-span-2 h-1.5 w-full rounded-full bg-secondary sm:col-span-1">
+                      <span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${Math.round((r.budget / maxBudget) * 100)}%` }} />
+                    </span>}
                     {pct !== null && <span className="col-span-2 w-full sm:col-span-1">
                       <ProgressBar value={pct} widthless className="w-full" aria-label={r.budget === 0 && r.actual! > 0
                         ? t('projectDetail.cost.categoryNoBudget', '{{category}} has spending with no budget', { category: label(r.category) })

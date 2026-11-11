@@ -481,7 +481,8 @@
       "cashLead": "Received {{amount}}",
       "contractLocked": "read-only",
       "cashIncompleteShort": "Cash received (receipts not allocated to invoices)",
-      "cashInvalidShort": "Cash received (receipt reading not verified)"
+      "cashInvalidShort": "Cash received (receipt reading not verified)",
+      "cashUnmatchedShort": "Cash received (no receipt matched yet)"
     },
     "cost": {
       "estimateTitle": "Budget",
@@ -899,7 +900,9 @@
         "history": "History"
       },
       "noMilestone": "No phase",
-      "drawerMoreActions": "More task actions"
+      "drawerMoreActions": "More task actions",
+      "statusMix": "Tasks by status",
+      "statusMixOther": "Other"
     },
     "workOrders": {
       "acceptanceAge": "Days since acceptance, not invoiced: {{days}}",
