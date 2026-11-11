@@ -1,6 +1,6 @@
 import React from 'react';
 import { scrollBehavior } from '@/src/lib/motion';
-import { Menu } from '@base-ui/react/menu';
+import { Menu } from '@/src/components/ui/menu';
 import { cn } from '@/src/components/ui/cn';
 import { menuItemClass, menuPopupClass, menuPopupOrigin } from '@/src/components/ui/menuStyles';
 import { useTranslation } from 'react-i18next';
@@ -113,7 +113,7 @@ const TasksToolbar: React.FC<{
               <Menu.Portal>
                 <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-50">
                   <Menu.Popup className={cn(menuPopupClass, 'min-w-[190px]')} style={menuPopupOrigin}>
-                    <Menu.CheckboxItem checked={showArchived} closeOnClick onCheckedChange={() => { setShowArchived((value) => !value); onClearSelection(); }} className={menuItemClass}>
+                    <Menu.CheckboxItem checked={showArchived} onCheckedChange={() => { setShowArchived((value) => !value); onClearSelection(); }} className={menuItemClass}>
                       {showArchived ? t('projectDetail.tasks.hideArchived', 'Hide archived') : t('projectDetail.tasks.showArchived', 'Show archived')}
                     </Menu.CheckboxItem>
                     <Menu.Item onClick={() => integrationsRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })} className={menuItemClass}>
