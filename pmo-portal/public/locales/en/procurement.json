@@ -204,6 +204,7 @@
         "category": "Category",
         "stage": "Stage",
         "nextStep": "Next step",
+        "status": "Status",
         "accessibleName": "Project procurement"
       },
       "noSupplier": "No supplier",
@@ -247,12 +248,11 @@
         "approveManyDescription": "Approving lets each order go ahead.",
         "cancelManyTitle": "Cancel these procurements?",
         "cancelTitle": "Cancel this procurement?",
-        "returnManyTitle": "Return these procurements?",
-        "returnTitle": "Return this procurement?",
         "cancelDescription": "This procurement will be marked as cancelled.",
-        "returnDescription": "The procurement goes back to the person who raised it.",
-        "returnComment": "Return comment",
-        "returnCommentHelp": "Say what the requester needs to change."
+        "returnSubject": "procurement",
+        "returnSubjectMany_one": "{{count}} procurement",
+        "returnSubjectMany_other": "{{count}} procurements",
+        "returnSubjectMany": "{{count}} procurements"
       },
       "stage": {
         "cancelled": "Cancelled",
@@ -356,6 +356,8 @@
     "uncommitted": "Uncommitted budget",
     "actualsNotCounted": "Actual spend not counted",
     "headroom": "{{pct}}% headroom left",
+    "amountUnavailable": "Budget comparison unavailable for these amounts.",
+    "currencyUnavailable": "Budget comparison unavailable for these currencies.",
     "heading": "Budget impact",
     "openProject": "Open project"
   },
