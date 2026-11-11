@@ -9,21 +9,21 @@ import { formatUtcMonthYearFull } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ConsumptionMonthRow } from '@/src/lib/db/stockReports';
 
-const th = 'px-3 py-2 text-left text-xs font-semibold text-muted-foreground';
+const th = 'px-3 py-2 text-left text-sm font-semibold text-muted-foreground';
 const thNum = `${th} text-right`;
 const td = 'px-3 py-2 align-top text-sm';
 const tdNum = `${td} text-right tabular-nums whitespace-nowrap`;
 
 const WorkItem: React.FC<{ code: string; description: string }> = ({ code, description }) => (
-  <div className="min-w-0"><span className="block font-mono text-sm font-semibold">{code}</span><span className="block text-xs text-muted-foreground">{description}</span></div>
+  <div className="min-w-0"><span className="block font-mono text-sm font-semibold">{code}</span><span className="block text-sm text-muted-foreground">{description}</span></div>
 );
 const Item: React.FC<{ code: string; name: string }> = ({ code, name }) => (
-  <div className="min-w-0"><span className="block font-mono text-sm">{code}</span><span className="block text-xs text-muted-foreground">{name}</span></div>
+  <div className="min-w-0"><span className="block font-mono text-sm">{code}</span><span className="block text-sm text-muted-foreground">{name}</span></div>
 );
 const Section: React.FC<{ title: string; sub?: string; children: React.ReactNode }> = ({ title, sub, children }) => (
   <section className="flex min-w-0 flex-col gap-1.5">
     <h4 className="text-sm font-semibold">{title}</h4>
-    {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+    {sub && <p className="text-sm text-muted-foreground">{sub}</p>}
     {/* Focusable so a keyboard user can scroll a wide table at phone width (axe scrollable-region-focusable). */}
     <div tabIndex={0} role="group" aria-label={title} className="overflow-x-auto rounded-lg border border-border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{children}</div>
   </section>
@@ -54,12 +54,12 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
   return (
     <div className="flex min-w-0 flex-col gap-4">
       {range && <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+        <label className="flex flex-col gap-1 text-sm font-medium text-muted-foreground">
           {t('consumption.from')}
           <input type="month" className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" value={range.fromMonth} max={range.toMonth}
             onChange={(e) => e.target.value && setRange({ ...range, fromMonth: e.target.value })} />
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+        <label className="flex flex-col gap-1 text-sm font-medium text-muted-foreground">
           {t('consumption.to')}
           <input type="month" className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" value={range.toMonth} min={range.fromMonth}
             onChange={(e) => e.target.value && setRange({ ...range, toMonth: e.target.value })} />

@@ -150,7 +150,6 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
       open
       width="lg"
       title={t('budgetPaste.title', 'Paste rows')}
-      subtitle={t('budgetPaste.target', 'Adding to {{version}} (Draft). Existing lines are kept.', { version: versionLabel })}
       submitLabel={t('budgetPaste.save', 'Save {{count}} valid rows', { count: validRows.length })}
       cancelLabel={hasResults && !unresolved ? t('budgetPaste.done', 'Done') : undefined}
       onSubmit={submit}
@@ -182,7 +181,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
                 {t('budgetPaste.retry', 'Retry {{count}} failed rows', { count: failedRetryable.length })}
               </Button>
             )}
-            <ul className="space-y-1 text-xs">
+            <ul className="space-y-1 text-sm">
               {results.map((r) => (
                 <li key={r.rowNumber}>
                   {t('budgetPaste.resultRow', 'Row {{row}} · {{category}} · {{amount}}', { row: r.rowNumber, category: budgetCategoryLabel(r.category, t), amount: r.amount })}
@@ -271,7 +270,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
 
             {preview.rows.length > 0 && preview.rows.length <= 500 && (
               <div tabIndex={0} role="region" aria-label={t('budgetPaste.previewLabel', 'Preview')} className="max-h-72 overflow-auto rounded-md border border-border">
-                <table className="w-full min-w-[32rem] text-left text-xs">
+                <table className="w-full min-w-[32rem] text-left text-sm">
                   <thead className="sticky top-0 bg-card">
                     <tr>
                       <th scope="col" className="px-2 py-1">{t('budgetPaste.col.row', 'Row')}</th>
@@ -309,6 +308,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
 
         </>)}
       </div>
+      <p className="mt-3 text-sm text-muted-foreground">{t('budgetPaste.target', 'Adding to {{version}} (Draft). Existing lines are kept.', { version: versionLabel })}</p>
     </EntityFormModal>
   );
 };

@@ -16,7 +16,7 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useProjectOverviewRead } from '@/src/hooks/useProjectOverviewRead';
-import { completionPct, formatDateOnly, formatInstantDate, formatRelativeTime } from '@/src/lib/format';
+import { completionPct, formatDay, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import DealBand from '../sales/DealBand';
 import StageHistory from './StageHistory';
@@ -37,7 +37,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
     : null;
   const manager = project.pm?.full_name;
   const dates = project.start_date || project.end_date
-    ? `${formatDateOnly(project.start_date)} – ${formatDateOnly(project.end_date)}`
+    ? `${formatDay(project.start_date)} – ${formatDay(project.end_date)}`
     : t('projectDetail.facts.noDates', 'Dates not set');
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
   return (
@@ -63,7 +63,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
       )}
       {phases.isPending && <span>{t('projectDetail.facts.progressLoading', 'Progress loading')}</span>}
       {updated && (
-        <Tooltip content={t('projectDetail.facts.updatedTooltip', 'Last updated on {{date}}.', { date: formatInstantDate(project.last_update) })}>
+        <Tooltip content={t('projectDetail.facts.updatedTooltip', 'Last updated on {{date}}.', { date: formatDay(project.last_update) })}>
           <time tabIndex={0} dateTime={project.last_update} className="text-muted-foreground">
             {t('projectDetail.facts.updated', 'Updated {{when}}', { when: updated })}
           </time>

@@ -31,6 +31,7 @@ const ID_STATUS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id
 const EN_LOST_REASON = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/lostReason.json'), 'utf8'));
 const ID_LOST_REASON = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/lostReason.json'), 'utf8'));
 
+
 function makeBahasaI18n(locale: 'en' | 'id') {
   const i18n = i18next.createInstance();
   void i18n.init({

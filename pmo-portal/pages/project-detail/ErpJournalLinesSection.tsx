@@ -43,7 +43,7 @@ export const ErpJournalLinesSection: React.FC<{ projectId: string; className?: s
       cell: (l) => (
         <span className="block">
           {l.account}
-          <span className="block text-xs text-muted-foreground">{l.category}</span>
+          <span className="block text-sm text-muted-foreground">{l.category}</span>
         </span>
       ),
     },

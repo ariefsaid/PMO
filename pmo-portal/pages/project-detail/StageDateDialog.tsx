@@ -49,7 +49,7 @@ export default function StageDateDialog({ title, subtitle, initialDate, min, max
     : t('projectDetail.stageHistory.notAfter', 'Pick a date on or before {{max}}', { max: hi });
   const rangeError = outOfRange && value !== '' ? rangeMessage : null;
   return (
-    <EntityFormModal open title={title} subtitle={subtitle} submitLabel={t('projectDetail.stageHistory.save', 'Save date')}
+    <EntityFormModal open title={title} submitLabel={t('projectDetail.stageHistory.save', 'Save date')}
       onSubmit={(e) => void submit(e)} onClose={onClose} loading={saving} submitDisabled={outOfRange}
       disabledReason={outOfRange ? rangeMessage : undefined}
       dirty={value !== (initialDate ?? today)}
@@ -61,6 +61,7 @@ export default function StageDateDialog({ title, subtitle, initialDate, min, max
       <TextField type="date" label={t('projectDetail.stageHistory.date', 'Stage date')} value={value}
         onChange={(v) => { setValue(v); setSaveError(null); }} min={min ?? undefined} max={hi}
         error={rangeError} />
+      {subtitle && <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>}
     </EntityFormModal>
   );
 }

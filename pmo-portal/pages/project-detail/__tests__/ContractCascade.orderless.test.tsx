@@ -84,9 +84,10 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     const heading = screen.getByRole('heading', { name: 'Contract' });
     const section = heading.closest('section')!;
     expect(section).toHaveTextContent('IDR');
-    expect(within(section).getByText('500,000')).toBeInTheDocument();
-    expect(within(section).getByText('12,346')).toBeInTheDocument();
-    expect(within(section).getByText('10,000')).toBeInTheDocument();
+    // Each tile figure names its currency; the compact form carries the exact amount as its title.
+    expect(within(section).getByText('IDR 500K')).toBeInTheDocument();
+    expect(within(section).getByText('IDR 12.3K')).toBeInTheDocument();
+    expect(within(section).getByText('IDR 10K')).toBeInTheDocument();
     expect(within(section).getByText('Invoiced')).toBeInTheDocument();
     expect(within(section).getByText('Paid')).toBeInTheDocument();
   });
@@ -101,7 +102,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     renderCascade();
     const cascade = within(screen.getByRole('list', { name: 'Contract' }));
     const label = cascade.getByText('Contract');
-    const value = cascade.getByText('500,000');
+    const value = cascade.getByText('IDR 500K');
 
     expect(label.parentElement?.parentElement).not.toBe(value.parentElement?.parentElement);
     expect(label.parentElement?.parentElement).toHaveClass('block');
@@ -115,10 +116,9 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     renderCascade();
 
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
-    // C6: the currency is named once in the Contract heading; callout figures are bare numbers.
-    expect(within(section).getByText('Can invoice').parentElement).toHaveTextContent(/^Can invoice200$/);
-    expect(within(section).getByText('300').parentElement).toHaveTextContent(/^Overdue300$/);
-    expect(within(section).queryByText(/^IDR\s*\d/)).not.toBeInTheDocument();
+    // A figure names its currency wherever it stands.
+    expect(within(section).getByText('Can invoice').parentElement).toHaveTextContent(/^Can invoiceIDR 200$/);
+    expect(within(section).getByText('IDR 300').parentElement).toHaveTextContent(/^OverdueIDR 300$/);
     expect(within(section).getByText('Can invoice')).toBeInTheDocument();
     expect(within(section).getByText('Overdue')).toBeInTheDocument();
   });
@@ -133,7 +133,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     renderCascade();
 
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
-    expect(within(section).getByText('450').parentElement).toHaveTextContent(/^Overdue450$/);
+    expect(within(section).getByText('IDR 450').parentElement).toHaveTextContent(/^OverdueIDR 450$/);
   });
 
   it('#1457 leaves an invoice out of the overdue figure until the organization day is known', () => {
@@ -196,7 +196,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.orderBilling = { data: [{ status: 'Issued', orderNet: 400, lineCount: 1, figuresComplete: true, remaining: 0 }], isPending: false, isError: false, refetch: vi.fn() };
     renderCascade();
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
-    expect(within(section).getAllByText('600')).toHaveLength(1);
+    expect(within(section).getAllByText('IDR 600')).toHaveLength(1);
     expect(within(section).queryByRole('button', { name: 'Drawdown headroom' })).not.toBeInTheDocument();
   });
 

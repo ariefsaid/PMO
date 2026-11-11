@@ -49,8 +49,8 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
   if (variant === 'compact') {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[13px] font-bold">{name}</span>
-        {targetLabel && <span className="text-[11.5px] text-muted-foreground">{targetLabel}</span>}
+        <span className="text-sm font-bold">{name}</span>
+        {targetLabel && <span className="text-sm text-muted-foreground">{targetLabel}</span>}
       </div>
     );
   }
@@ -73,21 +73,21 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
               (15-35px overlap on the 4-column desktop card grid at 1280/1440). `break-words` forces
               a wrap point at any character rather than only at spaces, so the name always stays
               within its own column instead of bleeding into the sibling's. */}
-          <span data-testid="milestone-phase-name" className="min-w-0 break-words text-[12px] font-semibold text-foreground">{name}</span>
+          <span data-testid="milestone-phase-name" className="min-w-0 break-words text-sm font-semibold text-foreground">{name}</span>
           {/* AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas (sub-AA,
               DESIGN.md accessibility posture). text-primary-text is the AA on-canvas variant, same
               token the "Back to Sales Pipeline" link (DealBand) already uses for blue text. */}
-          {isCurrent && <span className="text-xs font-semibold text-primary-text">{t('projectDetail.milestones.current', 'Current')}</span>}
+          {isCurrent && <span className="text-sm font-semibold text-primary-text">{t('projectDetail.milestones.current', 'Current')}</span>}
           {isOverdue && <StatusPill variant="overdue">{t('projectDetail.milestones.overdue', 'Overdue')}</StatusPill>}
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
           {weightShare != null && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               {t('projectDetail.milestones.weightShare', '{{pct}}% of project', { pct: weightShare })}
             </span>
           )}
           {targetLabel && (
-            <span className={`text-xs ${isOverdue ? 'text-warning-foreground font-semibold' : 'text-muted-foreground'}`}>
+            <span className={`text-sm ${isOverdue ? 'text-warning-foreground font-semibold' : 'text-muted-foreground'}`}>
               {targetLabel}
             </span>
           )}
@@ -99,7 +99,7 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
             // AC-RAM-004 (#688): text-primary + opacity-60 measured 3.58:1 in dark (sub-AA). Matches
             // MilestoneStrip's own compact-row Edit button: text-primary-text at full opacity, no
             // dimming — hover keeps the underline as the only additional affordance.
-            className="touch-target mt-1 inline-flex min-h-8 items-center rounded-sm text-xs font-semibold text-primary-text hover:underline"
+            className="touch-target mt-1 inline-flex min-h-8 items-center rounded-sm text-sm font-semibold text-primary-text hover:underline"
             onClick={onEditProgress}
           >
             {t('projectDetail.milestones.editProgress', 'Edit progress')}

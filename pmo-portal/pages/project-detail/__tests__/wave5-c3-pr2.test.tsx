@@ -212,7 +212,7 @@ describe('ProjectDetailHeader — compact identity', () => {
   it('AC-IXD-PROJ-W5-C3-06: Engineer still sees the project name and status', () => {
     renderHeader('Engineer');
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
+    expect(screen.getByText('Ongoing')).toBeInTheDocument();
   });
 });
 

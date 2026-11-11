@@ -56,7 +56,6 @@ const ClaimEvidenceModal: React.FC<ClaimEvidenceModalProps> = ({ documents, atta
     <EntityFormModal
       open
       title={t('projectDetail.billing.evidence.title', 'Attach billing evidence')}
-      subtitle={t('projectDetail.billing.evidence.subtitle', "Choose an issued or approved document from this project's register, such as the progress report or the client's acceptance.")}
       submitLabel={t('projectDetail.billing.evidence.save', 'Attach')}
       onSubmit={handleSubmit}
       submitError={saveError}
@@ -71,7 +70,7 @@ const ClaimEvidenceModal: React.FC<ClaimEvidenceModalProps> = ({ documents, atta
         ) : sourcePending ? (
           <ListState variant="loading" rows={2} />
         ) : eligible.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {t('projectDetail.billing.evidence.none', 'No issued or approved document with a file on this project.')}
           </p>
         ) : (

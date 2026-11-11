@@ -119,7 +119,6 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
       open
       width="lg"
       title={t('projectTabs:contractQuantities.workOrders.contractLines.title', 'Contract lines: {{wo}}', { wo: woLabel })}
-      subtitle={t('projectTabs:contractQuantities.workOrders.contractLines.subtitle', 'Quantities this order takes from the contract. Each line saves on its own; ordering more than the balance is allowed and flagged.')}
       submitLabel={t('projectTabs:contractQuantities.workOrders.contractLines.done', 'Done')}
       onSubmit={(e) => { e.preventDefault(); onClose(); }}
       submitError={saveError}
@@ -130,14 +129,14 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
         : <p key={source.name} role="status" className="text-sm text-muted-foreground">{t('projectDetail.billing.sources.loading', 'Loading {{source}}…', { source: source.name })}</p>)}
       <FormSection legend={t('projectTabs:contractQuantities.workOrders.contractLines.legend', 'Bill of quantities lines')}>
         {!editable && (
-          <p className="mb-3 text-[13px] text-muted-foreground">
+          <p className="mb-3 text-sm text-muted-foreground">
             {workOrder.status === 'Draft' || workOrder.status === 'Issued'
               ? t('projectTabs:contractQuantities.workOrders.contractLines.readOnly', 'You can view these allocations but not change them.')
               : t('projectTabs:contractQuantities.workOrders.contractLines.frozen', 'This work order is {{status}}: its allocations are frozen.', { status: workOrder.status })}
           </p>
         )}
         {boqItems.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.noBoq', 'This project has no bill of quantities lines yet.')}</p>
+          <p className="text-sm text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.noBoq', 'This project has no bill of quantities lines yet.')}</p>
         ) : (
           <ul className="flex flex-col gap-4">
             {boqItems.map((item) => {
@@ -149,7 +148,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
                 ? (milli(typed) - milli(availableTo(item))) / 1000 : null;
               return (
                 <li key={item.id} className="flex flex-col gap-1.5 border-b border-border pb-3 last:border-b-0">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2 text-[12px] text-muted-foreground">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-muted-foreground">
                     <span>{t('projectTabs:contractQuantities.workOrders.contractLines.contractQty', 'Contract {{qty}} {{unit}}', { qty: formatNumberExact(Number(item.quantity)), unit: item.unit })}</span>
                     <span data-testid={`lines-balance-${item.id}`}>
                       {balance === undefined
@@ -179,7 +178,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
                       )}
                     </div>
                   ) : (
-                    <div className="text-[13px]">
+                    <div className="text-sm">
                       <span>{label}</span>{' '}
                       <span className="tabular font-semibold" data-testid={`lines-readonly-${item.id}`}>
                         {row ? formatNumberExact(Number(row.quantity)) : '—'}
@@ -187,7 +186,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
                     </div>
                   )}
                   {over !== null && (
-                    <p className="text-[12px] font-medium text-warning-foreground" data-testid={`lines-over-${item.id}`}>
+                    <p className="text-sm font-medium text-warning-foreground" data-testid={`lines-over-${item.id}`}>
                       {t('projectTabs:contractQuantities.workOrders.contractLines.overOrdered', 'Over-ordered by {{qty}} {{unit}}, more than the contract balance.', { qty: formatNumberExact(over), unit: item.unit })}
                     </p>
                   )}
@@ -211,6 +210,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
           onCancel={() => setRemoveFor(null)}
         />
       )}
+      <p className="mt-3 text-sm text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.subtitle', 'Quantities this order takes from the contract. Each line saves on its own; ordering more than the balance is allowed and flagged.')}</p>
     </EntityFormModal>
   );
 };

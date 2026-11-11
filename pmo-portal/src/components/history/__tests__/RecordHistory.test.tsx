@@ -5,7 +5,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BahasaProvider } from '@/test/bahasa';
-import { formatCurrency, formatDateOnly, formatDateTime } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatDateTime } from '@/src/lib/format';
 
 const { repo, listProcurementsByProject, listBudgetVersions, procDetail, authState } = vi.hoisted(() => {
   const listBudgetVersions = vi.fn();
@@ -360,7 +360,7 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     const money = await screen.findByText(`${formatCurrency(1000, 'USD')} → ${formatCurrency(2500, 'USD')}`);
     expect(money.closest('li')).toHaveTextContent('Contract value');
     expect(money.closest('[data-testid="history-event"]')).toHaveTextContent('Dana PM');
-    expect(screen.getByText(`${formatDateOnly('2026-01-05')} → ${formatDateOnly('2026-02-10')}`)).toBeInTheDocument();
+    expect(screen.getByText(`${formatDay('2026-01-05')} → ${formatDay('2026-02-10')}`)).toBeInTheDocument();
     expect(await screen.findByText('Acme Corp → Globex')).toBeInTheDocument();
     expect(screen.getByText('Sam Lead → Unavailable')).toBeInTheDocument();
     expect(screen.getByText('empty → Yes')).toBeInTheDocument();
@@ -800,7 +800,7 @@ describe('RecordHistory — project kind filter (FR-CHG-012)', () => {
     renderIt({ includeChildren: true, kindFilters: true });
     await screen.findByRole('group', { name: 'Filter by record kind' });
     const all = screen.getByRole('button', { name: 'All' });
-    expect(all).toHaveClass('h-7', 'text-xs', 'rounded-full', 'bg-primary/10', 'text-nav-active-text');
-    expect(screen.getByRole('button', { name: 'Tasks' })).toHaveClass('h-7', 'text-xs', 'text-muted-foreground');
+    expect(all).toHaveClass('h-7', 'text-sm', 'rounded-full', 'bg-primary/10', 'text-nav-active-text');
+    expect(screen.getByRole('button', { name: 'Tasks' })).toHaveClass('h-7', 'text-sm', 'text-muted-foreground');
   });
 });

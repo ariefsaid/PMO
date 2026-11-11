@@ -2237,7 +2237,6 @@
         "none": "Tidak ada dokumen terbit atau disetujui yang memiliki berkas di proyek ini.",
         "revision": "rev {{revision}}",
         "save": "Lampirkan",
-        "subtitle": "Pilih dokumen terbit atau disetujui dari register proyek ini, seperti laporan progres atau berita acara serah terima (BAST) klien.",
         "title": "Lampirkan bukti penagihan"
       },
       "summary": {
@@ -2257,7 +2256,7 @@
     "documents": {
       "action": {
         "approve": "Setujui",
-        "close": "Tutup",
+        "close": "Tutup dokumen",
         "delete": "Hapus",
         "edit": "Edit",
         "issue": "Terbitkan",
@@ -2299,7 +2298,6 @@
         "codeHelper": "Nomor dokumen atau kode gambar (opsional).",
         "codePlaceholder": "mis. DWG-001",
         "docDate": "Tanggal dokumen",
-        "editSubtitle": "Perbarui entri register ini",
         "editTitle": "Edit dokumen",
         "errors": {
           "categoryRequired": "Kategori wajib diisi.",
@@ -2468,7 +2466,6 @@
     "milestoneForm": {
       "create": "Buat fase",
       "detailsLegend": "Detail",
-      "editSubtitle": "Perbarui fase ini",
       "editTitle": "Edit fase",
       "errors": {
         "nameRequired": "Nama fase wajib diisi",
@@ -2479,7 +2476,6 @@
       "inputPctPlaceholder": "Kosongkan untuk menggunakan progres tugas terkait",
       "name": "Nama fase",
       "namePlaceholder": "mis. Desain engineering",
-      "newSubtitle": "Tambahkan fase pelaksanaan ke proyek ini",
       "newTitle": "Fase baru",
       "save": "Simpan fase",
       "sortOrder": "Posisi",
@@ -2669,7 +2665,6 @@
         "descriptionPlaceholder": "Tambahkan lingkup, catatan, atau kriteria penerimaan…",
         "detailsLegend": "Detail",
         "dueDate": "Tenggat",
-        "editSubtitle": "Perbarui tugas ini",
         "editTitle": "Edit tugas",
         "errors": {
           "nameRequired": "Nama tugas wajib diisi."
@@ -2678,7 +2673,6 @@
         "milestone": "Fase",
         "name": "Nama tugas",
         "namePlaceholder": "mis. Survei lokasi",
-        "newSubtitle": "Tambahkan tugas ke proyek ini",
         "noDependencies": "Belum ada dependensi. Tambahkan tugas yang harus selesai lebih dulu.",
         "noParent": "Tanpa induk (level atas)",
         "parentTask": "Tugas induk",
@@ -2904,16 +2898,11 @@
   },
   "projectForm": {
     "value": {
-      "helper": "Estimasi, sebelum menang. Dapat diedit oleh Admin, Eksekutif, dan PM.",
       "formatError": "Gunakan \"{{group}}\" untuk pemisah ribuan dan \"{{decimal}}\" untuk desimal (misalnya {{example}})."
     },
     "title": {
       "create": "Proyek baru",
       "edit": "Edit proyek"
-    },
-    "subtitle": {
-      "create": "Buat proyek",
-      "edit": "Perbarui detail header proyek"
     },
     "submit": {
       "create": "Buat proyek",
@@ -2941,8 +2930,7 @@
       "noun": "manajer"
     },
     "stage": {
-      "label": "Tahap awal",
-      "helper": "Status on-hand hanya dicapai dengan memenangkan proyek di pipeline, tidak pernah dibuat langsung."
+      "label": "Tahap awal"
     },
     "estimatedValue": "Nilai estimasi",
     "expectedStart": "Perkiraan mulai",
@@ -2988,7 +2976,6 @@
       "archiveDescription": "Proyek akan disembunyikan dari daftar proyek default. Referensi yang ada tetap utuh. Anda dapat memulihkannya nanti.",
       "archiveTitle": "Arsipkan proyek ini?"
     },
-    "description": "Proyek pra-menang ada di Pipeline.",
     "empty": {
       "clearFilters": "Hapus filter",
       "noMatchSub": "Coba status, klien, PM, atau kata kunci lain.",

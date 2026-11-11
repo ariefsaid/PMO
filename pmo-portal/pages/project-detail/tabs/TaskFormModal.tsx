@@ -252,11 +252,6 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
           ? t('projectDetail.tasks.form.editTitle', 'Edit task')
           : t('projectDetail.tasks.newTask', 'New task')
       }
-      subtitle={
-        isEdit
-          ? t('projectDetail.tasks.form.editSubtitle', 'Update this task')
-          : t('projectDetail.tasks.form.newSubtitle', 'Add a task to this project')
-      }
       submitLabel={
         isEdit
           ? t('projectDetail.tasks.form.save', 'Save task')
@@ -381,7 +376,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
           />
         </FormGrid>
         {profilesError && (
-          <p className="mt-1 text-[12px] text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             {t(
               'projectDetail.tasks.form.peopleLoadFailed',
               'People could not be loaded; you can still save and assign later.',
@@ -394,7 +389,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       {isEdit && (
         <FormSection legend={t('projectDetail.tasks.form.dependsOnLegend', 'Depends on')}>
           {deps.length === 0 ? (
-            <p className="text-[12.5px] text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {t(
                 'projectDetail.tasks.form.noDependencies',
                 'No dependencies. Add a task that must finish first.',
@@ -405,7 +400,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               {deps.map((d) => (
                 <li
                   key={d}
-                  className="flex items-center gap-2 rounded-md border border-border bg-secondary/40 px-2.5 py-1.5 text-[13px]"
+                  className="flex items-center gap-2 rounded-md border border-border bg-secondary/40 px-2.5 py-1.5 text-sm"
                 >
                   <span className="min-w-0 flex-1 truncate">{taskName(d)}</span>
                   <Button

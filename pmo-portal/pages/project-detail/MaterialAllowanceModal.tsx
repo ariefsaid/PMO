@@ -60,7 +60,6 @@ const MaterialAllowanceModal: React.FC<MaterialAllowanceModalProps> = ({ project
     <EntityFormModal
       open
       title={t('allowance.title')}
-      subtitle={t('allowance.description', { workItem: `${workItem.item_code} ${workItem.description}` })}
       submitLabel={t('allowance.save')}
       onSubmit={(e) => void submit(e)}
       submitError={saveError}
@@ -69,6 +68,7 @@ const MaterialAllowanceModal: React.FC<MaterialAllowanceModalProps> = ({ project
       dirty={Boolean(itemId || qty)}
       submitDisabled={!itemId || !qty.trim()}
     >
+      <p className="mb-3 text-sm text-muted-foreground">{t('allowance.description', { workItem: `${workItem.item_code} ${workItem.description}` })}</p>
       {list.isPending && <ListState variant="loading" rows={2} />}
       {list.isError && <ListState variant="error" title={t('allowance.loadError')} retryLabel={t('actions.retry')} onRetry={() => void list.refetch()} />}
       {list.data && (mine.length === 0

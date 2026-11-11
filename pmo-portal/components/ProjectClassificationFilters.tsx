@@ -146,7 +146,7 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
             {activeKeys.map((key) => {
               const selection = `${labels[key]}: ${classificationValueLabel(t, value[key]!)}`;
               return (
-                <li key={key} className="flex min-w-0 max-w-full items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs text-muted-foreground">
+                <li key={key} className="flex min-w-0 max-w-full items-center gap-1 rounded-md bg-secondary px-2 py-1 text-sm text-muted-foreground">
                   <span className="min-w-0 break-words">{selection}</span>
                   <Button variant="ghost" size="icon" className="shrink-0" aria-label={t('projectClassification.remove', 'Remove classification: {{selection}}', { selection })}
                     onClick={() => {

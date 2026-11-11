@@ -1,9 +1,8 @@
 {
   "coverage": {
-    "readError": "Data pengeluaran proyek tidak dapat dibaca.",
-    "unknown": "Data Aktual tidak diketahui pada {{count}} dari {{total}} proyek.",
-    "partial": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek.",
-    "partialUpdated": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek. Diperbarui {{date}}."
+    "hiddenNotLinked": "pengeluaran belum terhubung",
+    "hiddenReadError": "pengeluaran tidak dapat dibaca",
+    "setUp": "Atur"
   },
   "moneyFiguresUnavailable": "Beberapa nilai keuangan proyek masih dikonfirmasi.",
   "actual": {
@@ -84,5 +83,13 @@
   "receiptWithholding": {
     "article": "Pasal pemotongan klien",
     "articleHelper": "Mengisi otomatis penerimaan baru. Setiap penerimaan dapat mengubahnya."
-  }
+  },
+  "columns": {
+    "contractWithBasis": "Kontrak ({{basis}})"
+  },
+  "card": {
+    "actualInline": "{{amount}} aktual"
+  },
+  "contractBasisNote": "Nilai kontrak {{basis}}.",
+  "sharedManagerNote": "Manajer proyek: {{name}}"
 }

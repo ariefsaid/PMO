@@ -306,8 +306,9 @@ describe('version selection (AC-BD)', () => {
     expect(screen.getByText('No active budget')).toBeInTheDocument();
     const figures = screen.getByRole('region', { name: 'Budget figures' });
     expect(within(figures).queryByText(/125/)).not.toBeInTheDocument();
-    // The Budget tile is unknown (a dash), never the Draft total and never $0.
-    expect(figures.textContent).toMatch(/^Budget—Spent/);
+    // The Budget tile is withheld (named on the page's one hidden-figures line), never the Draft total and never $0.
+    expect(figures.textContent).not.toMatch(/Budget/);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/figures? hidden/i);
   });
 
   it('B1 New version (list state) confirms before writing and the confirm names the entered version', async () => {

@@ -25,7 +25,6 @@ import { TooltipProvider } from '@/src/components/shadcn/tooltip';
 import { buildReuiGanttModel, taskPatchFromRange, type GanttTaskData } from '@/src/lib/gantt/reuiModel';
 import { getDateFnsLocale } from '@/src/lib/locale/activeLocale';
 import { formatMonthDay } from '@/src/lib/format';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
 import type { TaskPatch, TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
@@ -195,7 +194,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
         width: 104,
         render: ({ resource }: GanttColumnContext) => {
           const task = taskMap.get(resource.id);
-          return task ? <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill> : null;
+          return task ? <StatusPill record="task" state={task.status} /> : null;
         },
       },
       {
