@@ -5,7 +5,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useComments, useCommentMutations } from '@/src/hooks/useComments';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import type { CommentEntityType } from '@/src/lib/db/comments';
-import { formatDate, formatRelativeTime } from '@/src/lib/format';
+import { formatClockTime, formatDay } from '@/src/lib/format';
 import { Button } from '@/src/components/ui/Button';
 import { ConfirmDialog } from '@/src/components/ui/ConfirmDialog';
 import { SectionHeader } from '@/src/components/ui/SectionHeader';
@@ -142,9 +142,9 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2">
                     <span className="text-sm font-semibold text-foreground">{name}</span>
-                    <time dateTime={c.created_at} className="text-xs text-muted-foreground">{formatDate(c.created_at)} · {formatRelativeTime(c.created_at)}</time>
+                    <time dateTime={c.created_at} className="text-control text-muted-foreground">{formatDay(c.created_at)}, {formatClockTime(new Date(c.created_at))}</time>
                     {c.author_id === currentUser?.id && (
-                      <button type="button" onClick={() => setConfirmId(c.id)} className="touch-target ml-auto inline-flex items-center text-xs text-muted-foreground hover:text-destructive-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <button type="button" onClick={() => setConfirmId(c.id)} className="touch-target ml-auto inline-flex items-center text-control text-muted-foreground hover:text-destructive-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         {t('comments.delete', 'Delete')}
                       </button>
                     )}

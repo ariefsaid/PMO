@@ -65,15 +65,15 @@ export const PushStateBadge: React.FC<PushStateBadgeProps> = ({
         {label[state.push_state] ?? state.push_state}
       </StatusPill>
       {state.push_state === 'pushed' && state.ts_number && (
-        <span className="text-[12px] text-muted-foreground">{state.ts_number}</span>
+        <span className="text-control text-muted-foreground">{state.ts_number}</span>
       )}
       {needsAttention && state.push_error && (
-        <span className="text-[12px] text-muted-foreground">{copy.message}</span>
+        <span className="text-control text-muted-foreground">{copy.message}</span>
       )}
       {/* A withheld Retry must never be a silent withholding: the operator's next act IS the remedy,
           so it takes the button's place rather than leaving a gap where an affordance used to be. */}
       {needsAttention && !copy.retryable && copy.remedy && (
-        <span data-testid="push-error-remedy" className="text-[12px] text-muted-foreground">
+        <span data-testid="push-error-remedy" className="text-control text-muted-foreground">
           {copy.remedy}
         </span>
       )}

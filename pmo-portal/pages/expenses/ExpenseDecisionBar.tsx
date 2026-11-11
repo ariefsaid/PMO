@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DecisionContextSummary, TextArea, TextField, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, DecisionContextSummary, ReasonDialog, TextArea, TextField, useToast } from '@/src/components/ui';
 import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrencyCents, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -46,7 +46,6 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
   const preview = settlementPreview(Number(claim.amount), claim.advance_id ? advanceOutstanding : null);
   const parsedReturn = parseMoneyInputAtScale(returnAmount, 2);
   const returnValid = parsedReturn !== null && parsedReturn > 0 && advanceOutstanding !== null && parsedReturn <= advanceOutstanding;
-  const deciding = dialog === 'approve' || dialog === 'reject';
   const identity = [claim.claim_number, claim.title].filter(Boolean).join(' · ');
   const formattedAmount = formatCurrencyCents(Number(claim.amount), claim.currency);
   const decisionContext = <DecisionContextSummary identity={identity} amount={formattedAmount} />;
@@ -74,17 +73,22 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
       {actions.includes('cancel') && <Button variant="ghost" onClick={() => setDialog('cancel')}>{t('expenses.actions.cancel', 'Cancel')}</Button>}
 
       <ConfirmDialog
-        open={deciding}
-        tone={dialog === 'reject' ? 'destructive' : 'default'}
-        title={dialog === 'reject' ? t('expenses.confirm.rejectTitle', 'Reject {{number}}?', { number: claim.claim_number ?? claim.title }) : t('expenses.confirm.approveTitle', 'Approve {{number}} for {{amount}}?', { number: claim.claim_number ?? claim.title, amount: formattedAmount })}
+        open={dialog === 'approve'}
+        title={t('expenses.confirm.approveTitle', 'Approve {{number}} for {{amount}}?', { number: claim.claim_number ?? claim.title, amount: formattedAmount })}
         description={<div className="space-y-3"><DecisionContextSummary identity={identity} amount={formattedAmount} /><TextArea label={t('expenses.confirm.notesLabel', 'Note to the claimant (optional)')} value={notes} onChange={setNotes} /></div>}
-        confirmLabel={dialog === 'reject' ? t('expenses.actions.reject', 'Reject') : t('expenses.actions.approve', 'Approve')}
+        confirmLabel={t('expenses.actions.approve', 'Approve')}
         loading={transition.isPending}
-        onConfirm={() =>
-          void (dialog === 'reject'
-            ? move('Rejected', t('expenses.toast.rejected', 'Rejected'), { notes: notes.trim() || null })
-            : move('Approved', t('expenses.toast.approved', 'Approved'), { notes: notes.trim() || null }))
-        }
+        onConfirm={() => void move('Approved', t('expenses.toast.approved', 'Approved'), { notes: notes.trim() || null })}
+        onCancel={close}
+      />
+
+      <ReasonDialog
+        open={dialog === 'reject'}
+        kind="reject"
+        subject={claim.claim_number ?? claim.title}
+        context={decisionContext}
+        loading={transition.isPending}
+        onConfirm={(reason) => void move('Rejected', t('expenses.toast.rejected', 'Rejected'), { notes: reason })}
         onCancel={close}
       />
 

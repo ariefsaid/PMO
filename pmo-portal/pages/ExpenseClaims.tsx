@@ -8,8 +8,7 @@ import { useProjectChoices } from './expenses/useProjectChoices';
 import { useExpenseClaims, useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrency } from '@/src/lib/format';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { formatCurrencyCents } from '@/src/lib/format';
 import {
   EXPENSE_LIST_LIMIT, type BudgetCategory, type ExpenseClaimFilters, type ExpenseClaimStatus,
   type ExpenseClaimWithRefs, type ExpenseKind,
@@ -79,7 +78,7 @@ const ExpenseClaims: React.FC = () => {
 
   const columns: Column<ExpenseClaimWithRefs>[] = [
     { key: 'claim_number', header: t('expenses.columns.number', 'Number'),
-      cell: (r) => <span className="whitespace-nowrap font-medium">{r.claim_number ?? t('expenses.draftNumber', 'Draft')}</span>,
+      cell: (r) => <span className="whitespace-nowrap font-medium">{r.claim_number ?? '—'}</span>,
       exportValue: (r) => r.claim_number ?? '' },
     { key: 'kind', header: t('expenses.columns.kind', 'Type'), cell: (r) => expenseKindLabel(r.kind, t), exportValue: (r) => r.kind },
     { key: 'title', header: t('expenses.columns.title', 'Title'),
@@ -91,10 +90,10 @@ const ExpenseClaims: React.FC = () => {
     { key: 'budget_category', header: t('expenses.columns.category', 'Budget category'),
       cell: (r) => (r.budget_category ? budgetCategoryLabel(r.budget_category, t) : '—'), exportValue: (r) => r.budget_category ?? '' },
     { key: 'amount', header: t('expenses.columns.amount', 'Amount'), align: 'num',
-      cell: (r) => <span className="tabular-nums">{formatCurrency(Number(r.amount), r.currency)}</span>,
+      cell: (r) => <span className="tabular-nums">{formatCurrencyCents(Number(r.amount), r.currency)}</span>,
       exportValue: (r) => Number(r.amount) },
     { key: 'status', header: t('expenses.columns.status', 'Status'),
-      cell: (r) => <StatusPill variant={workflowVariant(r.status)}>{expenseStatusLabel(r.status, t)}</StatusPill>,
+      cell: (r) => <StatusPill record="expense" state={r.status} />,
       exportValue: (r) => r.status },
   ];
 
@@ -102,7 +101,6 @@ const ExpenseClaims: React.FC = () => {
     <ListPage
       title={t('expenses.title', 'Expenses')}
       count={rows ? rows.length : undefined}
-      description={t('expenses.description', 'Expense claims and cash advances. You see your own; approvers see the whole team.')}
       primaryAction={
         canCreate && (
           <span className="flex flex-wrap gap-2">
@@ -147,7 +145,7 @@ const ExpenseClaims: React.FC = () => {
             rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
             state={(rows ?? []).length === 0 ? 'empty' : undefined}
             emptyTitle={t('expenses.table.emptyTitle', 'No expenses here yet')}
-            emptySub={t('expenses.table.emptySub', 'File a claim after the work, or request an advance before it.')}
+            emptyAction={canCreate ? { label: t('expenses.actions.newClaim', 'New claim'), onClick: () => navigate('/expenses/new') } : undefined}
           tableId="expenseclaims-table" />
         </>
       )}

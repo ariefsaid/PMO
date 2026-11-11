@@ -40,7 +40,7 @@ function useDealFigures(d: DealActions): Fig[] {
         <Button type="submit" variant="outline" size="sm" disabled={d.saving !== null}>
           {d.saving === kind ? t('projectDetail.pipeline.statLoading', 'Loading…') : t('projectDetail.pipeline.saveProbability', 'Save')}
         </Button>
-        {err && <span role="alert" className="w-full text-xs text-destructive-text">{err}</span>}
+        {err && <span role="alert" className="w-full text-control text-destructive-text">{err}</span>}
       </form>
     );
   };
@@ -78,13 +78,13 @@ export const DealFigures: React.FC<{ d: DealActions; className?: string }> = ({ 
       <dl className={className ?? 'grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4'}>
         {figs.map((f) => (
           <div key={f.key} className="min-w-0 border-b border-border pb-2">
-            <dt className="text-xs text-muted-foreground">{f.label}</dt>
+            <dt className="text-control text-muted-foreground">{f.label}</dt>
             <dd className="mt-1 break-words text-base font-semibold tabular-nums text-foreground">{f.value}</dd>
-            {f.sub && <dd className="mt-1 text-xs text-muted-foreground">{f.sub}</dd>}
+            {f.sub && <dd className="mt-1 text-control text-muted-foreground">{f.sub}</dd>}
           </div>
         ))}
       </dl>
-      {isLost && d.project.lost_note && <p data-testid="lost-note" className="mt-2 text-xs text-muted-foreground">{d.project.lost_note}</p>}
+      {isLost && d.project.lost_note && <p data-testid="lost-note" className="mt-2 text-control text-muted-foreground">{d.project.lost_note}</p>}
     </>
   );
 };
@@ -95,7 +95,7 @@ export const DealJourney: React.FC<{ d: DealActions; history?: boolean }> = ({ d
   return (
     <section className="min-w-0 space-y-3">
       <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</h2>
-      <LifecycleStepper variant="bar" steps={dealJourneySteps(d.status as never, stepLabel)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-xs" />
+      <LifecycleStepper variant="bar" steps={dealJourneySteps(d.status as never, stepLabel)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-control" />
       {history && <StageHistory projectId={d.project.id} />}
     </section>
   );
@@ -139,24 +139,24 @@ export const DealActionsZone: React.FC<{ d: DealActions; children?: React.ReactN
   const p = d.project;
   const wonForm = d.showWonPanel && d.canWin && (
     <section className="flex flex-col gap-3 border-t border-border pt-3">
-      <div className="text-xs font-semibold text-muted-foreground">{t('projectDetail.pipeline.recordWonHeading', 'Record the won project')}</div>
-      <div className="text-[13px] text-foreground">
+      <div className="text-control font-semibold text-muted-foreground">{t('projectDetail.pipeline.recordWonHeading', 'Record the won project')}</div>
+      <div className="text-control text-foreground">
         <Trans i18nKey="projectDetail.pipeline.bookingOnWin" t={t} defaults="Booking <1>{{amount}}</1> <3></3> to contract value on win"
           values={{ amount: formatCurrency(p.contract_value ?? 0, p.currency) }}
           components={{ 1: <strong className="font-semibold tabular" />, 3: <TaxBasisLabel treatment={p.tax_treatment} taxRate={p.tax_rate} taxBaseNumerator={p.tax_base_numerator} taxBaseDenominator={p.tax_base_denominator} /> }} />
       </div>
       <div className="flex flex-col gap-1">
-        <label htmlFor="won-ref" className="text-xs font-semibold">{t('projectDetail.pipeline.contractRefLabel', 'Customer contract reference')}</label>
+        <label htmlFor="won-ref" className="text-control font-semibold">{t('projectDetail.pipeline.contractRefLabel', 'Customer contract reference')}</label>
         <input id="won-ref" value={d.contractRef} onChange={(e) => { d.setContractRef(e.target.value); d.setRefError(null); }} aria-invalid={!!d.refError} aria-describedby={d.refError ? 'won-ref-err' : undefined}
           placeholder={t('projectDetail.pipeline.contractRefPlaceholder', 'e.g. CPO-2026-0042')}
-          className={`h-8 rounded-md border bg-background px-2.5 text-[13.5px] outline-none placeholder:text-muted-foreground ${d.refError ? 'border-destructive' : 'border-input'}`} />
-        {d.refError && <span id="won-ref-err" className="text-xs text-destructive">{d.refError}</span>}
+          className={`h-8 rounded-md border bg-background px-2.5 text-control outline-none placeholder:text-muted-foreground ${d.refError ? 'border-destructive' : 'border-input'}`} />
+        {d.refError && <span id="won-ref-err" className="text-control text-destructive">{d.refError}</span>}
       </div>
       <div className="flex flex-col gap-1">
-        <label htmlFor="won-date" className="text-xs font-semibold">{t('projectDetail.pipeline.contractDateLabel', 'Contract date')}</label>
+        <label htmlFor="won-date" className="text-control font-semibold">{t('projectDetail.pipeline.contractDateLabel', 'Contract date')}</label>
         <input id="won-date" type="date" max={d.today} value={d.contractDate} onChange={(e) => { d.setContractDate(e.target.value); d.setDateError(null); }} aria-invalid={!!d.dateError} aria-describedby={d.dateError ? 'won-date-err' : undefined}
-          className={`h-8 rounded-md border bg-background px-2.5 text-[13.5px] outline-none ${d.dateError ? 'border-destructive' : 'border-input'}`} />
-        {d.dateError && <span id="won-date-err" className="text-xs text-destructive">{d.dateError}</span>}
+          className={`h-8 rounded-md border bg-background px-2.5 text-control outline-none ${d.dateError ? 'border-destructive' : 'border-input'}`} />
+        {d.dateError && <span id="won-date-err" className="text-control text-destructive">{d.dateError}</span>}
       </div>
       <div className="flex gap-2">
         <Button variant="primary" size="sm" loading={d.pending} onClick={d.submitWon}>{t('projectDetail.pipeline.confirmWon', 'Confirm won')}</Button>
@@ -186,7 +186,7 @@ export const DealActionsZone: React.FC<{ d: DealActions; children?: React.ReactN
           {children ?? (!d.isTerminal && <RecordActionZone sticky={false}><DealActionButtons d={d} /></RecordActionZone>)}
           {wonForm}
           {d.error && (
-            <div role="alert" className="flex items-start gap-2 text-[13px] text-destructive">
+            <div role="alert" className="flex items-start gap-2 text-control text-destructive">
               <Icon name="alert" className="mt-px size-4 shrink-0" /><span>{d.error}</span>
             </div>
           )}

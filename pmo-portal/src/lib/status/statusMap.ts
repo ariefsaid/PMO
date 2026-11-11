@@ -74,7 +74,7 @@ export const STATUS_MAP = {
     Draft: e('neutral', (t) => t('status:timesheet.draft', 'Draft')),
     Submitted: e('waiting', (t) => t('status:timesheet.submitted', 'Submitted')),
     Approved: e('done', (t) => t('status:timesheet.approved', 'Approved')),
-    Rejected: e('exception', (t) => t('status:timesheet.rejected', 'Rejected')),
+    Rejected: e('exception', (t) => t('status:timesheet.rejected', 'Returned')),
   },
   equipmentUsage: {
     Draft: e('neutral', (t) => t('status:equipmentUsage.draft', 'Draft')),

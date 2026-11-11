@@ -96,7 +96,7 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
     // nothing is posted. Display only — nothing is queued or retried from here.
     if (readiness === 'checking' || readiness === 'ready') return null;
     return (
-      <p role="status" className="mb-4 text-[13px] text-muted-foreground">
+      <p role="status" className="mb-4 text-control text-muted-foreground">
         {readiness === 'unavailable'
           ? t('uxs12.expensePosting.cardUnknown', "Couldn't check whether this claim will reach accounting.")
           : t('uxs12.expensePosting.cardInactive', "Not posted to accounting: expense posting isn't active for this organization.")}
@@ -113,13 +113,13 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
       <CardHead level={2} id="expense-postings-heading">{t('expenses.postings.title', 'Ledger postings')}</CardHead>
       <CardPad>
         {recordedBefore && (
-          <p data-testid="expense-recorded-before-connection" className="mb-2 text-[12.5px] text-muted-foreground">
+          <p data-testid="expense-recorded-before-connection" className="mb-2 text-control text-muted-foreground">
             {t('expenseClaims:postings.recordedBeforeConnection', 'Recorded before the ERP connection')}
           </p>
         )}
         <ul className="flex flex-col gap-2">
           {data.map((row) => (
-            <li key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px]">
+            <li key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-control">
               <span className="font-medium">{postingLabel[row.posting]}</span>
               {row.erpCancelledAt
                 ? <StatusPill variant="superseded">{t('expenses.postings.state.cancelledInErp', 'Cancelled in ERPNext')}</StatusPill>

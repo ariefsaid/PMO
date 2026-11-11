@@ -10,6 +10,8 @@ export interface PipelineFunnelProps {
   selectedIndex?: number | null;
   onSelectStage: (status: OpenFunnelStage) => void;
   stageLabel: (col: SalesColumn) => string;
+  /** The page's money figures, drawn above the funnel inside the same card. */
+  header?: React.ReactNode;
 }
 
 export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
@@ -17,14 +19,14 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   selectedIndex,
   onSelectStage,
   stageLabel,
+  header,
 }) => {
   const { t } = useTranslation();
-  const { mixedPipeline, totalWeighted, effectiveCurrency, stageProjections, openColumns } = projection;
+  const { stageProjections, openColumns } = projection;
 
-  const mixedReason = t('sales:pipeline.mixedCurrency', 'Mixed currencies, so no single total');
   const unknownTotal = (
-    <span title={mixedReason}>
-      —<span className="sr-only"> {mixedReason}</span>
+    <span>
+      —<span className="sr-only"> {t('sales:pipeline.mixedCurrency', 'Mixed currencies')}</span>
     </span>
   );
 
@@ -44,7 +46,8 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   });
 
   return (
-    <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="panel-card mb-4 p-[var(--panel-inset)]">
+    <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="panel-card p-[var(--panel-inset)]">
+      {header && <div className="mb-4">{header}</div>}
       <Funnel
         stages={funnelStages}
         presentation="flat"
@@ -56,12 +59,6 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
           }
         }}
       />
-      <div className="mt-2 flex items-center gap-1.5 px-1 text-[12.5px] text-muted-foreground">
-        <span>{t('sales.weightedForecast', 'Weighted pipeline forecast')}</span>
-        <span data-testid="pipeline-weighted-total" className="font-bold tabular text-foreground">
-          {mixedPipeline ? unknownTotal : formatCurrency(totalWeighted, effectiveCurrency)}
-        </span>
-      </div>
     </section>
   );
 };

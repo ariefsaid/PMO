@@ -18,7 +18,7 @@ import {
 import { ExportAllButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { makeContactImportDescriptor } from '@/src/lib/import';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -182,10 +182,22 @@ const Contacts: React.FC = () => {
       exportValue: (c) => companyById.get(c.company_id) ?? '',
     },
     {
+      key: 'title',
+      header: t('contactDetail.field.title', 'Title'),
+      cell: (c) => <span className="truncate text-muted-foreground" title={c.title ?? ''}>{c.title ?? '—'}</span>,
+      exportValue: (c) => c.title ?? '',
+    },
+    {
       key: 'email',
       header: t('contacts.columns.email', 'Email'),
       cell: (c) => <span className="truncate text-muted-foreground">{c.email ?? '—'}</span>,
       exportValue: (c) => c.email ?? '',
+    },
+    {
+      key: 'phone',
+      header: t('contactDetail.field.phone', 'Phone'),
+      cell: (c) => <span className="tabular whitespace-nowrap text-muted-foreground">{c.phone ?? '—'}</span>,
+      exportValue: (c) => c.phone ?? '',
     },
   ];
 
@@ -242,26 +254,6 @@ const Contacts: React.FC = () => {
       title={t('contacts.title', 'Contacts')}
       count={directory.data ? total : undefined}
       total={directory.data && !unfiltered ? directoryTotal : undefined}
-      description={
-        // DD-MTG-6: the CRM 'Meeting' kind is the lightweight touchpoint log; anything with
-        // attendees and minutes lives in the Meetings module — so this copy no longer promises
-        // "meetings" here, and links across to the module instead (the ruling's actual ask).
-        <>
-          {t(
-            'contacts.description',
-            'People at the companies you work with. Master data shared by the whole organisation. Log calls and emails against each contact. Minuted meetings live in the',
-          )}{' '}
-          <Link
-            to="/meetings"
-            // Inline-in-prose link: a persistent underline keeps it distinguishable from
-            // the surrounding text without relying on colour (axe link-in-text-block).
-            className="text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            {t('contacts.descriptionMeetingsLink', 'Meetings module')}
-          </Link>
-          .
-        </>
-      }
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ contact: null })}>
@@ -399,7 +391,7 @@ const Contacts: React.FC = () => {
           tableId="contacts-table" />
 
           {/* #1989: the pager under the server page — the Master-data/AdminUsers anatomy. */}
-          <nav aria-label={t('contacts.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
+          <nav aria-label={t('contacts.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-control tabular-nums">
             <span>
               {total === 0
                 ? ''

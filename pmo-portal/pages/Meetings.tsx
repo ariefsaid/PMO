@@ -25,7 +25,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import { formatDateTime } from '@/src/lib/format';
+import { formatClockTime, formatDay } from '@/src/lib/format';
 import type { MeetingListItem } from '@/src/lib/db/meetings';
 
 /**
@@ -138,7 +138,7 @@ const Meetings: React.FC = () => {
     {
       key: 'occurred_at',
       header: t('meetings.columns.when', 'When'),
-      cell: (m) => <span className={m.archived_at ? 'whitespace-nowrap text-muted-foreground' : 'whitespace-nowrap'}>{formatDateTime(new Date(m.occurred_at))}</span>,
+      cell: (m) => <span className={m.archived_at ? 'whitespace-nowrap text-muted-foreground' : 'whitespace-nowrap'}>{formatDay(new Date(m.occurred_at))}, {formatClockTime(new Date(m.occurred_at))}</span>,
       exportValue: (m) => m.occurred_at,
     },
     {
@@ -233,10 +233,6 @@ const Meetings: React.FC = () => {
     <ListPage
       title={t('meetings.title', 'Meetings')}
       count={data ? rows.length : undefined}
-      description={t(
-        'meetings.description',
-        'Minuted meetings with attendees and action items. You see the meetings you attended, wrote, or were invited to read.',
-      )}
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => openRecord('/meetings/new')}>
@@ -308,20 +304,9 @@ const Meetings: React.FC = () => {
           title={showArchived
             ? tMeetings('states.archivedEmptyTitle', 'No meetings to show')
             : t('meetings.states.emptyTitle', 'No meetings yet')}
-          sub={showArchived
-            ? tMeetings('states.archivedEmptySub', 'Meetings you archive will appear here until you restore them.')
-            : t('meetings.states.emptySub', 'Minute your first meeting to capture notes, attendees and action items in one place.')}
           stateId="meetings-empty"
           role={realRole ?? undefined}
           module="meetings"
-          action={
-            canCreate && !showArchived
-              ? {
-                  label: t('meetings.actions.new', 'New meeting'),
-                  onClick: () => openRecord('/meetings/new'),
-                }
-              : undefined
-          }
         />
       )}
 
@@ -339,7 +324,6 @@ const Meetings: React.FC = () => {
           rowMenu={rowMenu}
           state={rows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('meetings.table.emptyTitle', 'No meetings match')}
-          emptySub={t('meetings.table.emptySub', 'Try a different project or clear the search.')}
           emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
         tableId="meetings-table" />
       )}

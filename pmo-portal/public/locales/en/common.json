@@ -1671,7 +1671,7 @@
       "modalSubtitle": "This creates a real task. Its name is visible to everyone who can see tasks. Edit it before publishing.",
       "modalTitle": "New action item",
       "personNoun": "person",
-      "nameHelper": "Prefilled from the minute line. Left empty, the task is created with the placeholder name.",
+      "nameHelper": "Visible to everyone who can see tasks. Prefilled from the minute line.",
       "nameLabel": "Task name",
       "placeholderName": "Untitled action",
       "projectFixed": "(fixed to this meeting’s project)",
@@ -3419,8 +3419,8 @@
     "previousWeek": "Previous week",
     "returned": {
       "revise": "Revise this week",
-      "sub": "Your line manager sent it back. Review the flagged days, correct them, and resubmit.",
-      "title": "This week was returned for changes"
+      "sub": "Your manager sent this week back. Correct it and resubmit.",
+      "title": "Returned for changes"
     },
     "save": "Save",
     "status": {
@@ -4452,9 +4452,9 @@
       "retryReadiness": "Check again",
       "mapIncomplete": "{{count}} of {{total}} accounts are not mapped yet. A posting that needs an unmapped account stops until it is mapped.",
       "saveRefused": "Expense posting isn't ready right now, so the account was not saved. Check the ERPNext connection setup in Integrations.",
-      "formNotConnected": "Expense posting to accounting isn't active. You can still save this in PMO, but it won't reach accounting.",
-      "formInactive": "ERPNext is connected, but expense posting isn't switched on. You can still save this in PMO, but it won't reach accounting. An Admin can switch posting on in Integrations.",
-      "formUnknown": "Couldn't check whether expense posting is active. You can still save this in PMO.",
+      "formNotConnected": "Expense posting is off. This saves in PMO only.",
+      "formInactive": "Expense posting is off. This saves in PMO only.",
+      "formUnknown": "Couldn't check expense posting. This saves in PMO only.",
       "cardInactive": "Not posted to accounting: expense posting isn't active for this organization.",
       "cardUnknown": "Couldn't check whether this claim will reach accounting."
     }

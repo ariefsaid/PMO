@@ -1,6 +1,5 @@
 import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
-import { format } from 'date-fns/format';
 import {
   Button,
   Card,
@@ -28,18 +27,13 @@ import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { useTimesheetEntryMutations } from '@/src/hooks/useTimesheetEntries';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatNumberExact } from '@/src/lib/format';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
-import { weekStart, datesInWeek, entriesToGridRows, gridDaysForWeek } from './timesheets/timesheetWeekModel';
+import { dayKey, weekStart, datesInWeek, entriesToGridRows, gridDaysForWeek } from './timesheets/timesheetWeekModel';
 import { useTimesheetWeekEditor } from './timesheets/useTimesheetWeekEditor';
 import { TimesheetWeekToolbar } from './timesheets/TimesheetWeekToolbar';
 import { TimesheetWeekActions } from './timesheets/TimesheetWeekActions';
-
-// Timesheet status pill comes from the single status registry (`workflowVariant`):
-// Draft = neutral, Submitted = neutral grey `progress` (NOT the action-blue, per the
-// Freed-Blue Status Rule), Approved = green `won`, Rejected = red `lost`.
 
 // RF-061: recognizable code + short title in the picker; the added row shows the full name.
 const PICKER_NAME_MAX = 36;
@@ -93,7 +87,7 @@ const TimesheetsPage: React.FC = () => {
     shifted.setDate(shifted.getDate() - 7);
     return shifted;
   }, [weekStartDate]);
-  const lastWeekStartString = useMemo(() => format(lastWeekStartDate, 'yyyy-MM-dd'), [lastWeekStartDate]);
+  const lastWeekStartString = useMemo(() => dayKey(lastWeekStartDate), [lastWeekStartDate]);
   const lastWeekEntries = useMemo(
     () => (sheets ?? []).find((t) => t.week_start_date === lastWeekStartString)?.entries ?? [],
     [sheets, lastWeekStartString]
@@ -185,7 +179,7 @@ const TimesheetsPage: React.FC = () => {
 
   const head = <TimesheetWeekToolbar
     weekRangeLabel={weekRangeLabel} isApprover={isApprover} pendingCount={pendingCount}
-    weekStartDate={weekStartDate} busy={deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending}
+    busy={deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending}
     stepWeek={stepWeek} pendingWeekDelta={pendingWeekDelta}
     onCancelDiscard={cancelWeekChange}
     onConfirmDiscard={confirmWeekChange}
@@ -218,12 +212,6 @@ const TimesheetsPage: React.FC = () => {
   }
 
   const status = (currentTimesheet?.status as TimesheetStatus | undefined) ?? null;
-  const statusCopy: Record<TimesheetStatus, string> = {
-    [TimesheetStatus.Draft]: t('timesheets.status.Draft', 'Draft'),
-    [TimesheetStatus.Submitted]: t('timesheets.status.Submitted', 'Submitted'),
-    [TimesheetStatus.Approved]: t('timesheets.status.Approved', 'Approved'),
-    [TimesheetStatus.Rejected]: t('timesheets.status.Rejected', 'Returned for changes'),
-  };
   const returned = status === TimesheetStatus.Rejected;
 
   // AC-W3-B1: "Revise this week" — single-click routine reversible step (OD-UX-1: no confirm).
@@ -257,11 +245,8 @@ const TimesheetsPage: React.FC = () => {
       {/* Returned-for-changes is an expected, recoverable state (role=status). */}
       {returned && (
         <ErrBanner
-          title={t('timesheets.returned.title', 'This week was returned for changes')}
-          sub={t(
-            'timesheets.returned.sub',
-            'Your line manager sent it back. Review the flagged days, correct them, and resubmit.',
-          )}
+          title={t('timesheets.returned.title', 'Returned for changes')}
+          sub={t('timesheets.returned.sub', 'Your manager sent this week back. Correct it and resubmit.')}
           action={
             canRevise
               ? {
@@ -279,11 +264,7 @@ const TimesheetsPage: React.FC = () => {
         className={editable ? 'pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-0' : undefined}
       >
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-3.5 py-2.5">
-          <StatusPill variant={status ? workflowVariant(status) : 'neutral'}>
-            {status === TimesheetStatus.Draft || !status
-              ? t('timesheets.status.draftNotSubmitted', 'Draft: not submitted')
-              : statusCopy[status]}
-          </StatusPill>
+          <StatusPill record="timesheet" state={status ?? TimesheetStatus.Draft} />
           {/* ⚑ I-16/I-17 (rendered Discover pass, 2026-07-22) — the OWNER'S view of their own ERP
               push. `timesheet_erp_mirror_select` RLS deliberately grants the sheet's owner this read,
               and nothing consumed it: the person whose week it is — the one who has to re-do it if
@@ -292,7 +273,7 @@ const TimesheetsPage: React.FC = () => {
               badge is supplementary — a null state renders nothing and never gates the page. */}
           <PushStateBadge state={ownPushState ?? null} canRetry={false} />
           {editable && (
-            <div className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
+            <div className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-control font-medium text-muted-foreground">
               <Icon name="plus" aria-hidden />
               <span>{t('timesheets.addProject', 'Add project')}</span>
               {/* max-w cap + min-w-0: the closed picker only shows the short placeholder,
@@ -324,7 +305,7 @@ const TimesheetsPage: React.FC = () => {
                         ? t('timesheets.picker.none', 'No projects to add')
                         : t('timesheets.picker.select', 'Select a project…')
                     }
-                    className="touch-target min-w-0 max-w-[160px] text-[13px]"
+                    className="touch-target min-w-0 max-w-[160px] text-control"
                   />
                 )}
               </div>
@@ -342,7 +323,7 @@ const TimesheetsPage: React.FC = () => {
                 {t('timesheets:copyLastWeek.button', 'Copy last week')}
               </Button>
               {copyDisabledReason && (
-                <span data-testid="timesheets-copy-reason" className="text-[13px] text-muted-foreground">
+                <span data-testid="timesheets-copy-reason" className="text-control text-muted-foreground">
                   {copyDisabledReason}
                 </span>
               )}
@@ -352,20 +333,18 @@ const TimesheetsPage: React.FC = () => {
             <span
               data-testid="timesheets-save-status"
               role="status"
-              className="text-[13px] text-muted-foreground"
+              className="text-control text-muted-foreground"
             >
               {deleteRow.isPending || isReconciling
                 ? t('timesheets:reconcile.message', 'Refresh this week before continuing.')
                 : dirty
                 ? t('uxs28.save.dirty', 'Unsaved changes')
-                : currentWeekEntries.length > 0
-                  ? t('uxs28.save.saved', 'All changes saved')
-                  : t('uxs28.save.nothing', 'Nothing to save yet')}
+                : null}
             </span>
           )}
           <span
             data-testid="timesheets-weekly-total"
-            className="ml-auto text-[13px] tabular text-muted-foreground"
+            className="ml-auto text-control tabular text-muted-foreground max-md:hidden"
           >
             {t('timesheets.hoursThisWeek', '{{hours}} hours this week', {
               hours: formatNumberExact(editable ? editTotals.weekly : weeklyTotal),
@@ -378,9 +357,6 @@ const TimesheetsPage: React.FC = () => {
             <div data-testid="timesheets-empty" className="px-3.5 py-8 text-center">
               <p className="text-sm font-medium text-foreground">
                 {t('timesheets.emptyEdit.title', 'No hours logged this week')}
-              </p>
-              <p className="mt-1 text-[13px] text-muted-foreground">
-                {t('timesheets.emptyEdit.sub', 'Use “Add a project” above to start logging hours.')}
               </p>
             </div>
           ) : (
@@ -402,10 +378,6 @@ const TimesheetsPage: React.FC = () => {
               variant="empty"
               icon="clock"
               title={t('timesheets.empty.title', 'No hours logged this week')}
-              sub={t(
-                'timesheets.empty.sub',
-                'Add a project to start logging hours, or use the week controls to find another week.',
-              )}
             />
           </div>
         ) : (

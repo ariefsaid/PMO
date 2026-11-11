@@ -43,18 +43,31 @@ export const AdvanceAgingCard: React.FC = () => {
       <Card variant="bare">
         <CardHead>{t('expenses.aging.title', 'Advances outstanding')}</CardHead>
         <CardPad>
-          {Object.entries(totals).map(([currency, buckets]) => (
-            <dl key={currency} className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {Object.entries(totals).map(([currency, buckets]) => {
+            const sum = AGING_BUCKETS.reduce((acc, bucket) => acc + Number(buckets[bucket] ?? 0), 0);
+            return (
+            <React.Fragment key={currency}>
+            {sum > 0 && (
+              <div aria-hidden="true" data-testid={`aging-bar-${currency}`} className="mb-2 flex h-3 w-full gap-0.5 overflow-hidden rounded-full">
+                {AGING_BUCKETS.map((bucket, i) => Number(buckets[bucket] ?? 0) > 0 && (
+                  <span key={bucket} style={{ width: `${(Number(buckets[bucket]) / sum) * 100}%` }}
+                    className={i === AGING_BUCKETS.length - 1 ? 'bg-destructive' : 'bg-muted-foreground/40'} />
+                ))}
+              </div>
+            )}
+            <dl className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {AGING_BUCKETS.map((bucket) => (
                 <div key={bucket}>
-                  <dt className="text-xs text-muted-foreground">{agingBucketLabel(bucket, t)}</dt>
+                  <dt className="text-control text-muted-foreground">{agingBucketLabel(bucket, t)}</dt>
                   <dd className="font-semibold tabular-nums" data-testid={`aging-${currency}-${bucket}`}>
                     {formatCurrency(buckets[bucket], currency)}
                   </dd>
                 </div>
               ))}
             </dl>
-          ))}
+            </React.Fragment>
+            );
+          })}
           <DataTable rows={data.rows} columns={columns} rowKey={(row) => row.advanceId} tableId="advance-aging" accessibleName={t('expenses.aging.title', 'Advances outstanding')} />
           {data.truncated && (
             <p role="status" className="mt-2 text-sm text-muted-foreground">

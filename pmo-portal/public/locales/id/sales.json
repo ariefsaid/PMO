@@ -2,6 +2,7 @@
   "goProbability": "% Go",
   "getProbability": "% Get",
   "goShort": "Go",
+  "chanceShort": "Peluang {{pct}}",
   "getShort": "Get",
   "column": {
     "goPct": "% Go",
@@ -57,6 +58,9 @@
     "mixAria": "Perkiraan tertimbang per tahap",
     "needsYou": "Perlu perhatian",
     "needsYouHeading": "Perlu Anda · {{n}}",
+    "nothingStale": "Tidak ada yang usang",
+    "wonCount": "Menang {{n}}",
+    "lostCount": "Kalah {{n}}",
     "needsYouNote": "Tidak disentuh 30+ hari atau 90+ hari di satu tahap",
     "ofOpen": "dari {{value}} terbuka pada {{n}} proyek",
     "openCount": "{{n}} proyek terbuka",

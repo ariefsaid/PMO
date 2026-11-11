@@ -28,7 +28,7 @@ import {
 } from '@/src/hooks/useMeetings';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -239,7 +239,7 @@ const MeetingDetail: React.FC = () => {
                   </span>
                   {task.end_date && (
                     <span className="text-muted-foreground">
-                      {t('meetingDetail.minutes.dueLabel', 'Due date')}: {formatDateOnly(task.end_date)}
+                      {t('meetingDetail.minutes.dueLabel', 'Due date')}: {formatDay(task.end_date)}
                     </span>
                   )}
                 </li>

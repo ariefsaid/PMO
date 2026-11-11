@@ -38,10 +38,10 @@ const DealBand: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const pill = <StatusPill variant={pillVariantForStatus(project.status as never)}>{stageLabel(project.status as never)}</StatusPill>;
   const stepper = (
-    <LifecycleStepper variant="bar" steps={dealJourneySteps(d.status as never, journeyStepLabel)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-xs" />
+    <LifecycleStepper variant="bar" steps={dealJourneySteps(d.status as never, journeyStepLabel)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-control" />
   );
   const backLink = (
-    <Link to={back.path} state={back.state} className="inline-flex text-xs font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1">
+    <Link to={back.path} state={back.state} className="inline-flex text-control font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1">
       {t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}
     </Link>
   );
@@ -57,7 +57,7 @@ const DealBand: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
       <>
         <div className="mb-4 space-y-3">
           <div>
-            <p className="text-xs font-medium text-muted-foreground">{t('projectDetail.pipeline.currentStage', 'Current stage')}</p>
+            <p className="text-control font-medium text-muted-foreground">{t('projectDetail.pipeline.currentStage', 'Current stage')}</p>
             <h2 className="text-base font-semibold text-foreground">{stageLabel(project.status as never)}</h2>
           </div>
           {!d.canTransition ? (
@@ -91,7 +91,7 @@ const DealBand: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
       <section aria-label={t('sales:options.decisionBand', 'Where this stands')} className="panel-card grid gap-6 p-[var(--panel-inset)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         <div className="min-w-0 space-y-4">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">{t('projectDetail.pipeline.currentStage', 'Current stage')}</span>
+            <span className="text-control font-medium text-muted-foreground">{t('projectDetail.pipeline.currentStage', 'Current stage')}</span>
             {pill}
           </div>
           <DealActionsZone d={d} />

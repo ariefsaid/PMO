@@ -2,6 +2,7 @@
   "goProbability": "% Go",
   "getProbability": "% Get",
   "goShort": "Go",
+  "chanceShort": "{{pct}} chance",
   "getShort": "Get",
   "column": {
     "goPct": "% Go",
@@ -70,6 +71,9 @@
     "quickView": "Quick view",
     "stageNav": "Pipeline stages",
     "needsYouHeading": "Needs you · {{n}}",
+    "nothingStale": "Nothing is stale",
+    "wonCount": "Won {{n}}",
+    "lostCount": "Lost {{n}}",
     "showAllAttention": "Show all {{n}}"
   }
 }

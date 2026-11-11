@@ -156,7 +156,7 @@ const Companies: React.FC = () => {
         <div className="min-w-0" title={c.name}>
           <span className="block truncate font-semibold">{companyDisplayName(c)}</span>
           {c.short_name?.trim() && c.short_name.trim() !== c.name && (
-            <span className="block truncate text-xs text-muted-foreground">{c.name}</span>
+            <span className="block truncate text-control text-muted-foreground">{c.name}</span>
           )}
         </div>
       ),
@@ -169,6 +169,12 @@ const Companies: React.FC = () => {
       header: t('companies.columns.type', 'Type'),
       cell: (c) => <StatusPill variant={companyTypeVariant(c.type)}>{typeLabel[c.type]}</StatusPill>,
       exportValue: (c) => c.type,
+    },
+    {
+      key: 'client_number_segment',
+      header: t('companyDetail.field.clientNumberSegment', 'Client number segment'),
+      cell: (c) => <span className="font-mono text-muted-foreground">{c.client_number_segment ?? '—'}</span>,
+      exportValue: (c) => c.client_number_segment ?? '',
     },
   ];
 
@@ -243,10 +249,6 @@ const Companies: React.FC = () => {
       title={t('companies.title', 'Companies')}
       count={directory.data ? total : undefined}
       total={directory.data && !unfiltered ? directoryTotal : undefined}
-      description={t(
-        'companies.description',
-        'Clients and suppliers used across projects and procurement. Master data shared by the whole organisation.',
-      )}
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ company: null })}>
@@ -370,21 +372,9 @@ const Companies: React.FC = () => {
           variant="empty"
           icon="folder"
           title={t('companies.states.emptyTitle', 'No companies yet')}
-          sub={t(
-            'companies.states.emptySub',
-            'Add your first client or supplier to start linking projects and procurement cases to a directory.',
-          )}
           stateId="companies-empty"
           role={realRole ?? undefined}
           module="companies"
-          action={
-            canCreate
-              ? {
-                  label: t('companies.actions.new', 'New company'),
-                  onClick: () => setFormTarget({ company: null }),
-                }
-              : undefined
-          }
         />
       )}
 
@@ -404,12 +394,11 @@ const Companies: React.FC = () => {
             rowMenu={canRowWrite ? rowMenu : undefined}
             state={pageRows.length === 0 ? 'empty' : undefined}
             emptyTitle={t('companies.table.emptyTitle', 'No companies match your filters')}
-            emptySub={t('companies.table.emptySub', 'Try a different type or clear the search.')}
             emptyAction={{ label: t('companies.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
           tableId="companies-table" />
 
           {/* #1989: the pager under the server page — the Master-data/AdminUsers anatomy. */}
-          <nav aria-label={t('companies.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
+          <nav aria-label={t('companies.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-control tabular-nums">
             <span>
               {total === 0
                 ? ''

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, RecordHeader, StatusPill, TextArea, TextField, useToast, type Column,
+  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, ReasonDialog, RecordHeader, StatusPill, TextArea, TextField, useToast, type Column,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
@@ -15,13 +15,10 @@ import { availableFloatActions, availableReplenishmentActions, booksState, toCen
 import { LIST_LIMIT, type ImprestReplenishmentRow } from '@/src/lib/db/imprest';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { formatCurrency, formatDay, parseMoneyInputAtScale } from '@/src/lib/format';
 import { PlansSection } from './imprest/PlansSection';
 import { FloatAmountSection } from './imprest/FloatAmountSection';
 import { CashAccountSection } from './imprest/CashAccountSection';
-import { imprestStatusLabel } from './imprest/imprestLabels';
-import { expenseStatusLabel } from './expenses/expenseLabels';
 
 type PlanLineUsage = { budget_category: string; planned: number; drawn: number; remaining: number;
   exceptions: Array<{ id: string; number: string | null; kind: string; amount: string; status: string }> };
@@ -33,7 +30,7 @@ type Dialog =
 const REP_TO = { approveReplenishment: 'Approved', rejectReplenishment: 'Rejected', payReplenishment: 'Paid', cancelReplenishment: 'Cancelled' } as const;
 
 const Figure: React.FC<{ label: string; value: React.ReactNode; id: string }> = ({ label, value, id }) => (
-  <div data-testid={`figure-${id}`}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="font-semibold tabular-nums">{value}</dd></div>
+  <div data-testid={`figure-${id}`}><dt className="text-control text-muted-foreground">{label}</dt><dd className="font-semibold tabular-nums">{value}</dd></div>
 );
 
 /** `/imprest/:floatId` (FR-IMP-071): position, month plan, plans, receipts, replenishments and counts. The RPCs decide; this hides. */
@@ -125,7 +122,7 @@ const ImprestFloatDetail: React.FC = () => {
     { key: 'kind', header: t('imprest:rep.kind', 'Type'), cell: (r) => r.kind === 'funding' ? t('imprest:rep.funding', 'Funding') : t('imprest:rep.replenishment', 'Replenishment') },
     { key: 'amount', header: t('imprest:rep.amount', 'Amount'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.amount)}</span> },
     { key: 'status', header: t('imprest:rep.status', 'Status'), cell: (r) => <span className="flex flex-wrap items-center gap-x-2">
-      <StatusPill variant={workflowVariant(r.status)}>{imprestStatusLabel(r.status, t)}</StatusPill>{posting(r.id)}</span> },
+      <StatusPill record="imprest" state={r.status} />{posting(r.id)}</span> },
     { key: 'actions', header: <span className="sr-only">{t('imprest:rep.actions', 'Actions')}</span>, cell: (r) => {
       const acts = availableReplenishmentActions({ userId, realRole, custodianId: flt.custodian_id, rep: r });
       const btn = (a: ImprestAction, label: string, variant: 'primary' | 'outline' | 'ghost') => acts.includes(a) &&
@@ -179,7 +176,7 @@ const ImprestFloatDetail: React.FC = () => {
               </dl>
               {pos.last_count_at && (
                 <p className="mt-3 text-sm text-muted-foreground">
-                  {t('imprest:position.lastCount', 'Last count {{date}}: variance {{variance}}', { date: pos.last_count_at.slice(0, 10), variance: money(pos.last_count_variance ?? 0) })}
+                  {t('imprest:position.lastCount', 'Last count {{date}}: variance {{variance}}', { date: formatDay(pos.last_count_at), variance: money(pos.last_count_variance ?? 0) })}
                   {pos.last_count_variance != null && toCents(pos.last_count_variance) !== 0 && <> · <span className="text-destructive-text">{t('imprest:position.varianceFlag', 'Count variance')}</span></>}
                 </p>
               )}
@@ -223,7 +220,7 @@ const ImprestFloatDetail: React.FC = () => {
                   <span className="min-w-0 flex-1 truncate">{c.title}</span>
                   {c.is_plan_exception && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
                   <span className="tabular-nums">{money(c.amount)}</span>
-                  <StatusPill variant={workflowVariant(c.status)}>{expenseStatusLabel(c.status, t)}</StatusPill>
+                  <StatusPill record="expense" state={c.status} />
                   {posting(c.id)}
                   {c.kind === 'claim' && c.status === 'Paid' && (settlement(c.imprest_replenishment_id) === 'paid'
                     ? <span className="text-muted-foreground">{t('imprest:receipts.replenished', 'Replenished')}</span>
@@ -259,7 +256,7 @@ const ImprestFloatDetail: React.FC = () => {
             : <ul className="divide-y divide-border text-sm">
               {(counts.data?.rows ?? []).map((c) => (
                 <li key={c.id} className="flex flex-wrap items-center gap-x-3 py-1.5">
-                  <span>{c.counted_at.slice(0, 10)}</span>
+                  <span>{formatDay(c.counted_at)}</span>
                   <span className="tabular-nums">{t('imprest:counts.counted', 'Counted {{amount}}', { amount: money(c.counted_amount) })}</span>
                   <span className="tabular-nums text-muted-foreground">{t('imprest:counts.book', 'Book {{amount}}', { amount: money(c.book_amount) })}</span>
                   <span className={toCents(c.variance) !== 0 ? 'tabular-nums text-destructive-text' : 'tabular-nums'}>{t('imprest:counts.variance', 'Variance {{amount}}', { amount: money(c.variance) })}</span>
@@ -281,14 +278,25 @@ const ImprestFloatDetail: React.FC = () => {
         onConfirm={() => { if (dialog?.kind === 'request') void run(() => requestRep.mutateAsync({ floatId: flt.id, kind: dialog.as }), t('imprest:toast.requested', 'Request sent')); }}
         onCancel={close}
       />
+      <ReasonDialog
+        open={repDialog?.action === 'rejectReplenishment'}
+        kind="reject"
+        subject={repDialog?.rep.number ?? ''}
+        context={repDialog ? money(repDialog.rep.amount) : undefined}
+        loading={transitionRep.isPending}
+        onConfirm={(reason) => {
+          if (!repDialog) return;
+          void run(() => transitionRep.mutateAsync({ id: repDialog.rep.id, to: REP_TO[repDialog.action], notes: reason }), t('imprest:toast.updated', 'Updated'));
+        }}
+        onCancel={close}
+      />
       <ConfirmDialog
-        open={repDialog !== null}
+        open={repDialog !== null && repDialog.action !== 'rejectReplenishment'}
         tone={repDialog?.action === 'rejectReplenishment' || repDialog?.action === 'cancelReplenishment' ? 'destructive' : 'default'}
         title={repDialog ? t('imprest:confirm.repTitle', '{{action}} {{number}}: {{amount}}?', { action: repLabel, number: repDialog.rep.number, amount: money(repDialog.rep.amount) }) : ''}
         description={<div className="space-y-3">
           {repDialog?.action === 'payReplenishment' && <TextField label={t('imprest:confirm.reference', 'Payment reference (optional)')} value={reference} onChange={setReference} />}
-          {repDialog?.action === 'rejectReplenishment' && <TextArea label={t('imprest:confirm.notes', 'Note (optional)')} value={notes} onChange={setNotes} />}
-          {repDialog && repDialog.action !== 'payReplenishment' && repDialog.action !== 'rejectReplenishment' && <p>{money(repDialog.rep.amount)}</p>}
+          {repDialog && repDialog.action !== 'payReplenishment' && <p>{money(repDialog.rep.amount)}</p>}
         </div>}
         confirmLabel={repLabel ?? ''}
         loading={transitionRep.isPending}

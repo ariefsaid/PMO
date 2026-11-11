@@ -76,7 +76,7 @@ export function buildPipelineColumns({
             {r.client_name ?? '—'}
           </span>
           {r.end_client_name && (
-            <span className="block truncate text-[12px] text-muted-foreground" title={r.end_client_name}>
+            <span className="block truncate text-control text-muted-foreground" title={r.end_client_name}>
               {t('sales:pipeline.endCustomerLine', 'for {{name}}', { name: r.end_client_name })}
             </span>
           )}
@@ -220,7 +220,7 @@ export function buildPipelineColumns({
               : `${days} ${t('sales.lastTouch.daysAgo', 'days ago')}`;
         return (
           <span
-            className={`tabular text-[12.5px] ${stale ? 'font-semibold text-warning-foreground' : 'text-muted-foreground'}`}
+            className={`tabular text-control ${stale ? 'font-semibold text-warning-foreground' : 'text-muted-foreground'}`}
             title={
               stale
                 ? t('sales.lastTouch.stale', 'Untouched for {{days}} days: needs attention', {

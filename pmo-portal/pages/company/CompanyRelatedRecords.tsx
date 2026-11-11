@@ -68,7 +68,7 @@ const RelatedList: React.FC<RelatedListProps> = ({
         />
       )}
       {!isPending && !isError && items.length === 0 && (
-        <p className="text-[13px] text-muted-foreground">{emptyLabel}</p>
+        <p className="text-control text-muted-foreground">{emptyLabel}</p>
       )}
       {!isPending && !isError && items.length > 0 && (
         <ul className="flex flex-col gap-1" aria-label={listAriaLabel}>

@@ -1,5 +1,4 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { format } from 'date-fns/format';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useToast, type TimesheetGridRow } from '@/src/components/ui';
@@ -10,9 +9,9 @@ import type { useTimesheetMutations } from '@/src/hooks/useTimesheetApproval';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { type EditRow, computeTotals, diffEntries, gridIsValid, parseHourCell, saveToastForChangeCount } from '@/src/lib/timesheet-edit';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatFullDate, formatMonthDay } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
-import { planCopyLastWeekRows } from './timesheetWeekModel';
+import { dayKey, planCopyLastWeekRows } from './timesheetWeekModel';
 import { TimesheetStatus } from '../../types';
 
 type Props = {
@@ -38,7 +37,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
   const { saveWeek, deleteRow, isReconciling, reconciledDelete } = entryMutations;
   const submittingRef = useRef(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
-  const weekDateStrings = useMemo(() => weekDates.map((date) => format(date, 'yyyy-MM-dd')), [weekDates]);
+  const weekDateStrings = useMemo(() => weekDates.map((date) => dayKey(date)), [weekDates]);
   // AC-IFW-TASKS-02: consume ?project=<id> from the URL (set by MyTasks "Log time" link).
   // Declared before the seedRows/seedKey block so the reseed can re-include the prefilled
   // project when the seedKey transitions (e.g. sheets resolves AFTER projects — the common case
@@ -313,7 +312,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
       weekDates.map((d) => {
         const shifted = new Date(d);
         shifted.setDate(shifted.getDate() - 7);
-        return format(shifted, 'yyyy-MM-dd');
+        return dayKey(shifted);
       }),
     [weekDates]
   );
@@ -357,7 +356,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
     else moveWeek(delta);
   };
 
-  const weekRangeLabel = `${formatMonthDay(weekStartDate)} – ${formatFullDate(weekDates[6])}`;
+  const weekRangeLabel = `${formatDay(weekStartDate)} – ${formatDay(weekDates[6])}`;
 
   // Submit affordance (FR-TS-004): only the owner of a Draft sheet for this week.
   const isOwner = currentTimesheet?.user_id === signedInUserId;
