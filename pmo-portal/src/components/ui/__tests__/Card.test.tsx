@@ -21,6 +21,7 @@ describe('Card', () => {
     render(<CardHead>Pipeline</CardHead>);
     // Default sits one level under the page h1 (no h1 -> h3 skip); explicit level for nested cards.
     const heading = screen.getByRole('heading', { name: 'Pipeline', level: 2 });
+    expect(heading).toHaveClass('text-group', 'font-semibold', 'text-foreground');
     expect(heading.parentElement?.parentElement).not.toHaveClass('border-b');
   });
 

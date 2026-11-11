@@ -66,11 +66,12 @@ export async function listPlanLines(planId: string): Promise<ImprestPlanLineRow[
   fail(error);
   return data ?? [];
 }
-export async function listReplenishments(floatId: string): Promise<Bounded<ImprestReplenishmentRow>> {
-  const { data, error } = await supabase.from('imprest_replenishments').select('*').eq('float_id', floatId)
+export type ImprestReplenishmentWithRejecter = ImprestReplenishmentRow & { rejecter: { full_name: string } | null };
+export async function listReplenishments(floatId: string): Promise<Bounded<ImprestReplenishmentWithRejecter>> {
+  const { data, error } = await supabase.from('imprest_replenishments').select('*, rejecter:profiles!imprest_replenishments_rejected_by_fkey(full_name)').eq('float_id', floatId)
     .order('requested_at', { ascending: false }).limit(LIST_LIMIT + 1);
   fail(error);
-  return bounded(data);
+  return bounded((data ?? []).map(row => ({ ...row, decided_notes: row.decided_notes ?? null, rejected_by: row.rejected_by ?? null, rejected_at: row.rejected_at ?? null })));
 }
 export type ImprestFloatChangeListRow = ImprestFloatChangeRow & { proposer: { full_name: string } | null; decider: { full_name: string } | null };
 export async function listFloatChanges(floatId: string): Promise<Bounded<ImprestFloatChangeListRow>> {

@@ -26,6 +26,7 @@ export type BudgetCategory = Database['public']['Enums']['budget_category'];
 
 export type ExpenseClaimWithRefs = ExpenseClaimRow & {
   claimant: { full_name: string } | null;
+  rejecter: { full_name: string } | null;
   project: { name: string; short_name?: string | null } | null;
   /** The site float it is charged to (#1635); its currency governs how the amount is shown. */
   float?: { currency: string } | null;
@@ -84,11 +85,15 @@ export interface ExpenseAdvanceAgingRow {
 export const EXPENSE_LIST_LIMIT = 200;
 export const AGING_LIMIT = 500;
 
-const SELECT = '*, claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name), float:imprest_floats(currency)';
+const SELECT = '*, rejecter:profiles!expense_claims_rejected_by_fkey(full_name), claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name), float:imprest_floats(currency)';
 
 interface PostgrestErrorLike { message: string; code?: string }
 function throwWrite(error: PostgrestErrorLike): never {
   throw new AppError(error.message, error.code);
+}
+
+function normalizeDecision(row: ExpenseClaimWithRefs): ExpenseClaimWithRefs {
+  return { ...row, rejection_notes: row.rejection_notes ?? null, rejected_by: row.rejected_by ?? null, rejected_at: row.rejected_at ?? null };
 }
 
 export async function listExpenseClaims(
@@ -105,14 +110,14 @@ export async function listExpenseClaims(
     .order('id', { ascending: false })
     .range(0, EXPENSE_LIST_LIMIT);
   if (error) throwWrite(error);
-  const rows = (data ?? []) as unknown as ExpenseClaimWithRefs[];
+  const rows = ((data ?? []) as unknown as ExpenseClaimWithRefs[]).map(normalizeDecision);
   return { rows: rows.slice(0, EXPENSE_LIST_LIMIT), truncated: rows.length > EXPENSE_LIST_LIMIT };
 }
 
 export async function getExpenseClaim(id: string): Promise<ExpenseClaimWithRefs | null> {
   const { data, error } = await supabase.from('expense_claims').select(SELECT).eq('id', id).maybeSingle();
   if (error) throwWrite(error);
-  return (data ?? null) as unknown as ExpenseClaimWithRefs | null;
+  return data ? normalizeDecision(data as unknown as ExpenseClaimWithRefs) : null;
 }
 
 /** Byte-wise string compare — `localeCompare` would order ids and dates by locale, not by the value. */
