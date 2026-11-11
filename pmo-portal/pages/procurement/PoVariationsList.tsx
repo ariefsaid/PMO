@@ -149,8 +149,8 @@ export const PoVariationsList: React.FC<PoVariationsListProps> = ({ poId, projec
             </ul>}
             <div className="flex flex-wrap gap-2">
               {canDecide && <>
-                <Button variant="primary" size="sm" onClick={() => setApproving(variation)}>{t('subcontract.variations.approve', 'Approve')}</Button>
                 <Button variant="outline" size="sm" onClick={() => setRejecting(variation)}>{t('subcontract.variations.reject', 'Reject')}</Button>
+                <Button variant="primary" size="sm" onClick={() => setApproving(variation)}>{t('subcontract.variations.approve', 'Approve')}</Button>
               </>}
               {canIssue && <Button variant="outline" size="sm" onClick={() => setRevisionFor(variation)} disabled={mutations.issueRevision.isPending}>
                 {t('subcontract.variations.issueRevision', 'Issue revision')}

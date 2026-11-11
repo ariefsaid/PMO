@@ -91,6 +91,14 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
   const actionCluster = canTransition ? (
     <>
       <Button
+        variant="outline"
+        className="max-sm:min-h-11"
+        onClick={() => setPending('Rejected')}
+        loading={transition.isPending}
+      >
+        {t('approvalRow.returnShort', 'Return')}
+      </Button>
+      <Button
         variant="primary"
         className="max-sm:min-h-11"
         onClick={() => setPending('Approved')}
@@ -98,14 +106,6 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
       >
         <Icon name="check" />
         {t('approvalRow.approve', 'Approve')}
-      </Button>
-      <Button
-        variant="outline"
-        className="max-sm:min-h-11"
-        onClick={() => setPending('Rejected')}
-        loading={transition.isPending}
-      >
-        {t('approvalRow.returnShort', 'Return')}
       </Button>
     </>
   ) : null;

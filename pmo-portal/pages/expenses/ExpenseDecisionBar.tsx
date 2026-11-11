@@ -62,8 +62,8 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
   const barActions: MobileDecisionAction[] = [
     ...(actions.includes('submit') ? [{ key: 'submit', label: t('expenses.actions.submit', 'Submit for approval'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Submitted', t('expenses.toast.submitted', 'Submitted for approval')) }] : []),
     ...(showReopen ? [{ key: 'reopen', label: t('expenses.actions.reopen', 'Edit and resubmit'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Draft', t('expenses.toast.reopened', 'Back to Draft')) }] : []),
-    ...(actions.includes('approve') ? [{ key: 'approve', label: t('expenses.actions.approve', 'Approve'), variant: 'primary' as const, onSelect: () => setDialog('approve') }] : []),
     ...(actions.includes('reject') ? [{ key: 'reject', label: t('expenses.actions.reject', 'Reject'), variant: 'outline' as const, onSelect: () => setDialog('reject') }] : []),
+    ...(actions.includes('approve') ? [{ key: 'approve', label: t('expenses.actions.approve', 'Approve'), variant: 'primary' as const, onSelect: () => setDialog('approve') }] : []),
     ...(actions.includes('pay') ? [{ key: 'pay', label: t('expenses.actions.pay', 'Mark paid'), variant: 'primary' as const, onSelect: () => setDialog('pay') }] : []),
     ...(actions.includes('recordReturn') ? [{ key: 'recordReturn', label: t('expenses.actions.recordReturn', 'Record cash returned'), variant: 'outline' as const, onSelect: () => setDialog('recordReturn') }] : []),
     ...(actions.includes('cancel') ? [{ key: 'cancel', label: t('expenses.actions.cancel', 'Cancel'), variant: 'ghost' as const, onSelect: () => setDialog('cancel') }] : []),
@@ -85,8 +85,8 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
           {t('expenses.actions.reopen', 'Edit and resubmit')}
         </Button>
       )}
-      {actions.includes('approve') && <Button variant="primary" onClick={() => setDialog('approve')}>{t('expenses.actions.approve', 'Approve')}</Button>}
       {actions.includes('reject') && <Button variant="outline" onClick={() => setDialog('reject')}>{t('expenses.actions.reject', 'Reject')}</Button>}
+      {actions.includes('approve') && <Button variant="primary" onClick={() => setDialog('approve')}>{t('expenses.actions.approve', 'Approve')}</Button>}
       {actions.includes('pay') && <Button variant="primary" onClick={() => setDialog('pay')}>{t('expenses.actions.pay', 'Mark paid')}</Button>}
       {actions.includes('recordReturn') && (
         <Button variant="outline" onClick={() => setDialog('recordReturn')}>{t('expenses.actions.recordReturn', 'Record cash returned')}</Button>

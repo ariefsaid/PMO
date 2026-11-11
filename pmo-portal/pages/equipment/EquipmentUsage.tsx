@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import {
-  Button, Combobox, DataTable, Icon, ListPage, ListState, ReasonDialog, SelectField, StatusPill, Tabs, TextField, tabId, tabPanelId, useToast,
+  Button, Combobox, ConfirmDialog, DataTable, Icon, ListPage, ListState, ReasonDialog, SelectField, StatusPill, Tabs, TextField, tabId, tabPanelId, useToast,
   type Column,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
@@ -69,6 +69,7 @@ const EquipmentUsagePage: React.FC = () => {
   const [draftRow, setDraftRow] = useState<{ assetId: string | null; projectId: string | null; kind: Kind }>({ assetId: null, projectId: null, kind: 'work' });
   const [warnings, setWarnings] = useState<Record<string, number>>({});
   const [problem, setProblem] = useState<string | null>(null);
+  const [approving, setApproving] = useState<Pending>(null);
   const [rejecting, setRejecting] = useState<Pending>(null);
 
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
@@ -251,8 +252,8 @@ const EquipmentUsagePage: React.FC = () => {
         const who = `${assetName(e.asset_id)} · ${projectName(e.project_id)} · ${dayLabel(e.work_date)}`;
         return (
           <span className="flex gap-1">
-            <Button variant="outline" size="sm" aria-label={t('equipment:usage.approveEntry', 'Approve {{what}}', { what: who })} onClick={() => void decide(e.id, 'Approved')}>{t('equipment:usage.approve', 'Approve')}</Button>
-            <Button variant="ghost" size="sm" aria-label={t('equipment:usage.rejectEntry', 'Return {{what}}', { what: who })} onClick={() => setRejecting({ id: e.id, label: who })}>{t('equipment:usage.reject', 'Return')}</Button>
+            <Button variant="outline" size="sm" aria-label={t('equipment:usage.rejectEntry', 'Return {{what}}', { what: who })} onClick={() => setRejecting({ id: e.id, label: who })}>{t('equipment:usage.reject', 'Return')}</Button>
+            <Button variant="primary" size="sm" aria-label={t('equipment:usage.approveEntry', 'Approve {{what}}', { what: who })} onClick={() => setApproving({ id: e.id, label: who })}>{t('equipment:usage.approve', 'Approve')}</Button>
           </span>
         );
       } },
@@ -346,6 +347,19 @@ const EquipmentUsagePage: React.FC = () => {
             </section>))
       )}
       </div>
+      <ConfirmDialog
+        open={approving !== null}
+        title={t('equipment:usage.confirmApproveTitle', 'Approve usage entry?')}
+        description={approving?.label ?? t('equipment:usage.confirmApproveBody', 'This will approve the logged equipment usage entry.')}
+        confirmLabel={t('equipment:usage.approve', 'Approve')}
+        loading={transition.isPending}
+        onCancel={() => setApproving(null)}
+        onConfirm={() => {
+          const a = approving;
+          setApproving(null);
+          if (a) void decide(a.id, 'Approved');
+        }}
+      />
       <ReasonDialog maxLength={500} open={rejecting !== null} kind="return" subject={t('equipment:usage.entrySubject', 'usage entry')} context={rejecting?.label}
         loading={transition.isPending} onCancel={() => setRejecting(null)}
         onConfirm={(notes) => { const r = rejecting; setRejecting(null); if (r) void decide(r.id, 'Rejected', notes); }} />

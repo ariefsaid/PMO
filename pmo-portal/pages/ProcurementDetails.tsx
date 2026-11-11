@@ -16,7 +16,7 @@ import {
   FigureHiddenLine,
   ListState,
   ConfirmDialog,
-  TextArea,
+  ReasonDialog,
   Tabs,
   tabId,
   tabPanelId,
@@ -253,7 +253,7 @@ const ProcurementDetails: React.FC = () => {
       replace: true,
       state: withTabSwitchNavState(location.state),
     });
-  const { pendingConfirm, setPendingConfirm, rejectionComment, setRejectionComment, onActionClick, commitConfirm, submitVICapture, confirmInFlight } =
+  const { pendingConfirm, setPendingConfirm, onActionClick, commitConfirm, submitVICapture, confirmInFlight } =
     useProcurementDecision(detailQuery.data, mutations, {
       setTab, notesInput, setNotesInput, setMutationError, setShowCreateGR, setShowCreateVI, setShowVICapture, setCaptureKind,
     });
@@ -643,7 +643,16 @@ const ProcurementDetails: React.FC = () => {
           {!isNarrow && <RecordMenu items={recordMenuItems} label={t('procurementRecord:recordAnother', 'Record another document')} ariaLabel={t('procurementRecord:recordMenu', 'Record another document')} />}
         </>}
         // B4: below 640px the phone action bar owns the one filled main action and the menu.
-        primaryAction={mainAction && !isNarrow ? <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button> : undefined}
+        primaryAction={mainAction && !isNarrow ? (
+          returnAction && mainAction.to === 'Approved' ? (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => onActionClick(returnAction)}>{returnAction.label}</Button>
+              <Button variant="primary" size="sm" onClick={clickMainAction}>{mainAction.label}</Button>
+            </div>
+          ) : (
+            <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
+          )
+        ) : undefined}
         menuItems={mainAction && isNarrow ? undefined : moreMenuItems}
         menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}
       />
@@ -874,6 +883,9 @@ const ProcurementDetails: React.FC = () => {
       {mainAction && isNarrow && <>
         <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
           <div className="mx-auto flex max-w-3xl gap-2">
+            {returnAction && mainAction.to === 'Approved' && (
+              <Button variant="outline" className="min-h-11 flex-1" onClick={() => onActionClick(returnAction)}>{returnAction.label}</Button>
+            )}
             <Button variant="primary" className="min-h-11 flex-1" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
             <RecordMenu items={moreMenuItems} side="top" ariaLabel={t('procurementRecord:moreActions', 'More procurement actions')} triggerClassName="min-h-11" />
           </div>
@@ -905,10 +917,19 @@ const ProcurementDetails: React.FC = () => {
         }}
       />}
 
+      <ReasonDialog
+        open={pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected'}
+        kind="reject"
+        label={t('procurement:approvalRow.rejectionComment', 'Rejection comment')}
+        loading={confirmInFlight}
+        onCancel={() => setPendingConfirm(null)}
+        onConfirm={(reason) => { void commitConfirm(reason); }}
+      />
+
       {/* P1-P4 — confirm-before-write. One dialog drives every staged mutation;
-          forward steps + GR/VI are default-tone, Reject/Cancel are destructive. */}
+          forward steps + GR/VI are default-tone, Cancel is destructive. */}
       <ConfirmDialog
-        open={pendingConfirm !== null}
+        open={pendingConfirm !== null && (pendingConfirm.kind !== 'transition' || pendingConfirm.to !== 'Rejected')}
         tone={pendingConfirm?.kind === 'transition' ? pendingConfirm.tone : 'default'}
         title={
           pendingConfirm?.kind === 'transition'
@@ -933,22 +954,6 @@ const ProcurementDetails: React.FC = () => {
                       { request: p.title },
                     )}</p>
                 <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">{mutationError}</p>
-              </div>
-            )
-            :
-          pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected'
-            ? (
-              <div className="space-y-3">
-                <p>{pendingConfirm.description}</p>
-                <TextArea
-                  id="procurement-rejection-comment"
-                  label={t('procurement:approvalRow.rejectionComment', 'Rejection comment')}
-                  value={rejectionComment}
-                  onChange={setRejectionComment}
-                  required
-                  maxLength={1000}
-                  helper={t('procurement:approvalRow.rejectionCommentHelp', 'Add a comment for the requester before rejecting this purchase.')}
-                />
               </div>
             )
             : pendingConfirm?.kind === 'transition'
@@ -976,7 +981,6 @@ const ProcurementDetails: React.FC = () => {
           pendingConfirm?.kind === 'transition' ? pendingConfirm.cancelLabel : undefined
         }
         loading={confirmInFlight}
-        confirmDisabled={pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected' && rejectionComment.trim().length === 0}
         onCancel={() => setPendingConfirm(null)}
         onConfirm={() => void commitConfirm()}
       />

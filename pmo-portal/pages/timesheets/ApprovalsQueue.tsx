@@ -191,6 +191,16 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
   // below place the SAME element, preserving each surface's styles.
   const actionButtons = (
     <>
+      {actions.reject && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => decision.request('return', sheet.id, name)}
+          loading={reject.isPending}
+        >
+          {t('timesheets:approvalQueue.return', 'Return')}
+        </Button>
+      )}
       {actions.approve && (
         <Button
           variant="primary"
@@ -200,16 +210,6 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
         >
           <Icon name="check" />
           {t('timesheets:approvalQueue.approve', 'Approve')}
-        </Button>
-      )}
-      {actions.reject && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => decision.request('return', sheet.id, name)}
-          loading={reject.isPending}
-        >
-          {t('timesheets:approvalQueue.return', 'Return')}
         </Button>
       )}
     </>
@@ -366,6 +366,16 @@ export const ApprovalsQueue: React.FC = () => {
                       label={t('approvals.bulk.rowSelect', "Select {{owner}}'s {{week}}", { owner: name, week: bulkWeekLabel(sheet.week_start_date, t) })}
                     />
                   )}
+                  {actions.reject && !selecting && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => decision.request('return', sheet.id, name)}
+                      loading={reject.isPending}
+                    >
+                      {t('timesheets:approvalQueue.return', 'Return')}
+                    </Button>
+                  )}
                   {actions.approve && !selecting && (
                     <Button
                       variant="primary"
@@ -375,16 +385,6 @@ export const ApprovalsQueue: React.FC = () => {
                     >
                       <Icon name="check" />
                       {t('timesheets:approvalQueue.approve', 'Approve')}
-                    </Button>
-                  )}
-                  {actions.reject && !selecting && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => decision.request('return', sheet.id, name)}
-                      loading={reject.isPending}
-                    >
-                      {t('timesheets:approvalQueue.return', 'Return')}
                     </Button>
                   )}
                 </ApprovalRow>

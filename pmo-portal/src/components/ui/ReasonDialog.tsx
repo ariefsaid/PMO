@@ -14,6 +14,8 @@ export interface ReasonDialogProps {
   subject?: string;
   /** Override the default "Return {subject}" / "Reject {subject}" title. */
   title?: string;
+  /** Override the default "Reason for returning" / "Reason for rejecting" field label. */
+  label?: string;
   /** The evidence the decision rests on (who, what, how much), shown above the reason box. */
   context?: React.ReactNode;
   confirmLabel?: string;
@@ -37,6 +39,7 @@ export const ReasonDialog: React.FC<ReasonDialogProps> = ({
   kind,
   subject = '',
   title,
+  label,
   context,
   confirmLabel,
   loading = false,
@@ -96,7 +99,7 @@ export const ReasonDialog: React.FC<ReasonDialogProps> = ({
           {context != null && <div className="text-control text-muted-foreground">{context}</div>}
           <TextArea
             id={fieldId}
-            label={words.label}
+            label={label ?? words.label}
             helper={words.help}
             required
             fullWidth

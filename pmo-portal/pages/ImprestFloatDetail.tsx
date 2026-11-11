@@ -132,8 +132,8 @@ const ImprestFloatDetail: React.FC = () => {
       const btn = (a: ImprestAction, label: string, variant: 'primary' | 'outline' | 'ghost') => acts.includes(a) &&
         <Button variant={variant} size="sm" onClick={() => setDialog({ kind: 'rep', rep: r, action: a as never })}>{label}</Button>;
       return <span className="flex flex-wrap gap-1">
-        {btn('approveReplenishment', t('imprest:actions.approve', 'Approve'), 'primary')}
         {btn('rejectReplenishment', t('imprest:actions.reject', 'Reject'), 'outline')}
+        {btn('approveReplenishment', t('imprest:actions.approve', 'Approve'), 'primary')}
         {btn('payReplenishment', t('imprest:actions.pay', 'Pay'), 'primary')}
         {btn('cancelReplenishment', t('imprest:actions.cancel', 'Cancel'), 'ghost')}
       </span>;
