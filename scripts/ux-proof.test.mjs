@@ -99,7 +99,7 @@ test('phone proof fails when the document is wider than the viewport', () => {
 });
 
 test('phone proof counts short action targets and uses a shrink-only baseline', () => {
-  const metrics = measureFixture('<main><button style="height:43px">Action</button></main>');
+  const metrics = measureFixture('<main><button style="height:43px;font-size:16px">Action</button></main>');
   assert.equal(metrics.smallTargetCount, 1);
   assert.ok(violations(metrics, undefined, '/actions @390', undefined, 0).some((failure) => failure.includes('smallTargetCount=1')));
   assert.deepEqual(violations({ ...metrics, smallTargetCount: 0 }, undefined, '/actions @390', undefined, 1), []);
