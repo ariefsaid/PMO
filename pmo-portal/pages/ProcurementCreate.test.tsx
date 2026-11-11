@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import ProcurementCreate from './ProcurementCreate';
 import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
@@ -158,6 +158,22 @@ describe('AC-PROC1 one-page request creation', () => {
     const form = view.container.querySelector('form')!;
     act(() => { fireEvent.submit(form); fireEvent.submit(form); });
     expect(mocks.createAtomic).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the primary action in ONE place: the form footer, Cancel to its left, no copy at the top', () => {
+    renderCreate();
+    const saves = screen.getAllByRole('button', { name: 'Save draft' });
+    expect(saves).toHaveLength(1);
+    expect(saves[0]).toHaveAttribute('type', 'submit');
+    const footer = screen.getByTestId('form-footer');
+    expect(footer).toContainElement(saves[0]);
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    // DOM order: Cancel precedes the primary, so the primary is first from the right.
+    expect(cancel.compareDocumentPosition(saves[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // No second copy of the action in the page header.
+    const header = screen.getByRole('heading', { name: /new procurement/i }).closest('header');
+    expect(header).not.toBeNull();
+    expect(within(header as HTMLElement).queryByRole('button')).toBeNull();
   });
 
   it('retries an uncertain save with the same header and line IDs', async () => {

@@ -115,14 +115,13 @@ test('AC-APR-040 a within-budget request is decided by the project approver, and
   const decision = page.getByRole('button', { name: 'Approve', exact: true });
   await expect(evidence).toBeVisible();
   await expect(decision).toBeVisible();
-  expect(await page.evaluate(() => {
-    const evidenceNode = [...document.querySelectorAll('h3')]
-      .find((node) => node.textContent?.trim() === 'Budget impact');
-    const decisionNode = [...document.querySelectorAll('button')]
-      .find((node) => node.textContent?.trim() === 'Approve');
-    return Boolean(evidenceNode && decisionNode
-      && (evidenceNode.compareDocumentPosition(decisionNode) & Node.DOCUMENT_POSITION_FOLLOWING));
-  })).toBe(true);
+  // The oracle is that the budget evidence is reached BEFORE the decision (read, then approve).
+  // Measured on the same semantic elements the locators above resolve — the redesign re-levelled
+  // "Budget impact" from h3 to h2, so a tag-scoped query would assert nothing at all.
+  expect(await page.evaluate(([evidenceNode, decisionNode]) => Boolean(
+    evidenceNode && decisionNode
+    && (evidenceNode.compareDocumentPosition(decisionNode) & Node.DOCUMENT_POSITION_FOLLOWING),
+  ), [await evidence.elementHandle(), await decision.elementHandle()])).toBe(true);
   await decision.scrollIntoViewIfNeeded();
   await expect(page.getByTestId('mobile-sticky-action')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Approve', includeHidden: true })).toHaveCount(1);
