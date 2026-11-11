@@ -21,6 +21,8 @@ export interface FunnelProps {
   className?: string;
   /** Flat stage separators for use inside an existing panel surface. */
   presentation?: 'cards' | 'flat';
+  /** Tighter vertical stage rhythm for the dense Sales Pipeline summary. */
+  compact?: boolean;
 }
 
 /** Connected stage-summary band (macro analog of the stepper).
@@ -38,7 +40,7 @@ export interface FunnelProps {
  *  distributes its leftover width evenly across stages, keeping them equal-looking when every
  *  amount already fits — `max-content` on both ends would leave stages bunched left with dead
  *  space on the right instead. */
-export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect, className, presentation = 'cards' }) => {
+export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect, className, presentation = 'cards', compact = false }) => {
   const { t } = useTranslation();
   const interactive = !!onSelect;
   // A non-interactive Funnel (e.g. a dashboard panel with no onSelect) has NO focusable stage —
@@ -92,7 +94,8 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 if (interactive) e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' });
               }}
               className={cn(
-                'relative flex flex-col px-3 pb-3 pt-3',
+                'relative flex flex-col',
+                compact ? 'px-2 pb-2 pt-2' : 'px-3 pb-3 pt-3',
                 presentation === 'flat'
                   ? 'border-r border-border last:border-r-0'
                   : 'rounded-l-lg border border-r-0 border-border first:rounded-l-lg last:rounded-r-lg last:border-r',
@@ -108,7 +111,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 selected && 'bg-primary/[0.06] shadow-[inset_0_-2px_0_hsl(var(--primary))]'
               )}
             >
-              <div className="mb-2 flex items-center gap-2">
+              <div className={cn('flex items-center gap-2', compact ? 'mb-1' : 'mb-2')}>
                 <span
                   aria-hidden
                   className="size-[9px] shrink-0 rounded-full"
@@ -119,11 +122,11 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                   <span className="ml-auto text-control font-bold text-muted-foreground">{s.prob}</span>
                 )}
               </div>
-              <div data-funnel-stage-amount className="text-section font-bold tracking-[-0.02em] tabular">
+              <div data-funnel-stage-amount className={cn(compact ? 'text-group' : 'text-section', 'font-bold tracking-[-0.02em] tabular')}>
                 {s.value}
               </div>
               {s.weighted && (
-                <div data-funnel-stage-weighted className="mt-2 text-control text-muted-foreground">
+                <div data-funnel-stage-weighted className={cn(compact ? 'mt-1' : 'mt-2', 'text-control text-muted-foreground')}>
                   {s.weighted}
                 </div>
               )}
@@ -137,7 +140,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 // unchanged — padding on the track itself would have painted `bg-secondary`
                 // through the gap. `mt-auto` still does the cross-stage alignment: every stage's
                 // wrapper contributes the same fixed pt-2, so the alignment math is unaffected.
-                <div className="mt-auto pt-2">
+                <div className={cn('mt-auto', compact ? 'pt-1' : 'pt-2')}>
                   <div data-funnel-stage-bar className="h-[5px] overflow-hidden rounded-full bg-secondary">
                     <span
                       className="block h-full rounded-full"

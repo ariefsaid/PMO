@@ -1,5 +1,5 @@
 import type { CellValue, ExportTable } from '@/src/lib/export';
-import { fromCents, type ManagementPack, type PackRow } from './managementPack';
+import { fromCents, leftToBillAt, type ManagementPack, type PackRow } from './managementPack';
 
 /** Translated column titles and cell words — the page passes `t()` results; this module stays pure. */
 export interface ManagementPackExportLabels {
@@ -39,19 +39,21 @@ export function buildManagementPackExport(pack: ManagementPack, l: ManagementPac
   const body: CellValue[][] = [];
   for (const row of pack.rows) {
     row.months.forEach((m) => {
+      const leftToBill = row.kind === 'contract' ? leftToBillAt([row], row.currency, m.month) : null;
       body.push([
         m.month.slice(0, 7), row.projectNumber ?? '', rowName(row, l), row.clientName ?? '', row.currency,
         l.taxBasisValue, money(m.planned), money(m.recognised), money(m.invoiced), money(m.recognisedToDate),
-        money(m.invoicedToDate), money(m.unbilled), money(m.backlog),
+        money(m.invoicedToDate), money(m.unbilled), money(leftToBill),
         m.basis === 'progress' ? l.basisProgress : m.basis === 'earned' ? l.basisEarned : l.basisInvoiced,
       ]);
     });
   }
   for (const totals of pack.totals) {
     for (const t of totals.months) {
+      const leftToBill = leftToBillAt(pack.rows, totals.currency, t.month);
       body.push([
         t.month.slice(0, 7), '', l.total, '', totals.currency, l.taxBasisValue, money(t.planned), money(t.recognised),
-        money(t.invoiced), money(t.recognisedToDate), money(t.invoicedToDate), money(t.unbilled), money(t.backlog), '',
+        money(t.invoiced), money(t.recognisedToDate), money(t.invoicedToDate), money(t.unbilled), money(leftToBill), '',
       ]);
     }
   }

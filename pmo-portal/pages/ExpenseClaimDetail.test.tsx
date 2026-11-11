@@ -4,10 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyCents, formatMoneyInputValue } from '@/src/lib/format';
+import { formatCurrency, formatMoneyInputValue } from '@/src/lib/format';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 // The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
-const money = (v: number, c: string) => formatCurrencyCents(v, c).replace(/\u00a0/g, ' ');
+const money = (v: number, c: string) => formatCurrency(v, c, { precision: 'minor' }).replace(/\u00a0/g, ' ');
 
 const h = vi.hoisted(() => ({
   claim: null as unknown,
@@ -99,12 +99,11 @@ const renderAtWithI18n = () =>
   );
 
 describe('ExpenseClaimDetail', () => {
-  it('AC-MONEY-DISPLAY: rounds the read-only claim amount to whole currency units', () => {
-    h.claim = { ...base, amount: 300.49, currency: 'USD' };
+  it('D4: shows minor units on the expense transaction record', () => {
+    h.claim = { ...base, amount: 12.5, currency: 'USD' };
     as('eng', 'Engineer');
     renderAt();
-    expect(screen.getByTestId('expense-amount')).toHaveTextContent('$300');
-    expect(screen.getByTestId('expense-amount')).not.toHaveTextContent('$300.49');
+    expect(screen.getByTestId('expense-amount')).toHaveTextContent('$12.50');
   });
 
   it('AC-002 #1325: the header project link shows the short name and titles the contractual one', () => {

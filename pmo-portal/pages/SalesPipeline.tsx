@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AccessDenied, FigureHiddenLine, FigureScope, ListPage, ListState, StatTiles } from '@/src/components/ui';
+import { AccessDenied, FigureHiddenLine, FigureScope, ListPage, ListState, useFigureReport, type HiddenFigure } from '@/src/components/ui';
 import { formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { PipelineFunnel } from './sales-pipeline/PipelineFunnel';
@@ -9,6 +9,29 @@ import {
 } from './sales/SalesParts';
 import { useSalesModel } from './sales/useSalesModel';
 import { openValueTotal } from './sales/salesLogic';
+
+const PipelineFigures: React.FC<{ total: number | null; weighted: number; currency: string; openCount: number; mixed: string; t: ReturnType<typeof useSalesModel>['t'] }> = ({ total, weighted, currency, openCount, mixed, t }) => {
+  const hidden: HiddenFigure[] = total === null ? [
+    { label: t('sales:options.weightedForecast', 'Weighted forecast'), reason: mixed },
+    { label: t('sales:options.openValue', 'Open value'), reason: mixed },
+  ] : [];
+  const scoped = useFigureReport(hidden);
+  if (total === null && scoped) return null;
+  const value = total === null ? mixed : '';
+  return (
+    <dl className="grid min-w-0 grid-cols-2 gap-x-3">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+        <dt className="text-control font-medium text-muted-foreground">{t('sales:options.weightedForecast', 'Weighted forecast')}</dt>
+        <dd className="text-group font-semibold tabular">{total === null ? value : <span data-testid="pipeline-weighted-total">{formatTileMoney(weighted, currency)}</span>}</dd>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+        <dt className="text-control font-medium text-muted-foreground">{t('sales:options.openValue', 'Open value')}</dt>
+        <dd className="text-group font-semibold tabular">{total === null ? value : formatTileMoney(total, currency)}</dd>
+        {total !== null && <dd className="text-control text-muted-foreground">{t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}</dd>}
+      </div>
+    </dl>
+  );
+};
 
 /** The CRM pipeline: figures on top, the funnel as stage filter, a board or table, and a quick-view drawer. */
 const SalesPipeline: React.FC = () => {
@@ -28,44 +51,31 @@ const SalesPipeline: React.FC = () => {
   const cur = m.funnel.effectiveCurrency;
   const ready = m.state === undefined;
   const mixed = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
-  const figures = (
-    <StatTiles
-      variant="bare"
-      columns={2}
-      tiles={[
-        {
-          label: t('sales:options.weightedForecast', 'Weighted forecast'),
-          value: total === null ? null : <span data-testid="pipeline-weighted-total">{formatTileMoney(m.funnel.totalWeighted, cur)}</span>,
-          unavailableReason: total === null ? mixed : undefined,
-          sub: t('sales:options.weightedNote', 'Value × chance of winning'),
-        },
-        {
-          label: t('sales:options.openValue', 'Open value'),
-          value: total === null ? null : formatTileMoney(total, cur),
-          unavailableReason: total === null ? mixed : undefined,
-          sub: t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length }),
-        },
-      ]}
-    />
-  );
+  const figures = <PipelineFigures total={total} weighted={m.funnel.totalWeighted} currency={cur} openCount={m.openProjects.length} mixed={mixed} t={t} />;
   return (
     <FigureScope>
     <ListPage
       title={t('shell.nav.sales', 'Sales Pipeline')}
+      help={t('sales:options.weightedNote', 'Value × chance of winning')}
       primaryAction={<NewProjectButton m={m} />}
       banner={m.state === 'loading' && m.isDesktop ? (
         <div className="panel-card mb-4 p-[var(--panel-inset)]"><ListState variant="loading" rows={2} /></div>
       ) : ready && m.isDesktop ? (
         <>
           <FigureHiddenLine className="mb-3 text-control text-muted-foreground" />
-          <div className="mb-4 grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="mb-2 grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
             <div className="min-w-0">
               <PipelineFunnel header={figures} projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} onSelectStage={(s) => m.selectStage(s)} />
             </div>
             <NeedsAttentionCard m={m} onOpen={setPreview} />
           </div>
         </>
-      ) : <PhoneFigures m={m} />}
+      ) : (
+        <>
+          <PhoneFigures m={m} />
+          {ready && !m.isDesktop && <div className="mb-4"><NeedsAttentionCard m={m} onOpen={setPreview} compact /></div>}
+        </>
+      )}
       mobileToolbar={m.state !== 'loading' && <PhoneControls m={m} />}
       filters={m.state !== 'loading' && m.view === 'table' && <SalesScope m={m} />}
       secondaryFilter={m.state !== 'loading' && <SalesClassification m={m} />}

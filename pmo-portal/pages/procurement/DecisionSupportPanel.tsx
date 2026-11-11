@@ -193,13 +193,14 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     </CardPad></Card>;
   }
   const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } = signal;
-  const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
   // The budget-impact bar: what is already spoken for (committed + other reserved), then this procurement's share.
   const usedBefore = committedSpend + otherReserved;
   const usedAfter = budgetAmount - afterRequest;
   const spokenPct = Math.min(100, (usedBefore / budgetAmount) * 100);
   const thisPct = Math.min(100 - spokenPct, (Math.max(0, usedAfter - usedBefore) / budgetAmount) * 100);
   const usedAfterPct = (usedAfter / budgetAmount) * 100;
+  const roundedUsedPct = Math.round(usedAfterPct);
+  const roundedHeadroomPct = 100 - roundedUsedPct;
   const impactTone = usedAfterPct >= AT_RISK_THRESHOLD * 100 ? 'bg-destructive' : usedAfterPct >= 70 ? 'bg-warning' : 'bg-success';
 
   const tiles = [
@@ -225,9 +226,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     ...(requestInOtherCurrency ? [] : [{
       label: t('decisionSupport.afterThisProcurement', 'After this procurement'),
       value: formatCurrency(afterRequest, currency),
-      // I4 (design-review): afterPct is headroom remaining (afterRequest/budget),
-      // NOT utilization — labelled "% headroom remaining" for honest spend control.
-      sub: t('decisionSupport.headroom', { defaultValue: '{{pct}}% headroom left', pct: afterPct.toFixed(1) }),
+      // Whole percent and its exact complement to used always total 100.
+      sub: t('decisionSupport.headroom', { defaultValue: '{{pct}}% headroom left', pct: roundedHeadroomPct }),
       tone: afterRequest < 0 ? ('neg' as const) : undefined,
     }]),
   ];

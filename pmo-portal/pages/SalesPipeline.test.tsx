@@ -120,12 +120,17 @@ beforeEach(() => {
 });
 
 describe('SalesPipeline header + funnel (AC-SP-202)', () => {
-  it('renders on the shared ListPage shell: header + canonical toolbar (CW-5)', () => {
+  it('renders on the shared ListPage shell and keeps weighted-forecast help in the page help popover', async () => {
     renderPage();
     expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
     expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
     // the funnel summary band rides in the shell banner, above the toolbar
     expect(screen.getByLabelText('Pipeline summary')).toBeInTheDocument();
+    expect(screen.queryByText('Value × chance of winning')).not.toBeInTheDocument();
+    const help = screen.getByRole('button', { name: 'About Sales Pipeline' });
+    expect(screen.getAllByRole('button', { name: 'About Sales Pipeline' })).toHaveLength(1);
+    await userEvent.click(help);
+    expect(screen.getByText('Value × chance of winning')).toBeInTheDocument();
     // the view-switcher is right-aligned (Board / Table)
     expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
   });

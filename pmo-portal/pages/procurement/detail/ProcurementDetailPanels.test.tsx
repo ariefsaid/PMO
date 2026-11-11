@@ -27,7 +27,7 @@ const overdueInvoice: ErpPurchaseRow = {
 };
 
 describe('procurement record panels', () => {
-  it('L6 + C6: overdue is said once, in Money, and the figures under "USD, before tax" are bare numbers', () => {
+  it('L6 + C6: overdue is said once, and record figures show their currency', () => {
     render(
       <>
         <ProcurementMoneySummary procurement={procurement} linkedDocuments={[overdueInvoice]} isEngineer={false} budgetSignal={null} />
@@ -38,8 +38,7 @@ describe('procurement record panels', () => {
     const money = screen.getByTestId('procurement-money-summary');
     expect(within(money).getByText(/Money · USD, before tax/)).toBeInTheDocument();
     expect(within(money).getByText(/Overdue 13 days/)).toBeInTheDocument();
-    expect(within(money).getAllByText('62,000').length).toBeGreaterThan(0);
-    expect(money).not.toHaveTextContent('$');
+    expect(within(money).getAllByText('$62,000').length).toBeGreaterThan(0);
 
     const row = screen.getAllByTestId('procurement-timeline-row').find((item) => /Supplier invoice/.test(item.textContent ?? '')) as HTMLElement;
     const summary = row.querySelector('summary') as HTMLElement;
@@ -47,6 +46,19 @@ describe('procurement record panels', () => {
     expect(summary).toHaveTextContent('$62,000');
     expect(summary).toHaveTextContent('Supplier invoice');
     expect(summary).not.toHaveTextContent(/Overdue|Due/);
+  });
+
+  it('shows a recorded procurement total when its request amount is missing', () => {
+    const missingRequestAmount = {
+      ...procurement,
+      total_value: 3400,
+      purchase_requests: [{ amount: null }],
+    } as unknown as ProcurementDetail;
+    render(<ProcurementMoneySummary procurement={missingRequestAmount} linkedDocuments={[]} isEngineer={false} budgetSignal={null} />);
+
+    const money = screen.getByTestId('procurement-money-summary');
+    expect(within(money).getByText('$3,400')).toBeInTheDocument();
+    expect(money).not.toHaveTextContent('amount not recorded');
   });
 
   it('P5: the timeline note and the Full history link are both reachable and the link still works', async () => {

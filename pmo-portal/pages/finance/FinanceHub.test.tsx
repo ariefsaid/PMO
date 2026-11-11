@@ -206,7 +206,7 @@ describe('Finance hub', () => {
     position.payablesUnknownCount = 1;
     state.position = position;
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
-    const ageing = screen.getByRole('region', { name: /Waiting to pay/ });
+    const ageing = screen.getByRole('region', { name: /Invoice age, by days/ });
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('+ 1 balance unknown');
   });
 

@@ -22,6 +22,7 @@ import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useCompanyFigures } from '@/src/components/dashboard/restructure/useCompanyFigures';
+import { selectOverdueTaskCount } from '@/src/components/dashboard/restructure/overdueTasks';
 import { useNeedsYou } from '@/src/components/dashboard/restructure/useNeedsYou';
 import { PeriodPicker } from '@/src/components/dashboard/restructure/PeriodPicker';
 import { usePeriod } from '@/src/components/dashboard/restructure/usePeriod';
@@ -84,23 +85,31 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
 
   // Projects off track: over budget or with overdue work, worst first (the server's order), at most five.
   const attention = data?.attention_projects ?? [];
-  const offTrack = attention.filter((row) => overBudget(row) || row.overdue_items > 0).slice(0, 5);
+  const offTrack = attention.filter((row) => overBudget(row) || row.overdue_items > 0)
+    .sort((a, b) => selectOverdueTaskCount(b.overdue_tasks, figures.organizationToday)!
+      - selectOverdueTaskCount(a.overdue_tasks, figures.organizationToday)!)
+    .slice(0, 5);
   const deliveryQuery = useProjectsDelivery(offTrack.map((row) => row.id));
-  const projectRows: ProjectRow[] = offTrack.map((row) => ({
+  const projectRows: ProjectRow[] = offTrack.map((row) => {
+    const overdueTasks = selectOverdueTaskCount(row.overdue_tasks, figures.organizationToday) ?? 0;
+    return {
     id: row.id,
     name: projectDisplayName(row),
     title: projectDisplayName(row) !== row.name ? row.name : undefined,
-    reason: [
-      row.overdue_items > 0 ? t('home.overdueItems', { count: row.overdue_items, defaultValue_one: '{{count}} overdue', defaultValue_other: '{{count}} overdue' }) : null,
-      row.waiting_approvals > 0 ? t('home.awaitingApproval', { count: row.waiting_approvals, defaultValue_one: '{{count}} awaiting approval', defaultValue_other: '{{count}} awaiting approval' }) : null,
-      overBudget(row) ? t('home.overBudget', 'over budget') : null,
-    ].filter(Boolean).join(' · ') || null,
+    reason: null,
+    needs: {
+      tasksOverdue: overdueTasks,
+      phasesLate: row.overdue_milestones,
+      invoicesOverdue: row.overdue_invoices,
+      awaitingApproval: row.waiting_approvals,
+      overBudget: overBudget(row),
+    },
     status: row.status,
     offTrack: true,
     href: `/projects/${row.id}`,
     delivery: deliveryQuery.data?.[row.id] ?? null,
     budgetUsed: row.budget_used_ratio === null ? null : row.budget_used_ratio * 100,
-  }));
+  }; });
   const projectsPending = figures.dashboardPending || projects.isPending;
   const projectsError = figures.dashboardError || projects.isError;
   const unchecked = data?.risk_unchecked_projects ?? 0;
@@ -119,7 +128,13 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
 
   // "Waits on you": one row per kind, each a link to the fix.
   const waitRows: WaitRow[] = WAIT_ORDER[role].flatMap((id) => needs.items.filter((item) => item.id === id)).map((item) => ({
-    id: item.id, count: item.countLabel ?? item.count, label: item.label, amount: item.amount, detail: item.detail, href: item.href, tone: item.tone,
+    id: item.id,
+    count: item.countLabel ?? item.count,
+    label: item.id === 'approvals' ? t('home.approvalsCompact', 'Approvals') : item.label,
+    amount: item.amount,
+    detail: item.detail,
+    href: item.href,
+    tone: item.tone,
   }));
 
   const helpText: Record<string, string> = {
@@ -129,7 +144,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     'supplier-payables': t('dashboard:hub.company.help.supplierPayables', 'Sum of procurement cases in the supplier-invoiced state awaiting payment.'),
     invoiced: t('dashboard:hub.company.help.invoiced', 'Sum of invoices issued within the selected period, excluding tax.'),
     collected: t('dashboard:hub.company.help.collected', 'Sum of recorded incoming payments received within the selected period.'),
-    'still-to-invoice': t('dashboard:hub.company.help.unbilled', 'Remaining amount from open work orders that are not fully invoiced.'),
+    'left-to-bill': t('dashboard:hub.company.help.leftToBill', 'Signed contract value less invoices issued, in each contract currency.'),
   };
   // One money tile from a figure: unknown (no amounts) draws nothing and is reported to the page's one hidden-figures line.
   const moneyTile = (figure: DashboardFigure | undefined, opts: TileOpts = {}) => {
@@ -181,7 +196,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         {weighted && <div><div className="text-control text-muted-foreground">{t('home.pipelineWeighted', 'Weighted pipeline')}</div><div className="text-[23px] font-bold leading-tight tabular" title={weighted.exact}>{weighted.value}</div>{data?.pipeline_projected_margin != null && <div className="text-control text-muted-foreground">{t('dashboard:hub.company.forecastMargin', 'Forecast margin')}: {(data.pipeline_projected_margin * 100).toFixed(1)}%</div>}</div>}
         {pipeline.isPending ? <ListState variant="loading" shape="chart" rows={2} />
           : pipeline.isError ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={() => { void pipeline.refetch(); }} />
-            : <SalesFunnel stages={pipeline.data?.stages ?? []} currency={orgCurrency} period={periodLabel} won={won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined} />}
+          : <SalesFunnel stages={pipeline.data?.stages ?? []} currency={orgCurrency} period="" won={won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined} />}
       </CardPad>
     </Card>
   );
@@ -217,7 +232,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <CardPad className="grid gap-3">
         <KPIRow className="grid-cols-2">
           {moneyTile(collected, collectedOpts)}
-          {moneyTile(todayFigure('still-to-invoice'), { label: t('home.stillToInvoice', 'Still to invoice'), caption: '' })}
+          {moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' })}
         </KPIRow>
         <InvoicedTrendCard bare trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
       </CardPad>
@@ -263,7 +278,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }}
       allLink={{ to: '/projects', label: t('home.allProjects', 'All {{count}} projects', { count: projects.data?.length ?? 0 }) }}
       emptyLabel={unchecked > 0 ? t('home.noneCheckedOffTrack', 'No checked project is off track.') : t('home.noneOffTrack', 'No project is off track.')}
-      footer={unchecked > 0 ? <Link to="/projects" className="text-primary-text hover:underline">{t('home.uncheckedProjects', { count: unchecked, defaultValue_one: '{{count}} project can’t be checked against its budget', defaultValue_other: '{{count}} projects can’t be checked against their budget' })}</Link> : undefined}
+      footer={unchecked > 0 ? <Link to="/projects" className="text-primary-text hover:underline">{t('home.uncheckedProjectsShort', { count: unchecked, defaultValue_one: 'Budget check unavailable for {{count}} project', defaultValue_other: 'Budget check unavailable for {{count}} projects' })}</Link> : undefined}
     />
   );
   const header = (
@@ -284,11 +299,14 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const panelGrid = 'grid items-start gap-[var(--space-panel-gap)]';
   if (overview) {
     // Overview: everything on one page. "Waits on you" is a third of the first row; charts carry the analysis.
-    // Still to invoice is a position figure: the executive's fourth tile, drawn only when known (unknown is counted in the hidden line).
+    // Left to bill is the executive's fourth visible figure, drawn only when known (unknown joins the hidden line).
     const stillTile = !finance && !(figures.todayPending || figures.periodPending)
-      ? moneyTile(todayFigure('still-to-invoice'), { label: t('home.stillToInvoice', 'Still to invoice'), caption: '' })
+      ? moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' })
       : null;
-    const overviewTiles = stillTile ? [...positionTiles.slice(0, 3), stillTile, ...positionTiles.slice(3)] : positionTiles;
+    const [contractTile, invoicedTile, owedClientsTile, supplierTile, ...otherTiles] = positionTiles;
+    const overviewTiles = stillTile
+      ? [contractTile, invoicedTile, supplierTile, stillTile, owedClientsTile, ...otherTiles]
+      : positionTiles;
     const tilesNode = tilesRow('grid-cols-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col [&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:[&>*:last-child:nth-child(odd)]:col-span-1', overviewTiles);
     const lossRange = figures.winRateRange;
     const wonAmounts = won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined;
@@ -326,7 +344,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           <PurchasingCard className={ORDER[4]} counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
         </div>
         <div className={columns}>
-          <SalesOverviewCard className={ORDER[2]} weighted={weighted} forecastMargin={data?.pipeline_projected_margin} stages={pipeline.data?.stages ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period={periodLabel} won={wonAmounts} range={lossRange} />
+          <SalesOverviewCard className={ORDER[2]} weighted={weighted} forecastMargin={data?.pipeline_projected_margin} stages={pipeline.data?.stages ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange} />
           <LossReasonsCard className={ORDER[5]} range={lossRange} />
           {billing}
         </div>

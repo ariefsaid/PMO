@@ -82,7 +82,7 @@ function procurement(id: string, ageDays: number, overrides: Record<string, unkn
     project: null,
     vendor: { name: 'Supplier' },
     requested_by: null,
-    procurement_invoices: [{ amount: 100 }],
+    procurement_invoices: [{ amount: 100, invoice_date: isoDate.slice(0, 10) }],
     payments: [],
     ...overrides,
   } as unknown as ProcurementWithRefs;
@@ -98,6 +98,15 @@ const calculate = (invoices: SalesInvoiceRow[], procurements: ProcurementWithRef
   });
 
 describe('buildFinancePosition', () => {
+  it('keeps a payable visible when invoice date is unknown without inventing an age', () => {
+    const position = calculate([], [procurement('no-invoice-date', 10, {
+      procurement_invoices: [{ amount: 100, invoice_date: null, created_at: '2026-10-17T00:00:00Z' }],
+    })]);
+    expect(position.payables[0]?.ageDays).toBeNull();
+    expect(position.payablesTotals).toEqual({ IDR: 10_000 });
+    expect(position.payablesAgeing.IDR).toBeUndefined();
+  });
+
   it('sorts overdue invoices oldest first and reports calendar days overdue', () => {
     const position = calculate([
       invoice('newer', '2026-10-17'),
@@ -195,12 +204,12 @@ describe('buildFinancePosition', () => {
       // Supplier invoice above the PO value (tax-inclusive), partly paid; a scheduled payment is not paid.
       procurement('partial', 10, {
         total_value: 1000,
-        procurement_invoices: [{ amount: 1110 }],
+        procurement_invoices: [{ amount: 1110, invoice_date: '2026-10-17' }],
         payments: [{ amount: 400, status: 'Paid' }, { amount: 200, status: 'Scheduled' }],
       }),
       // Supplier invoiced below the PO value, unpaid.
-      procurement('under', 40, { total_value: 900, procurement_invoices: [{ amount: 850 }] }),
-      procurement('usd', 5, { currency: 'USD', total_value: 50, procurement_invoices: [{ amount: 60 }], payments: [{ amount: 60, status: 'Paid' }] }),
+      procurement('under', 40, { total_value: 900, procurement_invoices: [{ amount: 850, invoice_date: '2026-09-17' }] }),
+      procurement('usd', 5, { currency: 'USD', total_value: 50, procurement_invoices: [{ amount: 60, invoice_date: '2026-10-22' }], payments: [{ amount: 60, status: 'Paid' }] }),
     ];
     const position = calculate([], rows);
     const list = totalsByCurrency(rows, 'Finance', 'pay');
@@ -218,7 +227,7 @@ describe('buildFinancePosition', () => {
 
   it('SEC-RS-2: an unknown supplier balance stays unknown, never zero, and is left out of known totals', () => {
     const rows = [
-      procurement('known', 5, { procurement_invoices: [{ amount: 300 }] }),
+      procurement('known', 5, { procurement_invoices: [{ amount: 300, invoice_date: '2026-10-22' }] }),
       procurement('no-invoice', 5, { total_value: 999, procurement_invoices: [] }),
     ];
     const position = calculate([], rows);

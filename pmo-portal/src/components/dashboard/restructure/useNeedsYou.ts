@@ -30,6 +30,7 @@ import type { OverdueInvoiceFact } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { supplierUnpaid, withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
+import { selectOverdueTaskCount } from './overdueTasks';
 
 export type NeedsTone = 'warn' | 'neutral' | 'lost';
 
@@ -374,9 +375,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const pmUnknownRiskCount = pmAtRisk === null
     ? pmDeliveryProjects.filter((project) => !projectRiskBasisKnown(project)).length
     : undefined;
-  const pmOverdueTaskCount = useMemo(() => (projectTasks.data ?? []).filter((task) =>
-    activeTask(task.status) && task.end_date !== null && organizationDay.day !== null && task.end_date < organizationDay.day,
-  ).length, [organizationDay.day, projectTasks.data]);
+  const pmOverdueTaskCount = useMemo(() => selectOverdueTaskCount(projectTasks.data ?? [], organizationDay.day), [organizationDay.day, projectTasks.data]);
 
   const currentWeek = organizationDay.day ? currentWeekStart(organizationDay.day) : null;
   const currentTimesheet = (timesheetsQuery.data ?? []).find((sheet) => sheet.week_start_date === currentWeek) ?? null;
@@ -403,7 +402,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     projectsOverBudget: role === 'Project Manager' && pmProjectsQuery.data ? pmAtRisk?.count ?? 0 : undefined,
     projectsOverBudgetPartial: role === 'Project Manager' ? pmAtRisk?.partial : undefined,
     projectsOverBudgetUnknown: role === 'Project Manager' && pmProjectsQuery.data ? pmUnknownRiskCount : undefined,
-    overdueProjectTasks: role === 'Project Manager' && !projectTasks.isPending && !projectTasks.isError ? pmOverdueTaskCount : undefined,
+    overdueProjectTasks: role === 'Project Manager' && organizationDay.day !== null && !projectTasks.isPending && !projectTasks.isError ? pmOverdueTaskCount ?? undefined : undefined,
     timesheetsToApprove: role === 'Project Manager' && !timesheetsAwaitingQuery.isPending && !timesheetsAwaitingQuery.isError ? timesheetsAwaitingQuery.data?.length ?? 0 : undefined,
     timesheetStatus: currentTimesheet?.status ?? (currentWeek && !timesheetsQuery.isPending && !timesheetsQuery.isError ? 'Draft' : null),
     engineerTasks: role === 'Engineer' && !myTasksQuery.isPending && !myTasksQuery.isError && currentWeek ? engineerTasksCount : undefined,
@@ -435,7 +434,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const areaItems = [...items, ...companyAreaItems.filter((item) => !items.some((existing) => existing.id === item.id))];
   const pmOverdueTasksByProject = Object.fromEntries((pmProjectsQuery.data ?? []).map((project) => [
     project.id,
-    (projectTasks.data ?? []).filter((task) => task.project_id === project.id && activeTask(task.status) && task.end_date !== null && organizationDay.day !== null && task.end_date < organizationDay.day).length,
+    selectOverdueTaskCount(projectTasks.data ?? [], organizationDay.day, project.id) ?? 0,
   ]));
   const refetch = () => {
     void dashboardQuery.refetch();

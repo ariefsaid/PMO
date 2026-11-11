@@ -29,6 +29,17 @@ const projects: PipelineProject[] = [
 ];
 
 describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
+  it('shows shared tax basis and chance context once above compact rows', () => {
+    render(<SalesKanbanBoard projects={[projects[0]]} onOpen={vi.fn()} presentation="list" selectedStatus={projects[0].status} />);
+    const context = screen.getByRole('group', { name: 'Board figure context' });
+    expect(within(context).getByText('excl. PPN')).toBeInTheDocument();
+    expect(within(context).getByText('Chance')).toBeInTheDocument();
+    const card = screen.getByTestId('project-card');
+    expect(within(card).queryByTestId('tax-basis')).toBeNull();
+    expect(within(card).queryByText(/chance$/)).toBeNull();
+    expect(within(card).getByLabelText(/Chance 10%; % Go 40%, % Get 25%/)).toBeInTheDocument();
+  });
+
   it('SUB-H keeps full identity, value, basis and Go/Get estimates visible with no details disclosure', async () => {
     const longProject: PipelineProject = {
       ...projects[4],
@@ -226,7 +237,7 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
 // DIFFERENT deals with DIFFERENT bases: a fixture where every card shares one treatment cannot
 // tell a rendered value from a hardcoded literal, which is exactly how the currency gap shipped in
 // 0044 and how #566's drawdown label passed 26 tests while hardcoded.
-describe('OD-TAX-1 §2: a pipeline deal card states its own tax basis (#578)', () => {
+describe('OD-TAX-1 §2: the pipeline board states shared tax basis once (#578)', () => {
   // ⚑ NO FALLBACK CHAIN, deliberately. An earlier version fell back to `closest('article')` and
   // then `parentElement` — and those dead branches were not harmless: rename the card testid and
   // the scope silently collapses to the <span> holding the deal name, where queryByTestId is null
@@ -235,15 +246,27 @@ describe('OD-TAX-1 §2: a pipeline deal card states its own tax basis (#578)', (
   const cardFor = (name: string) =>
     screen.getByText(name).closest('[data-testid="project-card"]') as HTMLElement;
 
-  it('AC-TAX-309: labels an inclusive deal and an exclusive deal from each row, not from one shared default', () => {
+  it('AC-TAX-309: states the exclusive default once and labels inclusive exceptions on their own rows', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     expect(within(cardFor('Tender Deal Bravo')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
-    expect(within(cardFor('Quotation Deal Alpha')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    expect(screen.getAllByText('excl. PPN', { exact: true })).toHaveLength(1);
+    expect(within(cardFor('Quotation Deal Alpha')).queryByTestId('tax-basis')).toBeNull();
+    expect(within(cardFor('Won Deal Charlie')).queryByTestId('tax-basis')).toBeNull();
+    expect(within(cardFor('Lost Deal Delta')).queryByTestId('tax-basis')).toBeNull();
+    expect(within(cardFor('Tender Deal Bravo')).queryByText(/chance$/)).toBeNull();
+    expect(screen.getByText('Chance', { exact: true })).toBeInTheDocument();
   });
 
   it('AC-TAX-310: renders NOTHING for a deal whose basis is unknown — a guess would be a claim the row does not make', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     expect(within(cardFor('Unpriced Deal')).queryByTestId('tax-basis')).toBeNull();
+  });
+
+  it('keeps row-level basis labels when a priced row has no tax treatment', () => {
+    const unknown = { ...projects[0], id: 'unknown-priced', name: 'Unknown priced deal', contract_value: 100, tax_treatment: null };
+    render(<SalesKanbanBoard projects={[projects[0], unknown]} onOpen={vi.fn()} />);
+    expect(within(screen.getByLabelText('Board figure context')).queryByText('excl. PPN', { exact: true })).toBeNull();
+    expect(within(cardFor('Quotation Deal Alpha')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
   });
 });
 

@@ -1,8 +1,8 @@
 /**
  * #2061 — phone bottom navigation: Home, Approvals, Search, and More.
  *
- * Behaviour under test (not looks): the same four actions appear for every role below the phone
- * breakpoint, Home points to and is active on the dashboard, Search opens the existing palette,
+ * Behaviour under test (not looks): Home plus the role-appropriate approval/task destination,
+ * Search, and More appear below the phone breakpoint; Home points to and is active on the dashboard,
  * and More opens the existing rail drawer through the callback the shell owns.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -51,13 +51,21 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 describe('#2061 phone bottom navigation', () => {
-  it.each(['Executive', 'Project Manager', 'Finance', 'Engineer', 'Admin'])('%s gets the same four items', (role) => {
+  it.each(['Executive', 'Project Manager', 'Finance', 'Admin'])('%s gets Approvals in the second slot', (role) => {
     state.role = role;
     renderBar();
     expect(linkNames()).toEqual(['Home', 'Approvals']);
     expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Phone navigation' }).querySelectorAll('svg')).toHaveLength(4);
+  });
+
+  it('gives an Engineer My Tasks instead of an unavailable Approvals page', () => {
+    state.role = 'Engineer';
+    renderBar();
+    expect(linkNames()).toEqual(['Home', 'My Tasks']);
+    expect(screen.getByRole('link', { name: 'My Tasks' })).toHaveAttribute('href', '/my-tasks');
+    expect(screen.queryByRole('link', { name: 'Approvals' })).not.toBeInTheDocument();
   });
 
   it('points Home at the dashboard and Approvals at the shared approval queue', () => {
@@ -67,11 +75,11 @@ describe('#2061 phone bottom navigation', () => {
     expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('href', '/approvals');
   });
 
-  it('keeps the four items independent of role features', () => {
+  it('keeps the role destination independent of org features', () => {
     state.role = 'Engineer';
     state.features = { timesheets: false, expenses: false, procurement: false, revenue: false };
     renderBar();
-    expect(linkNames()).toEqual(['Home', 'Approvals']);
+    expect(linkNames()).toEqual(['Home', 'My Tasks']);
     expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
   });
 
@@ -91,6 +99,12 @@ describe('#2061 phone bottom navigation', () => {
     renderBar('/approvals/expense');
     expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('marks My Tasks current on its child pages for roles without Approvals', () => {
+    state.role = 'Engineer';
+    renderBar('/my-tasks/project-1');
+    expect(screen.getByRole('link', { name: 'My Tasks' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('Search opens the existing command palette', async () => {

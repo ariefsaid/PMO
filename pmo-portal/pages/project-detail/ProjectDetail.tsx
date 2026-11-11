@@ -16,7 +16,7 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useProjectOverviewRead } from '@/src/hooks/useProjectOverviewRead';
-import { completionPct, formatDay, formatRelativeTime } from '@/src/lib/format';
+import { completionPct, formatDay, formatDayRange, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import DealBand from '../sales/DealBand';
 import StageHistory from './StageHistory';
@@ -37,7 +37,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
     : null;
   const manager = project.pm?.full_name;
   const dates = project.start_date || project.end_date
-    ? `${formatDay(project.start_date)} – ${formatDay(project.end_date)}`
+    ? formatDayRange(project.start_date, project.end_date)
     : t('projectDetail.facts.noDates', 'Dates not set');
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
   return (

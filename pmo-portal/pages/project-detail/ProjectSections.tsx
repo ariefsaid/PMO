@@ -119,7 +119,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
       </div>
     ) : (
       <FigureScope><div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
-        <FigureHiddenLine />
+        <FigureHiddenLine compact />
         {/* Phone reads attention → money → budget; at xl the money block spans both rows of the right column,
             so the budget fills the space under the (usually short) attention list instead of leaving it empty. */}
         <div className={`grid min-w-0 items-start gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>

@@ -1183,6 +1183,26 @@ describe('S-28: saved / unsaved state and Save (UX-063)', () => {
     expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent(/all changes saved/i);
     expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
   });
+
+  it('asks before leaving with edited hours and Stay preserves both the week and unsaved status', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    const mon = screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours') as HTMLInputElement;
+    await userEvent.clear(mon);
+    await userEvent.type(mon, '3');
+    expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent('Unsaved changes');
+
+    await userEvent.click(screen.getByRole('link', { name: /team review/i }));
+    const dialog = screen.getByRole('dialog', { name: 'Discard unsaved hours?' });
+    expect(dialog).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
+
+    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toHaveValue('3');
+    expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent('Unsaved changes');
+    expect(screen.getByTestId('timesheets-save-status')).not.toHaveTextContent('All changes saved');
+    expect(screen.queryByRole('dialog', { name: 'Discard unsaved hours?' })).not.toBeInTheDocument();
+  });
 });
 
 describe('S-28: long project names in the add-project picker (RF-061)', () => {

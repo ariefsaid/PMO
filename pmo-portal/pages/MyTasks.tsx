@@ -9,6 +9,7 @@ import { formatDay, formatCalendarDayInTimeZone, formatDaysOverdue } from '@/src
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskStatus } from '@/src/lib/db/tasks';
+import { statusLabel } from '@/src/lib/status/statusMap';
 
 /** AC-IFW-TASKS-01 / PGA03-008: Today's calendar date string (YYYY-MM-DD) in user's timezone. */
 function todayIso(timezone = getActiveLocale().timezone): string {
@@ -92,10 +93,10 @@ const MyTasks: React.FC = () => {
   // persisted); only the labels are translated. Static keys, one per member — a computed
   // `t(`task.status.${s}`)` would be invisible to i18next-parser and so to the completeness gate.
   const statusLabels: Record<TaskStatus, string> = {
-    'To Do': t('task.status.toDo', 'To Do'),
-    'In Progress': t('task.status.inProgress', 'In Progress'),
-    Done: t('task.status.done', 'Done'),
-    Blocked: t('task.status.blocked', 'Blocked'),
+    'To Do': statusLabel('task', 'To Do', t),
+    'In Progress': statusLabel('task', 'In Progress', t),
+    Done: statusLabel('task', 'Done', t),
+    Blocked: statusLabel('task', 'Blocked', t),
   };
 
   const visibleTasks = React.useMemo(() => {

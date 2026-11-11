@@ -465,6 +465,7 @@
       "contract": "Contract",
       "contractSourceBoq": "Sum of contract quantities multiplied by unit rates from the project BoQ.",
       "contractSourceRecord": "Approved contract value from the project record.",
+      "contractUnavailable": "Contract value is not recorded.",
       "ordered": "Ordered",
       "orderedSource": "Sum of issued work-order allocations multiplied by BoQ unit rates.",
       "delivered": "Delivered",

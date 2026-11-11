@@ -48,7 +48,7 @@ export interface FinancePosition {
   unappliedPayments: Array<{ payment: IncomingPaymentRow; amount: number }>;
   unappliedTotals: CurrencyTotals;
   /** Unpaid supplier balance in cents; null when the balance is unknown. */
-  payables: Array<{ procurement: ProcurementWithRefs; ageDays: number; amount: number | null }>;
+  payables: Array<{ procurement: ProcurementWithRefs; ageDays: number | null; amount: number | null }>;
   /** Known unpaid balances only; `payablesUnknownCount` counts the rest. */
   payablesTotals: CurrencyTotals;
   payablesUnknownCount: number;
@@ -65,13 +65,21 @@ function add(total: CurrencyTotals, currency: string, amountCents: number): void
   total[currency] = (total[currency] ?? 0) + amountCents;
 }
 
-function calendarAgeDays(date: string | null | undefined, today: string | null | undefined): number | null {
+export function calendarAgeDays(date: string | null | undefined, today: string | null | undefined): number | null {
   if (!date || !today) return null;
   const datePart = date.slice(0, 10);
   const value = Date.parse(`${datePart}T00:00:00Z`);
   const current = Date.parse(`${today}T00:00:00Z`);
   if (!Number.isFinite(value) || !Number.isFinite(current)) return null;
   return Math.max(0, Math.floor((current - value) / 86_400_000));
+}
+
+/** Earliest supplier invoice date; creation and recorded-state timestamps are not invoice age. */
+export function supplierInvoiceDate(procurement: Pick<ProcurementWithRefs, 'procurement_invoices'>): string | null {
+  return (procurement.procurement_invoices ?? [])
+    .map((invoice) => invoice.invoice_date)
+    .filter((date): date is string => Boolean(date))
+    .sort()[0] ?? null;
 }
 
 /**
@@ -163,8 +171,7 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
   let payablesUnknownCount = 0;
   for (const procurement of procurements) {
     if (!isProcurementReadyToPay(procurement)) continue;
-    const ageDays = calendarAgeDays(procurement.vendor_invoiced_at ?? procurement.updated_at, today);
-    if (ageDays == null) continue;
+    const ageDays = calendarAgeDays(supplierInvoiceDate(procurement), today);
     // Same unpaid basis as the Procurement list: supplier invoices less Paid payments.
     const unpaid = supplierUnpaid(procurement);
     if (unpaid.unknown || unpaid.amount === null) {
@@ -175,10 +182,12 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
     const amountCents = toCents(unpaid.amount);
     payables.push({ procurement, ageDays, amount: amountCents });
     add(payablesTotals, procurement.currency, amountCents);
-    const buckets = payablesAgeing[procurement.currency] ??= { d0_30: 0, d31_60: 0, d61_90: 0, over90: 0 };
-    buckets[ageingBucket(ageDays, 'payables')] += amountCents;
+    if (ageDays !== null) {
+      const buckets = payablesAgeing[procurement.currency] ??= { d0_30: 0, d31_60: 0, d61_90: 0, over90: 0 };
+      buckets[ageingBucket(ageDays, 'payables')] += amountCents;
+    }
   }
-  payables.sort((a, b) => b.ageDays - a.ageDays);
+  payables.sort((a, b) => (b.ageDays ?? -1) - (a.ageDays ?? -1));
 
   return {
     receivablesCount,

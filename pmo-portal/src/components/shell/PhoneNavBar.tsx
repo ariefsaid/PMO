@@ -5,6 +5,7 @@ import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { ApprovalsNavCount } from './ApprovalsNavCount';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 
 export interface PhoneNavBarProps {
   /** Opens the existing full navigation: the rail's mobile drawer. */
@@ -15,12 +16,7 @@ export interface PhoneNavBarProps {
   moreOpen?: boolean;
 }
 
-type Destination = 'home' | 'approvals';
-
-const DESTINATIONS: { key: Destination; to: string; icon: IconName }[] = [
-  { key: 'home', to: '/', icon: 'dashboard' },
-  { key: 'approvals', to: '/approvals', icon: 'approvals' },
-];
+type Destination = 'home' | 'approvals' | 'myTasks';
 
 const isActive = (pathname: string, to: string) =>
   to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`);
@@ -30,15 +26,23 @@ export const PhoneNavBar: React.FC<PhoneNavBarProps> = ({ onOpenMore, onOpenSear
   const { t } = useTranslation('home');
   const { pathname } = useLocation();
   const isNarrow = useIsNarrow();
+  const { effectiveRole } = useEffectiveRole();
 
   if (!isNarrow) return null;
 
   const labels: Record<Destination | 'search' | 'more', string> = {
     home: t('nav.home', 'Home'),
     approvals: t('nav.approvals', 'Approvals'),
+    myTasks: t('nav.myTasks', 'My Tasks'),
     search: t('nav.search', 'Search'),
     more: t('nav.more', 'More'),
   };
+  const destinations: { key: Destination; to: string; icon: IconName }[] = [
+    { key: 'home', to: '/', icon: 'dashboard' },
+    ['Executive', 'Project Manager', 'Finance', 'Admin'].includes(effectiveRole ?? '')
+      ? { key: 'approvals', to: '/approvals', icon: 'approvals' }
+      : { key: 'myTasks', to: '/my-tasks', icon: 'tasks' },
+  ];
   const itemClass = (active: boolean) =>
     cn(
       'touch-target flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-md px-1',
@@ -57,7 +61,7 @@ export const PhoneNavBar: React.FC<PhoneNavBarProps> = ({ onOpenMore, onOpenSear
       style={{ height: 'var(--phone-nav-height)' }}
     >
       <ul className="mx-auto flex h-14 max-w-[560px] items-stretch gap-0.5 px-1">
-        {DESTINATIONS.map((destination) => {
+        {destinations.map((destination) => {
           const active = isActive(pathname, destination.to);
           return (
             <li key={destination.key} className="flex min-w-0 flex-1">

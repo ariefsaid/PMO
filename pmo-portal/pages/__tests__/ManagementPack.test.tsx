@@ -223,13 +223,13 @@ describe('AC-MMP-013 honest states', () => {
 describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
   it('AC-1405-REPORT-003: shows the four shared revenue figures with their calculation help', () => {
     renderPage();
-    for (const label of ['Earned, not invoiced', 'Earned to date', 'Invoiced to date', 'Backlog']) {
+    for (const label of ['Done, not yet billed', 'Earned to date', 'Invoiced to date', 'Left to bill']) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
     // One help control for the page; the four definitions sit inside it.
     expect(screen.queryAllByRole('button', { name: /^How this figure is calculated: / })).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: /About Reports/ }));
-    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/Earned, not invoiced.*Earned to date.*Invoiced to date.*Backlog/s);
+    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/Done, not yet billed.*Earned to date.*Invoiced to date.*Left to bill/s);
   });
 
   it('AC-1405-REPORT-004: shows PM identity, invoice count and a missing latest-month progress flag', () => {
@@ -378,9 +378,9 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     const figures = screen.getByRole('region', { name: 'Report figures' });
     // C4: no "Unavailable" value anywhere; the unknown backlog tile is hidden and counted in the one page line.
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
-    expect(within(figures).queryByText('Backlog')).not.toBeInTheDocument();
+    expect(within(figures).queryByText('Left to bill')).not.toBeInTheDocument();
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden');
-    expect(screen.getAllByText(/Backlog is left out where a foreign-currency invoice needs reconciliation/)).toHaveLength(1);
+    expect(screen.getAllByText(/Left to bill is left out where a foreign-currency invoice needs reconciliation/)).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Review invoices' })).toHaveAttribute('href', '/finance/receivables');
   });
 
@@ -411,7 +411,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     });
     renderPage();
     // Unknowable-Is-Not-Zero: the row and its subtotal show an explained dash, never a number or "Unavailable".
-    const unknown = screen.getAllByTitle('A foreign-currency invoice needs reconciliation before this balance can be known.');
+    const unknown = screen.getAllByTitle('A foreign-currency invoice needs reconciliation before this amount can be known.');
     expect(unknown.length).toBeGreaterThanOrEqual(2);
     unknown.forEach((element) => expect(element).toHaveTextContent(/^—/));
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
@@ -425,7 +425,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     renderPage();
     const rows = screen.getAllByRole('row');
     const projectRow = rows.find((candidate) => within(candidate).queryByText('Alpha'));
-    const reason = 'A foreign-currency invoice needs reconciliation before this balance can be known.';
+    const reason = 'A foreign-currency invoice needs reconciliation before this amount can be known.';
     expect(screen.getAllByTitle(reason).length).toBeGreaterThanOrEqual(2);
     expect(projectRow && within(projectRow).getByTestId('pack-cell-backlog')).toHaveTextContent(/^—/);
     expect(projectRow && within(projectRow).getByTitle(reason)).toBeInTheDocument();
@@ -433,7 +433,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
 });
 
 describe('AC-V24P-017 real Bahasa balance-availability explanations', () => {
-  const ID_REASON = 'Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui.';
+  const ID_REASON = 'Tagihan dalam mata uang asing perlu direkonsiliasi sebelum jumlah ini dapat diketahui.';
   const renderBahasa = () =>
     render(<BahasaProvider><MemoryRouter><ToastProvider><ManagementPack /></ToastProvider></MemoryRouter></BahasaProvider>);
 

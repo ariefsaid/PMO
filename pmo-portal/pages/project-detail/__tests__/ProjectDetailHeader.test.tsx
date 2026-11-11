@@ -191,7 +191,7 @@ describe('ProjectDetailHeader — content', () => {
     if (role === 'Finance') {
       expect(within(contractTile).getByRole('button', { name: /Edit contract value/i })).toBeInTheDocument();
     } else {
-      expect(within(contractTile).getByText('Read-only')).toBeInTheDocument();
+      expect(within(contractTile).queryByText('Read-only')).not.toBeInTheDocument();
     }
   });
 
@@ -213,17 +213,11 @@ describe('ProjectDetailHeader — content', () => {
     expect(disclosure).toHaveTextContent('Spend43%');
   });
 
-  it('UIP-006: the PM lock chip is in the contract value row and discloses its reason in a full-width lane', async () => {
+  it('UIP-006: the PM sees the contract value without a lock label; edit remains unavailable', () => {
     renderHeader('Project Manager');
-    const lock = screen.getByRole('button', { name: /Read-only/i });
     const contractTile = screen.getAllByTestId('stat-tile')[0];
-    expect(contractTile.children[1]).toContainElement(lock);
-    expect(lock).toHaveAttribute('aria-expanded', 'false');
-    await userEvent.click(lock);
-    expect(lock).toHaveAttribute('aria-expanded', 'true');
-    const reason = screen.getByTestId('contract-value-lock-reason');
-    expect(reason).toHaveTextContent('Once a project is won, the contract value is locked for your role.');
-    expect(reason.parentElement).toHaveAttribute('data-testid', 'contract-value-lock-lane');
+    expect(within(contractTile).getByTestId('contract-value-amount')).toHaveTextContent('$5,000,000');
+    expect(within(contractTile).queryByText(/read-only/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
   });
 
@@ -497,9 +491,10 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     expect(screen.queryByText('On-hand margin')).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-006: on a WON/on-hand project, a PM sees the value as READ-ONLY (locked), no edit control', () => {
+  it('AC-PRJ-006: on a WON/on-hand project, a PM sees the contract value without an edit control', () => {
     renderHeader('Project Manager', onHand);
-    expect(screen.getByText(/Read-only/i)).toBeInTheDocument();
+    expect(screen.getByTestId('contract-value-amount')).toHaveTextContent('$5,000,000');
+    expect(screen.queryByText(/Read-only/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
   });
 
@@ -940,12 +935,11 @@ describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
   const tileLabels = () => screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
   const tileFor = (label: string) => screen.getAllByTestId('stat-tile').find((tile) => tile.firstElementChild?.textContent === label)!;
 
-  it('AC-1402-M2: a PM can open the contract-value read-only explanation from the compact header menu', async () => {
+  it('AC-1402-M2: the compact project details menu does not repeat the contract-value edit rule', async () => {
     render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} compact /></ToastProvider></MemoryRouter>);
     await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
-    const explanation = await screen.findByTestId('contract-value-read-explanation');
-    await userEvent.click(within(explanation).getByText('Contract value · read-only'));
-    expect(within(explanation).getByText(/locked for project managers after the project is won/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('contract-value-read-explanation')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Contract value · read-only/i)).not.toBeInTheDocument();
   });
 
   it('AC-RD-HDR-001: PMO purchase orders get a tile only when PMO owns purchasing', () => {

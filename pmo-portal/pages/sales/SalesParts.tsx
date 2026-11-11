@@ -7,7 +7,7 @@ import {
 import { formatCurrency, formatDay, formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
-  dealJourneySteps, formatPercent, isNeedsAttention, isStaleBid, weightedValue,
+  dealJourneySteps, formatPercent, daysSince, isNeedsAttention, isStaleBid, weightedValue,
 } from '../../components/salesPipeline';
 import { PipelineResults } from '../sales-pipeline/PipelineResults';
 import type { PipelineView } from '@/src/hooks/usePipelineView';
@@ -131,12 +131,12 @@ export const PhoneFigures: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => {
 };
 
 /** Desktop: what waits on the person: stale deals as rows that open the deal, then the decided counts. */
-export const NeedsAttentionCard: React.FC<{ m: SalesModel; onOpen: (p: PipelineProject) => void }> = ({ m, onOpen, m: { t } }) => {
+export const NeedsAttentionCard: React.FC<{ m: SalesModel; onOpen: (p: PipelineProject) => void; compact?: boolean }> = ({ m, onOpen, compact = false, m: { t } }) => {
   const deals = attentionDeals(m);
   const shown = deals.slice(0, 5);
   return (
     <section aria-label={t('sales:options.needsYou', 'Needs attention')} className="panel-card p-[var(--panel-inset)]">
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-group font-semibold">{t('sales:options.needsYouHeading', 'Needs you · {{n}}', { n: deals.length })}</h2>
         {deals.length > shown.length && (
           <button type="button" className="text-control font-medium text-primary-text hover:underline" onClick={() => m.setScope('Needs attention')}>
@@ -152,18 +152,22 @@ export const NeedsAttentionCard: React.FC<{ m: SalesModel; onOpen: (p: PipelineP
             <li key={p.id}>
               <button type="button" onClick={() => onOpen(p)} className="flex min-h-11 w-full min-w-0 flex-col items-start justify-center rounded-md py-1.5 text-left hover:bg-secondary/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                 <span className="w-full truncate text-control font-semibold text-foreground">{p.name}</span>
-                <span className="w-full truncate text-control text-warning-foreground">{attentionReason(m, p)}</span>
+                <span className="w-full truncate text-control text-warning-foreground">{compact
+                  ? (isStaleBid(p)
+                    ? t('sales:options.staleReasonShort', 'Stage {{days}}d', { days: daysSince(p.stage_started_at) ?? 0 })
+                    : t('sales:options.idleReasonShort', 'Idle {{days}}d', { days: daysSince(p.last_update) ?? 0 }))
+                  : attentionReason(m, p)}</span>
               </button>
             </li>
           ))}
         </ul>
       )}
-      <div className="mt-3 flex gap-4 border-t border-border pt-3 text-control">
+      <div className="mt-2 flex gap-4 border-t border-border pt-2 text-control">
         <button type="button" className="font-medium text-primary-text hover:underline" onClick={() => m.setScope('Won')}>
-          {t('sales:options.wonCount', 'Won {{n}} all time', { n: m.won.length })}
+          {compact ? t('sales:options.wonCountShort', 'Won {{n}}', { n: m.won.length }) : t('sales:options.wonCount', 'Won {{n}} all time', { n: m.won.length })}
         </button>
         <button type="button" className="font-medium text-primary-text hover:underline" onClick={() => m.setScope('Lost')}>
-          {t('sales:options.lostCount', 'Lost {{n}} all time', { n: m.lost.length })}
+          {compact ? t('sales:options.lostCountShort', 'Lost {{n}}', { n: m.lost.length }) : t('sales:options.lostCount', 'Lost {{n}} all time', { n: m.lost.length })}
         </button>
       </div>
     </section>

@@ -82,7 +82,7 @@ export const PMDashboard: React.FC = () => {
       const purchases = purchasesByProject.get(project.id) ?? 0;
       const atRisk = projectAtRisk(project);
       const reason = [
-        overdue > 0 ? t('home.overdueTasks', { count: overdue, defaultValue_one: '{{count}} overdue task', defaultValue_other: '{{count}} overdue tasks' }) : null,
+        overdue > 0 ? t('home.overdueTasks', { count: overdue, defaultValue_one: '{{count}} task overdue', defaultValue_other: '{{count}} tasks overdue' }) : null,
         purchases > 0 ? t('home.purchasesToApprove', { count: purchases, defaultValue_one: '{{count}} purchase to approve', defaultValue_other: '{{count}} purchases to approve' }) : null,
         atRisk ? t('home.budgetNinety', 'budget at 90% or more') : null,
       ].filter(Boolean).join(' · ');

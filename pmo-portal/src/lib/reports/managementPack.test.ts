@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildManagementPack, mulDivRound, pctOf, plannedForMonth } from './managementPack';
+import { buildManagementPack, leftToBillAt, mulDivRound, pctOf, plannedForMonth, selectLeftToBillTotals } from './managementPack';
 import type { ManagementPackFacts, PackFactsProject } from '@/src/lib/db/managementPack';
 
 const c = (major: number) => Math.round(major * 100);
@@ -121,6 +121,12 @@ describe('AC-MMP-008 unbilled (DD-MMP-3)', () => {
     const row = buildManagementPack(scenario).rows[0];
     expect(row.months.map((m) => m.invoicedToDate)).toEqual([c(300_000), c(300_000), c(600_000), c(600_000)]);
     expect(row.months.map((m) => m.unbilled)).toEqual([0, c(180_000), -c(120_000), c(60_000)]);
+  });
+
+  it('D1: Left to bill uses contract value less invoiced value in the as-at currency', () => {
+    const pack = buildManagementPack(scenario);
+    expect(leftToBillAt(pack.rows, 'IDR', '2026-04-01')).toBe(c(600_000));
+    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 600_000 }]);
   });
 
   it('AC-1405-REPORT-001: invoice counts use dated monthly facts and accumulate through the as-at month', () => {

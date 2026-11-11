@@ -2,9 +2,11 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatTiles, type StatTile } from '@/src/components/ui';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { formatCurrency, formatMoneyLines } from '@/src/lib/format';
-import { daysSince, shownAmount, totalsByCurrency, type CurrencyTotal, type ProcurementListRole } from '@/src/lib/procurement/listModel';
+import { calendarAgeDays, supplierInvoiceDate } from '@/src/lib/finance/financePosition';
+import { shownAmount, totalsByCurrency, type CurrencyTotal, type ProcurementListRole } from '@/src/lib/procurement/listModel';
 
 export type ProcurementTab = 'needs-you' | 'all' | 'orphans';
 
@@ -36,10 +38,11 @@ function figureLines(totals: readonly CurrencyTotal[], home: string): { lines: s
 export const ProcurementKpiRow = React.memo(function ProcurementKpiRow({ rows, role }: ProcurementKpiRowProps) {
   const { t } = useTranslation('procurementList');
   const home = useOrgCurrency();
+  const organizationDay = useFxOrgDay(true);
   const engineer = role === 'Engineer';
   const unpaidRows = rows.filter((row) => row.status === 'Vendor Invoiced');
   const oldestInvoice = unpaidRows
-    .flatMap((row) => (row.procurement_invoices ?? []).map((invoice) => invoice.invoice_date ?? invoice.created_at))
+    .map((row) => supplierInvoiceDate(row))
     .filter((value): value is string => Boolean(value))
     .sort()[0];
   const orderedRows = rows.filter((row) => row.status === 'Ordered' || row.status === 'Received');
@@ -61,7 +64,7 @@ export const ProcurementKpiRow = React.memo(function ProcurementKpiRow({ rows, r
       t('kpi.unpaid', 'Supplier invoices unpaid'),
       unpaidRows.length,
       totalsByCurrency(unpaidRows, role, 'pay'),
-      oldestInvoice ? t('kpi.invoiceAge', { count: daysSince(new Date(oldestInvoice)), defaultValue_one: 'Invoice age {{count}} day', defaultValue_other: 'Invoice age {{count}} days' }) : undefined,
+      calendarAgeDays(oldestInvoice, organizationDay.day) === null ? undefined : t('kpi.invoiceAge', { count: calendarAgeDays(oldestInvoice, organizationDay.day)!, defaultValue_one: 'Invoice age {{count}} day', defaultValue_other: 'Invoice age {{count}} days' }),
       'unpaid',
       t('money.pay', 'Supplier invoices use the unpaid balance; paid procurements contribute zero. Kept in each procurement currency.'),
     )]),

@@ -64,6 +64,8 @@ vi.mock('@/src/hooks/useErpSnapshots', () => ({ useActualsSnapshot: () => ok([])
 vi.mock('@/src/hooks/useFinancePosition', () => ({ useFinancePosition: () => ({ position: { receivablesAgeing: {}, payablesAgeing: {}, overdue: [] }, isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useOrgCurrencyState: () => ({ currency: 'USD', isResolved: true }) }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }) }));
+vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ok([]) }));
+vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-10-27' }));
 
 import { CompanyDashboard } from '@/src/components/dashboard/hub/company/CompanyDashboard';
 
