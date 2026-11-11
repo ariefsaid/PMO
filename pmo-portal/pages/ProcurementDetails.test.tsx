@@ -533,8 +533,8 @@ describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
     expect(within(moneyCard).getByText('Requested')).toBeInTheDocument();
     // C6: the heading names the currency once, so the figures below are bare numbers.
     expect(within(moneyCard).getByText(/Money · USD, before tax/)).toBeInTheDocument();
-    expect(within(moneyCard).getByText('50,000')).toBeInTheDocument();
-    expect(within(moneyCard).queryByText('$50,000')).not.toBeInTheDocument();
+    expect(within(moneyCard).getByText('$50,000')).toBeInTheDocument();
+    expect(within(moneyCard).queryByText('50,000')).not.toBeInTheDocument();
     // Nothing ordered is no figure, so the card does not draw an empty "Ordered".
     expect(within(moneyCard).queryByText('Ordered')).not.toBeInTheDocument();
   });
@@ -619,7 +619,7 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     const header = screen.getByTestId('record-header');
     expect(screen.getByText('Workstations for HQ')).toBeInTheDocument();
     expect(screen.getByText('PROC-2026-001')).toBeInTheDocument();
-    expect(within(money).getByText('50,000')).toBeInTheDocument();
+    expect(within(money).getByText('$50,000')).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: 'Approve' }).className).toContain('bg-primary');
     expect(screen.getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
@@ -878,7 +878,7 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
     // "Money · USD, before tax" head carries the currency, and the tile shows formatNumber(50000).
     // The oracle is unchanged: total_value is never rendered raw. Justification: the symbol-on-figure
     // journey this test pinned was deliberately replaced by label-on-card + grouped figure.
-    expect(screen.getAllByText('50,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('$50,000').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Money · USD, before tax')).toBeInTheDocument();
     expect(screen.queryByText('50000')).not.toBeInTheDocument();
   });
@@ -2098,7 +2098,7 @@ describe('Procurement detail restructure fixes', () => {
     // No request was recorded, so the money card draws no Requested figure (and never the order total in its place).
     const money = screen.getByTestId('procurement-money-summary');
     expect(within(money).queryByText('Requested')).not.toBeInTheDocument();
-    expect(within(money).getByText('110,500')).toBeInTheDocument();   // the order total, labelled Ordered
+    expect(within(money).getByText('$110,500')).toBeInTheDocument();   // the order total, labelled Ordered
   });
 
   it('draws no figure for an empty ordered, invoiced, or paid amount, and never a zero', () => {
