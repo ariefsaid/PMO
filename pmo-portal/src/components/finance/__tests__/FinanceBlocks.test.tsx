@@ -92,8 +92,7 @@ describe('Finance blocks', () => {
 
     expect(screen.getByRole('link', { name: /Northstar Client.*INV-104/ })).toHaveAttribute('href', '/finance/receivables?open=invoice-1');
     // Client · number on the first line; project · due date on the second; no initials avatar.
-    expect(screen.getByText('North delivery')).toBeInTheDocument();
-    expect(screen.getByText(/Due /)).toBeInTheDocument();
+    expect(screen.getByText(/North delivery · Due /)).toBeInTheDocument();
     expect(screen.getByText('Partly paid · 104 days overdue')).toBeInTheDocument();
     expect(screen.getByText(/of IDR/)).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Alex Rivera' })).toBeNull();
