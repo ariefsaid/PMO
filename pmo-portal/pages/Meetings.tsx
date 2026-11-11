@@ -138,7 +138,7 @@ const Meetings: React.FC = () => {
     {
       key: 'occurred_at',
       header: t('meetings.columns.when', 'When'),
-      cell: (m) => <span className={m.archived_at ? 'whitespace-nowrap text-muted-foreground' : 'whitespace-nowrap'}>{formatDay(new Date(m.occurred_at))}, {formatClockTime(new Date(m.occurred_at))}</span>,
+      cell: (m) => <span className={m.archived_at ? 'whitespace-nowrap text-muted-foreground' : 'whitespace-nowrap'}>{formatDay(m.occurred_at)}, {formatClockTime(new Date(m.occurred_at))}</span>,
       exportValue: (m) => m.occurred_at,
     },
     {

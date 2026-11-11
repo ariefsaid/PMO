@@ -239,7 +239,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
     // The stale OPEN deal IS flagged; the recent OPEN deal is NOT.
-    expect(screen.getByText('Eastgate Depot Upgrade')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('Eastgate Depot Upgrade')).toBeInTheDocument();
     expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();
   });
 

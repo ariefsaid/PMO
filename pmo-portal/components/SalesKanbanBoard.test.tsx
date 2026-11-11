@@ -56,8 +56,8 @@ describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
     expect(within(card).getAllByText((_, node) => node?.textContent?.includes('IDR\u00A01,234') ?? false).length).toBeGreaterThan(0);
 
     expect(card.querySelector('details')).toBeNull();
-    expect(within(card).getByLabelText('% Go 40%')).toBeVisible();
-    expect(within(card).getByLabelText('% Get 25%')).toBeVisible();
+    expect(within(card).getByLabelText(/% Go 40%/)).toBeVisible();
+    expect(within(card).getByLabelText(/% Get 25%/)).toBeVisible();
     expect(within(card).queryByText(/wtd/)).toBeNull();
 
     await userEvent.click(within(card).getByRole('button', { name: new RegExp(longProject.short_name!) }));
@@ -83,10 +83,10 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
   // Model B (ADR-0020): the terminal column is split into separate "Won" and "Lost" columns.
   it('AC-IXD-PROJ-007: renders the five open stages + separate terminal Won and Lost columns in fixed order', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
-    const titles = ['Leads', 'Pre-Qual', 'Quotation', 'Tender', 'Negotiation', 'Won', 'Lost'];
+    const titles = ['Leads', 'PQ submitted', 'Quotation submitted', 'Tender submitted', 'Negotiation', 'Won', 'Lost'];
     for (const t of titles) {
       const col = screen.getByTestId(
-        t === 'Won' ? 'stage-Won' : t === 'Lost' ? 'stage-Lost' : `stage-${t === 'Pre-Qual' ? 'PQ Submitted' : t === 'Quotation' ? 'Quotation Submitted' : t === 'Tender' ? 'Tender Submitted' : t}`,
+        t === 'Won' ? 'stage-Won' : t === 'Lost' ? 'stage-Lost' : `stage-${t === 'PQ submitted' ? 'PQ Submitted' : t === 'Quotation submitted' ? 'Quotation Submitted' : t === 'Tender submitted' ? 'Tender Submitted' : t}`,
       );
       // The column title is the first match in its column; a lost card's status pill also reads "Lost".
       expect(within(col).getAllByText(t, { exact: true })[0]).toBeInTheDocument();
@@ -129,8 +129,8 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     expect(c.getByText(formatCurrency(500_000, 'USD'))).toBeInTheDocument();
     expect(c.queryByText(/wtd/)).toBeNull();
     // Independent probability inputs from the RPC, not a single hard-coded legacy win percentage.
-    expect(c.getByLabelText('% Go 40%')).toBeInTheDocument();
-    expect(c.getByLabelText('% Get 25%')).toBeInTheDocument();
+    expect(c.getByLabelText(/% Go 40%/)).toBeInTheDocument();
+    expect(c.getByLabelText(/% Get 25%/)).toBeInTheDocument();
   });
 
   it('AC-SP-204: a deal with no customer renders an em-dash, never blank', () => {
@@ -155,7 +155,7 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     const wonCol = screen.getByTestId('stage-Won');
     const card = within(wonCol).getByText('Won Deal Charlie').closest('[role="button"]')!;
-    expect(within(card as HTMLElement).getByText('Won, Pending KoM')).toBeInTheDocument();
+    expect(within(card as HTMLElement).getByText('Won, pending kickoff')).toBeInTheDocument();
   });
 
   it('AC-1441: warns on open bids after 90 stage-days in both board and phone list cards', () => {

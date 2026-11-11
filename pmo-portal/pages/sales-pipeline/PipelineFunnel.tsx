@@ -24,9 +24,10 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   const { t } = useTranslation();
   const { stageProjections, openColumns } = projection;
 
+  const mixedReason = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
   const unknownTotal = (
-    <span>
-      —<span className="sr-only"> {t('sales:pipeline.mixedCurrency', 'Mixed currencies')}</span>
+    <span title={mixedReason}>
+      —<span className="sr-only"> {mixedReason}</span>
     </span>
   );
 

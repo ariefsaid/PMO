@@ -36,13 +36,13 @@ const SalesPipeline: React.FC = () => {
         {
           label: t('sales:options.weightedForecast', 'Weighted forecast'),
           value: total === null ? null : <span data-testid="pipeline-weighted-total">{formatTileMoney(m.funnel.totalWeighted, cur)}</span>,
-          unavailableReason: mixed,
+          unavailableReason: total === null ? mixed : undefined,
           sub: t('sales:options.weightedNote', 'Value × chance of winning'),
         },
         {
           label: t('sales:options.openValue', 'Open value'),
           value: total === null ? null : formatTileMoney(total, cur),
-          unavailableReason: mixed,
+          unavailableReason: total === null ? mixed : undefined,
           sub: t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length }),
         },
       ]}

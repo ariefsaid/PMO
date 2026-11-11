@@ -140,7 +140,7 @@ const MeetingAttendees: React.FC<MeetingAttendeesProps> = ({ meetingId, canEdit,
                     }
                     onClick={() => void addGuest()}
                   >
-                    {t('meetingDetail.attendees.addGuest', 'Add guest')}
+                    {t('meetingDetail.attendees.addGuest', 'Add')}
                   </Button>
                 </div>
               </div>

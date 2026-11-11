@@ -119,8 +119,8 @@ export const PhoneFigures: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => {
         <StatTiles
           variant="bare"
           tiles={[
-            { label: t('sales:options.weightedForecast', 'Weighted forecast'), value: total === null ? null : formatTileMoney(m.funnel.totalWeighted, cur), unavailableReason: mixed },
-            { label: t('sales:options.openValue', 'Open value'), value: total === null ? null : formatTileMoney(total, cur), unavailableReason: mixed,
+            { label: t('sales:options.weightedForecast', 'Weighted forecast'), value: total === null ? null : formatTileMoney(m.funnel.totalWeighted, cur), unavailableReason: total === null ? mixed : undefined },
+            { label: t('sales:options.openValue', 'Open value'), value: total === null ? null : formatTileMoney(total, cur), unavailableReason: total === null ? mixed : undefined,
               sub: t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length }) },
           ]}
         />

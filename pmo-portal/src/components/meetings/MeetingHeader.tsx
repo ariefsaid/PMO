@@ -152,7 +152,7 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
         </div>
       ) : (
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span>{formatDay(new Date(meeting.occurred_at))}, {formatClockTime(new Date(meeting.occurred_at))}</span>
+          <span>{formatDay(meeting.occurred_at)}, {formatClockTime(new Date(meeting.occurred_at))}</span>
           {meeting.location && <span>{meeting.location}</span>}
           {meeting.project && (
             <Link

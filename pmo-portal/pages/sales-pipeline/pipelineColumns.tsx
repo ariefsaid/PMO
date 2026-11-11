@@ -20,7 +20,6 @@ import {
 
 export interface BuildPipelineColumnsOptions {
   t: TFunction | ((key: string, fallback?: string, options?: Record<string, unknown>) => string);
-  stageName: (status: PipelineProject['status']) => string;
 }
 
 export interface PipelineColumnsResult {
@@ -35,7 +34,6 @@ export interface PipelineColumnsResult {
  */
 export function buildPipelineColumns({
   t,
-  stageName,
 }: BuildPipelineColumnsOptions): PipelineColumnsResult {
   const identifiers = (r: PipelineProject) =>
     [r.pmo_project_number, r.code].filter((v): v is string => Boolean(v));

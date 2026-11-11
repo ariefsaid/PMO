@@ -1331,7 +1331,6 @@
     "uxs36CustomerFilterClear": "Hapus filter pelanggan",
     "uxs36CollectionsHeading": "Piutang pelanggan",
     "uxs36CollectionsUnavailableTitle": "Posisi umur piutang pelanggan tidak tersedia",
-    "uxs36CollectionsUnavailableDescription": "Posisi umur piutang ERP yang cocok tidak tersedia. Ini tidak berarti saldo nol.",
     "uxs36CollectionsAmbiguous": "Pelanggan ERP ini terhubung ke beberapa perusahaan. Jumlah umur piutangnya tidak diberikan ke perusahaan ini.",
     "uxs36CollectionsReadError": "Data piutang pelanggan tidak dapat dimuat.",
     "uxs36OpenInvoices": "Buka faktur",

@@ -115,7 +115,7 @@ describe('AC-JR-W4-03: Funnel stage click scopes the table', () => {
 
     // The funnel section is in the Pipeline summary area
     const funnelSection = screen.getByLabelText('Pipeline summary');
-    const tenderCell = within(funnelSection).getByText('Tender');
+    const tenderCell = within(funnelSection).getByText('Tender submitted');
     await user.click(tenderCell);
 
     // Only "Tender Submitted" projects visible
@@ -145,7 +145,7 @@ describe('AC-JR-W4-03: Funnel stage click scopes the table', () => {
     renderPage();
 
     const funnelSection = screen.getByLabelText('Pipeline summary');
-    const tenderCell = within(funnelSection).getByText('Tender');
+    const tenderCell = within(funnelSection).getByText('Tender submitted');
 
     // First click — filter ON
     await user.click(tenderCell);
@@ -163,7 +163,7 @@ describe('AC-JR-W4-03: Funnel stage click scopes the table', () => {
     renderPage();
 
     const funnelSection = screen.getByLabelText('Pipeline summary');
-    const tenderCell = within(funnelSection).getByText('Tender');
+    const tenderCell = within(funnelSection).getByText('Tender submitted');
     // The cell's parent button-role div gains bg-primary/[0.06] class when selected.
     const cellEl = tenderCell.closest('[role="button"]');
     expect(cellEl).not.toBeNull();
@@ -179,7 +179,7 @@ describe('AC-JR-W4-03: Funnel stage click scopes the table', () => {
     renderPage();
 
     const funnelSection = screen.getByLabelText('Pipeline summary');
-    const tenderCell = within(funnelSection).getByText('Tender');
+    const tenderCell = within(funnelSection).getByText('Tender submitted');
     const cellEl = tenderCell.closest('[role="button"]') as HTMLElement;
     expect(cellEl).not.toBeNull();
 
@@ -201,7 +201,7 @@ describe('AC-SFA-002: funnel selection stays in sync via click, Enter, and Space
 
   const tenderButton = () =>
     within(screen.getByLabelText('Pipeline summary')).getByRole('button', {
-      name: /Tender/,
+      name: /Tender submitted/,
     });
 
   it('AC-SFA-002: clicking the Tender stage selects it; aria-pressed matches the filtered list', async () => {

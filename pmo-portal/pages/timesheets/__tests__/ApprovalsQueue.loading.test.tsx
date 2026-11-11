@@ -95,7 +95,8 @@ describe('OE-04 decision loading state (shared mutation instance)', () => {
     expect(approveRepository).toHaveBeenCalledWith('s1', undefined);
     // THE assertion: the row button reads the committing instance's isPending — busy while the
     // repository call is unresolved.
-    const rowApprove = within(row).getByRole('button', { name: /approve/i });
+    // The confirm dialog is still open (the write is in flight), so the row is inert to the a11y tree.
+    const rowApprove = within(row).getByRole('button', { name: /approve/i, hidden: true });
     await waitFor(() => expect(rowApprove).toHaveAttribute('aria-busy', 'true'));
     expect(rowApprove).toBeDisabled();
 

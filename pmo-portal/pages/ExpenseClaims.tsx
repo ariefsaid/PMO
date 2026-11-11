@@ -8,7 +8,7 @@ import { useProjectChoices } from './expenses/useProjectChoices';
 import { useExpenseClaims, useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import {
   EXPENSE_LIST_LIMIT, type BudgetCategory, type ExpenseClaimFilters, type ExpenseClaimStatus,
   type ExpenseClaimWithRefs, type ExpenseKind,
@@ -90,7 +90,7 @@ const ExpenseClaims: React.FC = () => {
     { key: 'budget_category', header: t('expenses.columns.category', 'Budget category'),
       cell: (r) => (r.budget_category ? budgetCategoryLabel(r.budget_category, t) : '—'), exportValue: (r) => r.budget_category ?? '' },
     { key: 'amount', header: t('expenses.columns.amount', 'Amount'), align: 'num',
-      cell: (r) => <span className="tabular-nums">{formatCurrencyCents(Number(r.amount), r.currency)}</span>,
+      cell: (r) => <span className="tabular-nums">{formatCurrency(Number(r.amount), r.currency)}</span>,
       exportValue: (r) => Number(r.amount) },
     { key: 'status', header: t('expenses.columns.status', 'Status'),
       cell: (r) => <StatusPill record="expense" state={r.status} />,

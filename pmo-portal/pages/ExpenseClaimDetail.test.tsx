@@ -242,10 +242,10 @@ describe('ExpenseClaimDetail', () => {
     renderAt();
     await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
     const dialog = screen.getByRole('alertdialog');
-    expect(dialog).toHaveTextContent('Reject EXP-2610060001?');
+    expect(dialog).toHaveTextContent('Reject EXP-2610060001');
     expect(dialog).toHaveTextContent('Site visit');
     expect(dialog).toHaveTextContent(money(300, 'IDR'));
-    expect(dialog).toHaveTextContent('Note to the claimant (optional)');
+    expect(dialog).toHaveTextContent('Reason for rejecting');
     expect(h.m.transition.mutateAsync).not.toHaveBeenCalled();
   });
 
@@ -314,7 +314,8 @@ describe('ExpenseClaimDetail', () => {
     as('eng', 'Engineer');
     renderAt();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Edit details' }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit details' }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('Edit details');
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
@@ -352,7 +353,8 @@ describe('ExpenseClaimDetail', () => {
       .mockResolvedValueOnce(undefined);
     renderAtWithI18n();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Edit details' }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit details' }));
     const dialog = screen.getByRole('dialog');
     const textboxes = within(dialog).getAllByRole('textbox');
     const amount = textboxes[1];
@@ -427,7 +429,7 @@ describe('AC-UXS-011 Bahasa confirmations restate identity and amount', () => {
     h.claim = submitted; h.route = route;
     view = renderAtId();
     await userEvent.click(screen.getByRole('button', { name: 'Tolak' }));
-    expect(screen.getByRole('alertdialog')).toHaveTextContent('Tolak EXP-2610060001?');
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Tolak EXP-2610060001');
     view.unmount();
 
     h.claim = { ...base, status: 'Approved', approved_by_id: 'pm' }; h.route = null;

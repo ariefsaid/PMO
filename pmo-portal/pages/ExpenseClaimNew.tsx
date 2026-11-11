@@ -14,7 +14,7 @@ import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrencyCents, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { BudgetCategory, ExpenseLineInput, ExpenseType } from '@/src/lib/db/expenseClaims';
 import { RECEIPT_INPUT_ACCEPT } from '@/src/lib/db/expenseReceipts';
 import { BackBar } from '@/src/components/shell';
@@ -90,7 +90,7 @@ const ExpenseClaimNew: React.FC = () => {
   const advanceOptions = ownAdvances.options.filter((option) => (advanceFloat.get(option.value) ?? '') === chargedFloatId);
   const totalCents = toCents(lineInputs.reduce((sum, line) => sum + line.amount, 0));
   const floatHint = chosenFloat && totalCents > 0 ? {
-    remaining: category && chosenFloat.remaining != null ? formatCurrencyCents(Number(chosenFloat.remaining), chosenFloat.currency ?? currency) : null,
+    remaining: category && chosenFloat.remaining != null ? formatCurrency(Number(chosenFloat.remaining), chosenFloat.currency ?? currency) : null,
     exception: Boolean(category) && isPlanException(totalCents / 100, chosenFloat.remaining),
     overLimit: procurementLimit !== null && totalCents > toCents(procurementLimit),
   } : null;
@@ -169,7 +169,7 @@ const ExpenseClaimNew: React.FC = () => {
             {floatHint && <div className="col-span-full space-y-1 text-control text-muted-foreground" role="note">
               {floatHint.remaining && <p>{t('imprest:form.remainingHint', 'Remaining this month for this category: {{amount}}.', { amount: floatHint.remaining })}</p>}
               {floatHint.exception && <p>{t('imprest:form.exceptionHint', "This is above this month's plan: it goes to a senior approver as an out-of-plan item.")}</p>}
-              {floatHint.overLimit && <p>{t('imprest:form.limitHint', 'Above the procurement limit ({{limit}}): site cash will refuse this. Raise it as a procurement request.', { limit: formatCurrencyCents(procurementLimit as number, currency) })}</p>}
+              {floatHint.overLimit && <p>{t('imprest:form.limitHint', 'Above the procurement limit ({{limit}}): site cash will refuse this. Raise it as a procurement request.', { limit: formatCurrency(procurementLimit as number, currency) })}</p>}
             </div>}
           </>}
           <ProjectLoadNotice projects={projectChoices} />
