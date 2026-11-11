@@ -139,7 +139,7 @@ describe('AC-EXP-050 list', () => {
     expect(h.calls.eq).toEqual([['status', 'Submitted'], ['kind', 'claim'], ['budget_category', 'Special expenses']]);
     expect(h.calls.order).toEqual([['created_at', { ascending: false }], ['id', { ascending: false }]]);
     expect(h.calls.range).toEqual([[0, EXPENSE_LIST_LIMIT]]);
-    expect(out).toEqual({ rows: [{ id: 'a' }, { id: 'b' }], truncated: false });
+    expect(out).toEqual({ rows: [{ id: 'a', rejection_notes: null, rejected_by: null, rejected_at: null }, { id: 'b', rejection_notes: null, rejected_by: null, rejected_at: null }], truncated: false });
   });
   it('AC-EXP-050 reports truncation instead of silently dropping rows', async () => {
     h.result.value = { data: Array.from({ length: EXPENSE_LIST_LIMIT + 1 }, (_, i) => ({ id: String(i) })), error: null };
@@ -330,4 +330,21 @@ describe('AC-DATA28 complete claim detail lines', () => {
       name: 'AppError', message: 'statement timeout', code: '57014',
     });
   });
+});
+
+it('AC-RSN-004 claim reads include the visible rejecting profile', async () => {
+  h.result.value = { data: [{ id: 'c1', rejection_notes: 'reason', rejected_by: 'u1', rejected_at: '2026-01-01', rejecter: { full_name: 'Approver' } }], error: null };
+  const result = await listExpenseClaims();
+  expect(result.rows[0]).toMatchObject({ rejection_notes: 'reason', rejected_by: 'u1', rejected_at: '2026-01-01', rejecter: { full_name: 'Approver' } });
+  expect(h.calls.select[0]).toContain('expense_claims_rejected_by_fkey');
+});
+
+it('AC-RSN-004 maps missing legacy claim decision fields to null', async () => {
+  h.result.value = { data: [{ id: 'legacy' }], error: null };
+  expect((await listExpenseClaims()).rows[0]).toMatchObject({ rejection_notes: null, rejected_by: null, rejected_at: null });
+});
+
+it('AC-RSN-004 claim rejection forwards its reason', async () => {
+  await transitionExpenseClaim('c1', 'Rejected', { notes: 'correct the receipt' });
+  expect(h.calls.rpc).toContainEqual(['transition_expense_claim', { p_id: 'c1', p_to: 'Rejected', p_notes: 'correct the receipt' }]);
 });

@@ -266,3 +266,20 @@ describe('S6 cash account bind', () => {
     await expect(dal.setCashAccount('f1', 'A')).rejects.toMatchObject({ code: 'imprest-cash-account-taken', message: expect.stringContaining('already used') });
   });
 });
+
+it('AC-RSN-004 replenishment reads include the visible rejecting profile', async () => {
+  h.result.value = { data: [{ id: 'r1', rejected_by: 'u1', rejected_at: '2026-01-01', decided_notes: 'reason', rejecter: { full_name: 'Approver' } }], error: null };
+  const result = await dal.listReplenishments('f1');
+  expect(result.rows[0]).toMatchObject({ rejected_by: 'u1', rejected_at: '2026-01-01', decided_notes: 'reason', rejecter: { full_name: 'Approver' } });
+  expect(h.calls.select[0]).toContain('imprest_replenishments_rejected_by_fkey');
+});
+
+it('AC-RSN-004 maps missing legacy replenishment decision fields to null', async () => {
+  h.result.value = { data: [{ id: 'legacy' }], error: null };
+  expect((await dal.listReplenishments('f1')).rows[0]).toMatchObject({ decided_notes: null, rejected_by: null, rejected_at: null });
+});
+
+it('AC-RSN-004 replenishment rejection forwards its reason', async () => {
+  await dal.transitionReplenishment('r1', 'Rejected', { notes: 'correct the total' });
+  expect(h.calls.rpc).toContainEqual(['transition_imprest_replenishment', { p_id: 'r1', p_to: 'Rejected', p_notes: 'correct the total', p_payment_reference: null }]);
+});
