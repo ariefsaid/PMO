@@ -70,7 +70,9 @@ test('AC-LR-017 / AC-LR-018 Executive marks deal lost with reason: picker requir
   // Reload deal page and assert "Lost reason" tile reads "Price"
   await page.reload();
   await expect(page.getByText('Lost reason')).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText('Price')).toBeVisible();
+  // Exact: the Overview's inline notes-and-activity card also prints the history line "empty → price",
+  // which a substring match would pick up alongside the tile's own "Price".
+  await expect(page.getByText('Price', { exact: true })).toBeVisible();
 
   // Go to Company dashboard and assert loss breakdown lists Price with >= 1 lost
   await page.goto('/');

@@ -456,10 +456,15 @@ export async function assertProjectsTableLayout(page: Page) {
     await expect(pmAvatar).toHaveAccessibleName(/\s/);
     await expect(pmAvatar).toHaveAttribute('title', accessiblePmName!);
 
-    for (const header of ['Project', 'PM', 'Status', 'Contract', 'Actual']) {
+    for (const header of ['Project', 'PM', 'Status', 'Actual']) {
       await expect(table.getByRole('columnheader', { name: header, exact: true }),
         `core Projects column "${header}" should be visible at 1440px`).toBeVisible();
     }
+    // The money column carries its tax basis in the header whenever the visible rows share one
+    // ("Contract (excl. PPN)" — pages/projects/projectTableColumns.tsx), so its name is a prefix
+    // match; every other core header above stays an exact match.
+    await expect(table.getByRole('columnheader', { name: /^Contract/ }),
+      'core Projects column "Contract" should be visible at 1440px').toBeVisible();
     await expect(page.getByRole('button', { name: /optional columns/i })).toHaveCount(0);
     for (const header of ['Progress', 'Budget used']) {
       await expect(table.getByRole('columnheader', { name: header, exact: true }),

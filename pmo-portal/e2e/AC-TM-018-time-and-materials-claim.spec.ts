@@ -396,8 +396,10 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await expect(pmClaimLine).toContainText(/400[,\s]000/);
   const sourceEntries = claimDrawer.getByRole('region', { name: 'Approved source entries' });
   const engineerSources = sourceEntries.getByRole('listitem').filter({ hasText: ENGINEER_NAME });
-  const sourceDate = new Intl.DateTimeFormat('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+  // ux/1110 prints a day day-first ("9 Nov", year only when it is not the current one) —
+  // src/lib/format.ts formatDay — so the source entry reads "Field engineer · 9 Nov · 8 hours".
+  const sourceDate = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'short', timeZone: 'UTC',
   }).format(new Date(`${today}T00:00:00.000Z`));
   await expect(engineerSources).toContainText(new RegExp(`${LINE_LABEL}.*${sourceDate}.*${HOURS} hours?`, 'i'));
   await claimDrawer.getByRole('button', { name: 'Prepare sign-off' }).click();
