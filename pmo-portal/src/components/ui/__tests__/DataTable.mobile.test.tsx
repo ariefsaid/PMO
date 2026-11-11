@@ -98,8 +98,20 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(getCardBranch()).not.toBeInTheDocument();
   });
 
-  it('a column whose cell renders nothing for a row is left out of THAT card (no orphan label), kept on the others', () => {
+  it('marks each record card for the chrome-only word gate, and never the chrome rows', () => {
     mockViewport(false);
+    render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
+    const items = Array.from(getCardBranch()!.querySelectorAll(':scope > li'));
+    const marked = items.filter((li) => li.hasAttribute('data-record-row'));
+    // One marker per record — the gate (scripts/ux-proof-metrics.mjs) reads it as record data.
+    expect(marked).toHaveLength(rows.length);
+    expect(marked.map((li) => li.textContent)).toEqual([
+      expect.stringContaining('Alpha Corp'),
+      expect.stringContaining('Beta Ltd'),
+    ]);
+  });
+
+  it('a column whose cell renders nothing for a row is left out of THAT card (no orphan label), kept on the others', () => {    mockViewport(false);
     const sparse: Column<Row>[] = [
       ...columns,
       { key: 'note', header: 'Note', cell: (r) => (r.id === 'R-1' ? 'kept' : null) },

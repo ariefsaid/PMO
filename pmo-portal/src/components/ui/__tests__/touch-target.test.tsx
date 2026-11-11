@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { ViewToggle } from '../ViewToggle';
 import { KPITile } from '../KPITile';
+import { Button } from '../Button';
 
 /**
  * WCAG 2.5.5 Target Size (AA) — item D. Compact controls (28px segmented-control
@@ -22,6 +23,19 @@ import { KPITile } from '../KPITile';
 const indexCss = readFileSync(resolve(process.cwd(), 'index.css'), 'utf8');
 
 describe('touch-target hit-area expansion (WCAG 2.5.5)', () => {
+  it('uses a physical 44px minimum target at phone widths, including with a mouse pointer', () => {
+    const phoneRules = indexCss.slice(indexCss.indexOf('@media (max-width: 640px)'));
+
+    expect(phoneRules).toMatch(/main button[\s\S]*?min-height:\s*44px/);
+    expect(phoneRules).toMatch(/main select[\s\S]*?min-height:\s*44px/);
+    expect(phoneRules).toMatch(/main \[role="tab"\]/);
+    expect(phoneRules).toMatch(/min-width:\s*44px/);
+    expect(phoneRules).toMatch(/\.touch-target/);
+
+    render(<main><Button size="icon" iconOnly aria-label="Open actions">⋯</Button></main>);
+    expect(screen.getByRole('button', { name: 'Open actions' })).toHaveClass('touch-target');
+  });
+
   it('index.css defines a >=44px ::before overlay under (pointer: coarse)', () => {
     // The coarse-pointer media block exists and grows .touch-target::before.
     expect(indexCss).toMatch(/@media \(pointer: coarse\)/);

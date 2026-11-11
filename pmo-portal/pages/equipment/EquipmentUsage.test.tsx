@@ -206,6 +206,23 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     await waitFor(() => expect(h.transition).toHaveBeenCalledWith({ id: 'e5', to: 'Rejected', notes: 'Wrong day' }));
   });
 
+  it('AC-EQU-017 a failed approve keeps the confirmation open with its classified error', async () => {
+    h.userId = 'u-pm';
+    h.entries = [entry({ id: 'e5', status: 'Submitted', author_id: 'u-eng' })];
+    h.transition.mockRejectedValueOnce(Object.assign(new Error('permission denied for table equipment_usage'), { code: '42501' }));
+    const user = userEvent.setup();
+    renderPage('Project Manager');
+    await user.click(screen.getByRole('tab', { name: 'Approvals' }));
+    await user.click(screen.getByRole('button', { name: /Approve Loader 1/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Approve usage entry?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
+
+    const openDialog = await screen.findByRole('dialog', { name: 'Approve usage entry?' });
+    expect(within(openDialog).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
+    expect(within(openDialog).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(h.transition).toHaveBeenCalledWith({ id: 'e5', to: 'Approved' });
+  });
+
   it('AC-EQU-017 an Admin viewing as an Engineer gets a read-only grid: every cell disabled, no Add row, no Submit week', async () => {
     render(<ImpersonationProvider realRole="Admin" demoEligibility="eligible"><MemoryRouter><ToastProvider><ViewAs role="Engineer" /><EquipmentUsagePage /></ToastProvider></MemoryRouter></ImpersonationProvider>);
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Add row' })).toBeNull());

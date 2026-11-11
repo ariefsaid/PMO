@@ -70,12 +70,7 @@ const SalesPipeline: React.FC = () => {
             <NeedsAttentionCard m={m} onOpen={setPreview} />
           </div>
         </>
-      ) : (
-        <>
-          <PhoneFigures m={m} />
-          {ready && !m.isDesktop && <div className="mb-4"><NeedsAttentionCard m={m} onOpen={setPreview} compact /></div>}
-        </>
-      )}
+      ) : null}
       mobileToolbar={m.state !== 'loading' && <PhoneControls m={m} />}
       filters={m.state !== 'loading' && m.view === 'table' && <SalesScope m={m} />}
       secondaryFilter={m.state !== 'loading' && <SalesClassification m={m} />}
@@ -84,6 +79,17 @@ const SalesPipeline: React.FC = () => {
       view={m.state !== 'loading' && <SalesViewToggle m={m} />}
     >
       <DealResults m={m} onOpen={m.isDesktop ? setPreview : m.onOpen} />
+      {!m.isDesktop && ready && (
+        <details data-testid="sales-phone-summary-details" className="mt-4 rounded-lg border border-border bg-card px-4 py-3">
+          <summary className="cursor-pointer text-control font-semibold">
+            {t('sales:options.figuresLabel', 'Pipeline figures')}
+          </summary>
+          <div className="mt-3 space-y-3">
+            <PhoneFigures m={m} />
+            <NeedsAttentionCard m={m} onOpen={setPreview} compact />
+          </div>
+        </details>
+      )}
       <DealPreview m={m} deal={preview} onClose={() => setPreview(null)} />
     </ListPage>
     </FigureScope>

@@ -945,11 +945,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               </Button>
               {selectedRows.some((row) => canDecideRow(row)) && (
                 <>
-                  <Button size="sm" onClick={() => decide(selectedRows.filter(canDecideRow), 'Approved')} disabled={transition.isPending}>
-                    <Icon name="check" />{t('projectDetail.procurement.bulk.approve', 'Approve')}
-                  </Button>
                   <Button variant="outline" size="sm" onClick={() => decide(selectedRows.filter(canDecideRow), 'Rejected')} disabled={transition.isPending}>
                     {t('projectDetail.procurement.bulk.return', 'Return')}
+                  </Button>
+                  <Button size="sm" onClick={() => decide(selectedRows.filter(canDecideRow), 'Approved')} disabled={transition.isPending}>
+                    <Icon name="check" />{t('projectDetail.procurement.bulk.approve', 'Approve')}
                   </Button>
                 </>
               )}

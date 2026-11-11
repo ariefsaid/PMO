@@ -140,7 +140,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 // unchanged — padding on the track itself would have painted `bg-secondary`
                 // through the gap. `mt-auto` still does the cross-stage alignment: every stage's
                 // wrapper contributes the same fixed pt-2, so the alignment math is unaffected.
-                <div className={cn('mt-auto', compact ? 'pt-1' : 'pt-2')}>
+                <div className="mt-auto pt-2">
                   <div data-funnel-stage-bar className="h-[5px] overflow-hidden rounded-full bg-secondary">
                     <span
                       className="block h-full rounded-full"

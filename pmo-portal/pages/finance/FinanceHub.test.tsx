@@ -82,7 +82,7 @@ function positionFixture(): FinancePosition {
     unappliedPayments: [],
     unappliedTotals: {},
     payables: [{ procurement: { id: 'procurement-1', vendor_id: 'supplier-1', vendor: { name: 'Supplier A' } } as never, ageDays: 100, amount: 6_240_000_000 }],
-    payablesTotals: { IDR: 6_240_000_000 },
+    payablesTotals: { IDR: 6_240_000_000, USD: 500_000 },
     payablesUnknownCount: 0,
     receivablesAgeing: { IDR: { notDue: 3_820_000_000, d1_30: 1_220_000_000, d31_60: 1_430_000_000, d61_90: 0, over90: 1_850_000_000 } },
     payablesAgeing: { IDR: { d0_30: 2_100_000_000, d31_60: 940_000_000, d61_90: 1_200_000_000, over90: 2_000_000_000 } },
@@ -142,8 +142,15 @@ describe('Finance hub', () => {
     expect(screen.getAllByText('Receivables').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Payables').length).toBeGreaterThan(0);
     expect(screen.getByText('through Oct 2026')).toBeInTheDocument();
-    // One currency per figure: the other currency is its own second line, never "A · B".
-    expect(screen.getByText('+ USD 5K')).toBeInTheDocument();
+    // The supplier figure keeps the home and foreign currencies on separate lines without joining them.
+    const payables = screen.getByRole('link', { name: 'Open Payables' }).parentElement as HTMLElement;
+    expect(within(payables).getByText('Owed to suppliers')).toBeInTheDocument();
+    const otherCurrency = within(payables).getByText('USD 5K');
+    expect(otherCurrency).toHaveClass('block');
+    expect(otherCurrency).not.toHaveTextContent('+');
+    expect(within(payables).getByText('IDR 62,400,000; USD 5,000')).toHaveClass('sr-only');
+    const earned = screen.getByRole('link', { name: 'Open Reports' }).parentElement as HTMLElement;
+    expect(within(earned).getByText('Done, not yet billed')).toBeInTheDocument();
   });
 
   it('L6: each overdue and supplier figure is shown once on the hub', () => {
@@ -176,6 +183,10 @@ describe('Finance hub', () => {
     const { container } = renderHub('Executive');
 
     expect(screen.getByRole('heading', { name: 'Ageing' })).toBeInTheDocument();
+    const trend = screen.getByTestId('finance-revenue-trend');
+    const ageing = screen.getByRole('region', { name: 'Ageing' });
+    expect(ageing.parentElement).toBe(trend.parentElement);
+    expect(trend.compareDocumentPosition(ageing) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Payables' })).toBeInTheDocument();
     expect(screen.getAllByTestId('ageing-bar-IDR')).toHaveLength(2);

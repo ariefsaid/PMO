@@ -2,6 +2,8 @@ import { afterEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { formatMoneyInputDraft, parseMoneyInputAtScale } from '@/src/lib/format';
 import {
@@ -14,8 +16,36 @@ import {
   FormSection,
   FormActions,
 } from '../FormFields';
+import { Combobox } from '../Combobox';
+
+const indexCss = readFileSync(resolve(process.cwd(), 'index.css'), 'utf8');
 
 afterEach(() => resetActiveLocale());
+
+describe('phone form typography', () => {
+  it('keeps text inputs, selects, comboboxes, and textareas at 16px through 640px', () => {
+    render(
+      <>
+        <TextField label="Name" value="" onChange={() => {}} />
+        <SelectField label="Status" value="open" onChange={() => {}} options={[{ value: 'open', label: 'Open' }]} />
+        <TextArea label="Details" value="" onChange={() => {}} />
+        <Combobox label="Project" value={null} onChange={() => {}} loadOptions={async () => []} />
+      </>,
+    );
+
+    expect(screen.getByLabelText('Name').tagName).toBe('INPUT');
+    expect(screen.getByLabelText('Status').tagName).toBe('SELECT');
+    expect(screen.getByLabelText('Details').tagName).toBe('TEXTAREA');
+    expect(screen.getByRole('combobox', { name: 'Project' })).toBeInTheDocument();
+
+    const phoneRules = indexCss.slice(indexCss.indexOf('@media (max-width: 640px)'));
+    expect(phoneRules).toMatch(/input/);
+    expect(phoneRules).toMatch(/select/);
+    expect(phoneRules).toMatch(/textarea/);
+    expect(phoneRules).toMatch(/\[role=["']combobox["']\]/);
+    expect(phoneRules).toMatch(/font-size:\s*16px/);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Shared form field primitives (crud-components §2.1, §2.2). Each is built on

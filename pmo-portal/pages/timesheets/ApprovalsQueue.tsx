@@ -92,12 +92,17 @@ function useApprovalDecision() {
   const { approve, reject } = useTimesheetMutations();
   const { toast } = useToast();
   const [pending, setPending] = useState<PendingApproval | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
 
-  const request = (kind: PendingApproval['kind'], id: string, name: string) => setPending({ kind, id, name });
-  const cancel = () => setPending(null);
+  const request = (kind: PendingApproval['kind'], id: string, name: string) => {
+    setDecisionError(null);
+    setPending({ kind, id, name });
+  };
+  const cancel = () => { setPending(null); setDecisionError(null); };
 
-  const commit = (reason?: string) => {
+  const commit = async (reason?: string) => {
     if (!pending) return;
+    setDecisionError(null);
     const mutation = pending.kind === 'approve' ? approve : reject;
     const okHeadline = pending.kind === 'approve'
       ? t('timesheets:approvalQueue.approved', 'Timesheet approved')
@@ -107,20 +112,17 @@ function useApprovalDecision() {
         ? t('timesheets:approvalQueue.approvedDetail', "{{name}}'s week approved", { name: pending.name })
         : t('timesheets:approvalQueue.returnedDetail', 'Sent back to {{name}} for changes', { name: pending.name });
     // The reason rides in the transition's existing optional `notes`; the server does not store it yet.
-    mutation.mutate(
-      pending.kind === 'return' ? { id: pending.id, notes: reason } : { id: pending.id },
-      {
-        onSuccess: () => {
-          setPending(null);
-          toast(okHeadline, okDetail, 'success');
-        },
-        onError: (err: unknown) => {
-          setPending(null);
-          const { headline, detail } = classifyMutationError(err);
-          toast(headline, detail, 'warning');
-        },
-      },
-    );
+    try {
+      await mutation.mutateAsync(
+        pending.kind === 'return' ? { id: pending.id, notes: reason } : { id: pending.id },
+      );
+      setPending(null);
+      toast(okHeadline, okDetail, 'success');
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      setDecisionError(detail ? `${headline}. ${detail}` : headline);
+      toast(headline, detail, 'warning');
+    }
   };
 
   const commitLoading = pending ? (pending.kind === 'approve' ? approve.isPending : reject.isPending) : false;
@@ -128,16 +130,17 @@ function useApprovalDecision() {
   // The SAME mutation instances `commit` drives, exported so the queue rows and preview buttons
   // show the in-flight state (two `useTimesheetMutations()` calls would create two instances and
   // the buttons would never spin).
-  return { pending, request, cancel, commit, commitLoading, approve, reject };
+  return { pending, request, cancel, commit, commitLoading, decisionError, approve, reject };
 }
 
 /** OE08R01-001 — the shared approve/return confirmation, rendered by both placements. */
 const ApprovalDecisionConfirm: React.FC<{
   pending: PendingApproval;
   loading: boolean;
+  error: string | null;
   onCancel: () => void;
-  onConfirm: (reason?: string) => void;
-}> = ({ pending, loading, onCancel, onConfirm }) => {
+  onConfirm: (reason?: string) => void | Promise<void>;
+}> = ({ pending, loading, error, onCancel, onConfirm }) => {
   const { t } = useTranslation(['common', 'timesheets']);
   if (pending.kind === 'return') {
     return (
@@ -146,6 +149,7 @@ const ApprovalDecisionConfirm: React.FC<{
         kind="return"
         subject={t('timesheets:approvalQueue.returnSubject', "{{name}}'s timesheet", { name: pending.name })}
         loading={loading}
+        error={error}
         onConfirm={onConfirm}
         onCancel={onCancel}
       />
@@ -159,6 +163,7 @@ const ApprovalDecisionConfirm: React.FC<{
       description={t('timesheets:approvalQueue.approveDescription', "This approves {{name}}'s submitted week. You can't approve your own timesheet — separation of duties is enforced.", { name: pending.name })}
       confirmLabel={t('timesheets:approvalQueue.approve', 'Approve')}
       loading={loading}
+      error={error}
       onCancel={onCancel}
       onConfirm={() => onConfirm()}
     />
@@ -191,6 +196,16 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
   // below place the SAME element, preserving each surface's styles.
   const actionButtons = (
     <>
+      {actions.reject && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => decision.request('return', sheet.id, name)}
+          loading={reject.isPending}
+        >
+          {t('timesheets:approvalQueue.return', 'Return')}
+        </Button>
+      )}
       {actions.approve && (
         <Button
           variant="primary"
@@ -200,16 +215,6 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
         >
           <Icon name="check" />
           {t('timesheets:approvalQueue.approve', 'Approve')}
-        </Button>
-      )}
-      {actions.reject && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => decision.request('return', sheet.id, name)}
-          loading={reject.isPending}
-        >
-          {t('timesheets:approvalQueue.return', 'Return')}
         </Button>
       )}
     </>
@@ -252,6 +257,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
         <ApprovalDecisionConfirm
           pending={decision.pending}
           loading={decision.commitLoading}
+          error={decision.decisionError}
           onCancel={decision.cancel}
           onConfirm={(reason) => decision.commit(reason)}
         />
@@ -366,6 +372,16 @@ export const ApprovalsQueue: React.FC = () => {
                       label={t('approvals.bulk.rowSelect', "Select {{owner}}'s {{week}}", { owner: name, week: bulkWeekLabel(sheet.week_start_date, t) })}
                     />
                   )}
+                  {actions.reject && !selecting && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => decision.request('return', sheet.id, name)}
+                      loading={reject.isPending}
+                    >
+                      {t('timesheets:approvalQueue.return', 'Return')}
+                    </Button>
+                  )}
                   {actions.approve && !selecting && (
                     <Button
                       variant="primary"
@@ -375,16 +391,6 @@ export const ApprovalsQueue: React.FC = () => {
                     >
                       <Icon name="check" />
                       {t('timesheets:approvalQueue.approve', 'Approve')}
-                    </Button>
-                  )}
-                  {actions.reject && !selecting && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => decision.request('return', sheet.id, name)}
-                      loading={reject.isPending}
-                    >
-                      {t('timesheets:approvalQueue.return', 'Return')}
                     </Button>
                   )}
                 </ApprovalRow>
@@ -404,6 +410,7 @@ export const ApprovalsQueue: React.FC = () => {
         <ApprovalDecisionConfirm
           pending={decision.pending}
           loading={decision.commitLoading}
+          error={decision.decisionError}
           onCancel={decision.cancel}
           onConfirm={(reason) => decision.commit(reason)}
         />

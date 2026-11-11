@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
@@ -176,6 +176,18 @@ describe('ProjectDetail — section deep links (AC-W2-IA-004)', () => {
   it('AC-W2-IA-004: an unknown tab falls back to Overview without a crash', async () => {
     await renderAt('/projects/p1/unknown-tab');
     expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
+  });
+
+  it('keeps every project area reachable from the phone section picker without a sideways tab strip', async () => {
+    await renderAt('/projects/p1');
+
+    const picker = screen.getByRole('combobox', { name: 'Project sections' });
+    expect(picker.closest('[data-testid="mobile-project-area-select"]')).toHaveClass('md:hidden');
+    expect(screen.getByTestId('project-section-tabs')).toHaveClass('hidden', 'md:block');
+    expect(within(picker).getByRole('option', { name: 'Materials' })).toBeInTheDocument();
+
+    fireEvent.change(picker, { target: { value: 'budget' } });
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Budget', selected: true })).toBeInTheDocument());
   });
 
   it('scrolls the selected project tab into view on mount and after a tab change', async () => {

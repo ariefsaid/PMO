@@ -182,6 +182,9 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
     // desktop secondary filters + export/import are NOT present in the mobile branch
     expect(screen.queryByRole('combobox', { name: /filter by customer/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Export$/i })).not.toBeInTheDocument();
+    const search = screen.getByRole('searchbox', { name: /search projects/i });
+    expect(search.parentElement).toHaveClass('min-w-0', 'sm:min-w-[190px]');
+    expect(screen.getByTestId('projects-mobile-search-row')).toHaveClass('min-w-0');
 
     // header primary action preserved
     expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument();

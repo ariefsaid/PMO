@@ -142,10 +142,14 @@ describe('Receivables page', () => {
     renderPage();
 
     expect(tile('Owed to you')).toHaveTextContent(/IDR\s*1,000/);
-    expect(within(tile('Owed to you')).getByText(/^\+ USD/)).toBeInTheDocument();
+    const owedOtherCurrency = within(tile('Owed to you')).getByText(/^USD/);
+    expect(owedOtherCurrency).toHaveClass('block');
+    expect(owedOtherCurrency).not.toHaveTextContent('+');
     expect(tile('Due in next 30 days')).toHaveTextContent(/IDR\s*1,250/);
     expect(tile('Due in next 30 days')).toHaveTextContent(/next due/);
-    expect(within(tile('Due in next 30 days')).getByText(/^\+ USD/)).toBeInTheDocument();
+    const dueOtherCurrency = within(tile('Due in next 30 days')).getByText(/^USD/);
+    expect(dueOtherCurrency).toHaveClass('block');
+    expect(dueOtherCurrency).not.toHaveTextContent('+');
     expect(tile('Overdue')).toHaveTextContent('10% of owed');
   });
 

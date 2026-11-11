@@ -49,10 +49,10 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
       },
       {
         key: 'item', header: t('ledger.columns.item'),
-        cell: (r) => (<div className="min-w-0"><span className="block truncate font-mono text-sm">{r.itemCode}</span><span className="block truncate text-sm text-muted-foreground">{r.itemName}</span></div>),
+        cell: (r) => (<div className="min-w-0"><span className="block break-all font-mono text-sm">{r.itemCode}</span><span className="block break-words text-sm text-muted-foreground">{r.itemName}</span></div>),
         exportValue: (r) => r.itemCode,
       },
-      { key: 'warehouse', header: t('ledger.columns.warehouse'), cell: (r) => <span className="text-sm">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
+      { key: 'warehouse', header: t('ledger.columns.warehouse'), cell: (r) => <span data-testid="stock-ledger-warehouse-code" className="block min-w-0 break-all font-mono text-sm">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
       {
         key: 'project', header: t('ledger.columns.project'), colClassName: 'hidden lg:table-cell',
         cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block truncate text-sm">{r.projectName}</span><span className="block truncate text-sm text-muted-foreground">{r.boqItemCode ?? ''}</span></div>) : null),
@@ -60,7 +60,7 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
       },
       {
         key: 'delta', header: t('ledger.columns.change'), align: 'num',
-        cell: (r) => <span className={`tabular-nums ${r.qtyDelta.startsWith('-') ? 'text-destructive-text' : ''}`}>{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)} {r.unitCode}</span>,
+        cell: (r) => <span data-testid="stock-ledger-change" className={`inline-flex min-w-0 max-w-full flex-wrap items-baseline gap-x-1 break-words tabular-nums ${r.qtyDelta.startsWith('-') ? 'text-destructive-text' : ''}`}><span className="whitespace-nowrap">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)}</span>{' '}<span className="whitespace-nowrap">{r.unitCode}</span></span>,
         exportValue: (r) => r.qtyDelta,
       },
       { key: 'after', header: t('ledger.columns.balance'), align: 'num', cell: (r) => <span className="tabular-nums">{formatQuantity(r.qtyAfter, loc)}</span>, exportValue: (r) => r.qtyAfter },
