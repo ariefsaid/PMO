@@ -90,8 +90,10 @@
   },
   "establish": {
     "amount": "Jumlah kas lapangan",
+    "chooseProjectFirst": "Pilih proyek untuk melihat pemegang kas yang memenuhi syarat.",
     "custodian": "Pemegang kas",
     "custodianNoun": "pemegang kas",
+    "noEligibleCustodians": "Tidak ada pemegang kas yang memenuhi syarat: tambahkan pengguna Finance atau tetapkan manajer proyek.",
     "errors": {
       "amount": "Masukkan jumlah lebih dari nol."
     },

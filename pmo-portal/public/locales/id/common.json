@@ -870,8 +870,8 @@
     "listLabel": "{{noun}}",
     "moreHidden": "Ketik untuk mempersempit ({{count}} lagi)",
     "empty": {
-      "withQuery": "Tidak ada {{noun}} yang cocok dengan \"{{query}}\".",
-      "bare": "Tidak ada {{noun}} yang cocok."
+      "withQuery": "Tidak ada {{noun}} yang cocok dengan \"{{query}}\". Coba pencarian lain.",
+      "bare": "Belum ada pilihan untuk dipilih. Periksa prasyarat kolom ini atau minta administrator menambahkan pilihan."
     },
     "clear": "Hapus {{noun}}"
   },

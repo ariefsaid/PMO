@@ -840,6 +840,9 @@
     },
     "tasks": {
       "selectTask": "Pilih tugas {{name}}",
+      "form": {
+        "noAssignees": "Belum ada orang yang dapat ditugaskan. Tambahkan atau aktifkan pengguna di Administrasi."
+      },
       "bulk": {
         "toast": {
           "partial": "{{succeeded}} diperbarui; {{failed}} gagal. Tinjau tugas yang dipilih lalu coba lagi.",
