@@ -15,9 +15,10 @@ export type TimesheetEntryWithProject = TimesheetEntryRow & {
 /** A timesheet header with its entries (each carrying the joined project) resolved in one query. */
 export type TimesheetWithEntries = TimesheetRow & {
   entries: TimesheetEntryWithProject[];
+  rejecter: { full_name: string } | null;
 };
 
-const SELECT = '*, entries:timesheet_entries(*, project:projects(name,short_name,code))';
+const SELECT = '*, entries:timesheet_entries(*, project:projects(name,short_name,code)), rejecter:profiles!timesheets_rejected_by_fkey(full_name)';
 
 /**
  * List the given user's timesheets + entries for the caller's org. org_id is NEVER sent — RLS
@@ -43,6 +44,9 @@ export async function listTimesheets(
   // Normalise hours to number at the data boundary so callers never need Number() casts.
   return data.map(sheet => ({
     ...sheet,
+    rejection_reason: sheet.rejection_reason ?? null,
+    rejected_by: sheet.rejected_by ?? null,
+    rejected_at: sheet.rejected_at ?? null,
     entries: sheet.entries.map(e => ({ ...e, hours: Number(e.hours) })),
   }));
 }

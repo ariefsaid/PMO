@@ -162,6 +162,8 @@
     "label": "Procurement list"
   },
   "kpi": {
+    "unpaid": "Supplier invoices unpaid",
+    "ordered": "Ordered, not invoiced",
     "notRecorded": "amounts are not recorded",
     "partial_one": "{{count}} not recorded",
     "partial_other": "{{count}} not recorded",

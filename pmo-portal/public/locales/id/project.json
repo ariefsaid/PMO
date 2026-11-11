@@ -42,7 +42,7 @@
     "cascade": {
       "error": "Kontrak tidak dapat dimuat.",
       "title": "Kontrak",
-      "contract": "Kontrak",
+      "contract": "Nilai kontrak",
       "source": {
         "contract": "Sumber: baris kontrak berharga (kuantitas × tarif), tidak termasuk pajak.",
         "contractFallback": "Sumber: ringkasan penagihan proyek, tidak termasuk pajak.",
@@ -77,23 +77,21 @@
       "orderBillingIncomplete": "Nilai yang dapat ditagihkan belum tersedia sampai nilai pesanan lengkap.",
       "openDraftOrder": "Buka pesanan draf",
       "reasonDraftOrder": "Pesanan pelanggan masih berupa draf.",
-      "reasonNoOrders": "Belum ada pesanan pelanggan.",
       "reasonNoAllocations": "Belum ada baris kontrak yang dialokasikan.",
       "reasonNoAcceptance": "Belum ada kuantitas yang diterima.",
       "reasonAlreadyClaimed": "Kuantitas yang diterima sudah diklaim.",
       "reasonMoneyOrdersClaimed": "Nilai pesanan pelanggan sudah ditagihkan.",
       "reasonComputedZero": "Total yang dapat ditagihkan bernilai nol dengan tarif kontrak saat ini.",
-      "stepOrder": "Pesanan pelanggan tercatat",
-      "stepAllocation": "Baris kontrak dialokasikan",
-      "stepAcceptance": "Kuantitas diterima tercatat",
+      "stepOrder": "Pesanan",
+      "stepAllocation": "Baris",
+      "stepAcceptance": "Diterima",
       "recordAcceptedQuantity": "Catat kuantitas diterima",
-      "stepUnclaimed": "Masih ada kuantitas yang belum diklaim",
-      "beforeBill": "Sebelum dapat menagih",
-      "phaseProgressLabel": "Kemajuan fase bukan kuantitas yang dapat ditagihkan.",
+      "stepUnclaimed": "Belum diklaim",
+      "beforeBill": "Penagihan",
       "billingSteps": "Langkah penagihan",
       "done": "Selesai",
-      "notNeeded": "Tidak perlu",
-      "needed": "Diperlukan",
+      "notNeeded": "Belum ada",
+      "needed": "Kurang",
       "canInvoice": "Dapat ditagihkan",
       "overdue": "Terlambat",
       "notOrdered": "Belum dipesan",
@@ -167,7 +165,7 @@
         },
         "rateSource": "Sumber: harga satuan pada baris kontrak.",
         "openLine": "Buka baris kontrak {{item}}",
-        "manage": "Edit baris kontrak",
+        "manage": "Edit baris",
         "toast": {
           "saved": "Baris bill of quantities disimpan",
           "deleted": "Baris bill of quantities dihapus"
@@ -592,7 +590,7 @@
       "noDates": "Tanggal belum diatur",
       "ariaLabel": "Informasi proyek",
       "projectManager": "Manajer proyek: {{name}}",
-      "progressTooltip": "Rata-rata tertimbang penyelesaian tahapan berdasarkan bobot tiap tahap; sumber: rencana tahapan proyek.",
+      "progressTooltip": "Rata-rata tertimbang penyelesaian tahapan berdasarkan bobot tiap tahap; sumber: rencana tahapan proyek. Progres fase bukan kuantitas yang dapat ditagihkan.",
       "progress": "Progres",
       "progressAria": "Progres proyek {{percent}}%",
       "progressLoading": "Progres sedang dimuat",
@@ -612,13 +610,21 @@
       "copyLink": "Salin tautan",
       "previewFileFor": "Pratinjau berkas untuk {{title}}",
       "previewFile": "Pratinjau berkas",
-      "changeContractValue": "Ubah nilai kontrak"
+      "changeContractValue": "Ubah nilai kontrak",
+      "unsavedValue": {
+        "title": "Nilai kontrak belum disimpan",
+        "description": "Perubahan nilai kontrak dan dasar pajak akan hilang jika Anda meninggalkan halaman ini.",
+        "discard": "Buang perubahan",
+        "leave": "Tinggalkan",
+        "keepEditing": "Lanjut mengedit",
+        "stay": "Tetap di sini"
+      }
     },
     "rail": {
       "contractDate": "Tanggal kontrak"
     },
     "tabs": {
-      "contract": "Kontrak & penagihan",
+      "contract": "Kontrak",
       "activity": "Aktivitas",
       "materials": "Material"
     },
@@ -797,6 +803,7 @@
       "bulk": {
         "statusUpdated": "Status diperbarui untuk {{count}} dokumen",
         "statusFailed": "Beberapa dokumen tidak dapat diperbarui",
+        "partialSuccess": "{{count}} dokumen berhasil diperbarui. Dokumen yang gagal tetap dipilih agar dapat dicoba lagi.",
         "ariaLabel": "Tindakan untuk dokumen terpilih",
         "selected": "{{count}} dipilih",
         "download": "Unduh",
@@ -840,6 +847,10 @@
     },
     "tasks": {
       "selectTask": "Pilih tugas {{name}}",
+      "form": {
+        "noAssignees": "Belum ada orang yang dapat ditugaskan. Tambahkan atau aktifkan pengguna di Administrasi."
+      },
+      "addTask": "Tambah tugas",
       "bulk": {
         "toast": {
           "partial": "{{succeeded}} diperbarui; {{failed}} gagal. Tinjau tugas yang dipilih lalu coba lagi.",

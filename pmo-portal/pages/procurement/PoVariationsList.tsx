@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, ListState, SelectField, StatusPill, TextField, useToast, type StatusVariant } from '@/src/components/ui';
+import { Button, ConfirmDialog, ListState, ReasonDialog, SelectField, StatusPill, TextField, useToast } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { usePoVariations, useSubcontractMutations } from '@/src/hooks/useSubcontract';
@@ -28,9 +28,6 @@ const DEFAULT_REFUSAL_DETAILS: Record<string, string> = {
   'below-received': 'Ordered quantity cannot be reduced below the quantity already received or billed.',
 };
 
-const statusTone: Record<string, StatusVariant> = { Requested: 'warn', Approved: 'won', Revised: 'won', Rejected: 'lost', Disputed: 'lost' };
-type Decision = { variation: PoVariationWithLines; approve: boolean };
-
 export interface PoVariationsListProps {
   poId: string;
   projectId: string;
@@ -46,7 +43,8 @@ export const PoVariationsList: React.FC<PoVariationsListProps> = ({ poId, projec
   const variations = usePoVariations(poId);
   const workOrders = useProjectWorkOrders(projectId);
   const mutations = useSubcontractMutations(poId);
-  const [decision, setDecision] = useState<Decision | null>(null);
+  const [approving, setApproving] = useState<PoVariationWithLines | null>(null);
+  const [rejecting, setRejecting] = useState<PoVariationWithLines | null>(null);
   const [revisionFor, setRevisionFor] = useState<PoVariationWithLines | null>(null);
   const [pendingPush, setPendingPush] = useState<Record<string, PendingPushState>>({});
   const [linkChoices, setLinkChoices] = useState<Record<string, string>>({});
@@ -79,13 +77,11 @@ export const PoVariationsList: React.FC<PoVariationsListProps> = ({ poId, projec
   </section>;
   const rows = variations.data ?? [];
 
-  const decide = async () => {
-    if (!decision) return;
+  const decide = async (variation: PoVariationWithLines, approve: boolean, notes?: string) => {
     try {
-      await mutations.decideVariation.mutateAsync({ id: decision.variation.id, approve: decision.approve });
-      toast(decision.approve ? t('subcontract.variations.approved', 'Variation approved') : t('subcontract.variations.rejected', 'Variation rejected'), undefined, 'success');
+      await mutations.decideVariation.mutateAsync({ id: variation.id, approve, ...(notes ? { notes } : {}) });
+      toast(approve ? t('subcontract.variations.approved', 'Variation approved') : t('subcontract.variations.rejected', 'Variation rejected'), undefined, 'success');
     } catch (error) { fail(error); }
-    setDecision(null);
   };
 
   const issueRevision = async (variation: PoVariationWithLines) => {
@@ -141,7 +137,7 @@ export const PoVariationsList: React.FC<PoVariationsListProps> = ({ poId, projec
           return <li key={variation.id} data-testid={`po-variation-${variation.id}`} className="flex flex-col gap-2 rounded-md border border-border p-2.5 text-sm">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="font-semibold">{variation.number}</span>
-              <StatusPill variant={statusTone[variation.status] ?? 'neutral'}>{t(`subcontract.variations.status.${variation.status}`, variation.status)}</StatusPill>
+              <StatusPill record="costVariation" state={variation.status} />
               <span className="tabular-nums">{formatCurrency(Number(variation.amount), currency)}</span>
               <span className="text-muted-foreground">{variation.origin === 'post_work'
                 ? t('subcontract.variations.postWork', 'Post-work') : t('subcontract.variations.preWork', 'Pre-work')}</span>
@@ -153,8 +149,8 @@ export const PoVariationsList: React.FC<PoVariationsListProps> = ({ poId, projec
             </ul>}
             <div className="flex flex-wrap gap-2">
               {canDecide && <>
-                <Button variant="primary" size="sm" onClick={() => setDecision({ variation, approve: true })}>{t('subcontract.variations.approve', 'Approve')}</Button>
-                <Button variant="outline" size="sm" onClick={() => setDecision({ variation, approve: false })}>{t('subcontract.variations.reject', 'Reject')}</Button>
+                <Button variant="primary" size="sm" onClick={() => setApproving(variation)}>{t('subcontract.variations.approve', 'Approve')}</Button>
+                <Button variant="outline" size="sm" onClick={() => setRejecting(variation)}>{t('subcontract.variations.reject', 'Reject')}</Button>
               </>}
               {canIssue && <Button variant="outline" size="sm" onClick={() => setRevisionFor(variation)} disabled={mutations.issueRevision.isPending}>
                 {t('subcontract.variations.issueRevision', 'Issue revision')}
@@ -184,12 +180,17 @@ export const PoVariationsList: React.FC<PoVariationsListProps> = ({ poId, projec
           </li>;
         })}
       </ul>}
-    <ConfirmDialog open={Boolean(decision)} title={decision?.approve
-      ? t('subcontract.variations.approveTitle', 'Approve this variation?') : t('subcontract.variations.rejectTitle', 'Reject this variation?')}
-      description={decision?.approve ? t('subcontract.variations.approveBody', 'Approval increases the purchase commitment by this amount.')
-        : t('subcontract.variations.rejectBody', 'This variation will be rejected or disputed and will not increase the PO.')}
-      confirmLabel={decision?.approve ? t('subcontract.variations.approve', 'Approve') : t('subcontract.variations.reject', 'Reject')}
-      loading={mutations.decideVariation.isPending} onCancel={() => setDecision(null)} onConfirm={() => void decide()} />
+    <ConfirmDialog open={approving !== null} title={t('subcontract.variations.approveTitle', 'Approve this variation?')}
+      description={t('subcontract.variations.approveBody', 'Approval increases the purchase commitment by this amount.')}
+      confirmLabel={t('subcontract.variations.approve', 'Approve')}
+      loading={mutations.decideVariation.isPending}
+      onCancel={() => setApproving(null)}
+      onConfirm={() => { const target = approving; setApproving(null); if (target) void decide(target, true); }} />
+    <ReasonDialog open={rejecting !== null} kind="reject" subject={rejecting?.number ?? undefined}
+      context={rejecting ? `${rejecting.number} · ${formatCurrency(Number(rejecting.amount), currency)}` : undefined}
+      loading={mutations.decideVariation.isPending}
+      onCancel={() => setRejecting(null)}
+      onConfirm={(reason) => { const target = rejecting; setRejecting(null); if (target) void decide(target, false, reason); }} />
     <ConfirmDialog open={Boolean(revisionFor)} title={t('subcontract.variations.reviseTitle', 'Issue a new PO revision?')}
       description={t('subcontract.variations.reviseBody', 'This applies the approved quantity change to the purchase order.')}
       confirmLabel={t('subcontract.variations.issueRevision', 'Issue revision')}

@@ -216,7 +216,9 @@
       "subtitle": "{{amount}} not yet applied",
       "submit": "Apply",
       "action": "Apply to invoices",
-      "noOpenInvoices": "This customer has no approved invoice in {{currency}} that still owes money.",
+      "noOpenInvoices": "No approved invoice in {{currency}} with a reported balance is available. Create or approve one, or refresh its balance, then try again.",
+      "awaitingApproval": "This invoice is waiting for approval. Approve it before applying the receipt.",
+      "balanceUnavailable": "The approved invoice balance is not available. Refresh invoices before trying again.",
       "invoiceCol": "Invoice",
       "invoicePlaceholder": "Choose an invoice…",
       "amountCol": "Amount",
@@ -732,6 +734,7 @@
     "withholdingArticleNotStated": "Not stated",
     "invoiceLoading": "Loading invoices…",
     "noOpenInvoicesForCustomer": "No open invoices for this customer.",
+    "noEligibleNativeInvoiceForCustomer": "No approved invoice with a reported balance is available for this customer. Create or approve an invoice, or refresh its balance, then try again.",
     "otherLedgerInvoiceSingular": "1 open invoice is recorded in the accounting system: record its payment there.",
     "otherLedgerInvoicesPlural": "{{count}} open invoices are recorded in the accounting system: record their payments there."
   },

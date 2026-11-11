@@ -7,7 +7,7 @@
  * AC-VB-006: tasks entity requires project_id filter; confirm disabled until present.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 
@@ -42,6 +42,24 @@ function openForm(props?: Partial<React.ComponentProps<typeof PanelEditorForm>>)
 }
 
 describe('PanelEditorForm — whitelist constraints', () => {
+  it('CMP-004: closing a changed panel asks first, and Keep editing preserves the draft', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    openForm({ onClose });
+
+    const label = screen.getByRole('textbox', { name: /panel label/i });
+    await user.type(label, 'Risk review');
+    await user.click(screen.getByRole('button', { name: /^close$/i }));
+
+    const discard = await screen.findByRole('alertdialog');
+    expect(discard).toHaveTextContent(/unsaved changes/i);
+    await user.click(within(discard).getByRole('button', { name: /keep editing/i }));
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /panel label/i })).toHaveValue('Risk review');
+  });
+
   it('CMP-002: editing owned panel fields preserves unedited layout and display properties', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();

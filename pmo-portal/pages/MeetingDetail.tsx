@@ -29,7 +29,6 @@ import {
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
@@ -231,7 +230,7 @@ const MeetingDetail: React.FC = () => {
                   ) : (
                     <span className="font-medium">{task.name}</span>
                   )}
-                  <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
+                  <StatusPill record="task" state={task.status} />
                   <span className="text-muted-foreground">
                     {task.assignee
                       ? `${t('meetingDetail.minutes.ownerLabel', 'Owner')}: ${task.assignee.full_name}`

@@ -59,7 +59,7 @@ describe('ApplyReceiptForm (#1415)', () => {
     await user.click(screen.getAllByRole('button', { name: 'Fill balance' })[1]);
     // The second row is capped by what the receipt has left (100 - 60 = 40), not the invoice's 100.
     expect(screen.getAllByLabelText('Amount')[1]).toHaveValue('40');
-    expect(screen.getByText(/Left to apply: .*0\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Left to apply: .*IDR 0/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Apply' }));
     expect(onApply).toHaveBeenCalledWith([{ invoiceId: 'a', amount: 60 }, { invoiceId: 'b', amount: 40 }], expect.any(String));
   });
@@ -77,7 +77,7 @@ describe('ApplyReceiptForm (#1415)', () => {
     const { onApply, user } = setup([invoice('a', { erp_outstanding_amount: 60 })]);
     await chooseInvoice(user, 0, /INV-a/);
     await user.type(screen.getByLabelText('Amount'), '61');
-    expect(screen.getByText(/more than the invoice still owes .*60\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/more than the invoice still owes .*IDR 60/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
     expect(onApply).not.toHaveBeenCalled();
   });
@@ -126,6 +126,16 @@ describe('ApplyReceiptForm (#1415)', () => {
 
   it('AC-NPA-004 a customer with no open invoice in the receipt\'s currency is told so', () => {
     setup([invoice('usd', { currency: 'USD' })]);
-    expect(screen.getByText(/no approved invoice in IDR that still owes money/)).toBeInTheDocument();
+    expect(screen.getByText('No approved invoice in IDR with a reported balance is available. Create or approve one, or refresh its balance, then try again.')).toBeInTheDocument();
+  });
+
+  it('AC-NPA-004 explains that an invoice must be approved before the receipt can use it', () => {
+    setup([invoice('submitted', { status: 'Submitted' })]);
+    expect(screen.getByText('This invoice is waiting for approval. Approve it before applying the receipt.')).toBeInTheDocument();
+  });
+
+  it('AC-NPA-004 explains when an approved invoice has no reported balance', () => {
+    setup([invoice('unknown', { erp_outstanding_amount: null })]);
+    expect(screen.getByText('The approved invoice balance is not available. Refresh invoices before trying again.')).toBeInTheDocument();
   });
 });

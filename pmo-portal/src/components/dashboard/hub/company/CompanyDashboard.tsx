@@ -8,6 +8,8 @@ import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { Icon } from '@/src/components/ui/icons';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
+import { LateText } from '@/src/components/ui/LateText';
+import { isMostUrgentLateRow } from '@/src/components/ui/lateTextRows';
 import { ListState } from '@/src/components/ui/ListState';
 import { PageHeader } from '@/src/components/ui/PageHeader';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -253,8 +255,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     { key: 'client', header: t('home.colClient', 'Client'), rowHeader: true, cell: (row) => <span className="font-medium">{row.invoice.customer_name}</span>, exportValue: (row) => row.invoice.customer_name ?? '' },
     { key: 'invoice', header: t('home.colInvoice', 'Invoice'), cell: (row) => row.invoice.pmo_number ?? row.invoice.si_number ?? row.invoice.reference_number ?? null, exportValue: (row) => row.invoice.pmo_number ?? row.invoice.si_number ?? row.invoice.reference_number ?? '' },
     { key: 'total', header: t('home.colInvoiceTotal', 'Invoice total'), kind: 'money', align: 'num', cell: (row) => { const gross = invoiceGross(row.invoice); return gross === null ? null : formatTableMoney(gross, row.invoice.currency); }, exportValue: (row) => invoiceGross(row.invoice) ?? '' },
-    { key: 'outstanding', header: t('home.colOutstanding', 'Outstanding'), kind: 'money', align: 'num', cell: (row) => row.outstanding === null ? null : formatTableMoney(row.outstanding / 100, row.invoice.currency), exportValue: (row) => row.outstanding === null ? '' : row.outstanding / 100 },
-    { key: 'late', header: t('home.colLate', 'Overdue'), align: 'num', cell: (row) => <span className="font-semibold text-destructive-text">{t('home.daysOverdue', { count: row.daysOverdue, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</span>, exportValue: (row) => row.daysOverdue },
+    { key: 'outstanding', header: t('home.colOutstanding', 'Outstanding'), kind: 'money', align: 'num', cell: (row) => row.outstanding === null ? null : <span className={cn('tabular', isMostUrgentLateRow(overdueRows, row) ? 'text-metric font-semibold' : 'text-control font-normal')}>{formatTableMoney(row.outstanding / 100, row.invoice.currency)}</span>, exportValue: (row) => row.outstanding === null ? '' : row.outstanding / 100 },
+    { key: 'late', header: t('home.colLate', 'Overdue'), align: 'num', cell: (row) => <LateText emphasis={isMostUrgentLateRow(overdueRows, row)}>{t('home.daysOverdue', { count: row.daysOverdue, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</LateText>, exportValue: (row) => row.daysOverdue },
   ];
   const activeStatuses = new Set<string>(ACTIVE_PROJECT_STATUSES);
   const budgetRows = (budgetReview.data ?? []).filter((row) => activeStatuses.has(row.status)).slice(0, 5);
@@ -356,9 +358,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <FigureScope>
         <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="overview">
           {header}
-          <div className={cn(panelGrid, 'min-[900px]:grid-cols-3')}>
-            <div className="min-w-0">{waitsEl}</div>
-            <div className="min-w-0 min-[900px]:col-span-2">{finance ? overdueCard : offTrackEl}</div>
+          <div className={cn(panelGrid, 'min-[900px]:items-stretch min-[900px]:grid-cols-3')}>
+            <div className="min-w-0 min-[900px]:[&>div]:h-full">{waitsEl}</div>
+            <div className="min-w-0 min-[900px]:col-span-2 min-[900px]:[&>div]:h-full">{finance ? overdueCard : offTrackEl}</div>
           </div>
           {tilesNode}
           {chartsRow}

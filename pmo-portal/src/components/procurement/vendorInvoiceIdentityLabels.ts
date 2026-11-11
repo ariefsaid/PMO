@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next';
+import { formatDayYear } from '@/src/lib/format';
 
 export interface VendorInvoiceContext {
   state: 'ready' | 'pending' | 'unavailable';
@@ -56,6 +57,15 @@ function valueLine(label: string, value: string | null | undefined, fallback: st
   return value?.trim() ? `${label}: ${value}` : fallback;
 }
 
+/** A stored bill date shown the one way the app shows a day, always with its year (identity, not a scan target);
+ *  an unreadable value is missing, never a raw ISO. */
+function displayDay(iso: string | null | undefined): string | null {
+  const text = iso?.trim();
+  if (!text) return null;
+  const formatted = formatDayYear(text);
+  return formatted === '—' ? null : formatted;
+}
+
 export function vendorInvoiceIdentityLines(facts: VendorInvoiceIdentityFacts, t: TFunction): string[] {
   const copy = identityCopy(t);
   const { context } = facts;
@@ -71,7 +81,7 @@ export function vendorInvoiceIdentityLines(facts: VendorInvoiceIdentityFacts, t:
     lineFor(caseState, copy.case, context.caseTitle, copy.caseMissing),
     lineFor(projectState, copy.project, context.projectName, copy.projectMissing),
     lineFor(projectState, copy.pmoNumber, context.pmoProjectNumber, copy.pmoNumberMissing),
-    valueLine(copy.billDate, facts.invoiceDate, copy.dateMissing),
+    valueLine(copy.billDate, displayDay(facts.invoiceDate), copy.dateMissing),
   ];
 }
 

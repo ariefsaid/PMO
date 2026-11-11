@@ -54,12 +54,16 @@
     "retryProjects": "Coba lagi proyek",
     "loadingSuppliers": "Memuat pemasok…",
     "suppliersError": "Pemasok tidak dapat dimuat.",
-    "retrySuppliers": "Coba lagi pemasok"
+    "retrySuppliers": "Coba lagi pemasok",
+    "noProjects": "Belum ada proyek. Anda dapat melanjutkan tanpa proyek atau meminta administrator menambahkannya.",
+    "noSuppliers": "Belum ada pemasok. Pemasok bersifat opsional; mintalah administrator menambahkannya jika diperlukan."
   },
   "saveLabel": {
     "need": "Simpan draf",
     "order": "Simpan dan catat pesanan",
     "invoice": "Simpan dan catat tagihan",
     "payment": "Simpan dan catat pembayaran"
-  }
+  },
+  "uncertainSave": "Penyimpanan mungkin sudah selesai. Periksa statusnya sebelum membuat permintaan baru; mencoba lagi di sini menggunakan permintaan yang sama.",
+  "checkSaveStatus": "Periksa status permintaan"
 }

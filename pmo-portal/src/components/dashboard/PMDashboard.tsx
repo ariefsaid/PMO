@@ -212,9 +212,9 @@ export const PMDashboard: React.FC = () => {
       <FigureScope>
         <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
           {header}
-          <div className="grid items-start gap-[var(--space-panel-gap)] min-[900px]:grid-cols-3">
-            <div className="min-w-0">{waitsEl}</div>
-            <div className="min-w-0 min-[900px]:col-span-2">{projectsEl}</div>
+          <div className="grid items-start gap-[var(--space-panel-gap)] min-[900px]:items-stretch min-[900px]:grid-cols-3">
+            <div className="min-w-0 min-[900px]:[&>div]:h-full">{waitsEl}</div>
+            <div className="min-w-0 min-[900px]:col-span-2 min-[900px]:[&>div]:h-full">{projectsEl}</div>
           </div>
           <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-1 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col">
             {contractTile}

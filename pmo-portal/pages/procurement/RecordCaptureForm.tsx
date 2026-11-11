@@ -15,7 +15,7 @@ import { VendorInvoiceCaptureFields } from './VendorInvoiceCaptureFields';
  */
 import React, { useState } from 'react';
 import type { TFunction } from 'i18next';
-import { Button, FieldError, Icon, SelectField, useMoneyInputMask, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, FieldError, Icon, SelectField, useMoneyInputMask, useToast } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProcurementInvoiceRow, TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { RECORD_AMOUNT_ERROR, parseRecordAmount } from './recordAmount';
@@ -173,6 +173,8 @@ export interface RecordCaptureFormProps {
   currency?: string | null;
   /** Issued subcontract PO whose payable BoQ quantities cap this invoice. */
   subcontractPoId?: string;
+  /** Reports local draft edits to a host that guards route navigation. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -192,6 +194,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   items = [],
   currency = null,
   subcontractPoId,
+  onDirtyChange,
 }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -226,11 +229,33 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   // [PD-5]: predecessor FK for payment — optional, defaults to none.
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  const [formDirty, setFormDirty] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [captureError, setCaptureError] = useState<{ headline: string; detail: string } | null>(null);
   // BLOCK 2 (MONEY-CRITICAL, ADR-0058): ONE command identity for this capture SESSION. The form is
   // mounted only while open and stays open on failure, so every retry carries the SAME identity —
   // a lost response can no longer turn one capture into two submitted ERP documents. A success
   // unmounts the form (`onClose`), so the next capture mints a fresh one.
   const intent = useCommandIntent();
+
+  const markDirty = () => {
+    if (formDirty) return;
+    setFormDirty(true);
+    onDirtyChange?.(true);
+  };
+  const dismissForm = () => {
+    if (formDirty) {
+      setDiscardOpen(true);
+      return;
+    }
+    onClose();
+  };
+  const discardDraft = () => {
+    setDiscardOpen(false);
+    setFormDirty(false);
+    onDirtyChange?.(false);
+    onClose();
+  };
 
   const label = localizedRecordKindLabel(kind, t);
   // AC-PLN-008 (#1783 item 1, D17): the quantity grid is a Full affordance. The org's RESOLVED
@@ -265,6 +290,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCaptureError(null);
 
     // AC-PLN-008 (#1783 item 1): a partial draft while the line-receipt entitlement is unavailable can
     // never stage or submit — the disabled button AND this guard together cover every submit path.
@@ -357,6 +383,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
 
       await onCreate(input);
       toast(isPayment ? t('procurementDetail.paymentRecorded', 'Payment recorded') : t('procurementDetail.captureRecorded', '{{label}} recorded', { label }), refNum ?? undefined, 'success');
+      setFormDirty(false);
+      onDirtyChange?.(false);
       onClose();
     } catch (err) {
       const paymentConflict = (err as { code?: unknown } | null)?.code === 'payment-in-flight-for-bill'
@@ -369,6 +397,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           }
         : null;
       const { headline, detail } = odooActionError(err, odooProcurement, t) ?? paymentConflict ?? classifyMutationError(err);
+      setCaptureError({ headline, detail });
       toast(headline, detail, 'warning');
     } finally {
       setSubmitting(false);
@@ -382,12 +411,20 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       id={formId}
       data-testid={cfg.formTestId}
       onSubmit={(e) => void handleSubmit(e)}
+      onChangeCapture={markDirty}
       className="flex flex-col gap-3 rounded-md border border-border/60 bg-card p-3"
       aria-label={t('procurementDetail.captureForm', 'Capture {{record}}', { record: label })}
     >
       <p className="text-sm font-semibold text-muted-foreground">
         {t('procurementDetail.captureForm', 'Capture {{record}}', { record: label })}
       </p>
+
+      {captureError && (
+        <div role="alert" data-testid="record-capture-error" className="flex flex-col gap-1 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
+          <p className="font-semibold">{captureError.headline}</p>
+          {captureError.detail && <p>{captureError.detail}</p>}
+        </div>
+      )}
 
       {/* Reference number — bounded at 64 chars (NFR-PR-SEC-003) */}
       <div className="flex flex-col gap-1">
@@ -600,13 +637,22 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={onClose}
+          onClick={dismissForm}
           disabled={isBusy}
           data-testid={cfg.cancelTestId}
         >
           {t('financeCopy.cancel', 'Cancel')}
         </Button>
       </div>
+      <ConfirmDialog
+        open={discardOpen}
+        title={t('entityForm.discardTitle', 'Discard your changes?')}
+        description={t('entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
+        confirmLabel={t('entityForm.discard', 'Discard')}
+        cancelLabel={t('entityForm.keepEditing', 'Keep editing')}
+        onConfirm={discardDraft}
+        onCancel={() => setDiscardOpen(false)}
+      />
     </form>
   );
 };

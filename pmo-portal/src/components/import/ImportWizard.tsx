@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
-import { Button, DataTable, Icon, StatusPill, type Column, type StatusVariant } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, Icon, StatusPill, type Column, type StatusVariant } from '@/src/components/ui';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { overlayBackdropClassName, overlayBackdropStyle } from '@/src/components/ui/OverlaySurface';
@@ -8,6 +8,9 @@ import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import type { ImportDescriptor, ImportField } from '@/src/lib/import';
 import { MAX_IMPORT_ROWS } from '@/src/lib/import';
 import { useImportWizard, type WizardStep } from './useImportWizard';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
+
+type PendingImportExit = { kind: 'close' | 'leave'; run: () => void };
 
 /**
  * ImportWizard (ADR-0027) — a dedicated multi-step dialog: upload → mapping → preview
@@ -51,12 +54,25 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
   const wiz = useImportWizard(descriptor);
   const subId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const [pendingExit, setPendingExit] = React.useState<PendingImportExit | null>(null);
+  const dirty = (wiz.step === 'mapping' || wiz.step === 'preview') && wiz.parsed != null;
 
   // A close from result after a successful import refetches the parent list.
+  const closeWizard = useCallback(() => onClose((wiz.result?.created ?? 0) > 0), [wiz.result, onClose]);
   const requestClose = useCallback(() => {
     if (wiz.step === 'committing') return; // never abandon mid-write
-    onClose((wiz.result?.created ?? 0) > 0);
-  }, [wiz.step, wiz.result, onClose]);
+    if (dirty) {
+      setPendingExit({ kind: 'close', run: closeWizard });
+      return;
+    }
+    closeWizard();
+  }, [wiz.step, dirty, closeWizard]);
+
+  useUnsavedChangesGuard({
+    dirty,
+    guardHistory: true,
+    onBlocked: (leave) => setPendingExit({ kind: 'leave', run: leave }),
+  });
 
   // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Kept ALONGSIDE the library's
   // `modal="trap-focus"`: that mode traps Tab and Esc but does NOT inert the app shell behind
@@ -77,6 +93,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
   }, []);
 
   return (
+    <>
     <Dialog.Root
       open
       modal="trap-focus"
@@ -177,6 +194,21 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
         </div>
       </Dialog.Portal>
     </Dialog.Root>
+    <ConfirmDialog
+      open={pendingExit !== null}
+      tone="destructive"
+      title="Unsaved import changes"
+      description="Your uploaded file, column matches, and preview will be lost if you leave."
+      confirmLabel={pendingExit?.kind === 'close' ? 'Discard import' : 'Leave'}
+      cancelLabel="Stay"
+      onConfirm={() => {
+        const exit = pendingExit;
+        setPendingExit(null);
+        exit?.run();
+      }}
+      onCancel={() => setPendingExit(null)}
+    />
+    </>
   );
 }
 

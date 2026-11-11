@@ -90,8 +90,10 @@
   },
   "establish": {
     "amount": "Float amount",
+    "chooseProjectFirst": "Choose a project to see eligible custodians.",
     "custodian": "Custodian",
     "custodianNoun": "custodian",
+    "noEligibleCustodians": "No eligible custodians: add a Finance user or assign a project manager.",
     "errors": {
       "amount": "Enter an amount greater than zero."
     },

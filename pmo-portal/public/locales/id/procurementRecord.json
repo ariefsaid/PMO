@@ -133,6 +133,8 @@
     "overdue": "Terlambat {{days}} hari · jatuh tempo {{date}}",
     "budgetLoading": "Memuat sinyal anggaran",
     "budgetUnavailable": "Anggaran proyek tidak dapat dimuat",
+    "currencyUnavailable": "Perbandingan anggaran tidak tersedia untuk mata uang ini",
+    "amountUnavailable": "Perbandingan anggaran tidak tersedia untuk jumlah ini",
     "noBudget": "Tidak ada anggaran aktif untuk proyek ini",
     "budgetSignal": "Anggaran belum terikat {{available}} · {{after}} setelah pengadaan ini",
     "budgetSignalTooltip": "Nilai tersedia = anggaran proyek dikurangi pengeluaran yang sudah terikat dan dicadangkan. “Setelah pengadaan ini” menyertakan pengadaan ini pada tahapnya saat ini. Sumber: anggaran proyek, pengeluaran pengadaan terikat, dan pengeluaran pengadaan yang dicadangkan.",
