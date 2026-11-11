@@ -161,6 +161,19 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     expect(screen.queryByRole('button', { name: 'Workforce' })).not.toBeInTheDocument();
   });
 
+  it('keeps group headers at 14px with muted regular text while retaining their chevrons', () => {
+    effectiveRole = 'Executive';
+    renderRail();
+    for (const group of ['My work', 'Delivery', 'Sales', 'Finance']) {
+      const header = screen.getByRole('button', { name: group });
+      expect(header.className).toContain('text-control');
+      expect(header.className).toContain('text-muted-foreground');
+      expect(header.className).toContain('font-normal');
+      expect(header.className).not.toContain('font-semibold');
+      expect(header.querySelector('svg')).toHaveAttribute('data-icon', 'chev');
+    }
+  });
+
   // AC-AUTH-003: nav items MUST be anchors (role=link) so e2e getByRole('link') works
   // and screen readers announce "link" not "button"; cmd/middle-click also requires <a>.
   it('nav items are rendered as links (role=link), not buttons — AC-AUTH-003', () => {

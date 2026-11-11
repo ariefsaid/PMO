@@ -207,7 +207,7 @@ export const MODULES: ModuleDef[] = [
     roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
   {
-    module: 'finance-receivables', icon: 'invoices', label: 'Receivables', // i18n-exempt: translated at render via labelKey
+    module: 'finance-receivables', icon: 'download', label: 'Receivables', // i18n-exempt: translated at render via labelKey
     labelKey: 'financeHub:hub.receivables', feature: 'revenue',
     path: '/finance/receivables', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },

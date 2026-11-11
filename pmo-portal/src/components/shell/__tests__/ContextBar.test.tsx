@@ -85,6 +85,11 @@ describe('ContextBar', () => {
     expect(onOpenPalette).toHaveBeenCalled();
   });
 
+  it('keeps header Search out of the phone layout where the bottom bar owns Search', () => {
+    renderBar();
+    expect(screen.getByRole('button', { name: /command palette/i }).className).toContain('max-[639px]:hidden');
+  });
+
   it('AC-WFN-001: the notification bell shows even while `agentAssistant` is off', () => {
     bell.show = true;
     renderBar();
