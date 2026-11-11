@@ -314,7 +314,7 @@ select lives_ok($$ select public.transition_procurement(
     '05340000-0000-0000-0000-0000000000f5', 'Cancelled') $$,
   'FR-PLN-006 procurement off ⇒ an EXISTING purchase can still be cancelled');
 select lives_ok($$ select public.transition_timesheet(
-    '05340000-0000-0000-0000-0000000000f6', 'Rejected') $$,
+    '05340000-0000-0000-0000-0000000000f6', 'Rejected', 'Please correct this week') $$,
   'FR-PLN-006 timesheets off ⇒ a SUBMITTED sheet can still be rejected (closed)');
 
 -- ══════════════════════════════════════════════════════════════════════════════════════════════

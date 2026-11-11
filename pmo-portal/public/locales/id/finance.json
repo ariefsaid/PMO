@@ -216,7 +216,9 @@
       "subtitle": "{{amount}} belum diterapkan",
       "submit": "Terapkan",
       "action": "Terapkan ke faktur",
-      "noOpenInvoices": "Pelanggan ini tidak punya faktur yang sudah disetujui dalam {{currency}} dan masih ada sisa tagihan.",
+      "noOpenInvoices": "Tidak ada faktur disetujui dalam {{currency}} dengan sisa tagihan yang dilaporkan. Buat atau setujui faktur, atau perbarui sisa tagihannya, lalu coba lagi.",
+      "awaitingApproval": "Faktur ini menunggu persetujuan. Setujui sebelum menerapkan kuitansi.",
+      "balanceUnavailable": "Sisa tagihan faktur yang disetujui belum tersedia. Muat ulang faktur sebelum mencoba lagi.",
       "invoiceCol": "Faktur",
       "invoicePlaceholder": "Pilih faktur…",
       "amountCol": "Jumlah",
@@ -732,6 +734,7 @@
     "withholdingArticleNotStated": "Tidak disebutkan",
     "invoiceLoading": "Memuat faktur…",
     "noOpenInvoicesForCustomer": "Tidak ada faktur terbuka untuk pelanggan ini.",
+    "noEligibleNativeInvoiceForCustomer": "Tidak ada faktur disetujui dengan sisa tagihan yang dilaporkan untuk pelanggan ini. Buat atau setujui faktur, atau perbarui sisa tagihannya, lalu coba lagi.",
     "otherLedgerInvoiceSingular": "1 faktur terbuka tercatat di sistem akuntansi: catat pembayarannya di sana.",
     "otherLedgerInvoicesPlural": "{{count}} faktur terbuka tercatat di sistem akuntansi: catat pembayarannya di sana."
   },

@@ -870,8 +870,8 @@
     "listLabel": "{{noun}}s",
     "moreHidden": "Type to narrow ({{count}} more)",
     "empty": {
-      "withQuery": "No {{noun}} matches \"{{query}}\".",
-      "bare": "No {{noun}} matches."
+      "withQuery": "No {{noun}} matches \"{{query}}\". Try a different search.",
+      "bare": "Nothing is available to select yet. Check this field’s prerequisites or ask an administrator to add an option."
     },
     "clear": "Clear {{noun}}"
   },

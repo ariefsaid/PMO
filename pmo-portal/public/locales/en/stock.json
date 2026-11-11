@@ -140,7 +140,8 @@
     "count": "Stock count"
   },
   "empty": {
-    "noStock": "No stock yet"
+    "noStock": "No stock yet",
+    "itemPicker": "No stock items yet: add one in Stock setup."
   },
   "errors": {
     "STK_INSUFFICIENT": "Not enough stock on hand for this movement.",
