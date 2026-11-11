@@ -213,7 +213,7 @@ export const ProjectRows: React.FC<{
             : sorted.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{emptyLabel}</p>
               : (
                 <>
-                  <div aria-hidden="true" style={{ gridTemplateColumns: cols }} className="hidden gap-x-3 pb-1 text-control text-muted-foreground min-[900px]:grid">
+                  <div aria-hidden="true" style={{ gridTemplateColumns: cols }} className="hidden gap-x-5 pb-1 text-control text-muted-foreground min-[900px]:grid">
                     <span>{t('home.colProject', 'Project')}</span>
                     {showStructuredNeeds ? needColumns.map((column) => <span key={column.key} className="min-w-0 text-right">{column.label}</span>) : showReason && <span>{t('home.colNeeds', 'Needs you')}</span>}
                     {showDelivery && <span className="text-right">{t('home.colDelivery', 'Delivery')}</span>}
@@ -262,10 +262,10 @@ export const ProjectRows: React.FC<{
                             className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring min-[900px]:[grid-template-columns:var(--cols)]"
                           >
                             <span className={cn('min-w-0 text-control', emphasized ? 'font-semibold' : 'font-normal')}>{row.name}</span>
-                            <span className={cn(showStructuredNeeds ? 'min-[900px]:order-8' : 'min-[900px]:order-5', 'min-[900px]:justify-self-end')}><StatusPill className="py-2" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{rowStatus}</StatusPill></span>
+                            <span className={cn(showStructuredNeeds ? 'min-[900px]:order-8' : 'min-[900px]:order-5', 'min-[900px]:justify-self-end')}><StatusPill wrap={false} className="py-2" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{rowStatus}</StatusPill></span>
                             {showStructuredNeeds && row.needs ? (
                               <>
-                              <span className="col-span-2 hidden grid-cols-2 gap-x-3 gap-y-0.5 text-control tabular min-[900px]:contents">
+                              <span className="col-span-2 hidden grid-cols-2 gap-x-5 gap-y-0.5 text-control tabular min-[900px]:contents">
                                 {needColumns.map((column) => {
                                   const exceptionNeed = column.key !== 'awaitingApproval' && (row.needs?.[column.key] ?? 0) > 0;
                                   return (

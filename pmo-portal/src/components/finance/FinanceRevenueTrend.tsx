@@ -13,9 +13,10 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
   const currencyState = useOrgCurrencyState();
   const to = addMonths(`${(today ?? new Date().toISOString()).slice(0, 7)}-01`, -1);
   const from = addMonths(to, -5);
-  const ready = enabled && Boolean(today) && currencyState.isResolved;
-  const pack = useManagementPack({ from, to }, ready);
-  const payments = usePaidPaymentFacts(ready);
+  // The Finance hub's narrow figures endpoint is the only route read. Reuse monthly data from the
+  // query cache when Home or Reports already loaded it; opening this chart must not fetch the full pack.
+  const pack = useManagementPack({ from, to }, false);
+  const payments = usePaidPaymentFacts(false);
   const invoicesByMonth = selectInvoicedByMonth(pack.data, from, to, currencyState.currency);
   const collectedByMonth = selectCollectedByMonth(payments.data, currencyState.currency);
   const hasInvoices = invoicesByMonth !== undefined;
@@ -54,17 +55,19 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
   const hasNonZero = points.some((point) => point.a !== 0 || (point.b !== undefined && point.b !== 0));
   const canDraw = hasSeries && hasNonZero && points.length >= 3;
   const gap = [invoiceGap, collectionGap].filter(Boolean).join(' ');
+  const pending = !today || !currencyState.isResolved;
 
   if (!enabled) return null;
   return (
     <ChartCard
       title={title}
       known={canDraw}
-      hiddenReason={hasNonZero
-        ? t('home.reasonTrend', 'fewer than three months have invoiced or collected amounts')
-        : t('home.reasonTrendNoActivity', 'no invoice or collection amounts are recorded in these months')}
-      pending={!today || !currencyState.isResolved || pack.isPending || payments.isPending}
-      error={!canDraw && (pack.isError || payments.isError) ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry: () => { void pack.refetch(); void payments.refetch(); } } : undefined}
+      hiddenReason={!hasSeries
+        ? t('home.reasonTrendUnavailable', "Monthly series aren't available yet")
+        : hasNonZero
+          ? t('home.reasonTrend', 'fewer than three months have invoiced or collected amounts')
+          : t('home.reasonTrendNoActivity', 'no invoice or collection amounts are recorded in these months')}
+      pending={pending}
       testId="finance-revenue-trend"
     >
       <MonthColumns
