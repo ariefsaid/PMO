@@ -113,6 +113,13 @@ beforeEach(() => {
 });
 
 describe('Timesheets (real data)', () => {
+  it('AC-RSN-005 shows the reason and person during correction', () => {
+    tsState.data = [{ ...pmSheet[0], status: 'Draft', rejection_reason: 'Correct hours', rejected_by: 'manager', rejected_at: '2026-06-03T10:00:00Z', rejecter: { full_name: 'Approver Example' } }] as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false; renderPage();
+    expect(screen.getByText(/Correct hours/)).toBeInTheDocument();
+    expect(screen.getByText(/Approver Example/)).toBeInTheDocument();
+  });
+
   it('renders the signed-in user entry with joined project name for the current week (AC-601)', () => {
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
     tsState.isPending = false;

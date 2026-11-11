@@ -99,6 +99,19 @@ const renderAtWithI18n = () =>
   );
 
 describe('ExpenseClaimDetail', () => {
+  it('AC-RSN-005 shows rejection details on a returned claim', () => {
+    h.claim = { ...base, status: 'Rejected', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Approver Example' } };
+    as('eng', 'Engineer'); renderAt();
+    expect(screen.getByText(/Add receipt/)).toBeInTheDocument();
+    expect(screen.getByText(/Approver Example/)).toBeInTheDocument();
+  });
+  it('AC-RSN-005 shows unavailable details for an older rejected claim', () => {
+    h.claim = { ...base, status: 'Rejected', rejection_notes: null, rejected_at: null, rejecter: null };
+    as('eng', 'Engineer'); renderAt();
+    expect(screen.getByText(/Reason unavailable/)).toBeInTheDocument();
+    expect(screen.getByText(/Person unavailable/)).toBeInTheDocument();
+  });
+
   it('D4: shows minor units on the expense transaction record', () => {
     h.claim = { ...base, amount: 12.5, currency: 'USD' };
     as('eng', 'Engineer');

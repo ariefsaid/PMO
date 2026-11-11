@@ -83,6 +83,13 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
   });
   afterEach(() => { vi.useRealTimers(); });
 
+  it('AC-RSN-005 shows the returned equipment entry reason and person', () => {
+    h.entries = [{ ...entry({ status: 'Rejected', decision_notes: 'Correct the asset' }), rejected_by: 'u-pm', rejected_at: '2026-09-09T10:00:00Z', rejecter: { full_name: 'Pia Manager' } }];
+    renderPage();
+    expect(screen.getByText(/Correct the asset/)).toBeInTheDocument();
+    expect(screen.getByText(/Pia Manager/)).toBeInTheDocument();
+  });
+
   it('AC-EQU-017 a user logs 6 h on a project for an asset and day, submits, and the row shows Submitted', async () => {
     const user = userEvent.setup();
     renderPage();

@@ -60,7 +60,7 @@ select lives_ok(
   'AC-900: Submitted → Approved is legal (FR-TS-001)');
 
 select lives_ok(
-  $$ select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected') $$,
+  $$ select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected','Please correct this week') $$,
   'AC-900: Submitted → Rejected is legal (FR-TS-001)');
 
 -- Slice A (FR-TSC-001): Approved is no longer terminal — the un-pushed sheet re-opens.
