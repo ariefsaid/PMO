@@ -1,5 +1,5 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
-import { Menu } from '@base-ui/react/menu';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Menu } from '@/src/components/ui/menu';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +14,7 @@ import { HELP_URL } from '@/src/lib/legalConfig';
 import { useTheme } from '@/src/hooks/useTheme';
 import { useTextSize, type TextSize } from '@/src/hooks/useTextSize';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
+import { useOverlayPortalContainer } from '@/src/components/ui/useOverlayPortalContainer';
 
 const SHOW_LEGAL_SUPPORT = false;
 
@@ -59,12 +60,65 @@ export const AccountMenu: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const { textSize, setTextSize } = useTextSize();
   const rootRef = useRef<HTMLDivElement>(null);
-  const [portalContainer, setPortalContainer] = useState<HTMLElement>();
+  const positionerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const portalContainer = useOverlayPortalContainer(rootRef);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [viewport, setViewport] = useState(() => typeof window === 'undefined'
+    ? { width: 1280, height: 800 }
+    : { width: window.innerWidth, height: window.innerHeight });
+
+  useEffect(() => {
+    const updateViewport = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
+  }, []);
+
+  const zoom = textSize === 'larger' ? 1.25 : textSize === 'large' ? 1.125 : 1;
 
   useLayoutEffect(() => {
-    const dialog = rootRef.current?.closest<HTMLElement>('[role="dialog"]');
-    if (dialog) setPortalContainer(dialog);
-  }, []);
+    if (!menuOpen) return;
+
+    let frame = 0;
+    const correctPosition = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          const menu = menuRef.current;
+          const positioner = positionerRef.current;
+          if (!menu || !positioner) return;
+
+          const bounds = menu.getBoundingClientRect();
+          const padding = 12;
+          const horizontalCorrection = bounds.left < padding
+            ? padding - bounds.left
+            : bounds.right > viewport.width - padding
+              ? viewport.width - padding - bounds.right
+              : 0;
+          const verticalCorrection = bounds.top < padding
+            ? padding - bounds.top
+            : bounds.bottom > viewport.height - padding
+              ? viewport.height - padding - bounds.bottom
+              : 0;
+          positioner.style.translate = `${horizontalCorrection / zoom}px ${verticalCorrection / zoom}px`;
+        });
+      });
+    };
+
+    correctPosition();
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(correctPosition);
+    if (menuRef.current) resizeObserver?.observe(menuRef.current);
+    if (positionerRef.current) resizeObserver?.observe(positionerRef.current);
+    window.addEventListener('resize', correctPosition);
+    window.addEventListener('scroll', correctPosition, true);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', correctPosition);
+      window.removeEventListener('scroll', correctPosition, true);
+    };
+  }, [menuOpen, viewport.width, viewport.height, zoom]);
 
   const rowBase = cn(menuItemClass, 'transition-colors');
   const rowClass = cn(rowBase, 'text-foreground data-[highlighted]:bg-accent');
@@ -79,7 +133,7 @@ export const AccountMenu: React.FC = () => {
 
   return (
     <div ref={rootRef} className="relative flex shrink-0 items-center">
-      <Menu.Root>
+      <Menu.Root open={menuOpen} onOpenChange={setMenuOpen}>
         <Menu.Trigger
           aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
           className="touch-target inline-flex h-auto min-h-11 min-w-11 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card py-1 pl-1.5 pr-2.5 hover:bg-accent"
@@ -92,11 +146,16 @@ export const AccountMenu: React.FC = () => {
           <Icon name="chev" className="hidden rotate-90 text-muted-foreground sm:block [&_svg]:size-3.5" />
         </Menu.Trigger>
         <Menu.Portal container={portalContainer}>
-          <Menu.Positioner side="bottom" align="end" sideOffset={8} collisionPadding={12} className="z-50">
+          <Menu.Positioner ref={positionerRef} side="bottom" align="end" sideOffset={8} collisionPadding={12} collisionAvoidance={{ align: 'shift' }} className="z-50">
             <Menu.Popup
+              ref={menuRef}
               aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
               className={cn(menuPopupClass, 'w-[min(320px,calc(100vw/var(--app-zoom)_-_24px))] max-h-[calc(100dvh/var(--app-zoom)_-_var(--header-h)_-_16px)]')}
-              style={menuPopupOrigin}
+              style={{
+                ...menuPopupOrigin,
+                maxWidth: `${Math.max(160, viewport.width - 24) / zoom}px`,
+                maxHeight: `min(var(--available-height), ${Math.max(0, viewport.height - 24) / zoom}px)`,
+              }}
             >
               {/* Signed-in identity header */}
               <div className="flex items-center gap-2.5 px-2.5 py-2">

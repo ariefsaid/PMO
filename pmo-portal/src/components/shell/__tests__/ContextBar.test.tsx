@@ -117,6 +117,50 @@ describe('ContextBar — unified account menu', () => {
     expect(document.documentElement.dataset.textSize).toBe('larger');
     expect(localStorage.getItem('text-size')).toBe('larger');
   });
+  it('AC-ACCT-005 keeps the larger-text account menu within the 390px viewport', async () => {
+    const innerWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    const innerHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 360 });
+    try {
+      renderBar();
+      await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+      await userEvent.click(screen.getByRole('menuitemradio', { name: /^larger$/i }));
+
+      expect(screen.getByRole('menu')).toHaveStyle({
+        maxWidth: '292.8px',
+        maxHeight: 'min(var(--available-height), 268.8px)',
+      });
+    } finally {
+      if (innerWidth) Object.defineProperty(window, 'innerWidth', innerWidth);
+      if (innerHeight) Object.defineProperty(window, 'innerHeight', innerHeight);
+    }
+  });
+  it('AC-ACCT-005 corrects the account menu position when page zoom outgrows its portal geometry', async () => {
+    const innerWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    const innerHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 360 });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute('role') === 'menu' && document.documentElement.dataset.textSize === 'larger') {
+        return { x: 96.25, y: 87.5, left: 96.25, top: 87.5, right: 456.25, bottom: 423.5, width: 360, height: 336, toJSON: () => ({}) } as DOMRect;
+      }
+      return originalRect.call(this);
+    });
+    try {
+      renderBar();
+      await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+      await userEvent.click(screen.getByRole('menuitemradio', { name: /^larger$/i }));
+
+      const menu = screen.getByRole('menu');
+      await waitFor(() => expect(menu.parentElement).toHaveStyle({ translate: '-62.6px -60.4px' }));
+    } finally {
+      vi.restoreAllMocks();
+      if (innerWidth) Object.defineProperty(window, 'innerWidth', innerWidth);
+      if (innerHeight) Object.defineProperty(window, 'innerHeight', innerHeight);
+    }
+  });
   it('keeps legal and support links out of the account menu', async () => {
     renderBar();
     await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
@@ -149,6 +193,15 @@ describe('ContextBar — unified account menu', () => {
     expect(dark).toHaveAttribute('aria-checked', 'false');
     // Sign out is a separated command.
     expect(screen.getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument();
+  });
+
+  it('AC-ACCT-001: choosing a profile link closes the menu and releases its inert backdrop', async () => {
+    renderBar();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /profile & preferences/i }));
+
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    expect(document.querySelector('[data-base-ui-inert]')).not.toBeInTheDocument();
   });
 
   it('AC-ACCT-002: choosing Light→Dark applies + persists, and the selected state flips', async () => {
@@ -189,6 +242,7 @@ describe('ContextBar — unified account menu', () => {
     expect(screen.getByText('View as role')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('menuitemradio', { name: 'Engineer' }));
     expect(viewAs).toHaveBeenCalledWith('Engineer');
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
   });
 
   it('AC-ACCT-004: role preview keeps the real identity visible and can return to Admin', async () => {
