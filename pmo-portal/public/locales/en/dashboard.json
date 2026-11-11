@@ -781,14 +781,13 @@
     "invoicedByMonth": "Invoiced by month",
     "chartInvoiced": "Invoiced, excl. tax",
     "chartCollected": "Collected",
-    "reasonTrend": "invoicing has fewer than three months of history",
+    "reasonTrend": "the period covers fewer than three months",
     "whyLost": "Why deals were lost",
     "receivablesByAge": "Owed by clients, by age",
     "reasonAgeing": "no client balance is known",
     "ageingUnknown_one": "{{count}} invoice with an unknown balance is not drawn",
     "ageingUnknown_other": "{{count}} invoices with unknown balances are not drawn",
     "budgetUsedByProject": "Budget used by project",
-    "invoicedSpark": "Invoiced by month, last {{count}} months",
     "chartDelivery": "Delivery",
     "deliveryVsBudget": "Delivery and budget used by project",
     "overdueByProject": "Overdue tasks by project",
@@ -797,6 +796,7 @@
     "reasonTeamHours": "team timesheets could not be read",
     "tasksOverdue": "Tasks overdue",
     "reasonTasksOverdue": "task dates could not be read",
-    "reasonDeliveryBudget": "delivery and budget are not recorded"
+    "reasonDeliveryBudget": "delivery and budget are not recorded",
+    "reasonLossReasons": "no loss reason is recorded"
   }
 }

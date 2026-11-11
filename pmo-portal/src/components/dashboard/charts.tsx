@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bar, BarChart, Cell, Line, LineChart, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { ListState } from '@/src/components/ui/ListState';
@@ -54,12 +54,14 @@ const NameTick: React.FC<{ x?: number; y?: number; payload?: { value: string }; 
 export const BarList: React.FC<{
   rows: BarRow[];
   ariaLabel: string;
-  /** Names of the two series for the tooltip and the text twin. */
+  /** Names of the two series for the tooltip and the accessible name. */
   seriesNames?: [string, string?];
   nameWidth?: number;
   /** A fixed upper bound for the value scale (e.g. 100 for percentages). */
   domainMax?: number;
-}> = ({ rows, ariaLabel, seriesNames, nameWidth = 128, domainMax }) => {
+}> = ({ rows, ariaLabel, seriesNames, nameWidth: fixedNameWidth, domainMax }) => {
+  // The name column fits the longest name (up to 22 characters; longer names end in an ellipsis).
+  const nameWidth = fixedNameWidth ?? Math.min(190, Math.max(96, Math.ceil(Math.max(0, ...rows.map((row) => row.name.length)) * 8.4)));
   const reduced = usePrefersReducedMotion();
   const paired = rows.some((row) => row.value2 !== undefined);
   const data = rows.map((row) => ({ ...row, a: row.value, b: row.value2 ?? null }));
@@ -107,21 +109,20 @@ export interface ColumnPoint {
   labelA?: string;
   b?: number | null;
   labelB?: string;
-  /** The column to mark with the accent (today, the latest month). */
-  accentA?: boolean;
 }
 
-/** One value label above a column: all of them (a week), or only the latest (a trend). */
-const columnLabel = (lastOnly: boolean, count: number, side: 'middle' | 'end' | 'start' = 'middle') => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
+/** A value label above a column: every non-zero column, or only the latest (`lastOnly`). Zero columns carry no label. */
+const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', lastOnly: boolean, side: 'middle' | 'end' | 'start' = 'middle') => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
   const { x = 0, y = 0, width = 0, index = 0, value } = props;
-  if (value == null || value === '' || (lastOnly && index !== count - 1)) return null;
+  if (value == null || value === '' || !data[index]?.[series] || (lastOnly && index !== data.length - 1)) return null;
   const anchorX = side === 'end' ? Number(x) + Number(width) : side === 'start' ? Number(x) : Number(x) + Number(width) / 2;
   return <text x={anchorX} y={Number(y) - 5} textAnchor={side} style={LABEL_STYLE}>{String(value)}</text>;
 };
 
 /**
- * Columns over time or over days. One neutral series (the accent marks the column that matters) or two series
- * (a neutral, an accent). With `labelAll` every column carries its value, otherwise only the latest.
+ * Columns over time or over days. The first series is the accent; a second series (a comparison) is grey. With
+ * `labelAll` every non-zero column carries its value, otherwise only the latest. Beyond six months a second series
+ * is not labelled on the bars (its values are in the tooltip and the accessible name).
  */
 export const MonthColumns: React.FC<{
   points: ColumnPoint[];
@@ -137,17 +138,16 @@ export const MonthColumns: React.FC<{
     <div>
       <div role="img" aria-label={`${ariaLabel}. ${points.map((point) => `${point.tick}: ${[point.labelA && `${two && seriesNames?.[0] ? `${seriesNames[0]} ` : ''}${point.labelA}`, point.labelB && `${seriesNames?.[1] ? `${seriesNames[1]} ` : ''}${point.labelB}`].filter(Boolean).join(', ')}`).join('; ')}`} style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 22, right: two ? 44 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="18%">
-            <XAxis dataKey="tick" tick={TICK_STYLE} tickLine={false} stroke={chartTheme.grid} interval="preserveStartEnd" />
+          <BarChart data={data} margin={{ top: 22, right: two ? 8 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
+            <XAxis dataKey="tick" tick={TICK_STYLE} tickLine={false} stroke={chartTheme.grid} interval={0} />
             <YAxis hide domain={[0, 'auto']} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.labelA : item.payload.labelB) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
-            <Bar dataKey="a" radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
-              {data.map((point) => <Cell key={point.key} fill={point.accentA && !two ? toneFill.accent : toneFill.neutral} />)}
-              <LabelList dataKey="labelA" content={columnLabel(!labelAll, data.length, two ? 'end' : 'middle')} />
+            <Bar dataKey="a" fill={toneFill.accent} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
+              <LabelList dataKey="labelA" content={columnLabel(data, 'a', !labelAll)} />
             </Bar>
             {two && (
-              <Bar dataKey="b" radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2} fill={toneFill.accent}>
-                <LabelList dataKey="labelB" content={columnLabel(!labelAll, data.length, 'start')} />
+              <Bar dataKey="b" fill={toneFill.neutral} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
+                <LabelList dataKey="labelB" content={columnLabel(data, 'b', !labelAll || points.length > 6, 'middle')} />
               </Bar>
             )}
           </BarChart>
@@ -159,53 +159,55 @@ export const MonthColumns: React.FC<{
 
 export interface Part { key: string; label: string; value: number }
 
-/** One-hue steps, darkest first: parts of a whole read as ordered, no rainbow. */
-const PART_FILL = [0.55, 0.4, 0.3, 0.2, 0.12].map((alpha) => `hsl(var(--primary) / ${alpha})`);
+/** One-hue steps in order, darkest first: parts of a whole read as ordered, no rainbow. */
+const STEPS = [
+  { fill: 'hsl(var(--primary))', ink: 'hsl(var(--primary-foreground))' },
+  { fill: 'hsl(var(--primary) / 0.62)', ink: INK },
+  { fill: 'hsl(var(--primary) / 0.4)', ink: INK },
+  { fill: 'hsl(var(--primary) / 0.25)', ink: INK },
+  { fill: 'hsl(var(--primary) / 0.14)', ink: INK },
+];
 
 /**
- * Parts of a whole as ONE stacked bar: each part's count sits inside its segment and its name in the line under
- * the bar. Parts with no value are left out.
+ * Parts of a whole as ONE stacked bar, labelled on the bar itself: each segment wide enough carries its name and
+ * count; a segment too narrow for its name carries the count and its name follows under the bar, next to its own
+ * swatch. No separate legend. Parts with no value are left out.
  */
 export const StackedBar: React.FC<{ parts: Part[]; ariaLabel: string }> = ({ parts, ariaLabel }) => {
-  const reduced = usePrefersReducedMotion();
   const shown = parts.filter((part) => part.value > 0);
-  const row = Object.fromEntries(shown.map((part) => [part.key, part.value]));
+  const total = shown.reduce((sum, part) => sum + part.value, 0);
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [width, setWidth] = React.useState(0);
+  React.useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const measure = () => setWidth(node.getBoundingClientRect().width);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  // A name fits when its segment is wider than the text (14px bold ≈ 8.4px a character) plus padding.
+  const fits = (part: Part) => total > 0 && (part.value / total) * width >= part.label.length * 8.4 + 16;
+  const step = (index: number) => STEPS[Math.min(index, STEPS.length - 1)];
+  const outside = shown.map((part, index) => ({ part, index })).filter(({ part }) => !fits(part));
   return (
     <div>
-      <div role="img" aria-label={`${ariaLabel}. ${shown.map((part) => `${part.label} ${part.value}`).join(', ')}`} className="h-12">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={[row]} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-            <XAxis type="number" hide domain={[0, 'dataMax']} />
-            <YAxis type="category" hide dataKey={() => ''} />
-            {shown.map((part, index) => (
-              <Bar key={part.key} dataKey={part.key} stackId="whole" fill={PART_FILL[Math.min(index, PART_FILL.length - 1)]} stroke="hsl(var(--card))" strokeWidth={2} isAnimationActive={!reduced} radius={index === 0 ? [4, 0, 0, 4] : index === shown.length - 1 ? [0, 4, 4, 0] : 0}>
-                <LabelList dataKey={part.key} position="center" style={LABEL_STYLE} />
-              </Bar>
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      <ul className="mt-2 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-control text-muted-foreground">
+      <div ref={ref} role="img" aria-label={`${ariaLabel}. ${shown.map((part) => `${part.label} ${part.value}`).join(', ')}`} className="flex h-11 gap-0.5 overflow-hidden rounded-md">
         {shown.map((part, index) => (
-          <li key={part.key} className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rounded-[3px]" style={{ background: PART_FILL[Math.min(index, PART_FILL.length - 1)] }} />{part.label} <span className="tabular text-foreground">{part.value}</span></li>
+          <div key={part.key} title={`${part.label} ${part.value}`} style={{ flex: `${part.value} 1 0`, background: step(index).fill, color: step(index).ink }} className="flex min-w-6 items-center justify-center gap-1.5 overflow-hidden whitespace-nowrap px-1 text-control font-semibold tabular">
+            {fits(part) && <span>{part.label}</span>}<span>{part.value}</span>
+          </div>
         ))}
-      </ul>
-    </div>
-  );
-};
-
-/** A small line for a figure tile: three points or more, the latest point marked. */
-export const Spark: React.FC<{ values: number[]; ariaLabel: string }> = ({ values, ariaLabel }) => {
-  const data = values.map((value, index) => ({ index, value }));
-  const last = data.length - 1;
-  return (
-    <div role="img" aria-label={ariaLabel} className="h-8 w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 4, right: 6, bottom: 4, left: 6 }}>
-          <YAxis hide domain={[0, 'auto']} />
-          <Line type="monotone" dataKey="value" stroke={chartTheme.series.primary} strokeWidth={2} isAnimationActive={false} dot={(props: { cx?: number; cy?: number; index?: number }) => props.index === last ? <circle key="last" cx={props.cx} cy={props.cy} r={3.5} fill={chartTheme.series.primary} /> : <g key={props.index} />} />
-        </LineChart>
-      </ResponsiveContainer>
+      </div>
+      {outside.length > 0 && (
+        <ul className="mt-2 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-control text-muted-foreground">
+          {outside.map(({ part, index }) => (
+            <li key={part.key} className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rounded-[3px]" style={{ background: step(index).fill }} />{part.label} <span className="tabular text-foreground">{part.value}</span></li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };

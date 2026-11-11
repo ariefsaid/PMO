@@ -5,3 +5,10 @@ import type { HomeLayout } from '@/src/hooks/useHomeLayout';
 export function pinHomeLayout(layout: HomeLayout) {
   beforeEach(() => localStorage.setItem('home-layout', layout));
 }
+
+/** Open the page's "N figures hidden · Why" reasons and return them (the reasons and the fix link live in the popover). */
+export async function openHiddenReasons() {
+  const { screen, within } = await import('@testing-library/react');
+  const { default: userEvent } = await import('@testing-library/user-event');
+  await userEvent.click(within(screen.getByTestId('figures-hidden')).getByRole('button', { name: 'Why' }));
+}

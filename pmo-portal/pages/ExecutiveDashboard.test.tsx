@@ -6,7 +6,7 @@ import React from 'react';
 import ExecutiveDashboard from './ExecutiveDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 import { BahasaProvider } from '@/test/bahasa';
-import { pinHomeLayout } from '@/test/homeLayout';
+import { openHiddenReasons, pinHomeLayout } from '@/test/homeLayout';
 
 pinHomeLayout('focused');
 
@@ -21,6 +21,7 @@ const needsState = vi.hoisted(() => ({
   isError: false,
   refetch: vi.fn(),
 }));
+const lossState = vi.hoisted(() => ({ data: undefined as unknown, isPending: true, isError: false, refetch: vi.fn() }));
 const projectsState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
 const procurementsState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
 const budgetReviewState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
@@ -56,7 +57,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useFinanceBudgetReview: () => budgetReviewState,
   useWinRate: () => ({ data: { wins_count: 2, losses_count: 1, wins_value: 500, losses_value: 250, win_rate_count: 2 / 3, win_rate_value: 2 / 3 }, isPending: false, isError: false, refetch: vi.fn() }),
-  useLossBreakdown: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
+  useLossBreakdown: () => lossState,
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procurementsState }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => projectsState }));
@@ -107,6 +108,8 @@ function renderBahasaPage() {
 }
 
 beforeEach(() => {
+  lossState.data = undefined;
+  lossState.isPending = true;
   state.role = 'Executive';
   labelState.real = false;
   needsState.items = [{ id: 'approvals', count: 2, label: 'approvals waiting for you', href: '/approvals', tone: 'warn' }];
@@ -278,14 +281,15 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(within(figures()).queryByText('Known margin on billed work')).not.toBeInTheDocument();
   });
 
-  it('AC-DASH-1403-02: an unknown figure draws nothing; one page line says what is missing and links to the fix', () => {
+  it('AC-DASH-1403-02: an unknown figure draws nothing; one short page line counts it and "Why" says what is missing and links to the fix', async () => {
     state.role = 'Admin';
     setToday('owed-clients', { value: null, amounts: null });
     renderPage();
     expect(within(figures()).queryByText('Owed by clients')).not.toBeInTheDocument();
-    const line = screen.getByTestId('figures-hidden');
-    expect(line).toHaveTextContent('1 figure hidden: some client invoice balances are not synced');
-    expect(within(line).getByRole('link', { name: 'Set up' })).toHaveAttribute('href', '/administration/accounting');
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden · Why');
+    await openHiddenReasons();
+    expect(await screen.findByText('some client invoice balances are not synced')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Set up' })).toHaveAttribute('href', '/administration/accounting');
     expect(screen.queryByText('0')).not.toBeInTheDocument();
   });
 
@@ -410,13 +414,14 @@ describe('company home — finance (one question: what must I collect, pay and i
     expect(row).toHaveTextContent('$2,500');
   });
 
-  it('unknown never reads as zero: Collected with no receipts recorded while client balances are not synced is hidden under the one page line', () => {
+  it('unknown never reads as zero: Collected with no receipts recorded while client balances are not synced is hidden under the one page line', async () => {
     setToday('owed-clients', { value: null, amounts: null });
     figureState.result = { ...figureState.result, period: periodFigures.map((figure) => figure.id === 'collected' ? { ...figure, amounts: [] } : figure) };
     renderPage();
     const figures = screen.getByRole('region', { name: 'Company figures' });
     expect(within(figures).queryByText('Collected', { exact: true })).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('incoming payments are not synced');
+    await openHiddenReasons();
+    expect(await screen.findByText('incoming payments are not synced')).toBeInTheDocument();
   });
 
   it('a recorded zero is still drawn once client balances are known', () => {
@@ -452,13 +457,14 @@ describe('company home — finance (one question: what must I collect, pay and i
     expect(screen.getByTestId('location')).toHaveTextContent('/procurement/procurement-1');
   });
 
-  it('F2: the budget review is drawn only when some spending is known, and shows the top five active budgets in RPC order', () => {
+  it('F2: the budget review is drawn only when some spending is known, and shows the top five active budgets in RPC order', async () => {
     const budget = (id: string, over: Record<string, unknown> = {}) => ({ id, name: `Budget ${id}`, client_name: null, status: 'Ongoing Project', currency: 'USD', budget: 1_000, budget_currency: 'USD', spent: 1_500, variance: 500, actual_currency: 'USD', actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1, actual_as_of: null, ...over });
     budgetReviewState.data = [budget('1', { spent: null, variance: null, actual_complete: false })];
     const { unmount } = renderPage();
     // Unknown spending on every row: no card, and the page's one hidden line names it.
     expect(screen.queryByRole('heading', { name: 'Budget review' })).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('project spending is not recorded');
+    await openHiddenReasons();
+    expect(await screen.findByText('project spending is not recorded')).toBeInTheDocument();
     unmount();
     budgetReviewState.data = [budget('x', { status: 'Leads' }), ...['1', '2', '3', '4', '5', '6'].map((id) => budget(id))];
     renderPage();
@@ -556,13 +562,15 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(document.querySelector('[data-home-layout="overview"]')).not.toBeNull();
   });
 
-  it('executive: waits, off-track, figures, budget and sales charts, with the Analysis section holding only billing', async () => {
+  it('executive: waits, off-track, figures and Sales on the page, billing figures in their own row, no Analysis section', () => {
     renderPage();
     for (const name of ['Waits on you', 'Projects off track', 'Sales']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Billing' })).getByText('Still to invoice')).toBeInTheDocument();
     expect(within(figures()).getByText('Contract on hand')).toBeInTheDocument();
-    await openAnalysis();
+    expect(screen.queryByText('Analysis')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Plan vs actual' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Billing' })).toBeInTheDocument();
+    // One help control on the page: the win-rate definition is folded into it.
+    expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
   });
 
   it('draws budget and spending per project, worst first, and leaves out a project whose spending is unknown', () => {
@@ -577,12 +585,13 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(rows[2]).not.toContain('Spent');
   });
 
-  it('with no recorded spending the budget chart is not drawn and the page line counts it', () => {
+  it('with no recorded spending the budget chart is not drawn and the page line counts it', async () => {
     const top = { id: 'a', name: 'Delivery a', client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent: null, actual_complete: false, actual_currency: null, status: 'Ongoing Project' };
     (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top];
     renderPage();
     expect(screen.queryByRole('heading', { name: 'Budget and spending by project' })).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('project spending is not recorded');
+    await openHiddenReasons();
+    expect(await screen.findByText('project spending is not recorded')).toBeInTheDocument();
   });
 
   it('the sales card draws the open stages as bars on one scale with their counts, Won as a figure, and no stage table', () => {
@@ -601,25 +610,45 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(within(sales).getByRole('button', { name: /Won · Year to date · 2/ })).toHaveTextContent('$14.4M');
   });
 
-  it('draws purchasing as one stacked bar with a count per stage, and invoiced by month only from three months of history', () => {
+  it('draws purchasing as one stacked bar with a count per stage, and invoiced by month only from three months of history', async () => {
     (figureState.result?.dashboard as Record<string, unknown>).procurements_by_status = [{ status: 'Requested', count: 3 }, { status: 'Vendor Invoiced', count: 1 }];
     renderPage();
     const purchasing = screen.getByRole('heading', { name: 'Purchasing by stage' }).closest('.panel-card') as HTMLElement;
     expect(purchasing).toHaveTextContent('Request 3');
     expect(purchasing).toHaveTextContent('Pay 1');
     expect(screen.queryByRole('heading', { name: /Invoiced/ })).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('invoicing has fewer than three months of history');
+    await openHiddenReasons();
+    expect(await screen.findByText('the period covers fewer than three months')).toBeInTheDocument();
   });
 
-  it('draws invoiced next to collected by month once receipts are recorded', () => {
-    const points = ['2026-05-01', '2026-06-01', '2026-07-01'].map((month, index) => ({ month, amount: 1_000 * (index + 1) }));
-    figureState.result = { ...figureState.result, invoicedTrend: { currency: 'USD', points, total: 6_000, first: 1_000, last: 3_000, direction: 'up', hasLine: true }, collectedByMonth: new Map([['2026-06', 500]]), trendPending: false, trendError: false, trendRetry: vi.fn() };
+  it('draws every month of the period, invoiced next to collected once receipts are recorded', () => {
+    const months = ['2026-05', '2026-06', '2026-07'].map((month, index) => ({ month, amount: 1_000 * (index + 1) }));
+    figureState.result = { ...figureState.result, invoicedByMonth: months, collectedByMonth: new Map([['2026-06', 500]]) };
     renderPage();
     const rows = tableCells('Invoiced and collected by month');
     expect(rows).toHaveLength(3);
     expect(rows[1]).toContain('Invoiced, excl. tax $2K');
     expect(rows[1]).toContain('Collected $500');
     expect(rows[0]).toContain('Collected $0');
+  });
+
+  it('why deals were lost: reasons are drawn only when recorded; with none recorded the chart is left out and counted, the client rows stay', async () => {
+    lossState.isPending = false;
+    lossState.data = { by_reason: [{ reason: null, losses_count: 2, declined_count: 0 }], by_client: [{ client_id: 'c1', client_name: 'Harbor Park', wins_count: 1, losses_count: 1 }] };
+    renderPage();
+    expect(screen.queryByRole('heading', { name: 'Why deals were lost' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Not recorded/)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Win and loss by client' })).toBeInTheDocument();
+    expect(screen.getByText('1 won, 1 lost')).toBeInTheDocument();
+    await openHiddenReasons();
+    expect(await screen.findByText('no loss reason is recorded')).toBeInTheDocument();
+  });
+
+  it('why deals were lost: a recorded reason is a bar with its count, under the client rows heading', () => {
+    lossState.isPending = false;
+    lossState.data = { by_reason: [{ reason: 'price', losses_count: 3, declined_count: 1 }], by_client: [] };
+    renderPage();
+    expect(screen.getByRole('img', { name: /^Why deals were lost\. .*: 4$/ })).toBeInTheDocument();
   });
 
   it('finance: overdue from clients beside waits, receivables by age, and an unknown balance counted, not drawn', () => {

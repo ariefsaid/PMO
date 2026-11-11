@@ -5,16 +5,16 @@ import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
 import { Icon } from '@/src/components/ui/icons';
 import { ListState } from '@/src/components/ui/ListState';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+import { lostReasonLabel } from '@/src/lib/lostReasons';
+import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { PROCUREMENT_STAGES, type ProcurementStage } from '@/src/lib/procurement/stage';
 import { formatMonthShort, formatTileMoney } from '@/src/lib/format';
 import { tileMoneyLines } from '@/src/components/dashboard/restructure/currencyOrder';
-import type { InvoicedTrend } from '@/src/lib/dashboardTrend';
 import type { BudgetReviewRow, PipelineStage, TopProject } from '@/src/lib/db/dashboard';
 import type { AgeingBuckets } from '@/src/lib/finance/financePosition';
 import { BarList, ChartCard, MonthColumns, SeriesKey, StackedBar, type BarRow, type ChartTone } from '@/src/components/dashboard/charts';
-import { LossBreakdown } from '@/src/components/dashboard/LossBreakdown';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
-import type { WinRateRange } from '@/src/hooks/useDashboard';
+import { useLossBreakdown, type WinRateRange } from '@/src/hooks/useDashboard';
 import { budgetSpendKnown } from './financeData';
 import { budgetVsSpentRows } from './overviewData';
 import { openPipelineStages } from './pipelineStages';
@@ -60,7 +60,7 @@ export const SalesOverviewCard: React.FC<{
   const navigate = useNavigate();
   const statusLabel = useProjectStatusLabel();
   const open = openPipelineStages(stages);
-  const rows: BarRow[] = open.map((stage) => ({ id: String(stage.status), name: `${statusLabel(stage.status as string)} · ${stage.count}`, value: stage.weighted_value, label: money(stage.weighted_value, currency), tone: 'neutral' }));
+  const rows: BarRow[] = open.map((stage) => ({ id: String(stage.status), name: `${statusLabel(stage.status as string)} · ${stage.count}`, value: stage.weighted_value, label: money(stage.weighted_value, currency), tone: 'accent' }));
   const wonValue = won ? tileMoneyLines(won.amounts, currency, formatTileMoney).join(' ') : '';
   return (
     <Card data-testid="sales-overview" className={className}>
@@ -84,45 +84,45 @@ export const SalesOverviewCard: React.FC<{
         {pending ? <ListState variant="loading" shape="chart" rows={2} />
           : error ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={retry} />
             : rows.length === 0 ? <ListState variant="empty" icon="pipe" title={t('hub.company.noPipeline', 'No open pipeline stages')} />
-              : <BarList rows={rows} ariaLabel={t('home.pipelineChart', 'Weighted pipeline by stage')} nameWidth={150} />}
-        <WinRateCard currency={currency} range={range} hidePeriodControl embedded />
+              : <BarList rows={rows} ariaLabel={t('home.pipelineChart', 'Weighted pipeline by stage')} />}
+        <WinRateCard currency={currency} range={range} hidePeriodControl embedded helpInPage />
       </CardPad>
     </Card>
   );
 };
 
-/** Invoiced by month (neutral), with what was collected beside it (accent) when receipts are recorded. */
+/** Invoiced for every month of the period (accent), with what was collected beside it (grey) when receipts are recorded. */
 export const InvoicedCollectedCard: React.FC<{
-  trend: InvoicedTrend | null;
+  months: Array<{ month: string; amount: number }> | undefined;
   collectedByMonth: Map<string, number> | undefined;
   collectedUnsynced: boolean;
   pending: boolean;
   error: boolean;
   retry: () => void;
-  orgCurrency: string;
+  currency: string;
   className?: string;
-}> = ({ trend, collectedByMonth, collectedUnsynced, pending, error, retry, orgCurrency, className }) => {
+}> = ({ months, collectedByMonth, collectedUnsynced, pending, error, retry, currency, className }) => {
   const { t } = useTranslation('dashboard');
-  const withCollected = Boolean(trend && trend.currency === orgCurrency && collectedByMonth && !collectedUnsynced);
+  const withCollected = Boolean(months && collectedByMonth && !collectedUnsynced);
   const title = withCollected ? t('home.invoicedVsCollected', 'Invoiced and collected by month') : t('home.invoicedByMonth', 'Invoiced by month');
   const invoicedName = t('home.chartInvoiced', 'Invoiced, excl. tax');
   const collectedName = t('home.chartCollected', 'Collected');
-  const points = (trend?.points ?? []).map((point) => {
-    const collected = withCollected ? collectedByMonth!.get(point.month.slice(0, 7)) ?? 0 : undefined;
+  const points = (months ?? []).map((point) => {
+    const collected = withCollected ? collectedByMonth!.get(point.month) ?? 0 : undefined;
     return {
       key: point.month,
       tick: formatMonthShort(new Date(Number(point.month.slice(0, 4)), Number(point.month.slice(5, 7)) - 1, 1)),
       a: point.amount,
-      labelA: money(point.amount, trend!.currency),
-      ...(collected === undefined ? {} : { b: collected, labelB: money(collected, trend!.currency) }),
+      labelA: money(point.amount, currency),
+      ...(collected === undefined ? {} : { b: collected, labelB: money(collected, currency) }),
     };
   });
   return (
     <ChartCard title={title} actions={<CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
-      known={Boolean(trend?.hasLine)} hiddenReason={t('home.reasonTrend', 'invoicing has fewer than three months of history')}
+      known={points.length >= 3} hiddenReason={t('home.reasonTrend', 'the period covers fewer than three months')}
       pending={pending} error={error ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry } : undefined} testId="chart-invoiced-collected" className={className}>
-      {withCollected && <SeriesKey items={[{ label: invoicedName, tone: 'neutral' }, { label: collectedName, tone: 'accent' }]} />}
-      <MonthColumns points={points} ariaLabel={title} seriesNames={[invoicedName, collectedName]} />
+      {withCollected && <SeriesKey items={[{ label: invoicedName, tone: 'accent' }, { label: collectedName, tone: 'neutral' }]} />}
+      <MonthColumns labelAll points={points} ariaLabel={title} seriesNames={[invoicedName, collectedName]} />
     </ChartCard>
   );
 };
@@ -142,22 +142,57 @@ export const PurchasingCard: React.FC<{ counts: Array<{ status: ProcurementStage
   );
 };
 
-/** Why deals were lost (bars by reason) with win and loss by client as rows under it. */
+/**
+ * Why deals were lost: bars for the reasons that were recorded. With none recorded the chart is left out (and counted in
+ * the page's hidden line); win and loss by client stay as rows under their own heading.
+ */
 export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string }> = ({ range, className }) => {
   const { t } = useTranslation('dashboard');
+  const { t: tl } = useTranslation('lostReason');
+  const { data, isPending, isError, refetch } = useLossBreakdown(range);
+  const reasons = (data?.by_reason ?? []).filter((row) => row.reason !== null).map((row) => ({ ...row, total: row.losses_count + row.declined_count })).filter((row) => row.total > 0);
+  const clients = data?.by_client ?? [];
+  const title = t('home.whyLost', 'Why deals were lost');
+  const noneRecorded = Boolean(data) && (data?.by_reason.length ?? 0) > 0 && reasons.length === 0;
+  useFigureReport(noneRecorded ? [{ label: title, reason: t('home.reasonLossReasons', 'no loss reason is recorded') }] : []);
+  if (isPending) return null;
+  const clientRows = clients.length > 0 && (
+    <section aria-label={tl('breakdown.clientsTitle', 'Win and loss by client')} className={reasons.length > 0 ? 'mt-4' : undefined}>
+      {reasons.length > 0 && <h3 className="mb-1.5 text-control font-semibold">{tl('breakdown.clientsTitle', 'Win and loss by client')}</h3>}
+      <ul className="grid gap-1 text-control">
+        {clients.map((c) => (
+          <li key={c.client_id ?? 'unknown'} className="flex items-baseline justify-between gap-2">
+            <span className="min-w-0 truncate">{c.client_name ?? tl('breakdown.unknownClient', 'Unknown client')}</span>
+            <span className="shrink-0 tabular text-muted-foreground">{tl('breakdown.wonLost', '{{won}} won, {{lost}} lost', { won: c.wins_count, lost: c.losses_count })}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+  const nothing = reasons.length === 0 && clients.length === 0;
+  if (!isError && noneRecorded && !clientRows) return null;
   return (
     <Card data-testid="chart-loss-reasons" className={className}>
-      <CardHead level={2} actions={<CardLink to="/sales">{t('dashboard:hub.company.openSales', 'Open sales')}</CardLink>}>{t('home.whyLost', 'Why deals were lost')}</CardHead>
-      <div className="px-[var(--panel-inset)] pb-4"><LossBreakdown range={range} bare chart /></div>
+      <CardHead level={2} actions={<CardLink to="/sales">{t('dashboard:hub.company.openSales', 'Open sales')}</CardLink>}>{reasons.length > 0 || nothing ? title : tl('breakdown.clientsTitle', 'Win and loss by client')}</CardHead>
+      <div className="px-[var(--panel-inset)] pb-4">
+        {isError ? <ListState variant="error" title={tl('breakdown.errorTitle', "Couldn't load the loss breakdown")} onRetry={() => void refetch()} />
+          : (
+            <>
+              {reasons.length > 0 && <BarList ariaLabel={title} rows={reasons.map((row) => ({ id: row.reason as string, name: lostReasonLabel((key, d) => String(tl(key, d)), row.reason), value: row.total, label: String(row.total), tone: 'accent' as const }))} />}
+              {nothing && <p className="text-control text-muted-foreground">{tl('breakdown.none', 'No lost deals in this period.')}</p>}
+              {reasons.length > 0 ? clientRows : <div>{clientRows}</div>}
+            </>
+          )}
+      </div>
     </Card>
   );
 };
 
-const AGE_TONE: Record<keyof AgeingBuckets, ChartTone> = { notDue: 'neutral', d1_30: 'accent', d31_60: 'accent', d61_90: 'bad', over90: 'bad' };
+const AGE_TONE: Record<keyof AgeingBuckets, ChartTone> = { notDue: 'accent', d1_30: 'accent', d31_60: 'accent', d61_90: 'bad', over90: 'bad' };
 const AGE_KEYS = ['notDue', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
 
 /** What clients owe, by how long it has been due (known balances only, in the organisation currency). */
-export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets>; unknownCount: number; currency: string; pending: boolean; error: boolean; retry: () => void }> = ({ ageing, unknownCount, currency, pending, error, retry }) => {
+export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets>; unknownCount: number; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string }> = ({ ageing, unknownCount, currency, pending, error, retry, className }) => {
   const { t } = useTranslation();
   const buckets = ageing[currency];
   const labels: Record<keyof AgeingBuckets, string> = {
@@ -172,25 +207,25 @@ export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets
   return (
     <ChartCard title={title} actions={<CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
       known={Boolean(buckets) && rows.some((row) => (row.value ?? 0) > 0)} hiddenReason={t('dashboard:home.reasonAgeing', 'no client balance is known')}
-      pending={pending} error={error ? { title: t('dashboard:home.overdueError', "Couldn't load overdue invoices"), retry } : undefined} testId="chart-receivables-age">
-      <BarList rows={rows} ariaLabel={title} nameWidth={112} />
+      pending={pending} error={error ? { title: t('dashboard:home.overdueError', "Couldn't load overdue invoices"), retry } : undefined} testId="chart-receivables-age" className={className}>
+      <BarList rows={rows} ariaLabel={title} />
       {unknownCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('dashboard:home.ageingUnknown', { count: unknownCount, defaultValue_one: '{{count}} invoice with an unknown balance is not drawn', defaultValue_other: '{{count}} invoices with unknown balances are not drawn' })}</p>}
     </ChartCard>
   );
 };
 
 /** Budget used per project (spending known only), largest first; over 100% is red. */
-export const BudgetUsedCard: React.FC<{ rows: BudgetReviewRow[]; name: (row: BudgetReviewRow) => string; pending: boolean; error: boolean; retry: () => void }> = ({ rows, name, pending, error, retry }) => {
+export const BudgetUsedCard: React.FC<{ rows: BudgetReviewRow[]; name: (row: BudgetReviewRow) => string; pending: boolean; error: boolean; retry: () => void; className?: string }> = ({ rows, name, pending, error, retry, className }) => {
   const { t } = useTranslation('dashboard');
   const used = rows.filter((row) => budgetSpendKnown(row) && row.budget > 0 && row.budget_currency === row.currency)
     .map((row) => ({ row, pct: Math.round((row.spent as number) / row.budget * 100) })).sort((a, b) => b.pct - a.pct).slice(0, 8);
   const title = t('home.budgetUsedByProject', 'Budget used by project');
-  const bars: BarRow[] = used.map(({ row, pct }) => ({ id: row.id, name: name(row), value: pct, label: `${pct}%`, tone: pct > 100 ? 'bad' : 'neutral' }));
+  const bars: BarRow[] = used.map(({ row, pct }) => ({ id: row.id, name: name(row), value: pct, label: `${pct}%`, tone: pct > 100 ? 'bad' : 'accent' }));
   if (!pending && !error && rows.length === 0) return null;
   return (
     <ChartCard title={title} actions={<CardLink to="/projects">{t('dashboard:hub.company.openProjects', 'Open projects')}</CardLink>}
       known={bars.length > 0} hiddenReason={t('home.reasonBudgetSpend', 'project spending is not recorded')}
-      pending={pending} error={error ? { title: t('dashboard:hub.company.budgetReviewError', "Couldn't load budget review"), retry } : undefined} testId="chart-budget-used">
+      pending={pending} error={error ? { title: t('dashboard:hub.company.budgetReviewError', "Couldn't load budget review"), retry } : undefined} testId="chart-budget-used" className={className}>
       <BarList rows={bars} ariaLabel={title} domainMax={Math.max(100, ...used.map((item) => item.pct))} />
     </ChartCard>
   );

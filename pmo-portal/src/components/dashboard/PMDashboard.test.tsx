@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import type { PMDashboardProject } from '@/src/lib/db/dashboard';
 import { BahasaProvider } from '@/test/bahasa';
+import { openHiddenReasons } from '@/test/homeLayout';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { PMDashboard } from './PMDashboard';
 
@@ -344,13 +345,14 @@ describe('Project Manager home — layouts', () => {
     expect(screen.queryByRole('img', { name: /^Overdue tasks by project/ })).not.toBeInTheDocument();
   });
 
-  it('Overview: delivery and budget are left out and counted when neither is known', () => {
+  it('Overview: delivery and budget are left out and counted when neither is known', async () => {
     localStorage.removeItem('home-layout');
     state.delivery.data = {};
     state.projects.data = projects.map((project) => ({ ...project, spent: null, actual_complete: false }));
     renderDashboard();
     expect(screen.queryByRole('heading', { name: 'Delivery and budget used by project' })).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('delivery and budget are not recorded');
+    await openHiddenReasons();
+    expect(await screen.findByText('delivery and budget are not recorded')).toBeInTheDocument();
   });
 
   it('Focused: the calm build, one figure and no charts', () => {

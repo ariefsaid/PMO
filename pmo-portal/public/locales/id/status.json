@@ -210,6 +210,9 @@
   },
   "figures": {
     "hidden_one": "{{count}} angka disembunyikan: {{reason}}",
-    "hidden_other": "{{count}} angka disembunyikan: {{reason}}"
+    "hidden_other": "{{count}} angka disembunyikan: {{reason}}",
+    "hiddenCount_one": "{{count}} angka disembunyikan",
+    "hiddenCount_other": "{{count}} angka disembunyikan",
+    "why": "Mengapa"
   }
 }

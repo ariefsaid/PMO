@@ -781,14 +781,13 @@
     "invoicedByMonth": "Ditagihkan per bulan",
     "chartInvoiced": "Ditagihkan, tanpa pajak",
     "chartCollected": "Diterima",
-    "reasonTrend": "penagihan belum punya tiga bulan riwayat",
+    "reasonTrend": "periode ini kurang dari tiga bulan",
     "whyLost": "Alasan deal kalah",
     "receivablesByAge": "Piutang klien menurut umur",
     "reasonAgeing": "belum ada saldo klien yang diketahui",
     "ageingUnknown_one": "{{count}} faktur dengan saldo tidak diketahui tidak digambar",
     "ageingUnknown_other": "{{count}} faktur dengan saldo tidak diketahui tidak digambar",
     "budgetUsedByProject": "Anggaran terpakai per proyek",
-    "invoicedSpark": "Ditagihkan per bulan, {{count}} bulan terakhir",
     "chartDelivery": "Progres",
     "deliveryVsBudget": "Progres dan anggaran terpakai per proyek",
     "overdueByProject": "Tugas terlambat per proyek",
@@ -797,6 +796,7 @@
     "reasonTeamHours": "timesheet tim tidak dapat dibaca",
     "tasksOverdue": "Tugas terlambat",
     "reasonTasksOverdue": "tanggal tugas tidak dapat dibaca",
-    "reasonDeliveryBudget": "progres dan anggaran belum dicatat"
+    "reasonDeliveryBudget": "progres dan anggaran belum dicatat",
+    "reasonLossReasons": "belum ada alasan kalah yang dicatat"
   }
 }

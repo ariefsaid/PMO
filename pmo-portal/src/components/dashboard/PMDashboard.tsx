@@ -151,7 +151,7 @@ export const PMDashboard: React.FC = () => {
         help={t('home.pm.help', 'Delivery projects assigned to you. Budget used compares recorded spending with the active budget; it is hidden where spending or budget is incomplete.')}
         action={<Button variant="outline" size="sm" onClick={refresh} aria-label={t('hub.pm.refresh', 'Refresh')}><Icon name="refresh" /><span className="hidden sm:inline">{t('hub.pm.refresh', 'Refresh')}</span></Button>}
       />
-      <FigureHiddenLine />
+      <FigureHiddenLine compact />
     </div>
   );
   const waitsEl = <WaitsOnYou rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />;

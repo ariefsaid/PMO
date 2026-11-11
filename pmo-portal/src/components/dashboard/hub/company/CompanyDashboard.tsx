@@ -29,7 +29,6 @@ import { Analysis, ProjectRows, WaitsOnYou, type ProjectRow, type WaitRow } from
 import { StatusBarChart } from '@/src/components/dashboard/StatusBarChart';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { chartTheme } from '@/src/components/ui/chartTheme';
-import { Spark } from '@/src/components/dashboard/charts';
 import { stageForStatus, PROCUREMENT_STAGES, type ProcurementStage } from '@/src/lib/procurement/stage';
 import { formatTableMoney } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -43,7 +42,6 @@ import { PlanVsActualChart } from './PlanVsActualChart';
 import { SalesFunnel } from './SalesFunnel';
 import { BudgetReviewCard, FinanceAnalysis, ReadyToPayCard } from './FinanceBlocks';
 import { useSupplierUnpaid } from './financeData';
-import { budgetVsSpentRows } from './overviewData';
 import { BudgetUsedCard, BudgetVsSpentCard, InvoicedCollectedCard, LossReasonsCard, PurchasingCard, ReceivablesAgeCard, SalesOverviewCard } from './OverviewCards';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
@@ -226,7 +224,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const analysis = finance ? <FinanceAnalysis /> : (
     <>
       {planCard}
-      <Card><CardPad><WinRateCard currency={orgCurrency} range={figures.winRateRange} hidePeriodControl embedded /></CardPad></Card>
+      <Card><CardPad><WinRateCard currency={orgCurrency} range={figures.winRateRange} hidePeriodControl embedded helpInPage /></CardPad></Card>
       {purchasingCard}
       {billingCard}
     </>
@@ -274,7 +272,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         help={t('home.help.basis', 'Position today in each record currency. Invoiced, collected and won cover the period chosen.')}
         action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
       />
-      <FigureHiddenLine />
+      <FigureHiddenLine compact />
     </div>
   );
   const tilesRow = (cols: string, tileList: React.ReactNode[]) => figures.todayError
@@ -284,42 +282,50 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const panelGrid = 'grid items-start gap-[var(--space-panel-gap)]';
   if (overview) {
     // Overview: everything on one page. "Waits on you" is a third of the first row; charts carry the analysis.
-    const trend = figures.invoicedTrend;
-    const invoicedKnown = moneyTileValue(invoiced?.amounts, orgCurrency) !== null;
-    const withSpark = (tile: React.ReactNode) => (React.isValidElement(tile) && tile.key === 'invoiced' && trend?.hasLine && invoicedKnown && trend.currency === orgCurrency
-      ? <div key="invoiced" className="flex min-w-0 flex-col bg-card">{tile}<div className="px-4 pb-3 pt-0"><Spark values={trend.points.map((point) => point.amount)} ariaLabel={t('home.invoicedSpark', 'Invoiced by month, last {{count}} months', { count: trend.points.length })} /></div></div>
-      : tile);
-    const tilesNode = figures.todayPending || figures.periodPending ? tilesRow('grid-cols-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col', positionTiles)
-      : tilesRow('grid-cols-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col [&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:[&>*:last-child:nth-child(odd)]:col-span-1', positionTiles.map(withSpark));
+    const tilesNode = tilesRow('grid-cols-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col [&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:[&>*:last-child:nth-child(odd)]:col-span-1', positionTiles);
     const lossRange = figures.winRateRange;
     const wonAmounts = won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined;
-    const retryFigures = () => figures.todayRetry();
-    const invoicedCard = (className?: string) => <InvoicedCollectedCard key="inv" className={className} trend={trend} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending} error={figures.trendError} retry={figures.trendRetry} orgCurrency={orgCurrency} />;
-    // Cards that are left out (no data) leave no hole: the finance grid reflows, and the executive rows are sized from what is drawn.
-    const SPAN: Record<number, string> = { 2: 'min-[900px]:col-span-2', 3: 'min-[900px]:col-span-3', 6: 'min-[900px]:col-span-6' };
-    const execCards = () => {
-      const bvaKnown = budgetVsSpentRows(data?.top_projects ?? [], orgCurrency).some((row) => row.value2 != null) || projectsPending || projectsError;
-      const invKnown = Boolean(trend?.hasLine) || figures.trendPending || figures.trendError;
-      const bva = (className: string) => <BudgetVsSpentCard key="bva" className={className} projects={data?.top_projects ?? []} currency={orgCurrency} pending={projectsPending} error={projectsError} retry={() => { figures.dashboardRetry(); void projects.refetch(); }} />;
-      const sales = (className: string) => <SalesOverviewCard key="sales" className={className} weighted={weighted} forecastMargin={data?.pipeline_projected_margin} stages={pipeline.data?.stages ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period={periodLabel} won={wonAmounts} range={lossRange} />;
-      const purchasing = (className: string) => <PurchasingCard key="pur" className={className} counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />;
-      const loss = (className: string) => <LossReasonsCard key="loss" className={className} range={lossRange} />;
-      const inv = (className: string) => invoicedCard(className);
-      // Two cards share the first row; the rest share the next, each an equal part of the width.
-      const rest = [...(invKnown ? [inv] : []), purchasing, loss];
-      const first = bvaKnown ? [bva, sales] : [sales, rest.shift()!];
-      const span = rest.length === 1 ? 6 : rest.length === 2 ? 3 : 2;
-      // A card left out still mounts (it draws nothing) so its reason reaches the page's hidden-figures line.
-      return <>{first.map((card) => card(SPAN[3]))}{rest.map((card) => card(SPAN[span]))}{!bvaKnown && bva(SPAN[3])}{!invKnown && inv(SPAN[3])}</>;
-    };
+    // The chart area is two independent columns (no card waits for its neighbour's height); on a phone the columns
+    // dissolve into one stack in the order given by each card's `order`.
+    const ORDER = ['', 'max-[899px]:order-1', 'max-[899px]:order-2', 'max-[899px]:order-3', 'max-[899px]:order-4', 'max-[899px]:order-5', 'max-[899px]:order-6'];
+    const columns = 'grid content-start gap-[var(--space-panel-gap)] max-[899px]:contents';
+    const invoicedCard = (order: number) => <InvoicedCollectedCard className={ORDER[order]} months={figures.invoicedByMonth} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.periodPending} error={figures.periodError} retry={figures.periodRetry} currency={orgCurrency} />;
+    // Billing (exec): Collected and Still to invoice, the figures that used to sit under "Analysis".
+    const billingTiles = (
+      <KPIRow aria-label={t('home.billing', 'Billing')} className={cn('grid-flow-col auto-cols-fr', ORDER[6])}>
+        {moneyTile(collected, collectedOpts)}
+        {moneyTile(todayFigure('still-to-invoice'), { label: t('home.stillToInvoice', 'Still to invoice'), caption: '' })}
+      </KPIRow>
+    );
+    const billingKnown = (!collectedUnsynced && moneyTileValue(collected?.amounts, orgCurrency) !== null) || moneyTileValue(todayFigure('still-to-invoice')?.amounts, orgCurrency) !== null;
+    const billing = billingKnown
+      ? billingTiles
+      : <div hidden>{billingTiles}</div>;
     const chartsRow = finance ? (
-      <div className={cn(panelGrid, 'min-[900px]:grid-cols-2 min-[900px]:[&>*:last-child:nth-child(odd)]:col-span-2')}>
-        <ReceivablesAgeCard ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={retryFigures} />
-        {invoicedCard()}
-        {readyCard}
-        <BudgetUsedCard rows={budgetRows} name={projectDisplayName} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} />
+      <div className={cn(panelGrid, 'min-[900px]:grid-cols-2 max-[899px]:grid-cols-1')}>
+        <div className={columns}>
+          <ReceivablesAgeCard className={ORDER[1]} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />
+          <div className={ORDER[3]}>{readyCard}</div>
+        </div>
+        <div className={columns}>
+          {invoicedCard(2)}
+          <BudgetUsedCard className={ORDER[4]} rows={budgetRows} name={projectDisplayName} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} />
+        </div>
       </div>
-    ) : <div className={cn(panelGrid, 'min-[900px]:grid-cols-6')}>{execCards()}</div>;
+    ) : (
+      <div className={cn(panelGrid, 'min-[900px]:grid-cols-2 max-[899px]:grid-cols-1')}>
+        <div className={columns}>
+          <BudgetVsSpentCard className={ORDER[1]} projects={data?.top_projects ?? []} currency={orgCurrency} pending={projectsPending} error={projectsError} retry={() => { figures.dashboardRetry(); void projects.refetch(); }} />
+          {invoicedCard(3)}
+          <PurchasingCard className={ORDER[4]} counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
+        </div>
+        <div className={columns}>
+          <SalesOverviewCard className={ORDER[2]} weighted={weighted} forecastMargin={data?.pipeline_projected_margin} stages={pipeline.data?.stages ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period={periodLabel} won={wonAmounts} range={lossRange} />
+          <LossReasonsCard className={ORDER[5]} range={lossRange} />
+          {billing}
+        </div>
+      </div>
+    );
     return (
       <FigureScope>
         <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="overview">
@@ -330,7 +336,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           </div>
           {tilesNode}
           {chartsRow}
-          <Analysis title={t('home.analysis', 'Analysis')}>{finance ? <FinanceAnalysis /> : billingCard}</Analysis>
+          {/* Executive: everything is on the page. Finance keeps the accounting-system ageing and ledger tables collapsed: they are long tables from the accounting source, not figures. */}
+          {finance && <Analysis title={t('home.analysis', 'Analysis')}><FinanceAnalysis /></Analysis>}
         </div>
       </FigureScope>
     );

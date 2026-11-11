@@ -166,9 +166,9 @@ export const EngineerDashboard: React.FC = () => {
     return (
       <FigureScope>
         <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
-          <div>{header}<FigureHiddenLine /></div>
+          <div>{header}<FigureHiddenLine compact /></div>
           <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start">
-            <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} today={organizationDay.day} chart />
+            <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} chart />
             <EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} today={organizationDay.day} loading={taskLoading} error={taskDataError || tasks.isError} onRetry={refresh} />
           </div>
           <div className={returned ? 'grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start' : undefined}>

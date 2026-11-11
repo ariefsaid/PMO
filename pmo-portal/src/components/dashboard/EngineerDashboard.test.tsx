@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter, useLocation } from 'react-router';
 import { EngineerDashboard } from './EngineerDashboard';
 import { BahasaProvider } from '@/test/bahasa';
-import { pinHomeLayout } from '@/test/homeLayout';
+import { openHiddenReasons, pinHomeLayout } from '@/test/homeLayout';
 
 pinHomeLayout('focused');
 
@@ -319,13 +319,14 @@ describe('Engineer home — Overview layout', () => {
     expect(within(timesheetCard()).queryByRole('list', { name: 'Hours by day this week' })).not.toBeInTheDocument();
   });
 
-  it('keeps the filled action and the returned claims, and leaves the project chart out (counted) when no time is logged', () => {
+  it('keeps the filled action and the returned claims, and leaves the project chart out (counted) when no time is logged', async () => {
     state.timesheets.data = [{ ...sheets[1], status: 'Draft', entries: [] }];
     renderDashboard();
     expect(within(timesheetCard()).getByRole('link', { name: 'Log time' })).toHaveAttribute('href', '/timesheets');
     expect(screen.getByTestId('engineer-returned')).toBeInTheDocument();
     expect(screen.queryByTestId('chart-hours-by-project')).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('no time is logged this week');
+    await openHiddenReasons();
+    expect(await screen.findByText('no time is logged this week')).toBeInTheDocument();
   });
 
   it('an unknown stored layout is Overview; Focused keeps the strip and no project chart', () => {

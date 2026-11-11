@@ -6,6 +6,7 @@ import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency, formatPercent } from '@/src/lib/format';
 import { toIso } from '@/src/lib/calendar/monthMatrix';
 import { Tooltip } from '@/src/components/ui/Tooltip';
+import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { Icon } from '@/src/components/ui/icons';
 import { cn } from '@/src/components/ui/cn';
 import {
@@ -141,9 +142,11 @@ export interface WinRateCardProps {
   /** A containing dashboard may own the date range and URL state. */
   range?: WinRateRange;
   hidePeriodControl?: boolean;
+  /** The definition goes into the page's one help control instead of a second "?" on this card. */
+  helpInPage?: boolean;
 }
 
-export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = false, range: externalRange, hidePeriodControl = false }) => {
+export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = false, range: externalRange, hidePeriodControl = false, helpInPage = false }) => {
   const [mode, setMode] = useState<'count' | 'value'>('count');
   const [period, setPeriod] = useState<PeriodKey>('all');
   // Re-derive the window when the local date rolls over in a long-lived session.
@@ -159,6 +162,8 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
   const activeRange = externalRange ?? range;
   const { data: wr, isPending, isError, refetch } = useWinRate(activeRange);
   const { t } = useTranslation();
+  const winRateHelp = t('dashboard:hub.company.help.winRate', 'Shows wins divided by decided bids and wins divided by all bids, including open bids, in the selected period. The basis can switch between count and value.');
+  useFigureReport([], helpInPage ? [{ label: t('dashboard.winRate.title', 'Win rate'), text: winRateHelp }] : []);
   const basisOptions: ViewOption<'count' | 'value'>[] = [
     { value: 'count', label: t('dashboard.winRate.basisCount', 'By count'), testId: 'win-rate-toggle-count' },
     { value: 'value', label: t('dashboard.winRate.basisValue', 'By value'), testId: 'win-rate-toggle-value' },
@@ -223,9 +228,11 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
     <section aria-label={t('dashboard.winRate.title', 'Win rate')} className={embedded ? 'grid gap-3' : 'rounded-lg border border-border bg-card p-4'}>
       <div className="mb-3.5 flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-semibold">{t('dashboard.winRate.title', 'Win rate')}</h3>
-        <Tooltip content={t('dashboard:hub.company.help.winRate', 'Shows wins divided by decided bids and wins divided by all bids, including open bids, in the selected period. The basis can switch between count and value.')}>
-          <button type="button" aria-label={t('dashboard:hub.company.aboutWinRate', 'About win rate')} className="touch-target grid size-11 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button>
-        </Tooltip>
+        {!helpInPage && (
+          <Tooltip content={winRateHelp}>
+            <button type="button" aria-label={t('dashboard:hub.company.aboutWinRate', 'About win rate')} className="touch-target grid size-11 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button>
+          </Tooltip>
+        )}
         <span className="flex-1" />
         <ViewToggle<'count' | 'value'> options={basisOptions} value={mode} onChange={setMode} ariaLabel={t('dashboard.winRate.basis', 'Win-rate basis')} semantics="toggle" />
       </div>
