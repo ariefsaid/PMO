@@ -15,6 +15,7 @@ let canImpersonate = true;
 const viewAs = vi.fn();
 const signOut = vi.fn();
 const onOpenPalette = vi.fn();
+const onOpenMore = vi.fn();
 let displayName = 'Ada Lovelace';
 
 vi.mock('@/src/auth/impersonation', () => ({
@@ -49,7 +50,7 @@ const breadcrumb = [{ label: 'Dashboard' }];
 const renderBar = () =>
   render(
     <MemoryRouter>
-      <ContextBar breadcrumb={breadcrumb} onOpenPalette={onOpenPalette} onToggleRail={vi.fn()} />
+      <ContextBar breadcrumb={breadcrumb} onOpenPalette={onOpenPalette} onOpenMore={onOpenMore} />
     </MemoryRouter>
   );
 
@@ -58,6 +59,7 @@ beforeEach(() => {
   viewAs.mockClear();
   signOut.mockClear();
   onOpenPalette.mockClear();
+  onOpenMore.mockClear();
   // Theme truth resets between tests (the DOM class is the source of truth).
   document.documentElement.classList.remove('dark');
   localStorage.removeItem('theme');
@@ -76,9 +78,16 @@ describe('ContextBar', () => {
     renderBar();
     const trigger = screen.getByRole('button', { name: /command palette/i });
     expect(trigger.className.split(/\s+/)).toContain('px-3');
+    expect(trigger.className.split(/\s+/)).toContain('min-h-11');
+    expect(trigger.className.split(/\s+/)).toContain('max-[921px]:min-w-11');
     expect(trigger).toHaveAttribute('aria-keyshortcuts');
     await userEvent.click(trigger);
     expect(onOpenPalette).toHaveBeenCalled();
+  });
+
+  it('keeps header Search out of the phone layout where the bottom bar owns Search', () => {
+    renderBar();
+    expect(screen.getByRole('button', { name: /command palette/i }).className).toContain('max-[639px]:hidden');
   });
 
   it('AC-WFN-001: the notification bell shows even while `agentAssistant` is off', () => {
@@ -88,11 +97,11 @@ describe('ContextBar', () => {
     expect(screen.getByRole('button', { name: /notifications, 0 unread/i })).toBeInTheDocument();
   });
 
-  it('UIP-002: the navigation menu trigger uses the menu glyph and keeps its accessible name', () => {
+  it('UIP-002: the compact-tablet More control shares the phone drawer trigger contract', () => {
     renderBar();
-    const trigger = screen.getByRole('button', { name: /open navigation/i });
-    expect(trigger).toBeInTheDocument();
-    expect(trigger.querySelector('svg')).toHaveAttribute('data-icon', 'menu');
+    expect(screen.queryByRole('button', { name: /open navigation/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^more$/i })).toHaveAttribute('data-drawer-toggle');
+    expect(screen.getByRole('button', { name: /^more$/i }).className).toContain('tablet-nav-more');
   });
 });
 
@@ -219,7 +228,7 @@ describe('ContextBar — unified account menu', () => {
     await waitFor(() => expect(profile).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.tab();
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole('button', { name: /open navigation/i })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole('button', { name: /^more$/i })).toHaveFocus());
     screen.getByRole('button', { name: /account menu/i }).focus();
     await userEvent.keyboard('{Enter}');
     await screen.findByRole('menu');
@@ -336,7 +345,6 @@ describe('ContextBar — catalogue-backed account-menu labels (AC-ACCT-006)', ()
           <ContextBar
             breadcrumb={breadcrumb}
             onOpenPalette={onOpenPalette}
-            onToggleRail={vi.fn()}
           />
         </MemoryRouter>
       </I18nextProvider>,

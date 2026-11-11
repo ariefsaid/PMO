@@ -314,14 +314,13 @@ export function useProcurementDecision(
       }
       setPendingConfirm(null);
     } catch (err) {
-      // Close the confirm; surface the classified toast + keep the verbatim
-      // inline error (forms keep redundant errors — that is correct).
-      setPendingConfirm(null);
+      // Keep the same staged payload and its command identity in the confirmation so a retry
+      // repeats the user's exact, already-confirmed attempt.
       const { headline, detail } = (pendingConfirm.kind === 'createVI' && pendingConfirm.lines
         ? classifySubcontractBillError(err, t)
         : null) ?? odooActionError(err, odooOwnsProcurement(), t) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
-      setMutationError(detail);
+      setMutationError(detail ? `${headline}. ${detail}` : headline);
     }
   };
 

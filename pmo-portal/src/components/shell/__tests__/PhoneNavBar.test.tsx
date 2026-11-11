@@ -15,6 +15,7 @@ import { PhoneNavBar } from '../PhoneNavBar';
 const state = vi.hoisted(() => ({
   narrow: true,
   role: 'Project Manager' as string,
+  eligibleDecisions: false,
   features: {} as Record<string, boolean>,
 }));
 
@@ -24,6 +25,10 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({ data: state.features, isPending: false, isError: false }),
+}));
+vi.mock('@/src/hooks/useTimesheetApproval', () => ({
+  useTimesheetsAwaitingApproval: () => ({ data: state.eligibleDecisions ? [{}] : [], isPending: false, isError: false }),
+  useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
 }));
 
 const renderBar = (entry = '/', moreOpen = false) => {
@@ -42,30 +47,45 @@ const linkNames = () =>
     .getAllByRole('link')
     .map((a) => a.textContent);
 
+const slotNames = () =>
+  [...screen.getByRole('navigation', { name: 'Phone navigation' }).querySelectorAll('a, button')]
+    .map((element) => element.getAttribute('aria-label') ??
+      element.querySelector('span span')?.textContent?.trim() ??
+      element.querySelector('span')?.textContent?.trim());
+
 beforeEach(() => {
   state.narrow = true;
   state.role = 'Project Manager';
+  state.eligibleDecisions = false;
   state.features = { revenue: true, procurement: true, timesheets: true };
 });
 
 afterEach(() => vi.clearAllMocks());
 
 describe('#2061 phone bottom navigation', () => {
-  it.each(['Executive', 'Project Manager', 'Finance', 'Admin'])('%s gets Approvals in the second slot', (role) => {
+  it.each(['Executive', 'Project Manager', 'Finance', 'Admin'])('%s gets the fixed destinations in order', (role) => {
     state.role = role;
     renderBar();
-    expect(linkNames()).toEqual(['Home', 'Approvals']);
-    expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Phone navigation' }).querySelectorAll('svg')).toHaveLength(4);
+    expect(slotNames()).toEqual(role === 'Executive'
+      ? ['Home', 'Approvals', 'Search', 'More']
+      : ['Home', 'Approvals', 'My Tasks', 'Search', 'More']);
   });
 
-  it('gives an Engineer My Tasks instead of an unavailable Approvals page', () => {
+  it('gives an Engineer without eligible decisions Home and My Tasks', () => {
     state.role = 'Engineer';
     renderBar();
     expect(linkNames()).toEqual(['Home', 'My Tasks']);
+    expect(slotNames()).toEqual(['Home', 'My Tasks', 'Search', 'More']);
     expect(screen.getByRole('link', { name: 'My Tasks' })).toHaveAttribute('href', '/my-tasks');
     expect(screen.queryByRole('link', { name: 'Approvals' })).not.toBeInTheDocument();
+  });
+
+  it('shows both fixed role destinations when an Engineer has eligible decisions', () => {
+    state.role = 'Engineer';
+    state.eligibleDecisions = true;
+    renderBar();
+    expect(linkNames()).toEqual(['Home', 'Approvals', 'My Tasks']);
+    expect(slotNames()).toEqual(['Home', 'Approvals', 'My Tasks', 'Search', 'More']);
   });
 
   it('points Home at the dashboard and Approvals at the shared approval queue', () => {
@@ -75,7 +95,7 @@ describe('#2061 phone bottom navigation', () => {
     expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('href', '/approvals');
   });
 
-  it('keeps the role destination independent of org features', () => {
+  it('keeps the fixed role destinations independent of unrelated org features', () => {
     state.role = 'Engineer';
     state.features = { timesheets: false, expenses: false, procurement: false, revenue: false };
     renderBar();
@@ -117,6 +137,7 @@ describe('#2061 phone bottom navigation', () => {
     const { onOpenMore } = renderBar('/', true);
     const more = screen.getByRole('button', { name: 'More' });
     expect(more).toHaveAttribute('aria-expanded', 'true');
+    expect(more).toHaveAttribute('data-drawer-toggle');
     await userEvent.click(more);
     expect(onOpenMore).toHaveBeenCalledTimes(1);
   });

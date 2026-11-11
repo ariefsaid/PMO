@@ -1,8 +1,8 @@
 {
+  "submitWeek": "Ajukan minggu ini",
   "approvalQueue": {
     "unknownProject": "Proyek tidak diketahui",
     "approved": "Lembar waktu disetujui",
-    "returned": "Lembar waktu dikembalikan",
     "approvedDetail": "Minggu {{name}} disetujui",
     "returnedDetail": "Dikembalikan kepada {{name}} untuk diperbaiki",
     "approve": "Setujui",

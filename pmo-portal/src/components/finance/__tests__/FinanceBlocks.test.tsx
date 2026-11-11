@@ -50,10 +50,10 @@ describe('Finance blocks', () => {
     expect(screen.queryByRole('button', { name: 'How this age balance is calculated' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /bucket.*calculated/i })).not.toBeInTheDocument();
     const bar = screen.getByTestId('ageing-bar-IDR');
-    expect(bar).toHaveClass('h-[10px]', 'rounded-full');
-    expect(bar.querySelectorAll('[data-bucket]')).toHaveLength(5);
-    expect(bar.querySelector('[data-bucket="notDue"]')).toHaveStyle({ width: '20%' });
-    expect(bar.querySelector('[data-bucket="over90"]')).toHaveClass('bg-destructive');
+    expect(bar).toHaveClass('h-9', 'rounded-md');
+    const chartLabel = bar.getAttribute('aria-label')?.replace(/\u00a0/g, ' ');
+    expect(chartLabel).toContain('Not yet due IDR 200');
+    expect(chartLabel).toContain('Over 90 days IDR 200');
   });
 
   it('opens an overdue invoice from the finance receivables list with its amount, due date and project', () => {
@@ -93,7 +93,11 @@ describe('Finance blocks', () => {
     expect(screen.getByRole('link', { name: /Northstar Client.*INV-104/ })).toHaveAttribute('href', '/finance/receivables?open=invoice-1');
     // Client · number on the first line; project · due date on the second; no initials avatar.
     expect(screen.getByText(/North delivery · Due /)).toBeInTheDocument();
-    expect(screen.getByText('Partly paid · 104 days overdue')).toBeInTheDocument();
+    const late = screen.getByText('Partly paid · 104 days overdue');
+    expect(late).toHaveClass('text-destructive-text');
+    const amount = screen.getByText('IDR 625,000');
+    expect(amount).toHaveClass('text-metric', 'font-semibold', 'tabular');
+    expect(amount.parentElement).toContainElement(late);
     expect(screen.getByText(/of IDR/)).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Alex Rivera' })).toBeNull();
   });

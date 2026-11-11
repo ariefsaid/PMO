@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import {
   RecordHeader,
   Card,
@@ -20,6 +21,7 @@ import { useIncident, useIncidentMutations } from '@/src/hooks/useIncidents';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { severityVariant } from '@/src/lib/status/statusVariants';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { NEXT_STATUS, TRANSITION_COPY, type AdvanceStatus } from '@/src/lib/incidents/transitions';
 import type { IncidentInput } from '@/src/lib/db/incidents';
 import { formatDay } from '@/src/lib/format';
@@ -38,6 +40,7 @@ import { IncidentFormModal } from '@/components/IncidentFormModal';
 const IncidentDetail: React.FC = () => {
   const { incidentId } = useParams<{ incidentId: string }>();
   const navigate = useNavigate();
+  const { t: tStatus } = useTranslation('status');
   const may = usePermission();
   const { toast } = useToast();
 
@@ -191,7 +194,7 @@ const IncidentDetail: React.FC = () => {
             <Field label="Type" value={incident.type} />
             <Field label="Date" value={formatDay(incident.incident_date)} />
             <Field label="Severity" value={incident.severity} />
-            <Field label="Status" value={incident.status} />
+            <Field label="Status" value={statusLabel('incident', incident.status, tStatus)} />
             <Field label="Location" value={incident.location || '—'} />
             <Field
               label="Project"

@@ -113,6 +113,25 @@ beforeEach(() => {
 });
 
 describe('Timesheets (real data)', () => {
+  it('AC-RSN-005 shows the reason and person during correction', () => {
+    tsState.data = [{ ...pmSheet[0], status: 'Draft', rejection_reason: 'Correct hours', rejected_by: 'manager', rejected_at: '2026-06-03T10:00:00Z', rejecter: { full_name: 'Reviewer' } }] as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false; renderPage();
+    expect(screen.getByText(/Correct hours/)).toBeInTheDocument();
+    expect(screen.getByText(/Reviewer/)).toBeInTheDocument();
+  });
+
+  it('AC-RSN-005 shows decision time and legacy unavailable fallbacks', () => {
+    tsState.data = [{ ...pmSheet[0], status: 'Rejected', rejection_reason: 'Correct hours', rejected_by: 'manager', rejected_at: '2026-06-03T10:00:00Z', rejecter: { full_name: 'Reviewer' } }] as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    const { unmount } = renderPage();
+    expect(screen.getByText(/Reviewer/)).toHaveTextContent('2026');
+    unmount();
+    tsState.data = [{ ...pmSheet[0], status: 'Rejected', rejection_reason: null, rejected_by: null, rejected_at: null, rejecter: null }] as unknown as TimesheetWithEntries[];
+    renderPage();
+    expect(screen.getByText('Reason unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('Person unavailable')).not.toBeInTheDocument();
+  });
+
   it('renders the signed-in user entry with joined project name for the current week (AC-601)', () => {
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
     tsState.isPending = false;
@@ -218,7 +237,7 @@ describe('CW-6: Timesheets no longer hosts its own approvals queue', () => {
 });
 
 describe('Timesheets returned-for-changes edge state', () => {
-  it('renders the returned-week ErrBanner (role=status) when the week is Rejected', async () => {
+  it('renders the shared Returned banner (role=status) when the week is Rejected', async () => {
     const today = new Date();
     const day = today.getDay();
     const diff = today.getDate() - day + (day === 0 ? -6 : 1);
@@ -238,7 +257,7 @@ describe('Timesheets returned-for-changes edge state', () => {
     tsState.isPending = false;
     tsState.isError = false;
     renderPage();
-    expect(await findPageAnnouncement('status', /returned for changes/i)).toHaveTextContent(/returned for changes/i);
+    expect(await findPageAnnouncement('status', /Returned/)).toHaveTextContent('Returned');
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
   });
 });
@@ -1194,14 +1213,14 @@ describe('S-28: saved / unsaved state and Save (UX-063)', () => {
     expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent('Unsaved changes');
 
     await userEvent.click(screen.getByRole('link', { name: /team review/i }));
-    const dialog = screen.getByRole('dialog', { name: 'Discard unsaved hours?' });
+    const dialog = screen.getByRole('alertdialog', { name: 'Discard your changes?' });
     expect(dialog).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
 
     expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toHaveValue('3');
     expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent('Unsaved changes');
     expect(screen.getByTestId('timesheets-save-status')).not.toHaveTextContent('All changes saved');
-    expect(screen.queryByRole('dialog', { name: 'Discard unsaved hours?' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog', { name: 'Discard your changes?' })).not.toBeInTheDocument();
   });
 });
 

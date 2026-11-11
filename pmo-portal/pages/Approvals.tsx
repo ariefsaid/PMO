@@ -21,7 +21,8 @@ import { ReopenableApprovedSection } from './approvals/ReopenableApprovedSection
 import { QueueGroup, type QueueItem } from './approvals/ApprovalQueue';
 import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
-import { approvalPopulation, pendingProcurementApprovals, type ApprovalPopulationEntry, type ApprovalScope } from '@/src/lib/selectors/approvals';
+import { pendingProcurementApprovals, type ApprovalPopulationEntry, type ApprovalScope } from '@/src/lib/selectors/approvals';
+import { useApprovalPopulation } from '@/src/hooks/useApprovalPopulation';
 import { useExpenseClaimsAwaitingDecision, type ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 
@@ -125,12 +126,13 @@ const ApprovalsPage: React.FC = () => {
   const allCaughtUp = procSettledEmpty && tsSettledEmpty && invSettledEmpty && expenseSettledEmpty;
   const allScopePending = (canApproveProcurement && procPending) || (canApproveTimesheets && (tsPending || correctionPending)) || (canShowExpenses && expenseQuery.isPending) || (canShowInvoices && invoices.isPending);
 
-  const allPopulation = useMemo(() => approvalPopulation<unknown>([
+  const populationEntries = useMemo<ApprovalPopulationEntry[]>(() => [
     ...(canApproveProcurement ? procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, createdAt: row.created_at, row })) : []),
     ...(canApproveTimesheets ? timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, createdAt: row.week_start_date, row })) : []),
     ...(canShowExpenses ? expenseRows.map((entry: ExpenseClaimAwaiting) => ({ key: `expense:${entry.claim.id}`, kind: 'expense' as const, createdAt: entry.claim.created_at, row: entry })) : []),
     ...(canShowInvoices ? invoices.rows.map((row) => ({ key: `invoice:${row.id}`, kind: 'invoice' as const, createdAt: row.created_at, row })) : []),
-  ], 'all'), [canApproveProcurement, canApproveTimesheets, canShowExpenses, canShowInvoices, procurementRows, timesheetRows, expenseRows, invoices.rows]);
+  ], [canApproveProcurement, canApproveTimesheets, canShowExpenses, canShowInvoices, procurementRows, timesheetRows, expenseRows, invoices.rows]);
+  const allPopulation = useApprovalPopulation(populationEntries, 'all');
   const countFor = (kind: Scope) => allPopulation.filter((entry: ApprovalPopulationEntry) => entry.kind === kind).length;
   const scopeLabels: Record<Scope, string> = {
     all: t('approvals.scope.all', 'All pending'),

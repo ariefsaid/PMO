@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import {
   ListPage,
   SearchMini,
@@ -23,6 +24,7 @@ import { trackFilterApplied } from '@/src/lib/analytics';
 import { INCIDENTS_PAGE_SIZE, type IncidentRow, type IncidentStatus } from '@/src/lib/db/incidents';
 import { formatDay } from '@/src/lib/format';
 import { severityVariant } from '@/src/lib/status/statusVariants';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { NEXT_STATUS, TRANSITION_COPY, type AdvanceStatus } from '@/src/lib/incidents/transitions';
 import { IncidentFormModal } from '@/components/IncidentFormModal';
 
@@ -47,6 +49,7 @@ interface TransitionTarget {
 }
 
 const Incidents: React.FC = () => {
+  const { t: tStatus } = useTranslation('status');
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
@@ -217,7 +220,7 @@ const Incidents: React.FC = () => {
           /* AC-2: scrollable so all status segments are reachable at 390px. */
           <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
             <ViewToggle<StatusFilter>
-              options={STATUS_FILTERS.map((f) => ({ value: f, label: f }))}
+              options={STATUS_FILTERS.map((f) => ({ value: f, label: f === 'All' ? 'All' : statusLabel('incident', f, tStatus) }))}
               value={filter}
               onChange={(v) => {
                 setFilter(v);

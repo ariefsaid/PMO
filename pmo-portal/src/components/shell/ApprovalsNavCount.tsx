@@ -4,8 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { can } from '@/src/auth/policy';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
-import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
+import { pendingProcurementApprovals, type ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
 import { routeWrite, type OwnershipMap } from '@/src/lib/adapterSeam/router';
+import { useApprovalPopulation } from '@/src/hooks/useApprovalPopulation';
+import type { ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
+import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
+import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import {
   awaitingApprovalKey,
   expenseClaimsAwaitingKey,
@@ -32,9 +37,8 @@ export const ApprovalsNavCount: React.FC = () => {
   const canApproveProcurement = can('transition', 'procurement', { realRole: role });
   // OD-TS-5: assigned managers of any real role can approve timesheets. The awaiting-approval
   // cache is caller-filtered and applies whenever a real role is authenticated.
-  const canApproveTimesheets = role !== null && role !== 'Finance';
-  // The Finance home tile is procurement-only; keep this rail badge on that same population.
-  const canApproveExpenses = canApproveProcurement && role !== 'Finance';
+  const canApproveTimesheets = role !== null;
+  const canApproveExpenses = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(role ?? '');
   const canApproveInvoices = can('transition', 'salesInvoice', { realRole: role });
 
   const ownershipKey = useMemo(() => externalDomainOwnershipKey(orgId), [orgId]);
@@ -46,7 +50,7 @@ export const ApprovalsNavCount: React.FC = () => {
       .map((row) => [row.domain, row.externalTier]),
   ) as OwnershipMap;
   const invoiceMode = ownershipState?.status === 'success' ? routeWrite('revenue', ownershipMap) : undefined;
-  const includeInvoices = role !== 'Finance' && canApproveInvoices && invoiceMode !== 'external';
+  const includeInvoices = canApproveInvoices && invoiceMode !== 'external';
 
   // The approvals queue reads the Requested-only list; the dashboard's "needs you" reads the lean list of the same
   // rows (same filter below). Either, when current, gives the count, so it shows wherever one of them is already loaded.
@@ -86,55 +90,59 @@ export const ApprovalsNavCount: React.FC = () => {
   );
   useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-  if (!queryClient || !currentUser || !role) return null;
-
-  const queues = queueKeys.map((key) => ({
-    data: queryClient.getQueryData<unknown[]>(key),
-    state: queryClient.getQueryState(key),
+  const queues = (queryClient ? queueKeys : []).map((key) => ({
+    data: queryClient?.getQueryData<unknown[]>(key),
+    state: queryClient?.getQueryState(key),
   }));
   const ownershipReady = ownershipState?.status === 'success';
-  if (
-    (includeInvoices && !ownershipReady) ||
-    queues.some(({ data, state }) => data === undefined || state?.status !== 'success' || state.isInvalidated)
-  ) return null;
+  const ready = Boolean(queryClient && currentUser && role) &&
+    (!includeInvoices || ownershipReady) &&
+    queues.every(({ data, state }) => data !== undefined && state?.status === 'success' && !state.isInvalidated);
 
-  let index = 0;
-  const procurementRows = canApproveProcurement
-    ? pendingProcurementApprovals(
-        queues[index++].data as Parameters<typeof pendingProcurementApprovals>[0],
+  const entries: ApprovalPopulationEntry[] = [];
+  if (ready && queryClient && currentUser && role) {
+    let index = 0;
+    if (canApproveProcurement) {
+      const rows = pendingProcurementApprovals(
+        queues[index++].data as ProcurementWithRefs[],
         userId,
         role === 'Admin',
-      ).length
-    : 0;
-  const expenseRows = canApproveExpenses
-    ? claimsAwaitingViewer(
-        queues[index++].data as Parameters<typeof claimsAwaitingViewer>[0],
+      );
+      entries.push(...rows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, createdAt: row.created_at, row })));
+    }
+    if (canApproveExpenses) {
+      const rows = claimsAwaitingViewer(
+        queues[index++].data as ExpenseClaimAwaiting[],
         userId,
         role,
-      ).length
-    : 0;
-  const timesheetRows = canApproveTimesheets ? queues[index++].data!.length : 0;
-  const invoiceRows = includeInvoices
-    ? (queues[index].data as Record<string, unknown>[]).filter((invoice) =>
+      );
+      entries.push(...rows.map((row) => ({ key: `expense:${row.claim.id}`, kind: 'expense' as const, createdAt: row.claim.created_at, row })));
+    }
+    if (canApproveTimesheets) {
+      const rows = queues[index++].data as TimesheetAwaitingApproval[];
+      entries.push(...rows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, createdAt: row.week_start_date, row })));
+    }
+    if (includeInvoices) {
+      const rows = (queues[index].data as SalesInvoiceRow[]).filter((invoice) =>
         can('submit_sales_invoice', 'salesInvoice', {
           realRole: role,
           currentUserId: userId,
-          record: {
-            author_id: invoice.author_user_id as string | null,
-            author_ids: invoice.author_user_ids as string[] | null,
-          },
+          record: { author_id: invoice.author_user_id, author_ids: invoice.author_user_ids },
         }),
-      ).length
-    : 0;
-  const count = procurementRows + expenseRows + timesheetRows + invoiceRows;
+      );
+      entries.push(...rows.map((row) => ({ key: `invoice:${row.id}`, kind: 'invoice' as const, createdAt: row.created_at, row })));
+    }
+  }
+  const population = useApprovalPopulation(entries, 'all');
+  if (!ready) return null;
 
   return (
     <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
       <span className="tabular text-support text-muted-foreground" aria-hidden="true">
-        {count}
+        {population.length}
       </span>
       <span className="sr-only">
-        , {t('shell.rail.approvalsCountSuffix', '{{count}} pending', { count })}
+        , {t('shell.rail.approvalsCountSuffix', '{{count}} pending', { count: population.length })}
       </span>
     </span>
   );

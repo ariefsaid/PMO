@@ -286,7 +286,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveAttribute('aria-selected', 'true');
     expect(within(preview).getByText(/Anita Rao/i)).toBeInTheDocument();
-    expect(within(preview).getByText('Policy: a different person approves each timesheet.')).toBeInTheDocument();
+    expect(within(preview).queryByText('Policy: a different person approves each timesheet.')).not.toBeInTheDocument();
     expect(screen.queryByText(/Steel beams/i)).not.toBeInTheDocument();
   });
 

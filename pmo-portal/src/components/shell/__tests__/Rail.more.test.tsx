@@ -1,10 +1,9 @@
 /**
- * Rail "More": each role sees its own jobs at once; the rest sit under one collapsed group that
- * stays reachable (opens on click, opens by itself when its page is current, always open in the
- * phone drawer). Screen rule: the sidebar fits 1440x900 without scrolling for every role.
+ * Rail groups use one fixed order. Every group starts expanded, can be collapsed by keyboard or
+ * pointer, remembers its state on this device, and the active group stays open on route changes.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -43,34 +42,32 @@ const renderRail = (entry = '/', drawer = false) =>
 
 beforeEach(() => { roleState.role = 'Executive'; });
 
-describe('Rail More group', () => {
-  it('shows an executive their jobs at once and keeps the rest one click away', async () => {
+describe('Rail navigation groups', () => {
+  beforeEach(() => localStorage.removeItem('shell.navigation.collapsedGroups'));
+
+  it('shows the fixed ordered destinations and all groups expanded by default', () => {
     renderRail();
-    for (const name of ['Dashboard', 'Projects', 'Procurement', 'Finance', 'Receivables', 'Payables', 'Approvals']) {
+    for (const name of ['Dashboard', 'Approvals', 'Projects', 'Procurement', 'Overview', 'Receivables', 'Payables']) {
       expect(screen.getByRole('link', { name })).toBeInTheDocument();
     }
-    expect(screen.queryByRole('link', { name: 'Contacts' })).not.toBeInTheDocument();
-    const more = screen.getByRole('button', { name: 'More' });
-    expect(more).toHaveAttribute('aria-expanded', 'false');
-    await userEvent.click(more);
-    expect(more).toHaveAttribute('aria-expanded', 'true');
-    const group = screen.getByRole('group', { name: 'More' });
-    for (const name of ['Contacts', 'Meetings', 'Calendar', 'Timesheets', 'Expenses', 'Statements']) {
-      expect(within(group).getByRole('link', { name })).toBeInTheDocument();
+    for (const group of ['My work', 'Delivery', 'Sales', 'Finance']) {
+      expect(screen.getByRole('button', { name: group })).toHaveAttribute('aria-expanded', 'true');
     }
-  });
-
-  it('opens by itself when the current page lives under More', () => {
-    renderRail('/contacts');
     expect(screen.getByRole('link', { name: 'Contacts' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Delivery' })).toHaveAttribute('aria-expanded', 'true');
   });
 
-  it('scrolls the active More item into view when opening that section', () => {
+  it('opens the current group and scrolls its active item into view', () => {
     const scrollIntoView = vi.fn();
     const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
     try {
       renderRail('/contacts');
+      expect(screen.getByRole('link', { name: 'Contacts' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Sales' })).toHaveAttribute('aria-expanded', 'true');
+      expect(screen.getByRole('button', { name: 'Sales' })).toHaveAttribute('aria-disabled', 'true');
       expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
     } finally {
       if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original);
@@ -78,15 +75,40 @@ describe('Rail More group', () => {
     }
   });
 
-  it('is always open in the phone drawer', () => {
-    renderRail('/', true);
-    expect(screen.getByRole('link', { name: 'Contacts' })).toBeInTheDocument();
+  it('keeps the current group open even when this device saved it as collapsed', () => {
+    localStorage.setItem('shell.navigation.collapsedGroups', JSON.stringify(['Delivery']));
+    renderRail('/projects');
+    expect(screen.getByRole('button', { name: 'Delivery' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument();
   });
 
-  it('does not collapse a short list: an engineer sees everything and no More', () => {
+  it('collapses a group by keyboard and persists the choice on this device', async () => {
+    const first = renderRail();
+    const delivery = screen.getByRole('button', { name: 'Delivery' });
+    delivery.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(delivery).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('link', { name: 'Procurement' })).not.toBeInTheDocument();
+    expect(localStorage.getItem('shell.navigation.collapsedGroups')).toContain('Delivery');
+    first.unmount();
+    renderRail();
+    expect(screen.getByRole('button', { name: 'Delivery' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('does not let the current group collapse', async () => {
+    renderRail('/projects');
+    const delivery = screen.getByRole('button', { name: 'Delivery' });
+    expect(delivery).toHaveAttribute('aria-expanded', 'true');
+    expect(delivery).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.click(delivery);
+    expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument();
+  });
+
+  it('keeps the full ordered groups available to an Engineer', () => {
     roleState.role = 'Engineer';
     renderRail();
     expect(screen.getByRole('link', { name: 'Calendar' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Procurement' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument();
   });
 });

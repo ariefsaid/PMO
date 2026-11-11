@@ -145,6 +145,12 @@
         },
         "contractQty": "Kontrak {{qty}} {{unit}}",
         "done": "Selesai",
+        "discard": {
+          "title": "Buang perubahan baris yang belum disimpan?",
+          "description": "Kuantitas alokasi yang belum disimpan akan hilang.",
+          "confirm": "Buang",
+          "cancel": "Lanjut mengedit"
+        },
         "edit": "Ubah baris",
         "errors": {
           "belowAccepted": "BAST yang sudah dikonfirmasi telah menerima {{qty}} {{unit}}. Alokasi tidak boleh lebih rendah.",

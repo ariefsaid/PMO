@@ -6,8 +6,10 @@ import { useComments, useCommentMutations } from '@/src/hooks/useComments';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import type { CommentEntityType } from '@/src/lib/db/comments';
 import { formatClockTime, formatDay } from '@/src/lib/format';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { Button } from '@/src/components/ui/Button';
 import { ConfirmDialog } from '@/src/components/ui/ConfirmDialog';
+import { UnsavedChangesDialog } from '@/src/components/ui/UnsavedChangesDialog';
 import { SectionHeader } from '@/src/components/ui/SectionHeader';
 import { TextArea } from '@/src/components/ui/FormFields';
 
@@ -81,6 +83,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
   const [body, setBody] = useState('');
   const [mentions, setMentions] = useState<MentionSlot[]>([]);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
 
   const query = activeMention(body);
   const suggestions = useMemo(() => {
@@ -110,6 +113,13 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
 
   const tooLong = body.length > MAX_LEN;
   const canPost = body.trim().length > 0 && !tooLong && !post.isPending;
+  const dirty = body.length > 0 || mentions.length > 0;
+
+  useUnsavedChangesGuard({
+    dirty,
+    guardHistory: true,
+    onBlocked: (leave) => setPendingLeave(() => leave),
+  });
 
   const submit = async () => {
     // Recipients derive from surviving mention spans, never substring matching.
@@ -204,6 +214,15 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
           if (confirmId) remove.mutate(confirmId, { onSettled: () => setConfirmId(null) });
         }}
         onCancel={() => setConfirmId(null)}
+      />
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => {
+          const leave = pendingLeave;
+          setPendingLeave(null);
+          leave?.();
+        }}
+        onKeepEditing={() => setPendingLeave(null)}
       />
     </section>
   );

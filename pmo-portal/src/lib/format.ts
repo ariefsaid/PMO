@@ -1003,6 +1003,21 @@ export function formatDateTime(d: Date): string {
   }).format(d);
 }
 
+/** "14 Jun 2026, 15:45" — screen-rule date and 24-hour time for a decision instant. */
+export function formatDecisionDateTime(d: Date): string {
+  const timezone = getActiveLocale().timezone;
+  const locale = getActiveLocale().locale.split('-')[0] === 'en' ? 'en-GB' : getDateLocale();
+  return dateFormatterFor('decisionDateTime', locale, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: timezone,
+  }).format(d);
+}
+
 /** "03:45 PM" — time of day only, in the org's zone (a state banner's "as of"). */
 export function formatClockTime(d: Date): string {
   return dateFormatterFor('clockTime', getDateLocale(), { hour: '2-digit', minute: '2-digit', timeZone: getActiveLocale().timezone }).format(d);

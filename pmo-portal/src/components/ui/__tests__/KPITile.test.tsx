@@ -66,6 +66,13 @@ describe('KPITile', () => {
     expect(v.className).toContain('tabular');
   });
 
+  it('uses the key-figure weight for values and medium foreground labels', () => {
+    render(<KPITile icon="dollar" tone="blue" label="Pipeline value" value="$4.2M" caption="Last 30 days" />);
+    expect(screen.getByText('Pipeline value')).toHaveClass('font-medium', 'text-foreground');
+    expect(screen.getByText('$4.2M')).toHaveClass('text-metric', 'font-semibold', 'tabular');
+    expect(screen.getByText('Last 30 days')).toHaveClass('text-control', 'text-muted-foreground');
+  });
+
   it('negative value turns destructive', () => {
     render(<KPITile icon="dollar" tone="red" label="Margin" value="-$120K" negative />);
     expect(screen.getByText('-$120K').className).toContain('text-destructive');

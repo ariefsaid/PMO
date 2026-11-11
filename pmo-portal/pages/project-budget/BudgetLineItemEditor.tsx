@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
-import { Button, DataTable, NumberField, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, NumberField, type Column } from '@/src/components/ui';
 import type { BudgetLineItemRow, NewLineItem, BudgetVersionMode } from '@/src/lib/db/budgets';
 import { Constants, type Enums } from '@/src/lib/supabase/database.types';
 
@@ -22,6 +22,7 @@ interface LineItemEditorProps {
   onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'fiscal_year'>>) => Promise<unknown>;
   onSaveSuccess: () => void;
   onOpenBuffersChange: (open: boolean) => void;
+  onDirtyChange: (dirty: boolean) => void;
   /** B-0.7: isPending flags from the parent mutation (createLineItem / updateLineItem).
    *  Disables Save while a write is in-flight — prevents double-submit duplication. */
   createIsPending?: boolean;
@@ -49,6 +50,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
   onUpdateLineItem,
   onSaveSuccess,
   onOpenBuffersChange,
+  onDirtyChange,
   createIsPending = false,
   updateIsPending = false,
   onSaveError,
@@ -76,9 +78,26 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
   const [editFiscalYear, setEditFiscalYear] = useState('');
   const [editAmountError, setEditAmountError] = useState<string | null>(null);
   const [editFiscalYearError, setEditFiscalYearError] = useState<string | null>(null);
+  const [discardBuffer, setDiscardBuffer] = useState<'new' | 'edit' | null>(null);
   const hasOpenBuffers = adding || editingId !== null || Object.keys(editDrafts).length > 0;
   useEffect(() => { onOpenBuffersChange(hasOpenBuffers); }, [hasOpenBuffers, onOpenBuffersChange]);
   useEffect(() => () => onOpenBuffersChange(false), [onOpenBuffersChange]);
+  const isEditDraftDirty = (id: string, draft: EditDraft) => {
+    const line = lineItems.find((item) => item.id === id);
+    return Boolean(line && (
+      draft.category !== line.category ||
+      draft.description !== (line.description ?? '') ||
+      draft.amount !== formatMoneyInputValue(Number(line.budgeted_amount)) ||
+      draft.fiscalYear !== (line.fiscal_year ?? '')
+    ));
+  };
+  const activeEditDirty = editingId ? isEditDraftDirty(editingId, {
+    category: editCategory, description: editDesc, amount: editAmount, fiscalYear: editFiscalYear,
+    amountError: editAmountError, fiscalYearError: editFiscalYearError,
+  }) : false;
+  const hasDirtyBuffers = (adding && (newCategory !== 'Labor' || newDesc !== '' || newAmount !== '' || newFiscalYear !== '')) ||
+    activeEditDirty || Object.entries(editDrafts).some(([id, draft]) => isEditDraftDirty(id, draft));
+  useEffect(() => { onDirtyChange(hasDirtyBuffers); }, [hasDirtyBuffers, onDirtyChange]);
   /** The years this project's own lines already name — suggestions, never a constraint. */
   const knownFiscalYears = useMemo(
     () => [...new Set([
@@ -121,6 +140,19 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     setEditingId(null);
     setEditAmountError(null);
     setEditFiscalYearError(null);
+  };
+  const resetNewLine = () => {
+    setAdding(false);
+    setNewCategory('Labor');
+    setNewDesc('');
+    setNewAmount('');
+    setNewFiscalYear('');
+    setNewFiscalYearError(null);
+    setNewAmountError(null);
+  };
+  const requestCloseEdit = () => {
+    if (activeEditDirty) setDiscardBuffer('edit');
+    else closeEdit();
   };
 
   const validate = (fiscalYear: string, amount: string) => {
@@ -410,13 +442,9 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setAdding(false);
-                  setNewCategory('Labor');
-                  setNewDesc('');
-                  setNewAmount('');
-                  setNewFiscalYear('');
-                  setNewFiscalYearError(null);
-                  setNewAmountError(null);
+                  const dirty = newCategory !== 'Labor' || newDesc !== '' || newAmount !== '' || newFiscalYear !== '';
+                  if (dirty) setDiscardBuffer('new');
+                  else resetNewLine();
                 }}
                 disabled={createIsPending}
               >
@@ -442,7 +470,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
             <Button
               variant="ghost"
               size="sm"
-              onClick={closeEdit}
+              onClick={requestCloseEdit}
               aria-label={t('financeCopy.cancel', "Cancel")}
               disabled={updateIsPending}
             >
@@ -522,6 +550,21 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
         >
           {t('financeCopy.addBudgetLineItem', "+ Add line item")}</Button>
       )}
+      <ConfirmDialog
+        open={discardBuffer !== null}
+        tone="default"
+        title={t('common:entityForm.discardTitle', 'Discard your changes?')}
+        description={t('common:entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
+        confirmLabel={t('common:entityForm.discard', 'Discard')}
+        cancelLabel={t('common:entityForm.keepEditing', 'Keep editing')}
+        onConfirm={() => {
+          const pending = discardBuffer;
+          setDiscardBuffer(null);
+          if (pending === 'new') resetNewLine();
+          if (pending === 'edit') closeEdit();
+        }}
+        onCancel={() => setDiscardBuffer(null)}
+      />
     </div>
   );
 };

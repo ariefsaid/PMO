@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render as testingRender, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { Link, MemoryRouter, useLocation } from 'react-router';
 import { ImportWizard } from '../ImportWizard';
 import type { ImportDescriptor } from '@/src/lib/import';
 
@@ -28,6 +29,21 @@ const descriptor: ImportDescriptor<Co> = {
 };
 
 const file = () => new File(['x'], 'companies.xlsx');
+
+const RouteProbe = () => {
+  const location = useLocation();
+  return <output data-testid="route-path">{location.pathname}</output>;
+};
+
+function render(ui: React.ReactElement) {
+  return testingRender(
+    <MemoryRouter initialEntries={['/imports']}>
+      <RouteProbe />
+      <Link to="/next">Next page</Link>
+      {ui}
+    </MemoryRouter>,
+  );
+}
 
 describe('ImportWizard', () => {
   beforeEach(() => {
@@ -111,6 +127,34 @@ describe('ImportWizard', () => {
     expect(nameValue.closest('[title]')).not.toContainElement(screen.getByText('Project was not found.'));
     // NO write occurred reaching preview (dry-run).
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('CMP-007: edited mappings stay in the wizard after close and route-leave confirmations', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<ImportWizard descriptor={descriptor} onClose={onClose} />);
+    await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
+    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
+
+    const companyColumn = screen.getByLabelText(/Company name/);
+    await user.selectOptions(companyColumn, '1');
+    const unload = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: /^close$/i }));
+    const closePrompt = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(within(closePrompt).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText(/Company name/)).toHaveValue('1');
+    expect(onClose).not.toHaveBeenCalled();
+
+    // The modal makes its route background inert; dispatch the shell's route action
+    // directly to exercise the router blocker as a browser back/navigation would.
+    fireEvent.click(screen.getByText('Next page'));
+    const leavePrompt = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(within(leavePrompt).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByTestId('route-path')).toHaveTextContent('/imports');
+    expect(screen.getByLabelText(/Company name/)).toHaveValue('1');
   });
 
   it('AC-IMP-005: confirming the import creates only the valid row, then shows the result and Close refetches', async () => {

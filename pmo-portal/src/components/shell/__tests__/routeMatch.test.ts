@@ -444,6 +444,6 @@ describe('FR-IMP-074 site cash routes', () => {
       { label: 'Site Alpha' },
     ]);
     expect(recordLabelForPath('/imprest/f1', { imprestFloats: [{ id: 'f1', name: 'Site Alpha' }] })).toBe('Site Alpha');
-    expect(MODULES.find((m) => m.path === '/imprest')?.icon).toBe('expenses');
+    expect(MODULES.find((m) => m.path === '/imprest')?.icon).toBe('site-cash');
   });
 });

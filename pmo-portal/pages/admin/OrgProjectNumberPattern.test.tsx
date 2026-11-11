@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
@@ -23,9 +24,13 @@ import OrgProjectNumberPattern from './OrgProjectNumberPattern';
 function renderPanel() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <ToastProvider><OrgProjectNumberPattern /></ToastProvider>
-    </QueryClientProvider>,
+    <MemoryRouter initialEntries={['/settings']}>
+      <Link to="/next">Continue</Link>
+      <Routes>
+        <Route path="/settings" element={<QueryClientProvider client={queryClient}><ToastProvider><OrgProjectNumberPattern /></ToastProvider></QueryClientProvider>} />
+        <Route path="/next" element={<p>Next page</p>} />
+      </Routes>
+    </MemoryRouter>,
   );
 }
 
@@ -43,6 +48,19 @@ afterEach(() => {
 });
 
 describe('AC-CODE-001 organisation PMO number pattern', () => {
+  it('asks before leaving a changed pattern and Stay keeps the typed value', async () => {
+    renderPanel();
+    const input = await screen.findByRole('textbox', { name: /project number pattern/i });
+    await userEvent.clear(input);
+    fireEvent.change(input, { target: { value: 'PRE-{CLIENT}-{YY}-{SEQ4}' } });
+
+    await userEvent.click(screen.getByRole('link', { name: 'Continue' }));
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByRole('textbox', { name: /project number pattern/i })).toHaveValue('PRE-{CLIENT}-{YY}-{SEQ4}');
+    expect(screen.queryByText('Next page')).not.toBeInTheDocument();
+  });
+
   it('loads the system pattern, validates tokens inline, and saves a valid custom pattern', async () => {
     renderPanel();
     const input = await screen.findByRole('textbox', { name: /project number pattern/i });

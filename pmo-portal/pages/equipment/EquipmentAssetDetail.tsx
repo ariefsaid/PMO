@@ -16,6 +16,7 @@ import type { EquipmentAllocationRow, EquipmentCostingRow, EquipmentUsageTotalRo
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay, formatNumberMax2, formatMonthYear } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { EquipmentCostingForm } from './EquipmentCostingForm';
 import { basisLabel, driverLabel, unitLabel } from './equipmentLabels';
 import { fromIso, monthStart, toIso } from './equipmentWeek';
@@ -28,8 +29,8 @@ const Calculation: React.FC<{ r: EquipmentAllocationRow; t: T; money: (n: number
   const unit = unitLabel(t, r.unit);
   const rows: Array<[string, React.ReactNode]> = [];
   if (r.basis === 'hire_rate') {
-    rows.push([t('equipment:calc.work', 'Work'), t('equipment:calc.workLine', 'Work {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: formatNumberMax2(Number(r.work_units ?? 0)), unit, rate: formatNumberMax2(Number(r.work_rate ?? 0)), perUnit: unit })]);
-    if (r.standby_rate != null) rows.push([t('equipment:calc.standby', 'Standby'), t('equipment:calc.standbyLine', 'Standby {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: formatNumberMax2(Number(r.standby_units ?? 0)), unit, rate: formatNumberMax2(Number(r.standby_rate)), perUnit: unit })]);
+    rows.push([t('equipment:calc.work', 'Work'), t('equipment:calc.workLine', 'Work {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: formatNumberMax2(Number(r.work_units ?? 0)), unit, rate: money(Number(r.work_rate ?? 0)), perUnit: unit })]);
+    if (r.standby_rate != null) rows.push([t('equipment:calc.standby', 'Standby'), t('equipment:calc.standbyLine', 'Standby {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: formatNumberMax2(Number(r.standby_units ?? 0)), unit, rate: money(Number(r.standby_rate)), perUnit: unit })]);
   } else {
     if (r.pool != null) rows.push([t('equipment:calc.pool', 'Pool'), t('equipment:calc.poolLine', 'Pool {{amount}}', { amount: money(Number(r.pool)) }) + (r.line_count ? ` · ${t('equipment:calc.lines', 'Ledger lines: {{count}}', { count: r.line_count })}` : '')]);
     rows.push([t('equipment:calc.driver', 'Driver'), t('equipment:calc.driverLine', 'Shared by {{driver}}', { driver: driverLabel(t, r.driver) })]);
@@ -240,10 +241,12 @@ const EquipmentAssetDetail: React.FC = () => {
   const asset = assets.data?.rows.find((a) => a.id === assetId);
   const byId = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p])), [projects.data]);
   const projectName = (id: string) => { const p = byId.get(id); return p ? projectDisplayName(p) : '—'; };
-  // A project row carries its own currency; a pool with no project (unallocated) has none, so it prints as a plain number.
+  // A project row carries its own currency; an unallocated pool has none, so it reads in the organisation's currency —
+  // a money figure never prints as a bare number.
+  const orgCurrency = useOrgCurrency();
   const money = (amount: number, projectId: string | null) => {
-    const currency = projectId ? byId.get(projectId)?.currency : null;
-    return currency ? formatCurrency(amount, currency) : formatNumberMax2(amount);
+    const currency = (projectId ? byId.get(projectId)?.currency : null) ?? orgCurrency;
+    return formatCurrency(amount, currency);
   };
 
   if (assets.isPending) return <ListState variant="loading" rows={4} />;

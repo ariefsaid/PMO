@@ -250,9 +250,9 @@ describe('TimesheetGrid (editable mode)', () => {
 
 describe('ErrBanner', () => {
   it('renders as role=status (an expected returned-week state, not an alert failure)', () => {
-    render(<ErrBanner title="Returned for changes" sub="Fix Fri and resubmit." />);
+    render(<ErrBanner title="Returned" sub="Fix Fri and resubmit." />);
     expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.getByText('Returned for changes')).toBeInTheDocument();
+    expect(screen.getByText('Returned')).toBeInTheDocument();
     expect(screen.getByText('Fix Fri and resubmit.')).toBeInTheDocument();
   });
 

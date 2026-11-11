@@ -42,13 +42,13 @@ describe('UIP-001/UIP-013: rail icon semantics and retained sizing', () => {
     const expected = [
       ['Dashboard', 'dashboard'], ['Projects', 'projects'],
       ['Sales Pipeline', 'pipeline'], ['Procurement', 'procurement'], ['Meetings', 'meetings'],
-      ['Incidents', 'alert'], ['Finance', 'dollar'], ['Receivables', 'invoices'],
+      ['Incidents', 'alert'], ['Overview', 'dollar'], ['Receivables', 'download'],
       ['Payables', 'payments'], ['Reports', 'reports'], ['Statements', 'statements'], ['Timesheets', 'clock'],
       ['Expenses', 'expenses'], ['Approvals', 'approvals'], ['Companies', 'companies'],
-      ['Contacts', 'contacts'], ['Saved view', 'views'], ['Administration', 'admin'],
+      ['Contacts', 'contacts'], ['My Views', 'views'], ['Administration', 'admin'],
     ] as const;
     for (const [label, key] of expected) {
-      const accessibleName = label === 'Finance' ? /^Finance(?:\s|$)/ : label;
+      const accessibleName = label;
       const link = within(rail).getByRole('link', { name: accessibleName });
       expect(link.querySelector('svg')).toHaveAttribute('data-icon', key);
       expect(link.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');

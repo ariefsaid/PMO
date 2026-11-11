@@ -145,6 +145,12 @@
         },
         "contractQty": "Contract {{qty}} {{unit}}",
         "done": "Done",
+        "discard": {
+          "title": "Discard unsaved line changes?",
+          "description": "Allocation quantities that have not been saved will be lost.",
+          "confirm": "Discard",
+          "cancel": "Keep editing"
+        },
         "edit": "Edit lines",
         "errors": {
           "belowAccepted": "A confirmed BAST already accepted {{qty}} {{unit}}. The allocation cannot go below it.",

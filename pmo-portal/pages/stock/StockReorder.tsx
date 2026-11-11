@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DataTable, ListPage, ListState, SelectField, TextField, useToast, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, ListPage, ListState, SelectField, TextField, UnsavedChangesDialog, useToast, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { StockError } from '@/src/components/stock/StockError';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
@@ -10,6 +10,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useBelowReorder, useReorderSuggestion, useSetReorderLevel, useStockItems, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import type { BelowReorderRow } from '@/src/lib/db/stockReorder';
 
 // A level is 0 or more, a quantity above 0; 3 decimals at most (the storage scale). The server re-checks both.
@@ -33,6 +34,8 @@ const StockReorder: React.FC = () => {
   const [editing, setEditing] = useState(false);
   const [level, setLevel] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [editBaseline, setEditBaseline] = useState<{ level: string; quantity: string } | null>(null);
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const [formErrors, setFormErrors] = useState<{ level?: string; quantity?: string }>({});
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [clearTarget, setClearTargetRaw] = useState<ClearTarget | null>(null);
@@ -50,8 +53,15 @@ const StockReorder: React.FC = () => {
   const s = suggestion.data;
   const q = (v: string) => formatQuantity(v, loc);
 
-  const pick = (nextItem: string, nextWarehouse: string) => { setItemId(nextItem); setWarehouseId(nextWarehouse); setEditing(false); setSubmitError(null); setFormErrors({}); };
-  const startEdit = (lv: string, qty: string | null) => { setLevel(lv); setQuantity(qty ?? ''); setFormErrors({}); setSubmitError(null); setEditing(true); };
+  const dirty = editing && editBaseline !== null && (level !== editBaseline.level || quantity !== editBaseline.quantity);
+  const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
+  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
+  const pick = (nextItem: string, nextWarehouse: string, after?: () => void) => {
+    const apply = () => { setItemId(nextItem); setWarehouseId(nextWarehouse); setEditing(false); setEditBaseline(null); setSubmitError(null); setFormErrors({}); after?.(); };
+    if (dirty && (after !== undefined || nextItem !== itemId || nextWarehouse !== warehouseId)) guardLeave(apply);
+    else apply();
+  };
+  const startEdit = (lv: string, qty: string | null) => { const values = { level: lv, quantity: qty ?? '' }; setLevel(values.level); setQuantity(values.quantity); setEditBaseline(values); setFormErrors({}); setSubmitError(null); setEditing(true); };
 
   const save = async (a: { level: string | null; quantity?: string | null }, okKey: 'saved' | 'cleared', target = { warehouseId, itemId }) => {
     setSubmitError(null);
@@ -59,6 +69,7 @@ const StockReorder: React.FC = () => {
       await setM.mutateAsync({ warehouseId: target.warehouseId, itemId: target.itemId, ...a });
       toast(t(`reorder.toast.${okKey}`), undefined, 'success');
       setEditing(false);
+      setEditBaseline(null);
       return true;
     } catch (err) {
       setSubmitError(err);
@@ -102,7 +113,7 @@ const StockReorder: React.FC = () => {
         cell: (r) => (
           <div className="flex justify-end gap-1">
             <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowEdit', { item: r.itemCode })}
-              onClick={() => { pick(r.itemId, r.warehouseId); startEdit(r.reorderLevel, r.reorderQuantity); }}>{t('reorder.worklist.edit')}</Button>
+              onClick={() => pick(r.itemId, r.warehouseId, () => startEdit(r.reorderLevel, r.reorderQuantity))}>{t('reorder.worklist.edit')}</Button>
             <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowClear', { item: r.itemCode })}
               onClick={() => setClearTarget({ warehouseId: r.warehouseId, itemId: r.itemId, label: `${r.itemCode} - ${r.itemName}`, warehouseCode: r.warehouseCode })}>{t('reorder.worklist.clear')}</Button>
           </div>
@@ -210,7 +221,7 @@ const StockReorder: React.FC = () => {
             <StockError error={submitError} />
             <div className="flex gap-2">
               <Button type="submit" size="sm" loading={setM.isPending}>{t('reorder.panel.save')}</Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>{t('reorder.panel.cancel')}</Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => guardLeave(() => { setEditing(false); setEditBaseline(null); })}>{t('reorder.panel.cancel')}</Button>
             </div>
           </form>
         )}
@@ -225,6 +236,11 @@ const StockReorder: React.FC = () => {
         loading={setM.isPending}
         onConfirm={() => { if (clearTarget) void save({ level: null }, 'cleared', clearTarget).then((ok) => { if (ok) setClearTarget(null); }); }}
         onCancel={() => setClearTarget(null)}
+      />
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
       />
     </ListPage>
   );

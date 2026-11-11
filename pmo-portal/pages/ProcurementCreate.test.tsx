@@ -59,6 +59,7 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.currency = 'USD';
     mocks.realRole = 'Admin';
     mocks.projectQuery.isPending = false; mocks.projectQuery.isError = false;
+    mocks.projectQuery.data = [{ value: 'p1', label: 'Project One' }];
     mocks.vendorQuery.isPending = false; mocks.vendorQuery.isError = false;
     mocks.vendorQuery.data = [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }];
     mocks.createRequest.mockResolvedValue({ id: 'new-id' });
@@ -371,16 +372,75 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.createAtomic.mock.calls[2][0]).toEqual(mocks.createAtomic.mock.calls[0][0]);
   });
 
-  it('retains the immutable attempt after an authorization denial', async () => {
-    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Denied', '42501'));
+  it('keeps the classified permission reason in the form until another attempt', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Request refused', '42501'));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Original' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.closest('form')).not.toBeNull();
+    expect(alert.tagName).toBe('DIV');
+    expect(alert).toHaveClass('rounded-md', 'border', 'border-destructive/25', 'bg-destructive/[0.04]', 'px-3', 'py-2', 'text-sm', 'text-destructive-text');
+    expect(alert.querySelector('p')).toHaveClass('font-semibold');
+    expect(alert.textContent).toBe("You don't have permission to do that.");
+    expect(mocks.toast).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Edited' } });
+    expect(alert).toBeVisible();
+  });
+
+  it.each(['42501', '22023', '23503', 'P0001', '22003', '23514', '42601'])('allows editing after first definitive refusal %s', async (code) => {
+    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Refused', code));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Original' } });
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(await screen.findByRole('alert')).toBeVisible();
+    expect(screen.getByLabelText(/title/i)).toHaveValue('Original');
+    expect(screen.getByLabelText(/title/i)).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Edit Paper' })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Corrected' } });
+    expect(screen.getByRole('alert')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalled());
+    expect(mocks.createAtomic.mock.calls[1][0].id).not.toBe(mocks.createAtomic.mock.calls[0][0].id);
+    expect(mocks.createAtomic.mock.calls[1][0].header.title).toBe('Corrected');
+  });
+
+  it.each(['REQUEST_TIMEOUT', '40001', '40P01', '57014', '08006', '500'])('keeps an uncertain %s outcome locked and explains reconciliation', async (code) => {
+    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Unknown outcome', code));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Original' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/may have completed/i);
+    expect(screen.getByLabelText(/title/i)).toBeDisabled();
+    expect(screen.getByRole('button', { name: /check.*status/i })).toBeVisible();
+  });
+
+  it('keeps the attempt locked when P0001 follows a timeout', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Timeout', 'REQUEST_TIMEOUT'))
+      .mockRejectedValueOnce(new ProcurementError('Refused', 'P0001'));
     renderCreate();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Original' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await screen.findByRole('alert');
-    expect(screen.getByLabelText(/title/i)).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
-    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/may have completed/i));
+    expect(screen.getByLabelText(/title/i)).toBeDisabled();
     expect(mocks.createAtomic.mock.calls[1][0]).toEqual(mocks.createAtomic.mock.calls[0][0]);
+  });
+
+  it('explains empty project and optional supplier pickers', async () => {
+    mocks.projectQuery.data = [];
+    mocks.vendorQuery.data = [];
+    renderCreate();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Project' }));
+    expect(await screen.findByText(/no projects available/i)).toBeVisible();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    expect(await screen.findByText(/supplier is optional/i)).toBeVisible();
   });
 
   it('shows server reconciliation instructions for a conflicting ID', async () => {
@@ -431,7 +491,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.click(screen.getByRole('button', { name: /what do you have/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Back to Procurement' }));
     expect(mocks.navigate).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Leave' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
     expect(mocks.navigate).toHaveBeenCalledWith('/procurement');
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });

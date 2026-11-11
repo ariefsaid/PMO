@@ -870,8 +870,8 @@
     "listLabel": "{{noun}}s",
     "moreHidden": "Type to narrow ({{count}} more)",
     "empty": {
-      "withQuery": "No {{noun}} matches \"{{query}}\".",
-      "bare": "No {{noun}} matches."
+      "withQuery": "No {{noun}} matches \"{{query}}\". Try a different search.",
+      "bare": "Nothing is available to select yet. Check this field’s prerequisites or ask an administrator to add an option."
     },
     "clear": "Clear {{noun}}"
   },
@@ -1477,7 +1477,6 @@
       "notFoundTitle": "Not found",
       "outstanding": "Outstanding",
       "reference": "Payment reference",
-      "rejectionNote": "Rejected: {{note}}",
       "summary": "Summary"
     },
     "filters": {
@@ -1584,14 +1583,6 @@
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load expenses"
     },
-    "status": {
-      "approved": "Approved",
-      "cancelled": "Cancelled",
-      "draft": "Draft",
-      "paid": "Paid",
-      "rejected": "Rejected",
-      "submitted": "Submitted"
-    },
     "table": {
       "emptyTitle": "No expenses here yet",
       "rowLabel": "Open {{title}}"
@@ -1602,7 +1593,6 @@
       "cancelled": "Cancelled",
       "created": "Created",
       "paid": "Marked paid",
-      "rejected": "Rejected",
       "reopened": "Back to Draft",
       "returned": "Return recorded",
       "submitted": "Submitted for approval"
@@ -3174,7 +3164,6 @@
       "helpWhatsApp": "Contact support via WhatsApp",
       "legalAndSupport": "Legal & support",
       "openCommandPalette": "Open command palette",
-      "openNavigation": "Open navigation menu",
       "privacy": "Privacy",
       "returnToAdmin": "Return to Admin",
       "searchPlaceholder": "Search or jump to…",
@@ -3265,11 +3254,10 @@
     "rail": {
       "assistant": "Assistant",
       "group": {
-        "crm": "CRM",
+        "crm": "Sales",
         "delivery": "Delivery",
         "finance": "Finance",
-        "overview": "Overview",
-        "workforce": "Workforce"
+        "workforce": "My work"
       },
       "myViews": "My Views",
       "primaryNavigation": "Primary navigation",
@@ -3361,9 +3349,7 @@
     },
     "previousWeek": "Previous week",
     "returned": {
-      "revise": "Revise this week",
-      "sub": "Your manager sent this week back. Correct it and resubmit.",
-      "title": "Returned for changes"
+      "revise": "Revise this week"
     },
     "save": "Save",
     "status": {},
@@ -3929,10 +3915,6 @@
     "addPanel": "+ Add panel",
     "maximumPanelsReached": "Maximum of {{count}} panels reached.",
     "livePreview": "Live preview",
-    "discardChangesTitle": "Discard unsaved changes?",
-    "discardChangesDescription": "Your panel configuration and name will be lost.",
-    "discard": "Discard",
-    "keepEditing": "Keep editing",
     "panelList": "Panel list",
     "movePanelUp": "Move panel {{number}} up",
     "movePanelDown": "Move panel {{number}} down",
@@ -4294,6 +4276,12 @@
     "keepEditing": "Keep editing",
     "fixFields_one": "Fix {{count}} field before saving",
     "fixFields_other": "Fix {{count}} fields before saving"
+  },
+  "unsavedChanges": {
+    "title": "Discard your changes?",
+    "body": "What you typed here will be lost.",
+    "discard": "Discard",
+    "keepEditing": "Keep editing"
   },
   "projectFinances": {
     "title": "Project finances",

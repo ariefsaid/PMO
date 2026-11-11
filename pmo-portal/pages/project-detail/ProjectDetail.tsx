@@ -51,7 +51,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
       <span>{dates}</span>
       {/* L6: the contract value lives once on the screen — in Money position (Overview) / Contract & billing. */}
       {progress !== null && (
-        <Tooltip content={t('projectDetail.facts.progressTooltip', 'Weighted average of phase completion using each phase weight; source: project phase plan.')}>
+        <Tooltip content={t('projectDetail.facts.progressTooltip', 'Weighted average of phase completion using each phase weight; source: project phase plan. Phase progress is not billable quantity.')}>
           {/* Owner tidy ruling 2026-10-29: the segment is content-sized (compact bar,
               label and value tight) so the meta row keeps ONE consistent gap before
             "Updated" — the old min-w-40 left dead slack that read as a hole. */}

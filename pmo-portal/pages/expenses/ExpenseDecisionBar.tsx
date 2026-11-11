@@ -6,6 +6,7 @@ import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
 import { settlementPreview, type ExpenseAction } from '@/src/lib/expenses/expenseRules';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import type { ExpenseClaimStatus, ExpenseClaimWithRefs } from '@/src/lib/db/expenseClaims';
 
 type Dialog = 'approve' | 'reject' | 'pay' | 'cancel' | 'recordReturn' | null;
@@ -16,9 +17,11 @@ export interface ExpenseDecisionBarProps {
   claim: ExpenseClaimWithRefs;
   actions: ExpenseAction[];
   advanceOutstanding: number | null;
+  hideReopen?: boolean;
+  returnedToastLabel?: string;
 }
 
-export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, actions, advanceOutstanding }) => {
+export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, actions, advanceOutstanding, hideReopen = false, returnedToastLabel }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { transition, recordReturn } = useExpenseClaimMutations();
@@ -27,7 +30,8 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
   const [notes, setNotes] = useState('');
   const [reference, setReference] = useState('');
   const [returnAmount, setReturnAmount] = useState('');
-  if (actions.length === 0) return null;
+  const showReopen = actions.includes('reopen') && !hideReopen;
+  if (actions.length === 0 || (hideReopen && actions.every((action) => action === 'reopen'))) return null;
 
   const close = () => { setDialog(null); setNotes(''); setReference(''); setReturnAmount(''); };
   const run = async (work: () => Promise<unknown>, success: string) => {
@@ -57,7 +61,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
   // handlers, same SoD checks) instead of the in-flow row — one placement, never two paths.
   const barActions: MobileDecisionAction[] = [
     ...(actions.includes('submit') ? [{ key: 'submit', label: t('expenses.actions.submit', 'Submit for approval'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Submitted', t('expenses.toast.submitted', 'Submitted for approval')) }] : []),
-    ...(actions.includes('reopen') ? [{ key: 'reopen', label: t('expenses.actions.reopen', 'Edit and resubmit'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Draft', t('expenses.toast.reopened', 'Back to Draft')) }] : []),
+    ...(showReopen ? [{ key: 'reopen', label: t('expenses.actions.reopen', 'Edit and resubmit'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Draft', t('expenses.toast.reopened', 'Back to Draft')) }] : []),
     ...(actions.includes('approve') ? [{ key: 'approve', label: t('expenses.actions.approve', 'Approve'), variant: 'primary' as const, onSelect: () => setDialog('approve') }] : []),
     ...(actions.includes('reject') ? [{ key: 'reject', label: t('expenses.actions.reject', 'Reject'), variant: 'outline' as const, onSelect: () => setDialog('reject') }] : []),
     ...(actions.includes('pay') ? [{ key: 'pay', label: t('expenses.actions.pay', 'Mark paid'), variant: 'primary' as const, onSelect: () => setDialog('pay') }] : []),
@@ -75,7 +79,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
           {t('expenses.actions.submit', 'Submit for approval')}
         </Button>
       )}
-      {actions.includes('reopen') && (
+      {showReopen && (
         <Button variant="primary" disabled={transition.isPending}
           onClick={() => void move('Draft', t('expenses.toast.reopened', 'Back to Draft'))}>
           {t('expenses.actions.reopen', 'Edit and resubmit')}
@@ -108,7 +112,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
         subject={claim.claim_number ?? claim.title}
         context={decisionContext}
         loading={transition.isPending}
-        onConfirm={(reason) => void move('Rejected', t('expenses.toast.rejected', 'Rejected'), { notes: reason })}
+        onConfirm={(reason) => void move('Rejected', returnedToastLabel ?? statusLabel('expense', 'Rejected', t), { notes: reason })}
         onCancel={close}
       />
 

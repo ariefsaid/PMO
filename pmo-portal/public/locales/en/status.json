@@ -1,4 +1,8 @@
 {
+  "decision": {
+    "by": "by",
+    "reasonUnavailable": "Reason unavailable"
+  },
   "project": {
     "leads": "Leads",
     "pqSubmitted": "PQ submitted",
@@ -30,7 +34,7 @@
     "draft": "Draft",
     "submitted": "Submitted",
     "approved": "Approved",
-    "rejected": "Rejected",
+    "rejected": "Returned",
     "paid": "Paid",
     "cancelled": "Cancelled"
   },
@@ -54,7 +58,7 @@
     "draft": "Draft",
     "submitted": "Submitted",
     "approved": "Approved",
-    "rejected": "Rejected"
+    "rejected": "Returned"
   },
   "task": {
     "toDo": "To do",
