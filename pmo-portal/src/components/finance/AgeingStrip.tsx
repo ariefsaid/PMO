@@ -15,6 +15,7 @@ type BucketKey = keyof AgeingBuckets | keyof PayablesAgeingBuckets;
 export interface AgeingStripProps {
   kind: AgeingKind;
   heading?: string;
+  ariaLabel?: string;
   values: AgeingValues;
   /** L12: invoices whose balance is unknown, counted in their age bucket — never added as zero, never dropped. */
   unknownCounts?: Record<string, Partial<Record<BucketKey, number>>>;
@@ -33,7 +34,7 @@ const BUCKET_COLORS: Record<BucketKey, string> = {
   over90: chartTheme.series.destructive,
 };
 
-export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, values, unknownCounts = {}, unknownTotal = 0 }) => {
+export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, unknownTotal = 0 }) => {
   const { t } = useTranslation();
   const { currency: orgCurrency, isResolved } = useOrgCurrencyState();
   const bucketKeys: readonly BucketKey[] = kind === 'receivables' ? RECEIVABLE_BUCKETS : PAYABLE_BUCKETS;
@@ -61,7 +62,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, values,
       : (buckets as PayablesAgeingBuckets | undefined)?.[key as keyof PayablesAgeingBuckets] ?? 0;
 
   return (
-    <section aria-label={title} className="mb-5 min-w-0">
+    <section aria-label={ariaLabel ?? title} className="mb-5 min-w-0">
       <h2 className="mb-2 text-[14px] font-semibold">{title}</h2>
       {currencies.length === 0 && <p className="text-sm text-muted-foreground">{unknownTotal > 0
         ? t('finance:area.ageingUnknown', { defaultValue: 'No known balances · {{count}} balance unknown', count: unknownTotal })

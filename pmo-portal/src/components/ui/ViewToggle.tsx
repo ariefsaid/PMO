@@ -6,6 +6,8 @@ import { Badge } from './StatusPill';
 export interface ViewOption<V extends string = string> {
   value: V;
   label: string;
+  /** Optional accessible name when the visible label is shortened to fit the screen. */
+  ariaLabel?: string;
   icon?: IconName;
   /** Optional trailing count badge (e.g. an Approvals queue size). */
   count?: number;
@@ -105,6 +107,7 @@ export function ViewToggle<V extends string = string>({
             key={opt.value}
             type="button"
             data-value={opt.value}
+            aria-label={opt.ariaLabel}
             // tabs: role="tab" + aria-selected + roving tabIndex
             // toggle: no role override + aria-pressed + always focusable
             {...(!isToggle && { role: 'tab', 'aria-selected': on, tabIndex: tabbable ? 0 : -1 })}

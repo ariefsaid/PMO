@@ -126,7 +126,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 {s.value}
               </div>
               {s.weighted && (
-                <div data-funnel-stage-weighted className={cn(compact ? 'mt-1' : 'mt-2', 'text-control text-muted-foreground')}>
+                <div data-funnel-stage-weighted className="mt-2 text-control text-muted-foreground">
                   {s.weighted}
                 </div>
               )}
