@@ -12,6 +12,7 @@ import {
   StatusPill,
   TimesheetGrid,
   AccessDenied,
+  UnsavedChangesDialog,
   useToast,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router';
@@ -117,14 +118,14 @@ const TimesheetsPage: React.FC = () => {
     allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit,
   });
   const { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
-    editRawHours, rowToDelete, dirty, weeklyTotal, pendingWeekDelta, weekRangeLabel,
+    editRawHours, rowToDelete, dirty, hasUnsavedBuffer, weeklyTotal, pendingWeekDelta, weekRangeLabel,
     isOwner, editBufferHasHours, canSubmit, confirmSubmit, copyPlan } = editor.view;
   const { setCell, setNote, addProject, copyLastWeek, requestDelete, cancelDelete, confirmDeleteRow,
     commitSave, stepWeek, cancelWeekChange, confirmWeekChange, requestSubmit,
     cancelSubmit, commitSubmit } = editor.actions;
   const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   useUnsavedChangesGuard({
-    dirty,
+    dirty: hasUnsavedBuffer,
     guardHistory: true,
     onBlocked: (leave, stay) => setPendingLeave({ leave, stay }),
   });
@@ -419,14 +420,10 @@ const TimesheetsPage: React.FC = () => {
       )}
       {submitConfirm}
 
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        title={t('timesheets:discardHours.title', 'Discard unsaved hours?')}
-        description={t('timesheets:discardHours.description', 'Leave this page and discard the hours you have not saved?')}
-        confirmLabel={t('timesheets:discardHours.leave', 'Leave')}
-        cancelLabel={t('timesheets:discardHours.stay', 'Stay')}
-        onCancel={() => { pendingLeave?.stay(); setPendingLeave(null); }}
-        onConfirm={() => { const leave = pendingLeave?.leave; setPendingLeave(null); leave?.(); }}
+        onKeepEditing={() => { pendingLeave?.stay(); setPendingLeave(null); }}
+        onDiscard={() => { const leave = pendingLeave?.leave; setPendingLeave(null); leave?.(); }}
       />
 
       {rowToDelete && (

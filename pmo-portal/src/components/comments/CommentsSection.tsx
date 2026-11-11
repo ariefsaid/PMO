@@ -9,6 +9,7 @@ import { formatClockTime, formatDay } from '@/src/lib/format';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { Button } from '@/src/components/ui/Button';
 import { ConfirmDialog } from '@/src/components/ui/ConfirmDialog';
+import { UnsavedChangesDialog } from '@/src/components/ui/UnsavedChangesDialog';
 import { SectionHeader } from '@/src/components/ui/SectionHeader';
 import { TextArea } from '@/src/components/ui/FormFields';
 
@@ -214,18 +215,14 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
         }}
         onCancel={() => setConfirmId(null)}
       />
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        title={t('comments.unsavedDraft.title', 'Unsaved comment draft')}
-        description={t('comments.unsavedDraft.description', 'Your comment and mentions will be lost if you leave this page.')}
-        confirmLabel={t('comments.unsavedDraft.leave', 'Leave')}
-        cancelLabel={t('comments.unsavedDraft.stay', 'Stay')}
-        onConfirm={() => {
+        onDiscard={() => {
           const leave = pendingLeave;
           setPendingLeave(null);
           leave?.();
         }}
-        onCancel={() => setPendingLeave(null)}
+        onKeepEditing={() => setPendingLeave(null)}
       />
     </section>
   );

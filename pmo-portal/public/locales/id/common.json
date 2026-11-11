@@ -3929,10 +3929,6 @@
     "addPanel": " + Tambah panel",
     "maximumPanelsReached": "Maksimum {{count}} panel telah tercapai.",
     "livePreview": "Pratinjau langsung",
-    "discardChangesTitle": "Buang perubahan yang belum disimpan?",
-    "discardChangesDescription": "Konfigurasi panel dan nama akan hilang.",
-    "discard": "Buang",
-    "keepEditing": "Lanjutkan mengedit",
     "panelList": "Daftar panel",
     "movePanelUp": "Pindahkan panel {{number}} ke atas",
     "movePanelDown": "Pindahkan panel {{number}} ke bawah",
@@ -4294,6 +4290,12 @@
     "keepEditing": "Lanjut mengedit",
     "fixFields_one": "Perbaiki {{count}} kolom sebelum menyimpan",
     "fixFields_other": "Perbaiki {{count}} kolom sebelum menyimpan"
+  },
+  "unsavedChanges": {
+    "title": "Buang perubahan Anda?",
+    "body": "Apa yang Anda ketik di sini akan hilang.",
+    "discard": "Buang",
+    "keepEditing": "Lanjut mengedit"
   },
   "projectFinances": {
     "title": "Keuangan proyek",

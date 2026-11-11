@@ -23,6 +23,7 @@ type MappingField = (typeof MAPPING_FIELDS)[number];
 
 export interface BudgetPasteRowsDialogProps {
   onClose: () => void;
+  onDirtyChange: (dirty: boolean) => void;
   projectId: string;
   /** The Draft this dialog was opened for; saving writes only here. */
   targetId: string;
@@ -45,7 +46,7 @@ function formatTotal(cents: bigint, currency: string): string {
 }
 
 const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
-  onClose, projectId, targetId, selectedId, isDraft, canCreate, canEdit, currency, versionLabel,
+  onClose, onDirtyChange, projectId, targetId, selectedId, isDraft, canCreate, canEdit, currency, versionLabel,
 }) => {
   const { t } = useTranslation('finance');
   const headerId = useId();
@@ -96,6 +97,9 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
   const ambiguityConfirmed = ambiguousRows.length === 0 || confirmedKey === ambiguousKey;
   const canSave = hasInput && validRows.length > 0 && ambiguityConfirmed && !hasResults && !paste.isSaving;
   const unresolved = results.some((r) => r.status !== 'created');
+  const dirty = (hasInput && !hasResults) || unresolved;
+  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
   // AC-ERR-001: a rejected row is also shown inline and stays; a fresh object per results change re-announces it.
   const firstError = results.find((r) => r.error)?.error;
   const submitError = useMemo(() => (firstError ? { headline: firstError.headline, detail: firstError.detail } : null), [results]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -159,7 +163,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
       hideSubmit={hasResults}
       disabledReason={t('budgetPaste.disabledReason', 'Paste rows with a mapped category and amount, with at least one valid row.')}
       loading={paste.isSaving}
-      dirty={(hasInput && !hasResults) || unresolved}
+      dirty={dirty}
       discardCopy={{
         title: t('budgetPaste.discardTitle', 'Close without finishing?'),
         description: t('budgetPaste.discardBody', 'Pasted rows that are not saved, and rows not confirmed, will be dropped. Check the budget lines afterwards.'),

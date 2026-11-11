@@ -36,6 +36,8 @@ export interface ConfirmDialogProps {
   /** Gate the confirm button — for a dialog that hosts a required input (e.g. an attestation reason).
    *  Cancel/Esc/scrim are NEVER blocked by this: the escape hatch stays open. */
   confirmDisabled?: boolean;
+  /** Put the safe cancel action before confirm in the mobile sheet. */
+  cancelFirstOnMobile?: boolean;
   /** Where focus lands on open: Cancel (default, the safe choice) or a field the dialog hosts (ReasonDialog's reason box). */
   initialFocus?: () => HTMLElement | null;
   /** Consumer-owned focus destination if the opener is removed while the dialog is open. */
@@ -54,6 +56,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   tone = 'default',
   loading = false,
   confirmDisabled = false,
+  cancelFirstOnMobile = false,
   initialFocus,
   restoreFocusFallback,
   onConfirm,
@@ -162,10 +165,17 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                   <Button variant={isDestructive ? 'destructive' : 'primary'} loading={loading} disabled={confirmDisabled} onClick={onConfirm}>{confirmLabel}</Button>
                 </>
               ) : (
-                <>
-                  <Button variant={isDestructive ? 'destructive' : 'primary'} loading={loading} disabled={confirmDisabled} className="touch-target h-11 w-full text-control" onClick={onConfirm}>{confirmLabel}</Button>
-                  <Button ref={setCancelRef} variant="outline" disabled={loading} className="touch-target h-11 w-full text-control" onClick={onCancel}>{cancelLabel}</Button>
-                </>
+                cancelFirstOnMobile ? (
+                  <>
+                    <Button ref={setCancelRef} variant="outline" disabled={loading} className="touch-target h-11 w-full text-control" onClick={onCancel}>{cancelLabel}</Button>
+                    <Button variant={isDestructive ? 'destructive' : 'primary'} loading={loading} disabled={confirmDisabled} className="touch-target h-11 w-full text-control" onClick={onConfirm}>{confirmLabel}</Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant={isDestructive ? 'destructive' : 'primary'} loading={loading} disabled={confirmDisabled} className="touch-target h-11 w-full text-control" onClick={onConfirm}>{confirmLabel}</Button>
+                    <Button ref={setCancelRef} variant="outline" disabled={loading} className="touch-target h-11 w-full text-control" onClick={onCancel}>{cancelLabel}</Button>
+                  </>
+                )
               )}
             </div>
           </div>

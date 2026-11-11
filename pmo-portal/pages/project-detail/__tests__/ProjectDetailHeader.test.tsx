@@ -516,8 +516,8 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     window.dispatchEvent(unload);
     expect(unload.defaultPrevented).toBe(true);
     await userEvent.click(screen.getByRole('link', { name: 'Next page' }));
-    const leavePrompt = await screen.findByRole('dialog', { name: /unsaved contract value/i });
-    await userEvent.click(within(leavePrompt).getByRole('button', { name: /^stay$/i }));
+    const leavePrompt = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(leavePrompt).getByRole('button', { name: 'Keep editing' }));
 
     expect(screen.getByTestId('route-path')).toHaveTextContent('/projects/p1');
     expect(screen.getByRole('textbox', { name: /Contract value/i })).toHaveValue('5,140,000');
@@ -535,7 +535,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     await user.type(value, '5140000');
     await user.click(screen.getByRole('button', { name: /^Cancel$/i }));
 
-    const discardPrompt = await screen.findByRole('dialog', { name: /unsaved contract value/i });
+    const discardPrompt = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
     await user.click(within(discardPrompt).getByRole('button', { name: /keep editing/i }));
     expect(screen.getByRole('textbox', { name: /Contract value/i })).toHaveValue('5,140,000');
     expect(projectMutations.setContractValue.mutateAsync).not.toHaveBeenCalled();

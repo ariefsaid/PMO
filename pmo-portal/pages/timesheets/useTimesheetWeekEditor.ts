@@ -300,6 +300,10 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
     const d = diffEntries(editRows, weekDateStrings, serverEntriesForDiff, currentTimesheet?.id ?? '');
     return d.upserts.length + d.deletes.length > 0;
   }, [editRows, weekDateStrings, serverEntriesForDiff, currentTimesheet?.id]);
+  // Save intentionally commits only valid, persisted-shape rows. Keep the raw buffer guarded too:
+  // text such as "8h" or a newly picked project with no valid hours cannot be saved, but leaving
+  // still loses what the user typed.
+  const hasUnsavedBuffer = dirty || JSON.stringify(editRows) !== JSON.stringify(seedRows);
 
   const weeklyTotal = useMemo(
     () => currentWeekEntries.reduce((sum, e) => sum + e.hours, 0),
@@ -459,7 +463,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
 
   return {
     view: { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
-      editRawHours, rowToDelete, dirty, weeklyTotal, pendingWeekDelta, weekRangeLabel,
+      editRawHours, rowToDelete, dirty, hasUnsavedBuffer, weeklyTotal, pendingWeekDelta, weekRangeLabel,
       isOwner, editBufferHasHours, canSubmit, confirmSubmit,
       copyPlan: { addedCount: copyPlan.addedCount, lastWeekHasRows: copySource.length > 0 } },
     actions: { setCell, setNote, addProject, copyLastWeek, requestDelete: setConfirmDeleteRowId,

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import i18next from 'i18next';
@@ -41,7 +41,7 @@ const renderPage = (role: Role = 'Project Manager', viewAs: Role | null = null) 
   realRole = role;
   effectiveRole = viewAs;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={qc}><ToastProvider><MemoryRouter><StockReorder /></MemoryRouter></ToastProvider></QueryClientProvider>);
+  return render(<QueryClientProvider client={qc}><ToastProvider><MemoryRouter initialEntries={['/reorder']}><Link to="/next">Continue</Link><Routes><Route path="/reorder" element={<StockReorder />} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter></ToastProvider></QueryClientProvider>);
 };
 
 async function pickPair() {
@@ -110,6 +110,23 @@ describe('StockReorder', () => {
     await userEvent.type(level, '45.5');
     await userEvent.click(screen.getByRole('button', { name: 'Save level' }));
     expect(reorder.setLevel).toHaveBeenCalledWith({ warehouseId: 'w1', itemId: 'i1', level: '45.5', quantity: '60' });
+  });
+
+  it('asks before discarding an edited reorder level and Stay keeps both values', async () => {
+    renderPage();
+    await pickPair();
+    await screen.findByText('Suggested level');
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const level = screen.getByRole('textbox', { name: /^Reorder level/ });
+    await userEvent.clear(level);
+    await userEvent.type(level, '44');
+    await userEvent.click(screen.getByRole('link', { name: 'Continue' }));
+
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(discard).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByRole('textbox', { name: /^Reorder level/ })).toHaveValue('44');
+    expect(screen.queryByText('Next page')).not.toBeInTheDocument();
+    expect(reorder.setLevel).not.toHaveBeenCalled();
   });
 
   it('FR-STK-053 the level in force is shown, and clearing asks first then sends a null level', async () => {

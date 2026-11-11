@@ -6,6 +6,7 @@ import {
   CardHead,
   CardPad,
   ConfirmDialog,
+  UnsavedChangesDialog,
   ListState,
   StatusPill,
   useToast,
@@ -302,22 +303,14 @@ const MeetingDetail: React.FC = () => {
         onCancel={() => setDeleteOpen(false)}
       />
 
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        tone="default"
-        title={tMeetings('confirm.unsavedChanges.title', 'Unsaved meeting changes')}
-        description={tMeetings(
-          'confirm.unsavedChanges.description',
-          'Your meeting header or minutes have unsaved changes. Leave this page and discard them?',
-        )}
-        confirmLabel={tMeetings('confirm.unsavedChanges.leave', 'Leave')}
-        cancelLabel={tMeetings('confirm.unsavedChanges.stay', 'Stay')}
-        onConfirm={() => {
+        onDiscard={() => {
           const leave = pendingLeave;
           setPendingLeave(null);
           leave?.();
         }}
-        onCancel={() => setPendingLeave(null)}
+        onKeepEditing={() => setPendingLeave(null)}
       />
     </div>
   );

@@ -90,8 +90,8 @@ describe('CommentsSection', () => {
     window.dispatchEvent(unload);
     expect(unload.defaultPrevented).toBe(true);
     await user.click(screen.getByRole('link', { name: 'Next page' }));
-    const leavePrompt = await screen.findByRole('dialog', { name: /unsaved comment/i });
-    await user.click(within(leavePrompt).getByRole('button', { name: /^stay$/i }));
+    const leavePrompt = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(within(leavePrompt).getByRole('button', { name: 'Keep editing' }));
 
     expect(screen.getByTestId('route-path')).toHaveTextContent('/projects/proj1');
     expect(screen.getByRole('textbox')).toHaveValue('Please check with @Peer Person ');
