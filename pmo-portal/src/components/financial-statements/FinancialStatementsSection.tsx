@@ -34,6 +34,8 @@ export interface FinancialStatementsSectionProps {
     refreshing: string;
   };
   onRetry: () => void;
+  /** The one control that fixes an unavailable page (e.g. "Set up accounting"); omitted when the viewer cannot act. */
+  unavailableAction?: { label: string; onClick: () => void };
   /** "Refresh now": shown with a complete read; the page decides eligibility and what the result says. */
   refreshNow?: { label: string; pending: boolean; note?: string; onClick: () => void };
   children?: ReactNode;
@@ -45,6 +47,7 @@ export function FinancialStatementsSection({
   state,
   labels,
   onRetry,
+  unavailableAction,
   refreshNow,
   children,
 }: FinancialStatementsSectionProps) {
@@ -70,6 +73,7 @@ export function FinancialStatementsSection({
         variant="empty"
         title={labels.unavailable}
         sub={labels.unavailableDescription}
+        action={unavailableAction}
       />
     );
   } else if (formatInstantDate(state.asOf) === '—') {
@@ -87,7 +91,7 @@ export function FinancialStatementsSection({
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <AccountingSnapshotProvenance asOf={state.asOf} updatedLabel={labels.updated} />
           {(isDelayed || isRefreshing) && (
-            <div role="status" className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-warning-foreground">
+            <div role="status" className="flex min-w-0 flex-wrap items-center gap-x-2 text-control text-warning-foreground">
               {isDelayed && <span>{labels.delayed}</span>}
               {isRefreshing && <span>{labels.refreshing}</span>}
             </div>
@@ -102,7 +106,7 @@ export function FinancialStatementsSection({
               <Button variant="outline" size="sm" loading={refreshNow.pending} onClick={refreshNow.onClick}>
                 {refreshNow.label}
               </Button>
-              {refreshNow.note && <span role="status" className="text-xs text-muted-foreground">{refreshNow.note}</span>}
+              {refreshNow.note && <span role="status" className="text-control text-muted-foreground">{refreshNow.note}</span>}
             </>
           )}
         </div>
@@ -127,7 +131,7 @@ export function FinancialStatementsSection({
         </CardHead>
         <CardPad className="flex min-w-0 flex-col gap-3">
           {context !== undefined && context !== '' && (
-            <p className="min-w-0 break-words text-xs text-muted-foreground">{context}</p>
+            <p className="min-w-0 break-words text-control text-muted-foreground">{context}</p>
           )}
           {content}
         </CardPad>

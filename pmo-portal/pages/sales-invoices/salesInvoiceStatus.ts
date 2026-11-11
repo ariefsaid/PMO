@@ -83,23 +83,21 @@ export function createInvoiceStatus(deps: InvoiceStatusDeps) {
       partlySettled,
       receiptAwaitingOdoo: true,
     });
+    // One age text everywhere ("118 days overdue"); a partly paid invoice keeps its own name and is red when late.
+    const overdueLabel = () => t('status:age.overdue', { count: lateDays, n: String(lateDays), defaultValue_one: '{{n}} day overdue', defaultValue_other: '{{n}} days overdue' });
     if (partlySettled) return result({
       label: lateDays > 0
-        ? lateDays === 1
-          ? t('finance:receivables.statusPartlyPaidLateDay', 'Partly paid · {{count}} day late', { count: lateDays })
-          : t('finance:receivables.statusPartlyPaidLateDays', 'Partly paid · {{count}} days late', { count: lateDays })
-        : t('finance:receivables.statusPartlyPaid', 'Partly paid · not yet due'),
+        ? t('finance:receivables.statusPartlyPaidLate', { count: lateDays, n: String(lateDays), defaultValue_one: 'Partly paid · {{n}} day overdue', defaultValue_other: 'Partly paid · {{n}} days overdue' })
+        : t('finance:receivables.statusPartlyPaid', 'Partly paid'),
       variant: lateDays > 0 ? 'overdue' as const : salesInvoiceStatusVariant('Unpaid'),
       partlySettled,
     });
     if (lateDays > 0) return result({
-      label: lateDays === 1
-        ? t('finance:receivables.statusOverdueDay', 'Overdue · {{count}} day', { count: lateDays })
-        : t('finance:receivables.statusOverdueDays', 'Overdue · {{count}} days', { count: lateDays }),
+      label: overdueLabel(),
       variant: 'overdue' as const,
       partlySettled,
     });
     if (inv.status === 'Submitted') return result({ label: t('finance:receivables.statusSubmitted', 'Submitted'), variant: salesInvoiceStatusVariant(inv.status), partlySettled });
-    return result({ label: t('finance:receivables.statusUnpaid', 'Unpaid · not yet due'), variant: salesInvoiceStatusVariant(inv.status), partlySettled });
+    return result({ label: t('finance:receivables.statusUnpaid', 'Unpaid'), variant: salesInvoiceStatusVariant(inv.status), partlySettled });
   };
 }

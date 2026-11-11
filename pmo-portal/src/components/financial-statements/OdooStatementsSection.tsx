@@ -13,7 +13,7 @@ import { ViewToggle } from '@/src/components/ui/ViewToggle';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { useOdooLedgerCurrency, useOdooStatement, useOdooStatementCatalogue } from '@/src/hooks/useOdooLedger';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDayYear } from '@/src/lib/format';
 import type { OdooLedgerCheck, OdooStatementKind, OdooStatementPair, OdooStatementProvenance, OdooStatementRead } from '@/src/lib/db/odooLedger';
 
 const STATEMENTS: readonly OdooStatementKind[] = ['trial_balance', 'profit_and_loss', 'balance_sheet'];
@@ -95,7 +95,7 @@ export function OdooStatementsSection({ projectId }: { projectId?: string }) {
         <StatementPeriodPicker
           kind={periodKind}
           periodStart={pair?.currentStart ?? null}
-          periods={choices.map((p) => ({ kind: p.kind, periodStart: p.currentStart, label: `${formatDateOnly(p.currentStart)} – ${formatDateOnly(p.currentEnd)}` }))}
+          periods={choices.map((p) => ({ kind: p.kind, periodStart: p.currentStart, label: `${formatDayYear(p.currentStart)} – ${formatDayYear(p.currentEnd)}` }))}
           labels={{
             kind: tc('financialStatements.periodKind', 'Period type'), period: tc('financialStatements.period', 'Period'), month: tc('financialStatements.month', 'Month'),
             quarter: tc('financialStatements.quarter', 'Quarter'), fiscalYear: tc('financialStatements.fiscalYear', 'Fiscal year'),
@@ -139,7 +139,7 @@ export function OdooStatementsSection({ projectId }: { projectId?: string }) {
       )}
       <FinancialStatementsSection
         title={projectId ? tc('financialStatements.projectProfitAndLoss', 'Project profit and loss') : statementName[statement]}
-        context={complete ? `${formatDateOnly(complete.period.currentStart)} – ${formatDateOnly(complete.period.currentEnd)}` : ''}
+        context={complete ? `${formatDayYear(complete.period.currentStart)} – ${formatDayYear(complete.period.currentEnd)}` : ''}
         state={sectionState}
         labels={{
           unavailable: tc('financialStatements.unavailable', 'Statements are not available yet'),
@@ -173,8 +173,8 @@ export function OdooStatementsSection({ projectId }: { projectId?: string }) {
             />
             <p className="text-sm text-muted-foreground">
               {side === 'current'
-                ? `${formatDateOnly(complete.period.currentStart)} – ${formatDateOnly(complete.period.currentEnd)}`
-                : `${formatDateOnly(complete.period.priorStart)} – ${formatDateOnly(complete.period.priorEnd)}`}
+                ? `${formatDayYear(complete.period.currentStart)} – ${formatDayYear(complete.period.currentEnd)}`
+                : `${formatDayYear(complete.period.priorStart)} – ${formatDayYear(complete.period.priorEnd)}`}
             </p>
             <OdooStatementTable statement={statement} side={side === 'current' ? complete.current : complete.prior} name={statementName[statement]} />
           </div>

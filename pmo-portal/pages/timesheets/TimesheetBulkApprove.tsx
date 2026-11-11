@@ -130,9 +130,9 @@ export function TimesheetBulkToolbar({ controller, sheets }: { controller: BulkC
     : t('uxs18.bulk.scopeSome', '{{eligible}} of {{total}} timesheets in this queue can be approved together.', { eligible, total: controller.total });
   return (
     <div role="group" aria-label={t('approvals.bulk.groupLabel', 'Bulk approve')} className="mb-3 flex flex-wrap items-center gap-2.5 rounded-lg bg-primary/[0.06] px-3 py-2.5">
-      <p className="basis-full text-[13px] text-muted-foreground">{scope}</p>
+      <p className="basis-full text-control text-muted-foreground">{scope}</p>
       {failedShown.length > 0 && (
-        <div role="alert" aria-label={t('timesheets:approvalQueue.bulkFailedLabel', 'These weeks could not be approved')} className="basis-full text-[13px] text-destructive">
+        <div role="alert" aria-label={t('timesheets:approvalQueue.bulkFailedLabel', 'These weeks could not be approved')} className="basis-full text-control text-destructive">
           <p>{t('timesheets:approvalQueue.bulkFailedLead', 'These weeks could not be approved (separation of duties or stale). They stay selected so you can retry.')}</p>
           <ul>
             {failedShown.map((sheet) => (
@@ -146,7 +146,7 @@ export function TimesheetBulkToolbar({ controller, sheets }: { controller: BulkC
         onChange={controller.toggleSelectAll}
         label={t('approvals.bulk.selectAll', 'Select all approvable weeks')}
       />
-      <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[12px] font-semibold tabular text-muted-foreground">
+      <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-control font-semibold tabular text-muted-foreground">
         {t('approvals.bulk.selectedCount', '{{count}} selected', { count: n })}
       </span>
       <span className="flex-1" />
@@ -178,7 +178,7 @@ export function TimesheetBulkConfirm({ controller, sheets }: { controller: BulkC
           {t('approvals.bulk.confirmDescription', "This approves the selected weeks. You can't approve your own timesheet. Separation of duties is enforced.")}
           <span className="mt-2 block space-y-0.5">
             {sheets.filter((sheet) => controller.effectiveSelected.has(sheet.id)).map((sheet) => (
-              <span key={sheet.id} className="block text-[13px]">
+              <span key={sheet.id} className="block text-control">
                 {sheet.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')} · {weekLabel(sheet.week_start_date, t)} · <span className="tabular">{sheet.entries.reduce((sum, entry) => sum + entry.hours, 0).toFixed(1)}</span> {t('approvals.bulk.hoursUnit', 'h')}
               </span>
             ))}

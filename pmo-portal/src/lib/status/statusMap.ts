@@ -49,7 +49,7 @@ export const STATUS_MAP = {
     Received: e('neutral', (t) => t('status:procurement.received', 'Goods receipt')),
     'Vendor Invoiced': e('neutral', (t) => t('status:procurement.vendorInvoiced', 'Supplier invoice')),
     Paid: e('done', (t) => t('status:procurement.paid', 'Paid')),
-    Rejected: e('exception', (t) => t('status:procurement.rejected', 'Rejected')),
+    Rejected: e('exception', (t) => t('status:procurement.rejected', 'Returned')),
     Cancelled: e('neutral', (t) => t('status:procurement.cancelled', 'Cancelled')),
   },
   expense: {

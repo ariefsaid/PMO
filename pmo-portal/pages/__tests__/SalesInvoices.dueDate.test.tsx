@@ -7,7 +7,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 
 /** SalesInvoices page — due-date column render test (AC-SAR-051 UI proof). */
 
@@ -159,8 +159,8 @@ describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
     renderAs('Finance');
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('ACC-SINV-2025-00001');
-    expect(table).toContain(formatDateOnly('2026-07-31'));
-    expect(table).not.toContain(formatDateOnly('2026-07-01'));
+    expect(table).toContain(formatDay('2026-07-31'));
+    expect(table).not.toMatch(/(?<!\d)1 Jul/);
   });
 
   it('renders the Due Date column with derived values', () => {
@@ -177,9 +177,9 @@ describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
     // Second invoice: has ERP due date 2026-09-15 (takes precedence)
     // #781 (AC-FIN-003): displayed dates now route through the shared locale formatter.
     const tableText = screen.getByRole('table').textContent ?? '';
-    expect(tableText).toContain(formatDateOnly('2026-07-31'));
-    expect(tableText).toContain(formatDateOnly('2026-09-15'));
-    expect(tableText).not.toContain(formatDateOnly('2026-07-01'));
+    expect(tableText).toContain(formatDay('2026-07-31'));
+    expect(tableText).toContain(formatDay('2026-09-15'));
+    expect(tableText).not.toMatch(/(?<!\d)1 Jul/);
   });
 
   it('shows "—" for invoices with no invoice date', () => {
@@ -242,7 +242,7 @@ describe('SalesInvoices — #767 due date follows the received date', () => {
   it('AC-DUE-002 the Due Date column is received date + terms (invoice 2026-07-01, received 2026-07-11, 30d → 2026-08-10)', () => {
     salesInvoicesState.data = [{ ...SEED_INVOICES[0], id: 'si-rcv', erp_due_date: null, received_date: '2026-07-11' } as SalesInvoiceRow];
     renderAs('Finance');
-    expect(screen.getAllByText(formatDateOnly('2026-08-10')).length).toBeGreaterThan(0);
-    expect(screen.queryByText(formatDateOnly('2026-07-31'))).toBeNull();
+    expect(screen.getAllByText(formatDay('2026-08-10')).length).toBeGreaterThan(0);
+    expect(screen.queryByText(formatDay('2026-07-31'))).toBeNull();
   });
 });

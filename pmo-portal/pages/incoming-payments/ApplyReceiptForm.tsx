@@ -92,7 +92,6 @@ export const ApplyReceiptForm: React.FC<ApplyReceiptFormProps> = ({ receipt, una
     <EntityFormModal
       open
       title={t('finance:receipts.apply.title', 'Apply to invoices')}
-      subtitle={t('finance:receipts.apply.subtitle', '{{amount}} not yet applied', { amount: formatCurrencyCents(unapplied, receipt.currency) })}
       submitLabel={t('finance:receipts.apply.submit', 'Apply')}
       cancelLabel={t('financeCopy.cancel', 'Cancel')}
       onSubmit={submit}
@@ -102,6 +101,7 @@ export const ApplyReceiptForm: React.FC<ApplyReceiptFormProps> = ({ receipt, una
       dirty={rows.some((r) => r.invoiceId || r.amount)}
       submitDisabled={invalid}
     >
+      <p className="mb-3 text-control font-medium">{t('finance:receipts.apply.subtitle', '{{amount}} not yet applied', { amount: formatCurrencyCents(unapplied, receipt.currency) })}</p>
       {candidates.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('finance:receipts.apply.noOpenInvoices', 'This customer has no approved invoice in {{currency}} that still owes money.', { currency: receipt.currency })}</p>
       ) : (

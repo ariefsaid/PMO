@@ -137,12 +137,12 @@ beforeEach(() => {
 });
 
 describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
-  it('labels the mobile invoice amount and reports an unknown outstanding balance', () => {
+  it('labels the mobile invoice amount; an unknown balance is said once at page level, not on the card', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })));
     h.invoices.data = [invoice('INV-001', { amount: 1000, tax_amount: 100, erp_outstanding_amount: null })];
     renderAt('/sales-invoices', 'Finance', undefined, true);
     expect(screen.getByText(/Invoice total excl. PPN:.*1,000/)).toBeInTheDocument();
-    expect(screen.getByText('Outstanding balance unknown')).toBeInTheDocument();
+    expect(screen.queryByText('Outstanding balance unknown')).not.toBeInTheDocument();
     vi.unstubAllGlobals();
   });
 
@@ -208,9 +208,9 @@ describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
     expect(screen.getAllByRole('button', { name: 'Overdue only' })).toHaveLength(1);
   });
 
-  it('describes the page in one short line and offers no Browse Projects button to a project manager', () => {
+  it('has no sentence under the title and offers no Browse Projects button to a project manager', () => {
     renderAt('/sales-invoices', 'Project Manager');
-    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
+    expect(screen.queryByText('Client invoices.')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Browse Projects' })).not.toBeInTheDocument();
   });
 });
@@ -322,12 +322,12 @@ it('records the selected invoice receipt from the list', async () => {
   h.received.mockRejectedValueOnce(new Error('Save failed'));
   renderAt('/sales-invoices');
   await userEvent.click(within(screen.getByRole('row', { name: /INV-002/ })).getByRole('button', { name: /row actions/i }));
-  await userEvent.click(screen.getByRole('menuitem', { name: /record received date/i }));
+  await userEvent.click(screen.getByRole('menuitem', { name: /record delivery date/i }));
   const dialog = screen.getByRole('dialog');
-  await userEvent.type(within(dialog).getByLabelText('Received'), '2026-10-12');
+  await userEvent.type(within(dialog).getByLabelText('Delivered'), '2026-10-12');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(await within(dialog).findByTestId('entity-modal-save-error')).toBeInTheDocument();
-  expect(within(dialog).getByLabelText('Received')).toHaveValue('2026-10-12');
+  expect(within(dialog).getByLabelText('Delivered')).toHaveValue('2026-10-12');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(h.received).toHaveBeenCalledWith({ siId: 'INV-002', receivedDate: '2026-10-12' });
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

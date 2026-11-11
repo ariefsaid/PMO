@@ -248,7 +248,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('ACC-SINV-2026-00001');
     expect(table).not.toContain('ACC-SINV-2026-00002');
-    expect(table).toContain('Partly paid · 77 days late');
+    expect(table).toContain('Partly paid · 77 days overdue');
   });
 
   it('FIN-S1 search finds an invoice by its project label', async () => {
@@ -365,9 +365,9 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByText('Invoice date')).toBeInTheDocument();
-    expect(screen.getByText('Jul 1, 2026')).toBeInTheDocument();
+    expect(screen.getByText('1 Jul 2026')).toBeInTheDocument();
     expect(screen.getByText('Due date')).toBeInTheDocument();
-    expect(screen.getByText('Jul 31, 2026')).toBeInTheDocument();
+    expect(screen.getByText('31 Jul 2026')).toBeInTheDocument();
     expect(screen.getByText('77 days overdue')).toBeInTheDocument();
     expect(screen.getByText('Partly paid')).toBeInTheDocument();
     expect(screen.getByText('Acme Energy')).toBeInTheDocument();
@@ -420,7 +420,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByText('Due date not available')).toBeInTheDocument();
-    expect(screen.getByText('Outstanding amount not available')).toBeInTheDocument();
+    expect(screen.queryByText('Outstanding')).not.toBeInTheDocument();
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
   });
 
@@ -433,7 +433,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByText('Ready to send')).toBeInTheDocument();
     expect(screen.getByText('Download the PDF and send it to your client yourself.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download approved PDF' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mark received' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record delivery' })).toBeInTheDocument();
     expect(screen.queryByText('Sent')).not.toBeInTheDocument();
   });
 
@@ -466,7 +466,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByRole('heading', { name: 'Received by client' })).toBeInTheDocument();
-    expect(screen.getByText('Client receipt was recorded for Oct 10, 2026.')).toBeInTheDocument();
+    expect(screen.getByText('Client receipt was recorded for 10 Oct 2026.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Download approved PDF' })).not.toBeInTheDocument();
   });
 
@@ -478,7 +478,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     await userInstance.click(within(row as HTMLElement).getByRole('button', { name: 'Row actions' }));
     await userInstance.click(screen.getByRole('menuitem', { name: 'View invoice' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices/inv-2?q=ACC-SINV-2026-00002');
-    await userInstance.click(screen.getByRole('button', { name: 'Back to Sales Invoices' }));
+    await userInstance.click(screen.getByRole('button', { name: 'Back to Receivables' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?q=ACC-SINV-2026-00002');
     expect(screen.getByDisplayValue('ACC-SINV-2026-00002')).toBeInTheDocument();
   });
@@ -524,12 +524,12 @@ it('records the selected invoice receipt from detail', async () => {
   salesInvoicesState.data[0] = { ...SEED_INVOICES[0], status: 'Submitted', pmo_native: false, erp_docstatus: 1, received_date: null };
   hoisted.received.mockRejectedValueOnce(new Error('Save failed'));
   renderAt('/sales-invoices/inv-1');
-  await userEvent.click(screen.getByRole('button', { name: 'Mark received' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Record delivery' }));
   const dialog = screen.getByRole('dialog');
-  await userEvent.type(within(dialog).getByLabelText('Received'), '2026-10-12');
+  await userEvent.type(within(dialog).getByLabelText('Delivered'), '2026-10-12');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(await within(dialog).findByTestId('entity-modal-save-error')).toBeInTheDocument();
-  expect(within(dialog).getByLabelText('Received')).toHaveValue('2026-10-12');
+  expect(within(dialog).getByLabelText('Delivered')).toHaveValue('2026-10-12');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(hoisted.received).toHaveBeenCalledWith({ siId: 'inv-1', receivedDate: '2026-10-12' });
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
