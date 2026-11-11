@@ -145,10 +145,14 @@ export function DataTableMobile<Row>({
           const menuItems = hasMenu ? (rowMenu!(row) ?? []) : [];
 
           return (
+            // data-record-row marks this as ONE record of the list for the rendered UX gate
+            // (scripts/ux-proof-metrics.mjs): record words are data, never chrome. Keep it when
+            // restructuring the card — inference alone lets the first card into the word budget.
             <li
               key={key}
               id={targetId}
               tabIndex={targetId ? -1 : undefined}
+              data-record-row=""
               className={cn(
                 'relative flex min-h-[var(--table-row-min-height)] flex-col gap-2 p-[var(--table-cell-inset)] text-control transition-colors',
                 onActivate && 'cursor-pointer',

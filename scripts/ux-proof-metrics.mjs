@@ -12,9 +12,15 @@ export function measureText(chartSelector) {
   // layouts that repeat an identically-shaped div/button per record (approvals queue, the 390
   // timesheet grid). The last one is caught by shape (tag + class) because it carries no list
   // semantics — without it the gate would still count record data as chrome.
+  // The phone card branch of the shared DataTable is marked explicitly (`data-record-row`): a
+  // record card is data even when it is the ONLY one, and grouping must not decide it. Inference
+  // alone left the first card (or a card list under a group heading) inside the chrome budget,
+  // so /finance/receivables moved with which record came first. The attribute lives in this
+  // function (not module scope) because measureText is serialized into the page.
   const shape = (element) => `${element.tagName}|${element.getAttribute('class') || ''}`;
   const isDataRow = (element) => {
     for (let node = element; node && node !== main; node = node.parentElement) {
+      if (node.hasAttribute('data-record-row')) return true;
       const tag = node.tagName;
       const role = node.getAttribute('role');
       if (tag === 'TBODY') return true;

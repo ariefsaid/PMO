@@ -34,6 +34,20 @@ async function selfTest() {
     await page.setContent('<main><span>page words</span><span class="sr-only">accessible duplicate</span><svg class="recharts-surface" width="10" height="10"><text>chart labels</text></svg></main>');
     const chartMetrics = await page.evaluate(measureText, CHART_SELECTOR);
     if (chartMetrics.wordCount !== 2 || chartMetrics.chartCount !== 1) throw new Error(`Self-test failed: chart labels should count as a chart, not page copy (${JSON.stringify(chartMetrics)})`);
+    // The phone card branch marks each record; a menu of 2 records and one of 20 must read the
+    // same, and a single record card must not leak into chrome either.
+    const recordCard = (index) => `<li data-record-row=""><span>Record ${index} detail here</span></li>`;
+    const recordList = (count, chrome = '') => `<main style="font-size:16px"><h1>Receivables</h1>${chrome}<ul role="list">${Array.from({ length: count }, (_, index) => recordCard(index + 1)).join('')}</ul></main>`;
+    await page.setContent(recordList(2));
+    const twoCards = await page.evaluate(measureText, CHART_SELECTOR);
+    await page.setContent(recordList(20));
+    const twentyCards = await page.evaluate(measureText, CHART_SELECTOR);
+    await page.setContent(recordList(1));
+    const oneCard = await page.evaluate(measureText, CHART_SELECTOR);
+    await page.setContent(recordList(20, '<h2>Extra heading</h2>'));
+    const moreChrome = await page.evaluate(measureText, CHART_SELECTOR);
+    if (oneCard.wordCount !== twoCards.wordCount || twentyCards.wordCount !== twoCards.wordCount) throw new Error(`Self-test failed: record cards moved the word count (${oneCard.wordCount}/${twoCards.wordCount}/${twentyCards.wordCount})`);
+    if (moreChrome.wordCount !== twoCards.wordCount + 2) throw new Error(`Self-test failed: chrome next to record cards must still count (${twoCards.wordCount} -> ${moreChrome.wordCount})`);
     console.log('ux-proof self-test passed');
   } finally { await browser.close(); }
 }
