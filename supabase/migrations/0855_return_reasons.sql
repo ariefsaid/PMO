@@ -526,7 +526,7 @@ begin
      set status = p_to,
          approver_id = case when p_to in ('Approved','Rejected') then v_uid when p_to = 'Draft' then null else approver_id end,
          approved_at = case when p_to = 'Approved' then now() else null end,
-         decision_notes = case when p_to = 'Submitted' and v_e.status = 'Draft' then null when p_to in ('Approved','Rejected') or v_action = 'reopen' then nullif(btrim(coalesce(p_notes,'')), '')
+         decision_notes = case when p_to = 'Submitted' and v_e.status = 'Draft' and (v_e.rejected_at is not null or v_e.rejected_by is not null) then null when p_to in ('Approved','Rejected') or v_action = 'reopen' then nullif(btrim(coalesce(p_notes,'')), '')
                                else decision_notes end,
          rejected_by = case when p_to = 'Rejected' then v_uid when p_to = 'Submitted' and v_e.status = 'Draft' then null else rejected_by end,
          rejected_at = case when p_to = 'Rejected' then now() when p_to = 'Submitted' and v_e.status = 'Draft' then null else rejected_at end,

@@ -13,7 +13,7 @@
 -- Isolated org; UUID prefix 17110000-… (issue #1710).
 begin;
 create extension if not exists pgtap;
-select plan(36);
+select plan(38);
 
 insert into organizations (id, name) values
   ('17110000-0000-0000-0000-000000000001','Timesheet Map Org (1710)'), ('17110000-0000-0000-0000-000000000002','Other Org');
@@ -116,6 +116,14 @@ select throws_ok($$ select transition_timesheet('17110000-0000-0000-0000-0000000
 set local request.jwt.claims = '{"sub":"17110000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok($$ select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected',' reason ') $$, 'AC-RSN-007 reject with notes');
 select is((select rejection_reason from timesheets where id = '17110000-0000-0000-0000-000000000012'), 'reason', 'AC-RSN-007 reason trimmed');
+set local request.jwt.claims = '{"sub":"17110000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select transition_timesheet('17110000-0000-0000-0000-000000000012','Draft');
+select ok((select rejection_reason='reason' and rejected_by='17110000-0000-0000-0000-0000000000a2'::uuid and rejected_at is not null from timesheets where id='17110000-0000-0000-0000-000000000012'), 'AC-RSN-002 all timesheet decision details retained');
+select transition_timesheet('17110000-0000-0000-0000-000000000012','Submitted');
+select ok((select rejection_reason is null and rejected_by is null and rejected_at is null from timesheets where id='17110000-0000-0000-0000-000000000012'), 'AC-RSN-002 all timesheet decision details cleared');
+set local request.jwt.claims = '{"sub":"17110000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected','reason');
+
 reset role;
 select ok(has_function_privilege('authenticated', (select oid from pg_proc where pronamespace='public'::regnamespace and proname='transition_timesheet'), 'execute'), 'AC-RSN-003 existing authenticated execution preserved');
 select ok(not has_function_privilege('anon', (select oid from pg_proc where pronamespace='public'::regnamespace and proname='transition_timesheet'), 'execute'), 'AC-RSN-003 anonymous execution denied');

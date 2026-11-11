@@ -358,7 +358,7 @@ describe('#1511 F5 adoption RPCs and the dispatch seam', () => {
 it('AC-RSN-004 equipment reads include the visible rejecting profile', async () => {
   h.result.value = { data: [{ id: 'e1', rejected_by: 'u1', rejected_at: '2026-01-01', decision_notes: 'reason', rejecter: { full_name: 'Approver' } }], error: null };
   const result = await dal.listUsage({ from: '2026-01-01', to: '2026-01-07' });
-  expect(result.rows[0]).toMatchObject({ rejected_by: 'u1', decision_notes: 'reason', rejecter: { full_name: 'Approver' } });
+  expect(result.rows[0]).toMatchObject({ rejected_by: 'u1', rejected_at: '2026-01-01', decision_notes: 'reason', rejecter: { full_name: 'Approver' } });
   expect(h.calls.select[0]).toContain('equipment_usage_entries_rejected_by_fkey');
 });
 

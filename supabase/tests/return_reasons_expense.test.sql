@@ -1,7 +1,7 @@
 -- expense_claims_transition.test.sql — #775 status machine, numbering and the separations of duty
 -- (AC-EXP-010..016). No spend_approvers rows here, so routing is `flat` (the OD-PROC-1 rank floor).
 begin;
-select plan(55);
+select plan(57);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('02472000-0000-0000-0000-00000000000a','EXP Txn Org','IDR','Asia/Jakarta');
@@ -114,9 +114,11 @@ select is((select rejection_notes from expense_claims where id = '02472000-0000-
 set local request.jwt.claims = '{"sub":"02472000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$ select transition_expense_claim('02472000-0000-0000-0000-000000000708','Draft') $$, 'AC-RSN-002 claim correction');
 select is((select rejection_notes from expense_claims where id='02472000-0000-0000-0000-000000000708'), 'reason', 'AC-RSN-002 claim reason retained');
+select ok((select rejection_notes='reason' and rejected_by='02472000-0000-0000-0000-0000000000a3'::uuid and rejected_at is not null from expense_claims where id='02472000-0000-0000-0000-000000000708'), 'AC-RSN-002 all claim decision details retained');
 select lives_ok($$ select transition_expense_claim('02472000-0000-0000-0000-000000000708','Submitted') $$, 'AC-RSN-002 claim resubmit');
 select is((select rejected_by from expense_claims where id='02472000-0000-0000-0000-000000000708'), null::uuid, 'AC-RSN-002 claim actor cleared');
 select is((select rejection_notes from expense_claims where id='02472000-0000-0000-0000-000000000708'), null::text, 'AC-RSN-002 claim reason cleared');
+select ok((select rejection_notes is null and rejected_by is null and rejected_at is null from expense_claims where id='02472000-0000-0000-0000-000000000708'), 'AC-RSN-002 all claim decision details cleared');
 set local request.jwt.claims = '{"sub":"02472000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$ select transition_expense_claim('02472000-0000-0000-0000-000000000708','Rejected') $$, 'AC-RSN-007 claim rejection without notes');
 select is((select rejection_notes from expense_claims where id='02472000-0000-0000-0000-000000000708'), null::text, 'AC-RSN-007 omitted claim reason is null');

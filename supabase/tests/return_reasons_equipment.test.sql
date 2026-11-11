@@ -3,7 +3,7 @@
 -- OQ-7/8) and the audit trail. Fixture F1 is docs/plans/2026-11-01-equipment-usage.md "Fixture F1".
 begin;
 create extension if not exists pgtap;
-select plan(67);
+select plan(71);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
@@ -137,6 +137,11 @@ select pg_temp.act_as('15190000-0000-0000-0000-0000000000a1');
 select throws_ok($$ select transition_equipment_usage((select v from _e where k='e2'), 'Approved') $$,
   '22023', null, 'AC-EQU-007 a draft cannot jump to Approved');
 
+-- The reopened approved entry retains the Admin's note on ordinary resubmission.
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a6');
+select lives_ok($$ select transition_equipment_usage((select v from _e where k='e1'), 'Submitted') $$, 'AC-RSN-007 author resubmits an approval reopen');
+select is((select decision_notes from equipment_usage_entries where id=(select v from _e where k='e1')), 'wrong project', 'AC-RSN-007 approval reopen note survives resubmission');
+
 -- ── reject, redraft, and SoD for approver-role authors ─────────────────────────────────────────────
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a6');
 select transition_equipment_usage((select v from _e where k='e2'), 'Submitted');
@@ -164,9 +169,11 @@ select lives_ok($$ select transition_equipment_usage((select v from _e where k='
   'AC-EQU-007 the author returns a rejected entry to draft');
 select is((select decision_notes from equipment_usage_entries where id=(select v from _e where k='e2')), 'wrong asset', 'AC-RSN-002 equipment reason retained');
 select is((select rejected_by from equipment_usage_entries where id=(select v from _e where k='e2')), '15190000-0000-0000-0000-0000000000a5'::uuid, 'AC-RSN-002 equipment actor retained');
+select ok((select decision_notes='wrong asset' and rejected_by='15190000-0000-0000-0000-0000000000a5'::uuid and rejected_at is not null from equipment_usage_entries where id=(select v from _e where k='e2')), 'AC-RSN-002 all equipment decision details retained');
 select lives_ok($$ select transition_equipment_usage((select v from _e where k='e2'), 'Submitted') $$, 'AC-RSN-002 equipment resubmit');
 select is((select rejected_by from equipment_usage_entries where id=(select v from _e where k='e2')), null::uuid, 'AC-RSN-002 equipment actor cleared');
 select is((select decision_notes from equipment_usage_entries where id=(select v from _e where k='e2')), null::text, 'AC-RSN-002 equipment reason cleared');
+select ok((select decision_notes is null and rejected_by is null and rejected_at is null from equipment_usage_entries where id=(select v from _e where k='e2')), 'AC-RSN-002 all equipment decision details cleared');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a5');
 select lives_ok($$ select transition_equipment_usage((select v from _e where k='e2'), 'Rejected') $$, 'AC-RSN-007 equipment rejection without notes');
 select is((select decision_notes from equipment_usage_entries where id=(select v from _e where k='e2')), null::text, 'AC-RSN-007 omitted equipment reason is null');

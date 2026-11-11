@@ -282,9 +282,9 @@ describe('deleteTimesheetEntry', () => {
 });
 
 it('AC-RSN-004 timesheet reads include the visible rejecting profile', async () => {
-  builderResolving({ data: [{ id: 'x', week_start_date: '2026-01-01', entries: [], rejection_reason: 'reason', rejected_by: 'u1', rejecter: { full_name: 'Approver' } }], error: null });
+  builderResolving({ data: [{ id: 'x', week_start_date: '2026-01-01', entries: [], rejection_reason: 'reason', rejected_by: 'u1', rejected_at: '2026-01-01', rejecter: { full_name: 'Approver' } }], error: null });
   const result = await listTimesheets('u1');
-  expect(result[0]).toMatchObject({ rejection_reason: 'reason', rejected_by: 'u1', rejecter: { full_name: 'Approver' } });
+  expect(result[0]).toMatchObject({ rejection_reason: 'reason', rejected_by: 'u1', rejected_at: '2026-01-01', rejecter: { full_name: 'Approver' } });
   expect(mockSelect.mock.calls[0][0]).toContain('timesheets_rejected_by_fkey');
 });
 
