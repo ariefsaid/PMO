@@ -40,6 +40,7 @@ const renderForm = (kind = 'issue', role: Role = 'Engineer', viewingAs: Role = r
         <MemoryRouter initialEntries={[`/stock/new/${kind}`]}>
           <Routes>
             <Route path="/stock/new/:kind" element={<StockMovementForm />} />
+            <Route path="/stock/documents" element={<p>stock documents</p>} />
             <Route path="/stock/documents/:documentId" element={<p>document page</p>} />
           </Routes>
         </MemoryRouter>
@@ -97,6 +98,23 @@ describe('StockMovementForm', () => {
     const alert = (await screen.findAllByRole('alert')).find((a) => /5/.test(a.textContent ?? ''));
     expect(alert).toHaveTextContent(/5.*6/);
     expect(screen.getByLabelText(/^Quantity/)).toHaveAccessibleDescription(/5/);
+  });
+
+  it('asks before Cancel discards typed movement lines and Stay keeps them', async () => {
+    renderForm('issue');
+    await fillIssue('5');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('dialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText(/^Quantity/)).toHaveValue('5');
+    expect(screen.getByRole('combobox', { name: /^Item/ })).toHaveTextContent('CEM - Cement 50kg');
+    expect(screen.queryByText('stock documents')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+    expect(await screen.findByText('stock documents')).toBeInTheDocument();
+    expect(documents.create).not.toHaveBeenCalled();
   });
 
   it('AC-STK-030 a keyboard-only user completes an issue', async () => {

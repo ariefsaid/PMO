@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within, act, fireEvent } from '@testing-library/react';
 import React from 'react'
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { axeViolations } from '@/src/components/__tests__/axe';
@@ -75,7 +76,7 @@ beforeEach(() => {
 });
 
 function renderPage() {
-  return render(<ProfileSettings />);
+  return render(<MemoryRouter initialEntries={['/profile']}><Link to="/next">Continue</Link><Routes><Route path="/profile" element={<ProfileSettings />} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter>);
 }
 
 function languageSelect() {
@@ -98,6 +99,18 @@ describe('ProfileSettings (profile language settings slice)', () => {
     languageSelect().focus();
     expect(document.activeElement).toBe(languageSelect());
     expect(screen.getByRole('button', { name: /^save$/i })).toBeEnabled();
+  });
+
+  it('asks before leaving changed profile preferences and Stay keeps the selection', async () => {
+    currentUserState = { ...currentUserState, locale: 'en' };
+    renderPage();
+    fireEvent.change(languageSelect(), { target: { value: 'id' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Continue' }));
+    const discard = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    fireEvent.click(within(discard).getByRole('button', { name: 'Keep editing' }));
+    expect(languageSelect()).toHaveValue('id');
+    expect(screen.queryByText('Next page')).not.toBeInTheDocument();
+    expect(setLocalePreferences).not.toHaveBeenCalled();
   });
 
   it('exposes exactly the three language options and reflects the current stored choice', () => {
@@ -410,9 +423,9 @@ describe('ProfileSettings localized labels (AC-ACCT-006)', () => {
       interpolation: { escapeValue: false },
     });
     render(
-      <I18nextProvider i18n={instance}>
+      <MemoryRouter><I18nextProvider i18n={instance}>
         <ProfileSettings />
-      </I18nextProvider>,
+      </I18nextProvider></MemoryRouter>,
     );
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'Profile & preferences' })).toBeInTheDocument()
@@ -434,9 +447,9 @@ describe('ProfileSettings localized labels (AC-ACCT-006)', () => {
       interpolation: { escapeValue: false },
     });
     render(
-      <I18nextProvider i18n={instance}>
+      <MemoryRouter><I18nextProvider i18n={instance}>
         <ProfileSettings />
-      </I18nextProvider>,
+      </I18nextProvider></MemoryRouter>,
     );
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'Profil & preferensi' })).toBeInTheDocument()

@@ -9,7 +9,8 @@ import { useOrgLocaleDefaults, useResolvedLocale } from '@/src/hooks/useResolved
 import { resolveLocale } from '@/src/lib/locale/resolveLocale';
 import { isValidTimeZone, listTimeZoneIds } from '@/src/lib/locale/timezones';
 import { formatMoneyInputValue } from '@/src/lib/format';
-import { Button, Combobox, PageHeader, SelectField, type ComboboxOption } from '@/src/components/ui';
+import { Button, Combobox, ConfirmDialog, PageHeader, SelectField, type ComboboxOption } from '@/src/components/ui';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 type LocaleChoice = 'inherit' | 'id' | 'en';
 type NumberLocaleChoice = 'inherit' | 'id-ID' | 'en-US';
@@ -56,13 +57,30 @@ const ProfileSettings: React.FC = () => {
     toNumberLocaleChoice(currentUser?.number_locale),
   );
   const [timezoneChoice, setTimezoneChoice] = useState<TimezoneChoice>(toTimezoneChoice(currentUser?.timezone));
+  const [savedPreferences, setSavedPreferences] = useState(() => ({
+    language: toLocaleChoice(currentUser?.locale),
+    number: toNumberLocaleChoice(currentUser?.number_locale),
+    timezone: toTimezoneChoice(currentUser?.timezone),
+  }));
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const [status, setStatus] = useState<SaveStatus>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [refreshBusy, setRefreshBusy] = useState(false);
 
-  useEffect(() => setLanguageChoice(toLocaleChoice(currentUser?.locale)), [currentUser?.locale]);
-  useEffect(() => setNumberChoice(toNumberLocaleChoice(currentUser?.number_locale)), [currentUser?.number_locale]);
-  useEffect(() => setTimezoneChoice(toTimezoneChoice(currentUser?.timezone)), [currentUser?.timezone]);
+  useEffect(() => {
+    const next = {
+      language: toLocaleChoice(currentUser?.locale),
+      number: toNumberLocaleChoice(currentUser?.number_locale),
+      timezone: toTimezoneChoice(currentUser?.timezone),
+    };
+    setLanguageChoice(next.language);
+    setNumberChoice(next.number);
+    setTimezoneChoice(next.timezone);
+    setSavedPreferences(next);
+  }, [currentUser?.locale, currentUser?.number_locale, currentUser?.timezone]);
+  const dirty = languageChoice !== savedPreferences.language || numberChoice !== savedPreferences.number || timezoneChoice !== savedPreferences.timezone;
+  const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
+  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
 
   // What each "Organization default" would give this user: the SAME resolver with that preference
   // cleared — never `resolvedLocale`, which carries the user's own override when one is set. The
@@ -173,6 +191,7 @@ const ProfileSettings: React.FC = () => {
       numberLocale: numberChoice === 'inherit' ? null : numberChoice,
       timezone: timezoneChoice === 'inherit' ? null : timezoneChoice,
     };
+    const saved = { language: languageChoice, number: numberChoice, timezone: timezoneChoice };
     try {
       await profilePreferencesRepository.setLocalePreferences(currentUser.id, preferences);
     } catch (error) {
@@ -181,6 +200,7 @@ const ProfileSettings: React.FC = () => {
       setStatus('error');
       return;
     }
+    setSavedPreferences(saved);
     // The write LANDED. Refreshing the signed-in profile is a separate step: when it fails the
     // preferences are still stored (they apply on the next session), so that outcome is reported
     // as saved-with-stale-session — never as a failed save — with a scoped refresh retry.
@@ -315,6 +335,16 @@ const ProfileSettings: React.FC = () => {
           </p>
         )}
       </div>
+      <ConfirmDialog
+        open={pendingLeave !== null}
+        tone="default"
+        title={t('entityForm.discardTitle', 'Discard your changes?')}
+        description={t('entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
+        confirmLabel={t('entityForm.discard', 'Discard')}
+        cancelLabel={t('entityForm.keepEditing', 'Keep editing')}
+        onConfirm={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onCancel={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+      />
     </div>
   );
 };

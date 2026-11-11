@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { MemoryRouter } from 'react-router';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
 // ---------------------------------------------------------------------------
@@ -25,6 +25,7 @@ const versionsState = {
   isError: false,
   refetch: vi.fn(),
 };
+const activationPrecheckState = { data: undefined as unknown, isPending: false, isFetching: false, isError: false, refetch: vi.fn() };
 
 const mockClone = vi.fn();
 const mockUpdateLineItem = vi.fn();
@@ -40,7 +41,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetVersions: () => versionsState,
   useBudgetDistribution: () => ({ data: null, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
-  useBudgetActivationPrecheck: () => ({ data: undefined, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }),
+  useBudgetActivationPrecheck: () => activationPrecheckState,
   useBudgetArchiveTargets: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn().mockResolvedValue({ data: [] }) }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: mockCreateVersion, isPending: false },
@@ -80,9 +81,13 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const renderPage = (projectId = 'p-1') =>
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={['/budget']}>
+      <Link to="/next">Continue</Link>
       <ToastProvider>
-        <ProjectBudget projectId={projectId} project={{ id: projectId, currency: 'USD', tax_treatment: 'exclusive' } as unknown as ProjectWithRefs} />
+        <Routes>
+          <Route path="/budget" element={<ProjectBudget projectId={projectId} project={{ id: projectId, currency: 'USD', tax_treatment: 'exclusive', start_date: '2026-01-01', end_date: '2026-12-31' } as unknown as ProjectWithRefs} />} />
+          <Route path="/next" element={<p>Next page</p>} />
+        </Routes>
       </ToastProvider>
     </MemoryRouter>
   );
@@ -140,6 +145,8 @@ function resetState() {
   versionsState.data = undefined;
   versionsState.isPending = false;
   versionsState.isError = false;
+  activationPrecheckState.data = undefined;
+  activationPrecheckState.isPending = false;
 }
 
 beforeEach(() => {
@@ -161,6 +168,54 @@ describe('AC-W6-J7: Draft edit-mode Total footer', () => {
 
     const total = screen.getByTestId('budget-edit-total');
     expect(total).toHaveTextContent('$4,700,000');
+  });
+
+  it('asks before leaving typed Draft line details and Stay keeps them', async () => {
+    versionsState.data = [draftVersionWithItems];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+    await userEvent.click(screen.getByRole('button', { name: /\+ Add line item/i }));
+    await userEvent.type(screen.getByPlaceholderText('Description'), 'Temporary line');
+    await userEvent.type(screen.getByPlaceholderText('Amount'), '125');
+
+    await userEvent.click(screen.getByRole('link', { name: 'Continue' }));
+    const discard = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(discard).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByPlaceholderText('Description')).toHaveValue('Temporary line');
+    expect(screen.getByPlaceholderText('Amount')).toHaveValue('125');
+    expect(screen.queryByText('Next page')).not.toBeInTheDocument();
+  });
+
+  it('asks before Cancel discards a changed Draft line and Stay keeps it', async () => {
+    versionsState.data = [draftVersionWithItems];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+    await userEvent.click(screen.getByRole('button', { name: /\+ Add line item/i }));
+    await userEvent.type(screen.getByPlaceholderText('Description'), 'Temporary line');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    const discard = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(discard).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByPlaceholderText('Description')).toHaveValue('Temporary line');
+    expect(mockCreateLineItem).not.toHaveBeenCalled();
+  });
+});
+
+describe('AC-W6-Distribution-Guard', () => {
+  it('warns before leaving a changed whole-project distribution and Stay keeps the input', async () => {
+    activationPrecheckState.data = { fiscalYears: [{ name: 'FY 2026', start: '2026-01-01', end: '2026-12-31' }], fiscalYearNames: ['FY 2026'], issues: [], status: 'blocked', erpCheck: 'unavailable' };
+    versionsState.data = [{ ...draftVersionWithItems, budget_mode: 'whole_project' }];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+    await userEvent.selectOptions(screen.getByLabelText('Distribution method'), 'amount_by_year');
+    const yearInput = await screen.findByRole('textbox', { name: 'Shared input for FY 2026' });
+    await userEvent.type(yearInput, '1');
+
+    await userEvent.click(screen.getByRole('link', { name: 'Continue' }));
+    const discard = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(discard).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByRole('textbox', { name: 'Shared input for FY 2026' })).toHaveValue('1');
+    expect(screen.queryByText('Next page')).not.toBeInTheDocument();
   });
 });
 
@@ -190,7 +245,7 @@ describe('AC-W6-IXD-BUDHEAD: project budget lead', () => {
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
     // C6: bare number under the one "USD · …" page heading.
-    expect(within(table).getByText('4,700,000')).toBeInTheDocument();
+    expect(within(table).getByText('$4,700,000')).toBeInTheDocument();
     expect(screen.queryByTestId('derived-budget')).not.toBeInTheDocument();
   });
 });

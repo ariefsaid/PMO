@@ -3,6 +3,7 @@ import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 
 const h = vi.hoisted(() => ({ role: 'Finance' as string, bind: { mutateAsync: vi.fn(), isPending: false } }));
 vi.mock('@/src/hooks/useImprest', () => ({ useSetCashAccount: () => h.bind }));
@@ -10,7 +11,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 
 import { CashAccountSection } from './CashAccountSection';
 
-const renderIt = (account: string | null = null) => render(<ToastProvider><CashAccountSection floatId="f1" account={account} /></ToastProvider>);
+const renderIt = (account: string | null = null) => render(<MemoryRouter initialEntries={['/float']}><Link to="/next">Continue</Link><Routes><Route path="/float" element={<ToastProvider><CashAccountSection floatId="f1" account={account} /></ToastProvider>} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter>);
 const bindWith = async (user: ReturnType<typeof userEvent.setup>, value = 'Site Cash - X') => {
   await user.type(screen.getByLabelText('ERP cash account name'), value);
   await user.click(screen.getByRole('button', { name: 'Set account' }));
@@ -40,6 +41,19 @@ describe('#1515 S6 cash account', () => {
     expect(screen.getByRole('button', { name: 'Set account' })).toBeDisabled();
     await user.type(screen.getByLabelText('ERP cash account name'), 'A');
     await user.click(screen.getByRole('button', { name: 'Set account' }));
+    expect(h.bind.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('asks before leaving an entered cash account and Stay retains it', async () => {
+    const user = userEvent.setup();
+    renderIt();
+    await user.type(screen.getByLabelText('ERP cash account name'), 'Site Cash');
+    await user.click(screen.getByRole('link', { name: 'Continue' }));
+
+    const discard = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    await user.click(within(discard).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText('ERP cash account name')).toHaveValue('Site Cash');
+    expect(screen.queryByText('Next page')).not.toBeInTheDocument();
     expect(h.bind.mutateAsync).not.toHaveBeenCalled();
   });
 

@@ -25,6 +25,7 @@ import { yearsInSpan } from '@/src/lib/budget/budgetDistribution';
 import { staleDistributionBasis } from '@/src/lib/budget/distributionStaleness';
 import {
   Button,
+  ConfirmDialog,
   useToast,
   Card,
   CardHead,
@@ -66,6 +67,7 @@ import { useBudgetReadiness } from './project-budget/BudgetReadiness';
 import { useBudgetVersionActions } from './project-budget/BudgetVersionActions';
 import { fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 import { repositories } from '@/src/lib/repositories';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 // ---------------------------------------------------------------------------
 // Main page component (NFR-BV-UI-001)
@@ -187,6 +189,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [draftEditorOpen, setDraftEditorOpen] = useState(false);
   const [hasOpenEditorBuffers, setHasOpenEditorBuffers] = useState(false);
+  const [hasUnsavedEditorChanges, setHasUnsavedEditorChanges] = useState(false);
+  const [pasteDirty, setPasteDirty] = useState(false);
+  const [editorGeneration, setEditorGeneration] = useState(0);
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const [pasteTargetId, setPasteTargetId] = useState<string | null>(null);
   const pasteOpen = pasteTargetId !== null;
   const hasOpenLineBuffers = hasOpenEditorBuffers || pasteOpen;
@@ -269,6 +275,14 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       ? current
       : readiness);
   }, []);
+  const distributionDirty = draftMode === 'whole_project' && distributionReadiness.versionId === draftVersion?.id &&
+    ['dirty', 'invalid', 'saving'].includes(distributionReadiness.status);
+  const unsavedBudgetChanges = hasUnsavedEditorChanges || pasteDirty || distributionDirty;
+  const guardLeave = useUnsavedChangesGuard({
+    dirty: unsavedBudgetChanges,
+    guardHistory: true,
+    onBlocked: (leave, stay) => setPendingLeave({ leave, stay }),
+  });
 
   const { readinessMessages, canConfirmActivation, canActivate, canReturn, activateBlockedReason, soleOperator, activationPrecheckQuery } = useBudgetReadiness(draftVersion, currentUserId, hasOpenLineBuffers, distributionReadinessStatus);
 
@@ -700,14 +714,18 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   ];
 
   const draftEditor = draftVersion && canWrite ? (
-    <section hidden={!draftEditorOpen || selectedVersion?.id !== draftVersion.id || view !== 'actual'} aria-label={t('projectDetail.budget.draftEditor', 'Draft budget editor')} className="min-w-0 space-y-3" data-testid="budget-draft-editor">
+    <section key={editorGeneration} hidden={!draftEditorOpen || selectedVersion?.id !== draftVersion.id || view !== 'actual'} aria-label={t('projectDetail.budget.draftEditor', 'Draft budget editor')} className="min-w-0 space-y-3" data-testid="budget-draft-editor">
       <fieldset disabled={authoringRefreshNeeded} className="min-w-0 space-y-3 border-0 p-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{draftVersion.name} · v{draftVersion.version}</h3>
         <div className="flex flex-wrap items-center gap-2">
           {canPaste && <Button variant="outline" size="sm" onClick={() => setPasteTargetId(draftVersion.id)}>{t('budgetPaste.open', 'Paste rows')}</Button>}
           <Button variant="outline" size="sm" onClick={() => setModeSwitchOpen(true)}>{t('projectDetail.budget.changeBudgetMode', 'Change budget mode')}</Button>
-          <Button variant="ghost" size="sm" onClick={() => setDraftEditorOpen(false)}>{t('common.close', 'Close')}</Button>
+          <Button variant="ghost" size="sm" onClick={() => guardLeave(() => {
+            setEditorGeneration((generation) => generation + 1);
+            setHasUnsavedEditorChanges(false);
+            setDraftEditorOpen(false);
+          })}>{t('common.close', 'Close')}</Button>
         </div>
       </div>
       <BudgetLineItemEditor
@@ -718,6 +736,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         onDeleteLineItem={requestDeleteLineItem}
         onUpdateLineItem={(id, patch) => mutations.updateLineItem.mutateAsync({ id, patch })}
         onOpenBuffersChange={setHasOpenEditorBuffers}
+        onDirtyChange={setHasUnsavedEditorChanges}
         onSaveSuccess={() => toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')}
         createIsPending={mutations.createLineItem.isPending}
         updateIsPending={mutations.updateLineItem.isPending}
@@ -1127,6 +1146,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         <BudgetPasteRowsDialog
           key={draftVersion.id}
           onClose={() => setPasteTargetId(null)}
+          onDirtyChange={setPasteDirty}
           projectId={projectId}
           targetId={draftVersion.id}
           selectedId={selectedVersion?.id ?? null}
@@ -1138,6 +1158,16 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         />
       )}
       {!authoringRefreshNeeded && budgetConfirm}
+      <ConfirmDialog
+        open={pendingLeave !== null}
+        tone="default"
+        title={t('common:entityForm.discardTitle', 'Discard your changes?')}
+        description={t('common:entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
+        confirmLabel={t('common:entityForm.discard', 'Discard')}
+        cancelLabel={t('common:entityForm.keepEditing', 'Keep editing')}
+        onConfirm={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onCancel={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+      />
     </div>
     </FigureScope>
   );

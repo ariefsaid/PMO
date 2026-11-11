@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, useToast, Icon } from '@/src/components/ui';
+import { Button, ConfirmDialog, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, useToast, Icon } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { StockError } from '@/src/components/stock/StockError';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { useStockDocument, useStockDocumentCosts, useStockDocumentMutations, useStockItems, useStockKeepers, useStockOnHand, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal, subtractDecimal } from '@/src/lib/stockFormat';
 import type { StockDocumentDetail, StockDocumentInput, StockLineCost, StockLineInput } from '@/src/lib/db/stockDocuments';
@@ -76,6 +77,12 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
     : [blank(1)]);
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState(false);
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
+  const initialSnapshot = useRef(JSON.stringify({ warehouseId, reason, note, lines: lines.filter((l) => l.itemId || l.counted || l.quantity || l.unitCost).map(({ itemId, counted, quantity, direction, unitCost }) => ({ itemId, counted, quantity, direction, unitCost })) }));
+  const snapshot = JSON.stringify({ warehouseId, reason, note, lines: lines.filter((l) => l.itemId || l.counted || l.quantity || l.unitCost).map(({ itemId, counted, quantity, direction, unitCost }) => ({ itemId, counted, quantity, direction, unitCost })) });
+  const dirty = !saved && snapshot !== initialSnapshot.current;
+  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: (leave, stay) => setPendingLeave({ leave, stay }) });
   useEffect(() => { if (draft) nextKey.current = draft.lines.length + 1; }, [draft]);
 
   const onHand = useStockOnHand({ warehouseId, includeZero: true }, Boolean(warehouseId));
@@ -158,6 +165,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
         requestId.current = crypto.randomUUID();
       }
       toast(t(post ? 'form.posted' : 'count.saved'), t(`kinds.${kind}`), 'success');
+      setSaved(true);
       navigate(`/stock/documents/${id}`);
     } catch (err) {
       setSubmitError(err);
@@ -254,7 +262,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
             <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {!selfPostable && <p className="mr-auto text-sm text-muted-foreground">{t('count.anotherPerson')}</p>}
-                <Button type="button" variant="ghost" onClick={() => navigate('/stock/documents')}>{t('actions.cancel')}</Button>
+                <Button type="button" variant="ghost" onClick={() => guardLeave(() => navigate('/stock/documents'))}>{t('actions.cancel')}</Button>
                 <Button type={selfPostable ? 'button' : 'submit'} variant={selfPostable ? 'outline' : 'primary'} loading={busy && !selfPostable} onClick={selfPostable ? () => void submit(false) : undefined}>
                   {t('count.saveDraft')}
                 </Button>
@@ -266,6 +274,16 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
           )}
         </form>
       )}
+      <ConfirmDialog
+        open={pendingLeave !== null}
+        tone="default"
+        title={t('common:entityForm.discardTitle', 'Discard your changes?')}
+        description={t('common:entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
+        confirmLabel={t('common:entityForm.discard', 'Discard')}
+        cancelLabel={t('common:entityForm.keepEditing', 'Keep editing')}
+        onConfirm={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onCancel={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+      />
     </div>
   );
 };

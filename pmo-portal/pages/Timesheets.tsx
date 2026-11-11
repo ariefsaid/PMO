@@ -116,14 +116,14 @@ const TimesheetsPage: React.FC = () => {
     allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit,
   });
   const { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
-    editRawHours, rowToDelete, dirty, weeklyTotal, pendingWeekDelta, weekRangeLabel,
+    editRawHours, rowToDelete, dirty, hasUnsavedBuffer, weeklyTotal, pendingWeekDelta, weekRangeLabel,
     isOwner, editBufferHasHours, canSubmit, confirmSubmit, copyPlan } = editor.view;
   const { setCell, setNote, addProject, copyLastWeek, requestDelete, cancelDelete, confirmDeleteRow,
     commitSave, stepWeek, cancelWeekChange, confirmWeekChange, requestSubmit,
     cancelSubmit, commitSubmit } = editor.actions;
   const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   useUnsavedChangesGuard({
-    dirty,
+    dirty: hasUnsavedBuffer,
     guardHistory: true,
     onBlocked: (leave, stay) => setPendingLeave({ leave, stay }),
   });
