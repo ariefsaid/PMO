@@ -4,6 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { PMDashboard } from '../PMDashboard';
+import { pinHomeLayout } from '@/test/homeLayout';
+
+pinHomeLayout('focused');
 
 const { projectsRefetch } = vi.hoisted(() => ({ projectsRefetch: vi.fn() }));
 

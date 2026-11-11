@@ -10,6 +10,9 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui/Toast';
+import { pinHomeLayout } from '@/test/homeLayout';
+
+pinHomeLayout('focused');
 
 const populated = {
   active_projects: 2,

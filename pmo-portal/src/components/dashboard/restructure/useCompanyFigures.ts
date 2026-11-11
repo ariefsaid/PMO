@@ -50,6 +50,10 @@ export interface CompanyFiguresResult {
   trendPending: boolean;
   trendError: boolean;
   trendRetry: () => void;
+  /** Recorded incoming payments per month ("YYYY-MM") in the organisation currency; undefined while unknown. */
+  collectedByMonth: Map<string, number> | undefined;
+  /** Invoiced (excl. tax) for every month of the selected period in the organisation currency; undefined while unknown. */
+  invoicedByMonth: Array<{ month: string; amount: number }> | undefined;
 }
 
 export function selectInvoicedTotals(pack: ManagementPack | undefined, from: string | null, to: string | null) {
@@ -88,6 +92,28 @@ export function selectCollectedTotals(payments: PaidPaymentFact[] | undefined, f
     totals.set(payment.currency, (totals.get(payment.currency) ?? 0n) + cents);
   }
   return { totals: [...totals].map(([currency, amount]) => ({ currency, amount: formatExactCents(amount) })), unknownCurrencies: [...unknownCurrencies] };
+}
+
+/** Every month of the period with what was invoiced in it (a month with no invoices is a real zero). One currency, never summed across. */
+export function selectInvoicedByMonth(pack: ManagementPack | undefined, from: string | null, to: string | null, currency: string): Array<{ month: string; amount: number }> | undefined {
+  const series = pack?.totals.find((row) => row.currency === currency);
+  if (!series || !from || !to) return undefined;
+  return series.months
+    .filter((row) => row.month.slice(0, 7) >= from.slice(0, 7) && row.month.slice(0, 7) <= to.slice(0, 7))
+    .map((row) => ({ month: row.month.slice(0, 7), amount: row.invoiced / 100 }));
+}
+
+/** Paid receipts per calendar month in one currency. One receipt with no amount makes the whole series unknown, never a partial sum. */
+export function selectCollectedByMonth(payments: PaidPaymentFact[] | undefined, currency: string): Map<string, number> | undefined {
+  if (!payments) return undefined;
+  const months = new Map<string, number>();
+  for (const payment of payments) {
+    if (payment.status !== 'Paid' || !payment.date || payment.currency !== currency) continue;
+    if (payment.amount === null || !Number.isFinite(payment.amount)) return undefined;
+    const month = payment.date.slice(0, 7);
+    months.set(month, (months.get(month) ?? 0) + Number(payment.amount));
+  }
+  return months;
 }
 
 export function selectUnbilledTotals(totals: UnbilledWorkOrderTotal[] | undefined) {
@@ -198,6 +224,8 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const suppliers = useMemo(() => selectSupplierInvoices(withLinkedDocuments(procurements.data, linkedDocuments.data)), [procurements.data, linkedDocuments.data]);
   const invoiced = useMemo(() => selectInvoicedTotals(pack.data, period.from, period.to), [pack.data, period.from, period.to]);
   const collected = useMemo(() => selectCollectedTotals(payments.data, period.from, period.to), [payments.data, period.from, period.to]);
+  const invoicedByMonth = useMemo(() => selectInvoicedByMonth(pack.data, period.from, period.to, orgCurrency), [pack.data, period.from, period.to, orgCurrency]);
+  const collectedByMonth = useMemo(() => selectCollectedByMonth(payments.data, orgCurrency), [payments.data, orgCurrency]);
   const unbilledTotals = useMemo(() => selectUnbilledTotals(workOrders.data?.totals), [workOrders.data?.totals]);
   const moneyReason = t('figures.moneyUnknownReason', 'The accounting source did not provide a comparable amount.');
   // Owed by clients: every open invoice's balance; one unknown balance makes the total unknowable (never a partial sum).
@@ -385,5 +413,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     trendPending: trendRange.to ? trendPack.isPending : Boolean(orgDay.isPending),
     trendError: trendPack.isError,
     trendRetry: () => { void trendPack.refetch(); },
+    collectedByMonth,
+    invoicedByMonth,
   };
 }

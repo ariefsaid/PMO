@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTextSize, type TextSize } from '@/src/hooks/useTextSize';
+import { useHomeLayout, type HomeLayout } from '@/src/hooks/useHomeLayout';
 import { profilePreferencesRepository } from '@/src/lib/repositories/profilePreferences';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useOrgLocaleDefaults, useResolvedLocale } from '@/src/hooks/useResolvedLocale';
@@ -46,6 +47,7 @@ function numberExample(numberLocale: string): string {
 const ProfileSettings: React.FC = () => {
   const { t } = useTranslation();
   const { textSize, setTextSize } = useTextSize();
+  const { homeLayout, setHomeLayout } = useHomeLayout();
   const { currentUser, refreshCurrentUser } = useAuth();
   const resolvedLocale = useResolvedLocale();
   const orgDefaults = useOrgLocaleDefaults();
@@ -233,6 +235,16 @@ const ProfileSettings: React.FC = () => {
                 { value: 'larger', label: t('profilePreferences:textSize.larger', 'Larger') },
               ]}
               helper={t('profilePreferences:textSize.help', 'Applied immediately on this device.')} fullWidth />
+          </div>
+
+          <div>
+            <SelectField label={t('profilePreferences:homeLayout.label', 'Home layout')}
+              value={homeLayout} onChange={(value) => setHomeLayout(value as HomeLayout)}
+              options={[
+                { value: 'overview', label: t('profilePreferences:homeLayout.overview', 'Overview') },
+                { value: 'focused', label: t('profilePreferences:homeLayout.focused', 'Focused') },
+              ]}
+              helper={t('profilePreferences:homeLayout.help', 'Applied immediately on this device.')} fullWidth />
           </div>
 
           <div className="sm:col-span-2">
