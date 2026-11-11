@@ -1,4 +1,16 @@
 {
   "dueThisWeek": "Jatuh tempo minggu ini",
-  "clearDueWeek": "Hapus filter jatuh tempo minggu ini"
+  "clearDueWeek": "Hapus filter jatuh tempo minggu ini",
+  "push": {
+    "pushing": "Mengirim…",
+    "pushingAria": "mengirim ke sistem eksternal",
+    "pushingTitle": "Menyinkronkan ke sistem eksternal",
+    "pushed": "Terkirim",
+    "pushedAria": "terkirim ke sistem eksternal",
+    "pushedTitle": "Tersinkronkan ke sistem eksternal",
+    "pushFailed": "Pengiriman gagal",
+    "pushFailedAria": "pengiriman gagal",
+    "pushFailedAriaWithReason": "pengiriman gagal: {{reason}}",
+    "pushFailedTitle": "Pengiriman ke sistem eksternal gagal"
+  }
 }
