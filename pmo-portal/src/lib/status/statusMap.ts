@@ -8,7 +8,7 @@ import type { StatusVariant } from '@/src/components/ui/StatusPill';
  * Tone is the screen rule ("status colour means exception only"):
  *   neutral    = normal / in flight / terminal-neutral (grey)
  *   waiting    = due soon, or waiting on someone       (amber)
- *   exception  = overdue, over budget, rejected, failed (red)
+ *   exception  = overdue, over budget, terminal rejected, failed (red)
  *   done       = finished well                         (green)
  *
  * Labels are literal `t('status:...')` calls so the catalogue gates see every key; the stored
@@ -49,14 +49,14 @@ export const STATUS_MAP = {
     Received: e('neutral', (t) => t('status:procurement.received', 'Goods receipt')),
     'Vendor Invoiced': e('neutral', (t) => t('status:procurement.vendorInvoiced', 'Supplier invoice')),
     Paid: e('done', (t) => t('status:procurement.paid', 'Paid')),
-    Rejected: e('exception', (t) => t('status:procurement.rejected', 'Returned')),
+    Rejected: e('waiting', (t) => t('status:procurement.rejected', 'Returned')),
     Cancelled: e('neutral', (t) => t('status:procurement.cancelled', 'Cancelled')),
   },
   expense: {
     Draft: e('neutral', (t) => t('status:expense.draft', 'Draft')),
     Submitted: e('waiting', (t) => t('status:expense.submitted', 'Submitted')),
     Approved: e('done', (t) => t('status:expense.approved', 'Approved')),
-    Rejected: e('exception', (t) => t('status:expense.rejected', 'Rejected')),
+    Rejected: e('waiting', (t) => t('status:expense.rejected', 'Returned')),
     Paid: e('done', (t) => t('status:expense.paid', 'Paid')),
     Cancelled: e('neutral', (t) => t('status:expense.cancelled', 'Cancelled')),
   },
@@ -74,13 +74,13 @@ export const STATUS_MAP = {
     Draft: e('neutral', (t) => t('status:timesheet.draft', 'Draft')),
     Submitted: e('waiting', (t) => t('status:timesheet.submitted', 'Submitted')),
     Approved: e('done', (t) => t('status:timesheet.approved', 'Approved')),
-    Rejected: e('exception', (t) => t('status:timesheet.rejected', 'Returned')),
+    Rejected: e('waiting', (t) => t('status:timesheet.rejected', 'Returned')),
   },
   equipmentUsage: {
     Draft: e('neutral', (t) => t('status:equipmentUsage.draft', 'Draft')),
     Submitted: e('waiting', (t) => t('status:equipmentUsage.submitted', 'Submitted')),
     Approved: e('done', (t) => t('status:equipmentUsage.approved', 'Approved')),
-    Rejected: e('exception', (t) => t('status:equipmentUsage.rejected', 'Rejected')),
+    Rejected: e('waiting', (t) => t('status:equipmentUsage.rejected', 'Returned')),
   },
   task: {
     'To Do': e('neutral', (t) => t('status:task.toDo', 'To do')),

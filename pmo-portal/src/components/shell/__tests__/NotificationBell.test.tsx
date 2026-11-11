@@ -74,6 +74,7 @@ describe('NotificationBell', () => {
     renderBell();
     const bell = await screen.findByRole('button', { name: /notifications.*3 unread/i });
     expect(bell).toBeInTheDocument();
+    expect(bell.className.split(/\s+/)).toContain('size-11');
     expect(screen.getByText('3')).toBeInTheDocument();
   });
 

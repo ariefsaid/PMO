@@ -1,17 +1,17 @@
-import { RejectionDetails } from '@/src/components/ui/RejectionDetails';
+import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
   Button,
   Card,
   ConfirmDialog,
-  ErrBanner,
   Icon,
   ListState,
   SelectField,
   StatusPill,
   TimesheetGrid,
   AccessDenied,
+  UnsavedChangesDialog,
   useToast,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router';
@@ -117,14 +117,14 @@ const TimesheetsPage: React.FC = () => {
     allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit,
   });
   const { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
-    editRawHours, rowToDelete, dirty, weeklyTotal, pendingWeekDelta, weekRangeLabel,
+    editRawHours, rowToDelete, dirty, hasUnsavedBuffer, weeklyTotal, pendingWeekDelta, weekRangeLabel,
     isOwner, editBufferHasHours, canSubmit, confirmSubmit, copyPlan } = editor.view;
   const { setCell, setNote, addProject, copyLastWeek, requestDelete, cancelDelete, confirmDeleteRow,
     commitSave, stepWeek, cancelWeekChange, confirmWeekChange, requestSubmit,
     cancelSubmit, commitSubmit } = editor.actions;
   const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   useUnsavedChangesGuard({
-    dirty,
+    dirty: hasUnsavedBuffer,
     guardHistory: true,
     onBlocked: (leave, stay) => setPendingLeave({ leave, stay }),
   });
@@ -248,23 +248,19 @@ const TimesheetsPage: React.FC = () => {
       {head}
 
       {/* Returned-for-changes is an expected, recoverable state (role=status). */}
-      {returned && (
-        <ErrBanner
-          title={t('timesheets.returned.title', 'Returned for changes')}
-          sub={t('timesheets.returned.sub', 'Your manager sent this week back. Correct it and resubmit.')}
-          action={
-            canRevise
-              ? {
-                  label: t('timesheets.returned.revise', 'Revise this week'),
-                  onClick: commitReopen,
-                  disabled: reopen.isPending,
-                }
-              : undefined
-          }
+      {(returned || (status === TimesheetStatus.Draft && !!(currentTimesheet?.rejected_at || currentTimesheet?.rejection_reason || currentTimesheet?.rejected_by))) && (
+        <ReturnedBanner
+          record="timesheet"
+          reason={currentTimesheet?.rejection_reason}
+          person={currentTimesheet?.rejecter?.full_name}
+          at={currentTimesheet?.rejected_at}
+          action={canRevise ? {
+            label: t('timesheets.returned.revise', 'Revise this week'),
+            onClick: commitReopen,
+            disabled: reopen.isPending,
+          } : undefined}
         />
       )}
-
-      {(returned || (status === TimesheetStatus.Draft && !!(currentTimesheet?.rejected_at || currentTimesheet?.rejection_reason || currentTimesheet?.rejected_by))) && <RejectionDetails reason={currentTimesheet?.rejection_reason} person={currentTimesheet?.rejecter?.full_name} at={currentTimesheet?.rejected_at} />}
 
       <Card
         clip
@@ -419,14 +415,10 @@ const TimesheetsPage: React.FC = () => {
       )}
       {submitConfirm}
 
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        title={t('timesheets:discardHours.title', 'Discard unsaved hours?')}
-        description={t('timesheets:discardHours.description', 'Leave this page and discard the hours you have not saved?')}
-        confirmLabel={t('timesheets:discardHours.leave', 'Leave')}
-        cancelLabel={t('timesheets:discardHours.stay', 'Stay')}
-        onCancel={() => { pendingLeave?.stay(); setPendingLeave(null); }}
-        onConfirm={() => { const leave = pendingLeave?.leave; setPendingLeave(null); leave?.(); }}
+        onKeepEditing={() => { pendingLeave?.stay(); setPendingLeave(null); }}
+        onDiscard={() => { const leave = pendingLeave?.leave; setPendingLeave(null); leave?.(); }}
       />
 
       {rowToDelete && (

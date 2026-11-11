@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { BackBar } from '@/src/components/shell';
-import { Button, Combobox, ConfirmDialog, FormGrid, Icon, SelectField, TextField, useToast } from '@/src/components/ui';
+import { Button, Combobox, FormGrid, Icon, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import type { IconName } from '@/src/components/ui/icons';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { usePermission } from '@/src/auth/usePermission';
@@ -123,12 +123,21 @@ export default function ProcurementCreate() {
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [budgetCategory, setBudgetCategory] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([]);
-  const [errors, setErrors] = useState<{ title?: string; save?: string; conflict?: boolean }>({});
+  const [errors, setErrors] = useState<{ title?: string; save?: { headline: string; detail: string }; conflict?: boolean }>({});
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [attempt, setAttempt] = useState<{ input: AtomicProcurementInput; have: ProcurementHave } | null>(null);
 
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
+  const saveNeedsAttention = saving || attempt !== null;
+  const leaveTitle = saveNeedsAttention ? t('unsaved.title', 'Unsaved procurement') : undefined;
+  const leaveDescription = saveNeedsAttention
+    ? saving
+      ? t('unsaved.saving', 'Saving is in progress. Please wait until it finishes.')
+      : t('unsaved.uncertain', 'The save may have completed. Leave this page?')
+    : undefined;
+  const leaveLabel = saveNeedsAttention ? t('unsaved.leave', 'Leave') : undefined;
+  const stayLabel = saveNeedsAttention ? t('unsaved.stay', 'Stay') : undefined;
   const dirty = saving || attempt !== null || (
     title !== '' || supplierId !== null || budgetCategory !== '' || lines.length > 0 || selectedProject !== projectId
   );
@@ -245,7 +254,8 @@ export default function ProcurementCreate() {
       const detail = conflict
         ? t('reconcile', 'Open the saved request to reconcile it before retrying.')
         : definitive ? classified.detail : `${classified.detail} ${t('uncertainSave', 'The save may have completed. Check its status before starting a new request; retrying here uses the same request.')}`;
-      setErrors({ save: `${classified.headline} ${detail}`, conflict });
+      const saveDetail = code === '42501' && detail === 'Request refused' ? '' : detail;
+      setErrors({ save: { headline: classified.headline, detail: saveDetail }, conflict });
       savingRef.current = false;
       setSaving(false);
     }
@@ -264,16 +274,15 @@ export default function ProcurementCreate() {
           onChoose={choose}
           lockedChoice={attempt?.have ?? null}
         />
-        <ConfirmDialog
+        <UnsavedChangesDialog
           open={pendingLeave !== null}
-          tone="default"
-          title={t('unsaved.title', 'Unsaved procurement')}
-          description={saving ? t('unsaved.saving', 'Saving is in progress. Please wait until it finishes.') : attempt ? t('unsaved.uncertain', 'The save may have completed. Leave this page?') : t('unsaved.description', 'This procurement has not been saved. Leave this page and discard it?')}
-          confirmDisabled={saving}
-        confirmLabel={t('unsaved.leave', 'Leave')}
-          cancelLabel={t('unsaved.stay', 'Stay')}
-          onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
-          onCancel={() => setPendingLeave(null)}
+          title={leaveTitle}
+          description={leaveDescription}
+          discardDisabled={saving}
+          discardLabel={leaveLabel}
+          keepEditingLabel={stayLabel}
+          onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
+          onKeepEditing={() => setPendingLeave(null)}
         />
       </div>
     );
@@ -298,13 +307,18 @@ export default function ProcurementCreate() {
       <form id="procurement-create-form" onSubmit={submit} noValidate>
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
           <h1 className="text-page font-bold tracking-[-0.02em]">{t('heading', 'New procurement')}</h1>
-          <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:static md:ml-auto md:border-0 md:bg-transparent md:p-0">
+          <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:static md:ml-auto md:border-0 md:bg-transparent md:p-0">
             <Button type="submit" variant="primary" loading={submitBusy} className="w-full md:w-auto">
               {submitLabel}
             </Button>
           </div>
         </header>
-        {errors.save && <p role="alert" className="mb-4 text-control text-destructive-text">{errors.save}</p>}
+        {errors.save && (
+          <div role="alert" className="mb-4 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
+            <p className="font-semibold">{errors.save.headline}</p>
+            {errors.save.detail && <p>{errors.save.detail}</p>}
+          </div>
+        )}
         <section className="mb-6 border-b border-border pb-6" aria-label={t('details', 'Procurement details')}>
           <h2 className="mb-4 font-semibold">{t('details', 'Procurement details')}</h2>
           <fieldset disabled={Boolean(attempt) || saving}>
@@ -371,16 +385,15 @@ export default function ProcurementCreate() {
           </fieldset>
         )}
       </form>
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        tone="default"
-        title={t('unsaved.title', 'Unsaved procurement')}
-        description={saving ? t('unsaved.saving', 'Saving is in progress. Please wait until it finishes.') : attempt ? t('unsaved.uncertain', 'The save may have completed. Leave this page?') : t('unsaved.description', 'This procurement has not been saved. Leave this page and discard it?')}
-        confirmDisabled={saving}
-        confirmLabel={t('unsaved.leave', 'Leave')}
-        cancelLabel={t('unsaved.stay', 'Stay')}
-        onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
-        onCancel={() => setPendingLeave(null)}
+        title={leaveTitle}
+        description={leaveDescription}
+        discardDisabled={saving}
+        discardLabel={leaveLabel}
+        keepEditingLabel={stayLabel}
+        onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
+        onKeepEditing={() => setPendingLeave(null)}
       />
     </div>
   );

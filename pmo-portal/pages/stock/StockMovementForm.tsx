@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, useToast, Icon,
+  Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
 } from '@/src/components/ui';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { StockError } from '@/src/components/stock/StockError';
@@ -11,6 +11,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import {
   useIssuableProjects, useIssuableWorkItems, useProjectIssueLines, useStockDocumentMutations, useStockItems, useStockKeepers, useStockUnits, useStockWarehouses,
 } from '@/src/hooks/useStock';
@@ -74,8 +75,14 @@ const StockMovementForm: React.FC = () => {
   const [note, setNote] = useState('');
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState(false);
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
+  const initialSnapshot = useRef(JSON.stringify({ warehouseId, toWarehouseId, projectId: params.get('project') ?? '', occurredOn, note, lines: [] }));
 
   const kind = isMovement(kindParam) ? kindParam : null;
+  const snapshot = JSON.stringify({ warehouseId, toWarehouseId, projectId, occurredOn, note, lines: lines.filter((l) => l.itemId || l.quantity || l.unitCost || l.boqItemId || l.sourceLineId).map(({ itemId, quantity, unitCost, boqItemId, sourceLineId }) => ({ itemId, quantity, unitCost, boqItemId, sourceLineId })) });
+  const dirty = !saved && snapshot !== initialSnapshot.current;
+  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: (leave, stay) => setPendingLeave({ leave, stay }) });
   const issueLines = useProjectIssueLines(kind === 'return' ? projectId || undefined : undefined);
 
   const viewOnly = realRole !== effectiveRole; // view-as shares the real login, so the page stays read-only (FR-STK-064)
@@ -146,6 +153,7 @@ const StockMovementForm: React.FC = () => {
       const id = await create.mutateAsync({ input, post: true, clientRequestId: requestId.current });
       requestId.current = crypto.randomUUID(); // a success mints the next submit's id; a failure keeps it for the retry
       toast(t('form.posted'), heading, 'success');
+      setSaved(true);
       navigate(`/stock/documents/${id}`);
     } catch (err) {
       setSubmitError(err);
@@ -287,13 +295,18 @@ const StockMovementForm: React.FC = () => {
 
           {canSubmit ? (
             <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
-              <FormActions submitLabel={t(`form.submit.${kind}`)} cancelLabel={t('actions.cancel')} onCancel={() => navigate('/stock/documents')} loading={create.isPending} />
+              <FormActions submitLabel={t(`form.submit.${kind}`)} cancelLabel={t('actions.cancel')} onCancel={() => guardLeave(() => navigate('/stock/documents'))} loading={create.isPending} />
             </MobileActionBar>
           ) : (
             <p className="text-sm text-muted-foreground">{warehouseId ? t('form.notKeeper') : t('form.pickWarehouse')}</p>
           )}
         </form>
       )}
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+      />
     </div>
   );
 };

@@ -26,9 +26,12 @@ describe('status map', () => {
     }
   });
 
-  it('colour means exception only: rejected, overdue, failed, over budget are red; paid and done are green', () => {
-    expect(statusTone('expense', 'Rejected')).toBe('exception');
-    expect(statusTone('timesheet', 'Rejected')).toBe('exception');
+  it('returned work waits on the submitter; terminal rejections and errors are exceptions', () => {
+    for (const record of ['procurement', 'expense', 'timesheet', 'equipmentUsage'] as const) {
+      expect(statusTone(record, 'Rejected')).toBe('waiting');
+    }
+    expect(statusTone('imprest', 'Rejected')).toBe('exception');
+    expect(statusTone('costVariation', 'Rejected')).toBe('exception');
     expect(statusTone('salesInvoice', 'Overdue')).toBe('exception');
     expect(statusTone('due', 'overdue')).toBe('exception');
     expect(statusTone('push', 'failed')).toBe('exception');
@@ -51,7 +54,10 @@ describe('status map', () => {
       if (states.Draft) expect(states.Draft.tone, `${record}.Draft`).toBe('neutral');
       if (states.Cancelled) expect(states.Cancelled.tone, `${record}.Cancelled`).toBe('neutral');
       if (states.Paid) expect(states.Paid.tone, `${record}.Paid`).toBe('done');
-      if (states.Rejected) expect(states.Rejected.tone, `${record}.Rejected`).toBe('exception');
+      if (states.Rejected) {
+        const isReturned = ['procurement', 'expense', 'timesheet', 'equipmentUsage'].includes(record);
+        expect(states.Rejected.tone, `${record}.Rejected`).toBe(isReturned ? 'waiting' : 'exception');
+      }
       if (states.Approved) expect(states.Approved.tone, `${record}.Approved`).toBe('done');
     }
   });
@@ -85,6 +91,13 @@ describe('status map', () => {
   it('the purchase state has one name where the app used five', () => {
     expect(statusLabel('procurement', 'Requested', echo)).toBe('Requested');
     expect(statusLabel('procurement', 'Ordered', echo)).toBe('Purchase order');
+  });
+
+  it('names reversible decisions Returned and keeps terminal top-ups Rejected', () => {
+    expect(statusLabel('timesheet', 'Rejected', echo)).toBe('Returned');
+    expect(statusLabel('expense', 'Rejected', echo)).toBe('Returned');
+    expect(statusLabel('equipmentUsage', 'Rejected', echo)).toBe('Returned');
+    expect(statusLabel('imprest', 'Rejected', echo)).toBe('Rejected');
   });
 
   it('uses sentence casing for common task states', () => {

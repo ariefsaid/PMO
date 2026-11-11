@@ -249,7 +249,7 @@ export const NotificationBell: React.FC = () => {
           setInstant(e.detail === 0);
           setOpen((v) => !v);
         }}
-        className="touch-target relative grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
+        className="touch-target relative grid size-11 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
       >
         <Icon name="bell" />
         <span aria-live="polite" className="sr-only">

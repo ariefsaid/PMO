@@ -13,6 +13,7 @@ import {
   NumberField,
   SelectField,
   ConfirmDialog,
+  UnsavedChangesDialog,
   GateNotice,
   TaxBasisLabel,
   useToast,
@@ -835,23 +836,14 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         onCancel={() => setPendingValue(null)}
       />
 
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingValueExit !== null}
-        tone="default"
-        title={t('projectDetail.header.unsavedValue.title', 'Unsaved contract value')}
-        description={t('projectDetail.header.unsavedValue.description', 'Your contract value and tax basis edits will be lost if you leave.')}
-        confirmLabel={pendingValueExit?.kind === 'cancel'
-          ? t('projectDetail.header.unsavedValue.discard', 'Discard changes')
-          : t('projectDetail.header.unsavedValue.leave', 'Leave')}
-        cancelLabel={pendingValueExit?.kind === 'cancel'
-          ? t('projectDetail.header.unsavedValue.keepEditing', 'Keep editing')
-          : t('projectDetail.header.unsavedValue.stay', 'Stay')}
-        onConfirm={() => {
+        onDiscard={() => {
           const exit = pendingValueExit;
           setPendingValueExit(null);
           exit?.run();
         }}
-        onCancel={() => setPendingValueExit(null)}
+        onKeepEditing={() => setPendingValueExit(null)}
       />
     </>
   );

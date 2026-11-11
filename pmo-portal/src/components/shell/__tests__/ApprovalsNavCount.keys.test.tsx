@@ -168,22 +168,16 @@ describe('ApprovalsNavCount owner cache keys', () => {
     expect(client.getQueryCache().findAll().every((query) => query.getObserversCount() === 0)).toBe(true);
   });
 
-  it('matches Finance home by counting only cached procurement approvals', () => {
+  it('uses the full Finance approvals population, matching the inbox and home count', () => {
     const client = makeClient();
-    // The Finance home tile excludes timesheets, expenses and invoices.
-    client.setQueryData(ownershipKey, []);
-    client.setQueryData(queueKeys[0], [
-      { id: 'p1', status: 'Requested', requested_by_id: 'other', approvalRoute: { route: 'flat' } },
-    ]);
-    client.setQueryData(queueKeys[2], [{ id: 't1' }]);
-    client.setQueryData(queueKeys[3], [{ id: 'i1', author_user_id: 'other', author_user_ids: ['other'] }]);
+    seedReady(client);
 
     renderCount(client, 'Finance');
 
-    expect(screen.getByText('1')).toBeInTheDocument();
-    expect(keys.timesheets).not.toHaveBeenCalled();
-    expect(keys.expenses).not.toHaveBeenCalled();
-    expect(keys.invoices).not.toHaveBeenCalled();
+    expect(screen.getByText('4')).toBeInTheDocument();
+    expect(keys.timesheets).toHaveBeenCalledWith(orgId, userId, 'Finance');
+    expect(keys.expenses).toHaveBeenCalledWith(orgId);
+    expect(keys.invoices).toHaveBeenCalledWith(orgId);
     expect(client.getQueryCache().findAll().every((query) => query.getObserversCount() === 0)).toBe(true);
   });
 

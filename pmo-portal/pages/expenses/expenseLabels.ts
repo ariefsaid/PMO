@@ -1,18 +1,11 @@
 import type { AgingBucket, ExpenseClaimStatus, ExpenseKind, ExpenseType } from '@/src/lib/db/expenseClaims';
+import { statusLabel } from '@/src/lib/status/statusMap';
 
 type Translate = (key: string, fallback: string) => string;
 
 /** Literal `t()` calls so every label is visible to the i18n catalogue gates (the budgetCategoryLabel idiom). */
 export function expenseStatusLabel(status: ExpenseClaimStatus, t: Translate): string {
-  switch (status) {
-    case 'Draft': return t('expenses.status.draft', 'Draft');
-    case 'Submitted': return t('expenses.status.submitted', 'Submitted');
-    case 'Approved': return t('expenses.status.approved', 'Approved');
-    case 'Rejected': return t('expenses.status.rejected', 'Rejected');
-    case 'Paid': return t('expenses.status.paid', 'Paid');
-    case 'Cancelled': return t('expenses.status.cancelled', 'Cancelled');
-    default: return String(status);
-  }
+  return statusLabel('expense', status, t);
 }
 
 export function expenseKindLabel(kind: ExpenseKind, t: Translate): string {

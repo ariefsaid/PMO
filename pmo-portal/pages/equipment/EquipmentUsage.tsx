@@ -1,4 +1,4 @@
-import { RejectionDetails } from '@/src/components/ui/RejectionDetails';
+import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
@@ -187,12 +187,12 @@ const EquipmentUsagePage: React.FC = () => {
         const unit = rowEntries[0]?.unit ?? assetById.get(r.assetId)?.default_unit ?? 'hours';
         return <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(rowEntries.reduce((s, e) => s + Number(e.quantity), 0))} {unit}</span>;
       } },
-    { key: 'status', header: t('equipment:usage.columns.status', 'Status'), size: 96,
+    { key: 'status', header: t('equipment:usage.columns.status', 'Status'), size: 112,
       cell: (r) => {
         if (r.field !== 'quantity') return null;
         const states = [...new Set(mine.filter((e) => rowKey(e.asset_id, e.project_id, e.kind) === r.key).map((e) => e.status))];
         if (states.length === 0) return <span className="text-muted-foreground">—</span>;
-        return <span className="flex flex-wrap gap-1">{states.map((s) => <StatusPill key={s} record="equipmentUsage" state={s} />)}</span>;
+        return <span className="flex flex-wrap gap-1">{states.map((s) => <StatusPill key={s} record="equipmentUsage" state={s} wrap={false} />)}</span>;
       } },
     { key: 'more', size: 48, header: <span className="sr-only">{t('equipment:usage.columns.fuelTrips', 'Fuel · trips')}</span>,
       cell: (r) => r.field !== 'quantity' ? null : (
@@ -322,7 +322,7 @@ const EquipmentUsagePage: React.FC = () => {
           </CanWrite>
           {mine.filter((e) => e.status === 'Rejected' || (e.status === 'Draft' && !!(e.rejected_at || e.rejected_by || e.decision_notes?.trim()))).map((e) => <div key={e.id} className="mb-3">
             <strong>{assetName(e.asset_id)} · {projectName(e.project_id)} · {dayLabel(e.work_date)}</strong>
-            <RejectionDetails reason={e.decision_notes} person={e.rejecter?.full_name} at={e.rejected_at} />
+            <ReturnedBanner record="equipmentUsage" reason={e.decision_notes} person={e.rejecter?.full_name} at={e.rejected_at} />
           </div>)}
           <DataTable<GridRow> embedded rows={gridRows} columns={columns} rowKey={(r) => r.key} tableId="equipment-usage-grid"
             accessibleName={t('equipment:usage.gridLabel', 'Equipment usage this week')}

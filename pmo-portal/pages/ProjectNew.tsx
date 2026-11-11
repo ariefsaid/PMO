@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
 import ProjectFormModal from '../components/ProjectFormModal';
-import { AccessDenied, ConfirmDialog, useToast } from '@/src/components/ui';
+import { AccessDenied, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { useListReturn } from '@/src/hooks/useListReturn';
@@ -74,19 +74,14 @@ const ProjectNew: React.FC = () => {
           toast(headline, detail, 'warning');
         }}
       />
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        tone="default"
-        title={t('entityForm.discardTitle', 'Discard your changes?')}
-        description={t('entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
-        confirmLabel={t('projects:create.leave', 'Leave')}
-        cancelLabel={t('projects:create.stay', 'Stay')}
-        onConfirm={() => {
+        onDiscard={() => {
           const leave = pendingLeave;
           setPendingLeave(null);
           leave?.();
         }}
-        onCancel={() => setPendingLeave(null)}
+        onKeepEditing={() => setPendingLeave(null)}
       />
     </>
   );

@@ -4,7 +4,7 @@
  * and will not offer a bill that needs attention.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 
@@ -149,9 +149,60 @@ describe('AC-OPP-080 an action fails honestly while Odoo is unreachable', () => 
     render(<ToastProvider><RecordCaptureForm kind="payment" onCreate={onCreate} onClose={vi.fn()} invoices={[{ id: 'inv-1', reference_number: 'INV-1', vi_number: 'VI-1', invoice_date: '2026-01-02', erp_outstanding_amount: 500 }] as never} /></ToastProvider>);
     await userEvent.selectOptions(screen.getByTestId('payment-invoice-select'), 'inv-1');
     await userEvent.click(screen.getByTestId('payment-save-btn'));
-    expect(await screen.findByText('Odoo is unreachable, try again.')).toBeInTheDocument();
-    expect(screen.getByText('Nothing was sent.')).toBeInTheDocument();
+    const formError = await screen.findByTestId('record-capture-error');
+    expect(formError).toHaveTextContent('Odoo is unreachable, try again.');
+    expect(formError).toHaveTextContent('Nothing was sent.');
     expect(onCreate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('record capture refuses without hiding the recovery path', () => {
+  it('F2-18 keeps a classified direct-capture refusal with the entered values until retry', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('permission denied'), { code: '42501' }))
+      .mockResolvedValueOnce({ id: 'po-new' });
+    const onClose = vi.fn();
+    render(<ToastProvider><RecordCaptureForm kind="purchase_order" onCreate={onCreate} onClose={onClose} /></ToastProvider>);
+
+    await user.type(screen.getByTestId('purchase_order-ref-input'), 'PO-090');
+    await user.type(screen.getByTestId('purchase_order-amount-input'), '1000');
+    await user.click(screen.getByTestId('purchase_order-save-btn'));
+
+    const form = screen.getByTestId('form-capture-purchase_order');
+    const error = await within(form).findByRole('alert');
+    expect(error).toHaveTextContent("You don't have permission to do that.");
+    expect(within(form).getByTestId('purchase_order-ref-input')).toHaveValue('PO-090');
+    expect(within(form).getByTestId('purchase_order-amount-input')).toHaveValue('1,000');
+    expect(onClose).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId('purchase_order-save-btn'));
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2));
+    expect(onCreate.mock.calls[1][0]).toEqual(expect.objectContaining({ referenceNumber: 'PO-090', amount: 1000 }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('F2-05 asks before closing a changed capture and Stay keeps its amount and reference', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<ToastProvider><RecordCaptureForm kind="purchase_order" onCreate={vi.fn()} onClose={onClose} /></ToastProvider>);
+
+    await user.type(screen.getByTestId('purchase_order-ref-input'), 'PO-KEEP');
+    await user.type(screen.getByTestId('purchase_order-amount-input'), '250');
+    const form = screen.getByTestId('form-capture-purchase_order');
+    await user.click(within(form).getByRole('button', { name: /cancel/i }));
+
+    const discardDialog = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    expect(onClose).not.toHaveBeenCalled();
+    await user.click(within(discardDialog).getByRole('button', { name: 'Keep editing' }));
+
+    expect(screen.getByTestId('purchase_order-ref-input')).toHaveValue('PO-KEEP');
+    expect(screen.getByTestId('purchase_order-amount-input')).toHaveValue('250');
+    expect(onClose).not.toHaveBeenCalled();
+
+    await user.click(within(form).getByRole('button', { name: /cancel/i }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Discard your changes?' })).getByRole('button', { name: 'Discard' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
 

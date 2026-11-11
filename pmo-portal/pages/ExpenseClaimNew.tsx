@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, FormGrid, FormSection, GateNotice, PageHeader, SelectField, TextField, useToast } from '@/src/components/ui';
+import { Button, FormGrid, FormSection, GateNotice, PageHeader, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useExpenseClaims } from '@/src/hooks/useExpenseClaims';
@@ -65,7 +65,7 @@ const ExpenseClaimNew: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [blockedLeave, setBlockedLeave] = useState<(() => void) | null>(null);
-  const dirty = Boolean(title || advanceId || projectId || category || purpose || receipt || lines.some((line) => line.date || line.type || line.description || line.amount));
+  const dirty = Boolean(title || advanceId || floatId || projectId || category || purpose || receipt || lines.some((line) => line.date || line.type || line.description || line.amount));
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: (leave) => setBlockedLeave(() => leave) });
   const options = projectChoices.options;
   const categoryPrecedents = useMemo(() => {
@@ -190,9 +190,9 @@ const ExpenseClaimNew: React.FC = () => {
         <Button type="button" variant="outline" onClick={() => setLines((rows) => [...rows, blankLine()])}>{t('expenses.lines.add', 'Add line')}</Button>
         <div className="mt-3 flex flex-wrap items-center gap-2"><label className="text-sm font-medium" htmlFor="new-expense-receipt">{t('uxs29.expenseCapture.receipt', 'Receipt (optional)')}</label><input id="new-expense-receipt" type="file" accept={RECEIPT_INPUT_ACCEPT} onChange={(event) => { const file = event.target.files?.[0] ?? null; setReceipt(file); if (file && !titleEdited && !lines[0]?.description.trim()) setTitle(file.name.replace(/\.[^.]+$/, '')); }} />{receipt && <span className="text-sm text-muted-foreground">{receipt.name}</span>}</div>
       </FormSection>
-      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-background py-3"><Button type="button" variant="outline" onClick={() => guardLeave(() => navigate('/expenses'))}>{t('expenses.actions.cancel', 'Cancel')}</Button><Button type="submit" variant="primary" disabled={saving || advancesNotReady || projectsNotReady}>{saving ? t('expenseClaims:new.saving', 'Saving…') : t('expenses.form.submitSave', 'Save')}</Button></div>
+      <div className="sticky bottom-[var(--phone-nav-height)] flex justify-end gap-2 border-t border-border bg-background py-3"><Button type="button" variant="outline" onClick={() => guardLeave(() => navigate('/expenses'))}>{t('expenses.actions.cancel', 'Cancel')}</Button><Button type="submit" variant="primary" disabled={saving || advancesNotReady || projectsNotReady}>{saving ? t('expenseClaims:new.saving', 'Saving…') : t('expenses.form.submitSave', 'Save')}</Button></div>
     </form>
-    <ConfirmDialog open={blockedLeave !== null} tone="default" title={t('expenseClaims:new.discardTitle', 'Discard unsaved claim?')} description={t('expenseClaims:new.discardBody', 'Your claim details and lines have not been saved. Leave and discard them?')} confirmLabel={t('expenseClaims:new.discardLeave', 'Leave')} cancelLabel={t('expenseClaims:new.discardStay', 'Stay')} onCancel={() => setBlockedLeave(null)} onConfirm={() => { const leave = blockedLeave; setBlockedLeave(null); leave?.(); }} />
+    <UnsavedChangesDialog open={blockedLeave !== null} onKeepEditing={() => setBlockedLeave(null)} onDiscard={() => { const leave = blockedLeave; setBlockedLeave(null); leave?.(); }} />
   </div>;
 };
 export default ExpenseClaimNew;

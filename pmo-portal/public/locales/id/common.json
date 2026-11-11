@@ -1477,7 +1477,6 @@
       "notFoundTitle": "Tidak ditemukan",
       "outstanding": "Belum diselesaikan",
       "reference": "Referensi pembayaran",
-      "rejectionNote": "Ditolak: {{note}}",
       "summary": "Ringkasan"
     },
     "filters": {
@@ -1584,14 +1583,6 @@
       "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
       "errorTitle": "Gagal memuat biaya"
     },
-    "status": {
-      "approved": "Disetujui",
-      "cancelled": "Dibatalkan",
-      "draft": "Draf",
-      "paid": "Dibayar",
-      "rejected": "Ditolak",
-      "submitted": "Diajukan"
-    },
     "table": {
       "emptyTitle": "Belum ada biaya",
       "rowLabel": "Buka {{title}}"
@@ -1602,7 +1593,6 @@
       "cancelled": "Dibatalkan",
       "created": "Dibuat",
       "paid": "Ditandai dibayar",
-      "rejected": "Ditolak",
       "reopened": "Kembali ke Draf",
       "returned": "Pengembalian dicatat",
       "submitted": "Diajukan untuk persetujuan"
@@ -3174,7 +3164,6 @@
       "helpWhatsApp": "Hubungi dukungan via WhatsApp",
       "legalAndSupport": "Legal & dukungan",
       "openCommandPalette": "Buka palet perintah",
-      "openNavigation": "Buka menu navigasi",
       "privacy": "Privasi",
       "returnToAdmin": "Kembali ke Admin",
       "searchPlaceholder": "Cari atau lompat ke…",
@@ -3265,11 +3254,10 @@
     "rail": {
       "assistant": "Asisten",
       "group": {
-        "crm": "CRM",
+        "crm": "Penjualan",
         "delivery": "Pelaksanaan",
         "finance": "Keuangan",
-        "overview": "Ringkasan",
-        "workforce": "SDM"
+        "workforce": "Pekerjaan saya"
       },
       "myViews": "Tampilan Saya",
       "primaryNavigation": "Navigasi utama",
@@ -3361,9 +3349,7 @@
     },
     "previousWeek": "Minggu sebelumnya",
     "returned": {
-      "revise": "Revisi minggu ini",
-      "sub": "Atasan Anda mengembalikan minggu ini. Perbaiki lalu ajukan lagi.",
-      "title": "Dikembalikan untuk diperbaiki"
+      "revise": "Revisi minggu ini"
     },
     "save": "Simpan",
     "status": {},
@@ -3929,10 +3915,6 @@
     "addPanel": " + Tambah panel",
     "maximumPanelsReached": "Maksimum {{count}} panel telah tercapai.",
     "livePreview": "Pratinjau langsung",
-    "discardChangesTitle": "Buang perubahan yang belum disimpan?",
-    "discardChangesDescription": "Konfigurasi panel dan nama akan hilang.",
-    "discard": "Buang",
-    "keepEditing": "Lanjutkan mengedit",
     "panelList": "Daftar panel",
     "movePanelUp": "Pindahkan panel {{number}} ke atas",
     "movePanelDown": "Pindahkan panel {{number}} ke bawah",
@@ -4294,6 +4276,12 @@
     "keepEditing": "Lanjut mengedit",
     "fixFields_one": "Perbaiki {{count}} kolom sebelum menyimpan",
     "fixFields_other": "Perbaiki {{count}} kolom sebelum menyimpan"
+  },
+  "unsavedChanges": {
+    "title": "Buang perubahan Anda?",
+    "body": "Apa yang Anda ketik di sini akan hilang.",
+    "discard": "Buang",
+    "keepEditing": "Lanjut mengedit"
   },
   "projectFinances": {
     "title": "Keuangan proyek",

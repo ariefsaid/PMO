@@ -112,10 +112,11 @@ describe('Rail — My Views group (AC-VR-014, AC-VR-015, AC-VR-017)', () => {
     featureEnabled.userViews = true;
   });
 
-  it('AC-VR-015: does NOT render "My Views" group when feature=true but views array is empty', () => {
+  it('AC-VR-015: keeps the My Views destination when the enabled view list is empty', () => {
     userViewsData.splice(0, userViewsData.length);
     featureEnabled.userViews = true;
     renderRail();
+    expect(screen.getByRole('link', { name: 'My Views' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: /my views/i })).not.toBeInTheDocument();
   });
 
@@ -128,8 +129,9 @@ describe('Rail — My Views group (AC-VR-014, AC-VR-015, AC-VR-017)', () => {
     // Existing static nav items remain (just check a few)
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument();
-    // "My Views" group is additional, not replacing "Overview"/"CRM"/"Delivery"/"Workforce"
+    // My Views is a top-level destination; saved views nest beneath it without replacing core routes.
     expect(screen.getByRole('group', { name: /my views/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'My Views' })).toBeInTheDocument();
   });
 
   it('AC-VR-014: caps rail entries at MAX_NAV_VIEWS (8)', () => {

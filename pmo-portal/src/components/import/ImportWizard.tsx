@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
-import { Button, ConfirmDialog, DataTable, Icon, StatusPill, type Column, type StatusVariant } from '@/src/components/ui';
+import { Button, DataTable, Icon, StatusPill, UnsavedChangesDialog, type Column, type StatusVariant } from '@/src/components/ui';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { overlayBackdropClassName, overlayBackdropStyle } from '@/src/components/ui/OverlaySurface';
@@ -194,19 +194,14 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
         </div>
       </Dialog.Portal>
     </Dialog.Root>
-    <ConfirmDialog
+    <UnsavedChangesDialog
       open={pendingExit !== null}
-      tone="destructive"
-      title="Unsaved import changes"
-      description="Your uploaded file, column matches, and preview will be lost if you leave."
-      confirmLabel={pendingExit?.kind === 'close' ? 'Discard import' : 'Leave'}
-      cancelLabel="Stay"
-      onConfirm={() => {
+      onDiscard={() => {
         const exit = pendingExit;
         setPendingExit(null);
         exit?.run();
       }}
-      onCancel={() => setPendingExit(null)}
+      onKeepEditing={() => setPendingExit(null)}
     />
     </>
   );

@@ -73,8 +73,8 @@
     "latestStatement": "Latest period {{period}}",
     "back": "Back",
     "payablesAgeingBasis": "Invoice age, by days",
-    "ageingUnknown_one": "No known balances to group · {{count}} balance unknown",
-    "ageingUnknown_other": "No known balances to group · {{count}} balances unknown",
+    "ageingUnknown_one": "No known balances · {{count}} balance unknown",
+    "ageingUnknown_other": "No known balances · {{count}} balances unknown",
     "ageingUnknownCount_one": "{{count}} balance unknown",
     "ageingUnknownCount_other": "{{count}} balances unknown",
     "ageingEmpty": "No balances to group by age"

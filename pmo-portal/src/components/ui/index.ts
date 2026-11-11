@@ -40,6 +40,7 @@ export {
   type ConfirmDialogProps,
   type ConfirmTone,
 } from './ConfirmDialog';
+export { UnsavedChangesDialog, type UnsavedChangesDialogProps } from './UnsavedChangesDialog';
 export { DecisionContextSummary, type DecisionContextSummaryProps } from './DecisionContextSummary';
 export { Drawer, type DrawerProps } from './Drawer';
 
@@ -73,6 +74,7 @@ export {
   type TimesheetGridProps,
 } from './TimesheetGrid';
 export { ErrBanner, type ErrBannerProps } from './ErrBanner';
+export { ReturnedBanner, type ReturnedBannerProps } from './ReturnedBanner';
 export { ApprovalRow, type ApprovalRowProps } from './ApprovalRow';
 export { ProjectNameLink, type ProjectNameLinkProps } from './ProjectNameLink';
 export { CompanyNameLink, type CompanyNameLinkProps } from './CompanyNameLink';
@@ -122,3 +124,5 @@ export {
   type ValidateFn,
   type FieldProps,
 } from './useEntityForm';
+export { FilterBar, type FilterBarProps, type FilterBarFilter } from './FilterBar';
+export { useUrlFilters } from './useUrlFilters';

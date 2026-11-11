@@ -5,7 +5,7 @@ import { signIn } from './helpers';
 const SEEDED_MEETING = 'ee000000-0000-0000-0000-000000000001';
 const UNSAVED_LINE = 'Unsaved guard browser-only edit';
 
-test('AC-MTG-300: dirty minutes breadcrumb offers Stay and Leave without losing the edit', async ({ page }) => {
+test('AC-MTG-300: dirty minutes breadcrumb offers Keep editing and Discard without losing the edit', async ({ page }) => {
   await signIn(page, 'pm@acme.test');
   await page.goto(`/meetings/${SEEDED_MEETING}`);
 
@@ -22,16 +22,16 @@ test('AC-MTG-300: dirty minutes breadcrumb offers Stay and Leave without losing 
     .getByRole('link', { name: 'Meetings', exact: true });
   await meetingsCrumb.click();
 
-  const dialog = page.getByRole('dialog', { name: 'Unsaved meeting changes' });
+  const dialog = page.getByRole('alertdialog', { name: 'Discard your changes?' });
   await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'Stay', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Keep editing', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/meetings/${SEEDED_MEETING}$`));
   await expect(minutesEditor).toContainText(UNSAVED_LINE);
   await expect(page.getByTestId('minutes-save')).toBeEnabled();
 
   await meetingsCrumb.click();
-  await expect(page.getByRole('dialog', { name: 'Unsaved meeting changes' })).toBeVisible();
-  await page.getByRole('dialog', { name: 'Unsaved meeting changes' }).getByRole('button', { name: 'Leave', exact: true }).click();
+  await expect(page.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeVisible();
+  await page.getByRole('alertdialog', { name: 'Discard your changes?' }).getByRole('button', { name: 'Discard', exact: true }).click();
   await expect(page).toHaveURL(/\/meetings$/);
   await expect(page.getByRole('heading', { name: /meetings/i }).first()).toBeVisible();
 });
@@ -55,20 +55,20 @@ test('AC-MTG-301: browser Back on dirty minutes asks before discarding and keeps
   await page.keyboard.type(UNSAVED_LINE);
   await expect(page.getByTestId('minutes-save')).toBeEnabled();
 
-  const dialog = page.getByRole('dialog', { name: 'Unsaved meeting changes' });
+  const dialog = page.getByRole('alertdialog', { name: 'Discard your changes?' });
   await page.goBack();
   await expect(dialog).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`/meetings/${SEEDED_MEETING}$`));
 
-  await dialog.getByRole('button', { name: 'Stay', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Keep editing', exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(page).toHaveURL(new RegExp(`/meetings/${SEEDED_MEETING}$`));
   await expect(minutesEditor).toContainText(UNSAVED_LINE);
   await expect(page.getByTestId('minutes-save')).toBeEnabled();
 
-  // A second Back still asks, and Leave now honours the exit the user asked for.
+  // A second Back still asks, and Discard now honours the exit the user asked for.
   await page.goBack();
-  await expect(page.getByRole('dialog', { name: 'Unsaved meeting changes' })).toBeVisible();
-  await page.getByRole('dialog', { name: 'Unsaved meeting changes' }).getByRole('button', { name: 'Leave', exact: true }).click();
+  await expect(page.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeVisible();
+  await page.getByRole('alertdialog', { name: 'Discard your changes?' }).getByRole('button', { name: 'Discard', exact: true }).click();
   await expect(page).toHaveURL(/\/meetings$/, { timeout: 10_000 });
 });

@@ -197,7 +197,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   const [notesRevealed, setNotesRevealed] = React.useState(false);
 
   return (
-    <RecordActionZone className="sticky bottom-0 z-10 bg-background/95 backdrop-blur-sm mb-4">
+    <RecordActionZone className="sticky bottom-[var(--phone-nav-height)] z-10 bg-background/95 backdrop-blur-sm mb-4">
       <Card data-testid="decision-card">
         <CardPad className="flex flex-col gap-2.5 py-3">
           {/* D6: SoD / readiness hint — co-located with the (absent or present) action

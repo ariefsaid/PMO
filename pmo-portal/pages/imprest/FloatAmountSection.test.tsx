@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
 const mut = () => ({ mutateAsync: vi.fn().mockResolvedValue('x'), isPending: false });
@@ -18,7 +19,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 import { FloatAmountSection } from './FloatAmountSection';
 
 const change = (over: Record<string, unknown> = {}) => ({ id: 'c1', float_id: 'f1', proposed_amount: 5000000, proposed_by: 'u-fin', proposer: { full_name: 'Finn Finance' }, decider: null, status: 'Proposed', proposed_at: '2026-11-02T00:00:00Z', notes: null, ...over });
-const renderIt = () => render(<ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" floatAmount={0} /></ToastProvider>);
+const renderIt = () => render(<MemoryRouter initialEntries={['/float']}><Link to="/next">Continue</Link><Routes><Route path="/float" element={<ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" floatAmount={0} /></ToastProvider>} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter>);
 
 describe('FR-IMP-002 float amount', () => {
   beforeEach(() => {
@@ -58,6 +59,22 @@ describe('FR-IMP-002 float amount', () => {
     await waitFor(() => expect(h.m.propose.mutateAsync).toHaveBeenCalledWith({ floatId: 'f1', amount: 6000000 }));
   });
 
+  it('asks before closing an entered proposal and Stay keeps the amount', async () => {
+    const user = userEvent.setup();
+    h.changes = ok({ rows: [], truncated: false });
+    renderIt();
+    await user.click(screen.getByRole('button', { name: 'Propose new amount' }));
+    const proposal = await screen.findByRole('dialog', { name: 'Propose a new float amount' });
+    const amount = within(proposal).getByLabelText(/New float amount/);
+    await user.type(amount, '6000000');
+    await user.click(within(proposal).getByRole('button', { name: 'Cancel' }));
+
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(within(discard).getByRole('button', { name: 'Keep editing' }));
+    expect(within(await screen.findByRole('dialog', { name: 'Propose a new float amount' })).getByLabelText(/New float amount/)).toHaveValue('6000000');
+    expect(h.m.propose.mutateAsync).not.toHaveBeenCalled();
+  });
+
   it('FR-IMP-002 no propose button while a change is open or for a non-setup role', () => {
     const { unmount } = renderIt();
     expect(screen.queryByRole('button', { name: 'Propose new amount' })).toBeNull();
@@ -70,7 +87,7 @@ describe('FR-IMP-002 float amount', () => {
 
   it('FR-IMP-002 decided changes are a table with date, amount, status and who', () => {
     h.changes = ok({ rows: [change({ id: 'c0', status: 'Approved', proposed_amount: 4000000, decider: { full_name: 'Sam Senior' } })], truncated: false });
-    render(<ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" floatAmount={4000000} /></ToastProvider>);
+    render(<MemoryRouter><ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" floatAmount={4000000} /></ToastProvider></MemoryRouter>);
     const row = screen.getByRole('row', { name: /4,000,000/ });
     expect(within(row).getByText('Approved')).toBeInTheDocument();
     expect(within(row).getByText(/Finn Finance/)).toBeInTheDocument();

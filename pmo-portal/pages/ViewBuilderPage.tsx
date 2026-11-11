@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams, useLocation } from 'react-router';
 import {
   ListState,
-  ConfirmDialog,
+  UnsavedChangesDialog,
   TextField,
   TextArea,
   SelectField,
@@ -517,21 +517,16 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
       )}
 
       {/* Dirty-discard confirm (FR-VB-063, OD-VB-8) */}
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={showDiscardDialog}
-        tone="destructive"
-        title={t('viewBuilder.discardChangesTitle', 'Discard unsaved changes?')}
-        description={t('viewBuilder.discardChangesDescription', 'Your panel configuration and name will be lost.')}
-        confirmLabel={t('viewBuilder.discard', 'Discard')}
-        cancelLabel={t('viewBuilder.keepEditing', 'Keep editing')}
-        onConfirm={() => {
+        onDiscard={() => {
           setShowDiscardDialog(false);
           const leave = pendingLeave;
           setPendingLeave(null);
           if (leave) leave();
           else navigate('/views');
         }}
-        onCancel={() => {
+        onKeepEditing={() => {
           setShowDiscardDialog(false);
           setPendingLeave(null);
         }}

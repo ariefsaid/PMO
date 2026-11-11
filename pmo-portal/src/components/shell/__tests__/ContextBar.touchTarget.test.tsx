@@ -1,5 +1,5 @@
 /**
- * AC-W2-7-02: the account-menu trigger has ≥44px touch target (touch-target class).
+ * AC-W2-7-02: the account-menu trigger has a ≥44px target at every pointer setting.
  */
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: {} }) }));
@@ -26,17 +26,18 @@ vi.mock('@/src/auth/useAuth', () => ({
 import { ContextBar } from '../ContextBar';
 
 describe('ContextBar touch target (W2-7)', () => {
-  it('AC-W2-7-02: the account-menu trigger has touch-target class for ≥44px coarse-pointer hit area', () => {
+  it('AC-W2-7-02: the account-menu trigger has a 44px minimum in addition to the coarse-pointer target', () => {
     render(
       <ContextBar
         breadcrumb={[{ label: 'Dashboard' }]}
         onOpenPalette={vi.fn()}
-        onToggleRail={vi.fn()}
       />,
     );
 
     // The single account-menu trigger (the sole home of the personal command surface).
     const trigger = screen.getByRole('button', { name: /account menu/i });
     expect(trigger.className).toContain('touch-target');
+    expect(trigger.className.split(/\s+/)).toContain('min-h-11');
+    expect(trigger.className.split(/\s+/)).toContain('min-w-11');
   });
 });
