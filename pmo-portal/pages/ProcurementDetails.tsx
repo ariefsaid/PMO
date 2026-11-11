@@ -992,8 +992,8 @@ const ProcurementDetails: React.FC = () => {
         open={pendingCaptureLeave !== null}
         title={t('entityForm.discardTitle', 'Discard your changes?')}
         description={t('entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
-        confirmLabel={t('procurementDetail.leave', 'Leave')}
-        cancelLabel={t('procurementDetail.stay', 'Stay')}
+        confirmLabel={t('procurement:create.unsaved.leave')}
+        cancelLabel={t('procurement:create.unsaved.stay')}
         onConfirm={() => {
           const leave = pendingCaptureLeave;
           setPendingCaptureLeave(null);

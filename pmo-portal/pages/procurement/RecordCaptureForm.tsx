@@ -649,7 +649,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         title={t('entityForm.discardTitle', 'Discard your changes?')}
         description={t('entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
         confirmLabel={t('entityForm.discard', 'Discard')}
-        cancelLabel={t('entityForm.stay', 'Stay')}
+        cancelLabel={t('entityForm.keepEditing')}
         onConfirm={discardDraft}
         onCancel={() => setDiscardOpen(false)}
       />

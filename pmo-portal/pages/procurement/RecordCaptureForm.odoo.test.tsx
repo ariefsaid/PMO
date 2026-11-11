@@ -194,7 +194,7 @@ describe('record capture refuses without hiding the recovery path', () => {
 
     const discardDialog = await screen.findByRole('dialog', { name: 'Discard your changes?' });
     expect(onClose).not.toHaveBeenCalled();
-    await user.click(within(discardDialog).getByRole('button', { name: 'Stay' }));
+    await user.click(within(discardDialog).getByRole('button', { name: 'Keep editing' }));
 
     expect(screen.getByTestId('purchase_order-ref-input')).toHaveValue('PO-KEEP');
     expect(screen.getByTestId('purchase_order-amount-input')).toHaveValue('250');
