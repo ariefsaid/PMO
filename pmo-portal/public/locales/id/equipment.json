@@ -46,7 +46,7 @@
     "notFoundSub": "Mungkin sudah diarsipkan.",
     "refLine": "Referensi ERP {{ref}}",
     "rowLabel": "Buka {{name}}",
-    "title": "Aset peralatan",
+    "title": "Aset",
     "truncated": "Hanya {{count}} aset pertama yang ditampilkan. Arsipkan aset yang tidak dipakai lagi.",
     "unit": "Satuan bawaan",
     "unitLine": "Dicatat dalam {{unit}}"

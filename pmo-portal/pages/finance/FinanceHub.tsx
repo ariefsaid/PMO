@@ -64,8 +64,8 @@ const FinanceHub: React.FC = () => {
   const manageIntegration = may('manage', 'integration');
   const figuresFailed = finance.isError || figures.isError;
 
-  const owed = receivablesUnknown ? null : moneyTileProps(receivableValues, home);
-  const toPay = payablesUnknown ? null : moneyTileProps(finance.position.payablesTotals, home);
+  const owed = receivablesUnknown ? null : moneyTileProps(finance.position.receivablesCount === 0 ? { [home]: 0 } : receivableValues, home);
+  const toPay = payablesUnknown ? null : moneyTileProps(finance.position.payables.length === 0 ? { [home]: 0 } : finance.position.payablesTotals, home);
   const toInvoice = pack ? moneyTileProps(unbilled, home) : null;
   const profit = statement?.currency && net !== null && !statementUnavailable ? moneyTileProps({ [statement.currency]: Math.round(net * 100) }, statement.currency) : null;
   const shownTiles = [

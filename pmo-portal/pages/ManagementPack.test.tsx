@@ -56,8 +56,9 @@ describe('Management pack money display (#1260, #1437)', () => {
     expect(within(figures).queryByText('Left to bill')).not.toBeInTheDocument();
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden');
     expect(within(figures).queryByRole('status')).not.toBeInTheDocument();
-    // A known zero stays a figure in the home currency.
-    expect(within(figures).getAllByText('IDR 0', { exact: true }).length).toBeGreaterThan(0);
+    // The known zero is in USD; no home-currency amount was supplied.
+    expect(within(figures).getAllByText('USD 0', { exact: true }).length).toBeGreaterThan(0);
+    expect(within(figures).queryByText('IDR 0', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
 
     expect(screen.getAllByText('Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.')).toHaveLength(1);

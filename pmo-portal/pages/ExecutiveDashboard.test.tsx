@@ -470,7 +470,7 @@ describe('company home — finance (one question: what must I collect, pay and i
   });
 
   it('a recorded zero is still drawn once client balances are known', () => {
-    figureState.result = { ...figureState.result, period: periodFigures.map((figure) => figure.id === 'collected' ? { ...figure, amounts: [] } : figure) };
+    figureState.result = { ...figureState.result, period: periodFigures.map((figure) => figure.id === 'collected' ? { ...figure, amounts: [{ currency: 'USD', amount: 0 }] } : figure) };
     renderPage();
     const figures = screen.getByRole('region', { name: 'Company figures' });
     const tile = within(figures).getByText('Collected', { exact: true }).parentElement?.parentElement?.parentElement as HTMLElement;

@@ -342,7 +342,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
 
   const pageTitle = mode === 'create'
     ? t('viewBuilder.newView', 'New View')
-    : t('viewBuilder.editView', 'Edit: {{name}}', { name: existingView?.name ?? '' });
+    : (existingView?.name ? t('viewBuilder.editView', '{{name}}', { name: existingView.name }) : t('viewBuilder.newView', 'New View'));
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">

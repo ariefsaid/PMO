@@ -86,7 +86,7 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
         // Back from the record rebuilds the same chips from the URL.
         await expect(builderChip(page, 'Award type')).toBeVisible();
         await expect(builderChip(page, 'Location')).toBeVisible();
-        await page.getByRole('button', { name: 'Clear all', exact: true }).click();
+        await page.getByTestId('project-filter-builder').getByRole('button', { name: 'Clear all', exact: true }).click();
         await expect(builderChip(page, 'Location')).toHaveCount(0);
       } else {
         await expect(disclosure).toHaveAccessibleName(`${triggerName} 2`);

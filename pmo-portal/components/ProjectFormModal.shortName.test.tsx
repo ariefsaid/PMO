@@ -30,7 +30,7 @@ describe('ProjectFormModal short name (AC-001 #1325)', () => {
   it.each(['Leads', 'Internal Project'] as const)('creates an optional alias in the %s origin flow', async (status) => {
     const { onSubmit } = renderForm();
     await userEvent.type(screen.getByLabelText(/^Project name/), 'Contractual delivery');
-    await userEvent.type(screen.getByLabelText('Short name (optional)'), '  Site North  ');
+    await userEvent.type(screen.getByLabelText('Short name'), '  Site North  ');
     await chooseClient();
     if (status !== 'Leads') await userEvent.selectOptions(screen.getByLabelText('Origination stage'), status);
     await userEvent.click(screen.getByRole('button', { name: 'Create project' }));
@@ -42,7 +42,7 @@ describe('ProjectFormModal short name (AC-001 #1325)', () => {
       mode: 'editHeader',
       initial: { id: 'p1', name: 'Contractual delivery', short_name: 'Old label', code: null, client_id: 'c1', project_manager_id: null },
     });
-    const alias = screen.getByLabelText('Short name (optional)');
+    const alias = screen.getByLabelText('Short name');
     expect(alias).toHaveValue('Old label');
     await userEvent.clear(alias);
     await userEvent.click(screen.getByRole('button', { name: 'Save project' }));
@@ -51,7 +51,7 @@ describe('ProjectFormModal short name (AC-001 #1325)', () => {
 
   it('keeps the contractual name required even when an alias is present', async () => {
     renderForm({ initial: undefined });
-    await userEvent.type(screen.getByLabelText('Short name (optional)'), 'Alias only');
+    await userEvent.type(screen.getByLabelText('Short name'), 'Alias only');
     expect(screen.getByRole('button', { name: 'Create project' })).toBeDisabled();
     expect(screen.getByLabelText(/^Project name/)).toBeRequired();
   });
@@ -61,7 +61,7 @@ describe('ProjectFormModal short name (AC-001 #1325)', () => {
     const onSubmit = vi.fn().mockRejectedValue(Object.assign(new Error('duplicate key value violates unique constraint "projects_org_short_name_uidx"'), { code: '23505' }));
     renderForm({ onSubmit, onError });
     await userEvent.type(screen.getByLabelText(/^Project name/), 'Contractual delivery');
-    const alias = screen.getByLabelText('Short name (optional)');
+    const alias = screen.getByLabelText('Short name');
     await userEvent.type(alias, 'Taken');
     await chooseClient();
     await userEvent.click(screen.getByRole('button', { name: 'Create project' }));

@@ -113,7 +113,7 @@ function tabMoney(totals: readonly CurrencyTotal[], home: string): string {
     const amount = shownAmount(total);
     return amount === null || amount === 0 ? [] : [{ currency: total.currency, amount }];
   });
-  return known.length === 0 ? '' : formatMoneyLines(known, home, 'tile').join(' ');
+  return known.length === 0 ? '' : formatMoneyLines(known, home, 'tile').lines.join(' ');
 }
 
 /** The list renders through ProcurementBlock; these columns only describe the export, so they carry no cell. */
@@ -421,7 +421,7 @@ const ProcurementPage: React.FC = () => {
     ? new Map([...needsYouReasons].map(([id, value]) => [id, value.text]))
     : new Map<string, string>()), [needsYouReasons, tab]);
 
-  const title = isEngineer ? t('title.engineer', 'Your procurements') : t('title.default', 'Procurement');
+  const title = t('title.default', 'Procurement');
   // The page's one help: the definitions that used to sit in per-column and per-tile tooltips.
   const help = (
     <dl className="space-y-2">
@@ -483,6 +483,13 @@ const ProcurementPage: React.FC = () => {
     >
       <div className="space-y-4">
         <FigureHiddenLine />
+        {(isEngineer || isProjectManager) && (
+          <p className="text-sm text-muted-foreground">
+            {isEngineer
+              ? t('description.engineer', 'Track the procurements you raised, from request through payment.')
+              : t('description.projectManager', 'Procurements for projects you manage, from request through payment.')}
+          </p>
+        )}
         <Tabs
           items={tabs.map(({ key, label, count, money }) => ({ value: key, label, count, detail: money || undefined }))}
           value={tab}

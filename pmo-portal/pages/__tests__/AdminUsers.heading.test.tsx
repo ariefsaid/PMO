@@ -64,13 +64,12 @@ const renderAs = (realRole: 'Admin' | 'Executive') =>
   );
 
 describe('AdminUsers — heading matches breadcrumb (B-8, AC-W2-IA-003)', () => {
-  it('AC-W2-IA-003: the page <h1> is "Administration" matching the route/crumb label (not "Users")', () => {
+  it('AC-W2-IA-003: the page <h1> is "Users" matching the route/crumb label', () => {
     renderAs('Admin');
-    // h1 must say "Administration" — same as the rail item and breadcrumb label.
-    expect(screen.getByRole('heading', { level: 1, name: /^Administration$/i })).toBeInTheDocument();
-    // "Users" may appear as a sub-heading but must not be the primary h1.
+    // h1 says "Users" — matching the child breadcrumb and section tab.
+    expect(screen.getByRole('heading', { level: 1, name: /^Users$/i })).toBeInTheDocument();
     const h1s = screen.getAllByRole('heading', { level: 1 });
     expect(h1s).toHaveLength(1);
-    expect(h1s[0].textContent).toMatch(/^Administration$/i);
+    expect(h1s[0].textContent).toMatch(/^Users$/i);
   });
 });

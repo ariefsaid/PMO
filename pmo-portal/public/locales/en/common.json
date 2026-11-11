@@ -3905,7 +3905,7 @@
     "viewNotFoundDescription": "This view may have been archived or you don't have access.",
     "goToMyViews": "Go to My Views",
     "newView": "New View",
-    "editView": "Edit: {{name}}",
+    "editView": "{{name}}",
     "aiDraftReview": "AI-composed draft: review before saving",
     "composeWithAi": "Compose view with AI",
     "cancel": "Cancel",
