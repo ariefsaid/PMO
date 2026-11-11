@@ -103,7 +103,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
                     <span className="min-w-0 break-words text-control text-muted-foreground">{labels[key]}</span>
                     {unknown > 0 && amount === 0
                       ? <span className="text-right text-control text-muted-foreground">{unknownLabel}</span>
-                      : <span className={cn('max-w-full break-all text-right tabular text-sm font-semibold', amount === 0 ? 'text-muted-foreground' : 'text-foreground')}>{formatCurrency(amount / 100, currency)}</span>}
+                      : <span className={cn('max-w-full break-all text-right tabular text-sm', amount === 0 ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground')}>{formatCurrency(amount / 100, currency)}</span>}
                     {unknown > 0 && amount !== 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('financeHub:hub.fix.ageing.plusUnknown', { defaultValue: '+ {{label}}', label: unknownLabel })}</span>}
                   </div>
                 );

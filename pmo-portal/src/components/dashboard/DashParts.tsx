@@ -225,19 +225,19 @@ export const ProjectRows: React.FC<{
                       const quiet = !row.offTrack && !row.reason;
                       const emphasized = row.offTrack && index === firstExceptionIndex;
                       const rowStatus = statusLabel('project', row.status, ts);
+                      const needFacts = row.needs ? needColumns.map((column) => {
+                        const count = row.needs?.[column.key] ?? 0;
+                        const label = column.key === 'tasksOverdue'
+                          ? t('home.mobileTasksOverdue', { count, defaultValue_one: '{{count}} task overdue', defaultValue_other: '{{count}} tasks overdue' })
+                          : column.key === 'phasesLate'
+                            ? t('home.mobilePhasesLate', { count, defaultValue_one: '{{count}} phase late', defaultValue_other: '{{count}} phases late' })
+                            : column.key === 'invoicesOverdue'
+                              ? t('home.mobileInvoicesOverdue', { count, defaultValue_one: '{{count}} invoice overdue', defaultValue_other: '{{count}} invoices overdue' })
+                              : t('home.mobileAwaitingApproval', { count, defaultValue_one: '{{count}} awaiting approval', defaultValue_other: '{{count}} awaiting approval' });
+                        return { key: column.key, label, urgent: column.key !== 'awaitingApproval' };
+                      }) : [];
                       const mobileFacts = row.needs ? [
-                        ...needColumns.flatMap((column) => {
-                          const count = row.needs?.[column.key] ?? 0;
-                          if (count <= 0) return [];
-                          const label = column.key === 'tasksOverdue'
-                            ? t('home.mobileTasksOverdue', { count, defaultValue_one: '{{count}} task overdue', defaultValue_other: '{{count}} tasks overdue' })
-                            : column.key === 'phasesLate'
-                              ? t('home.mobilePhasesLate', { count, defaultValue_one: '{{count}} phase late', defaultValue_other: '{{count}} phases late' })
-                              : column.key === 'invoicesOverdue'
-                                ? t('home.mobileInvoicesOverdue', { count, defaultValue_one: '{{count}} invoice overdue', defaultValue_other: '{{count}} invoices overdue' })
-                                : t('home.mobileAwaitingApproval', { count, defaultValue_one: '{{count}} awaiting approval', defaultValue_other: '{{count}} awaiting approval' });
-                          return [{ key: column.key, label, urgent: column.key !== 'awaitingApproval' }];
-                        }),
+                        ...needFacts.filter((fact) => (row.needs?.[fact.key] ?? 0) > 0),
                         showDelivery && row.delivery !== null && row.delivery > 0
                           ? { key: 'delivery', label: `${pct(row.delivery)} ${t('home.mobileDelivered', 'delivered')}`, urgent: false }
                           : null,
@@ -249,7 +249,8 @@ export const ProjectRows: React.FC<{
                       ].filter((fact): fact is { key: string; label: string; urgent: boolean } => fact !== null) : [];
                       const structuredAriaLabel = row.needs ? [
                         row.name,
-                        ...mobileFacts.map((fact) => fact.label),
+                        ...needFacts.map((fact) => fact.label),
+                        ...mobileFacts.filter((fact) => fact.key === 'delivery' || fact.key === 'budget').map((fact) => fact.label),
                         `${t('home.colStatus', 'Status')}: ${rowStatus}`,
                       ].filter(Boolean).join('; ') : undefined;
                       return (

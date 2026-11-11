@@ -231,6 +231,7 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(within(list).queryByText('Project 9')).not.toBeInTheDocument();
     const row = links[0];
     expect(row).toHaveAccessibleName(/4 tasks overdue.*2 awaiting approval/);
+    expect(row).toHaveAccessibleName(/0 invoices overdue/);
     expect(row).toHaveTextContent('40%');
     expect(row).toHaveTextContent('150%');
     // A status pill takes its tone from the status map, not from being off track (red already means overdue).

@@ -297,6 +297,8 @@ describe('Finance hub', () => {
     const zeroBucket = within(receivables).getByTestId('ageing-bucket-IDR-d1_30').querySelector('.tabular');
     const positiveBucket = within(receivables).getByTestId('ageing-bucket-IDR-notDue').querySelector('.tabular');
     expect(zeroBucket).toHaveClass('text-muted-foreground');
+    expect(zeroBucket).toHaveClass('font-normal');
+    expect(zeroBucket).not.toHaveClass('font-semibold');
     expect(positiveBucket).not.toHaveClass('text-muted-foreground');
   });
 
