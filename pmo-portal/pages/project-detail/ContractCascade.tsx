@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
+import { CircleAlert, CircleCheck, CircleMinus } from 'lucide-react';
 import { Card, CardHead, CardPad, DataTable, Drawer, ListState, ProgressBar, StatusPill, TaxBasisLabel, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -57,6 +58,12 @@ export function summarizeInvoiceSettlement(invoices: readonly InvoiceSettlementI
 }
 
 const qty = (n: number) => formatNumberMax2(n);
+
+const BILLABILITY_STATE_ICONS = {
+  done: { icon: CircleCheck, className: 'text-success-foreground' },
+  'not-needed': { icon: CircleMinus, className: 'text-muted-foreground' },
+  needed: { icon: CircleAlert, className: 'text-warning-foreground' },
+} as const;
 
 /** Contract value summary and the customer's ordered → delivered → invoiced reading layer. */
 export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: React.ReactNode; contractTools?: React.ReactNode }> = ({ project, children, contractTools }) => {
@@ -147,7 +154,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
     : !customerOrderRecorded
       ? draftOrder
         ? t('projectDetail.cascade.reasonDraftOrder', 'The customer order is still a draft.')
-        : t('projectDetail.cascade.reasonNoOrders', 'No customer orders.')
+        : null
       : hasContractLines && !hasAllocatedLines
         ? t('projectDetail.cascade.reasonNoAllocations', 'No contract lines are allocated.')
         : hasContractLines && !hasAcceptedQuantity
@@ -234,10 +241,14 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
         <section aria-labelledby="pd-cascade" className="panel-card min-w-0">
           <CardHead id="pd-cascade" subline={<>{project.currency}
               {isTaxTreatment(project.tax_treatment) && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-sm text-muted-foreground" /></>}
-            </>}>{t('projectDetail.cascade.title', 'Contract')}</CardHead>
+            </>}>
+            <Tooltip content={t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.')}>
+              <span tabIndex={0} className="cursor-help">{t('projectDetail.cascade.title', 'Contract')}</span>
+            </Tooltip>
+          </CardHead>
           <CardPad className="pt-0">
           <ol className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('projectDetail.cascade.title', 'Contract')}>
-            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract')} value={tileMoney(contractValue)} percentage={contractValue > 0 ? 100 : null} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
+            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract')} value={tileMoney(contractValue)} percentage={contractValue > 0 ? 100 : null} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} showLabel={false} />
             {hasReadingLayer && <>
               <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={tileMoney(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
               <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={tileMoney(delivered)} percentage={percent(delivered)} detail={t('projectDetail.cascade.source.delivered', 'Source: quantities accepted on confirmed BASTs × contract rates.')} />
@@ -282,11 +293,8 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           {billabilityDataReady && canViewMoney && (
             <section className="mt-4 border-t border-border pt-4" aria-labelledby="pd-before-bill">
               <h3 id="pd-before-bill" className="text-base font-semibold text-foreground">
-                {t('projectDetail.cascade.beforeBill', 'Before you can bill')}
+                {t('projectDetail.cascade.beforeBill', 'Billing')}
               </h3>
-              <p className="mt-1 text-control text-muted-foreground">
-                {t('projectDetail.cascade.phaseProgressLabel', 'Phase progress is not billable quantity.')}
-              </p>
               {canInvoice === 0 && billabilityReason && (
                 <p role="status" className="mt-2 text-control text-muted-foreground" data-testid="billability-reason">
                   {billabilityReason}
@@ -294,15 +302,21 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               )}
               <ol aria-label={t('projectDetail.cascade.billingSteps', 'Billing steps')} className="mt-3 space-y-2">
                 {billabilitySteps.map((step) => (
-                  <li key={step.id} data-testid={`billability-step-${step.id}`} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-control">
-                    <span className="min-w-0 font-medium text-foreground">{step.label}</span>
-                    <span className="ml-auto text-muted-foreground">
-                      {step.state === 'done'
+                  <li key={step.id} aria-label={step.label} data-testid={`billability-step-${step.id}`} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-control">
+                    {!step.action && <span className="min-w-0 font-medium text-foreground">{step.label}</span>}
+                    {(() => {
+                      const { icon: StateIcon, className } = BILLABILITY_STATE_ICONS[step.state];
+                      const stateLabel = step.state === 'done'
                         ? t('projectDetail.cascade.done', 'Done')
                         : step.state === 'not-needed'
                           ? t('projectDetail.cascade.notNeeded', 'Not needed')
-                          : t('projectDetail.cascade.needed', 'Needed')}
-                    </span>
+                          : t('projectDetail.cascade.needed', 'Needed');
+                      return (
+                        <span className={`ml-auto inline-flex shrink-0 ${className}`} role="img" aria-label={stateLabel}>
+                          <StateIcon aria-hidden="true" className="size-4" />
+                        </span>
+                      );
+                    })()}
                     {step.action && (
                       <Link className="touch-target inline-flex min-h-11 items-center rounded-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" to={step.action.to}>
                         {step.action.label}
@@ -409,21 +423,20 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   );
 };
 
-const MoneyStep: React.FC<{ label: string; value: string; percentage: number | null; detail: string }> = ({ label, value, percentage, detail }) => {
-  const { t } = useTranslation('project');
+const MoneyStep: React.FC<{ label: string; value: string; percentage: number | null; detail: string; showLabel?: boolean }> = ({ label, value, percentage, detail, showLabel = true }) => {
   return (
-    <li className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
-      <div className="block">
+    <li aria-label={!showLabel ? `${label} ${value}` : undefined} className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
+      {showLabel && <div className="block">
         <Tooltip content={detail}>
           <span className="block w-fit cursor-help text-sm text-muted-foreground">{label}</span>
         </Tooltip>
-      </div>
-      <div className="mt-1 block">
+      </div>}
+      <div className={`${showLabel ? 'mt-1 ' : ''}block`}>
         <Tooltip content={detail}><span className="block w-fit cursor-help text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</span></Tooltip>
       </div>
-      {percentage !== null && <Tooltip content={t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.') }>
-        <span className="mt-2 block w-full max-w-36 cursor-help"><ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} /></span>
-      </Tooltip>}
+      {percentage !== null && <span className="mt-2 block w-full max-w-36">
+        <ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} />
+      </span>}
       {percentage === null && <span className="mt-2 block text-sm text-muted-foreground">—</span>}
     </li>
   );

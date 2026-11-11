@@ -46,6 +46,7 @@ const pipelineState = {
   isError: false,
 };
 const tasksState = { data: [] as Array<Record<string, unknown>> };
+const milestonesState = { data: [] as Array<Record<string, unknown>>, isPending: false, isError: false, refetch: vi.fn() };
 
 // #566: the Overview tab renders <ProjectDrawdown>, whose data states are covered separately.
 // Keep it in its loading state here so it contributes no text of its own to lens assertions.
@@ -144,7 +145,7 @@ vi.mock('@/src/hooks/useDocuments', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useMilestones', () => ({
-  useMilestones: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useMilestones: () => milestonesState,
   useMilestoneMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -213,9 +214,24 @@ beforeEach(() => {
   projectsState.isPending = false;
   pipelineState.data = { stages: [], projects: [] };
   tasksState.data = [];
+  milestonesState.data = [];
+  milestonesState.isPending = false;
+  milestonesState.isError = false;
 });
 
 describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
+  it('keeps the non-billable meaning with the project progress figure', async () => {
+    projectsState.data = [onHandRow];
+    milestonesState.data = [{ id: 'phase-1', weight: 1, effective_pct: 50 }];
+    const user = userEvent.setup();
+    const view = await renderAt('/projects/p1');
+
+    await user.hover(screen.getByRole('progressbar', { name: 'Project progress 50%' }));
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Phase progress is not billable quantity.');
+    view.unmount();
+  });
+
   it.each(['Admin', 'Executive', 'Finance', 'Project Manager'])('%s sees the financial Overview blocks and contract value', async (role) => {
     roleBox.value = role;
     projectsState.data = [onHandRow];
