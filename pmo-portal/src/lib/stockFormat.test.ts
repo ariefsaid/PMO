@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { formatQuantity, formatStockValue, isWholeQuantity, stockValuePreview, subtractDecimal } from './stockFormat';
+import { formatQuantity, formatStockValue, isWholeQuantity, stockValuePreview, subtractDecimal, sumDecimal } from './stockFormat';
 
 describe('stockFormat', () => {
+  it('sums stock values exactly, with no float drift', () => {
+    expect(sumDecimal(['0.1', '0.2'])).toBe('0.3');
+    expect(sumDecimal(['3500.00', '500.50'])).toBe('4000.5');
+    expect(sumDecimal([])).toBe('0');
+  });
   it.each(['en', 'id'])('NFR-STK-007 a 14,3 decimal string keeps every digit in %s', (loc) => {
     const out = formatQuantity('1234567890.123', loc).replace(/\D/g, '');
     expect(out).toBe('1234567890123');

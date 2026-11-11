@@ -42,7 +42,7 @@ const Initial: React.FC<{ name: string | undefined }> = ({ name }) => {
     <span
       aria-hidden
       title={name ?? undefined}
-      className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground"
+      className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-sm font-bold text-muted-foreground"
     >
       {initial}
     </span>
@@ -70,12 +70,14 @@ const PrCard: React.FC<{
 
   return (
     <KanbanCard selected={selected} onActivate={onActivate} aria-label={t('board.open', { title: pr.title, defaultValue: `Open ${pr.title}` })}>
-      <div className="line-clamp-2 text-[13px] font-semibold leading-snug" title={pr.title}>
+      <div className="line-clamp-2 text-sm font-semibold leading-snug" title={pr.title}>
         {pr.title}
       </div>
-      <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
-        {pr.code ?? pr.id.slice(0, 8)}
-      </div>
+      {pr.code && (
+        <div className="mt-0.5 truncate font-mono text-sm text-muted-foreground">
+          {pr.code}
+        </div>
+      )}
       <span
         title={tooltip}
         aria-label={`${amount} ${amountKind}. ${tooltip}`}
@@ -83,17 +85,17 @@ const PrCard: React.FC<{
         className="mt-2 inline-flex flex-col text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span className="text-[15px] font-semibold tabular">{amount}</span>
-        <span className="text-[11px] text-muted-foreground">{amountKind}</span>
+        <span className="text-sm text-muted-foreground">{amountKind}</span>
       </span>
-      {reason && <div className="mt-2 text-[12px] font-medium text-warning-foreground">{reason}</div>}
-      {statusLabel && <div className="mt-1 text-[11px] text-muted-foreground">{statusLabel}</div>}
+      {reason && <div className="mt-2 text-sm font-medium text-warning-foreground">{reason}</div>}
+      {statusLabel && <div className="mt-1 text-sm text-muted-foreground">{statusLabel}</div>}
       <div className="mt-2.5 flex items-center gap-2 border-t border-border/70 pt-2">
         <Initial name={pr.requested_by?.full_name} />
         {/* Keep the card as a single activation target; project navigation remains on the detail page. */}
         <span
           aria-label={pr.project?.name ? `Project: ${projectDisplayName(pr.project)}` : undefined}
           title={pr.project && projectDisplayName(pr.project) !== pr.project.name ? pr.project.name : undefined}
-          className="truncate text-[11px] text-muted-foreground"
+          className="truncate text-sm text-muted-foreground"
         >
           {pr.project ? projectDisplayName(pr.project) : '—'}
         </span>

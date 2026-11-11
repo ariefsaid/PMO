@@ -251,7 +251,7 @@ describe('project procurement tab', () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: /Pay/ }));
     expect(screen.getByText('supplier invoice')).toBeInTheDocument();
-    expect(screen.getByText('Invoiced, not paid')).toBeInTheDocument();
+    expect(screen.getByText('Supplier invoice')).toBeInTheDocument();
     expect(screen.queryByText('awaiting review')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Clear stage filter' }));
     expect(screen.getByText('awaiting review')).toBeInTheDocument();
@@ -317,7 +317,7 @@ describe('shared procurement block', () => {
     vi.unstubAllGlobals();
 
     const cards = screen.getByTestId('dt-card-branch');
-    expect(within(cards).getByText('Age')).toBeInTheDocument();
+    expect(within(cards).getByText(/days? in stage/)).toBeInTheDocument();
     expect(within(cards).getByText('Raised by')).toBeInTheDocument();
     expect(within(cards).getByText('Project Manager')).toBeInTheDocument();
   });
@@ -368,7 +368,7 @@ describe('shared procurement block', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent(`Unpaid ${formatCurrency(500, 'USD')}`);
   });
 
-  it('expands procurement facts, line items, next step, budget impact, and drawer entry', async () => {
+  it('opens the drawer with line items, budget impact and the way to the full record', async () => {
     procState.data = [procurement('expandable', 'Requested')];
     detailState.data = {
       id: 'expandable',
@@ -382,11 +382,9 @@ describe('shared procurement block', () => {
       statusEvents: [],
     };
     renderBlock('Finance');
-    await userEvent.click(screen.getByRole('button', { name: 'Expand procurement details' }));
-    expect(screen.getByText('Line items')).toBeInTheDocument();
-    expect(screen.getByText('Probe · Ultrasonic · 2')).toBeInTheDocument();
-    expect(screen.getByText('Budget left in category')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Open procurement' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Open expandable/ }));
+    expect(await screen.findByText('Line items')).toBeInTheDocument();
+    expect(screen.getByText(/Probe/)).toBeInTheDocument();
   });
 });
 

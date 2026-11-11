@@ -2,7 +2,6 @@
   "nav": "Stock",
   "setup": {
     "title": "Stock setup",
-    "description": "Units, items, warehouses and who keeps them. Master data shared by the whole organisation.",
     "tabsLabel": "Stock master data",
     "tabs": {
       "units": "Units",
@@ -183,7 +182,6 @@
   },
   "onHand": {
     "title": "Stock on hand",
-    "description": "What every warehouse holds right now. Open an item to see how it got there.",
     "columns": {
       "item": "Item",
       "warehouse": "Warehouse",
@@ -209,11 +207,11 @@
       "noMatch": "Nothing matches",
       "noMatchSub": "Clear the search or pick another warehouse.",
       "emptySub": "Receive stock into a warehouse and it appears here."
-    }
+    },
+    "moreMovements": "More"
   },
   "documents": {
     "title": "Stock documents",
-    "description": "Every receipt, transfer, issue and return, newest first.",
     "columns": {
       "number": "Document",
       "status": "Status",
@@ -280,7 +278,6 @@
   },
   "ledger": {
     "title": "Stock ledger",
-    "description": "Every posting: who, when, which project and work item, and the balance after it.",
     "columns": {
       "when": "Posted",
       "occurred": "Date",
@@ -322,12 +319,6 @@
   "form": {
     "unknownKind": "Unknown document kind",
     "unknownKindSub": "Use Receive, Transfer, Issue, Return, Stock count or Adjustment from the Stock page.",
-    "intro": {
-      "receive": "Book goods into a warehouse you keep.",
-      "transfer": "Move stock between two warehouses in one step.",
-      "issue": "Take stock out of a warehouse onto a project work item.",
-      "return": "Put unused stock back, citing the issue it came from."
-    },
     "submit": {
       "receive": "Post receipt",
       "transfer": "Post transfer",
@@ -385,10 +376,6 @@
     }
   },
   "count": {
-    "intro": {
-      "count": "Count what is on the shelf. The system quantity is shown beside each line.",
-      "adjustment": "Correct stock for damage, loss or a find, with a reason."
-    },
     "sections": {
       "sheet": "Count sheet"
     },
@@ -481,7 +468,6 @@
   "issueOverAllowance": "Over allowance: {{workItem}} has now used {{used}} of {{planned}} {{unit}} planned. The issue is posted; this is a flag, not a block.",
   "reorder": {
     "title": "Reorder levels",
-    "description": "Set when each item needs ordering. A suggestion from past usage appears beside the figures; nothing changes until you accept it or save a value.",
     "panel": {
       "title": "Set a reorder level",
       "item": "Item",

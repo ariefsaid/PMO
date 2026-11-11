@@ -194,11 +194,11 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
             label={t('erpLinks.selectAll', 'Select all {{count}} documents', { count: rows.length })}
           />
           {selecting ? (
-            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[12px] font-semibold tabular text-muted-foreground">
+            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-sm font-semibold tabular text-muted-foreground">
               {t('erpLinks.selectedCount', '{{count}} selected', { count: chosen.length })}
             </span>
           ) : (
-            <span className="text-[13px] text-muted-foreground">{t('erpLinks.selectHint', 'Select documents to link several at once.')}</span>
+            <span className="text-sm text-muted-foreground">{t('erpLinks.selectHint', 'Select documents to link several at once.')}</span>
           )}
           <span className="flex-1" />
           {selecting && (
@@ -216,7 +216,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
             </>
           )}
           {selecting && bulkNewBlocked && (
-            <p className="basis-full text-[12.5px] text-muted-foreground">
+            <p className="basis-full text-sm text-muted-foreground">
               {t('erpLinks.bulkNeedsProject', 'Open the project to add documents split across several projects.')}
             </p>
           )}
@@ -260,7 +260,7 @@ const OutcomeNotice: React.FC<{ outcome: Outcome }> = ({ outcome }) => {
   const { t } = useTranslation('finance');
   if (outcome.kind === 'error') {
     return (
-      <div role="alert" className="mb-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-[13px]">
+      <div role="alert" className="mb-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-sm">
         <p className="font-semibold text-destructive-text">{outcome.headline}</p>
         {outcome.detail && <p className="mt-1 text-muted-foreground">{outcome.detail}</p>}
       </div>
@@ -273,8 +273,8 @@ const OutcomeNotice: React.FC<{ outcome: Outcome }> = ({ outcome }) => {
   return (
     <div role={refused.length > 0 ? 'alert' : 'status'}
       className={refused.length > 0
-        ? 'mb-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-[13px]'
-        : 'mb-3 rounded-lg border border-border bg-card px-3.5 py-3 text-[13px]'}>
+        ? 'mb-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-sm'
+        : 'mb-3 rounded-lg border border-border bg-card px-3.5 py-3 text-sm'}>
       {made > 0 && (
         <p className="text-foreground">
           {verb === 'added'

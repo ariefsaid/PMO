@@ -78,7 +78,7 @@ const StockSetup: React.FC = () => {
   const identity = (r: { code: string; name: string; archived_at: string | null }): React.ReactNode => (
     <div className={`min-w-0 ${dim(r)}`}>
       <span className="block truncate font-mono text-sm font-semibold">{r.code}</span>
-      <span className="block truncate text-xs text-muted-foreground">{r.name}</span>
+      <span className="block truncate text-sm text-muted-foreground">{r.name}</span>
     </div>
   );
 
@@ -145,7 +145,6 @@ const StockSetup: React.FC = () => {
     <ListPage
       title={t('setup.title')}
       count={state === undefined ? rows.length : undefined}
-      description={t('setup.description')}
       primaryAction={canCreate && (
         <Button variant="primary" onClick={() => setForm({ tab, row: null })}>
           <Icon name="plus" />
@@ -357,7 +356,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onC
             <Checkbox checked={form.values.wholeOnly} onChange={(v) => form.setValue('wholeOnly', v)} label={t('setup.form.unit.wholeOnly')} describedBy="stock-unit-whole-help" />
             <div>
               <span className="text-sm font-medium" onClick={() => form.setValue('wholeOnly', !form.values.wholeOnly)}>{t('setup.form.unit.wholeOnly')}</span>
-              <p id="stock-unit-whole-help" className="text-xs text-muted-foreground">{t('setup.form.unit.wholeOnlyHelp')}</p>
+              <p id="stock-unit-whole-help" className="text-sm text-muted-foreground">{t('setup.form.unit.wholeOnlyHelp')}</p>
             </div>
           </div>
         )}

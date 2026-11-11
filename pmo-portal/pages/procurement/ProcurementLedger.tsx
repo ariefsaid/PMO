@@ -46,7 +46,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
-import { formatCurrency, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import { withholdingFigures } from '@/src/lib/vendorWithholding';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
@@ -62,7 +62,7 @@ import type { VendorInvoiceContext } from '@/src/components/procurement/vendorIn
 
 function formatBusinessDate(iso: string): string {
   // iso can be either a date string (YYYY-MM-DD) or a full datetime; the date part is the value.
-  return formatDateOnly(iso.slice(0, 10));
+  return formatDay(iso.slice(0, 10));
 }
 
 // ---------------------------------------------------------------------------
@@ -122,9 +122,9 @@ const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
     <div className="inline-flex flex-col items-start gap-1">
       <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>
       {outcome && <OdooOutcome outcome={outcome} quiet />}
-      {facts.paymentView === 'awaiting-odoo' && <span data-testid="odoo-payment-awaiting" className="text-[12px] text-muted-foreground">{t('procurement:odoo.paymentAwaiting', 'Payment sent, awaiting Odoo')}</span>}
+      {facts.paymentView === 'awaiting-odoo' && <span data-testid="odoo-payment-awaiting" className="text-sm text-muted-foreground">{t('procurement:odoo.paymentAwaiting', 'Payment sent, awaiting Odoo')}</span>}
       {facts.booked !== null && (
-        <span data-testid="odoo-quantities" className="text-[12px] text-muted-foreground tabular-nums">
+        <span data-testid="odoo-quantities" className="text-sm text-muted-foreground tabular-nums">
           {t('procurement:odoo.booked', 'Received in Odoo: {{qty}}', { qty: facts.booked })}
           {facts.entered !== null && facts.entered !== facts.booked ? ` · ${t('procurement:odoo.entered', 'entered {{qty}}', { qty: facts.entered })}` : ''}
         </span>
@@ -138,7 +138,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     key: 'date',
     header: <LedgerHeader translationKey="procurementLedger.date" fallback="Date" />,
     cell: (row) => (
-      <span className="text-[13px] text-muted-foreground">
+      <span className="text-sm text-muted-foreground">
         {formatBusinessDate(row.date)}
       </span>
     ),
@@ -157,9 +157,9 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     header: <LedgerHeader translationKey="procurementLedger.systemNumber" fallback="System #" />,
     cell: (row) =>
       row.systemNumber ? (
-        <span className="font-mono text-[12.5px] font-semibold">{row.systemNumber}</span>
+        <span className="font-mono text-sm font-semibold">{row.systemNumber}</span>
       ) : (
-        <span className="text-[12px] text-muted-foreground">—</span>
+        <span className="text-sm text-muted-foreground">—</span>
       ),
   },
   {
@@ -167,9 +167,9 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     header: <LedgerHeader translationKey="procurementLedger.externalRef" fallback="External ref" />,
     cell: (row) =>
       row.externalRef ? (
-        <span className="font-mono text-[12.5px] text-muted-foreground">{row.externalRef}</span>
+        <span className="font-mono text-sm text-muted-foreground">{row.externalRef}</span>
       ) : (
-        <span className="text-[12px] text-muted-foreground">—</span>
+        <span className="text-sm text-muted-foreground">—</span>
       ),
   },
   {
@@ -177,9 +177,9 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     header: <GroupRefHeader />,
     cell: (row) =>
       row.groupRef ? (
-        <span className="font-mono text-[12.5px] text-muted-foreground">{row.groupRef}</span>
+        <span className="font-mono text-sm text-muted-foreground">{row.groupRef}</span>
       ) : (
-        <span className="text-[12px] text-muted-foreground">—</span>
+        <span className="text-sm text-muted-foreground">—</span>
       ),
   },
   {
@@ -369,7 +369,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const amountColumn = useMemo<Column<LedgerRow>>(() => ({
     key: 'amount', header: <LedgerHeader translationKey="procurementLedger.amount" fallback="Amount" />, align: 'num',
     cell: (row) => {
-      if (row.amount == null) return <span className="text-[12px] text-muted-foreground">—</span>;
+      if (row.amount == null) return <span className="text-sm text-muted-foreground">—</span>;
       const total = <span className="inline-flex items-baseline justify-end gap-1.5"><span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
       const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment) : null;
       const invoice = row.type === 'Invoice' ? invoices.find((item) => item.id === row.recordId) : undefined;
@@ -462,7 +462,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
     <div data-testid="procurement-ledger">
       {/* Toolbar: card-head + filter chips */}
       <div className="mb-0 flex flex-wrap items-center justify-between gap-3 rounded-t-lg border border-b-0 border-border bg-card px-4 py-3">
-        <span className="text-[13px] font-semibold">{t('procurementLedger.title', 'Case ledger')}</span>
+        <span className="text-sm font-semibold">{t('procurementLedger.title', 'Case ledger')}</span>
         {/* Filter chips — DESIGN.md §6: seg-style 28px, rounded-full, aria-pressed */}
         <div
           role="group"
@@ -479,7 +479,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
                 aria-pressed={active}
                 onClick={() => setFilter(chip.value)}
                 className={[
-                  'inline-flex h-7 items-center rounded-full border px-[10px] text-[12px] font-medium transition-colors',
+                  'inline-flex h-7 items-center rounded-full border px-[10px] text-sm font-medium transition-colors',
                   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
                   active
                     ? 'border-primary/30 bg-primary/10 text-[hsl(var(--nav-active-text))]'
@@ -544,7 +544,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       <CardPad>
         {detail.pre_cutover && (
           // FR-ECA-030: ordered before the ERP connection, so receipts, bills and payments stay in PMO. Information, not an alert.
-          <p data-testid="ledger-pre-cutover" className="mb-2.5 text-[12.5px] text-muted-foreground">
+          <p data-testid="ledger-pre-cutover" className="mb-2.5 text-sm text-muted-foreground">
             {t('procurement:ledger.preCutover', 'Recorded before the ERP connection, not sent')}
           </p>
         )}
@@ -575,11 +575,11 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           onCreate={handleCreate}
         />
         {billsHiddenForRole && (
-          <p className="mt-3 text-[12px] text-muted-foreground" data-testid="ledger-bills-hidden-note">
+          <p className="mt-3 text-sm text-muted-foreground" data-testid="ledger-bills-hidden-note">
             {t('procurement:ledger.billsHiddenForRole', 'Supplier invoices and payments are not shown for your role.')}
           </p>
         )}
-        <p className="mt-3 text-xs text-muted-foreground">
+        <p className="mt-3 text-sm text-muted-foreground">
           {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types have no row.')}
         </p>
       </CardPad>

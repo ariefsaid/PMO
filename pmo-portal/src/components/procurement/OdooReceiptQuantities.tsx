@@ -17,8 +17,8 @@ export const OdooReceiptQuantities: React.FC<{
   const { t } = useTranslation('procurement');
   return (
     <fieldset className="min-w-0 border-0 p-0">
-      <legend className="mb-1 text-[12px] font-semibold text-muted-foreground">{t('odoo.receipt.title', 'Quantity received')}</legend>
-      <p className="mb-2 text-[12px] text-muted-foreground">{t('odoo.receipt.hint', 'Leave blank to receive everything still open. Odoo refuses more than is open.')}</p>
+      <legend className="mb-1 text-sm font-semibold text-muted-foreground">{t('odoo.receipt.title', 'Quantity received')}</legend>
+      <p className="mb-2 text-sm text-muted-foreground">{t('odoo.receipt.hint', 'Leave blank to receive everything still open. Odoo refuses more than is open.')}</p>
       <div className="grid gap-2 sm:grid-cols-2">
         {items.map((item) => (
           <TextField

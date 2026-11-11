@@ -21,7 +21,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
-import { formatDateOnly, formatInstantDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -37,10 +37,9 @@ const DEFAULT_CAP = 6;
 // - a BUSINESS DATE (`YYYY-MM-DD` — an orphan record's `date` / `receipt_date` /
 //   `invoice_date` / `received_date`): a calendar day that never moves with the timezone.
 // ---------------------------------------------------------------------------
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 function formatEventTime(iso: string): string {
-  return DATE_ONLY.test(iso) ? formatDateOnly(iso) : formatInstantDate(iso);
+  return formatDay(iso);
 }
 
 export interface ProcurementProgressionTimelineProps {
@@ -57,7 +56,7 @@ export const ProcurementProgressionTimeline: React.FC<ProcurementProgressionTime
 
   if (events.length === 0) {
     return (
-      <p className="text-[13px] text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         No history yet — events appear here as the procurement progresses.
       </p>
     );
@@ -103,7 +102,7 @@ export const ProcurementProgressionTimeline: React.FC<ProcurementProgressionTime
               {/* Text column — all data as text (NFR-PR-A11Y-002). */}
               <div className="min-w-0 flex-1">
                 {/* Label row: status name + optional doc-ref link */}
-                <p className="mt-px text-[13.5px] font-semibold text-foreground">
+                <p className="mt-px text-sm font-semibold text-foreground">
                   {ev.label}
                   {ev.docRef && ev.docHref && (
                     <>
@@ -118,7 +117,7 @@ export const ProcurementProgressionTimeline: React.FC<ProcurementProgressionTime
                   )}
                 </p>
                 {/* Meta: actorName (resolved full name) + date */}
-                <div className="mt-px flex flex-wrap gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground">
+                <div className="mt-px flex flex-wrap gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
                   {ev.actorName && (
                     <span>
                       by <span className="font-medium">{ev.actorName}</span>
@@ -138,7 +137,7 @@ export const ProcurementProgressionTimeline: React.FC<ProcurementProgressionTime
           type="button"
           aria-expanded={expanded}
           onClick={() => setExpanded((prev) => !prev)}
-          className="mt-3 text-[12px] text-primary-text hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+          className="mt-3 text-sm text-primary-text hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
         >
           {expanded ? 'Show fewer' : `Show ${hiddenCount} earlier`}
         </button>

@@ -86,7 +86,7 @@ const StockReorder: React.FC = () => {
         cell: (r) => (
           <div className="min-w-0">
             <span className="block truncate font-mono text-sm font-semibold">{r.itemCode}</span>
-            <span className="block truncate text-xs text-muted-foreground">{r.itemName}</span>
+            <span className="block truncate text-sm text-muted-foreground">{r.itemName}</span>
           </div>
         ),
         exportValue: (r) => r.itemCode,
@@ -116,10 +116,26 @@ const StockReorder: React.FC = () => {
   const whOption = (w: { id: string; code: string; name: string }) => ({ value: w.id, label: `${w.code} - ${w.name}` });
 
   return (
-    <ListPage title={t('reorder.title')} description={t('reorder.description')} count={state === undefined ? rows.length : undefined}>
+    <ListPage title={t('reorder.title')} count={state === undefined ? rows.length : undefined}>
       <StockTabs />
 
-      <section aria-labelledby="reorder-panel-title" className="mb-6 rounded-lg border border-border bg-card p-4">
+      <h2 className="mb-2 text-base font-semibold">{t('reorder.worklist.title')}</h2>
+      {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
+      {state === 'error' && (
+        <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void worklist.refetch()} />
+      )}
+      {state === 'empty' && <ListState variant="empty" icon="folder" title={t('reorder.worklist.emptyTitle')} sub={t('reorder.worklist.emptySub')} />}
+      {state === undefined && (
+        <DataTable<BelowReorderRow>
+          rows={rows}
+          columns={columns}
+          rowKey={(r) => `${r.itemId}:${r.warehouseId}`}
+          tableId="stock-below-reorder"
+          accessibleName={t('reorder.worklist.title')}
+        />
+      )}
+
+      <section aria-labelledby="reorder-panel-title" className="mt-6 rounded-lg border border-border bg-card p-4">
         <h2 id="reorder-panel-title" className="mb-3 text-base font-semibold">{t('reorder.panel.title')}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <ItemPicker label={t('reorder.panel.item')} value={itemId || null} onChange={(v) => pick(v, warehouseId)} />
@@ -132,7 +148,6 @@ const StockReorder: React.FC = () => {
           />
         </div>
 
-        {(!itemId || !warehouseId) && <p className="mt-3 text-sm text-muted-foreground">{t('reorder.panel.pick')}</p>}
         {itemId && warehouseId && suggestion.isPending && <div className="mt-3"><ListState variant="loading" rows={2} /></div>}
         {itemId && warehouseId && suggestion.isError && (
           <div className="mt-3"><StockError error={suggestion.error} /></div>
@@ -149,11 +164,11 @@ const StockReorder: React.FC = () => {
               <>
                 <dl className="grid max-w-md grid-cols-2 gap-3">
                   <div>
-                    <dt className="text-xs text-muted-foreground">{t('reorder.panel.suggestedLevel')}</dt>
+                    <dt className="text-sm text-muted-foreground">{t('reorder.panel.suggestedLevel')}</dt>
                     <dd className="text-lg font-semibold tabular-nums" data-testid="suggested-level">{q(s.suggestion.reorderLevel)} <span className="text-sm font-normal text-muted-foreground">{unitCode}</span></dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted-foreground">{t('reorder.panel.suggestedQuantity')}</dt>
+                    <dt className="text-sm text-muted-foreground">{t('reorder.panel.suggestedQuantity')}</dt>
                     <dd className="text-lg font-semibold tabular-nums" data-testid="suggested-quantity">{q(s.suggestion.reorderQuantity ?? '0')} <span className="text-sm font-normal text-muted-foreground">{unitCode}</span></dd>
                   </div>
                 </dl>
@@ -200,22 +215,6 @@ const StockReorder: React.FC = () => {
           </form>
         )}
       </section>
-
-      <h2 className="mb-2 text-base font-semibold">{t('reorder.worklist.title')}</h2>
-      {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
-      {state === 'error' && (
-        <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void worklist.refetch()} />
-      )}
-      {state === 'empty' && <ListState variant="empty" icon="folder" title={t('reorder.worklist.emptyTitle')} sub={t('reorder.worklist.emptySub')} />}
-      {state === undefined && (
-        <DataTable<BelowReorderRow>
-          rows={rows}
-          columns={columns}
-          rowKey={(r) => `${r.itemId}:${r.warehouseId}`}
-          tableId="stock-below-reorder"
-          accessibleName={t('reorder.worklist.title')}
-        />
-      )}
 
       <ConfirmDialog
         open={clearTarget !== null}

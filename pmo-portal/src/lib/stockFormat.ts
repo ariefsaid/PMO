@@ -30,6 +30,14 @@ export function subtractDecimal(a: string, b: string): string {
   return `${d < 0n ? '-' : ''}${abs.slice(0, -3)}${frac ? `.${frac}` : ''}`;
 }
 
+/** Sum of decimal strings at the 4-decimal scale of a stock value, exact (no float); trailing zeros dropped. */
+export function sumDecimal(values: readonly string[]): string {
+  const d = values.reduce((sum, v) => sum + scaled(v, 4), 0n);
+  const abs = (d < 0n ? -d : d).toString().padStart(5, '0');
+  const frac = abs.slice(-4).replace(/0+$/, '');
+  return `${d < 0n ? '-' : ''}${abs.slice(0, -4)}${frac ? `.${frac}` : ''}`;
+}
+
 /** n / d rounded half away from zero, as Postgres `round` does. */
 const divRound = (n: bigint, d: bigint): bigint => { const neg = (n < 0n) !== (d < 0n); const [an, ad] = [n < 0n ? -n : n, d < 0n ? -d : d]; const q = (2n * an + ad) / (2n * ad); return neg ? -q : q; };
 
