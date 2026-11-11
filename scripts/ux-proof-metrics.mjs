@@ -3,6 +3,34 @@ export const CHART_SELECTOR = 'main svg.recharts-surface, main svg[role="img"]';
 export function measureText(chartSelector) {
   const main = document.querySelector('main');
   if (!main) throw new Error('No main element to measure');
+  // `wordCount` counts CHROME only: a screen's own words (headings, labels, captions, help), never
+  // record data. Sample data grows as people work (rows, claims, review records), so counting it made
+  // unchanged screens drift over budget. Font-size metrics still cover every painted word, data
+  // included — a too-small cell is a real a11y finding.
+  // A text node is data when any ancestor is a row repeated beyond the first of its collection.
+  // Three row shapes exist in this app: <tbody> rows, ARIA rows (role=row/listitem), and card
+  // layouts that repeat an identically-shaped div/button per record (approvals queue, the 390
+  // timesheet grid). The last one is caught by shape (tag + class) because it carries no list
+  // semantics — without it the gate would still count record data as chrome.
+  const shape = (element) => `${element.tagName}|${element.getAttribute('class') || ''}`;
+  const isDataRow = (element) => {
+    for (let node = element; node && node !== main; node = node.parentElement) {
+      const tag = node.tagName;
+      const role = node.getAttribute('role');
+      if (tag === 'TBODY') return true;
+      if (role === 'rowgroup' && !node.querySelector('[role="columnheader"], th')) return true;
+      if (tag === 'LI' || role === 'listitem' || tag === 'TR' || role === 'row') {
+        const list = node.parentElement?.closest('ul, ol, menu, [role="list"], [role="listbox"], table, thead, [role="table"], [role="grid"], [role="rowgroup"]');
+        if (list) {
+          const items = [...list.children].filter((child) => child.tagName === tag && child.getAttribute('role') === role);
+          if (items.length > 1 && items[0] !== node) return true;
+        }
+      }
+      const siblings = node.parentElement ? [...node.parentElement.children].filter((child) => shape(child) === shape(node)) : [];
+      if (siblings.length > 2 && siblings[0] !== node) return true;
+    }
+    return false;
+  };
   const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
   const sizes = {}; const samples = {}; let words = 0; let total = 0; let small = 0;
   for (let node; (node = walker.nextNode());) {
@@ -25,7 +53,8 @@ export function measureText(chartSelector) {
     if (![...range.getClientRects()].some((rect) => rect.width > 0 && rect.height > 0)) continue;
     const size = parseFloat(style.fontSize);
     sizes[size] = (sizes[size] || 0) + text.length;
-    total += text.length; words += text.split(/\s+/u).length;
+    total += text.length;
+    if (!isDataRow(element)) words += text.split(/\s+/u).length;
     if (size < 14) { small += text.length; (samples[size] ||= []).length < 5 && samples[size].push(text.slice(0, 40)); }
   }
   const distinctFontSizes = Object.keys(sizes).map(Number).sort((a, b) => a - b);

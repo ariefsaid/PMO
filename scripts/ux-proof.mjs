@@ -12,9 +12,12 @@ const APP = path.join(ROOT, 'pmo-portal');
 const require = createRequire(path.join(APP, 'package.json'));
 const { chromium } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
-async function selfTest() {
+async function launchBrowser() {
   const systemChrome = ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'].find((candidate) => fs.existsSync(candidate));
-  const browser = await chromium.launch({ headless: true, ...(systemChrome ? { executablePath: systemChrome } : {}) });
+  return chromium.launch({ headless: true, ...(systemChrome ? { executablePath: systemChrome } : {}) });
+}
+async function selfTest() {
+  const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
     const cases = [
@@ -34,7 +37,18 @@ async function selfTest() {
     console.log('ux-proof self-test passed');
   } finally { await browser.close(); }
 }
+// Measure a static HTML fixture with the shipped measureText — the shape proofs in
+// scripts/ux-proof.test.mjs (extra rows must not move the count; an extra heading must).
+async function measureHtml(file) {
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.setContent(fs.readFileSync(file, 'utf8'));
+    console.log(JSON.stringify(await page.evaluate(measureText, CHART_SELECTOR)));
+  } finally { await browser.close(); }
+}
 if (process.argv.includes('--self-test')) { await selfTest(); process.exit(0); }
+if (process.argv.includes('--measure-html')) { await measureHtml(process.argv[process.argv.indexOf('--measure-html') + 1]); process.exit(0); }
 const updateBudget = process.argv.includes('--update-word-budget');
 const routes = process.argv.slice(2).filter((arg) => arg !== '--update-word-budget');
 if (!routes.length || routes.some((route) => !route.startsWith('/'))) {
