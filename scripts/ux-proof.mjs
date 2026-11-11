@@ -5,52 +5,19 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import net from 'node:net';
+import { CHART_SELECTOR, measureText, violations } from './ux-proof-metrics.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP = path.join(ROOT, 'pmo-portal');
 const require = createRequire(path.join(APP, 'package.json'));
 const { chromium } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
-// Runs in the page: measure only text with painted, non-hidden ancestors.
-function measureText() {
-  const main = document.querySelector('main');
-  if (!main) throw new Error('No main element to measure');
-  const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
-  const sizes = {}; const samples = {}; let words = 0; let total = 0; let small = 0;
-  for (let node; (node = walker.nextNode());) {
-    const text = node.textContent.trim();
-    if (!text) continue;
-    const element = node.parentElement;
-    const style = getComputedStyle(element);
-    if (style.visibility !== 'visible' || !element.getClientRects().length || Number(style.opacity) === 0) continue;
-    let hidden = false;
-    for (let parent = element; parent; parent = parent.parentElement) {
-      const computed = getComputedStyle(parent);
-      if (computed.display === 'none' || Number(computed.opacity) === 0 || computed.contentVisibility === 'hidden') { hidden = true; break; }
-    }
-    if (hidden) continue;
-    const range = document.createRange(); range.selectNodeContents(node);
-    if (![...range.getClientRects()].some((rect) => rect.width > 0 && rect.height > 0)) continue;
-    const size = parseFloat(style.fontSize);
-    sizes[size] = (sizes[size] || 0) + text.length;
-    total += text.length; words += text.split(/\s+/u).length;
-    if (size < 14) { small += text.length; (samples[size] ||= []).length < 5 && samples[size].push(text.slice(0, 40)); }
-  }
-  const distinctFontSizes = Object.keys(sizes).map(Number).sort((a, b) => a - b);
-  if (!total) throw new Error('No visible text in main');
-  return { minFontPx: distinctFontSizes[0], pctCharsUnder14: small * 100 / total, distinctFontSizes, wordCount: words, smallTextSamples: samples };
-}
-function violations(metrics, baseline, label) {
-  const failures = [];
-  const samples = JSON.stringify(metrics.smallTextSamples);
-  if (metrics.minFontPx < 12) failures.push(`${label}: minFontPx=${metrics.minFontPx} (<12); samples=${samples}`);
-  if (metrics.pctCharsUnder14 > 15) failures.push(`${label}: pctCharsUnder14=${metrics.pctCharsUnder14.toFixed(2)} (>15); samples=${samples}`);
-  if (baseline !== undefined && metrics.wordCount > baseline * 1.05) failures.push(`${label}: wordCount=${metrics.wordCount} (>105% of ${baseline}); samples=${samples}`);
-  return failures;
+async function launchBrowser() {
+  const systemChrome = ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'].find((candidate) => fs.existsSync(candidate));
+  return chromium.launch({ headless: true, ...(systemChrome ? { executablePath: systemChrome } : {}) });
 }
 async function selfTest() {
-  const systemChrome = ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'].find((candidate) => fs.existsSync(candidate));
-  const browser = await chromium.launch({ headless: true, ...(systemChrome ? { executablePath: systemChrome } : {}) });
+  const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
     const cases = [
@@ -61,13 +28,27 @@ async function selfTest() {
     ];
     for (const fixture of cases) {
       await page.setContent(fixture.html);
-      const result = violations(await page.evaluate(measureText), fixture.baseline, 'fixture @390');
+      const result = violations(await page.evaluate(measureText, CHART_SELECTOR), fixture.baseline, 'fixture @390');
       if (fixture.expected ? !result.some((failure) => failure.includes(fixture.expected)) : result.length) throw new Error(`Self-test failed: expected ${fixture.expected || 'pass'}, got ${result.join('; ')}`);
     }
+    await page.setContent('<main><span>page words</span><span class="sr-only">accessible duplicate</span><svg class="recharts-surface" width="10" height="10"><text>chart labels</text></svg></main>');
+    const chartMetrics = await page.evaluate(measureText, CHART_SELECTOR);
+    if (chartMetrics.wordCount !== 2 || chartMetrics.chartCount !== 1) throw new Error(`Self-test failed: chart labels should count as a chart, not page copy (${JSON.stringify(chartMetrics)})`);
     console.log('ux-proof self-test passed');
   } finally { await browser.close(); }
 }
+// Measure a static HTML fixture with the shipped measureText — the shape proofs in
+// scripts/ux-proof.test.mjs (extra rows must not move the count; an extra heading must).
+async function measureHtml(file) {
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.setContent(fs.readFileSync(file, 'utf8'));
+    console.log(JSON.stringify(await page.evaluate(measureText, CHART_SELECTOR)));
+  } finally { await browser.close(); }
+}
 if (process.argv.includes('--self-test')) { await selfTest(); process.exit(0); }
+if (process.argv.includes('--measure-html')) { await measureHtml(process.argv[process.argv.indexOf('--measure-html') + 1]); process.exit(0); }
 const updateBudget = process.argv.includes('--update-word-budget');
 const routes = process.argv.slice(2).filter((arg) => arg !== '--update-word-budget');
 if (!routes.length || routes.some((route) => !route.startsWith('/'))) {
@@ -111,7 +92,7 @@ const countDetectorFindings = (value) => {
 };
 
 let failed = false;
-console.log('route | width | min px | chars <14% | font sizes | words');
+console.log('route | width | charts | min px | chars <14% | font sizes | words');
 const cdpServer = net.createServer();
 await new Promise((resolve, reject) => cdpServer.listen(0, '127.0.0.1', resolve).once('error', reject));
 const cdpPort = cdpServer.address().port;
@@ -137,16 +118,17 @@ try {
         await page.goto(`${base}${route}`, { waitUntil: 'domcontentloaded' });
         await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
         await page.locator('main').or(page.locator('h1')).first().waitFor({ state: 'visible', timeout: 10_000 });
+        await page.mouse.move(0, 0);
         await page.evaluate(() => {
           if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
         });
         await page.screenshot({ path: path.join(output, `${stem}.png`), fullPage: true });
         if (theme === 'light') {
-          const metrics = await page.evaluate(measureText);
+          const metrics = await page.evaluate(measureText, CHART_SELECTOR);
           const key = `${route}@${width}@${login}`;
           measurements.push({ route, width, login, ...metrics });
-          console.log(`${route} | ${width} | ${metrics.minFontPx} | ${metrics.pctCharsUnder14.toFixed(2)} | ${metrics.distinctFontSizes.join(', ')} | ${metrics.wordCount}`);
-          const errors = violations(metrics, updateBudget ? undefined : budget[key], `${route} @${width}`);
+          console.log(`${route} | ${width} | ${metrics.chartCount} | ${metrics.minFontPx} | ${metrics.pctCharsUnder14.toFixed(2)} | ${metrics.distinctFontSizes.join(', ')} | ${metrics.wordCount}`);
+          const errors = violations(metrics, updateBudget ? undefined : budget[key], `${route} @${width}`, budget.charts?.[key]);
           for (const error of errors) console.error(error);
           if (errors.length) failed = true;
           if (updateBudget || budget[key] === undefined) budget[key] = metrics.wordCount;

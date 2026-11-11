@@ -361,6 +361,15 @@ describe('Project Manager home — layouts', () => {
     expect(overdue[0]).toContain('2');
   });
 
+  it('Overview includes sorted contract, budget, and known spending in the project comparison chart', () => {
+    localStorage.removeItem('home-layout');
+    renderDashboard();
+    const chart = screen.getByRole('img', { name: /plan vs actual by project/i });
+    const label = chart.getAttribute('aria-label') ?? '';
+    expect(label.indexOf('Project Two')).toBeLessThan(label.indexOf('Project Three'));
+    expect(label).toContain('Project Two: Contract $250,000, Active budget $200,000, Spent $50,000');
+  });
+
   it('Overview: no overdue tasks reads as a line, not an empty chart', () => {
     localStorage.removeItem('home-layout');
     state.needs.pmOverdueTasksByProject = {};

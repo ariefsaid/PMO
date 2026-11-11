@@ -44,7 +44,8 @@ async function createMeeting(page: Page, title: string): Promise<string> {
   await expect(page).toHaveURL(/\/meetings\/new$/);
   await page.getByLabel(/^Title\s*\*?$/i).fill(title);
   await page.getByLabel(/^Project$/i).selectOption({ label: PROJECT_NAME });
-  await page.getByRole('button', { name: /save meeting/i }).click();
+  // ux/1110 renamed the create-page submit from "Save meeting" to "Save" (public/locales/en/meetingCreate.json).
+  await page.getByRole('button', { name: /^save$/i }).click();
   await expect(page).toHaveURL(/\/meetings\/[0-9a-f-]+$/i, { timeout: 15_000 });
   return page.url().split('/meetings/')[1];
 }

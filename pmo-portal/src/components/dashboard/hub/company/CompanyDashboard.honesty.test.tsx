@@ -100,6 +100,20 @@ beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = { months: [], ro
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
+  it('Executive home makes Plan vs actual the main half-width project chart', () => {
+    h.dash = {
+      ...base,
+      top_projects: [{
+        id: 'p1', name: 'River project', client_name: null, contract_value: 2_000_000, currency: 'USD',
+        budget: 1_500_000, budget_currency: 'USD', spent: 900_000, actual_currency: 'USD', actual_complete: true,
+        status: 'Ongoing Project',
+      }],
+    };
+    renderExec();
+    const chart = screen.getByRole('img', { name: /plan vs actual by project/i });
+    expect(chart.getAttribute('aria-label')).toContain('River project: Contract $2,000,000, Active budget $1,500,000, Spent $900,000');
+  });
+
   it('AC-IXD-DASH-002: no figure carries the ambiguous "Projected margin" name; forecast margin appears once, on the weighted pipeline', () => {
     renderExec();
     expect(screen.queryByText(/^Projected margin$/i)).not.toBeInTheDocument();

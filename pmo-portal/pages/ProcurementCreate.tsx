@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { BackBar } from '@/src/components/shell';
-import { Button, Combobox, FormGrid, Icon, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
+import { Button, Combobox, FormFooter, FormGrid, Icon, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import type { IconName } from '@/src/components/ui/icons';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { usePermission } from '@/src/auth/usePermission';
@@ -298,20 +298,20 @@ export default function ProcurementCreate() {
   };
   const submitLabel = submitLabels[have];
   const submitBusy = saving || create.isPending;
+  // Footer Cancel mirrors the top BackBar's guarded exit (choices screen for document capture,
+  // the list otherwise); the unsaved-changes guard stays the same behaviour.
+  const cancelCreate = canCaptureDocuments
+    ? () => (saving ? guardLeave(() => setHave(null)) : setHave(null))
+    : () => guardLeave(() => navigate('/procurement'));
 
   return (
-    <div className="mx-auto w-full max-w-7xl p-4 pb-24 md:p-6">
+    <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
       {canCaptureDocuments
         ? <BackBar label={t('backToChoices', 'What do you have?')} onBack={() => saving ? guardLeave(() => setHave(null)) : setHave(null)} />
         : <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />}
       <form id="procurement-create-form" onSubmit={submit} noValidate>
-        <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
+        <header className="mb-6 border-b border-border pb-4">
           <h1 className="text-page font-bold tracking-[-0.02em]">{t('heading', 'New procurement')}</h1>
-          <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:static md:ml-auto md:border-0 md:bg-transparent md:p-0">
-            <Button type="submit" variant="primary" loading={submitBusy} className="w-full md:w-auto">
-              {submitLabel}
-            </Button>
-          </div>
         </header>
         {errors.save && (
           <div role="alert" className="mb-4 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
@@ -384,6 +384,13 @@ export default function ProcurementCreate() {
             />
           </fieldset>
         )}
+        {/* The ONE place for the primary action: form footer, Cancel left of the primary. */}
+        <FormFooter
+          submitLabel={submitLabel}
+          cancelLabel={t('actions.cancel', 'Cancel')}
+          onCancel={cancelCreate}
+          loading={submitBusy}
+        />
       </form>
       <UnsavedChangesDialog
         open={pendingLeave !== null}

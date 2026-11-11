@@ -48,8 +48,7 @@ Remove words, never information. Where the data calls for a picture, draw it:
 - A funnel (sales stages): a funnel or descending bars on ONE scale.
 - A single number stays a figure; three items or fewer stay rows. No chart without a decision behind it.
 - A chart is labelled directly (no legend to decode), 12px ticks allowed, one neutral series colour plus one
-  accent; red only marks an exception (over budget, overdue). A chart whose data is unknown is not drawn:
-  it joins the page-level hidden line. Use recharts and the `dataviz` skill.
+  accent; red only marks an exception (over budget, overdue). A chart whose data is fully unknown is not drawn: it joins the page-level hidden line. When it is partly unknown, draw the known series and state the gap in one line under the chart. Use recharts and the `dataviz` skill.
 - A full-width card is for a table or a wide chart. A short list ("Waits on you") takes a third of the row
   beside related content.
 
