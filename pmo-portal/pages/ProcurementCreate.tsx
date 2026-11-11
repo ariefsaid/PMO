@@ -123,7 +123,7 @@ export default function ProcurementCreate() {
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [budgetCategory, setBudgetCategory] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([]);
-  const [errors, setErrors] = useState<{ title?: string; save?: string; conflict?: boolean }>({});
+  const [errors, setErrors] = useState<{ title?: string; save?: { headline: string; detail: string }; conflict?: boolean }>({});
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [attempt, setAttempt] = useState<{ input: AtomicProcurementInput; have: ProcurementHave } | null>(null);
@@ -254,7 +254,8 @@ export default function ProcurementCreate() {
       const detail = conflict
         ? t('reconcile', 'Open the saved request to reconcile it before retrying.')
         : definitive ? classified.detail : `${classified.detail} ${t('uncertainSave', 'The save may have completed. Check its status before starting a new request; retrying here uses the same request.')}`;
-      setErrors({ save: `${classified.headline} ${detail}`, conflict });
+      const saveDetail = code === '42501' && detail === 'Request refused' ? '' : detail;
+      setErrors({ save: { headline: classified.headline, detail: saveDetail }, conflict });
       savingRef.current = false;
       setSaving(false);
     }
@@ -312,7 +313,12 @@ export default function ProcurementCreate() {
             </Button>
           </div>
         </header>
-        {errors.save && <p role="alert" className="mb-4 text-control text-destructive-text">{errors.save}</p>}
+        {errors.save && (
+          <div role="alert" className="mb-4 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
+            <p className="font-semibold">{errors.save.headline}</p>
+            {errors.save.detail && <p>{errors.save.detail}</p>}
+          </div>
+        )}
         <section className="mb-6 border-b border-border pb-6" aria-label={t('details', 'Procurement details')}>
           <h2 className="mb-4 font-semibold">{t('details', 'Procurement details')}</h2>
           <fieldset disabled={Boolean(attempt) || saving}>

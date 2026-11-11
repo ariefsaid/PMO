@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import type { TopProject } from '@/src/lib/db/dashboard';
 import { PlanVsActualChart } from './PlanVsActualChart';
 import { planVsActualRows } from './planVsActual';
+import { wrapProjectName } from './projectName';
 
 const p = (over: Partial<TopProject>): TopProject => ({
   id: 'x', name: 'X', client_name: null, contract_value: 1000, currency: 'USD', budget: null, spent: 400,
@@ -40,6 +41,18 @@ describe('planVsActualRows', () => {
 });
 
 describe('PlanVsActualChart', () => {
+  it('wraps project names onto two readable lines', () => {
+    expect(wrapProjectName('Cascade Foods 6.0 MW Ground-Mount PV')).toEqual(['Cascade Foods 6.0 MW', 'Ground-Mount PV']);
+  });
+
+  it('gives each project an accessible label with series names and money values', () => {
+    render(<MemoryRouter><PlanVsActualChart projects={[p({
+      id: 'a', name: 'Alpha', contract_value: 2000, budget: 1500, spent: 500,
+    })]} currency="USD" /></MemoryRouter>);
+    const chart = screen.getByRole('img', { name: /plan vs actual by project/i });
+    expect(chart.getAttribute('aria-label')).toContain('Alpha: Contract $2,000, Active budget $1,500, Spent $500');
+  });
+
   it('names the chart and gives screen readers the figures as a table', () => {
     render(<MemoryRouter><PlanVsActualChart projects={[p({ id: 'a', name: 'Alpha', contract_value: 2000, spent: 500 })]} currency="USD" /></MemoryRouter>);
     expect(screen.getByRole('img', { name: /plan vs actual/i })).toBeInTheDocument();
@@ -64,7 +77,7 @@ describe('PlanVsActualChart', () => {
       p({ id: 'e', name: 'E', contract_value: 500, currency: 'IDR' }),
     ]} /></MemoryRouter>);
     const note = screen.getByTestId('plan-actual-caption');
-    expect(note).toHaveTextContent('2 projects have incomplete spending');
+    expect(note).toHaveTextContent('Spent is incomplete for 2 projects; known bars are shown');
     expect(note).toHaveTextContent('2 projects in another currency are left out');
     expect(note).not.toHaveClass('sr-only');
   });

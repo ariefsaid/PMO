@@ -12,7 +12,8 @@ import { formatMonthShort, formatTileMoney } from '@/src/lib/format';
 import { tileMoneyLines } from '@/src/components/dashboard/restructure/currencyOrder';
 import type { BudgetReviewRow, PipelineStage, TopProject } from '@/src/lib/db/dashboard';
 import type { AgeingBuckets } from '@/src/lib/finance/financePosition';
-import { BarList, ChartCard, MonthColumns, SeriesKey, StackedBar, type BarRow, type ChartTone } from '@/src/components/dashboard/charts';
+import { BarList, ChartCard, SeriesKey, StackedBar, type BarRow, type ChartTone } from '@/src/components/dashboard/charts';
+import { RevenueTrendLineChart } from '@/src/components/dashboard/RevenueTrendLineChart';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { useLossBreakdown, type WinRateRange } from '@/src/hooks/useDashboard';
 import { budgetSpendKnown } from './financeData';
@@ -91,9 +92,11 @@ export const SalesOverviewCard: React.FC<{
   );
 };
 
-/** Invoiced for every month of the period (accent), with what was collected beside it (grey) when receipts are recorded. */
+/** Invoiced and collected by month. The caller supplies the last completed-month window; sparse windows stay figures. */
 export const InvoicedCollectedCard: React.FC<{
   months: Array<{ month: string; amount: number }> | undefined;
+  /** Completed-month window used when collections are known but monthly invoicing is not. */
+  periodMonths?: string[];
   collectedByMonth: Map<string, number> | undefined;
   collectedUnsynced: boolean;
   pending: boolean;
@@ -101,28 +104,42 @@ export const InvoicedCollectedCard: React.FC<{
   retry: () => void;
   currency: string;
   className?: string;
-}> = ({ months, collectedByMonth, collectedUnsynced, pending, error, retry, currency, className }) => {
+}> = ({ months, periodMonths = [], collectedByMonth, collectedUnsynced, pending, error, retry, currency, className }) => {
   const { t } = useTranslation('dashboard');
-  const withCollected = Boolean(months && collectedByMonth && !collectedUnsynced);
-  const title = withCollected ? t('home.invoicedVsCollected', 'Invoiced and collected by month') : t('home.invoicedByMonth', 'Invoiced by month');
+  const withCollected = Boolean(collectedByMonth && !collectedUnsynced);
+  const hasInvoices = months !== undefined;
+  const collectionsPrimary = !hasInvoices && withCollected;
+  const title = withCollected ? t('home.invoicedVsCollected', 'Invoiced and collected · last 12 completed months') : t('home.invoicedByMonth', 'Invoiced · last 12 completed months');
   const invoicedName = t('home.chartInvoiced', 'Invoiced, excl. tax');
   const collectedName = t('home.chartCollected', 'Collected');
-  const points = (months ?? []).map((point) => {
-    const collected = withCollected ? collectedByMonth!.get(point.month) ?? 0 : undefined;
+  const sourceMonths = months ?? (withCollected ? periodMonths.map((month) => ({ month, amount: 0 })) : []);
+  const points = sourceMonths.map((point) => {
+    const monthKey = point.month.slice(0, 7);
+    const collected = withCollected ? collectedByMonth!.get(monthKey) ?? 0 : undefined;
+    const invoiced = hasInvoices ? point.amount : undefined;
+    const primary = collectionsPrimary ? collected : invoiced;
     return {
-      key: point.month,
+      key: monthKey,
       tick: formatMonthShort(new Date(Number(point.month.slice(0, 4)), Number(point.month.slice(5, 7)) - 1, 1)),
-      a: point.amount,
-      labelA: money(point.amount, currency),
-      ...(collected === undefined ? {} : { b: collected, labelB: money(collected, currency) }),
+      a: primary ?? 0,
+      labelA: primary === undefined ? undefined : money(primary, currency),
+      ...(hasInvoices && withCollected && !collectionsPrimary ? { b: collected ?? 0, labelB: money(collected ?? 0, currency) } : {}),
     };
   });
+  const activeMonths = points.filter((point) => point.a !== 0 || (point.b !== undefined && point.b !== 0)).length;
+  const collectionGap = !withCollected
+    ? t('home.collectedTrendGap', 'Collected is incomplete; invoiced amounts are shown.')
+    : null;
+  const invoiceGap = !hasInvoices && withCollected
+    ? t('home.invoicedTrendGap', 'Invoiced is incomplete; collected amounts are shown.')
+    : null;
+  const gap = [invoiceGap, collectionGap].filter(Boolean).join(' ');
   return (
     <ChartCard title={title} actions={<CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
-      known={points.length >= 3} hiddenReason={t('home.reasonTrend', 'the period covers fewer than three months')}
+      known={activeMonths >= 3} hiddenReason={t('home.reasonTrend', 'fewer than three months have invoiced or collected amounts')}
       pending={pending} error={error ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry } : undefined} testId="chart-invoiced-collected" className={className}>
-      {withCollected && <SeriesKey items={[{ label: invoicedName, tone: 'accent' }, { label: collectedName, tone: 'neutral' }]} />}
-      <MonthColumns labelAll points={points} ariaLabel={title} seriesNames={[invoicedName, collectedName]} />
+      <RevenueTrendLineChart points={points} ariaLabel={collectionsPrimary ? `${title} · ${collectedName}` : title} seriesNames={collectionsPrimary ? [collectedName] : [invoicedName, collectedName]} />
+      {gap && <p data-testid="invoiced-collected-gap" className="mt-2 text-control text-muted-foreground">{gap}</p>}
     </ChartCard>
   );
 };

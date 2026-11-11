@@ -15,6 +15,8 @@ import { expenseClaimsAwaitingKey } from '@/src/hooks/approvalsQueryKeys';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useNeedsYou } from './restructure/useNeedsYou';
 import { Button } from '@/src/components/ui/Button';
+import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
+import { ListState } from '@/src/components/ui/ListState';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { PageHeader } from '@/src/components/ui/PageHeader';
@@ -24,6 +26,7 @@ import { CardLink } from './hub/company/OverviewCards';
 import { cn } from '@/src/components/ui/cn';
 import { moneyTileValue } from './dashMoney';
 import { DashboardWaitsOnYou, ProjectRows, type ProjectRow, type WaitRow } from './DashParts';
+import { PlanVsActualChart } from './hub/company/PlanVsActualChart';
 import {
   formatHours,
   projectAtRisk,
@@ -204,6 +207,7 @@ export const PMDashboard: React.FC = () => {
     const deliveryName = t('home.chartDelivery', 'Delivery');
     const budgetName = t('home.colBudget', 'Budget used');
     const overdueTitle = t('home.overdueByProject', 'Overdue tasks by project');
+    const planTitle = t('hub.company.planVsActual.title', 'Plan vs actual');
     return (
       <FigureScope>
         <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
@@ -238,6 +242,14 @@ export const PMDashboard: React.FC = () => {
             />
           </KPIRow>
           <div className={cn('grid items-start gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2')}>
+            <Card>
+              <CardHead level={2} actions={<CardLink to={projectsHref(userId)}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink>}>{planTitle}</CardHead>
+              <CardPad className="min-w-0">
+                {projectsQuery.isPending ? <ListState variant="loading" shape="chart" rows={4} />
+                  : projectsQuery.isError ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={() => { void projectsQuery.refetch(); }} />
+                    : <PlanVsActualChart projects={projects} currency={orgCurrency} />}
+              </CardPad>
+            </Card>
             <ChartCard title={t('home.deliveryVsBudget', 'Delivery and budget used by project')} actions={<CardLink to={projectsHref(userId)}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink>}
               known={pctBars.length > 0} hiddenReason={t('home.reasonDeliveryBudget', 'delivery and budget are not recorded')} pending={projectsPending}
               error={projectsError ? { title: t('home.projectsError', "Couldn't load projects"), retry: refresh } : undefined} testId="chart-delivery-budget">
