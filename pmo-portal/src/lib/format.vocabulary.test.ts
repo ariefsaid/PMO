@@ -129,15 +129,19 @@ describe('money vocabulary', () => {
       'IDR',
       'tile',
     );
-    expect(lines.map(norm)).toEqual(['IDR 7.7B', '+ USD 5.3K', '+ SGD 1.2M']);
+    expect(lines.lines.map(norm)).toEqual(['IDR 7.7B', '+ USD 5.3K', '+ SGD 1.2M']);
     expect(formatMoneyLines(
       [{ currency: 'USD', amount: 5_300 }, { currency: 'IDR', amount: 7_700_000_000 }],
       'IDR',
       'tile',
       { prefixOtherCurrencies: false },
-    ).map(norm)).toEqual(['IDR 7.7B', 'USD 5.3K']);
-    expect(formatMoneyLines([{ currency: 'USD', amount: 5_300 }], 'IDR', 'table').map(norm)).toEqual(['IDR 0', '+ USD 5,300']);
-    expect(formatMoneyLines([], 'IDR', 'table').map(norm)).toEqual(['IDR 0']);
-    expect(formatMoneyLines([{ currency: 'IDR', amount: 5 }, { currency: 'IDR', amount: 7 }], 'IDR', 'table').map(norm)).toEqual(['IDR 12']);
+    ).lines.map(norm)).toEqual(['IDR 7.7B', 'USD 5.3K']);
+    expect(formatMoneyLines([{ currency: 'USD', amount: 5_300 }], 'IDR', 'table').lines.map(norm)).toEqual(['+ USD 5,300']);
+    expect(formatMoneyLines([], 'IDR', 'table')).toEqual({ lines: [], unknown: true });
+    expect(formatMoneyLines([{ currency: 'IDR', amount: 0 }], 'IDR', 'table').lines.map(norm)).toEqual(['IDR 0']);
+    const partial = formatMoneyLines([{ currency: 'USD', amount: null }, { currency: 'IDR', amount: 5 }], 'IDR', 'table');
+    expect(partial.lines.map(norm)).toEqual(['IDR 5']);
+    expect(partial.unknown).toBe(true);
+    expect(formatMoneyLines([{ currency: 'IDR', amount: 5 }, { currency: 'IDR', amount: 7 }], 'IDR', 'table').lines.map(norm)).toEqual(['IDR 12']);
   });
 });

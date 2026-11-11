@@ -113,7 +113,7 @@ function tabMoney(totals: readonly CurrencyTotal[], home: string): string {
     const amount = shownAmount(total);
     return amount === null || amount === 0 ? [] : [{ currency: total.currency, amount }];
   });
-  return known.length === 0 ? '' : formatMoneyLines(known, home, 'tile').join(' ');
+  return known.length === 0 ? '' : formatMoneyLines(known, home, 'tile').lines.join(' ');
 }
 
 /** The list renders through ProcurementBlock; these columns only describe the export, so they carry no cell. */
