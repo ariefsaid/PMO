@@ -61,3 +61,24 @@ Remove words, never information. Where the data calls for a picture, draw it:
 ## Feature floor
 Nothing a screen can do today is deleted. A block removed from a screen must have a home it is linked to;
 name that home in your notes. If it has none, keep it lower on the page under a plain heading and say so.
+
+## Hierarchy (added 11 Nov after blind re-review C: "everything is 14px grey in white boxes; 87% of text is one size")
+The 14px floor fixed legibility and flattened the page. Levels must differ by more than one step, using size
+for figures, weight for titles and ONE muted grey for secondary text:
+1. Page title: 24px / 600.
+2. Key figure: 30px / 600, tabular: the largest thing in its card, larger than the page title's neighbours
+   and never styled like a title.
+3. Card or section title: 16px / 600, foreground.
+4. Body and table cells: 14px / 400, foreground. Body text is never 600; only titles, figure labels (500)
+   and the one emphasised row are heavier.
+5. Secondary (captions, meta, table header labels): 14px / 400 in ONE muted grey that still passes AA
+   (4.5:1). Collapse the near-identical dark greys to two text colours: foreground and muted.
+6. 12px only for the allowed list (chart ticks, count badges, shortcut hints, timestamps, version).
+Emphasis:
+- The block that waits on the person ("Waits on you", a return, an approval to decide) sits on a tinted
+  surface (the waiting tone's soft surface) so it is the heaviest block at a glance; its count is a figure.
+- Exception colour appears ONCE per group: on the group's count or pill ("14 overdue"), and on the single
+  most urgent row of the screen. Rows below it state lateness in plain foreground text ("263 days late").
+  A list where every row is red tells nothing.
+- A money exception gets size, not just colour: an overdue amount is shown as a figure with its age beside it.
+- No decorative bar: a bar that always reads 100% (e.g. "Contract") is removed; bars compare at least two values.

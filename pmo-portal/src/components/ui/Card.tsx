@@ -79,7 +79,7 @@ export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
       <div className="min-w-0 flex-1">
         <Heading
           ref={ref}
-          className="flex min-w-0 items-center gap-2 text-group font-semibold"
+          className="flex min-w-0 items-center gap-2 text-group font-semibold text-foreground"
           {...rest}
         >
           {children}
