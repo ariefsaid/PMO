@@ -542,8 +542,11 @@ describe('ProjectBudget T5 DataTable adoption', () => {
     versionsState.data = [{ ...activeVersion, total: 1234.5, line_items: [priced(1234.5)] }];
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    // C5: no .00, and still the full amount — fraction included — never the short $1.2K form, in a table.
-    expect(within(table).getAllByText(/1,234\.5/).length).toBeGreaterThan(0);
+    // C5: one table-money shape — whole units, no ".00" tail, and never the short $1.2K form. The
+    // full figure is still shown (ux/1110 F1a moved table cells onto `formatCurrency`, which rounds to
+    // whole units by design; the old `formatNumberMax2` printed the stray ".5").
+    expect(within(table).getAllByText('$1,235').length).toBeGreaterThan(0);
+    expect(within(table).queryByText(/\.00\b/)).not.toBeInTheDocument();
     expect(within(table).queryByText(/1\.2K/)).not.toBeInTheDocument();
     expect(screen.getAllByTestId('dt-table-branch').length).toBeGreaterThan(0);
   });
@@ -1817,12 +1820,16 @@ describe('budget-whole-project AC-001 (S6A)', () => {
 
     expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeDisabled();
     expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(/save a fiscal-year distribution/i);
+    // The grid renders twice now — the tablet/desktop table and the phone row list (`sm:hidden`) — and
+    // jsdom applies no Tailwind display classes, so the shared controls live in two places in the DOM.
+    // This journey is the desktop grid's: scope its controls to the table instead of the whole screen.
+    const grid = () => screen.getByRole('table', { name: 'Category fiscal-year distribution' });
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Distribution method' }), 'amount_by_year');
     await userEvent.type(screen.getByRole('textbox', { name: 'Shared input for 2026' }), '1');
     await userEvent.type(screen.getByRole('textbox', { name: 'Shared input for 2027' }), '3');
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Use custom distribution for Travel' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Travel input for 2026' }), '100');
-    const travel2027 = screen.getByRole('textbox', { name: 'Travel input for 2027' });
+    await userEvent.click(within(grid()).getByRole('checkbox', { name: 'Use custom distribution for Travel' }));
+    await userEvent.type(within(grid()).getByRole('textbox', { name: 'Travel input for 2026' }), '100');
+    const travel2027 = within(grid()).getByRole('textbox', { name: 'Travel input for 2027' });
     await userEvent.type(travel2027, '140');
     await userEvent.click(screen.getByRole('button', { name: 'Preview distribution' }));
     expect(screen.getByTestId('distribution-validation-summary')).toHaveTextContent(/amounts must add up to the category total/i);
@@ -1831,17 +1838,16 @@ describe('budget-whole-project AC-001 (S6A)', () => {
     await userEvent.type(travel2027, '150');
     await userEvent.click(screen.getByRole('button', { name: 'Preview distribution' }));
 
-    const grid = screen.getByRole('table', { name: 'Category fiscal-year distribution' });
-    expect(within(grid).getByRole('row', { name: /Labor/ })).toHaveTextContent('$25.00');
-    expect(within(grid).getByRole('row', { name: /Labor/ })).toHaveTextContent('$75.00');
-    expect(within(grid).getByRole('row', { name: /Travel/ })).toHaveTextContent('$100.00');
-    expect(within(grid).getByRole('row', { name: /Travel/ })).toHaveTextContent('$150.00');
-    expect(within(grid).getByRole('row', { name: /Contingency/ })).toHaveTextContent('$0.00');
+    expect(within(grid()).getByRole('row', { name: /Labor/ })).toHaveTextContent('$25.00');
+    expect(within(grid()).getByRole('row', { name: /Labor/ })).toHaveTextContent('$75.00');
+    expect(within(grid()).getByRole('row', { name: /Travel/ })).toHaveTextContent('$100.00');
+    expect(within(grid()).getByRole('row', { name: /Travel/ })).toHaveTextContent('$150.00');
+    expect(within(grid()).getByRole('row', { name: /Contingency/ })).toHaveTextContent('$0.00');
     expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeDisabled();
 
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Use custom distribution for Travel' }));
+    await userEvent.click(within(grid()).getByRole('checkbox', { name: 'Use custom distribution for Travel' }));
     await userEvent.click(screen.getByRole('button', { name: 'Preview distribution' }));
-    const inheritedTravel = within(screen.getByRole('table', { name: 'Category fiscal-year distribution' })).getByRole('row', { name: /Travel/ });
+    const inheritedTravel = within(grid()).getByRole('row', { name: /Travel/ });
     expect(inheritedTravel).toHaveTextContent('$62.50');
     expect(inheritedTravel).toHaveTextContent('$187.50');
     expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeDisabled();

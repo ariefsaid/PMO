@@ -1,11 +1,11 @@
 import React from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ListState, PageHeader, SearchMini, StatusPill, SelectField, useToast, ViewToggle } from '@/src/components/ui';
+import { LateText, ListState, PageHeader, SearchMini, StatusPill, SelectField, useToast, ViewToggle, isMostUrgentLateRow } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
-import { formatDay, formatCalendarDayInTimeZone, formatDaysOverdue } from '@/src/lib/format';
+import { formatDay, formatCalendarDayInTimeZone, formatDaysLate } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskStatus } from '@/src/lib/db/tasks';
@@ -112,6 +112,14 @@ const MyTasks: React.FC = () => {
     });
   }, [tasks, queue, search, dueBy]);
 
+  const openTaskCount = tasks?.filter((task) => task.status !== 'Done').length ?? 0;
+  const lateTasks = React.useMemo(
+    () => visibleTasks
+      .filter((task) => isOverdueTask(task, today))
+      .sort((a, b) => (a.end_date ?? '').localeCompare(b.end_date ?? '')),
+    [visibleTasks, today],
+  );
+
   // Keep project grouping/context and urgency ordering after search/status filtering.
   // AC-IFW-TASKS-01: overdue open tasks precede other open work; dates sort soonest first.
   const grouped = React.useMemo(() => {
@@ -149,10 +157,32 @@ const MyTasks: React.FC = () => {
 
   return (
     <div>
-      <PageHeader title={t('myTasks.title', 'My Tasks')} />
+      <PageHeader title={t('myTasks.title', 'Tasks')} />
 
       {!isPending && !isError && tasks && tasks.length > 0 && (
-        <div className="mb-4 flex flex-col gap-3 border-b border-border pb-4 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between">
+        <div className={`mb-4 flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between ${queue === 'open' ? 'rounded-lg border border-border bg-waiting-surface p-4' : 'border-b border-border pb-4'}`} data-testid={queue === 'open' ? 'my-tasks-waiting-summary' : undefined}>
+          {queue === 'open' && (
+            <div className="flex shrink-0 items-center gap-3">
+              <span
+                data-testid="my-tasks-open-count"
+                aria-label={`${openTaskCount} ${t('myTasks.openTasks', 'Open tasks')}`}
+                className="text-metric font-semibold tabular-nums text-foreground"
+              >
+                {openTaskCount}
+              </span>
+              {lateTasks.length > 0 && (
+                <StatusPill
+                  variant="overdue"
+                  role="status"
+                  data-testid="my-tasks-overdue-count"
+                  aria-label={`${lateTasks.length} ${t('myTasks.overdue', 'Overdue')}`}
+                  title={`${lateTasks.length} ${t('myTasks.overdue', 'Overdue')}`}
+                >
+                  {lateTasks.length}
+                </StatusPill>
+              )}
+            </div>
+          )}
           {/* DESIGN.md `seg`: the shared inline segmented control, `toggle` semantics — a queue
               filter with no tabpanels, so aria-pressed beats role="tab" (ViewToggle doc). */}
           <ViewToggle
@@ -161,7 +191,7 @@ const MyTasks: React.FC = () => {
             value={queue}
             onChange={setQueue}
             options={[
-              { value: 'open', label: t('myTasks.openTasks', 'Open tasks') },
+              { value: 'open', label: t('tasks:myTasks.openTasksShort', 'Open'), ariaLabel: t('myTasks.openTasks', 'Open tasks') },
               { value: 'completed', label: t('myTasks.completed', 'Completed') },
             ]}
           />
@@ -287,9 +317,12 @@ const MyTasks: React.FC = () => {
                         )}
                         {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA). */}
                         {isOverdueTask(task, today) && (
-                          <StatusPill record="due" state="overdue">
-                            {formatDaysOverdue(task.end_date, tStatus) ?? t('myTasks.overdue', 'Overdue')}
-                          </StatusPill>
+                          <LateText
+                            data-testid={`my-task-late-status-${task.id}`}
+                            emphasis={isMostUrgentLateRow(lateTasks, task)}
+                          >
+                            {formatDaysLate(task.end_date, tStatus) ?? t('myTasks.overdue', 'Overdue')}
+                          </LateText>
                         )}
                       </div>
                       {(task.start_date || task.end_date) && (

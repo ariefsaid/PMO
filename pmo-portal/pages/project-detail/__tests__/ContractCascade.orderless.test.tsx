@@ -92,6 +92,14 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(within(section).getByText('Paid')).toBeInTheDocument();
   });
 
+  it('screen rules: leaves the project tax basis to the customer-orders heading', () => {
+    renderCascade();
+
+    const contract = screen.getByRole('region', { name: 'Contract' });
+    expect(within(contract).getByText('IDR')).toBeInTheDocument();
+    expect(within(contract).queryByText(/excl\. PPN/)).not.toBeInTheDocument();
+  });
+
   it('keeps contract tools with the contract summary', () => {
     const props = { project, contractTools: <button>Edit contract lines</button> };
     render(<MemoryRouter><FinanceI18nTestProvider><ContractCascade {...props} /></FinanceI18nTestProvider></MemoryRouter>);

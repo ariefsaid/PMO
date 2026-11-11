@@ -91,5 +91,13 @@
     "actualInline": "{{amount}} aktual"
   },
   "contractBasisNote": "Nilai kontrak {{basis}}.",
-  "sharedManagerNote": "Manajer proyek: {{name}}"
+  "sharedManagerNote": "Manajer proyek: {{name}}",
+  "projectForm": {
+    "client": {
+      "nounPlural": "perusahaan"
+    },
+    "endCustomer": {
+      "nounPlural": "perusahaan"
+    }
+  }
 }

@@ -572,6 +572,17 @@ describe('S-18 UX-060: phone width renders the unified queue + preview grammar',
   });
 });
 
+describe('screen rules: approvals waiting hierarchy', () => {
+  it('puts the queue count on the waiting surface as a key figure', () => {
+    queryState.data = submittedSheets;
+    renderPage('timesheets');
+
+    const waiting = screen.getByTestId('approvals-waiting-summary');
+    expect(waiting).toHaveClass('bg-waiting-surface');
+    expect(within(waiting).getByTestId('approvals-waiting-count')).toHaveClass('text-metric');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // S-18 / RF-042 — the empty inbox explains PMO scope: documents entered directly in ERP are
 // approved in ERP, so "all caught up" must never claim no approvals exist anywhere.
@@ -610,9 +621,6 @@ describe('Approvals page actions', () => {
     queryState.isPending = false;
     queryState.isError = false;
     queryState.data = submittedSheets;
-    approveMutation.mutate = vi.fn(
-      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
-    );
     renderPage();
 
     const preview = screen.getByRole('region', { name: /Approval preview/i });
@@ -624,15 +632,15 @@ describe('Approvals page actions', () => {
 
     await userEvent.click(approveBtn);
     // Owner rule: nothing approves on the first click.
-    expect(approveMutation.mutate).not.toHaveBeenCalled();
+    expect(approveMutation.mutateAsync).not.toHaveBeenCalled();
     const dialog = screen.getByRole('dialog');
     expect(dialog).toBeInTheDocument();
 
+    // C2d: the decision commit is awaited (`mutateAsync`) so the dialog stays open until the
+    // write settles; the recorded decision payload is unchanged.
     await userEvent.click(within(dialog).getByRole('button', { name: /^Approve$/i }));
-    expect(approveMutation.mutate).toHaveBeenCalledWith(
-      { id: 'ts-1' },
-      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
-    );
+    expect(approveMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(approveMutation.mutateAsync).toHaveBeenCalledWith({ id: 'ts-1' });
     expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
   });
 
@@ -640,22 +648,20 @@ describe('Approvals page actions', () => {
     queryState.isPending = false;
     queryState.isError = false;
     queryState.data = submittedSheets;
-    rejectMutation.mutate = vi.fn(
-      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
-    );
     renderPage();
 
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     await userEvent.click(within(preview).getByRole('button', { name: /return/i }));
-    expect(rejectMutation.mutate).not.toHaveBeenCalled();
+    expect(rejectMutation.mutateAsync).not.toHaveBeenCalled();
     const dialog = screen.getByRole('dialog');
     const confirm = within(dialog).getByRole('button', { name: /^Return$/i });
     expect(confirm).toBeDisabled();
     await userEvent.type(within(dialog).getByRole('textbox', { name: /reason for returning/i }), 'Please correct the hours');
     await userEvent.click(confirm);
-    expect(rejectMutation.mutate).toHaveBeenCalledWith(
+    // C2d: the decision commit is awaited (`mutateAsync`); the reason still rides in `notes`.
+    expect(rejectMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(rejectMutation.mutateAsync).toHaveBeenCalledWith(
       { id: 'ts-1', notes: 'Please correct the hours' },
-      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
     );
   });
 });

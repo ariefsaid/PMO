@@ -859,15 +859,15 @@
   },
   "combobox": {
     "search": {
-      "label": "Search {{noun}}s",
-      "placeholder": "Search {{noun}}s…"
+      "label": "Search {{nounPlural}}",
+      "placeholder": "Search {{nounPlural}}…"
     },
-    "loading": "Loading {{noun}}s…",
+    "loading": "Loading {{nounPlural}}…",
     "error": {
-      "title": "Couldn't load {{noun}}s.",
+      "title": "Couldn't load {{nounPlural}}.",
       "retry": "Retry"
     },
-    "listLabel": "{{noun}}s",
+    "listLabel": "{{nounPlural}}",
     "moreHidden": "Type to narrow ({{count}} more)",
     "empty": {
       "withQuery": "No {{noun}} matches \"{{query}}\". Try a different search.",
@@ -1816,7 +1816,7 @@
     "noSearchResults": "No tasks match your search",
     "noTasksInView": "No tasks in this view",
     "start": "Start {{date}}",
-    "title": "My Tasks"
+    "title": "Tasks"
   },
   "procurement": {
     "columns": {
@@ -2405,7 +2405,9 @@
       "vatCommandLocked": "Locked while an invoice command is in flight. Wait for it to settle; held commands need review.",
       "vatCancelledHint": "All project invoices are cancelled and no invoice command is in flight. You can change PPN for the next invoice; cancelled invoices keep their original tax.",
       "vatEmptyHint": "Editable until an invoice is raised. New invoices follow this setting.",
-      "vatStaleSave": "PPN was not changed. The project's invoice state changed; refresh and try again when all invoices are cancelled and commands have settled."
+      "vatStaleSave": "PPN was not changed. The project's invoice state changed; refresh and try again when all invoices are cancelled and commands have settled.",
+      "readOnly": "Read-only",
+      "sodLockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded."
     },
     "milestoneForm": {
       "create": "Create phase",
@@ -3558,7 +3560,8 @@
         "inheritWithEffective": "Organization default: {{value}}",
         "id": "Bahasa Indonesia",
         "en": "English"
-      }
+      },
+      "effective": "Effective language: {{value}}"
     },
     "loading": "Loading profile…",
     "number": {
@@ -3569,7 +3572,8 @@
         "inheritWithEffective": "Organization default: {{value}}",
         "id": "Indonesian (1.234.567,89)",
         "en": "English (1,234,567.89)"
-      }
+      },
+      "effective": "Effective number format: {{value}}"
     },
     "refreshRetry": "Retry refresh",
     "save": "Save",
@@ -3584,7 +3588,8 @@
       "options": {
         "inherit": "Organization default",
         "inheritWithEffective": "Organization default: {{timezone}}"
-      }
+      },
+      "effective": "Effective timezone: {{value}}"
     },
     "title": "Profile & preferences"
   },
