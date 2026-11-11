@@ -155,6 +155,11 @@ const ProfileSettings: React.FC = () => {
     { value: 'id-ID', label: t('profileSettings.number.options.id', 'Indonesian (1.234.567,89)') },
     { value: 'en-US', label: t('profileSettings.number.options.en', 'English (1,234,567.89)') },
   ];
+  // ux/1110 restore: the resolution lines — what the user's choices actually resolve to right
+  // now (saved values through the resolver), regardless of what the selects show. #684's preview
+  // answers "what would saving produce?"; these three lines answer "what is in effect?".
+  const effectiveLanguage = languageName(resolvedLocale.locale);
+  const effectiveNumberFormat = numberExample(resolvedLocale.numberLocale);
   // #684: the preview reflects what SAVING NOW would produce (the pending selection), never the
   // still-in-effect saved value — otherwise picking a new convention shows no visible feedback
   // until after Save + refresh.
@@ -229,6 +234,9 @@ const ProfileSettings: React.FC = () => {
               disabled={isSaving}
               fullWidth
             />
+            <p className="mt-2 text-control text-muted-foreground">
+              {t('profileSettings.language.effective', { defaultValue: 'Effective language: {{value}}', value: effectiveLanguage })}
+            </p>
           </div>
 
           <div>
@@ -244,6 +252,9 @@ const ProfileSettings: React.FC = () => {
               disabled={isSaving}
               fullWidth
             />
+            <p className="mt-2 text-control text-muted-foreground">
+              {t('profileSettings.number.effective', { defaultValue: 'Effective number format: {{value}}', value: effectiveNumberFormat })}
+            </p>
           </div>
 
           <div>
@@ -282,6 +293,9 @@ const ProfileSettings: React.FC = () => {
               noun={t('profileSettings.timezone.noun', 'timezone')}
               disabled={isSaving}
             />
+            <p className="mt-2 text-control text-muted-foreground">
+              {t('profileSettings.timezone.effective', { defaultValue: 'Effective timezone: {{value}}', value: resolvedLocale.timezone })}
+            </p>
           </div>
         </div>
 

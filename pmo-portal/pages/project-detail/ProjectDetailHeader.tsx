@@ -10,6 +10,7 @@ import {
   StatTiles,
   StatusPill,
   Button,
+  Icon,
   NumberField,
   SelectField,
   ConfirmDialog,
@@ -117,10 +118,14 @@ export interface ProjectDetailHeaderProps {
 }
 
 interface FinancialSummaryProps extends Pick<ProjectDetailHeaderProps, 'project' | 'committedSpend' | 'committedOtherCurrencies' | 'commitmentSource' | 'ledgerBasis' | 'commitmentPending' | 'commitmentError'> {
+  isOnHand: boolean;
   isFinanceForward: boolean;
   canViewActual: boolean;
   canEditValue: boolean;
   valueEditing: boolean;
+  /** The contract-value lock disclosure's open state (why the value cannot be edited). */
+  lockReasonOpen: boolean;
+  onToggleLockReason: () => void;
   onBeginValueEdit: () => void;
 }
 
@@ -133,10 +138,13 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   ledgerBasis = 'unavailable',
   commitmentPending = false,
   commitmentError = false,
+  isOnHand,
   isFinanceForward,
   canViewActual,
   canEditValue,
   valueEditing,
+  lockReasonOpen,
+  onToggleLockReason,
   onBeginValueEdit,
 }) => {
   const { t } = useTranslation('project');
@@ -197,6 +205,17 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
               aria-label={t('projectDetail.header.editContractValue', 'Edit contract value')}>
               {t('projectDetail.header.action.edit', 'Edit')}
             </Button>
+          )}
+          {/* The role-facing lock (ux/1110 option C): the redesign dropped the pill's visible
+              words deliberately (calmer header) — the WHY must not be lost, so a quiet lock-icon
+              button carries the accessible name "Read-only" and discloses the segregation-of-
+              duties reason in place (read-only-distinction: never a dead input). */}
+          {!valueEditing && !(canEditValue && isFinanceForward) && isOnHand && (
+            <button type="button" aria-label={t('projectDetail.header.readOnly', 'Read-only')} aria-expanded={lockReasonOpen}
+              aria-controls="contract-value-lock-reason" onClick={onToggleLockReason}
+              className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              <Icon name="lock" className="size-3.5" />
+            </button>
           )}
         </div>
       ),
@@ -305,6 +324,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // contract_value inline-edit state.
   const [valueEditing, setValueEditing] = useState(false);
   const [valueDraft, setValueDraft] = useState('');
+  // The contract-value lock disclosure: why THIS role cannot edit a won value (UIP-006).
+  const [lockReasonOpen, setLockReasonOpen] = useState(false);
   // #513: the basis the new value is stated on. ⛔ Both start EMPTY on every open and are never
   // seeded — not from the stored row either. 0197's backfill wrote 'exclusive' onto every existing
   // project (arithmetically inert, but nobody chose it), so pre-filling from the row would re-assert
@@ -514,6 +535,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   };
 
   const canChangeValue = isDelivery && canEditValue && isFinanceForward;
+  // Compact/drawer header: the same quiet lock-icon button as the full header's Contract tile
+  // (ux/1110 option C — accessible name only, no visible words), in the action row.
+  const showCompactContractLock = compact && isDelivery && isOnHand && isFinanceForward && !canEditValue && !valueEditing;
   const copyProjectLink = async () => {
     const href = `${window.location.origin}/projects/${project.id}`;
     try {
@@ -583,6 +607,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       {statusOnPhoneRow && statusPill}
       {secondaryAction}
       {detailsPanel}
+      {showCompactContractLock && (
+        <button type="button" aria-label={t('projectDetail.header.readOnly', 'Read-only')} aria-expanded={lockReasonOpen}
+          aria-controls="contract-value-lock-reason" onClick={() => setLockReasonOpen(open => !open)}
+          className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <Icon name="lock" className="size-3.5" />
+        </button>
+      )}
       {extraEdit}
     </>
   ) : extraEdit;
@@ -720,6 +751,14 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         className="mb-4 max-md:mb-2 max-md:!border-0 max-md:!bg-transparent max-md:!p-0 max-md:[&_[data-testid=record-header-actions]]:gap-1"
       />
 
+      {showCompactContractLock && (
+        <div data-testid="contract-value-lock-lane" className="mb-1" hidden={!lockReasonOpen}>
+          <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-control text-muted-foreground">
+            {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
+          </p>
+        </div>
+      )}
+
       {/* UIP-006: one compact read strip, with the explicit edit/lock next to Contract.
           The editor and its confirm remain unchanged; no finance or authority changes. */}
       {compact && valueEditing && isFinanceForward && <div className="mb-4 rounded-lg border border-border p-4">{sodRow}</div>}
@@ -733,12 +772,22 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
             ledgerBasis={ledgerBasis}
             commitmentPending={commitmentPending}
             commitmentError={commitmentError}
+            isOnHand={isOnHand}
             isFinanceForward={isFinanceForward}
             canViewActual={may('view', 'salesInvoice')}
             canEditValue={canEditValue}
             valueEditing={valueEditing}
+            lockReasonOpen={lockReasonOpen}
+            onToggleLockReason={() => setLockReasonOpen(open => !open)}
             onBeginValueEdit={beginValueEdit}
           />
+          {isOnHand && !(canEditValue && isFinanceForward) && !valueEditing && (
+            <div data-testid="contract-value-lock-lane" className="mb-1" hidden={!lockReasonOpen}>
+              <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-control text-muted-foreground">
+                {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
+              </p>
+            </div>
+          )}
           <div className={valueEditing ? 'mb-2' : undefined}>{sodRow}</div>
         </>
       )}
