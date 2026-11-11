@@ -52,7 +52,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 import { Rail } from '../Rail';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 
-const FINANCE_ITEMS = [/^Finance$/i];
+const FINANCE_ITEMS = [/^Overview$/i];
 /** The revenue-gated Finance children: invoicing (Receivables) and the revenue report (Reports). */
 // `Reports` is gated by `management_pack` (not revenue) since S3; Receivables is the revenue child.
 const REVENUE_ITEMS = [/^Receivables$/i];

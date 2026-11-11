@@ -7,6 +7,7 @@ import type { ListReturnNavigation } from '@/src/lib/listReturnContext';
 import { UserRole } from '../../../types';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { OrgFeatureKey } from '@/src/lib/features';
+import { compareNavigationOrder } from './navigationOrder';
 
 export interface ModuleDef {
   module: string;
@@ -69,7 +70,7 @@ export const MODULES: ModuleDef[] = [
   },
   {
     module: 'stock',
-    icon: 'grid',
+    icon: 'inbox',
     label: 'Stock', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.stock',
     path: '/stock',
@@ -104,7 +105,7 @@ export const MODULES: ModuleDef[] = [
   },
   {
     module: 'vendors',
-    icon: 'companies',
+    icon: 'cart',
     label: 'Vendors', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.vendors',
     path: '/companies?type=Vendor',
@@ -142,7 +143,7 @@ export const MODULES: ModuleDef[] = [
   // RLS-scoped to attendance ∪ author ∪ grant ∪ Admin, so the nav item is safe for all).
   {
     module: 'meetings',
-    icon: 'cal',
+    icon: 'meetings',
     label: 'Meetings', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.meetings',
     path: '/meetings',
@@ -153,11 +154,11 @@ export const MODULES: ModuleDef[] = [
     labelKey: 'shell.nav.expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
   // #1515: Site cash — floats visible to approval rank (RLS); the rail hides it from Engineers,
   // so the palette Navigate group must too (parity guard: mirror Rail's role gate).
-  { module: 'imprest', icon: 'expenses', label: 'Site cash', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+  { module: 'imprest', icon: 'site-cash', label: 'Site cash', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'imprest:nav.siteCash', path: '/imprest', detail: { pattern: '/imprest/:floatId', param: 'floatId' },
     feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // #1519: Equipment usage — every role logs; the Approvals view and amounts gate inside the pages.
-  { module: 'equipment', icon: 'clock', label: 'Equipment', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+  { module: 'equipment', icon: 'equipment', label: 'Equipment', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'equipment:nav.equipment', path: '/equipment', detail: { pattern: '/equipment/assets/:assetId', param: 'assetId' } },
   // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Finance, Engineers and Admins
   // (Finance works assigned tasks like an Engineer, owner 2026-10-23).
@@ -190,10 +191,18 @@ export const MODULES: ModuleDef[] = [
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
   {
+    module: 'views',
+    icon: 'views',
+    label: 'My Views', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'shell.rail.myViews',
+    path: '/views',
+    feature: 'user_views',
+  },
+  {
     module: 'finance',
     icon: 'dollar',
-    label: 'Finance', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
-    labelKey: 'financeHub:nav.finance',
+    label: 'Overview', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'financeHub:nav.overview',
     path: '/finance',
     roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
@@ -203,7 +212,7 @@ export const MODULES: ModuleDef[] = [
     path: '/finance/receivables', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
   {
-    module: 'finance-payables', icon: 'procurement', label: 'Payables', // i18n-exempt: translated at render via labelKey
+    module: 'finance-payables', icon: 'payments', label: 'Payables', // i18n-exempt: translated at render via labelKey
     labelKey: 'financeHub:hub.payables', feature: 'procurement',
     path: '/finance/payables', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
@@ -213,7 +222,7 @@ export const MODULES: ModuleDef[] = [
     path: '/finance/reports', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
   {
-    module: 'finance-statements', icon: 'reports', label: 'Statements', // i18n-exempt: translated at render via labelKey
+    module: 'finance-statements', icon: 'statements', label: 'Statements', // i18n-exempt: translated at render via labelKey
     labelKey: 'financeHub:hub.statements', feature: 'financial_statements',
     path: '/finance/statements', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
@@ -227,6 +236,8 @@ export const MODULES: ModuleDef[] = [
     roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
 ];
+
+MODULES.sort((left, right) => compareNavigationOrder(left.path, right.path));
 
 /**
  * Returns the subset of MODULES visible to the given role (AC-W3-N3 + AC-W3-N4).
@@ -454,15 +465,15 @@ export function breadcrumbForPath(
   if (administrationBreadcrumb) return administrationBreadcrumb;
 
   if (pathname === '/finance') {
-    return [{ label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
-      i18nKey: 'financeHub:nav.finance' }];
+    return [{ label: 'Overview', // i18n-exempt: translated from i18nKey by Breadcrumb
+      i18nKey: 'financeHub:nav.overview' }];
   }
   const invoiceRecord = /^\/sales-invoices\/[^/]+$/.test(pathname);
   const paymentRecord = /^\/incoming-payments\/[^/]+$/.test(pathname);
   if (invoiceRecord || paymentRecord) {
     return [
-      { label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
-        i18nKey: 'financeHub:nav.finance', href: '/finance', onClick: () => navigate?.('/finance') },
+      { label: 'Overview', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:nav.overview', href: '/finance', onClick: () => navigate?.('/finance') },
       { label: 'Receivables', // i18n-exempt: translated from i18nKey by Breadcrumb
         i18nKey: 'financeHub:hub.receivables', href: paymentRecord ? '/finance/receivables?view=payments' : '/finance/receivables', onClick: () => navigate?.(paymentRecord ? '/finance/receivables?view=payments' : '/finance/receivables') },
       { label: paymentRecord ? 'Payment record' : 'Invoice record', i18nKey: paymentRecord ? 'financeHub:nav.paymentRecord' : 'shell.nav.invoiceRecord' },
@@ -478,8 +489,8 @@ export function breadcrumbForPath(
     };
     return [
       {
-        label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
-        i18nKey: 'financeHub:nav.finance',
+        label: 'Overview', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:nav.overview',
         href: '/finance',
         onClick: () => navigate?.('/finance'),
       },

@@ -15,6 +15,7 @@ let canImpersonate = true;
 const viewAs = vi.fn();
 const signOut = vi.fn();
 const onOpenPalette = vi.fn();
+const onOpenMore = vi.fn();
 let displayName = 'Ada Lovelace';
 
 vi.mock('@/src/auth/impersonation', () => ({
@@ -49,7 +50,7 @@ const breadcrumb = [{ label: 'Dashboard' }];
 const renderBar = () =>
   render(
     <MemoryRouter>
-      <ContextBar breadcrumb={breadcrumb} onOpenPalette={onOpenPalette} />
+      <ContextBar breadcrumb={breadcrumb} onOpenPalette={onOpenPalette} onOpenMore={onOpenMore} />
     </MemoryRouter>
   );
 
@@ -58,6 +59,7 @@ beforeEach(() => {
   viewAs.mockClear();
   signOut.mockClear();
   onOpenPalette.mockClear();
+  onOpenMore.mockClear();
   // Theme truth resets between tests (the DOM class is the source of truth).
   document.documentElement.classList.remove('dark');
   localStorage.removeItem('theme');
@@ -90,9 +92,11 @@ describe('ContextBar', () => {
     expect(screen.getByRole('button', { name: /notifications, 0 unread/i })).toBeInTheDocument();
   });
 
-  it('UIP-002: the context bar does not render the redundant phone navigation trigger', () => {
+  it('UIP-002: the compact-tablet More control shares the phone drawer trigger contract', () => {
     renderBar();
     expect(screen.queryByRole('button', { name: /open navigation/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^more$/i })).toHaveAttribute('data-drawer-toggle');
+    expect(screen.getByRole('button', { name: /^more$/i }).className).toContain('tablet-nav-more');
   });
 });
 
@@ -219,7 +223,7 @@ describe('ContextBar — unified account menu', () => {
     await waitFor(() => expect(profile).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.tab();
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole('button', { name: /open navigation/i })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole('button', { name: /^more$/i })).toHaveFocus());
     screen.getByRole('button', { name: /account menu/i }).focus();
     await userEvent.keyboard('{Enter}');
     await screen.findByRole('menu');

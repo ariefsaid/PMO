@@ -23,7 +23,7 @@ interface AppShellProps {
   banner?: React.ReactNode;
   /** Account actions shown in the phone navigation drawer. */
   drawerActions?: React.ReactNode;
-  /** Mobile drawer open state (controlled by the shell consumer / phone More button). */
+  /** Shared navigation drawer state (phone More or compact-tablet More). */
   railOpen?: boolean;
   onCloseRail?: () => void;
   /**
@@ -57,7 +57,7 @@ export const MAIN_SCROLL_CLASS = 'main-scroll';
  *
  * C3 Shell Hardening (AC-IXD-MOBILE-W4-C3):
  *  - h-[100dvh] (not h-screen) — avoids the iOS Safari URL-bar viewport jump.
- *  - Mobile rail drawer is a proper modal: role=dialog aria-modal, focus-trap,
+ *  - The responsive More drawer is a proper modal: role=dialog aria-modal, focus-trap,
  *    Esc-to-close, scrim-to-close, visible × button, focus-in-on-open,
  *    focus-restore-to-More-on-close, background inert, body scroll-lock,
  *    safe-area-inset padding.

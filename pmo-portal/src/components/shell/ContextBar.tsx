@@ -8,16 +8,21 @@ import { AccountMenu } from './AccountMenu';
 interface ContextBarProps {
   breadcrumb: BreadcrumbPart[];
   onOpenPalette: () => void;
+  /** Tablet-width entry to the same full navigation drawer used by phone More. */
+  onOpenMore?: () => void;
+  moreOpen?: boolean;
   /** Optional control placed just before the notification bell (the Feedback button, #1532 S9). */
   beforeBell?: React.ReactNode;
 }
 
-/** Top context bar: breadcrumb, ⌘K, notifications, and the single
+/** Top context bar: breadcrumb, the compact-tablet More entry, ⌘K, notifications, and the single
  *  account menu (AC-ACCT-001). All personal/identity/theme/sign-out/legal controls live
  *  in the one responsive AccountMenu; no inline desktop cluster or phone-only menus. */
 export const ContextBar: React.FC<ContextBarProps> = React.memo(function ContextBar({
   breadcrumb,
   onOpenPalette,
+  onOpenMore,
+  moreOpen = false,
   beforeBell,
 }: ContextBarProps) {
   const { t } = useTranslation();
@@ -30,6 +35,19 @@ export const ContextBar: React.FC<ContextBarProps> = React.memo(function Context
       <Breadcrumb parts={breadcrumb} />
 
       <div className="flex-1" />
+
+      {onOpenMore && (
+        <button
+          type="button"
+          aria-label={t('home:nav.more', 'More')}
+          aria-expanded={moreOpen}
+          data-drawer-toggle
+          onClick={onOpenMore}
+          className="tablet-nav-more touch-target min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <Icon name="menu" aria-hidden="true" />
+        </button>
+      )}
 
       <button
         type="button"

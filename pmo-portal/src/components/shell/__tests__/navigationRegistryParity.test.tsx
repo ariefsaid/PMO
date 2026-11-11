@@ -16,7 +16,7 @@ import { NAVIGATION_ORDER } from '../navigationOrder';
  */
 const ALL_ROLES = Object.values(UserRole) as string[];
 
-const CANONICAL_NAV_ORDER = NAVIGATION_ORDER.filter((path) => path !== '/administration');
+const CANONICAL_NAV_ORDER: readonly string[] = NAVIGATION_ORDER.filter((path) => path !== '/administration');
 
 const roleSetOf = (roles: UserRole[] | undefined) => new Set(roles && roles.length ? roles : ALL_ROLES);
 

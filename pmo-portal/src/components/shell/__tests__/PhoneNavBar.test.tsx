@@ -47,6 +47,12 @@ const linkNames = () =>
     .getAllByRole('link')
     .map((a) => a.textContent);
 
+const slotNames = () =>
+  [...screen.getByRole('navigation', { name: 'Phone navigation' }).querySelectorAll('a, button')]
+    .map((element) => element.getAttribute('aria-label') ??
+      element.querySelector('span span')?.textContent?.trim() ??
+      element.querySelector('span')?.textContent?.trim());
+
 beforeEach(() => {
   state.narrow = true;
   state.role = 'Project Manager';
@@ -60,16 +66,16 @@ describe('#2061 phone bottom navigation', () => {
   it.each(['Executive', 'Project Manager', 'Finance', 'Admin'])('%s gets the fixed destinations in order', (role) => {
     state.role = role;
     renderBar();
-    expect(linkNames()).toEqual(role === 'Executive' ? ['Home', 'Approvals'] : ['Home', 'Approvals', 'My Tasks']);
-    expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Phone navigation' }).querySelectorAll('svg')).toHaveLength(role === 'Executive' ? 4 : 5);
+    expect(slotNames()).toEqual(role === 'Executive'
+      ? ['Home', 'Approvals', 'Search', 'More']
+      : ['Home', 'Approvals', 'My Tasks', 'Search', 'More']);
   });
 
   it('gives an Engineer without eligible decisions Home and My Tasks', () => {
     state.role = 'Engineer';
     renderBar();
     expect(linkNames()).toEqual(['Home', 'My Tasks']);
+    expect(slotNames()).toEqual(['Home', 'My Tasks', 'Search', 'More']);
     expect(screen.getByRole('link', { name: 'My Tasks' })).toHaveAttribute('href', '/my-tasks');
     expect(screen.queryByRole('link', { name: 'Approvals' })).not.toBeInTheDocument();
   });
@@ -79,6 +85,7 @@ describe('#2061 phone bottom navigation', () => {
     state.eligibleDecisions = true;
     renderBar();
     expect(linkNames()).toEqual(['Home', 'Approvals', 'My Tasks']);
+    expect(slotNames()).toEqual(['Home', 'Approvals', 'My Tasks', 'Search', 'More']);
   });
 
   it('points Home at the dashboard and Approvals at the shared approval queue', () => {
