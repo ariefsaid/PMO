@@ -1477,7 +1477,6 @@
       "notFoundTitle": "Not found",
       "outstanding": "Outstanding",
       "reference": "Payment reference",
-      "rejectionNote": "Rejected: {{note}}",
       "summary": "Summary"
     },
     "filters": {
@@ -1584,14 +1583,6 @@
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load expenses"
     },
-    "status": {
-      "approved": "Approved",
-      "cancelled": "Cancelled",
-      "draft": "Draft",
-      "paid": "Paid",
-      "rejected": "Rejected",
-      "submitted": "Submitted"
-    },
     "table": {
       "emptyTitle": "No expenses here yet",
       "rowLabel": "Open {{title}}"
@@ -1602,7 +1593,6 @@
       "cancelled": "Cancelled",
       "created": "Created",
       "paid": "Marked paid",
-      "rejected": "Rejected",
       "reopened": "Back to Draft",
       "returned": "Return recorded",
       "submitted": "Submitted for approval"
@@ -3361,9 +3351,7 @@
     },
     "previousWeek": "Previous week",
     "returned": {
-      "revise": "Revise this week",
-      "sub": "Your manager sent this week back. Correct it and resubmit.",
-      "title": "Returned for changes"
+      "revise": "Revise this week"
     },
     "save": "Save",
     "status": {},

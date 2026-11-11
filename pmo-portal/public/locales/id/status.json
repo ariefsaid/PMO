@@ -1,4 +1,8 @@
 {
+  "decision": {
+    "by": "oleh",
+    "reasonUnavailable": "Alasan tidak tersedia"
+  },
   "project": {
     "leads": "Prospek",
     "pqSubmitted": "Pra-kualifikasi diajukan",
@@ -30,7 +34,7 @@
     "draft": "Draf",
     "submitted": "Diajukan",
     "approved": "Disetujui",
-    "rejected": "Ditolak",
+    "rejected": "Dikembalikan",
     "paid": "Dibayar",
     "cancelled": "Dibatalkan"
   },
@@ -54,7 +58,7 @@
     "draft": "Draf",
     "submitted": "Diajukan",
     "approved": "Disetujui",
-    "rejected": "Ditolak"
+    "rejected": "Dikembalikan"
   },
   "task": {
     "toDo": "Akan dikerjakan",

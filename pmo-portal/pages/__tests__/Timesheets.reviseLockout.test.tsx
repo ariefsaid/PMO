@@ -82,7 +82,7 @@ describe('Timesheets revise lockout (W2-8)', () => {
   it('AC-W2-8-03: "Revise this week" button is disabled while reopen is pending', async () => {
     renderPage();
 
-    // The ErrBanner for "returned for changes" should show
+    // The shared Returned banner should show
     const reviseBtn = await screen.findByRole('button', { name: /revise this week/i });
 
     // While reopen.isPending = true, the button must be disabled

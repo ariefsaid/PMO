@@ -1,11 +1,10 @@
-import { RejectionDetails } from '@/src/components/ui/RejectionDetails';
+import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
   Button,
   Card,
   ConfirmDialog,
-  ErrBanner,
   Icon,
   ListState,
   SelectField,
@@ -249,23 +248,19 @@ const TimesheetsPage: React.FC = () => {
       {head}
 
       {/* Returned-for-changes is an expected, recoverable state (role=status). */}
-      {returned && (
-        <ErrBanner
-          title={t('timesheets.returned.title', 'Returned for changes')}
-          sub={t('timesheets.returned.sub', 'Your manager sent this week back. Correct it and resubmit.')}
-          action={
-            canRevise
-              ? {
-                  label: t('timesheets.returned.revise', 'Revise this week'),
-                  onClick: commitReopen,
-                  disabled: reopen.isPending,
-                }
-              : undefined
-          }
+      {(returned || (status === TimesheetStatus.Draft && !!(currentTimesheet?.rejected_at || currentTimesheet?.rejection_reason || currentTimesheet?.rejected_by))) && (
+        <ReturnedBanner
+          record="timesheet"
+          reason={currentTimesheet?.rejection_reason}
+          person={currentTimesheet?.rejecter?.full_name}
+          at={currentTimesheet?.rejected_at}
+          action={canRevise ? {
+            label: t('timesheets.returned.revise', 'Revise this week'),
+            onClick: commitReopen,
+            disabled: reopen.isPending,
+          } : undefined}
         />
       )}
-
-      {(returned || (status === TimesheetStatus.Draft && !!(currentTimesheet?.rejected_at || currentTimesheet?.rejection_reason || currentTimesheet?.rejected_by))) && <RejectionDetails reason={currentTimesheet?.rejection_reason} person={currentTimesheet?.rejecter?.full_name} at={currentTimesheet?.rejected_at} />}
 
       <Card
         clip

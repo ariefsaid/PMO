@@ -3,7 +3,6 @@
   "approvalQueue": {
     "unknownProject": "Unknown Project",
     "approved": "Timesheet approved",
-    "returned": "Timesheet returned",
     "approvedDetail": "{{name}}'s week approved",
     "returnedDetail": "Sent back to {{name}} for changes",
     "approve": "Approve",

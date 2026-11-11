@@ -75,4 +75,9 @@ describe('#1461 — Expense claims ?status= drill', () => {
     expect(filtersSeen.at(-1)).toEqual({});
     expect(screen.getByRole('combobox', { name: /status/i })).toHaveValue('');
   });
+
+  it('names a rejected expense as Returned in the shared status filter', () => {
+    renderExpenses('/expenses');
+    expect(screen.getByRole('option', { name: 'Returned' })).toHaveValue('Rejected');
+  });
 });

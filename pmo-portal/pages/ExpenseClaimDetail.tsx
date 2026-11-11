@@ -1,9 +1,9 @@
-import { RejectionDetails } from '@/src/components/ui/RejectionDetails';
+import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, ListState, RecordHeader, StatusPill } from '@/src/components/ui';
+import { Card, CardHead, CardPad, ListState, RecordHeader, StatusPill, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -17,6 +17,8 @@ import { availableExpenseActions, settlementPreview } from '@/src/lib/expenses/e
 import { approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency } from '@/src/lib/format';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { ExpenseDecisionBar } from './expenses/ExpenseDecisionBar';
 import { ExpenseLinesCard } from './expenses/ExpenseLinesCard';
 import { ExpenseReceiptsCard } from './expenses/ExpenseReceiptsCard';
@@ -38,7 +40,8 @@ const ExpenseClaimDetail: React.FC = () => {
   const linesQuery = useExpenseClaimLines(claimId);
   const routeQuery = useExpenseClaimRoute(claimId, claim?.status);
   const outstandingQuery = useExpenseAdvanceOutstanding(claim?.kind === 'advance' ? claim.id : claim?.advance_id ?? null);
-  const { update } = useExpenseClaimMutations();
+  const { update, transition } = useExpenseClaimMutations();
+  const { toast } = useToast();
   const float = useImprestFloat(claim?.imprest_float_id);
   const projectChoices = useProjectChoices();
   const ownAdvances = useOwnAdvanceOptions(claim?.advance_id ?? null);
@@ -83,6 +86,18 @@ const ExpenseClaimDetail: React.FC = () => {
     && claim.claimant_id !== userId && !actions.includes('approve');
   const amount = Number(claim.amount);
   const paidSplit = settlementPreview(amount, Number(claim.advance_applied));
+  const hasReturnDetails = claim.status === 'Rejected' || (claim.status === 'Draft' && !!(claim.rejected_at || claim.rejection_notes || claim.rejected_by));
+  const canReopenFromBanner = claim.status === 'Rejected' && actions.includes('reopen');
+  const reopenForEditing = async () => {
+    try {
+      await transition.mutateAsync({ id: claim.id, to: 'Draft' });
+      toast(t('expenses.toast.reopened', 'Back to Draft'), claim.title, 'success');
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
+  const returnedToastLabel = statusLabel('expense', 'Rejected', t);
 
   return (
     <div>
@@ -110,6 +125,20 @@ const ExpenseClaimDetail: React.FC = () => {
         }
         menuItems={canEdit ? [{ key: 'edit', label: t('expenses.detail.editDetails', 'Edit details'), onSelect: () => setEditOpen(true) }] : undefined}
       />
+
+      {hasReturnDetails && (
+        <ReturnedBanner
+          record="expense"
+          reason={claim.rejection_notes}
+          person={claim.rejecter?.full_name}
+          at={claim.rejected_at}
+          action={canReopenFromBanner ? {
+            label: t('expenses.actions.reopen', 'Edit and resubmit'),
+            onClick: reopenForEditing,
+            disabled: transition.isPending,
+          } : undefined}
+        />
+      )}
 
       <Card variant="bare" className="mb-4">
         <CardHead>{t('expenses.detail.summary', 'Summary')}</CardHead>
@@ -152,9 +181,6 @@ const ExpenseClaimDetail: React.FC = () => {
             </p>
           )}
           {claim.purpose && <p className="mt-3 text-sm">{claim.purpose}</p>}
-          {(claim.status === 'Rejected' || (claim.status === 'Draft' && !!(claim.rejected_at || claim.rejection_notes || claim.rejected_by))) && (
-            <RejectionDetails reason={claim.rejection_notes ? t('expenses.detail.rejectionNote', 'Rejected: {{note}}', { note: claim.rejection_notes }) : null} person={claim.rejecter?.full_name} at={claim.rejected_at} />
-          )}
         </CardPad>
       </Card>
 
@@ -171,7 +197,7 @@ const ExpenseClaimDetail: React.FC = () => {
         </p>
       )}
 
-      <ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding} />
+      <ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding} hideReopen={canReopenFromBanner} returnedToastLabel={returnedToastLabel} />
 
       {claim.kind === 'claim' && (
         <ExpenseLinesCard claimId={claim.id} lines={linesQuery.data ?? []} isPending={linesQuery.isPending}

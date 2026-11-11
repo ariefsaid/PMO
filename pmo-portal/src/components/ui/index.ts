@@ -74,6 +74,7 @@ export {
   type TimesheetGridProps,
 } from './TimesheetGrid';
 export { ErrBanner, type ErrBannerProps } from './ErrBanner';
+export { ReturnedBanner, type ReturnedBannerProps } from './ReturnedBanner';
 export { ApprovalRow, type ApprovalRowProps } from './ApprovalRow';
 export { ProjectNameLink, type ProjectNameLinkProps } from './ProjectNameLink';
 export { CompanyNameLink, type CompanyNameLinkProps } from './CompanyNameLink';

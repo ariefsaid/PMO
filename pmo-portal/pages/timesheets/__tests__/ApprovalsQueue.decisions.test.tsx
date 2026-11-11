@@ -117,7 +117,7 @@ describe('OE-04 — approve/return from the queue rows', () => {
     await user.type(within(dialog).getByLabelText(/Reason for returning/), 'Friday hours are missing');
     await user.click(within(dialog).getByRole('button', { name: 'Return' }));
     await waitFor(() => expect(rejectMutate).toHaveBeenCalledWith({ id: 's1', notes: 'Friday hours are missing' }, expect.anything()));
-    expect(await findToastAnnouncement('status', /timesheet returned/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('status', 'Returned')).toBeInTheDocument();
     expect(await findToastAnnouncement('status', /Sent back to Dana Report for changes/i)).toBeInTheDocument();
   });
 
@@ -184,7 +184,7 @@ describe('OE-04 — approve/return from the TimesheetApprovalPreview', () => {
     await user.type(within(dialog).getByLabelText(/Reason for returning/), 'Wrong project on Monday');
     await user.click(within(dialog).getByRole('button', { name: 'Return' }));
     await waitFor(() => expect(rejectMutate).toHaveBeenCalledWith({ id: 's1', notes: 'Wrong project on Monday' }, expect.anything()));
-    expect(await findToastAnnouncement('status', /timesheet returned/i)).toBeInTheDocument();
+    expect(await findToastAnnouncement('status', 'Returned')).toBeInTheDocument();
   });
 
   it('inline surface keeps the decisions and shows no policy paragraph', async () => {

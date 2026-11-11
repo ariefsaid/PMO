@@ -24,6 +24,7 @@ import { timesheetActions } from '@/src/lib/db/timesheetTransition';
 import { TimesheetBulkControls, useTimesheetBulkApprove, weekLabel as bulkWeekLabel } from './TimesheetBulkApprove';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { formatNumberExact, formatWeekday } from '@/src/lib/format';
 
 /** Sum a sheet's entry hours (entries are number-normalised at the DAL boundary). */
@@ -98,7 +99,9 @@ function useApprovalDecision() {
   const commit = (reason?: string) => {
     if (!pending) return;
     const mutation = pending.kind === 'approve' ? approve : reject;
-    const okHeadline = pending.kind === 'approve' ? t('timesheets:approvalQueue.approved', 'Timesheet approved') : t('timesheets:approvalQueue.returned', 'Timesheet returned');
+    const okHeadline = pending.kind === 'approve'
+      ? t('timesheets:approvalQueue.approved', 'Timesheet approved')
+      : statusLabel('timesheet', 'Rejected', t);
     const okDetail =
       pending.kind === 'approve'
         ? t('timesheets:approvalQueue.approvedDetail', "{{name}}'s week approved", { name: pending.name })
