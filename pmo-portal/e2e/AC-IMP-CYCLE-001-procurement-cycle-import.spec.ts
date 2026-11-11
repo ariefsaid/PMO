@@ -508,7 +508,13 @@ test(
 
     // ── Step 2: open the cycle import wizard ──────────────────────────────────
     // S19: reveal the existing import tools before opening the wizard.
-    await page.getByRole('button', { name: 'More', exact: true }).click();
+    // Scoped to the page's own header: the rail renders a second button named "More" (its
+    // collapsed nav group), and the route suspends before the header paints — an unscoped
+    // locator clicks the rail group while the page is still loading and finds no import tools.
+    await page
+      .getByTestId('list-page-header')
+      .getByRole('button', { name: 'More', exact: true })
+      .click();
     // E15: button label is "Import cycle data" (not bare "Import cycle")
     const cycleImportBtn = page.getByRole('button', { name: /import cycle data/i });
     await expect(cycleImportBtn).toBeVisible({ timeout: 10_000 });
