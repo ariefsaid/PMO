@@ -2,7 +2,6 @@
   "nav": "Stok",
   "setup": {
     "title": "Pengaturan stok",
-    "description": "Satuan, barang, gudang, dan siapa yang mengelolanya. Data induk yang dipakai seluruh organisasi.",
     "tabsLabel": "Data induk stok",
     "tabs": {
       "units": "Satuan",
@@ -183,7 +182,6 @@
   },
   "onHand": {
     "title": "Persediaan stok",
-    "description": "Isi setiap gudang saat ini. Buka barang untuk melihat riwayatnya.",
     "columns": {
       "item": "Barang",
       "warehouse": "Gudang",
@@ -209,11 +207,11 @@
       "noMatch": "Tidak ada yang cocok",
       "noMatchSub": "Hapus pencarian atau pilih gudang lain.",
       "emptySub": "Terima stok ke gudang dan akan tampil di sini."
-    }
+    },
+    "moreMovements": "Lainnya"
   },
   "documents": {
     "title": "Dokumen stok",
-    "description": "Setiap penerimaan, transfer, pengeluaran, dan pengembalian, terbaru dulu.",
     "columns": {
       "number": "Dokumen",
       "status": "Status",
@@ -280,7 +278,6 @@
   },
   "ledger": {
     "title": "Buku stok",
-    "description": "Setiap posting: siapa, kapan, proyek dan item pekerjaan mana, serta saldo sesudahnya.",
     "columns": {
       "when": "Diposting",
       "occurred": "Tanggal",
@@ -322,12 +319,6 @@
   "form": {
     "unknownKind": "Jenis dokumen tidak dikenal",
     "unknownKindSub": "Gunakan Terima, Transfer, Keluarkan, Kembalikan, Hitung stok, atau Penyesuaian dari halaman Stok.",
-    "intro": {
-      "receive": "Catat barang masuk ke gudang yang Anda kelola.",
-      "transfer": "Pindahkan stok antar dua gudang sekaligus.",
-      "issue": "Keluarkan stok dari gudang ke item pekerjaan proyek.",
-      "return": "Kembalikan stok yang tak terpakai dengan menyebut pengeluarannya."
-    },
     "submit": {
       "receive": "Posting penerimaan",
       "transfer": "Posting transfer",
@@ -385,10 +376,6 @@
     }
   },
   "count": {
-    "intro": {
-      "count": "Hitung yang ada di rak. Jumlah sistem tampil di samping tiap baris.",
-      "adjustment": "Koreksi stok karena rusak, hilang, atau ditemukan, dengan alasan."
-    },
     "sections": {
       "sheet": "Lembar hitung"
     },
@@ -481,7 +468,6 @@
   "issueOverAllowance": "Melebihi jatah: {{workItem}} kini memakai {{used}} dari {{planned}} {{unit}} yang direncanakan. Pengeluaran tetap tercatat; ini penanda, bukan penghalang.",
   "reorder": {
     "title": "Level pemesanan ulang",
-    "description": "Tentukan kapan setiap barang perlu dipesan. Saran dari pemakaian lalu tampil di samping angkanya; tidak ada yang berubah sampai Anda menerimanya atau menyimpan nilai.",
     "panel": {
       "title": "Atur level pemesanan ulang",
       "item": "Barang",

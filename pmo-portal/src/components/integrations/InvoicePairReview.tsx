@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { repositories } from '@/src/lib/repositories';
-import { formatCurrency, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { AcceptedInvoicePair, InvoicePairProposal, UnpairedReason } from '@/src/lib/db/revenue';
 import { Button, ConfirmDialog } from '@/src/components/ui';
 import { externalDomainOwnershipKey } from '@/src/hooks/approvalsQueryKeys';
@@ -124,7 +124,7 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
     }
   };
 
-  const th = 'px-2 py-1.5 text-left text-xs font-medium text-muted-foreground';
+  const th = 'px-2 py-1.5 text-left text-control font-medium text-muted-foreground';
   const td = 'px-2 py-1.5 align-top';
   return (
     <section id='invoice-pairs' className='panel-card mb-[var(--space-panel-gap)] min-w-0 space-y-4 p-[var(--panel-inset)] text-sm' aria-labelledby='invoice-pairs-title'>
@@ -193,7 +193,7 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
           <ul className='mt-2 divide-y divide-border'>
             {stillPmo.map((u) => (
               <li key={u.invoiceId} className='flex flex-wrap justify-between gap-2 py-1.5'>
-                <span>{u.pmoNumber ?? '-'} · {u.customerName ?? '-'} · {u.invoiceDate ? formatDateOnly(u.invoiceDate) : '-'} · {money(u.amount, u.currency)}</span>
+                <span>{u.pmoNumber ?? '-'} · {u.customerName ?? '-'} · {u.invoiceDate ? formatDay(u.invoiceDate) : '-'} · {money(u.amount, u.currency)}</span>
                 <span className='text-muted-foreground'>{reasonText[u.reason]}</span>
               </li>
             ))}

@@ -166,8 +166,7 @@ const StockMovementForm: React.FC = () => {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-4">
-      <h1 className="text-[24px] font-bold tracking-[-0.02em]">{heading}</h1>
-      <p className="mb-4 mt-1 text-sm text-muted-foreground">{t(`form.intro.${kind}`)}</p>
+      <h1 className="text-page font-semibold">{heading}</h1>
 
       {pending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
       {!pending && loadError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retry} />}
@@ -287,7 +286,7 @@ const StockMovementForm: React.FC = () => {
           {!insufficient && <StockError error={submitError} />}
 
           {canSubmit ? (
-            <MobileActionBar className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
+            <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
               <FormActions submitLabel={t(`form.submit.${kind}`)} cancelLabel={t('actions.cancel')} onCancel={() => navigate('/stock/documents')} loading={create.isPending} />
             </MobileActionBar>
           ) : (

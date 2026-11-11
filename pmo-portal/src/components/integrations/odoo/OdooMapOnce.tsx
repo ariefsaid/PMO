@@ -66,7 +66,7 @@ export function OdooMapOnce() {
     return (
       <div key={key} className="min-w-0">
         <SelectField label={label} value={value} onChange={pick(key)} options={options} placeholder={choose} fullWidth />
-        <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+        <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-control text-muted-foreground">
           {stale.has(key) && <StatusPill variant="warn">{t('administration:odoo.mapOnce.attention', 'Needs attention')}</StatusPill>}
           {stale.has(key) && <span>{t('administration:odoo.mapOnce.attentionHint', 'No longer active in Odoo. Choose another.')}</span>}
           {!stale.has(key) && !value && <span>{hint ?? t('administration:odoo.mapOnce.chooseOne', 'Choose one')}</span>}

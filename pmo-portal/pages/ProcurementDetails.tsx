@@ -12,7 +12,8 @@ import {
   CardPad,
   Button,
   Combobox,
-  StatusPill,
+  FigureScope,
+  FigureHiddenLine,
   ListState,
   ConfirmDialog,
   TextArea,
@@ -72,7 +73,8 @@ import { LinkErpDocumentsDialog } from './procurement/LinkErpDocumentsDialog';
 import { DecisionSupportPanel } from './procurement/DecisionSupportPanel';
 import { ProcurementBudgetSignal, ProcurementStageTracker, ProcurementMoneySummary, ProcurementTimeline } from './procurement/detail/ProcurementDetailPanels';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
-import { pillVariantForStatus, stageLabelForStatus, selectedQuotation } from '../components/procurement';
+import { selectedQuotation } from '../components/procurement';
+import { ProcurementStatusPill } from '@/src/components/procurement/ProcurementStatusPill';
 import { stageForStatus } from '@/src/lib/procurement/stage';
 import {
   allowedActions,
@@ -603,6 +605,7 @@ const ProcurementDetails: React.FC = () => {
   ];
 
   return (
+    <FigureScope>
     <div>
       {/* C-IMP-1 (AC-S6-3): BackBar on mobile success render ≤920px.
           The top-bar breadcrumb owns desktop wayfinding (I7); on mobile the rail
@@ -622,19 +625,13 @@ const ProcurementDetails: React.FC = () => {
         statusBelowMetaOnMobile
         status={
           <span data-testid="procurement-status-badge" data-status={p.status}>
-            <StatusPill variant={pillVariantForStatus(p.status)}>
-              {p.status === 'Vendor Invoiced' ? t('procurementRecord:status.invoicedNotPaid', 'Invoiced, not paid')
-                : p.status === 'Vendor Quoted' ? t('procurementRecord:status.quotationReceived', 'Quotation received')
-                  : p.status === 'Quote Selected' ? t('procurementRecord:status.quoteChosen', 'Quote chosen')
-                    : p.status === 'Rejected' ? t('procurementRecord:status.returned', 'Returned')
-                      : stageLabelForStatus(p.status)}
-            </StatusPill>
+            <ProcurementStatusPill status={p.status} />
           </span>
         }
         meta={meta.length ? <span>{meta}</span> : undefined}
         actions={<>
-          {waitingNote && <span className="min-w-0 text-[12px] text-muted-foreground">{waitingNote}</span>}
-          {approverLimitLine && <span className="hidden text-[12px] text-muted-foreground lg:inline">{approverLimitLine}</span>}
+          {waitingNote && <span className="min-w-0 text-sm text-muted-foreground">{waitingNote}</span>}
+          {approverLimitLine && <span className="hidden text-sm text-muted-foreground lg:inline">{approverLimitLine}</span>}
           {!isNarrow && <RecordMenu items={recordMenuItems} label={t('procurementRecord:recordAnother', 'Record another document')} ariaLabel={t('procurementRecord:recordMenu', 'Record another document')} />}
         </>}
         // B4: below 640px the phone action bar owns the one filled main action and the menu.
@@ -643,7 +640,8 @@ const ProcurementDetails: React.FC = () => {
         menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}
       />
 
-      {mutationError && <p role="alert" data-testid="procurement-mutation-error" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-[13px] text-destructive-text">{mutationError}</p>}
+      <FigureHiddenLine className="mb-3 text-control text-muted-foreground" />
+      {mutationError && <p role="alert" data-testid="procurement-mutation-error" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">{mutationError}</p>}
       <div className="space-y-3">
         <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />
         <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer || (stageForStatus(p.status) === 'Request' && p.project_id) ? undefined : <ProcurementBudgetSignal
@@ -662,13 +660,13 @@ const ProcurementDetails: React.FC = () => {
         status={p.status}
         currency={p.currency}
       />}
-      {approverLimitLine && <p className="mt-2 text-[12.5px] font-medium text-muted-foreground">{approverLimitLine}</p>}
-      {decisionContextNote && <p data-testid="sod-ready-hint" className="mb-3 text-[12.5px] text-muted-foreground">{decisionContextNote}</p>}
-      {isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p data-testid="line-items-gate" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>}
-      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement case.")}</p>}
-      {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-[12.5px] text-muted-foreground">{routeNote}</p>}
-      {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-[12px] font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
-        <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
+      {approverLimitLine && <p className="mt-2 text-sm font-medium text-muted-foreground">{approverLimitLine}</p>}
+      {decisionContextNote && <p data-testid="sod-ready-hint" className="mb-3 text-sm text-muted-foreground">{decisionContextNote}</p>}
+      {isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p data-testid="line-items-gate" className="mb-3 text-sm text-muted-foreground">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>}
+      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-sm text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement case.")}</p>}
+      {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-sm text-muted-foreground">{routeNote}</p>}
+      {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-sm font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
+        <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
       </label>}
       {/* Draft-header edit (requester while Draft/Rejected) — opened from the header Edit action */}
       {canEditHeader && headerEditOpen && (
@@ -865,7 +863,7 @@ const ProcurementDetails: React.FC = () => {
       />}
 
       {mainAction && isNarrow && <>
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
+        <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
           <div className="mx-auto flex max-w-3xl gap-2">
             <Button variant="primary" className="min-h-11 flex-1" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
             <RecordMenu items={moreMenuItems} side="top" ariaLabel={t('procurementRecord:moreActions', 'More procurement actions')} triggerClassName="min-h-11" />
@@ -957,6 +955,7 @@ const ProcurementDetails: React.FC = () => {
       />
 
     </div>
+    </FigureScope>
   );
 };
 

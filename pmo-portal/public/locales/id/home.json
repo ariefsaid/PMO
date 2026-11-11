@@ -1,0 +1,52 @@
+{
+  "nav": {
+    "label": "Navigasi ponsel",
+    "home": "Beranda",
+    "approvals": "Persetujuan",
+    "more": "Lainnya",
+    "projects": "Proyek",
+    "finance": "Keuangan",
+    "receivables": "Piutang",
+    "payables": "Utang",
+    "timesheets": "Lembar waktu",
+    "expenses": "Biaya",
+    "administration": "Admin"
+  },
+  "queue": {
+    "title": "Antrean saya",
+    "subtitle": "Tugas Anda dan semua yang menunggu keputusan Anda.",
+    "approvalsTitle": "Menunggu persetujuan Anda",
+    "approvalsCount": "{{count}} menunggu",
+    "openApprovals": "Buka persetujuan",
+    "approvalsEmpty": "Tidak ada yang menunggu keputusan Anda.",
+    "approvalsError": {
+      "title": "Tidak bisa memuat persetujuan Anda",
+      "sub": "Buka persetujuan untuk mencoba lagi antrean."
+    },
+    "tasksTitle": "Tugas Anda",
+    "tasksCount": "{{count}} tugas terbuka",
+    "viewAllTasks": "Lihat semua tugas",
+    "tasksEmpty": "Belum ada tugas yang ditugaskan kepada Anda saat ini.",
+    "tasksError": {
+      "title": "Tidak bisa memuat tugas Anda",
+      "sub": "Coba lagi untuk memperbarui pekerjaan yang ditugaskan."
+    },
+    "noProject": "Tanpa proyek",
+    "due": "Jatuh tempo {{date}}",
+    "overdue": "Terlambat",
+    "moreTasks": "Tampilkan semua {{count}} tugas terbuka",
+    "hours": "{{hours}} jam",
+    "timesheetTitle": "Lembar waktu minggu {{date}}",
+    "invoiceUntitled": "Faktur draf",
+    "context": {
+      "procurement": "Pengadaan · {{vendor}}",
+      "noVendor": "Tanpa vendor",
+      "timesheet": "Lembar waktu · {{name}}",
+      "noName": "Anggota tim",
+      "expense": "Klaim biaya · {{number}}",
+      "noNumber": "Tanpa nomor",
+      "invoice": "Faktur pelanggan · {{customer}}",
+      "noCustomer": "Tanpa pelanggan"
+    }
+  }
+}

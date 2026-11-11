@@ -29,7 +29,7 @@ function AccountDefault({ kind, value, canSet }: { kind: 'advance' | 'prepaid'; 
     <span className="inline-flex flex-wrap items-start gap-2">
       <OdooAccountSelect id={`odoo-${kind}-account`} label={label} hideLabel value={picked || savedId} onChange={setPicked} />
       <Button size="sm" variant="outline" disabled={!picked || picked === savedId} loading={save.isPending} onClick={() => { void submit(picked); }}>{t('administration:odoo.checklist.journalSave', 'Save')}</Button>
-      {failed && <span role="alert" className="text-[12px] text-destructive-text">{t('administration:odoo.checklist.accountFailed', 'The account could not be saved. Try again.')}</span>}
+      {failed && <span role="alert" className="text-control text-destructive-text">{t('administration:odoo.checklist.accountFailed', 'The account could not be saved. Try again.')}</span>}
     </span>
   );
 }
@@ -46,7 +46,7 @@ function JournalDefault({ proposal, canSet }: { proposal: ReturnType<typeof useO
     setFailed(false);
     try { await save.mutateAsync({ default_payment_journal_id: id }); } catch { setFailed(true); }
   };
-  const failure = failed && <span role="alert" className="text-[12px] text-destructive-text">{t('administration:odoo.checklist.journalFailed', 'The journal could not be saved. Try again.')}</span>;
+  const failure = failed && <span role="alert" className="text-control text-destructive-text">{t('administration:odoo.checklist.journalFailed', 'The journal could not be saved. Try again.')}</span>;
   if (j.state === 'set') return j.current ? <span className="text-muted-foreground">{j.current.name}</span> : null;
   if (j.state === 'none') return <span className="text-muted-foreground">{t('administration:odoo.checklist.journalNone', 'No bank or cash journal has been read from Odoo yet.')}</span>;
   if (!canSet) return null;
@@ -163,7 +163,7 @@ export function OdooSetupChecklist() {
               <span className="font-medium text-foreground">{s.name}</span>{' '}
               <span className="text-muted-foreground">{s.done ? '' : s.hint}</span>{s.extra && <span className="mt-1 block">{s.extra}</span>}
             </span>
-            <span className={s.done ? 'text-xs font-medium text-success-text' : 'text-xs text-muted-foreground'}>{s.done ? t('administration:odoo.checklist.done', 'Done') : t('administration:odoo.checklist.todo', 'To do')}</span>
+            <span className={s.done ? 'text-control font-medium text-success-text' : 'text-control text-muted-foreground'}>{s.done ? t('administration:odoo.checklist.done', 'Done') : t('administration:odoo.checklist.todo', 'To do')}</span>
           </li>
         ))}
       </ol>

@@ -1,7 +1,4 @@
 {
-  "pages/admin/CostAttribution.tsx": {
-    "date-fns-format": 1
-  },
   "src/components/reui/event-calendar/event-calendar-agenda-view.tsx": {
     "date-fns-format": 2
   },

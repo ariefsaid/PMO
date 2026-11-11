@@ -1,9 +1,8 @@
 import { Avatar } from '@/src/components/ui/Avatar';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, Icon, Tooltip } from '@/src/components/ui';
-import { formatCalendarDayInTimeZone, formatCurrency, formatNumber, formatWeekdayMonthDay } from '@/src/lib/format';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { Card, CardHead, CardPad, Icon, useFigureReport, type HiddenFigure } from '@/src/components/ui';
+import { formatCurrency, formatDay, formatNumber } from '@/src/lib/format';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
@@ -32,16 +31,8 @@ const typeLabel: Record<LedgerRow['type'], string> = {
 
 function showDate(value: string | null | undefined, missing = 'Date not recorded'): string {
   if (!value) return missing;
-  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
-  const instant = new Date(dateOnly ? `${value}T00:00:00Z` : value);
-  if (Number.isNaN(instant.getTime())) return missing;
-  const calendarDate = dateOnly ? value : formatCalendarDayInTimeZone(instant, getActiveLocale().timezone);
-  const [year, month, day] = calendarDate.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-  const parts = formatWeekdayMonthDay(date).replace(',', '').split(' ');
-  const [weekday, second, third] = parts;
-  const dayMonth = /^\d+$/.test(second) ? [second, third] : [third, second];
-  return [weekday, ...dayMonth].filter(Boolean).join(' ');
+  const day = formatDay(value);
+  return day === '—' ? missing : day;
 }
 
 function totalAmount(values: readonly (number | string | null | undefined)[]): number | null {
@@ -123,20 +114,22 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
                       ? countLabel
                       : t('stage.countAndAmount', { defaultValue: '{{count}} {{document}} · {{amount}}', count, document, amount: formatCurrency(amount, procurement.currency) });
                   })()
-                : index === current
-                  ? t('stage.startedAt', { defaultValue: 'Started at the {{stage}}', stage: stageLabel.toLowerCase() })
-                  : t('stage.notRecorded', 'Not recorded');
+                : index < current
+                  ? stage.key === 'request'
+                    ? t('money.noPurchaseRequest', 'No purchase request: started at the order')
+                    : t('stage.notRecorded', 'Not recorded')
+                  : '';
             const meta = [date ? showDate(date, t('timeline.dateMissing', 'Date not recorded')) : null, state].filter(Boolean).join(' · ');
             return (
               <li key={stage.key} aria-current={isCurrent ? 'step' : undefined} className="min-w-0">
                 <div>
-                  <span className={`mb-1 block text-[12.5px] font-semibold ${isCurrent ? 'text-foreground' : done ? 'text-success-text' : 'text-muted-foreground'}`}>{stageLabel}</span>
+                  <span className={`mb-1 block text-sm font-semibold ${isCurrent ? 'text-foreground' : done ? 'text-success-text' : 'text-muted-foreground'}`}>{stageLabel}</span>
                   {/* O14: the current stage reads in neutral ink; blue stays reserved for the one main action. */}
                   <span aria-hidden="true" className={`block h-1.5 rounded-full ${partial ? 'bg-secondary' : done ? 'bg-success' : isCurrent ? 'bg-muted-foreground' : 'bg-secondary'}`}>
                     {partial && <span className="block h-full w-1/2 rounded-full bg-success" />}
                   </span>
                 </div>
-                <p className="mt-1 text-[12px] text-muted-foreground">{meta}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{meta}</p>
               </li>
             );
           })}
@@ -170,38 +163,42 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
 
   if (!scopedProjectId) return null;
   if (budget.isPending || committed.isPending || reserved.isPending) {
-    return <span className="text-[12px] font-normal text-muted-foreground">{t('money.budgetLoading', 'Budget signal loading')}</span>;
+    return <span className="text-sm font-normal text-muted-foreground">{t('money.budgetLoading', 'Budget signal loading')}</span>;
   }
   if (budget.isError || committed.isError || reserved.isError) {
-    return <span className="text-[12px] font-normal text-muted-foreground">{t('money.budgetUnavailable', "Couldn't load the project budget")}</span>;
+    return <span className="text-sm font-normal text-muted-foreground">{t('money.budgetUnavailable', "Couldn't load the project budget")}</span>;
   }
-  if (!budget.data) return <span className="text-[12px] font-normal text-muted-foreground">{t('money.noBudget', 'No active project budget')}</span>;
+  if (!budget.data) return <span className="text-sm font-normal text-muted-foreground">{t('money.noBudget', 'No active project budget')}</span>;
 
   if (!currency || !reserved.projectCurrency || !reserved.budgetCurrency ||
       currency !== reserved.projectCurrency || reserved.budgetCurrency !== reserved.projectCurrency) {
-    return <span className="text-[12px] font-normal text-muted-foreground">{t('money.currencyUnavailable', 'Budget comparison unavailable for these currencies')}</span>;
+    return <span className="text-sm font-normal text-muted-foreground">{t('money.currencyUnavailable', 'Budget comparison unavailable for these currencies')}</span>;
   }
 
   let signal;
   try {
     signal = computeBudgetSignal({ budget: budget.data, committed: committed.data ?? 0, reserved: reserved.data ?? 0, totalValue, status, projectCurrency: reserved.projectCurrency, budgetCurrency: reserved.budgetCurrency, requestCurrency: currency });
   } catch {
-    return <span className="text-[12px] font-normal text-muted-foreground">{t('money.amountUnavailable', 'Budget comparison unavailable for these amounts')}</span>;
+    return <span className="text-sm font-normal text-muted-foreground">{t('money.amountUnavailable', 'Budget comparison unavailable for these amounts')}</span>;
   }
   const { available, afterRequest } = signal;
-  const label = t('money.budgetSignal', 'Available {{available}} · after this procurement {{after}}', {
+  // "Available" read as a cash balance; it is the budget less commitments, before actual spend, and says so.
+  const label = t('money.budgetSignal', 'Budget not yet committed {{available}} · {{after}} after this procurement', {
     available: formatCurrency(available, currency),
     after: formatCurrency(afterRequest, currency),
   });
   const otherPositions = [...(reserved.otherCurrencies ?? []), ...(committed.otherCurrencies ?? [])];
   const otherCurrencyNotice = otherPositions.length ? t('money.otherCurrenciesExcluded', ' · Other currencies excluded from comparison') : '';
-  return <Tooltip content={t('money.budgetSignalTooltip', 'Available = project budget less committed and reserved spend. “After this procurement” includes it at its current stage. Source: project budget, committed procurement spend, and reserved procurement spend.')} title={t('money.projectBudget', 'Project budget signal')}>
-    <span tabIndex={0} className="text-[12px] font-normal text-muted-foreground underline decoration-dotted underline-offset-2">{label}{otherCurrencyNotice}</span>
-  </Tooltip>;
+  return <span className="text-control font-normal text-muted-foreground">{label}{otherCurrencyNotice}</span>;
 };
 
 const moneyLabels: Record<ProcurementMoneyKind, string> = {
   requested: 'Requested', ordered: 'Ordered', invoiced: 'Invoiced', paid: 'Paid', unpaid: 'Unpaid',
+};
+
+/** The document a missing figure comes from, so the hidden-figures line cannot be read as the procurement total. */
+const moneySources: Record<ProcurementMoneyKind, string> = {
+  requested: 'purchase request', ordered: 'purchase order', invoiced: 'supplier invoice', paid: 'payment', unpaid: 'invoice balance',
 };
 
 export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = ({ procurement, linkedDocuments, isEngineer, budgetSignal }) => {
@@ -229,57 +226,55 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
   const overdueDays = dueDay != null && dueDay < todayUtc ? Math.floor((todayUtc - dueDay) / 86_400_000) : 0;
 
-  const help = (kind: ProcurementMoneyKind, unknown: boolean, absent: boolean) => {
-    const label = t(`money.${kind}`, moneyLabels[kind]);
-    if (kind === 'requested' && requestedStartedLater) return t('money.noPurchaseRequest', 'No purchase request: started at the order');
-    if (absent) return t('money.noneRecorded', 'None recorded');
-    if (unknown) return t('money.unknown', { defaultValue: '{{figure}} could not be calculated because a source amount is missing. Source: procurement records and linked accounting-system documents.', figure: label });
-    if (kind === 'unpaid') return t('money.unpaidHelp', 'Calculated from invoiced less paid amounts, or from linked accounting-system invoice balances. Source: supplier invoices, payments, and linked accounting-system documents.');
-    return t('money.calculation', { defaultValue: 'Sum of recorded {{figure}} amounts. Source: procurement records and linked accounting-system documents.', figure: label.toLowerCase() });
-  };
+  // A figure with no value is not drawn (never "—" or 0): a source amount that is missing is reported once, in the
+  // page's hidden-figures line; one that simply does not exist yet (nothing ordered, nothing paid) says nothing.
+  const shown = kinds.flatMap<{ kind: ProcurementMoneyKind; hidden: boolean }>((kind) => {
+    const figure = money[kind];
+    const absent = figure.amount == null && !figure.unknown;
+    if (figure.unknown) return [{ kind, hidden: true }];
+    if (absent) return [];
+    // Nothing owed is not a figure either: "Unpaid 0" on a request says nothing.
+    if (kind === 'unpaid' && (figure.amount ?? 0) <= 0) return [];
+    if (kind === 'requested' && requestedStartedLater) return [];
+    return [{ kind, hidden: false }];
+  });
+  useFigureReport(shown.filter((entry) => entry.hidden).map<HiddenFigure>((entry) => ({
+    label: t(`money.${entry.kind}`, moneyLabels[entry.kind]),
+    reason: t('money.sourceMissing', '{{figure}} amount not recorded', { figure: t(`money.source.${entry.kind}`, moneySources[entry.kind]) }),
+  })));
+  const visible = shown.filter((entry) => !entry.hidden);
+  // No figure and no budget line: no empty card.
+  if (visible.length === 0 && !budgetSignal && !isEngineer) return null;
 
   return (
     <Card data-testid="procurement-money-summary">
       <CardHead className="flex flex-wrap items-center gap-x-4 gap-y-1" subline={budgetSignal}>
         <span>{t('money.title', { defaultValue: 'Money · {{currency}}, before tax', currency: procurement.currency })}</span>
       </CardHead>
-      <CardPad>
-        <div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-5">
-          {kinds.map((kind) => {
-            const figure = money[kind];
-            const unknown = figure.unknown;
-            const absent = figure.amount == null && !unknown;
-            const lead = kind === 'unpaid' && !unknown && (figure.amount ?? 0) > 0;
-            const explanation = kind === 'requested' && requestedStartedLater
-              ? t('money.noPurchaseRequest', 'No purchase request: started at the order')
-              : unknown
-                ? t('money.amountMissing', 'Amount not recorded')
-                : absent
-                  ? t('money.noneRecorded', 'None recorded')
-                  : null;
-            return (
-              <div key={kind} className={lead ? 'sm:col-span-1' : ''}>
-                <Tooltip content={help(kind, unknown, absent)} title={`${t(`money.${kind}`, moneyLabels[kind])} calculation`}>
-                  <button type="button" aria-label={`${t(`money.${kind}`, moneyLabels[kind])} calculation`} className="mb-1 inline-flex items-center gap-1 text-left text-[12px] font-semibold text-muted-foreground underline decoration-dotted underline-offset-2">
-                    {t(`money.${kind}`, moneyLabels[kind])} <Icon name="info" className="size-3" />
-                  </button>
-                </Tooltip>
-                <p className={`${lead ? 'text-[20px] font-semibold text-foreground' : 'text-[16px] font-medium text-foreground'} tabular-nums`}>
-                  {unknown || absent ? '—' : formatNumber(Math.round(figure.amount ?? 0))}
-                </p>
-                {explanation && <p className="mt-0.5 text-[12px] text-muted-foreground">{explanation}</p>}
-                {lead && <p className="mt-0.5 text-[12px] text-muted-foreground">{t('money.outstanding', 'Outstanding balance')}</p>}
-                {lead && nextDueDate && <p className={`mt-0.5 text-[12px] ${overdueDays > 0 ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
-                  {overdueDays > 0
-                    ? t('money.overdue', { defaultValue: 'Overdue {{days}} days · due {{date}}', days: overdueDays, date: showDate(nextDueDate) })
-                    : t('money.due', { defaultValue: 'Due {{date}}', date: showDate(nextDueDate) })}
-                </p>}
-              </div>
-            );
-          })}
-        </div>
-        {isEngineer && <p className="mt-4 text-[12.5px] text-muted-foreground">{t('money.financeOnly', 'Invoices and payments are handled by Finance.')}</p>}
-      </CardPad>
+      {visible.length > 0 && (
+        <CardPad>
+          <div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-5">
+            {visible.map(({ kind }) => {
+              const figure = money[kind];
+              const lead = kind === 'unpaid';
+              return (
+                <div key={kind}>
+                  <p className="mb-1 text-control font-medium text-foreground">{t(`money.${kind}`, moneyLabels[kind])}</p>
+                  <p className={`${lead ? 'text-section font-semibold' : 'text-group font-medium'} text-foreground tabular-nums`}>
+                    {formatNumber(Math.round(figure.amount ?? 0))}
+                  </p>
+                  {lead && nextDueDate && <p className={`mt-0.5 text-control ${overdueDays > 0 ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
+                    {overdueDays > 0
+                      ? t('money.overdue', { defaultValue: 'Overdue {{days}} days · due {{date}}', days: overdueDays, date: showDate(nextDueDate) })
+                      : t('money.due', { defaultValue: 'Due {{date}}', date: showDate(nextDueDate) })}
+                  </p>}
+                </div>
+              );
+            })}
+          </div>
+        </CardPad>
+      )}
+      {isEngineer && <p className="px-[var(--panel-inset)] pb-[var(--panel-inset)] text-sm text-muted-foreground">{t('money.financeOnly', 'Invoices and payments are handled by Finance.')}</p>}
     </Card>
   );
 };
@@ -382,20 +377,19 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
     <Card data-testid="procurement-timeline">
       <CardHead
         className="flex-wrap"
-        subline={t('timeline.inDateOrder', 'in date order · missing steps aren’t required by your company')}
-        actions={<button type="button" onClick={onFullHistory} className="shrink-0 text-[12.5px] font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>}
+        actions={<button type="button" onClick={onFullHistory} className="shrink-0 text-sm font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>}
       >
         {t('timeline.title', 'Timeline')}
       </CardHead>
       <CardPad>
         <div role="group" aria-label="Timeline filter" className="mb-3 flex flex-wrap gap-2">
           {(['all', 'financial', 'has-file'] as const).map((value) => (
-            <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={`rounded-md px-2.5 py-1 text-[12px] ${filter === value ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+            <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={`rounded-md px-2.5 py-1 text-sm ${filter === value ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
               {value === 'all' ? t('timeline.all', 'All') : value === 'financial' ? t('timeline.financial', 'Financial') : t('timeline.hasFile', 'Has file')}
             </button>
           ))}
         </div>
-        {visible.length === 0 ? <p className="py-4 text-[13px] text-muted-foreground">{t('timeline.empty', 'No activity recorded yet.')}</p> : (
+        {visible.length === 0 ? <p className="py-4 text-sm text-muted-foreground">{t('timeline.empty', 'No activity recorded yet.')}</p> : (
           <ol className="divide-y divide-border/70">
             {visible.map((entry) => (
               <li key={entry.id} data-testid="procurement-timeline-row" className="py-2.5 first:pt-0 last:pb-0">
@@ -404,10 +398,10 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                     <span aria-hidden="true" className={`grid size-5 place-items-center rounded-full ${entry.source === 'accounting-system' ? 'bg-violet/10 text-status-violet-text' : entry.approval ? 'bg-success/10 text-success-text' : 'bg-secondary text-secondary-foreground'}`}>
                       <Icon name={entry.icon} className="size-3.5" />
                     </span>
-                    <span className="whitespace-nowrap text-[12px] text-muted-foreground max-[640px]:col-start-2 max-[640px]:row-start-1">{showDate(entry.date, t('timeline.dateMissing', 'Date not recorded'))}</span>
+                    <span className="whitespace-nowrap text-sm text-muted-foreground max-[640px]:col-start-2 max-[640px]:row-start-1">{showDate(entry.date, t('timeline.dateMissing', 'Date not recorded'))}</span>
                     <span className="min-w-0 max-[640px]:col-start-2">
-                      <span className="block text-[13.5px] font-medium">{entry.label}{entry.number ? <span className="ml-1 font-mono text-[12px]">{entry.number}</span> : null}</span>
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
+                      <span className="block text-sm font-medium">{entry.label}{entry.number ? <span className="ml-1 font-mono text-sm">{entry.number}</span> : null}</span>
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                         {entry.actor && <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                           <Avatar name={entry.actor} size="xs" decorative fallback="" />
                           <span>{entry.actor}</span>
@@ -419,13 +413,11 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                     </span>
                     {entry.amount != null && entry.currency && !isEngineer && (
                       <span className="text-right max-[640px]:col-start-3 max-[640px]:row-start-1">
-                        <Tooltip content={`Amount on this ${entry.label.toLowerCase()}. Source: ${entry.source === 'accounting-system' ? 'linked accounting-system document' : 'procurement record'}.`}>
-                          <span tabIndex={0} className="whitespace-nowrap text-[12.5px] font-medium tabular-nums">{formatCurrency(Number(entry.amount), entry.currency)}</span>
-                        </Tooltip>
+                        <span className="whitespace-nowrap text-sm font-medium tabular-nums">{formatCurrency(Number(entry.amount), entry.currency)}</span>
                       </span>
                     )}
                   </summary>
-                  <div className="ml-[128px] mt-2 border-l border-border pl-3 text-[12.5px] text-muted-foreground max-[640px]:ml-8">
+                  <div className="ml-[128px] mt-2 border-l border-border pl-3 text-sm text-muted-foreground max-[640px]:ml-8">
                     {entry.erp && <dl className="mb-2 grid grid-cols-2 gap-x-4 gap-y-1"><dt>{t('details.supplier', 'Supplier')}</dt><dd>{entry.erp.supplier ?? '—'}</dd><dt>{t('timeline.status', 'Status')}</dt><dd>{entry.erp.erpStatus ?? '—'}</dd><dt>{t('timeline.dueDate', 'Due date')}</dt><dd>{showDate(entry.erp.dueDate, t('timeline.dateMissing', 'Date not recorded'))}{entry.overdueDays ? ` · ${t('timeline.overdue', { defaultValue: 'Overdue {{days}} days', days: entry.overdueDays })}` : ''}</dd></dl>}
                     {entry.ledger && <>
                       {entry.ledger.groupRef && <p>Group ref · {entry.ledger.groupRef}</p>}

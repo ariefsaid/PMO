@@ -142,19 +142,16 @@ export default function OrgVendorTaxAccounts() {
     : binding.isError
       ? null
       : !hasActiveBinding
-      ? t('uxs11.bindingRequired', 'An active ERPNext organization connection is needed to load these choices. Ask your accounting administrator to review the connection.')
+      ? t('uxs11.bindingRequired', 'An active ERPNext connection is needed to load these choices.')
       : catalogue.isPending
         ? t('uxs11.loadingAccounts', 'Loading chart accounts…')
         : null;
 
   return (
     <section aria-labelledby="vendor-tax-accounts-heading">
-      <h2 id="vendor-tax-accounts-heading" tabIndex={-1} className="scroll-mt-4 text-[15px] font-semibold">
+      <h2 id="vendor-tax-accounts-heading" tabIndex={-1} className="scroll-mt-4 text-group font-semibold">
         {t('uxs11.vendorTaxHeading', 'Supplier bill tax accounts')}
       </h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
-        {t('uxs11.vendorTaxIntro', 'Choose the company-chart accounts used for input VAT and tax withheld from supplier bills. Input VAT candidates use Asset accounts; PPh payable candidates use Liability accounts.')}
-      </p>
       <div className="mt-3 max-w-md">
         {query.isError ? (
           <ListState variant="error" title={t('uxs11.vendorTaxLoadError', "Couldn't load the tax accounts")} onRetry={() => void query.refetch()} />
@@ -170,7 +167,7 @@ export default function OrgVendorTaxAccounts() {
             className="space-y-3"
           >
             {remoteChanged && (
-              <div role="status" className="rounded-md bg-secondary px-3 py-2 text-[13px] text-secondary-foreground">
+              <div role="status" className="rounded-md bg-secondary px-3 py-2 text-control text-secondary-foreground">
                 <p>{t('uxs11.vendorTaxRemoteChanged', 'The saved accounts changed. Your edits are kept; reload the saved values to discard them.')}</p>
                 <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => {
                   const remote = query.data;
@@ -182,8 +179,8 @@ export default function OrgVendorTaxAccounts() {
                 }}>{t('uxs11.reloadSaved', 'Reload saved values')}</Button>
               </div>
             )}
-            {commonStatus && <p role="status" className="text-[13px] text-muted-foreground">{commonStatus}</p>}
-            {binding.isError && <div role="status" className="space-y-2 text-[13px] text-muted-foreground"><p>{t('uxs11.bindingLoadError', "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.")}</p><Button type="button" variant="outline" size="sm" onClick={() => void binding.refetch()}>{t('uxs11.retryBinding', 'Check setup again')}</Button></div>}
+            {commonStatus && <p role="status" className="text-control text-muted-foreground">{commonStatus}</p>}
+            {binding.isError && <div role="status" className="space-y-2 text-control text-muted-foreground"><p>{t('uxs11.bindingLoadError', "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.")}</p><Button type="button" variant="outline" size="sm" onClick={() => void binding.refetch()}>{t('uxs11.retryBinding', 'Check setup again')}</Button></div>}
             {hasActiveBinding && catalogue.isError && <ListState variant="error" title={t('uxs11.catalogueLoadError', "Couldn't load chart accounts")} onRetry={() => void catalogue.refetch()} />}
             {fields.map((field) => {
               const value = values[field.key];
@@ -216,13 +213,13 @@ export default function OrgVendorTaxAccounts() {
                     clearable={Boolean(value && !mutation.isPending)}
                     loadOptions={loadOptions[field.purpose]}
                     noun={t('uxs11.accountNoun', 'account')}
-                    placeholder={t('uxs11.accountPlaceholder', 'Choose an account')}
+                    placeholder={t('uxs11.accountPlaceholder', 'Choose…')}
                     searchPlaceholder={t('uxs11.accountSearch', 'Search account name or number')}
                     disabled={mutation.isPending || !canBrowse}
                     error={isUnavailableDraftChoice ? t('v024Polish.accountDraftUnavailable', 'This unsaved choice is no longer available in the current chart. Choose another account or clear this field.') : undefined}
                   />
-                  {savedUnavailableCopy && <p className="text-[13px] text-muted-foreground">{savedUnavailableCopy}</p>}
-                  {canBrowse && fieldCandidates.length === 0 && <p className="text-[13px] text-muted-foreground">{t(field.emptyKey, field.empty)}</p>}
+                  {savedUnavailableCopy && <p className="text-control text-muted-foreground">{savedUnavailableCopy}</p>}
+                  {canBrowse && fieldCandidates.length === 0 && <p className="text-control text-muted-foreground">{t(field.emptyKey, field.empty)}</p>}
                 </div>
               );
             })}
@@ -233,12 +230,12 @@ export default function OrgVendorTaxAccounts() {
           </form>
         ) : (
           <>
-            <dl className="space-y-1 text-[13px]">
+            <dl className="space-y-1 text-control">
               <div><dt className="inline text-muted-foreground">{t('uxs11.inputVatLabel', 'Input VAT account')}: </dt><dd className="inline">{current?.inputVatAccount ?? notConfigured}</dd></div>
               <div><dt className="inline text-muted-foreground">{t('uxs11.pph23Label', 'PPh 23 payable account')}: </dt><dd className="inline">{current?.pph23PayableAccount ?? notConfigured}</dd></div>
               <div><dt className="inline text-muted-foreground">{t('uxs11.pph42Label', 'PPh 4(2) payable account')}: </dt><dd className="inline">{current?.pph42PayableAccount ?? notConfigured}</dd></div>
             </dl>
-            <p className="mt-2 text-[13px] text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</p>
+            <p className="mt-2 text-control text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</p>
           </>
         )}
       </div>

@@ -2,12 +2,12 @@ import React, { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, DataTable, ListPage, ListState, SelectField, StatusPill, TextField, type Column } from '@/src/components/ui';
-import { StockTabs } from '@/src/components/stock/StockTabs';
+import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { useStockItems, useStockLedger, useStockWarehouses } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import { formatDate, formatDateTime } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import type { StockLedgerRow } from '@/src/lib/db/stockReports';
 
 /** The stock trace: every posting with who, when, project, work item and the running balance (FR-STK-041). */
@@ -35,27 +35,27 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
 
   const columns: Column<StockLedgerRow>[] = useMemo(() => {
     const cols: Column<StockLedgerRow>[] = [
-      { key: 'when', header: t('ledger.columns.when'), cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatDateTime(new Date(r.postedAt))}</span>, exportValue: (r) => r.postedAt },
-      ...(embedded ? [] : [{ key: 'occurred', header: t('ledger.columns.occurred'), colClassName: 'hidden 2xl:table-cell', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatDate(r.occurredOn)}</span>, exportValue: (r) => r.occurredOn} as Column<StockLedgerRow>]),
+      { key: 'when', header: t('ledger.columns.when'), cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatDay(r.postedAt)}</span>, exportValue: (r) => r.postedAt },
+      ...(embedded ? [] : [{ key: 'occurred', header: t('ledger.columns.occurred'), colClassName: 'hidden 2xl:table-cell', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatDay(r.occurredOn)}</span>, exportValue: (r) => r.occurredOn} as Column<StockLedgerRow>]),
       {
         key: 'doc', header: t('ledger.columns.document'), rowHeader: true,
         cell: (r) => (
           <div className="min-w-0">
             <Link to={`/stock/documents/${r.documentId}`} className="block truncate font-mono text-sm font-semibold hover:underline">{r.documentNumber}</Link>
-            <span className="block truncate text-xs text-muted-foreground">{t(`kinds.${r.kind}`, r.kind)}</span>
+            <span className="block truncate text-sm text-muted-foreground">{t(`kinds.${r.kind}`, r.kind)}</span>
           </div>
         ),
         exportValue: (r) => r.documentNumber,
       },
       {
         key: 'item', header: t('ledger.columns.item'),
-        cell: (r) => (<div className="min-w-0"><span className="block truncate font-mono text-sm">{r.itemCode}</span><span className="block truncate text-xs text-muted-foreground">{r.itemName}</span></div>),
+        cell: (r) => (<div className="min-w-0"><span className="block truncate font-mono text-sm">{r.itemCode}</span><span className="block truncate text-sm text-muted-foreground">{r.itemName}</span></div>),
         exportValue: (r) => r.itemCode,
       },
       { key: 'warehouse', header: t('ledger.columns.warehouse'), cell: (r) => <span className="text-sm">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
       {
         key: 'project', header: t('ledger.columns.project'), colClassName: 'hidden lg:table-cell',
-        cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block truncate text-sm">{r.projectName}</span><span className="block truncate text-xs text-muted-foreground">{r.boqItemCode ?? ''}</span></div>) : <span className="text-muted-foreground">–</span>),
+        cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block truncate text-sm">{r.projectName}</span><span className="block truncate text-sm text-muted-foreground">{r.boqItemCode ?? ''}</span></div>) : null),
         exportValue: (r) => r.projectName ?? '',
       },
       {
@@ -95,7 +95,7 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
               <Button variant="outline" loading={ledger.isFetchingNextPage} onClick={() => void ledger.fetchNextPage()}>{t('ledger.loadMore')}</Button>
             </div>
           )}
-          {!ledger.hasNextPage && <p className="mt-3 text-center text-xs text-muted-foreground">{t('ledger.end', { count: rows.length })}</p>}
+          {!ledger.hasNextPage && <p className="mt-3 text-center text-sm text-muted-foreground">{t('ledger.end', { count: rows.length })}</p>}
         </>
       )}
     </>
@@ -106,9 +106,9 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
     <ListPage
       title={t('ledger.title')}
       count={ledger.data ? rows.length : undefined}
-      description={t('ledger.description')}
-      filters={
-        <div className="flex flex-wrap items-end gap-3">
+    >
+      <StockTabs />
+      <StockFilters>
           <SelectField label={t('ledger.filters.item')} hideLabel value={itemId} onChange={(v) => set('item', v)}
             options={(items.data ?? []).map((i) => ({ value: i.id, label: `${i.code} - ${i.name}` }))} placeholder={t('ledger.filters.allItems')} />
           <SelectField label={t('ledger.filters.warehouse')} hideLabel value={warehouseId} onChange={(v) => set('warehouse', v)}
@@ -116,10 +116,7 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
           <TextField label={t('ledger.filters.from')} type="date" value={from} onChange={(v) => set('from', v)} />
           <TextField label={t('ledger.filters.to')} type="date" value={to} onChange={(v) => set('to', v)} />
           {documentId && <StatusPill variant="neutral">{t('ledger.filters.oneDocument')}</StatusPill>}
-        </div>
-      }
-    >
-      <StockTabs />
+      </StockFilters>
       {body}
     </ListPage>
   );

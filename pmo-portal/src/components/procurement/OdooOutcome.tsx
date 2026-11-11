@@ -37,7 +37,7 @@ export const OdooOutcome: React.FC<{ outcome: Outcome; quiet?: boolean }> = ({ o
   const sent = (cls === 'pending' && !approval) || cls === 'held' || cls === 'refused';
   if (quiet && cls === 'confirmed') {
     return (
-      <span data-testid="odoo-outcome" data-outcome={cls} className="text-[12px] text-muted-foreground">
+      <span data-testid="odoo-outcome" data-outcome={cls} className="text-sm text-muted-foreground">
         {t('odoo.outcome.confirmed', LABEL.confirmed)}{asOf ? ` · ${t('odoo.outcome.read', 'Read {{age}}', { age: formatRelativeTime(asOf) })}` : ''}
       </span>
     );
@@ -48,16 +48,16 @@ export const OdooOutcome: React.FC<{ outcome: Outcome; quiet?: boolean }> = ({ o
         {approval ? t('odoo.outcome.approval', 'Waiting for approval in Odoo') : t(`odoo.outcome.${LABEL_KEY[cls]}`, LABEL[cls])}
       </StatusPill>
       {asOf && (
-        <span className="text-[12px] text-muted-foreground">
+        <span className="text-sm text-muted-foreground">
           {sent ? t('odoo.outcome.sent', 'Sent {{age}}', { age: formatRelativeTime(asOf) }) : t('odoo.outcome.read', 'Read {{age}}', { age: formatRelativeTime(asOf) })}
         </span>
       )}
       {reasonKey && (
-        <span data-testid="odoo-outcome-reason" className="text-[12px] text-foreground">
+        <span data-testid="odoo-outcome-reason" className="text-sm text-foreground">
           {t(`odoo.outcome.reason.${reasonKey}`, DEFAULT_REASON[reasonKey])}
         </span>
       )}
-      {next && <span data-testid="odoo-outcome-next" className="text-[12px] text-muted-foreground">{t(`odoo.outcome.next.${nextKey}`, next)}</span>}
+      {next && <span data-testid="odoo-outcome-next" className="text-sm text-muted-foreground">{t(`odoo.outcome.next.${nextKey}`, next)}</span>}
     </span>
   );
 };

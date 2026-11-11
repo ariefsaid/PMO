@@ -199,10 +199,10 @@ describe('Procurement index — IA-3 (real data)', () => {
     renderPage('/procurement?tab=all');
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
     const row = screen.getByRole('row', { name: /Workstations & AV/ });
-    // Four user-facing stages (Request · Order · Receive · Pay): an approved request is still at Request.
-    expect(within(row).getByText('Request')).toBeInTheDocument();
+    // One status name everywhere: a procurement collecting quotes reads "Supplier quote".
+    expect(within(row).getByText('Supplier quote')).toBeInTheDocument();
     expect(within(row).getByText('Choose a quote')).toBeInTheDocument();
-    expect(within(row).getByRole('button', { name: 'Expand procurement details' })).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: /^Open Workstations/ })).toBeInTheDocument();
     // The stage + next step carry the state; the row does not repeat a lifecycle pip strip.
     expect(within(row).queryByRole('list', { name: /Lifecycle:/i })).not.toBeInTheDocument();
   });

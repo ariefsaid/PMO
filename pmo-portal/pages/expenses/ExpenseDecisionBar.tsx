@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DecisionContextSummary, ReasonDialog, TextArea, TextField, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, DecisionContextSummary, MobileDecisionBar, ReasonDialog, TextArea, TextField, useToast, type MobileDecisionAction } from '@/src/components/ui';
+import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrencyCents, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -21,6 +22,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
   const { t } = useTranslation();
   const { toast } = useToast();
   const { transition, recordReturn } = useExpenseClaimMutations();
+  const isNarrow = useIsNarrow();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [notes, setNotes] = useState('');
   const [reference, setReference] = useState('');
@@ -50,7 +52,21 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
   const formattedAmount = formatCurrencyCents(Number(claim.amount), claim.currency);
   const decisionContext = <DecisionContextSummary identity={identity} amount={formattedAmount} />;
 
+  // #2061: on a phone the SAME actions render in the sticky bottom bar (same dialogs, same
+  // handlers, same SoD checks) instead of the in-flow row — one placement, never two paths.
+  const barActions: MobileDecisionAction[] = [
+    ...(actions.includes('submit') ? [{ key: 'submit', label: t('expenses.actions.submit', 'Submit for approval'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Submitted', t('expenses.toast.submitted', 'Submitted for approval')) }] : []),
+    ...(actions.includes('reopen') ? [{ key: 'reopen', label: t('expenses.actions.reopen', 'Edit and resubmit'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Draft', t('expenses.toast.reopened', 'Back to Draft')) }] : []),
+    ...(actions.includes('approve') ? [{ key: 'approve', label: t('expenses.actions.approve', 'Approve'), variant: 'primary' as const, onSelect: () => setDialog('approve') }] : []),
+    ...(actions.includes('reject') ? [{ key: 'reject', label: t('expenses.actions.reject', 'Reject'), variant: 'outline' as const, onSelect: () => setDialog('reject') }] : []),
+    ...(actions.includes('pay') ? [{ key: 'pay', label: t('expenses.actions.pay', 'Mark paid'), variant: 'primary' as const, onSelect: () => setDialog('pay') }] : []),
+    ...(actions.includes('recordReturn') ? [{ key: 'recordReturn', label: t('expenses.actions.recordReturn', 'Record cash returned'), variant: 'outline' as const, onSelect: () => setDialog('recordReturn') }] : []),
+    ...(actions.includes('cancel') ? [{ key: 'cancel', label: t('expenses.actions.cancel', 'Cancel'), variant: 'ghost' as const, onSelect: () => setDialog('cancel') }] : []),
+  ];
+
   return (
+    <>
+    {!isNarrow && (
     <div className="mb-4 flex flex-wrap gap-2" data-testid="expense-decision-bar">
       {actions.includes('submit') && (
         <Button variant="primary" disabled={transition.isPending}
@@ -71,6 +87,9 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
         <Button variant="outline" onClick={() => setDialog('recordReturn')}>{t('expenses.actions.recordReturn', 'Record cash returned')}</Button>
       )}
       {actions.includes('cancel') && <Button variant="ghost" onClick={() => setDialog('cancel')}>{t('expenses.actions.cancel', 'Cancel')}</Button>}
+    </div>
+    )}
+    <MobileDecisionBar actions={barActions} context={identity} label={identity} />
 
       <ConfirmDialog
         open={dialog === 'approve'}
@@ -157,6 +176,6 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
         onConfirm={() => void move('Cancelled', t('expenses.toast.cancelled', 'Cancelled'))}
         onCancel={close}
       />
-    </div>
+    </>
   );
 };

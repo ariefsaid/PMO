@@ -75,7 +75,6 @@ export function TaskListMatchReview({
     <EntityFormModal
       open
       title={t('uxs21.reviewTitle', 'Review ClickUp link')}
-      subtitle={t('uxs21.reviewSubtitle', 'Confirm which existing list belongs to this project.')}
       submitLabel={stage === 'selection'
         ? t('uxs21.reviewAction', 'Review link')
         : t('uxs21.confirmAction', 'Confirm ClickUp link')}
@@ -179,7 +178,7 @@ export function TaskListMatchReview({
                 <dt className="text-muted-foreground">{t('uxs21.listLabel', 'ClickUp List')}</dt>
                 <dd className="mt-0.5 break-words font-medium text-foreground">{selectedList?.name}</dd>
                 {selectedList && (
-                  <dd className="break-words text-xs text-muted-foreground">
+                  <dd className="break-words text-control text-muted-foreground">
                     {selectedList.folder_name
                       ? `${selectedList.space_name} / ${selectedList.folder_name}`
                       : selectedList.space_name}

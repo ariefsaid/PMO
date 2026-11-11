@@ -54,12 +54,12 @@ export const M365DefaultLibraryCard: React.FC = () => {
     <Card id="m365-default-library" className="mb-3.5 scroll-mt-4 p-4" data-testid="m365-default-library">
       <div className="flex items-center gap-2">
         <Icon name="folder" aria-hidden="true" />
-        <h3 className="text-[15px] font-semibold text-foreground">
+        <h3 className="text-group font-semibold text-foreground">
           {t('m365Documents.defaultLibrary.heading', 'Default document library')}
         </h3>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        {t('m365Documents.defaultLibrary.description', 'The library the document picker opens in first. It does not give anyone access to its files; Microsoft permissions still apply.')}
+        {t('m365Documents.defaultLibrary.description', 'Opens first in the document picker. Microsoft permissions still apply.')}
       </p>
 
       <div className="mt-3 min-w-0">
@@ -73,12 +73,12 @@ export const M365DefaultLibraryCard: React.FC = () => {
             onRetry={() => void refetch()}
           />
         ) : defaultLibrary ? (
-          <p className="break-words text-[13px] text-foreground" data-testid="m365-default-library-current">
+          <p className="break-words text-control text-foreground" data-testid="m365-default-library-current">
             <span className="text-muted-foreground">{t('m365Documents.defaultLibrary.current', 'Current default:')} </span>
             {`${defaultLibrary.site_name} / ${defaultLibrary.drive_name}`}
           </p>
         ) : (
-          <p className="text-[13px] text-muted-foreground">{t('m365Documents.defaultLibrary.none', 'No default library is set.')}</p>
+          <p className="text-control text-muted-foreground">{t('m365Documents.defaultLibrary.none', 'No default library is set.')}</p>
         )}
       </div>
 
@@ -95,8 +95,8 @@ export const M365DefaultLibraryCard: React.FC = () => {
         </div>
       )}
       {canManage && !connected && !isPending && (
-        <p className="mt-2 text-[12px] text-muted-foreground">
-          {t('m365Documents.defaultLibrary.connectHint', 'Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.')}{' '}
+        <p className="mt-2 text-control text-muted-foreground">
+          {t('m365Documents.defaultLibrary.connectHint', 'Needs your Microsoft 365 connection.')}{' '}
           <Link to="/integrations" className="font-medium text-foreground underline underline-offset-2">
             {t('m365Documents.defaultLibrary.connectLink', 'Open My integrations')}
           </Link>
@@ -112,7 +112,7 @@ export const M365DefaultLibraryCard: React.FC = () => {
           <>
             {t('m365Documents.defaultLibrary.clearDescription', 'The document picker will start from the location chooser. Existing links are not changed.')}
             {clearError && (
-              <span role="alert" className="mt-2 block rounded-md border border-destructive/30 bg-destructive/[0.07] p-2 text-[12px] text-destructive-text">
+              <span role="alert" className="mt-2 block rounded-md border border-destructive/30 bg-destructive/[0.07] p-2 text-control text-destructive-text">
                 <strong className="block">{clearError.headline}</strong>
                 {clearError.detail}
               </span>
@@ -129,12 +129,12 @@ export const M365DefaultLibraryCard: React.FC = () => {
       <Card className="mb-3.5 p-4" data-testid="m365-link-existing-folders-card">
         <div className="flex items-center gap-2">
           <Icon name="folder" aria-hidden="true" />
-          <h3 className="text-[15px] font-semibold text-foreground">
+          <h3 className="text-group font-semibold text-foreground">
             {t('m365Documents.linkFolders.heading', 'Link existing folders to records')}
           </h3>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          {t('m365Documents.linkFolders.description', 'Match folders already in the default library to projects and cases that have none. This links folders only; it never creates one.')}
+          {t('m365Documents.linkFolders.description', 'Links existing folders to projects and cases without one. Creates none.')}
         </p>
         <div className="mt-3">
           <LinkExistingRecordFolders defaultAvailable={Boolean(defaultLibrary)} readFailed={readFailed} />
@@ -193,7 +193,6 @@ function ChooseLibraryModal({ onClose }: { onClose: () => void }) {
     <EntityFormModal
       open
       title={t('m365Documents.defaultLibrary.modalTitle', 'Choose default library')}
-      subtitle={t('m365Documents.defaultLibrary.modalSub', 'Pick a SharePoint site, then one of its document libraries.')}
       submitLabel={t('m365Documents.defaultLibrary.save', 'Save default')}
       disabledReason={t('m365Documents.defaultLibrary.disabledReason', 'Choose a site and a library to save.')}
       onSubmit={(e) => void submit(e)}
@@ -225,7 +224,7 @@ function ChooseLibraryModal({ onClose }: { onClose: () => void }) {
         />
       </FormGrid>
       {loadError && (
-        <p role="status" className="mt-2 text-[12px] text-destructive-text">
+        <p role="status" className="mt-2 text-control text-destructive-text">
           {t('m365Documents.defaultLibrary.browseFailed', 'Microsoft locations could not be loaded. Close this dialog and try again.')}
         </p>
       )}

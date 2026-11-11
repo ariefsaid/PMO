@@ -1,67 +1,6 @@
 {
-  "pages/AdministrationCredits.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/MasterData.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/Procurement.tsx": {
-    "ListPage-description": 1
-  },
   "pages/activity/EditActivityModal.tsx": {
     "EntityFormModal-subtitle": 1
-  },
-  "pages/admin-users/UserForms.tsx": {
-    "EntityFormModal-subtitle": 3
-  },
-  "pages/admin/BudgetAccountMap.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/admin/CostAttributionRuleForm.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/admin/ExpenseAccountMap.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/admin/SpendApprovers.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/equipment/EquipmentAssets.tsx": {
-    "ListPage-description": 1,
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/equipment/EquipmentCostingForm.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/equipment/EquipmentUsage.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/procurement/LinkErpDocumentsDialog.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/procurement/PoVariationModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/procurement/SubcontractAcceptanceModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/procurement/SubcontractLinesEditor.tsx": {
-    "EntityFormModal-subtitle": 2
-  },
-  "pages/stock/StockDocuments.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/stock/StockLedger.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/stock/StockOnHand.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/stock/StockReorder.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/stock/StockSetup.tsx": {
-    "ListPage-description": 1
   },
   "src/components/EfakturModal.tsx": {
     "EntityFormModal-subtitle": 1
@@ -73,21 +12,6 @@
     "EntityFormModal-subtitle": 1
   },
   "src/components/builder/PanelEditorForm.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "src/components/integrations/ConnectCredentialsModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "src/components/integrations/ErpCompanyModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "src/components/integrations/M365DefaultLibraryCard.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "src/components/integrations/TaskListMatchReview.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "src/components/integrations/odoo/OdooConnectionCard.tsx": {
     "EntityFormModal-subtitle": 1
   }
 }

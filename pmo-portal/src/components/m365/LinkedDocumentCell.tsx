@@ -68,12 +68,12 @@ export function LinkedDocumentCell({ reference, title, owner, compact = false, v
 
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <span className="inline-flex min-w-0 items-center gap-1.5 text-[12.5px] font-medium text-foreground">
+      <span className="inline-flex min-w-0 items-center gap-1.5 text-control font-medium text-foreground">
         <Icon name={isFolder ? 'folder' : 'doc'} className="shrink-0 text-muted-foreground" />
         <span className="min-w-0 break-words">{isFolder ? t('m365Documents.cell.folder', '{{place}} folder', { place }) : t('m365Documents.cell.file', '{{place}} file', { place })}</span>
       </span>
-      {!compact && reference.name !== title && <span className="break-words text-[12px] text-muted-foreground">{reference.name}</span>}
-      {project && isFolder && <span data-folder-reference className="break-words text-[12px] text-muted-foreground">{t('m365Documents.referenceOnly', 'Folder reference: contents are not issued or approved')}</span>}
+      {!compact && reference.name !== title && <span className="break-words text-control text-muted-foreground">{reference.name}</span>}
+      {project && isFolder && <span data-folder-reference className="break-words text-control text-muted-foreground">{t('m365Documents.referenceOnly', 'Folder reference: contents are not issued or approved')}</span>}
       {controlled && compact && <DocumentDriftBadge compact status={project.status} driftState={project.drift_state} lastVerifiedAt={project.last_verified_at} checking={verification?.checking} checkFailed={verification?.failed} onRetry={verification?.retry} />}
       <div className="flex min-w-0 flex-wrap items-center gap-1">
         <Button variant="ghost" size="sm" className="min-w-0 whitespace-normal! text-left" aria-label={`${openText}: ${label}`} onClick={openReference}>
@@ -99,15 +99,15 @@ export function LinkedDocumentCell({ reference, title, owner, compact = false, v
         )}
       </div>
       {!compact && isFolder && filesOpen && <LinkedFolderFiles reference={reference} owner={owner} />}
-      {openRefused && <p role="alert" className="text-[12px] text-destructive-text">{t('m365Documents.cell.openRefused', 'This Microsoft link cannot be opened.')}</p>}
+      {openRefused && <p role="alert" className="text-control text-destructive-text">{t('m365Documents.cell.openRefused', 'This Microsoft link cannot be opened.')}</p>}
       {!compact && (
-        <span className="break-words text-[12px] text-muted-foreground">
+        <span className="break-words text-control text-muted-foreground">
           {isFolder
             ? t('m365Documents.cell.accessFolder', 'Opens in Microsoft. Access depends on your Microsoft permissions on this folder.')
             : t('m365Documents.cell.accessFile', 'Opens in Microsoft. Access depends on your Microsoft permissions on this file.')}
         </span>
       )}
-      {!compact && pinnedLabel && <span className="break-words text-[12px] text-muted-foreground">{pinnedLabel}</span>}
+      {!compact && pinnedLabel && <span className="break-words text-control text-muted-foreground">{pinnedLabel}</span>}
       {!compact && controlled && <DocumentDriftBadge status={project.status} driftState={project.drift_state} lastVerifiedAt={project.last_verified_at} checking={verification?.checking} checkFailed={verification?.failed} onRetry={verification?.retry} />}
       {!compact && approved && <ApprovedVersionHistory reference={reference} pinnedVersionId={project.version_id_at_issue} />}
       {versionsOpen && (

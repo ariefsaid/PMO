@@ -10,6 +10,8 @@ import {
   MobileToolbarDisclosure,
   Card,
   Tabs,
+  FigureScope,
+  FigureHiddenLine,
   type Column,
 } from '@/src/components/ui';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
@@ -17,7 +19,8 @@ import { ImportWizard } from '@/src/components/import/ImportWizard';
 import { ProcurementCycleImportWizard } from '@/src/components/import/procurementCycle/ProcurementCycleImportWizard';
 import { makeProcurementImportDescriptor, makeRefLookup } from '@/src/lib/import';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
-import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+import { useProcurementStatusName } from '@/src/components/procurement/useProcurementStatusName';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -30,7 +33,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { trackProcurementDetailOpened, trackFilterApplied, trackEmptyStateSeen } from '@/src/lib/analytics';
 import { ProcurementBlock } from '@/src/components/procurement';
 import { ProcurementKpiRow, type ProcurementTab } from './procurement/list/ProcurementKpiRow';
-import { formatWeekdayMonthDay } from '@/src/lib/format';
+import { formatDay, formatMoneyLines } from '@/src/lib/format';
 import { externalRefsOf, type ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import ProcurementBoard from '../components/ProcurementBoard';
@@ -41,7 +44,7 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { ErpOrphansSection } from './procurement/ErpOrphansSection';
 import { needsYou, type NeedsYouResult } from './procurement/blocks/needsYou';
 import type { StageKey } from '@/src/lib/procurement/stage';
-import { matchesSearch, matchesStage, orphanTotals, shortTotalsLabel, totalsByCurrency, type ProcurementListRole } from '@/src/lib/procurement/listModel';
+import { matchesSearch, matchesStage, orphanTotals, shownAmount, totalsByCurrency, type CurrencyTotal, type ProcurementListRole } from '@/src/lib/procurement/listModel';
 import { ProcurementGroupedView } from './procurement/list/ProcurementGroupedView';
 import { tabId, tabPanelId } from '@/src/components/ui/tabIds';
 
@@ -98,8 +101,17 @@ function reasonCopy(result: NeedsYouResult, t: (key: string, options?: Record<st
     : t('age.days', { count: days, defaultValue: '{{count}} days' });
   if (result.reason === 'approve') return t('needsYou.approve', { age, defaultValue: 'Waiting for your approval · {{age}}' });
   if (result.reason === 'pay') return t('needsYou.pay', { age, defaultValue: 'Unpaid · {{age}} outstanding' });
-  const orderedDate = formatWeekdayMonthDay(result.since);
+  const orderedDate = formatDay(result.since);
   return t('needsYou.receive', { date: orderedDate, age, defaultValue: 'Waiting for receipt · ordered {{date}} · {{age}}' });
+}
+
+/** A tab's money: the home-currency amount first, any other currency after it ("$2.1M + EUR 5.3K"); empty when nothing is recorded. */
+function tabMoney(totals: readonly CurrencyTotal[], home: string): string {
+  const known = totals.flatMap((total) => {
+    const amount = shownAmount(total);
+    return amount === null || amount === 0 ? [] : [{ currency: total.currency, amount }];
+  });
+  return known.length === 0 ? '' : formatMoneyLines(known, home, 'tile').join(' ');
 }
 
 /** The list renders through ProcurementBlock; these columns only describe the export, so they carry no cell. */
@@ -117,7 +129,8 @@ const ProcurementPage: React.FC = () => {
   const { t } = useTranslation('procurementList');
   const navigate = useNavigate();
   const location = useLocation();
-  const statusLabel = useProcurementStatusLabel();
+  const statusLabel = useProcurementStatusName();
+  const home = useOrgCurrency();
   const { realRole } = useEffectiveRole();
   const { currentUser } = useAuth();
   const userId = currentUser?.id;
@@ -334,7 +347,7 @@ const ProcurementPage: React.FC = () => {
   const projectFilterSelect = useMemo(() => (
     <>
       <label className="sr-only" htmlFor="procurement-project-filter">{t('filter.project', 'Project')}</label>
-      <select id="procurement-project-filter" aria-label={t('filter.project', 'Project')} value={projectId} onChange={(event) => updateQuery({ project: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <select id="procurement-project-filter" aria-label={t('filter.project', 'Project')} value={projectId} onChange={(event) => updateQuery({ project: event.target.value || null })} className="h-11 max-w-48 rounded-md border border-input bg-background px-3 text-sm sm:h-9 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <option value="">{t('filter.project', 'Project')}</option>
         {projectFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
@@ -343,7 +356,7 @@ const ProcurementPage: React.FC = () => {
   const supplierFilterSelect = useMemo(() => (
     <>
       <label className="sr-only" htmlFor="procurement-supplier-filter">{t('filter.supplier', 'Supplier')}</label>
-      <select id="procurement-supplier-filter" aria-label={t('filter.supplier', 'Supplier')} value={supplierId} onChange={(event) => updateQuery({ supplier: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <select id="procurement-supplier-filter" aria-label={t('filter.supplier', 'Supplier')} value={supplierId} onChange={(event) => updateQuery({ supplier: event.target.value || null })} className="h-11 max-w-48 rounded-md border border-input bg-background px-3 text-sm sm:h-9 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <option value="">{t('filter.supplier', 'Supplier')}</option>
         {supplierFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
@@ -352,7 +365,7 @@ const ProcurementPage: React.FC = () => {
   const raisedByFilterSelect = useMemo(() => (
     <>
       <label className="sr-only" htmlFor="procurement-raised-by-filter">{t('filter.raisedBy', 'Raised by')}</label>
-      <select id="procurement-raised-by-filter" aria-label={t('filter.raisedBy', 'Raised by')} value={raisedById} onChange={(event) => updateQuery({ raisedBy: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <select id="procurement-raised-by-filter" aria-label={t('filter.raisedBy', 'Raised by')} value={raisedById} onChange={(event) => updateQuery({ raisedBy: event.target.value || null })} className="h-11 max-w-48 rounded-md border border-input bg-background px-3 text-sm sm:h-9 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <option value="">{t('filter.raisedBy', 'Raised by')}</option>
         {raisedByFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
@@ -361,7 +374,7 @@ const ProcurementPage: React.FC = () => {
   const statusFilterSelect = useMemo(() => (
     <>
       <label className="sr-only" htmlFor="procurement-status-filter">{t('filter.status', 'Status')}</label>
-      <select id="procurement-status-filter" aria-label={t('filter.status', 'Status')} value={statusValue} onChange={(event) => changeStatusFilter(event.target.value)} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <select id="procurement-status-filter" aria-label={t('filter.status', 'Status')} value={statusValue} onChange={(event) => changeStatusFilter(event.target.value)} className="h-11 max-w-48 rounded-md border border-input bg-background px-3 text-sm sm:h-9 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
     </>
@@ -396,11 +409,14 @@ const ProcurementPage: React.FC = () => {
     : new Map<string, string>()), [needsYouReasons, tab]);
 
   const title = isEngineer ? t('title.engineer', 'Your procurements') : t('title.default', 'Procurement');
-  const description = isEngineer
-    ? t('description.engineer', 'Track the procurements you raised, from request through payment.')
-    : isProjectManager
-      ? t('description.projectManager', 'Procurements for projects you manage, from request through payment.')
-      : t('description.default', 'Procurements across your organization, from request through payment.');
+  // The page's one help: the definitions that used to sit in per-column and per-tile tooltips.
+  const help = (
+    <dl className="space-y-2">
+      <div><dt className="font-semibold">{t('help.value.term', 'Value')}</dt><dd>{t('help.value.text', 'The latest amount recorded: paid, else supplier invoice, else purchase order, else request. Kept separate by currency.')}</dd></div>
+      <div><dt className="font-semibold">{t('help.stage.term', 'In stage')}</dt><dd>{t('help.stage.text', 'Days since the procurement entered its current stage.')}</dd></div>
+      {!isEngineer && <div><dt className="font-semibold">{t('help.invoiceAge.term', 'Invoice age')}</dt><dd>{t('help.invoiceAge.text', 'Days since the oldest unpaid supplier invoice was dated, or recorded when it has no date.')}</dd></div>}
+    </dl>
+  );
   const primaryAction = (
     <div className="flex shrink-0 items-center gap-2">
       <MobileToolbarDisclosure
@@ -414,7 +430,7 @@ const ProcurementPage: React.FC = () => {
         {userId && canCreate && referencesPending && <div role="status">{t('references.loading', 'Loading references…')}</div>}
         {userId && canCreate && !referencesPending && referencesError && <div role="status">{t('references.error', "Couldn't refresh references.")} <Button variant="outline" onClick={() => void refreshReferences()}>{t('references.retry', 'Retry references')}</Button></div>}
       </MobileToolbarDisclosure>
-      {canCreate && <span className="hidden sm:block"><Button variant="primary" onClick={() => navigate('/procurement/new')}><Icon name="plus" />{t('newProcurement', 'New procurement')}</Button></span>}
+      {canCreate && <span><Button variant="primary" onClick={() => navigate('/procurement/new')}><Icon name="plus" />{t('newProcurement', 'New procurement')}</Button></span>}
     </div>
   );
 
@@ -434,8 +450,8 @@ const ProcurementPage: React.FC = () => {
     [needsYouReasons, tab],
   );
   // O7: the tabs are the one place the scope counts live, so the money they hold rides in the tab label.
-  const needsYouMoney = useMemo(() => shortTotalsLabel(totalsByCurrency(needsYouRows.map(({ row }) => row), realRole as ProcurementListRole, 'needs-you', new Map(needsYouRows.map(({ row, result }) => [row.id, result.reason])))), [needsYouRows, realRole]);
-  const orphanMoney = useMemo(() => (canViewOrphans ? shortTotalsLabel(orphanTotals(orphanRows)) : ''), [canViewOrphans, orphanRows]);
+  const needsYouMoney = useMemo(() => tabMoney(totalsByCurrency(needsYouRows.map(({ row }) => row), realRole as ProcurementListRole, 'needs-you', new Map(needsYouRows.map(({ row, result }) => [row.id, result.reason]))), home), [needsYouRows, realRole, home]);
+  const orphanMoney = useMemo(() => (canViewOrphans ? tabMoney(orphanTotals(orphanRows), home) : ''), [canViewOrphans, orphanRows, home]);
   const tabs: Array<{ key: ProcurementTab; label: string; count: number; money: string }> = useMemo(() => [
     { key: 'needs-you', label: t('tab.needsYou', 'Needs you'), count: needsYouRows.length, money: needsYouMoney },
     { key: 'all', label: t('tab.all', 'All'), count: all.length, money: '' },
@@ -444,14 +460,16 @@ const ProcurementPage: React.FC = () => {
 
   return (
     // L6: the All tab carries the total, so the title has no second count.
+    <FigureScope>
     <ListPage
       title={title}
       count={ready ? (tab === 'orphans' ? orphanRows.length : filtered.length) : undefined}
       total={ready ? (tab === 'orphans' ? orphanRows.length : tabRows.length) : undefined}
-      description={description}
+      help={help}
       primaryAction={primaryAction}
     >
-      <div className="space-y-4 pb-20 sm:pb-0">
+      <div className="space-y-4">
+        <FigureHiddenLine />
         <Tabs
           items={tabs.map(({ key, label, count, money }) => ({ value: key, label, count, detail: money || undefined }))}
           value={tab}
@@ -460,10 +478,6 @@ const ProcurementPage: React.FC = () => {
           idBase="procurement-list-tabs"
           className="mb-0 min-w-0 gap-5 scroll-fade-x"
         />
-
-        {ready && (
-          <ProcurementKpiRow rows={all} role={realRole as ProcurementListRole} />
-        )}
 
         {tab !== 'orphans' && ready && currentView === 'table' && (
           <div className="flex justify-end">
@@ -493,7 +507,7 @@ const ProcurementPage: React.FC = () => {
               >
                 <div className="flex flex-col gap-2">{filterControlsElement}</div>
               </MobileToolbarDisclosure>
-              <span aria-live="polite" className="ml-auto whitespace-nowrap text-[12px] text-muted-foreground">
+              <span aria-live="polite" className="ml-auto whitespace-nowrap text-sm text-muted-foreground">
                 {t(filtered.length === 1 ? 'result.one' : 'result.many', { count: filtered.length, defaultValue: `${filtered.length} ${filtered.length === 1 ? 'result' : 'results'}` })}
               </span>
               <ViewToggle<ProcurementRouteView>
@@ -503,7 +517,7 @@ const ProcurementPage: React.FC = () => {
                 ariaLabel={t('view.label', 'Procurement view')}
               />
             </div>
-            {selectedStageLabel && <div className="flex items-center gap-2 text-[12px] text-muted-foreground">{t('stage.filterActive', { stage: selectedStageLabel, defaultValue: '{{stage}} stage' })}<Button variant="ghost" size="sm" onClick={() => updateQuery({ stage: null })}>{t('clear', 'Clear')}</Button></div>}
+            {selectedStageLabel && <div className="flex items-center gap-2 text-sm text-muted-foreground">{t('stage.filterActive', { stage: selectedStageLabel, defaultValue: '{{stage}} stage' })}<Button variant="ghost" size="sm" onClick={() => updateQuery({ stage: null })}>{t('clear', 'Clear')}</Button></div>}
           </div>
         )}
 
@@ -534,7 +548,7 @@ const ProcurementPage: React.FC = () => {
               variant="empty"
               icon="cart"
               title={isEngineer ? t('empty.engineer.title', "You haven't raised any procurements yet") : t('empty.title', 'No procurements yet')}
-              sub={`${t('empty.sub', 'New procurements will appear here as they are raised.')} ${t('procurement:procurement.empty.scopeNote', 'Purchases recorded only in the accounting system are not listed here.')}`}
+              sub={t('procurement:procurement.empty.scopeNote', 'Purchases recorded only in the accounting system are not listed here.')}
               action={canCreate ? { label: t('newProcurement', 'New procurement'), onClick: () => navigate('/procurement/new') } : undefined}
             />
           )}
@@ -560,6 +574,11 @@ const ProcurementPage: React.FC = () => {
           )}
         </div>
 
+        {/* Position figures come after the rows that wait on the person (screen rule: order). */}
+        {ready && (
+          <ProcurementKpiRow rows={all} role={realRole as ProcurementListRole} />
+        )}
+
         {importKind === 'bulk' && userId && canCreate && <ImportWizard descriptor={importDescriptor} onClose={(didImport) => { setImportKind(null); if (didImport) void refetch(); }} />}
         {importKind === 'cycle' && userId && canCreate && (
           <ProcurementCycleImportWizard
@@ -573,8 +592,8 @@ const ProcurementPage: React.FC = () => {
           />
         )}
       </div>
-      {canCreate && <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 p-3 shadow-sm sm:hidden"><Button variant="primary" className="w-full" onClick={() => navigate('/procurement/new')}><Icon name="plus" />{t('newProcurement', 'New procurement')}</Button></div>}
     </ListPage>
+    </FigureScope>
   );
 };
 

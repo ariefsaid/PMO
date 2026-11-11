@@ -43,7 +43,7 @@ const StockCount: React.FC = () => {
 
 const Shell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="mx-auto w-full max-w-5xl px-4 py-4">
-    <h1 className="mb-4 text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
+    <h1 className="mb-4 text-page font-semibold">{title}</h1>
     <StockTabs />
     {children}
   </div>
@@ -173,8 +173,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-4">
-      <h1 className="text-[24px] font-bold tracking-[-0.02em]">{heading}</h1>
-      <p className="mb-4 mt-1 text-sm text-muted-foreground">{t(`count.intro.${kind}`)}</p>
+      <h1 className="text-page font-semibold">{heading}</h1>
       <StockTabs />
 
       {pending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
@@ -252,7 +251,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
           <StockError error={submitError} />
 
           {canAuthor ? (
-            <MobileActionBar className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
+            <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {!selfPostable && <p className="mr-auto text-sm text-muted-foreground">{t('count.anotherPerson')}</p>}
                 <Button type="button" variant="ghost" onClick={() => navigate('/stock/documents')}>{t('actions.cancel')}</Button>

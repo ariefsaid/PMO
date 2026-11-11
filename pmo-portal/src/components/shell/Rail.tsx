@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -21,6 +21,7 @@ import {
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { useUserViews } from '@/src/hooks/useUserViews';
 import { MODULES, railParentForPath } from './routeMatch';
+import { RailDrawerContext } from './railDrawerContext';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -111,12 +112,36 @@ export const ALL_ITEMS: NavItem[] = [
 
 const GROUP_ORDER: NavItem['group'][] = ['Overview', 'CRM', 'Delivery', 'Finance', 'Workforce'];
 
+/**
+ * Each role's own jobs, shown in the rail at once. Everything else sits under one collapsed
+ * "More" group (open while one of its pages is the current one; the phone drawer lists everything, grouped), so the rail fits 1440×900 without scrolling for every role and nothing is
+ * unreachable. A role whose whole list is at most `FLAT_RAIL_LIMIT` items shows all of it.
+ */
+const RAIL_PRIMARY: Record<UserRole, string[]> = {
+  [UserRole.Executive]: ['/', '/sales', '/projects', '/procurement', '/finance', '/finance/receivables', '/finance/payables'],
+  [UserRole.ProjectManager]: ['/', '/projects', '/procurement', '/timesheets', '/my-tasks'],
+  [UserRole.Finance]: ['/', '/finance', '/finance/receivables', '/finance/payables', '/projects', '/procurement', '/expenses'],
+  [UserRole.Engineer]: ['/', '/projects', '/my-tasks', '/timesheets', '/expenses'],
+  [UserRole.Admin]: ['/', '/projects', '/procurement', '/sales', '/finance', '/finance/receivables', '/finance/payables', '/my-tasks'],
+};
+const FLAT_RAIL_LIMIT = 12;
+
+/** Whether `pathname` is inside the rail item `to` (query ignored; `/` and Finance match exactly). */
+const pathInItem = (pathname: string, to: string): boolean => {
+  const base = to.split('?')[0];
+  if (base === '/' || base.startsWith('/finance')) return pathname === base;
+  return pathname === base || pathname.startsWith(`${base}/`);
+};
+
 /** Maximum number of user-view entries displayed in the rail (OD-7, FR-VR-065). */
 const MAX_NAV_VIEWS = 8;
 
 /** Base classes shared by every nav anchor (primary items + Administration foot). */
 const NAV_LINK_BASE =
   'touch-target flex h-[var(--control-height)] w-full items-center gap-3 rounded-md px-2.5 text-control font-medium [&_svg]:size-5 [&_svg]:shrink-0';
+
+/** Group labels read as groups, not as items: smaller, muted (12px is the floor). */
+const GROUP_LABEL_CLASS = 'px-2.5 pb-1 pt-4 text-support font-medium tracking-[0.04em] text-muted-foreground';
 
 /** The two items that get stage-aware active-state overrides on `/projects/:id`. */
 const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);
@@ -210,6 +235,8 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   // Sourced from the settled `useIsOperator()` projection — never the effective/preview role — so
   // a plain Engineer stays hidden while a genuine Operator gains the entry. Fail-closed (false).
   const isOperator = useIsOperator();
+  const inDrawer = useContext(RailDrawerContext);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   if (!role) return null;
 
@@ -218,6 +245,13 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
       ? role !== null && realRoleValue !== null && i.roles.includes(role) && i.roles.includes(realRoleValue)
       : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
   );
+  const primaryPaths = RAIL_PRIMARY[role];
+  const listed = items.filter((i) => i.to !== '/approvals');
+  const flat = inDrawer || listed.length <= FLAT_RAIL_LIMIT;
+  const primaryItems = flat ? listed : listed.filter((i) => primaryPaths.includes(i.to));
+  const moreItems = flat ? [] : listed.filter((i) => !primaryPaths.includes(i.to));
+  const moreHasCurrent = moreItems.some((i) => pathInItem(location.pathname, i.to) || railParentForPath(location.pathname) === i.to);
+  const moreExpanded = moreOpen || moreHasCurrent;
   // My Views group + the Assistant toggle follow BOTH the entitlement and their deployment kill
   // switch (resolved inside useFeature), not the env flag alone.
   const showMyViews =
@@ -285,6 +319,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     Finance: t('shell.rail.group.finance', 'Finance'),
   };
   const myViewsLabel = t('shell.rail.myViews', 'My Views');
+  const moreLabel = t('home:nav.more', 'More');
   const renderLabel = (item: NavItem) => {
     const label = navLabels[item.to] ?? item.text;
     if (item.to === '/approvals') {
@@ -428,20 +463,38 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         )}
         <div data-rail-scroll-region className="min-h-0 flex-1 overflow-y-auto p-2.5">
           {GROUP_ORDER.map((group) => {
-            const groupItems = items.filter((i) => i.to !== '/approvals' && i.group === group);
+            const groupItems = primaryItems.filter((i) => i.group === group);
             if (groupItems.length === 0) return null;
             return (
               <React.Fragment key={group}>
-                <div className="px-2 pb-1.5 pt-3.5 text-control font-semibold text-muted-foreground">
+                <div className={GROUP_LABEL_CLASS}>
                   {groupLabels[group]}
                 </div>
                 {groupItems.map(renderItem)}
               </React.Fragment>
             );
           })}
+          {moreItems.length > 0 && (
+            <div role="group" aria-label={moreLabel}>
+              <button
+                type="button"
+                aria-expanded={moreExpanded}
+                aria-controls="rail-more-list"
+                onClick={() => setMoreOpen((open) => !open)}
+                disabled={moreHasCurrent}
+                className="mt-2 flex h-[var(--control-height)] w-full items-center gap-3 rounded-md px-2.5 text-control font-semibold text-muted-foreground hover:bg-surface-hover disabled:hover:bg-transparent [&_svg]:size-5 [&_svg]:shrink-0"
+              >
+                <Icon name="chev" className={cn('transition-transform', moreExpanded && 'rotate-90')} />
+                <span>{moreLabel}</span>
+              </button>
+              <div id="rail-more-list" hidden={!moreExpanded}>
+                {moreItems.map(renderItem)}
+              </div>
+            </div>
+          )}
           {showMyViews && (
             <div role="group" aria-label={myViewsLabel}>
-              <div className="px-2 pb-1.5 pt-3.5 text-control font-semibold text-muted-foreground">
+              <div className={GROUP_LABEL_CLASS}>
                 {myViewsLabel}
               </div>
               {myViewsItems.map((view) => (

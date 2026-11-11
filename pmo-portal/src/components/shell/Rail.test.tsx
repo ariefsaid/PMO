@@ -79,11 +79,12 @@ vi.mock('@/src/hooks/useOverdueInvoiceCount', () => ({ useOverdueInvoiceCount: (
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 
 import { Rail } from './Rail';
+import { RailDrawerContext } from './railDrawerContext';
 
 function renderRail() {
   return render(
     <MemoryRouter initialEntries={['/']}>
-      <Rail />
+      <RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider>
     </MemoryRouter>
   );
 }
@@ -148,7 +149,7 @@ describe('#1834 nav-link preload (onPreloadHref)', () => {
     const onPreloadHref = vi.fn();
     render(
       <MemoryRouter initialEntries={['/']}>
-        <Rail onPreloadHref={onPreloadHref} />
+        <RailDrawerContext.Provider value><Rail onPreloadHref={onPreloadHref} /></RailDrawerContext.Provider>
       </MemoryRouter>,
     );
     const link = screen.getByRole('link', { name: 'Procurement' });
@@ -162,7 +163,7 @@ describe('#1834 nav-link preload (onPreloadHref)', () => {
     const onPreloadHref = vi.fn();
     render(
       <MemoryRouter initialEntries={['/']}>
-        <Rail onPreloadHref={onPreloadHref} />
+        <RailDrawerContext.Provider value><Rail onPreloadHref={onPreloadHref} /></RailDrawerContext.Provider>
       </MemoryRouter>,
     );
     fireEvent.pointerOver(screen.getByText('Delivery'));
@@ -176,7 +177,7 @@ describe('timesheet approval navigation', () => {
     roleState.role = 'Engineer';
     eligibility.corrections = [{ id: 'eligible' }];
     const auth = {} as AuthContextValue;
-    const tree = () => <AuthContext.Provider value={auth}><MemoryRouter><Rail /></MemoryRouter></AuthContext.Provider>;
+    const tree = () => <AuthContext.Provider value={auth}><MemoryRouter><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter></AuthContext.Provider>;
     render(tree());
     expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('href', '/approvals');
     act(() => eligibility.update({ corrections: [] }));
@@ -190,7 +191,7 @@ it('keeps the approvals recovery route available when eligibility cannot be load
   roleState.role = 'Engineer';
   eligibility.pendingError = true;
   const auth = { currentUser: { id: 'me', org_id: 'org-1' }, role: 'Engineer' } as AuthContextValue;
-  render(<AuthContext.Provider value={auth}><MemoryRouter><Rail /></MemoryRouter></AuthContext.Provider>);
+  render(<AuthContext.Provider value={auth}><MemoryRouter><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter></AuthContext.Provider>);
   expect(screen.getByRole('link', { name: /approvals/i })).toHaveAttribute('href', '/approvals');
   eligibility.pendingError = false;
   roleState.role = 'Admin';

@@ -319,6 +319,9 @@ vi.mock('@/src/hooks/useTimesheets', () => ({
 }));
 
 import { EngineerDashboard } from '@/src/components/dashboard/EngineerDashboard';
+import { pinHomeLayout } from '@/test/homeLayout';
+
+pinHomeLayout('focused');
 
 const renderEngineer = () =>
   render(

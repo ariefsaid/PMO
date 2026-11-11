@@ -61,14 +61,14 @@ export function RecordFolderAction({ target, hasFolder, onChooseExisting }: Reco
   return (
     <div className="min-w-0 space-y-2" data-testid="record-folder-action">
       {/* Polite, always-mounted live region: progress and success survive the register refetch. */}
-      <p role="status" className={pending || linkedMessage ? 'text-[12.5px] text-muted-foreground' : 'sr-only'}>
+      <p role="status" className={pending || linkedMessage ? 'text-control text-muted-foreground' : 'sr-only'}>
         {pending ? t('status.pending', 'Creating folder…') : (linkedMessage ?? '')}
       </p>
       {!hasFolder && failed && (
         <div
           role="status"
           data-testid="record-folder-failure"
-          className="flex items-start gap-2.5 rounded-lg border border-border bg-muted px-3.5 py-3 text-[13px] text-foreground"
+          className="flex items-start gap-2.5 rounded-lg border border-border bg-muted px-3.5 py-3 text-control text-foreground"
         >
           <Icon name="info" className="mt-px size-[17px] shrink-0 text-muted-foreground" />
           <div className="min-w-0 break-words">
@@ -108,7 +108,7 @@ export function RecordFolderAction({ target, hasFolder, onChooseExisting }: Reco
         </div>
       )}
       {reconnectFailed && (
-        <p role="alert" className="text-[12.5px] text-destructive-text">
+        <p role="alert" className="text-control text-destructive-text">
           {t('error.generic', 'Microsoft could not create or link this folder. Please try again.')}
         </p>
       )}

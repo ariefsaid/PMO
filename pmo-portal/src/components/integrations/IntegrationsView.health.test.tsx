@@ -138,7 +138,7 @@ describe('Health surface (AC-EAC-016 / AC-IRUX-003 / AC-IRUX-004)', () => {
       expect(screen.getByRole('link', { name: 'Review failed updates' })).toHaveAttribute('href', '/projects');
       expect(screen.getByRole('link', { name: 'Review quarantined updates' })).toHaveAttribute('href', '/projects');
       expect(screen.getByRole('link', { name: 'Review held updates' })).toHaveAttribute('href', '/projects');
-      expect(screen.getByText(/not yet verified/i)).toBeInTheDocument();
+      expect(screen.getByText(/not verified yet/i)).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /review connected records/i })).toHaveAttribute('href', '/projects');
     });
 
@@ -156,7 +156,7 @@ describe('Health surface (AC-EAC-016 / AC-IRUX-003 / AC-IRUX-004)', () => {
 
       await waitFor(() => expect(screen.getByText('1 update waiting to send')).toBeInTheDocument());
       expect(screen.queryByText(/Last sync/i)).not.toBeInTheDocument();
-      expect(screen.getByText(/not yet verified/i)).toBeInTheDocument();
+      expect(screen.getByText(/not verified yet/i)).toBeInTheDocument();
     });
 
     it('AC-IRUX-003: one tier’s unavailable health leaves a healthy sibling’s recorded progress legible, with a Retry on the failed card', async () => {
@@ -194,7 +194,7 @@ describe('Health surface (AC-EAC-016 / AC-IRUX-003 / AC-IRUX-004)', () => {
       expect(within(erpnextCard.getByText(/Outbound work status unavailable/i).closest('div')!).getByRole('button', { name: /Retry outbound status/i })).toBeInTheDocument();
       const clickupCard = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
       const clickupHealthWrap = clickupCard.getByText('1 update waiting to send').closest('div')!;
-      expect(clickupHealthWrap).toHaveTextContent(/not yet verified/i);
+      expect(clickupHealthWrap).toHaveTextContent(/not verified yet/i);
     });
 
     it('AC-IRUX-003: a slow ERPNext read does not delay ClickUp outbound status', async () => {
@@ -231,7 +231,7 @@ describe('Health surface (AC-EAC-016 / AC-IRUX-003 / AC-IRUX-004)', () => {
       wrapWithRole('Admin', <IntegrationsView />);
 
       await waitFor(() => expect(screen.getByText('No updates waiting to send')).toBeInTheDocument());
-      expect(screen.getByText(/not yet verified/i)).toBeInTheDocument();
+      expect(screen.getByText(/not verified yet/i)).toBeInTheDocument();
       expect(screen.queryByText(/Last sync/i)).not.toBeInTheDocument();
     });
 
@@ -269,8 +269,9 @@ describe('Health surface (AC-EAC-016 / AC-IRUX-003 / AC-IRUX-004)', () => {
       expect(header).not.toBeNull();
       expect(header!.className).toContain('flex-wrap');
       const status = within(card as HTMLElement).getByText('Connected', { exact: true });
-      expect(status.className).toContain('whitespace-normal');
-      expect(status.className).toContain('max-w-full');
+      // The pill wraps long text instead of widening the card (shared pill: break-words, min-w-0).
+      expect(status.className).toContain('break-words');
+      expect(status.className).toContain('min-w-0');
     });
   })
 });

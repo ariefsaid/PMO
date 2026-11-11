@@ -48,12 +48,10 @@ function parseHave(value: string | null): ProcurementHave | null {
 
 function ProcurementIntake({
   choices,
-  description,
   onChoose,
   lockedChoice = null,
 }: {
   choices: IntakeChoice[];
-  description: string;
   onChoose: (choice: IntakeChoice['value']) => void;
   lockedChoice?: ProcurementHave | null;
 }) {
@@ -61,14 +59,11 @@ function ProcurementIntake({
 
   return (
     <section aria-labelledby="procurement-create-question" className="max-w-3xl">
-      <h1 id="procurement-create-question" className="text-2xl font-semibold">
+      <h1 id="procurement-create-question" className="text-page font-bold tracking-[-0.02em]">
         {t('question', 'What do you have?')}
       </h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {description}
-      </p>
       {lockedChoice && (
-        <p role="status" className="mt-4 text-sm text-muted-foreground">
+        <p role="status" className="mt-4 text-control text-muted-foreground">
           {t('continueAttempt', 'The save may have completed. Continue with the same choice to retry.')}
         </p>
       )}
@@ -83,8 +78,8 @@ function ProcurementIntake({
           >
             <Icon name={choice.icon} className="size-5 shrink-0 text-muted-foreground group-hover:text-foreground" />
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium text-foreground">{choice.title}</span>
-              <span className="mt-0.5 block text-[13px] text-muted-foreground">{choice.description}</span>
+              <span className="block text-control font-medium text-foreground">{choice.title}</span>
+              <span className="mt-0.5 block text-control text-muted-foreground">{choice.description}</span>
             </span>
             <Icon name="chev" className="size-4 shrink-0 text-muted-foreground" />
           </button>
@@ -144,7 +139,7 @@ export default function ProcurementCreate() {
         value: 'need',
         icon: 'plus',
         title: t('choices.need.title', 'A new need'),
-        description: t('choices.need.description', 'Raise a purchase request.'),
+        description: t('choices.need.description', 'Raise a purchase request'),
       },
     ];
     if (!canCaptureDocuments) return standardChoices;
@@ -153,19 +148,19 @@ export default function ProcurementCreate() {
         value: 'order',
         icon: 'cart',
         title: t('choices.order.title', 'An order'),
-        description: t('choices.order.description', 'Record a purchase order you already have.'),
+        description: t('choices.order.description', 'Record an order you already have'),
       },
       {
         value: 'invoice',
         icon: 'invoices',
         title: t('choices.invoice.title', 'A supplier invoice'),
-        description: t('choices.invoice.description', 'Record an invoice that needs tracking.'),
+        description: t('choices.invoice.description', 'Track a supplier invoice'),
       },
       {
         value: 'payment',
         icon: 'payments',
         title: t('choices.payment.title', 'A scheduled payment'),
-        description: t('choices.payment.description', 'Record a payment to a supplier. Finance marks it paid.'),
+        description: t('choices.payment.description', 'Schedule a supplier payment'),
       },
     );
 
@@ -174,7 +169,7 @@ export default function ProcurementCreate() {
         value: 'accounting',
         icon: 'file',
         title: t('choices.accounting.title', 'A document already in the accounting system'),
-        description: t('choices.accounting.description', 'Find documents that are not in a procurement.'),
+        description: t('choices.accounting.description', 'Find documents outside a procurement'),
       });
     }
     return standardChoices;
@@ -262,9 +257,6 @@ export default function ProcurementCreate() {
         <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />
         <ProcurementIntake
           choices={choices}
-          description={canCaptureDocuments
-            ? t('questionDescription', 'Start with a new need or a document already in hand.')
-            : t('choices.need.description', 'Raise a purchase request.')}
           onChoose={choose}
           lockedChoice={attempt?.have ?? null}
         />
@@ -284,14 +276,14 @@ export default function ProcurementCreate() {
   }
 
   const needForm = have === 'need';
-  const draftNotes: Record<ProcurementHave, string> = {
-    need: t('draftNote.need', 'This purchase request remains a draft until you submit it.'),
-    order: t('draftNote.order', 'Add the procurement details, then record the purchase order.'),
-    invoice: t('draftNote.invoice', 'Add the procurement details, then record the supplier invoice.'),
-    payment: t('draftNote.payment', 'Add the procurement details, then record the payment.'),
+  // The consequence of saving sits on the button: a request saves as a draft, a document goes on to record it.
+  const submitLabels: Record<ProcurementHave, string> = {
+    need: t('saveLabel.need', 'Save draft'),
+    order: t('saveLabel.order', 'Save and record order'),
+    invoice: t('saveLabel.invoice', 'Save and record invoice'),
+    payment: t('saveLabel.payment', 'Save and record payment'),
   };
-  const draftNote = draftNotes[have];
-  const submitLabel = t('save', 'Save');
+  const submitLabel = submitLabels[have];
   const submitBusy = saving || create.isPending;
 
   return (
@@ -301,10 +293,7 @@ export default function ProcurementCreate() {
         : <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />}
       <form id="procurement-create-form" onSubmit={submit} noValidate>
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
-          <div>
-            <h1 className="text-2xl font-semibold">{t('heading', 'New procurement')}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{draftNote}</p>
-          </div>
+          <h1 className="text-page font-bold tracking-[-0.02em]">{t('heading', 'New procurement')}</h1>
           <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:static md:ml-auto md:border-0 md:bg-transparent md:p-0">
             <Button type="submit" variant="primary" loading={submitBusy} className="w-full md:w-auto">
               {submitLabel}
@@ -359,7 +348,7 @@ export default function ProcurementCreate() {
             </FormGrid>
           </fieldset>
         </section>
-        {errors.save && <p role="alert" className="mb-4 text-sm text-destructive-text">{errors.save}</p>}
+        {errors.save && <p role="alert" className="mb-4 text-control text-destructive-text">{errors.save}</p>}
         {errors.conflict && attempt && <Button type="button" variant="outline" onClick={() => guardLeave(() => navigate(`/procurement/${attempt.input.id}`))}>{t('openSavedRequest', 'Open saved request')}</Button>}
         {needForm && (
           <fieldset disabled={saving || Boolean(attempt)} className="contents">

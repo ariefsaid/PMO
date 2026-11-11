@@ -72,12 +72,12 @@ export const SubcontractLinesEditor: React.FC<{
   );
   return (
     <EntityFormModal open width="lg" title={t('subcontract.editor.title', 'Set BoQ lines')}
-      subtitle={t('subcontract.editor.subtitle', 'The contract lines this purchase order covers, at the BoQ rate. Saving replaces the draft; issuing freezes it.')}
       submitLabel={t('subcontract.editor.save', 'Save lines')} onSubmit={form.submit} submitError={form.saveError}
       onClose={onClose} loading={form.saving} dirty={Object.values(form.values).some((v) => v !== '')}>
+      <p className="mb-3 text-sm text-muted-foreground">{t('subcontract.editor.subtitle', 'Saving replaces the draft; issuing freezes it.')}</p>
       <FormSection legend={t('subcontract.editor.legend', 'Quantity per line')}>
         {items.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">{t('subcontract.editor.noBoq', 'This project has no BoQ items yet.')}</p>
+          <p className="text-sm text-muted-foreground">{t('subcontract.editor.noBoq', 'This project has no BoQ items yet.')}</p>
         ) : (
           <FormGrid>
             {items.map((item) => (
@@ -89,7 +89,7 @@ export const SubcontractLinesEditor: React.FC<{
             ))}
           </FormGrid>
         )}
-        {form.errors.lines && <p role="alert" className="mt-1 text-[12px] text-destructive-text">{form.errors.lines}</p>}
+        {form.errors.lines && <p role="alert" className="mt-1 text-sm text-destructive-text">{form.errors.lines}</p>}
       </FormSection>
     </EntityFormModal>
   );
@@ -115,9 +115,9 @@ export const SubcontractAttributeModal: React.FC<{
   return (
     <EntityFormModal open width="lg"
       title={t('subcontract.attribute.title', 'Attribute lines to bill {{number}}', { number: invoice.number })}
-      subtitle={t('subcontract.attribute.subtitle', 'This bill of {{amount}} was recorded without line quantities. State what it covers, at the PO rate.', { amount: formatCurrency(invoice.amount, currency) })}
       submitLabel={t('subcontract.attribute.save', 'Attribute lines')} onSubmit={form.submit} submitError={form.saveError}
       onClose={onClose} loading={form.saving} dirty={Object.values(form.values).some((v) => v !== '')}>
+      <p className="mb-3 text-sm text-foreground">{t('subcontract.attribute.subtitle', 'This bill of {{amount}} was recorded without line quantities.', { amount: formatCurrency(invoice.amount, currency) })}</p>
       <FormSection legend={t('subcontract.attribute.legend', 'Quantity billed per line')}>
         <FormGrid>
           {rows.map((r) => (
@@ -130,7 +130,7 @@ export const SubcontractAttributeModal: React.FC<{
               error={form.errors[r.boq_item_id]} localeAware />
           ))}
         </FormGrid>
-        {form.errors.lines && <p role="alert" className="mt-1 text-[12px] text-destructive-text">{form.errors.lines}</p>}
+        {form.errors.lines && <p role="alert" className="mt-1 text-sm text-destructive-text">{form.errors.lines}</p>}
       </FormSection>
     </EntityFormModal>
   );

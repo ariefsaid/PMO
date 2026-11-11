@@ -73,7 +73,7 @@ export function M365BrowseNotice({ code, onRetry, connection, linkedFolder = fal
   return (
     <div className="min-w-0 space-y-2">
       <GateNotice variant="blocked">{messageFor(t, tf, code, linkedFolder)}</GateNotice>
-      {reconnectFailed && <p role="alert" className="text-[12.5px] text-destructive-text">{t('m365Documents.notice.reconnectFailed', 'Could not start the Microsoft 365 reconnect. Try again.')}</p>}
+      {reconnectFailed && <p role="alert" className="text-control text-destructive-text">{t('m365Documents.notice.reconnectFailed', 'Could not start the Microsoft 365 reconnect. Try again.')}</p>}
       <div className="flex flex-wrap gap-2">
         {code === 'NOT_CONNECTED' && (
           <Link

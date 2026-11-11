@@ -210,6 +210,9 @@
   },
   "figures": {
     "hidden_one": "{{count}} figure hidden: {{reason}}",
-    "hidden_other": "{{count}} figures hidden: {{reason}}"
+    "hidden_other": "{{count}} figures hidden: {{reason}}",
+    "hiddenCount_one": "{{count}} figure hidden",
+    "hiddenCount_other": "{{count}} figures hidden",
+    "why": "Why"
   }
 }

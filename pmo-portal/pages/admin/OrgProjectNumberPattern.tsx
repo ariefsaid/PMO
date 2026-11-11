@@ -65,11 +65,11 @@ const OrgProjectNumberPattern: React.FC = () => {
       <p className="mt-1 text-sm text-muted-foreground">
         {t(
           'admin.projectNumberPattern.description',
-          'Format PMO-assigned project numbers. The built-in pattern is PRJ-{YY}-{SEQ4}; a custom pattern must use {CLIENT}, {YY}, and {SEQ4} exactly once each.',
+          'Format of PMO-assigned project numbers. A custom pattern uses {CLIENT}, {YY} and {SEQ4} once each; the default is PRJ-{YY}-{SEQ4}.',
         )}
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
-        {t('admin.projectNumberPattern.immutable', 'This affects future proposals only; existing project numbers do not change.')}
+        {t('admin.projectNumberPattern.immutable', 'Applies to future proposals only.')}
       </p>
       <div className="mt-3 max-w-md">
         {loadFailed ? (
@@ -96,7 +96,7 @@ const OrgProjectNumberPattern: React.FC = () => {
               disabled={mutation.isPending}
             />
             {validation.valid && (previewYear === null ? (
-              <div className="space-y-2 text-[13px] text-muted-foreground" role="status">
+              <div className="space-y-2 text-control text-muted-foreground" role="status">
                 {timezoneReadPending ? (
                   <p>{t('uxCorrectness.projectNumberPattern.timezonePending', 'Checking organisation year…')}</p>
                 ) : (
@@ -109,7 +109,7 @@ const OrgProjectNumberPattern: React.FC = () => {
                 )}
               </div>
             ) : (
-              <p data-testid="org-project-number-pattern-preview" className="text-[13px] text-muted-foreground">
+              <p data-testid="org-project-number-pattern-preview" className="text-control text-muted-foreground">
                 {t('uxs31.projectNumberPattern.preview', 'Preview:')}{' '}
                 <span className="font-mono">{previewProjectNumber(draft, previewYear)}</span>
                 <span className="ml-1.5">

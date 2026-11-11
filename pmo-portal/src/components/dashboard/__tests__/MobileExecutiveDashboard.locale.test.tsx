@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, screen, within } from '@testing-library/react';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { getDashboardHarness, renderCompanyDashboard, resetCompanyDashboardHarness } from '@/test/companyDashboardHarness';
+import { pinHomeLayout } from '@/test/homeLayout';
+
+pinHomeLayout('focused');
 
 const dashboardHarness = getDashboardHarness();
 

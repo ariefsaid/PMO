@@ -11,7 +11,6 @@ import {
   NumberField,
   TextField,
   ListState,
-  SectionHeader,
   useToast,
   useEntityForm,
 } from '@/src/components/ui';
@@ -108,17 +107,15 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
 
   return (
     <div>
-      <SectionHeader
-        title={t('admin.nav.credits', 'Credits')}
-        action={
-          isOperator && (
-            <Button variant="primary" onClick={() => { setSaveError(null); setGrantOpen(true); }}>
-              <Icon name="plus" />
-              {t('admin.credits.grant', 'Grant credits')}
-            </Button>
-          )
-        }
-      />
+      <div className="mb-[var(--space-group)] flex flex-wrap items-center justify-end gap-[var(--space-group)]">
+        <h2 className="sr-only">{t('admin.nav.credits', 'Credits')}</h2>
+        {isOperator && (
+          <Button variant="primary" onClick={() => { setSaveError(null); setGrantOpen(true); }}>
+            <Icon name="plus" />
+            {t('admin.credits.grant', 'Grant credits')}
+          </Button>
+        )}
+      </div>
 
       {balanceQuery.isPending && (
         <div className="rounded-lg border border-border bg-card">
@@ -136,10 +133,10 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
       )}
       {balanceQuery.data !== undefined && (
         <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-          <span className="text-[13px] text-muted-foreground">{t('admin.credits.orgBalance', 'Org balance')}</span>
+          <span className="text-control text-muted-foreground">{t('admin.credits.orgBalance', 'Org balance')}</span>
           <span className="text-[20px] font-bold tabular" data-testid="org-credit-balance">
             {formatNumberExact(balanceQuery.data)}{' '}
-            <span className="text-[13px] font-semibold text-muted-foreground">
+            <span className="text-control font-semibold text-muted-foreground">
               {t('admin.credits.unit', 'credits')}
             </span>
           </span>
@@ -198,7 +195,6 @@ const GrantFormModal: React.FC<{
     <EntityFormModal
       open
       title={t('admin.credits.grant', 'Grant credits')}
-      subtitle={t('admin.credits.form.subtitle', 'Add credits to the org pool. Takes effect immediately.')}
       submitLabel={t('admin.credits.grant', 'Grant credits')}
       onSubmit={handleSubmit}
       submitError={submitError}
@@ -217,7 +213,7 @@ const GrantFormModal: React.FC<{
           onChange={amountField.onChange}
           onBlur={amountField.onBlur}
           error={form.errors.amount}
-          helper={t('admin.credits.form.amountHelper', 'Must be greater than zero.')}
+          helper={t('admin.credits.form.amountHelper', 'Added to the org pool at once.')}
           fullWidth
         />
         <TextField

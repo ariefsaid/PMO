@@ -80,16 +80,18 @@ describe('AC-PLN-013 — Your plan is read-only', () => {
     expect(screen.getByText('10')).toBeInTheDocument();
     expect(screen.getByText('25')).toBeInTheDocument();
     expect(screen.getByText('300')).toBeInTheDocument();
-    // Three limit tiles, each honest about usage not being metered yet (S5 owns the meters).
-    expect(screen.getAllByText(/usage not tracked yet/i)).toHaveLength(3);
+    // One honest line for all three limits: usage is not metered yet (S5 owns the meters).
+    expect(screen.getAllByText(/usage not tracked yet/i)).toHaveLength(1);
   });
 
   it('AC-PLN-013: lists which switches are on, from the resolved set', async () => {
     renderPage();
-    const crmRow = (await screen.findByText('CRM (Sales Pipeline, Companies, Contacts)')).closest('li') as HTMLElement;
-    expect(within(crmRow).getByText('On')).toBeInTheDocument();
-    const stockRow = screen.getByText('Stock').closest('li') as HTMLElement;
-    expect(within(stockRow).getByText('Off')).toBeInTheDocument();
+    // On is plain text (read as ": On"); only an Off feature carries a mark, so a full plan repeats nothing.
+    const crm = (await screen.findByText('CRM (Sales Pipeline, Companies, Contacts)')) as HTMLElement;
+    expect(crm).toHaveTextContent(': On');
+    expect(within(crm).queryByText('Off')).toBeNull();
+    const stock = screen.getByText('Stock') as HTMLElement;
+    expect(within(stock).getByText('Off')).toBeInTheDocument();
   });
 
   it('AC-PLN-013: ships NO editable control at all', async () => {
