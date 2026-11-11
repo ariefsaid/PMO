@@ -682,12 +682,14 @@ export function formatTableMoney(amount: number | string | null, currency: strin
 /**
  * One figure per organisation currency plus second lines for the rest: `['IDR 7.7B', '+ USD 5.3K']`.
  * Same-currency entries add up; different currencies are never summed or joined into one "A · B" string.
+ * `prefixOtherCurrencies: false` keeps a tile's foreign-currency lines from reading like an addition.
  * The home line is always first and is "0" when the organisation has none.
  */
 export function formatMoneyLines(
   totals: ReadonlyArray<{ currency: string; amount: number }>,
   homeCurrency: string,
   kind: 'tile' | 'table',
+  options: { prefixOtherCurrencies?: boolean } = {},
 ): string[] {
   const byCurrency = new Map<string, number>([[homeCurrency, 0]]);
   for (const { currency, amount } of totals) byCurrency.set(currency, (byCurrency.get(currency) ?? 0) + amount);
@@ -695,7 +697,8 @@ export function formatMoneyLines(
   return [...byCurrency].flatMap(([currency, amount]) => {
     const isHome = currency === homeCurrency;
     const text = render(amount, currency, { code: !isHome });
-    return text === null ? [] : [isHome || amount < 0 ? text : `+ ${text}`];
+    const prefix = options.prefixOtherCurrencies !== false && !isHome && amount >= 0;
+    return text === null ? [] : [prefix ? `+ ${text}` : text];
   });
 }
 

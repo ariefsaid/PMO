@@ -81,7 +81,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const { period } = periodState;
   const periodLabel = period.key === 'custom'
     ? [period.from, period.to].filter(Boolean).join(' – ')
-    : ({ month: t('period.month', 'This month'), quarter: t('period.quarter', 'This quarter'), ytd: t('period.ytd', 'YTD'), '12m': t('period.12m', 'Last 12 months') } as Record<string, string>)[period.key];
+    : ({ month: t('period.month', 'This month'), quarter: t('period.quarter', 'This quarter'), ytd: t('period.ytd', 'Year to date'), '12m': t('period.12m', 'Last 12 months') } as Record<string, string>)[period.key];
   const periodFigure = (id: string) => figures.period.find((figure) => figure.id === id);
   const setUp = canOpenAccounting ? { to: '/administration/accounting', label: t('home.setUp', 'Set up') } : undefined;
 
@@ -346,10 +346,10 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           <div className={ORDER[1]}>{planCard}</div>
           {invoicedCard(3)}
           <PurchasingCard className={ORDER[4]} counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
+            <LossReasonsCard className={ORDER[5]} range={lossRange} />
         </div>
         <div className={columns}>
           <SalesOverviewCard className={ORDER[2]} weighted={weighted} forecastMargin={data?.pipeline_projected_margin} stages={pipeline.data?.stages ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange} />
-          <LossReasonsCard className={ORDER[5]} range={lossRange} />
           {billing}
         </div>
       </div>
