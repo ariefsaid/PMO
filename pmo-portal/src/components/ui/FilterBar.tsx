@@ -45,8 +45,8 @@ export function FilterBar({ searchKey, searchLabel, searchPlaceholder, filters, 
       resultCount={shown}
     />
     {filters.map((filter) => filter.kind === 'segment' ?
-      <div key={filter.key} data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x [&_button]:whitespace-nowrap">
-        <ViewToggle semantics={filter.semantics ?? "toggle"} ariaLabel={filter.label} value={values[filter.key] ?? ''} onChange={(value) => onChange(filter.key, value)} options={[{ value: '', label: all }, ...filter.options]} />
+      <div key={filter.key} data-testid="status-filter-scroll" className="w-full min-w-0 md:w-auto">
+        <ViewToggle className="w-full flex-wrap md:w-auto md:flex-nowrap" semantics={filter.semantics ?? "toggle"} ariaLabel={filter.label} value={values[filter.key] ?? ''} onChange={(value) => onChange(filter.key, value)} options={[{ value: '', label: all }, ...filter.options]} />
       </div> :
       <label key={filter.key} className="flex items-center gap-2 text-control text-foreground">
         <span>{filter.label}</span>
