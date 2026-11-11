@@ -10,6 +10,28 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.36.0](https://github.com/ariefsaid/PMO/compare/v0.35.0...v0.36.0) (2026-11-11)
+
+
+### Features
+
+* **equipment:** register and maintenance data layer ([#1511](https://github.com/ariefsaid/PMO/issues/1511) F5) ([8dcf3f4](https://github.com/ariefsaid/PMO/commit/8dcf3f467ed1be4aeaecd74a31b23b01eea629d1))
+
+
+### Bug Fixes
+
+* **erp:** restamp fingerprint tracks which PMO records still exist and which projects, not just counts ([#1276](https://github.com/ariefsaid/PMO/issues/1276)) ([8dcf3f4](https://github.com/ariefsaid/PMO/commit/8dcf3f467ed1be4aeaecd74a31b23b01eea629d1))
+
+
+### Performance
+
+* **erp:** purchase attribution re-stamp runs only when its inputs changed ([#1276](https://github.com/ariefsaid/PMO/issues/1276)) ([8dcf3f4](https://github.com/ariefsaid/PMO/commit/8dcf3f467ed1be4aeaecd74a31b23b01eea629d1))
+
+
+### Chores
+
+* release 0.36.0 ([a725762](https://github.com/ariefsaid/PMO/commit/a72576280f70a38dd10f7c84bed064921550ecfd))
+
 ## [0.35.0](https://github.com/ariefsaid/PMO/compare/v0.34.0...v0.35.0) (2026-11-10)
 
 
