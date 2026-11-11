@@ -321,7 +321,7 @@ const EquipmentUsagePage: React.FC = () => {
                 </div>}
             </div>
           </CanWrite>
-          {mine.filter((e) => e.status === 'Rejected' || (e.status === 'Draft' && !!(e.rejected_at || e.rejected_by))).map((e) => <div key={e.id} className="mb-3">
+          {mine.filter((e) => e.status === 'Rejected' || (e.status === 'Draft' && !!(e.rejected_at || e.rejected_by || e.decision_notes?.trim()))).map((e) => <div key={e.id} className="mb-3">
             <strong>{assetName(e.asset_id)} · {projectName(e.project_id)} · {dayLabel(e.work_date)}</strong>
             <RejectionDetails reason={e.decision_notes} person={e.rejecter?.full_name} at={e.rejected_at} />
           </div>)}

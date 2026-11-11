@@ -90,6 +90,23 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(screen.getByText(/Pia Manager/)).toBeInTheDocument();
   });
 
+  it('AC-RSN-005 keeps a legacy return reason visible during correction alongside other entries', () => {
+    h.entries = [
+      { ...entry({ id: 'legacy', status: 'Draft', decision_notes: 'Correct legacy usage' }), rejected_by: null, rejected_at: null, rejecter: null },
+      { ...entry({ id: 'new', status: 'Rejected', work_date: '2026-09-09', decision_notes: 'Correct this usage' }), rejected_by: 'u-pm', rejected_at: '2026-09-09T10:00:00Z', rejecter: { full_name: 'Pia Manager' } },
+    ];
+    const { unmount } = renderPage();
+    expect(screen.getByText('Correct legacy usage')).toBeInTheDocument();
+    expect(screen.getByText('Person unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Correct this usage')).toBeInTheDocument();
+    expect(screen.getByText(/Pia Manager/)).toHaveTextContent('2026');
+    unmount();
+    h.entries = [{ ...entry({ status: 'Rejected', decision_notes: null }), rejected_by: null, rejected_at: null, rejecter: null }];
+    renderPage();
+    expect(screen.getByText('Reason unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Person unavailable')).toBeInTheDocument();
+  });
+
   it('AC-EQU-017 a user logs 6 h on a project for an asset and day, submits, and the row shows Submitted', async () => {
     const user = userEvent.setup();
     renderPage();

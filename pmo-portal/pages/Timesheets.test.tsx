@@ -120,6 +120,18 @@ describe('Timesheets (real data)', () => {
     expect(screen.getByText(/Approver Example/)).toBeInTheDocument();
   });
 
+  it('AC-RSN-005 shows decision time and legacy unavailable fallbacks', () => {
+    tsState.data = [{ ...pmSheet[0], status: 'Rejected', rejection_reason: 'Correct hours', rejected_by: 'manager', rejected_at: '2026-06-03T10:00:00Z', rejecter: { full_name: 'Approver Example' } }] as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    const { unmount } = renderPage();
+    expect(screen.getByText(/Approver Example/)).toHaveTextContent('2026');
+    unmount();
+    tsState.data = [{ ...pmSheet[0], status: 'Rejected', rejection_reason: null, rejected_by: null, rejected_at: null, rejecter: null }] as unknown as TimesheetWithEntries[];
+    renderPage();
+    expect(screen.getByText('Reason unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Person unavailable')).toBeInTheDocument();
+  });
+
   it('renders the signed-in user entry with joined project name for the current week (AC-601)', () => {
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
     tsState.isPending = false;

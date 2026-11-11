@@ -112,6 +112,19 @@ describe('ExpenseClaimDetail', () => {
     expect(screen.getByText(/Person unavailable/)).toBeInTheDocument();
   });
 
+  it('AC-RSN-005 retains the decision during correction and clears it after resubmission', () => {
+    h.claim = { ...base, status: 'Draft', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Approver Example' } };
+    as('eng', 'Engineer');
+    const { unmount } = renderAt();
+    expect(screen.getByText(/Add receipt/)).toBeInTheDocument();
+    expect(screen.getByText(/Approver Example/)).toHaveTextContent('2026');
+    unmount();
+    h.claim = { ...base, status: 'Submitted', rejection_notes: null, rejected_at: null, rejecter: null };
+    renderAt();
+    expect(screen.queryByText(/Add receipt/)).toBeNull();
+    expect(screen.queryByText(/Approver Example/)).toBeNull();
+  });
+
   it('D4: shows minor units on the expense transaction record', () => {
     h.claim = { ...base, amount: 12.5, currency: 'USD' };
     as('eng', 'Engineer');
