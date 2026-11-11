@@ -12,9 +12,37 @@ const require = createRequire(path.join(APP, 'package.json'));
 const { chromium } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 // Runs in the page: measure only text with painted, non-hidden ancestors.
+// `wordCount` counts CHROME only: a screen's own words (headings, labels, captions, help), never
+// record data. Sample data grows as people work (rows, claims, review records), so counting it made
+// unchanged screens drift over budget. Font-size metrics still cover every painted word, data
+// included — a too-small cell is a real a11y finding.
 function measureText() {
   const main = document.querySelector('main');
   if (!main) throw new Error('No main element to measure');
+  // A text node is data when any ancestor is a row repeated beyond the first of its collection.
+  // Three row shapes exist in this app: <tbody> rows, ARIA rows (role=row/listitem), and card
+  // layouts that repeat an identically-shaped div/button per record (approvals queue, the 390
+  // timesheet grid). The last one is caught by shape (tag + class) because it carries no list
+  // semantics — without it the gate would still count record data as chrome.
+  const shape = (element) => `${element.tagName}|${element.getAttribute('class') || ''}`;
+  const isDataRow = (element) => {
+    for (let node = element; node && node !== main; node = node.parentElement) {
+      const tag = node.tagName;
+      const role = node.getAttribute('role');
+      if (tag === 'TBODY') return true;
+      if (role === 'rowgroup' && !node.querySelector('[role="columnheader"], th')) return true;
+      if (tag === 'LI' || role === 'listitem' || tag === 'TR' || role === 'row') {
+        const list = node.parentElement?.closest('ul, ol, menu, [role="list"], [role="listbox"], table, thead, [role="table"], [role="grid"], [role="rowgroup"]');
+        if (list) {
+          const items = [...list.children].filter((child) => child.tagName === tag && child.getAttribute('role') === role);
+          if (items.length > 1 && items[0] !== node) return true;
+        }
+      }
+      const siblings = node.parentElement ? [...node.parentElement.children].filter((child) => shape(child) === shape(node)) : [];
+      if (siblings.length > 2 && siblings[0] !== node) return true;
+    }
+    return false;
+  };
   const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
   const sizes = {}; const samples = {}; let words = 0; let total = 0; let small = 0;
   for (let node; (node = walker.nextNode());) {
@@ -33,7 +61,8 @@ function measureText() {
     if (![...range.getClientRects()].some((rect) => rect.width > 0 && rect.height > 0)) continue;
     const size = parseFloat(style.fontSize);
     sizes[size] = (sizes[size] || 0) + text.length;
-    total += text.length; words += text.split(/\s+/u).length;
+    total += text.length;
+    if (!isDataRow(element)) words += text.split(/\s+/u).length;
     if (size < 14) { small += text.length; (samples[size] ||= []).length < 5 && samples[size].push(text.slice(0, 40)); }
   }
   const distinctFontSizes = Object.keys(sizes).map(Number).sort((a, b) => a - b);
@@ -48,9 +77,12 @@ function violations(metrics, baseline, label) {
   if (baseline !== undefined && metrics.wordCount > baseline * 1.05) failures.push(`${label}: wordCount=${metrics.wordCount} (>105% of ${baseline}); samples=${samples}`);
   return failures;
 }
-async function selfTest() {
+async function launchBrowser() {
   const systemChrome = ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'].find((candidate) => fs.existsSync(candidate));
-  const browser = await chromium.launch({ headless: true, ...(systemChrome ? { executablePath: systemChrome } : {}) });
+  return chromium.launch({ headless: true, ...(systemChrome ? { executablePath: systemChrome } : {}) });
+}
+async function selfTest() {
+  const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
     const cases = [
@@ -67,7 +99,18 @@ async function selfTest() {
     console.log('ux-proof self-test passed');
   } finally { await browser.close(); }
 }
+// Measure a static HTML fixture with the shipped measureText — the shape proofs in
+// scripts/ux-proof.test.mjs (extra rows must not move the count; an extra heading must).
+async function measureHtml(file) {
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.setContent(fs.readFileSync(file, 'utf8'));
+    console.log(JSON.stringify(await page.evaluate(measureText)));
+  } finally { await browser.close(); }
+}
 if (process.argv.includes('--self-test')) { await selfTest(); process.exit(0); }
+if (process.argv.includes('--measure-html')) { await measureHtml(process.argv[process.argv.indexOf('--measure-html') + 1]); process.exit(0); }
 const updateBudget = process.argv.includes('--update-word-budget');
 const routes = process.argv.slice(2).filter((arg) => arg !== '--update-word-budget');
 if (!routes.length || routes.some((route) => !route.startsWith('/'))) {
