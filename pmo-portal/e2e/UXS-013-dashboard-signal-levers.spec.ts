@@ -39,9 +39,7 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await pinEnglishLocale(page);
     await signIn(page, 'exec@acme.test');
-    // #2061: a phone now OPENS on the my-queue Home, so the journey to the dashboard goes through
-    // the phone navigation's More drawer (the same destination, one deliberate extra step). The
-    // goal under test — the dashboard signal carries its lever — is unchanged.
+    // The dashboard is the home at phone and desktop widths; the goal under test stays the same.
     await openAppPath(page, '/');
     await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
     await waitForFonts(page);

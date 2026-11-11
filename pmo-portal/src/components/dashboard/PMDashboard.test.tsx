@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   delivery: { data: {} as Record<string, number>, isPending: false, isError: false, refetch: vi.fn() },
   timesheets: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   procurements: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
+  myTasks: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   needs: {
     items: [] as unknown[],
     pmOverdueTasksByProject: {} as Record<string, number>,
@@ -40,6 +41,8 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => state.procurements,
 }));
+vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => state.myTasks }));
+vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-11-08' }));
 vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
   useNeedsYou: () => state.needs,
 }));
@@ -156,6 +159,10 @@ beforeEach(() => {
   state.procurements.data = [];
   state.procurements.isPending = false;
   state.procurements.isError = false;
+  state.myTasks.data = [];
+  state.myTasks.isPending = false;
+  state.myTasks.isError = false;
+  state.myTasks.refetch.mockReset();
   state.needs.items = approvalItems;
   state.needs.pmOverdueTasksByProject = { p1: 2 };
   state.needs.isPending = false;
@@ -182,6 +189,24 @@ const projectsRegion = () => screen.getByTestId('pm-projects');
 const rowFor = (name: string) => within(projectsRegion()).getByRole('link', { name: new RegExp(name) });
 
 describe('Project Manager home (one question: what needs me, which of my projects is in trouble?)', () => {
+  it('adds only my overdue and due-today task counts to Waits on you', () => {
+    state.myTasks.data = [
+      { id: 'late', status: 'In Progress', end_date: '2026-11-07' },
+      { id: 'today-1', status: 'To Do', end_date: '2026-11-08' },
+      { id: 'today-2', status: 'Blocked', end_date: '2026-11-08' },
+      { id: 'done', status: 'Done', end_date: '2026-11-08' },
+      { id: 'later', status: 'To Do', end_date: '2026-11-09' },
+    ];
+    renderDashboard();
+
+    const overdue = within(waitsRegion()).getByRole('link', { name: /1\s*task overdue/ });
+    const dueToday = within(waitsRegion()).getByRole('link', { name: /2\s*tasks due today/ });
+    expect(overdue).toHaveAttribute('href', '/my-tasks');
+    expect(dueToday).toHaveAttribute('href', '/my-tasks');
+    expect(overdue.compareDocumentPosition(dueToday) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(waitsRegion()).queryByRole('link', { name: /0 tasks/ })).not.toBeInTheDocument();
+  });
+
   it('leads with what waits on me, then my projects, then my contract value, with working destinations and one help control', () => {
     renderDashboard();
     expect(screen.getByRole('heading', { level: 1, name: 'My dashboard' })).toBeInTheDocument();

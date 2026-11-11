@@ -18,6 +18,7 @@ import {
   EngineerTasksCard,
   EngineerTimesheetCard,
 } from './hub/engineer/EngineerAreaPanels';
+import { DashboardWaitsOnYou } from './DashParts';
 
 const RECENT_ENTRIES_LIMIT = 5;
 
@@ -150,6 +151,7 @@ export const EngineerDashboard: React.FC = () => {
       action={<Button variant="outline" size="sm" onClick={refresh} aria-label={t('hub.engineer.refresh', 'Refresh')}><Icon name="refresh" /><span className="hidden sm:inline">{t('hub.engineer.refresh', 'Refresh')}</span></Button>}
     />
   );
+  const waitsEl = <DashboardWaitsOnYou rows={[]} pending={taskLoading} error={taskDataError || tasks.isError} onRetry={refresh} />;
   const recentEl = (
     <EngineerRecentEntriesPanel
       entries={recent}
@@ -167,6 +169,7 @@ export const EngineerDashboard: React.FC = () => {
       <FigureScope>
         <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
           <div>{header}<FigureHiddenLine compact /></div>
+          {waitsEl}
           <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start">
             <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} chart />
             <EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} today={organizationDay.day} loading={taskLoading} error={taskDataError || tasks.isError} onRetry={refresh} />
@@ -186,6 +189,7 @@ export const EngineerDashboard: React.FC = () => {
   return (
     <div className="space-y-[var(--space-panel-gap)]" data-home-layout="focused">
       {header}
+      {waitsEl}
       <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start">
         <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} />
         <EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} today={organizationDay.day} loading={taskLoading} error={taskDataError || tasks.isError} onRetry={refresh} />

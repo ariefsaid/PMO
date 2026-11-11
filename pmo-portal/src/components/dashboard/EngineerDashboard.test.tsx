@@ -23,6 +23,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/useTimesheets', () => ({ useTimesheets: () => state.timesheets }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => state.tasks }));
+vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => state.orgDay.day ?? '2026-06-03' }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaims: () => state.expenses }));
 vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({ useNeedsYou: () => state.needs }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => state.orgDay }));
@@ -122,7 +123,21 @@ const timesheetCard = () => screen.getByTestId('engineer-timesheet');
 const tasksCard = () => screen.getByTestId('engineer-tasks');
 
 describe('Engineer home (one question: is my week on track?)', () => {
-  it('shows this week\'s timesheet first, then my tasks, then returned claims and recent entries; no company money', () => {
+  it('shows own overdue and due-today counts in the shared Waits on you rows', () => {
+    state.tasks.data = [
+      { id: 'late', name: 'Late task', status: 'In Progress', end_date: '2026-06-02' },
+      { id: 'today', name: 'Today task', status: 'To Do', end_date: '2026-06-03' },
+      { id: 'done-today', name: 'Done today', status: 'Done', end_date: '2026-06-03' },
+      { id: 'later', name: 'Later task', status: 'To Do', end_date: '2026-06-04' },
+    ];
+    renderDashboard();
+
+    const waits = within(screen.getByTestId('waits-on-you'));
+    expect(waits.getByRole('link', { name: /1\s*task overdue/ })).toHaveAttribute('href', '/my-tasks');
+    expect(waits.getByRole('link', { name: /1\s*task due today/ })).toHaveAttribute('href', '/my-tasks');
+  });
+
+  it('leads with Waits on you, then my week, returned claims and recent entries; no company money', () => {
     renderDashboard();
 
     expect(screen.getByRole('heading', { level: 1, name: 'My dashboard' })).toBeInTheDocument();
@@ -130,8 +145,9 @@ describe('Engineer home (one question: is my week on track?)', () => {
     const card = timesheetCard();
     expect(card).toHaveTextContent('15.5 h');
     expect(card).not.toHaveTextContent('99');
-    expect(card).toHaveTextContent('Rejected');
+    expect(card).toHaveTextContent('Returned');
     expect(card).toHaveTextContent('Sent back for correction.');
+    expect(screen.getByTestId('waits-on-you').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(timesheetCard().compareDocumentPosition(tasksCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(tasksCard().compareDocumentPosition(screen.getByTestId('engineer-returned')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
@@ -211,7 +227,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
     // One compact row: date and hours, then project and description; no repeated field labels.
     expect(row).toHaveTextContent(/2 Jun · 7\.5 h/);
     expect(row).toHaveTextContent('Cedar Works · Site handover');
-    expect(row).toHaveTextContent('Rejected');
+    expect(row).toHaveTextContent('Returned');
     expect(screen.queryByText('Project and description')).not.toBeInTheDocument();
     expect(screen.queryByText('Future week')).not.toBeInTheDocument();
     fireEvent.click(row);
@@ -273,7 +289,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
   it('with no timesheet this week there is no status pill and the action is Log time', () => {
     state.timesheets.data = sheets.filter((sheet) => sheet.week_start_date !== '2026-06-01');
     renderDashboard();
-    expect(timesheetCard()).not.toHaveTextContent('Rejected');
+    expect(timesheetCard()).not.toHaveTextContent('Returned');
     expect(within(timesheetCard()).getByRole('link', { name: 'Log time' })).toBeInTheDocument();
   });
 
@@ -284,7 +300,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(screen.getByRole('heading', { name: 'Tugas saya' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Dikembalikan ke saya' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Entri terbaru' })).toBeInTheDocument();
-    expect(timesheetCard()).toHaveTextContent('Ditolak');
+    expect(timesheetCard()).toHaveTextContent('Dikembalikan');
     expect(within(timesheetCard()).getByRole('list', { name: 'Jam per hari minggu ini' })).toHaveTextContent('Sen8');
     // Data is translated for display only.
     expect(sheets[1].entries[0].hours).toBe(8);

@@ -24,6 +24,7 @@ const needsState = vi.hoisted(() => ({
 const lossState = vi.hoisted(() => ({ data: undefined as unknown, isPending: true, isError: false, refetch: vi.fn() }));
 const projectsState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
 const procurementsState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
+const myTasksState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
 const budgetReviewState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
 const pipelineState = vi.hoisted(() => ({ data: { stages: [] as unknown[], projects: [] as unknown[] }, isPending: false, isError: false, refetch: vi.fn() }));
 const arAgingState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
@@ -60,6 +61,8 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useLossBreakdown: () => lossState,
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procurementsState }));
+vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => myTasksState }));
+vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-10-27' }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => projectsState }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -119,6 +122,10 @@ beforeEach(() => {
   needsState.refetch.mockClear();
   projectsState.data = [];
   procurementsState.data = [];
+  myTasksState.data = [];
+  myTasksState.isPending = false;
+  myTasksState.isError = false;
+  myTasksState.refetch.mockClear();
   budgetReviewState.data = [];
   pipelineState.data = { stages: [], projects: [] };
   arAgingState.data = [];
@@ -160,6 +167,20 @@ const openAnalysis = async () => { await userEvent.click(screen.getByText('Analy
 const flat = (text: string | null) => (text ?? '').replace(/\u00a0/g, ' ');
 
 describe('company home — executive (one question: is the company OK, what waits on me?)', () => {
+  it.each(['Executive', 'Finance', 'Admin'])('%s sees their own overdue and due-today tasks in Waits on you', (role) => {
+    state.role = role;
+    myTasksState.data = [
+      { id: 'late', status: 'In Progress', end_date: '2026-10-26' },
+      { id: 'today', status: 'To Do', end_date: '2026-10-27' },
+      { id: 'done', status: 'Done', end_date: '2026-10-27' },
+    ];
+    renderPage();
+
+    const waits = within(screen.getByTestId('waits-on-you'));
+    expect(waits.getByRole('link', { name: /1\s*task overdue/ })).toHaveAttribute('href', '/my-tasks');
+    expect(waits.getByRole('link', { name: /1\s*task due today/ })).toHaveAttribute('href', '/my-tasks');
+  });
+
   it('AC-DASH-1403-01: reads Waits on you, then Projects off track, then the position figures, then Sales', () => {
     renderPage();
     const order = ['Waits on you', 'Projects off track', 'Sales'].map((name) => screen.getByRole('heading', { name }));
@@ -565,12 +586,21 @@ describe('company home — Overview layout (the default: one page, charts carry 
   it('executive: waits, off-track, figures and Sales on the page, billing figures in their own row, no Analysis section', () => {
     renderPage();
     for (const name of ['Waits on you', 'Projects off track', 'Sales']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Billing' })).getByText('Still to invoice')).toBeInTheDocument();
+    expect(within(figures()).getByText('Still to invoice')).toBeInTheDocument();
+    expect(tile('Still to invoice')).toHaveTextContent('$250K');
     expect(within(figures()).getByText('Contract on hand')).toBeInTheDocument();
     expect(screen.queryByText('Analysis')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Plan vs actual' })).not.toBeInTheDocument();
     // One help control on the page: the win-rate definition is folded into it.
     expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
+  });
+
+  it('omits Still to invoice from the figure row when its value is unknown', () => {
+    setToday('still-to-invoice', { value: null, amounts: null });
+    renderPage();
+
+    expect(within(figures()).queryByText('Still to invoice')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Billing' })).queryByText('Still to invoice')).not.toBeInTheDocument();
   });
 
   it('draws budget and spending per project, worst first, and leaves out a project whose spending is unknown', () => {

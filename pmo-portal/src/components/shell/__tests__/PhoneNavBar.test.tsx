@@ -1,10 +1,9 @@
 /**
- * #2061 — phone bottom navigation: the role's three jobs and "More".
+ * #2061 — phone bottom navigation: Home, Approvals, Search, and More.
  *
- * Behaviour under test (not looks): the bar exists only below the phone breakpoint, each role gets
- * ITS jobs (destinations the sidebar already offers that role), entitlement-gated jobs stay hidden
- * when the entitlement is off, the active destination carries `aria-current="page"`, and More opens
- * the existing rail drawer through the callback the shell owns.
+ * Behaviour under test (not looks): the same four actions appear for every role below the phone
+ * breakpoint, Home points to and is active on the dashboard, Search opens the existing palette,
+ * and More opens the existing rail drawer through the callback the shell owns.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
@@ -27,14 +26,15 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({ data: state.features, isPending: false, isError: false }),
 }));
 
-const renderBar = (entry = '/home', moreOpen = false) => {
+const renderBar = (entry = '/', moreOpen = false) => {
   const onOpenMore = vi.fn();
+  const onOpenSearch = vi.fn();
   const view = render(
     <MemoryRouter initialEntries={[entry]}>
-      <PhoneNavBar onOpenMore={onOpenMore} moreOpen={moreOpen} />
+      <PhoneNavBar onOpenMore={onOpenMore} onOpenSearch={onOpenSearch} moreOpen={moreOpen} />
     </MemoryRouter>,
   );
-  return { ...view, onOpenMore };
+  return { ...view, onOpenMore, onOpenSearch };
 };
 
 const linkNames = () =>
@@ -51,32 +51,28 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 describe('#2061 phone bottom navigation', () => {
-  it.each([
-    ['Executive', ['Home', 'Projects', 'Finance']],
-    ['Project Manager', ['Home', 'Projects', 'Approvals']],
-    ['Finance', ['Home', 'Receivables', 'Payables']],
-    ['Engineer', ['Home', 'Timesheets', 'Expenses']],
-    ['Admin', ['Home', 'Approvals', 'Admin']],
-  ])('%s gets its own three jobs plus More', (role, expected) => {
+  it.each(['Executive', 'Project Manager', 'Finance', 'Engineer', 'Admin'])('%s gets the same four items', (role) => {
     state.role = role;
     renderBar();
-    expect(linkNames()).toEqual(expected);
+    expect(linkNames()).toEqual(['Home', 'Approvals']);
+    expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Phone navigation' }).querySelectorAll('svg')).toHaveLength(4);
   });
 
-  it('points each job at the destination the sidebar already offers', () => {
+  it('points Home at the dashboard and Approvals at the shared approval queue', () => {
     state.role = 'Finance';
     renderBar();
-    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/home');
-    expect(screen.getByRole('link', { name: 'Receivables' })).toHaveAttribute('href', '/finance/receivables');
-    expect(screen.getByRole('link', { name: 'Payables' })).toHaveAttribute('href', '/finance/payables');
+    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('href', '/approvals');
   });
 
-  it('drops a job whose entitlement is off (same gate as the sidebar)', () => {
+  it('keeps the four items independent of role features', () => {
     state.role = 'Engineer';
-    state.features = { timesheets: false };
+    state.features = { timesheets: false, expenses: false, procurement: false, revenue: false };
     renderBar();
-    expect(linkNames()).toEqual(['Home', 'Expenses']);
+    expect(linkNames()).toEqual(['Home', 'Approvals']);
+    expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
   });
 
   it('is absent above the phone breakpoint (desktop keeps the rail + header)', () => {
@@ -85,20 +81,26 @@ describe('#2061 phone bottom navigation', () => {
     expect(screen.queryByRole('navigation', { name: 'Phone navigation' })).not.toBeInTheDocument();
   });
 
-  it('marks the active destination with aria-current="page" and only that one', () => {
-    renderBar('/home');
+  it('marks Home active only on the dashboard route', () => {
+    renderBar('/');
     expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Approvals' })).not.toHaveAttribute('aria-current');
   });
 
   it('keeps a job current on its child pages', () => {
-    renderBar('/projects/p-1');
-    expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
+    renderBar('/approvals/expense');
+    expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current');
   });
 
+  it('Search opens the existing command palette', async () => {
+    const { onOpenSearch } = renderBar();
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }));
+    expect(onOpenSearch).toHaveBeenCalledTimes(1);
+  });
+
   it('More opens the existing full navigation and reports its open state', async () => {
-    const { onOpenMore } = renderBar('/home', true);
+    const { onOpenMore } = renderBar('/', true);
     const more = screen.getByRole('button', { name: 'More' });
     expect(more).toHaveAttribute('aria-expanded', 'true');
     await userEvent.click(more);
@@ -107,7 +109,7 @@ describe('#2061 phone bottom navigation', () => {
 
   it('every item clears the 44px touch target', () => {
     renderBar();
-    for (const el of [...screen.getAllByRole('link'), screen.getByRole('button', { name: 'More' })]) {
+    for (const el of [...screen.getAllByRole('link'), screen.getByRole('button', { name: 'Search' }), screen.getByRole('button', { name: 'More' })]) {
       expect(el.className).toContain('min-h-11');
       expect(el.className).toContain('touch-target');
     }
