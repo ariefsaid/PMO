@@ -4,6 +4,9 @@ import { MemoryRouter } from 'react-router';
 import { BahasaProvider } from '../../test/bahasa';
 import { ProjectedMarginBars } from '../../src/components/dashboard/ProjectedMarginBars';
 import { getDashboardHarness, renderCompanyDashboard, resetCompanyDashboardHarness } from '../../test/companyDashboardHarness';
+import { pinHomeLayout } from '@/test/homeLayout';
+
+pinHomeLayout('focused');
 
 const dashboardHarness = getDashboardHarness();
 

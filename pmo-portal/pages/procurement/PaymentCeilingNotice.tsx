@@ -59,14 +59,14 @@ export const PaymentCeilingNotice: React.FC<PaymentCeilingNoticeProps> = ({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <p data-testid="payment-ceiling-note" className="text-[13px] text-muted-foreground">
+      <p data-testid="payment-ceiling-note" className="text-sm text-muted-foreground">
         {t(
           'procurement:ceiling.exceeds',
           'Billed amount exceeds the approved amount by {{amount}}. An approver must approve the higher amount.',
           { amount: formatCurrency(billedNet - approvedAmount, currency) },
         )}
       </p>
-      {reason && <p className="text-[13px] text-muted-foreground">{reason}</p>}
+      {reason && <p className="text-sm text-muted-foreground">{reason}</p>}
       {canApprove && (
         <Button variant="outline" size="sm" disabled={busy} onClick={() => setConfirming(true)}>
           {t('procurement:ceiling.approveHigher', 'Approve higher amount')}

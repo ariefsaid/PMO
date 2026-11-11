@@ -95,9 +95,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
   const heading = (
     <div className="mb-3 flex items-baseline gap-1">
-      <h3 className="text-control font-semibold text-muted-foreground">
-        Budget impact
-      </h3>
+      <h2 className="text-control font-semibold text-muted-foreground">
+        {t('decisionSupport.heading', 'Budget impact')}
+      </h2>
       {projectName ? (
         <ProjectNameLink
           projectId={scopedProjectId}
@@ -204,7 +204,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
   const tiles = [
     {
-      label: t('decisionSupport.thisProcurement', 'This procurement'),
+      label: t('decisionSupport.thisProcurement', 'Procurement total'),
       value: formatCurrency(totalValue, currency),
       ...(requestInOtherCurrency ? { sub: t('decisionSupport.notCompared', 'In a different currency: not compared with the budget') } : {}),
     },
@@ -214,11 +214,12 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : 'approved, not yet ordered',
     },
     {
-      label: 'Available',
+      // The budget less commitments and reservations, before actual spend: not a cash balance, so it is not called "Available".
+      label: t('decisionSupport.uncommitted', 'Uncommitted budget'),
       value: formatCurrency(available, budgetCurrency),
       tone: available < 0 ? ('neg' as const) : undefined,
       // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
-      ...(otherCurrencyCommitted ? { sub: `Not counting commitments in other currencies: ${otherCurrencyCommitted}` } : {}),
+      sub: otherCurrencyCommitted ? `Not counting commitments in other currencies: ${otherCurrencyCommitted}` : t('decisionSupport.actualsNotCounted', 'Actual spend not counted'),
     },
     { label: 'Project budget', value: formatCurrency(budgetAmount, budgetCurrency) },
     ...(requestInOtherCurrency ? [] : [{
@@ -226,7 +227,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       value: formatCurrency(afterRequest, currency),
       // I4 (design-review): afterPct is headroom remaining (afterRequest/budget),
       // NOT utilization — labelled "% headroom remaining" for honest spend control.
-      sub: `${afterPct.toFixed(1)}% headroom remaining`,
+      sub: t('decisionSupport.headroom', { defaultValue: '{{pct}}% headroom left', pct: afterPct.toFixed(1) }),
       tone: afterRequest < 0 ? ('neg' as const) : undefined,
     }]),
   ];
@@ -300,7 +301,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             to={`/projects/${scopedProjectId}`}
             className="inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
           >
-            Open project
+            {t('decisionSupport.openProject', 'Open project')}
           </Link>
         </div>
       </CardPad>

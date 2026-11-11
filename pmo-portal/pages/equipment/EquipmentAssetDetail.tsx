@@ -9,10 +9,12 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import {
   useEndCosting, useEquipmentAllocations, useEquipmentAssets, useEquipmentCosting, useEquipmentUsageTotals,
 } from '@/src/hooks/useEquipment';
+import { Bar, BarChart, LabelList, ResponsiveContainer, XAxis } from 'recharts';
+import { chartTheme } from '@/src/components/ui/chartTheme';
 import { useProjects } from '@/src/hooks/useProjects';
 import type { EquipmentAllocationRow, EquipmentCostingRow, EquipmentUsageTotalRow } from '@/src/lib/db/equipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency, formatNumberMax2, formatMonthYear } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatNumberMax2, formatMonthYear } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { EquipmentCostingForm } from './EquipmentCostingForm';
 import { basisLabel, driverLabel, unitLabel } from './equipmentLabels';
@@ -85,7 +87,7 @@ const AllocationsCard: React.FC<{ assetId: string; today: string; projectName: (
               emptySub={t('equipment:allocations.emptySub', 'Approved usage shows here by month and project.')} />
             {rows.filter((r) => open.has(rowId(r))).map((r) => (
               <div key={rowId(r)} className="mt-2 border-t border-border pt-1">
-                <p className="text-xs font-medium text-muted-foreground">{formatMonthYear(fromIso(r.month))}{r.project_id ? ` · ${projectName(r.project_id)}` : ''}</p>
+                <p className="text-sm font-medium text-muted-foreground">{formatMonthYear(fromIso(r.month))}{r.project_id ? ` · ${projectName(r.project_id)}` : ''}</p>
                 <Calculation r={r} t={t} money={(n) => money(n, r.project_id)} />
               </div>))}
           </>
@@ -121,10 +123,10 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
     return bits.join(' · ');
   };
   const columns: Column<EquipmentCostingRow>[] = [
-    { key: 'from', header: t('equipment:costing.effectiveFrom', 'Effective from'), kind: 'primary', rowHeader: true, cell: (s) => s.effective_from },
-    { key: 'to', header: t('equipment:costing.effectiveTo', 'Effective to'), cell: (s) => s.effective_to ?? '—' },
+    { key: 'from', header: t('equipment:costing.effectiveFrom', 'Effective from'), kind: 'primary', rowHeader: true, cell: (s) => formatDay(s.effective_from) },
+    { key: 'to', header: t('equipment:costing.effectiveTo', 'Effective to'), cell: (s) => s.effective_to ? formatDay(s.effective_to) : null },
     { key: 'basis', header: t('equipment:costing.basis', 'Costing basis'), cell: (s) => basisLabel(t, s.basis) },
-    { key: 'detail', header: t('equipment:costing.detail', 'Detail'), cell: (s) => settingLine(s) || '—' },
+    { key: 'detail', header: t('equipment:costing.detail', 'Detail'), cell: (s) => settingLine(s) || null },
     { key: 'version', header: t('equipment:costing.version', 'Version'), align: 'num', cell: (s) => s.version },
     { key: 'state', header: t('equipment:costing.state', 'State'),
       cell: (s) => s.voided ? <StatusPill variant="lost">{t('equipment:costing.voided', 'Voided')}</StatusPill> : s.is_current ? <StatusPill variant="won">{t('equipment:costing.current', 'Current')}</StatusPill> : <StatusPill variant="superseded">{t('equipment:costing.past', 'Past')}</StatusPill> },
@@ -157,7 +159,7 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
               ? <div className="space-y-1">
                 <p className="text-sm font-semibold">{basisLabel(t, current.basis)}</p>
                 <p className="text-sm text-muted-foreground">{settingLine(current)}</p>
-                <p className="text-xs text-muted-foreground">{t('equipment:costing.since', 'From {{date}} · version {{version}}', { date: current.effective_from, version: current.version })}</p>
+                <p className="text-sm text-muted-foreground">{t('equipment:costing.since', 'From {{date}} · version {{version}}', { date: formatDay(current.effective_from), version: current.version })}</p>
               </div>
               : <p className="text-sm text-muted-foreground">{t('equipment:costing.none', 'No costing set. Usage is recorded and totalled per project, with no amount.')}</p>}
             <div className="mt-3 flex items-center gap-2 text-sm">
@@ -181,7 +183,7 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
 const UsageCard: React.FC<{ assetId: string; today: string; projectName: (id: string) => string }> = ({ assetId, today, projectName }) => {
   const { t } = useTranslation();
   const q = useEquipmentUsageTotals({ assetId, ...rangeFor(today) });
-  const rows = q.data?.rows ?? [];
+  const rows = useMemo(() => q.data?.rows ?? [], [q.data]);
   const columns: Column<EquipmentUsageTotalRow>[] = [
     { key: 'month', header: t('equipment:allocations.month', 'Month'), kind: 'primary', rowHeader: true, cell: (r) => formatMonthYear(fromIso(r.month)) },
     { key: 'project', header: t('equipment:allocations.project', 'Project'), cell: (r) => projectName(r.project_id) },
@@ -191,10 +193,29 @@ const UsageCard: React.FC<{ assetId: string; today: string; projectName: (id: st
     { key: 'trips', header: t('equipment:usage.trips', 'Trips'), align: 'num', cell: (r) => Number(r.trips ?? 0) },
     { key: 'waiting', header: t('equipment:usage.waiting', 'Waiting approval'), align: 'num', cell: (r) => Number(r.submitted_count ?? 0) },
   ];
+  // Work units per month: a trend, drawn once there are three months and one unit to add up.
+  const perMonth = useMemo(() => {
+    const byMonth = new Map<string, number>();
+    for (const row of rows) byMonth.set(row.month, (byMonth.get(row.month) ?? 0) + Number(row.work_units ?? 0));
+    return [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, units]) => ({ month: formatMonthYear(fromIso(month)), units: Math.round(units * 100) / 100 }));
+  }, [rows]);
+  const oneUnit = new Set(rows.map((row) => row.unit)).size === 1;
   return (
     <Card role="region" aria-label={t('equipment:usage.cardTitle', 'Usage')} className="mb-4">
       <CardHead>{t('equipment:usage.cardTitle', 'Usage')}</CardHead>
       <CardPad className="pt-0">
+        {!q.isPending && !q.isError && perMonth.length >= 3 && oneUnit && (
+          <div role="img" aria-label={t('equipment:usage.chartLabel', 'Work per month, {{unit}}', { unit: unitLabel(t, rows[0].unit) })} className="mb-3 h-36">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={perMonth} margin={{ top: 16, right: 4, left: 4, bottom: 0 }}>
+                <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: chartTheme.axis, fontSize: 12 }} />
+                <Bar dataKey="units" fill={chartTheme.series.primary} radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                  <LabelList dataKey="units" position="top" fill={chartTheme.axis} fontSize={12} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
         {q.isPending && <ListState variant="loading" rows={3} />}
         {!q.isPending && (q.isError || !q.data) && <ListState variant="error" title={t('equipment:usage.totalsError', "Couldn't load usage totals")}
           sub={t('equipment:usage.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void q.refetch()} retryLabel={t('equipment:usage.retry', 'Retry')} />}
@@ -233,7 +254,7 @@ const EquipmentAssetDetail: React.FC = () => {
   return (
     <div>
       <RecordHeader icon="$" name={asset.name}
-        status={<StatusPill variant="progress">{asset.code}</StatusPill>}
+        status={<span className="font-mono text-sm text-muted-foreground">{asset.code}</span>}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{t('equipment:assets.unitLine', 'Logged in {{unit}}', { unit: unitLabel(t, asset.default_unit) })}</span>
           {asset.external_ref && <span>{t('equipment:assets.refLine', 'ERP reference {{ref}}', { ref: asset.external_ref })}</span>}

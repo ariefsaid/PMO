@@ -353,15 +353,15 @@ describe('Procurement list restructure', () => {
     renderPage();
 
     expect(screen.getByRole('tab', { name: /Needs you/i })).toHaveTextContent('2');
-    expect(screen.getByRole('tab', { name: /Needs you/i })).toHaveTextContent('$2.4M');
+    expect(screen.getByRole('tab', { name: /Needs you/i })).toHaveTextContent('$2.43M');
     expect(screen.getByRole('tab', { name: /Not in a procurement/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Not in a procurement/i })).toHaveTextContent('$700');
     expect(screen.queryByTestId('summary-cell-needs-you')).toBeNull();
     expect(screen.queryByTestId('summary-cell-orphans')).toBeNull();
-    expect(screen.getByTestId('summary-total-unpaid')).toHaveTextContent('$2.4M');
+    expect(screen.getByTestId('summary-total-unpaid')).toHaveTextContent('$2.43M');
     expect(screen.getByTestId('summary-total-unpaid')).toHaveAttribute('aria-label', expect.stringContaining('$2,433,500'));
-    expect(screen.getByTestId('summary-cell-unpaid')).toHaveTextContent(/2 procurements/);
-    expect(screen.getByTestId('summary-cell-ordered')).toHaveTextContent(/1 procurement/);
+    expect(screen.getByText(/^2 procurements/)).toBeInTheDocument();
+    expect(screen.getByText(/^1 procurement/)).toBeInTheDocument();
   });
 
   it('L12c: the unpaid tile shows the recorded balance and says how many have none, instead of "amount not recorded" alone', () => {
@@ -375,7 +375,7 @@ describe('Procurement list restructure', () => {
 
     const tile = screen.getByTestId('summary-total-unpaid');
     expect(tile).toHaveTextContent('$30K');
-    expect(tile).toHaveTextContent(/1 more has no amount recorded/i);
+    expect(screen.getByText(/1 not recorded/i)).toBeInTheDocument();
     expect(tile).not.toHaveTextContent(/USD amount not recorded/i);
   });
 
@@ -385,7 +385,7 @@ describe('Procurement list restructure', () => {
     procState.data = [row({ id: 'mine', requested_by_id: 'u-engineer', status: 'Requested' })];
     renderPage('/procurement?tab=all');
 
-    expect(screen.queryByTestId('summary-cell-unpaid')).toBeNull();
+    expect(screen.queryByTestId('summary-total-unpaid')).toBeNull();
     const ordered = screen.getByTestId('summary-total-ordered');
     expect(ordered).toHaveTextContent('0');
     expect(ordered).not.toHaveTextContent(/no amount/i);

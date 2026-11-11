@@ -99,13 +99,15 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     second.unmount();
     documents.get.mockResolvedValue(detail({ status: 'Draft', created_by: 'me' }));
     renderPage('Engineer');
-    expect(await screen.findByRole('button', { name: 'Cancel draft' })).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: /more|actions/i }));
+    expect(await screen.findByRole('menuitem', { name: 'Cancel draft' })).toBeInTheDocument();
   });
 
   it('cancelling a draft asks first, then calls cancel once', async () => {
     documents.get.mockResolvedValue(detail({ status: 'Draft', created_by: 'me' }));
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'Cancel draft' }));
+    await userEvent.click(await screen.findByRole('button', { name: /more|actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Cancel draft' }));
     expect(documents.cancel).not.toHaveBeenCalled();
     await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Cancel draft' }));
     await waitFor(() => expect(documents.cancel).toHaveBeenCalledWith('d1'));

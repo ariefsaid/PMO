@@ -5,5 +5,11 @@
     "large": "Large",
     "larger": "Larger",
     "help": "Applied immediately on this device."
+  },
+  "homeLayout": {
+    "label": "Home layout",
+    "overview": "Overview",
+    "focused": "Focused",
+    "help": "Applied immediately on this device."
   }
 }

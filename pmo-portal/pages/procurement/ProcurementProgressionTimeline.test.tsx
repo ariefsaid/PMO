@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { render, screen, within, fireEvent } from '@testing-library/react';
+import { formatDay } from '@/src/lib/format';
 import { MemoryRouter } from 'react-router';
 import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
 import { ProcurementProgressionTimeline } from './ProcurementProgressionTimeline';
@@ -148,12 +149,12 @@ describe('AC-PLC-005: progression event dates follow the profile timezone', () =
     ];
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
     const { unmount } = renderTimeline(events);
-    expect(screen.getByText((_, el) => el?.tagName === 'TIME')).toHaveTextContent('Jun 14, 2026');
+    expect(screen.getByText((_, el) => el?.tagName === 'TIME')).toHaveTextContent(formatDay('2026-06-14'));
     unmount();
 
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
     renderTimeline(events);
-    expect(screen.getByText((_, el) => el?.tagName === 'TIME')).toHaveTextContent('Jun 15, 2026');
+    expect(screen.getByText((_, el) => el?.tagName === 'TIME')).toHaveTextContent(formatDay('2026-06-15'));
   });
 
   // Orphan-record events carry the record's BUSINESS DATE (`date`, `receipt_date`,
@@ -167,7 +168,7 @@ describe('AC-PLC-005: progression event dates follow the profile timezone', () =
       setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone });
       const { unmount } = renderTimeline(events);
       const time = screen.getByText((_, el) => el?.tagName === 'TIME');
-      expect(time, timezone).toHaveTextContent('Jun 14, 2026');
+      expect(time, timezone).toHaveTextContent(formatDay('2026-06-14'));
       expect(time).toHaveAttribute('dateTime', '2026-06-14');
       unmount();
     }
@@ -182,7 +183,7 @@ describe('AC-PLC-005: progression event dates follow the profile timezone', () =
     renderTimeline(events);
     // Newest-first: the transition renders first, then the business-date record.
     const times = screen.getAllByText((_, el) => el?.tagName === 'TIME');
-    expect(times.map((t) => t.textContent)).toEqual(['Jun 15, 2026', 'Jun 14, 2026']);
+    expect(times.map((t) => t.textContent)).toEqual([formatDay('2026-06-15'), formatDay('2026-06-14')]);
   });
 
   it('renders an em dash for a malformed event date instead of a raw string', () => {

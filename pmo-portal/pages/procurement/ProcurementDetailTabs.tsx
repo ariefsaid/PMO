@@ -37,7 +37,7 @@ export const ProcurementItemsTab: React.FC<ItemsTabProps> = ({ p, ownership, own
   const { toast } = useToast();
   return (
     <div className="space-y-2">
-    <p className="text-[12.5px] text-muted-foreground">{p.items.length} {t('procurementRecord:items.countLabel', 'line items')}</p>
+    <p className="text-sm text-muted-foreground">{p.items.length} {t('procurementRecord:items.countLabel', 'line items')}</p>
     {!ownershipReady && <p className="text-sm text-muted-foreground">{ownership.mode === 'error' ? t('procurementRecord:items.ownershipError', 'Ownership could not be loaded. Try again.') : t('procurementRecord:items.ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('procurementRecord:items.retry', 'Retry')}</Button>}</p>}
     {ownership.mode === 'external' && canEditItems && !canEditItemValues && <p className="text-sm text-muted-foreground">{casePushInFlight ? t('procurementRecord:items.submitting', 'A case document is being submitted.') : itemEligibility.isError ? t('procurementRecord:items.eligibilityError', 'Line editing availability could not be loaded. Try again.') : (itemEligibility.isPending || itemEligibility.isFetching) ? t('procurementRecord:items.eligibilityChecking', 'Checking line editing availability…') : t('procurementRecord:items.valuesManaged', 'Quantity and unit price are managed by ERP for this purchase.')} {!casePushInFlight && itemEligibility.isError && <Button variant="ghost" size="sm" onClick={() => void itemEligibility.refetch()}>{t('procurementRecord:items.retry', 'Retry')}</Button>}</p>}
     <LineItemsSection
@@ -106,8 +106,8 @@ export const ProcurementQuotesTab: React.FC<QuotesTabProps> = ({ p, selectedQuot
             {chosen && <StatusPill variant="won">{t('procurementRecord:quotes.chosen', 'Chosen')}</StatusPill>}
           </div>
           <p className="mt-3 text-[18px] font-semibold tabular-nums">{formatCurrency(Number(quote.total_amount), quote.currency)}</p>
-          <p className="mt-1 text-[12px] text-muted-foreground">{t('procurementRecord:quotes.validUntil', 'Valid until')}: {quote.valid_until ?? '—'}</p>
-          {difference != null && <p className="mt-2 text-[12px] text-muted-foreground">{t('procurementRecord:quotes.vsChosen', 'vs chosen')}: {difference > 0 ? '+' : ''}{formatCurrency(difference, quote.currency)}{percent == null ? '' : ` · ${percent > 0 ? '+' : ''}${percent.toFixed(1)}%`}</p>}
+          <p className="mt-1 text-sm text-muted-foreground">{t('procurementRecord:quotes.validUntil', 'Valid until')}: {quote.valid_until ?? '—'}</p>
+          {difference != null && <p className="mt-2 text-sm text-muted-foreground">{t('procurementRecord:quotes.vsChosen', 'vs chosen')}: {difference > 0 ? '+' : ''}{formatCurrency(difference, quote.currency)}{percent == null ? '' : ` · ${percent > 0 ? '+' : ''}${percent.toFixed(1)}%`}</p>}
         </article>;
       })}
     </div>}
@@ -159,7 +159,7 @@ export const ProcurementDetailsTab: React.FC<{ rows: DetailRow[]; canEditHeader:
   return (
     <Card data-testid="procurement-detail-dl"><CardHead>{t('procurementRecord:tabs.details', 'Details')}</CardHead><CardPad>
       <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-        {detailRows.map((row) => <div key={row.label}><dt className="text-[12px] font-semibold text-muted-foreground">{row.label}</dt><dd className="mt-0.5 text-[13.5px]">{row.value}</dd></div>)}
+        {detailRows.map((row) => <div key={row.label}><dt className="text-sm font-semibold text-muted-foreground">{row.label}</dt><dd className="mt-0.5 text-sm">{row.value}</dd></div>)}
       </dl>
       {canEditHeader && <Button className="mt-4" variant="outline" onClick={onEdit}>{t('procurementRecord:editDetails', 'Edit details')}</Button>}
     </CardPad></Card>
