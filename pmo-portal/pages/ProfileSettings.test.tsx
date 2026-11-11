@@ -316,6 +316,7 @@ describe('ProfileSettings personal locale preferences', () => {
     fireEvent.change(languageSelect(), { target: { value: 'en' } });
     fireEvent.change(screen.getByLabelText(/number format/i), { target: { value: 'inherit' } });
     fireEvent.click(screen.getByRole('combobox', { name: /timezone/i }));
+    fireEvent.change(await screen.findByRole('combobox', { name: /search timezones/i }), { target: { value: 'Asia/Jakarta' } });
     fireEvent.click(await screen.findByRole('option', { name: 'Asia/Jakarta' }));
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
@@ -324,6 +325,7 @@ describe('ProfileSettings personal locale preferences', () => {
       numberLocale: null,
       timezone: 'Asia/Jakarta',
     }));
+    expect(setLocalePreferences).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
     expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
     await act(async () => resolveRefresh({ error: null }));
