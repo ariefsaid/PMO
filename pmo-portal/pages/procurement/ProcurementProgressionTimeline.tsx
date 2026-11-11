@@ -21,7 +21,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
-import { formatDateOnly, formatInstantDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -37,10 +37,9 @@ const DEFAULT_CAP = 6;
 // - a BUSINESS DATE (`YYYY-MM-DD` — an orphan record's `date` / `receipt_date` /
 //   `invoice_date` / `received_date`): a calendar day that never moves with the timezone.
 // ---------------------------------------------------------------------------
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 function formatEventTime(iso: string): string {
-  return DATE_ONLY.test(iso) ? formatDateOnly(iso) : formatInstantDate(iso);
+  return formatDay(iso);
 }
 
 export interface ProcurementProgressionTimelineProps {

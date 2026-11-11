@@ -535,7 +535,8 @@ describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
     expect(within(moneyCard).getByText(/Money · USD, before tax/)).toBeInTheDocument();
     expect(within(moneyCard).getByText('50,000')).toBeInTheDocument();
     expect(within(moneyCard).queryByText('$50,000')).not.toBeInTheDocument();
-    expect(within(moneyCard).getByText('Ordered')).toBeInTheDocument();
+    // Nothing ordered is no figure, so the card does not draw an empty "Ordered".
+    expect(within(moneyCard).queryByText('Ordered')).not.toBeInTheDocument();
   });
 });
 
@@ -1662,7 +1663,7 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
   it('UIP-009: a Requested procurement shows its Purchase Request status in the record header', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    expect(within(screen.getByTestId('record-header')).getByText('Purchase Request', { exact: true })).toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header')).getByText('Requested', { exact: true })).toBeInTheDocument();
   });
 
   it('AC-CONFIRM-001: Reject opens the existing destructive confirm without changing status', async () => {
@@ -2048,27 +2049,21 @@ describe('Procurement detail restructure fixes', () => {
     const tracker = screen.getByTestId('procurement-stage-tracker');
     const requestLabel = within(tracker).getByText('Request');
     expect(requestLabel).toHaveClass('text-muted-foreground');
-    expect(within(tracker).getAllByText('Not recorded')).toHaveLength(2);
-    expect(within(tracker).getByText(/Tue 2 Sep/)).toBeInTheDocument();
+    expect(within(tracker).getByText('No purchase request: started at the order')).toBeInTheDocument();
+    expect(within(tracker).getByText(/2 Sep/)).toBeInTheDocument();
 
+    // No request was recorded, so the money card draws no Requested figure (and never the order total in its place).
     const money = screen.getByTestId('procurement-money-summary');
-    const requestedFigure = within(money).getByRole('button', { name: 'Requested calculation' }).parentElement?.parentElement;
-    expect(requestedFigure).toHaveTextContent('—');
-    expect(requestedFigure).toHaveTextContent('No purchase request: started at the order');
-    expect(requestedFigure).not.toHaveTextContent('$110,500');
+    expect(within(money).queryByText('Requested')).not.toBeInTheDocument();
+    expect(within(money).getByText('110,500')).toBeInTheDocument();   // the order total, labelled Ordered
   });
 
-  it('labels empty ordered, invoiced, and paid figures as not recorded', () => {
+  it('draws no figure for an empty ordered, invoiced, or paid amount, and never a zero', () => {
     renderPage();
 
     const money = screen.getByTestId('procurement-money-summary');
-    expect(within(money).getAllByText('None recorded')).toHaveLength(3);
-    for (const kind of ['Ordered', 'Invoiced', 'Paid']) {
-      const figure = within(money).getByRole('button', { name: `${kind} calculation` }).parentElement?.parentElement;
-      expect(figure).toHaveTextContent('—');
-      expect(figure).toHaveTextContent('None recorded');
-      expect(figure).not.toHaveTextContent('$0');
-    }
+    for (const kind of ['Ordered', 'Invoiced', 'Paid']) expect(within(money).queryByText(kind)).not.toBeInTheDocument();
+    expect(money).not.toHaveTextContent('$0');
   });
 
   it('keeps the engineer approval wait in the header actions without the floating paragraph', () => {
@@ -2101,7 +2096,7 @@ describe('Procurement detail restructure fixes', () => {
     expect(rows).toHaveLength(6);
     expect(rows[0]).toHaveTextContent('Procurement raised');
     expect(rows[0]).toHaveTextContent('Alice Manager');
-    expect(rows[0]).toHaveTextContent('Thu 4 Jun');
+    expect(rows[0]).toHaveTextContent('4 Jun');
     expect(screen.getByText('Submitted for approval')).toBeInTheDocument();
     expect(screen.getByText('Approved')).toBeInTheDocument();
     expect(screen.getByText('Returned or rejected')).toBeInTheDocument();

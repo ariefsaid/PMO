@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Card, CardHead, CardPad, ConfirmDialog, ListState, StatusPill, useToast, type StatusVariant } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency, formatDateOnly, formatNumberExact } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatNumberExact } from '@/src/lib/format';
 import {
   usePoDraftLines, usePoPosition, useSubcontractAcceptances, useSubcontractCapExceptions, useSubcontractMutations,
 } from '@/src/hooks/useSubcontract';
@@ -250,7 +250,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                   return (
                     <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border p-2 text-sm">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold tabular">{formatDateOnly(a.acceptance_date)}</span>
+                        <span className="font-semibold tabular">{formatDay(a.acceptance_date)}</span>
                         <StatusPill variant={ACCEPTANCE_VARIANT[a.status] ?? 'neutral'}>
                           {t(`subcontract.acceptance.status.${a.status}`, a.status)}
                         </StatusPill>

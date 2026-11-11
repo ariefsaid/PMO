@@ -33,9 +33,6 @@
   "pages/Meetings.tsx": {
     "ListPage-description": 1
   },
-  "pages/Procurement.tsx": {
-    "ListPage-description": 1
-  },
   "pages/SalesInvoices.tsx": {
     "ListPage-description": 1
   },
@@ -63,16 +60,6 @@
   "pages/contact/ContactFormModal.tsx": {
     "EntityFormModal-subtitle": 1
   },
-  "pages/equipment/EquipmentAssets.tsx": {
-    "ListPage-description": 1,
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/equipment/EquipmentCostingForm.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/equipment/EquipmentUsage.tsx": {
-    "ListPage-description": 1
-  },
   "pages/expenses/ExpenseClaimFormModal.tsx": {
     "EntityFormModal-subtitle": 1
   },
@@ -85,38 +72,11 @@
   "pages/incoming-payments/IncomingPaymentFormModal.tsx": {
     "EntityFormModal-subtitle": 1
   },
-  "pages/procurement/LinkErpDocumentsDialog.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/procurement/PoVariationModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/procurement/SubcontractAcceptanceModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/procurement/SubcontractLinesEditor.tsx": {
-    "EntityFormModal-subtitle": 2
-  },
   "pages/sales-invoices/SalesInvoiceDialogs.tsx": {
     "EntityFormModal-subtitle": 1
   },
   "pages/sales-invoices/SalesInvoiceFormModal.tsx": {
     "EntityFormModal-subtitle": 1
-  },
-  "pages/stock/StockDocuments.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/stock/StockLedger.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/stock/StockOnHand.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/stock/StockReorder.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/stock/StockSetup.tsx": {
-    "ListPage-description": 1
   },
   "src/components/EfakturModal.tsx": {
     "EntityFormModal-subtitle": 1

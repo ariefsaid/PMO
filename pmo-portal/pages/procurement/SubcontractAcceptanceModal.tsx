@@ -115,10 +115,10 @@ const SubcontractAcceptanceModal: React.FC<SubcontractAcceptanceModalProps> = ({
   return (
     <EntityFormModal open width="lg"
       title={draft ? t('subcontract.acceptance.form.titleEdit', 'Edit acceptance') : t('subcontract.acceptance.form.titleNew', 'Record acceptance')}
-      subtitle={t('subcontract.acceptance.form.subtitle', "Work verified on site, as cumulative quantities to date. Someone else confirms it with the signed document; it does not create a bill.")}
       submitLabel={draft ? t('subcontract.acceptance.form.save', 'Save acceptance') : t('subcontract.acceptance.form.prepare', 'Prepare acceptance')}
       onSubmit={handleSubmit} submitError={saveError} onClose={onClose} loading={busy}
       dirty={Object.values(values).some((v) => v !== '') || note !== '' || documentId !== ''}>
+      <p className="mb-3 text-sm text-muted-foreground">{t('subcontract.acceptance.form.subtitle', 'Someone else confirms it with the signed document; it does not create a bill.')}</p>
       <FormSection legend={t('subcontract.acceptance.form.details', 'Acceptance')}>
         <FormGrid>
           <TextField id="sc-acc-date" type="date" label={t('subcontract.acceptance.form.date', 'Period date')} required

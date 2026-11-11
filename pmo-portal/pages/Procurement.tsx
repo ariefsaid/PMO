@@ -19,7 +19,7 @@ import { ImportWizard } from '@/src/components/import/ImportWizard';
 import { ProcurementCycleImportWizard } from '@/src/components/import/procurementCycle/ProcurementCycleImportWizard';
 import { makeProcurementImportDescriptor, makeRefLookup } from '@/src/lib/import';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
-import { useProcurementStatusName } from '@/src/components/procurement/ProcurementStatusPill';
+import { useProcurementStatusName } from '@/src/components/procurement/useProcurementStatusName';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
@@ -548,6 +548,7 @@ const ProcurementPage: React.FC = () => {
               variant="empty"
               icon="cart"
               title={isEngineer ? t('empty.engineer.title', "You haven't raised any procurements yet") : t('empty.title', 'No procurements yet')}
+              sub={t('procurement:procurement.empty.scopeNote', 'Purchases recorded only in the accounting system are not listed here.')}
               action={canCreate ? { label: t('newProcurement', 'New procurement'), onClick: () => navigate('/procurement/new') } : undefined}
             />
           )}

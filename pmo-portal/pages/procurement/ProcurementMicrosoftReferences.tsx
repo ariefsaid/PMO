@@ -8,7 +8,7 @@ import { MicrosoftDocumentPicker } from '@/src/components/m365/MicrosoftDocument
 import { useDocumentLinkPermissions } from '@/src/components/m365/DocumentLinkPermissions';
 import { matchingReferencePairs, useProcurementMicrosoftReferences } from '@/src/hooks/useProcurementMicrosoftReferences';
 import { useAuth } from '@/src/auth/useAuth';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { refreshMicrosoftReferences } from '@/src/lib/m365/graphClient';
 import { procurementReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import type { DocumentTarget, ProcurementDocumentRow } from '@/src/lib/db/procurementCrud';
@@ -132,7 +132,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
           <LinkedDocumentCell reference={reference} owner={{ kind: 'procurement', id: row.id }} />
           {row.ms_linked_at && (
             <span className="text-sm text-muted-foreground">
-              {t('m365Documents.procurement.linkedOn', 'Linked {{date}}', { date: formatInstantDate(row.ms_linked_at) })}
+              {t('m365Documents.procurement.linkedOn', 'Linked {{date}}', { date: formatDay(row.ms_linked_at) })}
             </span>
           )}
         </>

@@ -8,7 +8,7 @@ import 'jest-axe/extend-expect';
 import type { Role } from '@/src/auth/AuthContext';
 import { ImpersonationProvider, useEffectiveRole } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
-import { formatWeekdayMonthDay } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 
 type Entry = {
   id: string; asset_id: string; project_id: string; work_date: string; quantity: number; unit: 'hours' | 'days'; kind: 'work' | 'standby';
@@ -50,7 +50,7 @@ const entry = (over: Partial<Entry>): Entry => ({
   id: 'e1', asset_id: 'a1', project_id: 'pj1', work_date: '2026-09-08', quantity: 4, unit: 'hours', kind: 'work', status: 'Draft',
   author_id: 'u-eng', fuel_litres: null, trips: null, note: null, archived_at: null, decision_notes: null, ...over,
 });
-const day = (iso: string) => { const [y, m, d] = iso.split('-').map(Number); return formatWeekdayMonthDay(new Date(y, m - 1, d)); };
+const day = (iso: string) => formatDay(iso);
 const cell = (iso: string, project = 'EQU P1') => screen.getByRole('textbox', { name: `Loader 1 · ${project} · ${day(iso)}, hours` });
 
 const renderPage = (role: Role = 'Engineer') =>
@@ -167,15 +167,15 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(screen.queryByRole('button', { name: /^Approve/ })).toBeNull();
   });
 
-  it('AC-EQU-017 reject needs a reason and sends it', async () => {
+  it('AC-EQU-017 return needs a reason and sends it (stored as Rejected)', async () => {
     h.userId = 'u-pm';
     h.entries = [entry({ id: 'e5', status: 'Submitted', author_id: 'u-eng' })];
     const user = userEvent.setup();
     renderPage('Project Manager');
     await user.click(screen.getByRole('tab', { name: 'Approvals' }));
-    await user.click(screen.getByRole('button', { name: /^Reject/ }));
-    const dialog = await screen.findByRole('alertdialog');
-    const confirm = within(dialog).getByRole('button', { name: 'Reject entry' });
+    await user.click(screen.getByRole('button', { name: /^Return/ }));
+    const dialog = await screen.findByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: 'Return' });
     expect(confirm).toBeDisabled();
     await user.type(within(dialog).getByRole('textbox'), 'Wrong day');
     await user.click(confirm);

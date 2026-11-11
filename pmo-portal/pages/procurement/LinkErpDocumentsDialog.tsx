@@ -5,7 +5,7 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useLinkErpDocuments } from '@/src/hooks/useErpPurchaseLinks';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
-import { useProcurementStatusName } from '@/src/components/procurement/ProcurementStatusPill';
+import { useProcurementStatusName } from '@/src/components/procurement/useProcurementStatusName';
 import { formatCurrency } from '@/src/lib/format';
 import { erpLinkReasonText, erpPreTaxAmount } from './erpLinkReasons';
 
@@ -130,7 +130,6 @@ export const LinkErpDocumentsDialog: React.FC<LinkErpDocumentsDialogProps> = ({ 
     <EntityFormModal
       open
       title={title}
-      subtitle={t('erpLinks.dialogSub', 'The purchase’s status follows the documents linked to it. Nothing is sent to ERPNext.')}
       submitLabel={t('erpLinks.link', 'Link')}
       cancelLabel={t('erpLinks.cancel', 'Cancel')}
       onSubmit={(e) => void submit(e)}
@@ -165,6 +164,7 @@ export const LinkErpDocumentsDialog: React.FC<LinkErpDocumentsDialogProps> = ({ 
             : t('erpLinks.awaitingApproval', '{{count}} purchases are waiting for approval. They can take documents once approved.', { count: awaiting })}
         </p>
       )}
+      <p className="mt-3 text-sm text-muted-foreground">{t('erpLinks.dialogSub', 'The purchase’s status follows the documents linked to it. Nothing is sent to ERPNext.')}</p>
     </EntityFormModal>
   );
 };

@@ -46,7 +46,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
-import { formatCurrency, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import { withholdingFigures } from '@/src/lib/vendorWithholding';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
@@ -62,7 +62,7 @@ import type { VendorInvoiceContext } from '@/src/components/procurement/vendorIn
 
 function formatBusinessDate(iso: string): string {
   // iso can be either a date string (YYYY-MM-DD) or a full datetime; the date part is the value.
-  return formatDateOnly(iso.slice(0, 10));
+  return formatDay(iso.slice(0, 10));
 }
 
 // ---------------------------------------------------------------------------

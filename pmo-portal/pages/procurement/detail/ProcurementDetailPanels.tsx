@@ -115,7 +115,9 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
                       : t('stage.countAndAmount', { defaultValue: '{{count}} {{document}} · {{amount}}', count, document, amount: formatCurrency(amount, procurement.currency) });
                   })()
                 : index < current
-                  ? t('stage.notRecorded', 'Not recorded')
+                  ? stage.key === 'request'
+                    ? t('money.noPurchaseRequest', 'No purchase request: started at the order')
+                    : t('stage.notRecorded', 'Not recorded')
                   : '';
             const meta = [date ? showDate(date, t('timeline.dateMissing', 'Date not recorded')) : null, state].filter(Boolean).join(' · ');
             return (
@@ -221,15 +223,15 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
 
   // A figure with no value is not drawn (never "—" or 0): a source amount that is missing is reported once, in the
   // page's hidden-figures line; one that simply does not exist yet (nothing ordered, nothing paid) says nothing.
-  const shown = kinds.flatMap((kind) => {
+  const shown = kinds.flatMap<{ kind: ProcurementMoneyKind; hidden: boolean }>((kind) => {
     const figure = money[kind];
     const absent = figure.amount == null && !figure.unknown;
-    if (figure.unknown) return [{ kind, hidden: true as const }];
+    if (figure.unknown) return [{ kind, hidden: true }];
     if (absent) return [];
     // Nothing owed is not a figure either: "Unpaid 0" on a request says nothing.
     if (kind === 'unpaid' && (figure.amount ?? 0) <= 0) return [];
     if (kind === 'requested' && requestedStartedLater) return [];
-    return [{ kind, hidden: false as const }];
+    return [{ kind, hidden: false }];
   });
   useFigureReport(shown.filter((entry) => entry.hidden).map<HiddenFigure>((entry) => ({
     label: t(`money.${entry.kind}`, moneyLabels[entry.kind]),
@@ -237,7 +239,7 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   })));
   const visible = shown.filter((entry) => !entry.hidden);
   // No figure and no budget line: no empty card.
-  if (visible.length === 0 && !budgetSignal) return null;
+  if (visible.length === 0 && !budgetSignal && !isEngineer) return null;
 
   return (
     <Card data-testid="procurement-money-summary">
@@ -267,6 +269,7 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
           </div>
         </CardPad>
       )}
+      {isEngineer && <p className="px-[var(--panel-inset)] pb-[var(--panel-inset)] text-sm text-muted-foreground">{t('money.financeOnly', 'Invoices and payments are handled by Finance.')}</p>}
     </Card>
   );
 };

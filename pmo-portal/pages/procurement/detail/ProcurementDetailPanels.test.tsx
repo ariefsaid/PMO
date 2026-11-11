@@ -53,7 +53,6 @@ describe('procurement record panels', () => {
     const onFullHistory = vi.fn();
     render(<ProcurementTimeline procurement={procurement} ledgerRows={[]} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={onFullHistory} />);
 
-    expect(screen.getByText(/in date order/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Full history' }));
     expect(onFullHistory).toHaveBeenCalledTimes(1);
   });
@@ -63,7 +62,7 @@ describe('procurement record panels', () => {
 describe('procurement budget signal currency', () => {
   it('shows compatible project headroom', () => {
     render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="USD" />);
-    expect(screen.getByText(/Available \$700/)).toBeInTheDocument();
+    expect(screen.getByText(/Budget not yet committed \$700/)).toBeInTheDocument();
   });
   it('does not compare a foreign request with project headroom', () => {
     render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="EUR" />);

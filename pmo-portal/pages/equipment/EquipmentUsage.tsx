@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import {
-  Button, Combobox, ConfirmDialog, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, Tabs, TextField, useToast,
-  type Column, type StatusVariant,
+  Button, Combobox, DataTable, Icon, ListPage, ListState, ReasonDialog, SelectField, StatusPill, Tabs, TextField, useToast,
+  type Column,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -15,7 +15,7 @@ import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
 import { LIST_LIMIT, type EquipmentAssetRow, type EquipmentUsageRow, type UsageInput } from '@/src/lib/db/equipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatNumberMax2, formatWeekdayDay, formatWeekdayMonthDay } from '@/src/lib/format';
+import { formatDay, formatNumberMax2, formatWeekdayDay } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { addDays, fromIso, mondayOf, toIso, weekDays } from './equipmentWeek';
 
@@ -27,12 +27,9 @@ type Tab = 'log' | 'approvals';
 type Status = 'Draft' | 'Submitted' | 'Approved' | 'Rejected';
 type Pending = { id: string; label: string } | null;
 
-const STATUS_VARIANT: Record<Status, StatusVariant> = {
-  Draft: 'draft', Submitted: 'warn', Approved: 'won', Rejected: 'lost',
-};
 const cellKey = (assetId: string, projectId: string, kind: string, date: string) => `${assetId}|${projectId}|${kind}|${date}`;
 const rowKey = (assetId: string, projectId: string, kind: string) => `${assetId}|${projectId}|${kind}`;
-const dayLabel = (iso: string) => formatWeekdayMonthDay(fromIso(iso));
+const dayLabel = (iso: string) => formatDay(fromIso(iso));
 /** Column heading: weekday and day number only, so seven days fit beside the totals. The cell's accessible name keeps the full date. */
 const dayHead = (iso: string) => formatWeekdayDay(fromIso(iso));
 const isEditable = (e: EquipmentUsageRow | undefined) => !e || e.status === 'Draft' || e.status === 'Rejected';
@@ -73,7 +70,6 @@ const EquipmentUsagePage: React.FC = () => {
   const [warnings, setWarnings] = useState<Record<string, number>>({});
   const [problem, setProblem] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<Pending>(null);
-  const [reason, setReason] = useState('');
 
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
   const weekEnd = days[6];
@@ -196,7 +192,7 @@ const EquipmentUsagePage: React.FC = () => {
         if (r.field !== 'quantity') return null;
         const states = [...new Set(mine.filter((e) => rowKey(e.asset_id, e.project_id, e.kind) === r.key).map((e) => e.status))];
         if (states.length === 0) return <span className="text-muted-foreground">—</span>;
-        return <span className="flex flex-wrap gap-1">{states.map((s) => <StatusPill key={s} variant={STATUS_VARIANT[s as Status]}>{statusLabel(t, s as Status)}</StatusPill>)}</span>;
+        return <span className="flex flex-wrap gap-1">{states.map((s) => <StatusPill key={s} record="equipmentUsage" state={s}>{s === 'Rejected' ? statusLabel(t, 'Rejected') : undefined}</StatusPill>)}</span>;
       } },
     { key: 'more', size: 48, header: <span className="sr-only">{t('equipment:usage.columns.fuelTrips', 'Fuel · trips')}</span>,
       cell: (r) => r.field !== 'quantity' ? null : (
@@ -256,7 +252,7 @@ const EquipmentUsagePage: React.FC = () => {
         return (
           <span className="flex gap-1">
             <Button variant="outline" size="sm" aria-label={t('equipment:usage.approveEntry', 'Approve {{what}}', { what: who })} onClick={() => void decide(e.id, 'Approved')}>{t('equipment:usage.approve', 'Approve')}</Button>
-            <Button variant="ghost" size="sm" aria-label={t('equipment:usage.rejectEntry', 'Reject {{what}}', { what: who })} onClick={() => { setReason(''); setRejecting({ id: e.id, label: who }); }}>{t('equipment:usage.reject', 'Reject')}</Button>
+            <Button variant="ghost" size="sm" aria-label={t('equipment:usage.rejectEntry', 'Return {{what}}', { what: who })} onClick={() => setRejecting({ id: e.id, label: who })}>{t('equipment:usage.reject', 'Return')}</Button>
           </span>
         );
       } },
@@ -282,9 +278,8 @@ const EquipmentUsagePage: React.FC = () => {
   return (
     <ListPage
       title={t('equipment:usage.title', 'Equipment')}
-      description={t('equipment:usage.description', 'Log the hours or days each machine worked on a project, submit the week, and approve what others logged.')}
-      primaryAction={tab === 'log' ? <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
-        <Button variant="primary" disabled={!submittable || transition.isPending} onClick={() => void submitWeek()}>{t('equipment:usage.submitWeek', 'Submit week')}</Button>
+      primaryAction={tab === 'log' && submittable ? <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
+        <Button variant="primary" disabled={transition.isPending} onClick={() => void submitWeek()}>{t('equipment:usage.submitWeek', 'Submit week')}</Button>
       </CanWrite> : undefined}
       filters={header}
     >
@@ -345,14 +340,9 @@ const EquipmentUsagePage: React.FC = () => {
                 accessibleName={t('equipment:usage.approvalsLabel', 'Submitted usage for {{asset}}', { asset: assetName(assetId) })} />
             </section>))
       )}
-      <ConfirmDialog open={rejecting !== null} tone="destructive" title={t('equipment:usage.rejectTitle', 'Reject this entry?')}
-        description={<div className="space-y-2">
-          <p>{rejecting?.label}</p>
-          <TextField label={t('equipment:usage.rejectReason', 'Reason')} required value={reason} onChange={setReason} />
-        </div>}
-        confirmLabel={t('equipment:usage.rejectConfirm', 'Reject entry')} confirmDisabled={reason.trim() === ''}
-        onCancel={() => setRejecting(null)}
-        onConfirm={() => { const r = rejecting; setRejecting(null); if (r) void decide(r.id, 'Rejected', reason.trim()); }} />
+      <ReasonDialog open={rejecting !== null} kind="return" subject={t('equipment:usage.entrySubject', 'usage entry')} context={rejecting?.label}
+        loading={transition.isPending} onCancel={() => setRejecting(null)}
+        onConfirm={(notes) => { const r = rejecting; setRejecting(null); if (r) void decide(r.id, 'Rejected', notes); }} />
     </ListPage>
   );
 };
@@ -362,7 +352,7 @@ function statusLabel(t: (k: string, d: string) => string, s: Status): string {
     case 'Draft': return t('equipment:status.draft', 'Draft');
     case 'Submitted': return t('equipment:status.submitted', 'Submitted');
     case 'Approved': return t('equipment:status.approved', 'Approved');
-    case 'Rejected': return t('equipment:status.rejected', 'Rejected');
+    case 'Rejected': return t('equipment:status.rejected', 'Returned');
   }
 }
 

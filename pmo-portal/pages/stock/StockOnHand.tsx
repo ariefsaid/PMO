@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, type Column } from '@/src/components/ui';
+import { Button, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, StatTiles, TextField, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -31,7 +31,7 @@ const StockOnHand: React.FC = () => {
   const warehouses = useStockWarehouses(false);
   const keepers = useStockKeepers();
   // The worklist always loads: its size is the one thing on this page that waits on someone.
-  const below = useBelowReorder(true);
+  const below = useBelowReorder(belowOnly);
   const onHand = useStockOnHand({ ...(warehouseId ? { warehouseId } : {}), ...(includeZero || belowOnly ? { includeZero: true } : {}) });
 
   const isKeeper = (keepers.data ?? []).some((k) => k.user_id === me);
@@ -102,7 +102,7 @@ const StockOnHand: React.FC = () => {
     onHand.isError || lookupError ? 'error' : onHand.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined;
   const tooMany = parseStockError(onHand.error)?.code === 'STK_TOO_MANY';
 
-  const lowCount = (below.data ?? []).length;
+  const centralCount = rows.filter((r) => r.warehouseKind === 'central').length;
 
   return (
     <ListPage
@@ -123,11 +123,16 @@ const StockOnHand: React.FC = () => {
       )}
     >
       <StockTabs />
-      {state === undefined && lowCount > 0 && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-status-warning-surface px-4 py-3 text-control">
-          <span className="font-medium text-warning-foreground">{t('onHand.lowStock', { count: lowCount })}</span>
-          <Link to="/stock/reorder" className="font-medium text-primary-text underline-offset-4 hover:underline">{t('onHand.seeReorder')}</Link>
-        </div>
+      {state === undefined && (
+        <StatTiles
+          className="mb-4"
+          tiles={[
+            { label: t('onHand.tiles.items'), value: new Set(rows.map((r) => r.itemId)).size },
+            { label: t('onHand.tiles.warehouses'), value: new Set(rows.map((r) => r.warehouseId)).size },
+            { label: t('onHand.tiles.central'), value: centralCount },
+            { label: t('onHand.tiles.site'), value: rows.length - centralCount },
+          ]}
+        />
       )}
       <StockFilters>
           <SelectField

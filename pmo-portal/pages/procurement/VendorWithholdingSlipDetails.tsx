@@ -8,7 +8,7 @@ import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
 import { vendorInvoiceIdentityAccessibleLabel } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import { bupotRefusal, type CorrectSlipInput, type VoidSlipInput } from '@/src/lib/vendorWithholdingSlip';
-import { formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
+import { formatCurrencyCents, formatDay } from '@/src/lib/format';
 
 interface Header { id: string; slip_number: string; slip_date: string; tax_period: string; pph_type: string; currency: string; tax_base: string; withheld_amount: string; status: string; validation_state: string; revision: number; void_reason?: string | null; linked_withheld_at_record?: string | null; linked_withheld_current?: string | null; difference?: string | null; }
 interface Bill { invoice_id: string; procurement_id: string; project_id?: string | null; reference_number?: string | null; vi_number?: string | null; invoice_date?: string | null; withheld_at_record: string; withheld_current?: string | null; difference?: string | null; currency: string; released_at?: string | null; coverage_state?: string; }
@@ -63,8 +63,8 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
     <CardPad>
       <dl className="grid gap-3 sm:grid-cols-2">
         <Fact label={t('bupot.slipNumber', 'Issued slip number')} value={header.slip_number} />
-        <Fact label={t('bupot.slipDate', 'Slip date')} value={formatDateOnly(header.slip_date)} />
-        <Fact label={t('bupot.taxPeriod', 'Tax period')} value={formatDateOnly(header.tax_period)} />
+        <Fact label={t('bupot.slipDate', 'Slip date')} value={formatDay(header.slip_date)} />
+        <Fact label={t('bupot.taxPeriod', 'Tax period')} value={formatDay(header.tax_period)} />
         <Fact label={t('bupot.type', 'PPh type')} value={header.pph_type === 'pph23' ? 'PPh 23' : header.pph_type === 'pph4_2' ? 'PPh 4(2)' : '—'} />
         <Fact label={t('bupot.taxBase', 'Tax base')} value={formatCurrencyCents(Number(header.tax_base), header.currency)} />
         <Fact label={t('bupot.withheldAmount', 'Issued withheld amount')} value={formatCurrencyCents(Number(header.withheld_amount), header.currency)} />

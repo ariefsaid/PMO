@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { StatTiles, type StatTile } from '@/src/components/ui';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { formatMoneyLines } from '@/src/lib/format';
+import { formatCurrency, formatMoneyLines } from '@/src/lib/format';
 import { daysSince, shownAmount, totalsByCurrency, type CurrencyTotal, type ProcurementListRole } from '@/src/lib/procurement/listModel';
 
 export type ProcurementTab = 'needs-you' | 'all' | 'orphans';
@@ -14,14 +14,15 @@ interface ProcurementKpiRowProps {
 }
 
 /** The recorded part of a money total, one line per currency (home first); null when nothing is recorded, never 0. */
-export function figureLines(totals: readonly CurrencyTotal[], home: string): { lines: string[] | null; unrecorded: number } {
+function figureLines(totals: readonly CurrencyTotal[], home: string): { lines: string[] | null; exact: string; unrecorded: number } {
   const known = totals.flatMap((total) => {
     const amount = shownAmount(total);
     return amount === null ? [] : [{ currency: total.currency, amount }];
   });
   const unrecorded = totals.reduce((sum, total) => sum + (total.unknown ? (total.unknownCount ?? 0) : 0), 0);
-  if (totals.length === 0) return { lines: formatMoneyLines([], home, 'tile'), unrecorded: 0 };
-  return { lines: known.length === 0 ? null : formatMoneyLines(known, home, 'tile'), unrecorded };
+  const exact = known.map((total) => formatCurrency(total.amount, total.currency)).join(' + ');
+  if (totals.length === 0) return { lines: formatMoneyLines([], home, 'tile'), exact, unrecorded: 0 };
+  return { lines: known.length === 0 ? null : formatMoneyLines(known, home, 'tile'), exact, unrecorded };
 }
 
 /**
@@ -43,14 +44,14 @@ export const ProcurementKpiRow = React.memo(function ProcurementKpiRow({ rows, r
     .sort()[0];
   const orderedRows = rows.filter((row) => row.status === 'Ordered' || row.status === 'Received');
 
-  const tile = (label: string, totals: CurrencyTotal[], caption: string | undefined, testId: string): StatTile => {
-    const { lines, unrecorded } = figureLines(totals, home);
+  const tile = (label: string, count: number, totals: CurrencyTotal[], caption: string | undefined, testId: string, basis: string): StatTile => {
+    const { lines, exact, unrecorded } = figureLines(totals, home);
     return {
       label,
-      value: lines === null ? null : <span data-testid={`summary-total-${testId}`} className="block">{lines.map((line) => <span key={line} className="block">{line}</span>)}</span>,
+      value: lines === null ? null : <span data-testid={`summary-total-${testId}`} title={basis} aria-label={`${exact}. ${basis}`} tabIndex={0} className="block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{lines.map((line) => <span key={line} className="block">{line}</span>)}</span>,
       unavailableReason: lines === null ? t('kpi.notRecorded', 'amounts are not recorded') : undefined,
-      // One caption: an incomplete total says so before anything else.
-      sub: unrecorded > 0 && lines !== null ? t('kpi.partial', { count: unrecorded, defaultValue: '{{count}} not recorded' }) : caption,
+      // The caption counts the same procurements as the figure; an incomplete total says so.
+      sub: [t('count.procurements', { count, defaultValue_one: '{{count}} procurement', defaultValue_other: '{{count}} procurements' }), unrecorded > 0 && lines !== null ? t('kpi.partial', { count: unrecorded, defaultValue: '{{count}} not recorded' }) : caption].filter(Boolean).join(' · '),
     };
   };
 
@@ -58,11 +59,14 @@ export const ProcurementKpiRow = React.memo(function ProcurementKpiRow({ rows, r
     // An engineer's figures are request amounts only; supplier invoices are not theirs to see, so no unpaid tile.
     ...(engineer ? [] : [tile(
       t('kpi.unpaid', 'Supplier invoices unpaid'),
+      unpaidRows.length,
       totalsByCurrency(unpaidRows, role, 'pay'),
       oldestInvoice ? t('kpi.invoiceAge', { count: daysSince(new Date(oldestInvoice)), defaultValue_one: 'Invoice age {{count}} day', defaultValue_other: 'Invoice age {{count}} days' }) : undefined,
       'unpaid',
+      t('money.pay', 'Supplier invoices use the unpaid balance; paid procurements contribute zero. Kept in each procurement currency.'),
     )]),
-    tile(t('kpi.ordered', 'Ordered, not invoiced'), totalsByCurrency(orderedRows, role, 'most-real'), undefined, 'ordered'),
+    tile(t('kpi.ordered', 'Ordered, not invoiced'), orderedRows.length, totalsByCurrency(orderedRows, role, 'most-real'), undefined, 'ordered',
+      engineer ? t('money.engineer', 'Request amount only. Supplier invoice and payment amounts are not shown.') : t('money.mostReal', 'Most real amount per procurement: paid, then supplier invoice, then purchase order, then request. Summed by currency.')),
   ];
 
   return (

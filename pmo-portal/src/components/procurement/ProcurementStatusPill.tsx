@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatusPill } from '@/src/components/ui';
-import { statusLabel } from '@/src/lib/status/statusMap';
 
 /**
  * A procurement's stored state, named and coloured by the shared status map. A stored `Rejected` can be
@@ -16,11 +15,3 @@ export const ProcurementStatusPill: React.FC<{ status: string }> = ({ status }) 
     </StatusPill>
   );
 };
-
-/** The same name as plain text, for filters, menus and export columns. */
-export function useProcurementStatusName(): (status: string) => string {
-  const { t } = useTranslation(['status', 'procurementRecord']);
-  return (status) => (status === 'Rejected'
-    ? t('procurementRecord:status.returned', 'Returned')
-    : statusLabel('procurement', status, t));
-}

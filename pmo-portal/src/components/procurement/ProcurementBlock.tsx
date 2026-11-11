@@ -38,7 +38,8 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency, formatDay, formatShortMoney } from '@/src/lib/format';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { ProcurementStatusPill, useProcurementStatusName } from './ProcurementStatusPill';
+import { ProcurementStatusPill } from './ProcurementStatusPill';
+import { useProcurementStatusName } from './useProcurementStatusName';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import {
   type ProcurementStage,
@@ -46,7 +47,6 @@ import {
   stageForStatus,
   stageDates,
   payStepLabel,
-  stageLabelForStatus,
 } from '@/src/lib/procurement/stage';
 import { procurementMoney, type ProcurementMoneyResult } from '@/src/lib/procurement/procurementMoney';
 import {
@@ -683,7 +683,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       },
     ];
     return tableColumns;
-  }, [canSeeMoney, t, statusName, categoryLabel, canDecideRow, stageDateTooltip, derivationFor, project, projectId, setSelected, rowAmount, filteredRows]);
+  }, [canSeeMoney, t, statusName, categoryLabel, canDecideRow, stageDateTooltip, derivationFor, projectId, setSelected, rowAmount, filteredRows]);
 
   const exportColumns = columns;
   const selectedForExport = selectedRows;
@@ -893,8 +893,16 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         onRetry={() => { void refetch(); }}
       >
         {!projectId && !isPending && !isError && data && (
-          <div role="group" aria-label={t('projectDetail.procurement.stageBand.label', 'Procurement stages')} className="flex gap-2 overflow-x-auto border-b border-border px-3 py-2.5 sm:px-4">
-            {stageStats.map(({ key, rows: stageRows }) => {
+          <div className="border-b border-border px-3 pb-2.5 pt-3 sm:px-4">
+            {/* Stages as parts of one whole: width = share of procurements; the chips below name each part. */}
+            <div aria-hidden="true" className="mb-2.5 flex h-2 w-full gap-px overflow-hidden rounded-full bg-secondary">
+              {stageStats.filter(({ rows: stageRows }) => stageRows.length > 0).map(({ key, rows: stageRows }) => (
+                <span key={key} title={`${stageText(key, t)}: ${stageRows.length}`} style={{ flexGrow: stageRows.length }}
+                  className={key === 'Request' && canApprove && pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length > 0 ? 'bg-primary' : 'bg-muted-foreground/40'} />
+              ))}
+            </div>
+          <div role="group" aria-label={t('projectDetail.procurement.stageBand.label', 'Procurement stages')} className="flex gap-2 overflow-x-auto">
+            {stageStats.map(({ key, rows: stageRows, currencyTotals }) => {
               const forYou = key === 'Request' && canApprove
                 ? pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length
                 : 0;
@@ -908,10 +916,12 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 >
                   {stageText(key, t)}
                   <span className="tabular text-foreground">{stageRows.length}</span>
+                  {canSeeMoney && currencyTotals.map((item) => <span key={item.currency} className="tabular" title={formatCurrency(item.value, item.currency)}>{formatShortMoney(item.value, item.currency)}</span>)}
                   {forYou > 0 && <span className="font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
                 </button>
               );
             })}
+          </div>
           </div>
         )}
         <div className="flex min-h-[58px] flex-wrap items-center gap-2 border-b border-border px-3 py-2.5 sm:px-4">
@@ -1013,7 +1023,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         nestedOpen={pendingDecision !== null}
         onClose={() => setSelected(null)}
         headerActions={selected ? <>
-          {drawerMain && <Button size="sm" onClick={runDrawerMain} disabled={transition.isPending || (drawerMain.transition.to === 'Requested' && (drawerDetails?.items.length ?? 0) === 0)}>
+          {drawerMain && <Button size="sm" onClick={runDrawerMain} disabled={transition.isPending || (drawerMain.transition.to === 'Requested' && (drawerDetails?.items?.length ?? 0) === 0)}>
             {drawerMain.label}
           </Button>}
           <Link to={`/procurement/${selected.id}`} className={buttonClasses('outline', 'sm')}>
@@ -1081,7 +1091,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                     <span aria-hidden="true" className={`absolute -left-[21px] top-1.5 size-2.5 rounded-full border ${step.date ? 'border-success bg-success' : 'border-border bg-card'}`} />
                     <span className={step.date ? 'font-medium text-foreground' : 'text-muted-foreground'}>{stageText(step.key, t)}</span>
                     <time dateTime={step.date ?? undefined} className="text-sm tabular text-muted-foreground">
-                      {step.date ? formatDate(step.date) : t('projectDetail.procurement.detail.notRecorded', 'Not recorded')}
+                      {step.date ? formatDay(step.date) : t('projectDetail.procurement.detail.notRecorded', 'Not recorded')}
                     </time>
                   </li>
                 ))}
@@ -1124,7 +1134,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 <p className="text-sm text-muted-foreground">{t('common.loading', 'Loading…')}</p>
               ) : detailQuery.isError ? (
                 <p className="text-sm text-muted-foreground">{t('procurement.lineItemsUnavailable', 'Line items could not be loaded.')}</p>
-              ) : (drawerDetails?.items.length ?? 0) > 0 ? (
+              ) : (drawerDetails?.items?.length ?? 0) > 0 ? (
                 <ul className="divide-y divide-border">
                   {drawerDetails!.items.map((item) => (
                     <li key={item.id} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 text-sm">

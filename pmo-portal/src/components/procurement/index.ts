@@ -4,4 +4,5 @@ export {
   ProcurementList,
   type ProcurementBlockProps,
 } from './ProcurementBlock';
-export { ProcurementStatusPill, useProcurementStatusName } from './ProcurementStatusPill';
+export { ProcurementStatusPill } from './ProcurementStatusPill';
+export { useProcurementStatusName } from './useProcurementStatusName';

@@ -395,7 +395,7 @@
     },
     "editor": {
       "title": "Set BoQ lines",
-      "subtitle": "The contract lines this purchase order covers, at the BoQ rate. Saving replaces the draft; issuing freezes it.",
+      "subtitle": "Saving replaces the draft; issuing freezes it.",
       "save": "Save lines",
       "legend": "Quantity per line",
       "noBoq": "This project has no BoQ items yet.",
@@ -404,7 +404,7 @@
     },
     "attribute": {
       "title": "Attribute lines to bill {{number}}",
-      "subtitle": "This bill of {{amount}} was recorded without line quantities. State what it covers, at the PO rate.",
+      "subtitle": "This bill of {{amount}} was recorded without line quantities.",
       "save": "Attribute lines",
       "legend": "Quantity billed per line",
       "helper": "PO {{po}}, verified {{verified}}, rate {{rate}}"
@@ -457,7 +457,7 @@
         "noDocument": "None yet",
         "titleEdit": "Edit acceptance",
         "titleNew": "Record acceptance",
-        "subtitle": "Work verified on site, as cumulative quantities to date. Someone else confirms it with the signed document; it does not create a bill.",
+        "subtitle": "Someone else confirms it with the signed document; it does not create a bill.",
         "save": "Save acceptance",
         "prepare": "Prepare acceptance",
         "details": "Acceptance",
