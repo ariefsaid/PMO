@@ -65,7 +65,9 @@ test('AC-DND-014 Exec drags a deal: illegal backstep refused, Quotation→Pre-Qu
   const writes: string[] = [];
   page.on('request', (r) => { if (r.url().includes('/rpc/transition_project')) writes.push(r.url()); });
   await dragCardTo(page, card(), page.getByTestId('stage-Leads'));
-  await expect(visibleToast(page, `${DEAL} can't move from Quotation to Leads.`)).toBeVisible();
+  // ux/1110 moved the status vocabulary into status.json: 'Quotation Submitted' now renders as
+  // "Quotation submitted" (dev: "Quotation"), and the refusal toast interpolates those labels.
+  await expect(visibleToast(page, `${DEAL} can't move from Quotation submitted to Leads.`)).toBeVisible();
   await expect(page.getByTestId('stage-Quotation Submitted').getByText(DEAL)).toBeVisible();
   expect(writes).toHaveLength(0);
 
@@ -99,7 +101,9 @@ test('AC-DND-014 Exec drags a deal: illegal backstep refused, Quotation→Pre-Qu
   await page.getByLabel('Customer contract ref').fill(`CPO-${RUN_ID}`);
   await page.getByLabel('Contract date').fill('2026-11-01');
   const won = page.waitForResponse((r) => r.url().includes('/rpc/transition_project'));
-  await page.getByRole('button', { name: /^confirm$/i }).click();
+  // ux/1110 renamed the win form's submit button "Confirm" → "Confirm won" (one name per action,
+  // shared with the status menu's win panel).
+  await page.getByRole('button', { name: 'Confirm won' }).click();
   expect((await won).ok()).toBe(true);
   await page.reload();
   await expect(page.getByTestId('stage-Won').getByText(DEAL)).toBeVisible({ timeout: 20_000 });
