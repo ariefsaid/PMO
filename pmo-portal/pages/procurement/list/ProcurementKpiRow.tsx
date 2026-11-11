@@ -23,8 +23,8 @@ function figureLines(totals: readonly CurrencyTotal[], home: string): { lines: s
   });
   const unrecorded = totals.reduce((sum, total) => sum + (total.unknown ? (total.unknownCount ?? 0) : 0), 0);
   const exact = known.map((total) => formatCurrency(total.amount, total.currency)).join(' + ');
-  if (totals.length === 0) return { lines: formatMoneyLines([], home, 'tile'), exact, unrecorded: 0 };
-  return { lines: known.length === 0 ? null : formatMoneyLines(known, home, 'tile'), exact, unrecorded };
+  if (totals.length === 0) return { lines: formatMoneyLines([{ currency: home, amount: 0 }], home, 'tile').lines, exact, unrecorded: 0 };
+  return { lines: known.length === 0 ? null : formatMoneyLines(known, home, 'tile').lines, exact, unrecorded };
 }
 
 /**
