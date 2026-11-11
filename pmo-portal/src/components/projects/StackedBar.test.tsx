@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { StackedBar } from './StackedBar';
 
 describe('project stacked bar', () => {
@@ -14,7 +14,8 @@ describe('project stacked bar', () => {
       ]}
     />);
 
-    const legend = screen.getByRole('list', { name: 'Tasks by status legend' });
-    expect(within(legend).getByText('Blocked')).toBeVisible();
+    const legend = screen.getByRole('img', { name: 'Tasks by status legend: Blocked' });
+    expect(legend).toBeVisible();
+    expect(legend).toHaveTextContent('Blocked');
   });
 });
