@@ -336,9 +336,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <FigureScope>
         <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="overview">
           {header}
-          <div className={cn(panelGrid, 'min-[900px]:grid-cols-3')}>
-            <div className="min-w-0">{waitsEl}</div>
-            <div className="min-w-0 min-[900px]:col-span-2">{finance ? overdueCard : offTrackEl}</div>
+          <div className={cn(panelGrid, 'min-[900px]:items-stretch min-[900px]:grid-cols-3')}>
+            <div className="min-w-0 min-[900px]:[&>div]:h-full">{waitsEl}</div>
+            <div className="min-w-0 min-[900px]:col-span-2 min-[900px]:[&>div]:h-full">{finance ? overdueCard : offTrackEl}</div>
           </div>
           {tilesNode}
           {chartsRow}
