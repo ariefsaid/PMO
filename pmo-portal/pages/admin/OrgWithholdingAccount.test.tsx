@@ -241,11 +241,6 @@ it('AC-WHA-001: an Admin chooses a PPh 23 and a PPh 4(2) prepaid account from As
   expect(h.set).toHaveBeenCalledWith({ defaultAccount: null, pph23Account: '1151 - PPh 23 Prepaid', pph42Account: '1152 - PPh 4(2) Prepaid' });
 });
 
-it('AC-WHA-004: the page says receipts with no article, or an article without its own account, post to the default account', async () => {
-  renderSetting();
-  expect(await screen.findByText(/Receipts without their own account post to the default/)).toBeInTheDocument();
-});
-
 it('AC-WHA-001: a non-Admin sees the three accounts read-only', async () => {
   h.canManage = false;
   h.get.mockResolvedValue({ defaultAccount: 'Default Prepaid - DEMO', pph23Account: 'PPh 23 Prepaid - DEMO', pph42Account: null });

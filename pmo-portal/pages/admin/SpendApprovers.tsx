@@ -95,19 +95,6 @@ const SpendApprovers: React.FC = () => {
     }
   };
 
-  const roleList = [
-    t('admin.roles.admin', 'Admin'),
-    t('admin.roles.executive', 'Executive'),
-    t('admin.roles.projectManager', 'Project Manager'),
-    t('admin.roles.finance', 'Finance'),
-  ];
-  const roles = t('uxs32.roleList', {
-    defaultValue: '{{first}}, {{second}}, {{third}} or {{fourth}}',
-    first: roleList[0],
-    second: roleList[1],
-    third: roleList[2],
-    fourth: roleList[3],
-  });
   const names = eligible.map((p) => p.full_name).join(', ');
   const eligibleIds = new Set(eligible.map((p) => p.id));
   // Eligibility-derived notes wait for the people list; when it fails they stay silent
@@ -117,20 +104,15 @@ const SpendApprovers: React.FC = () => {
   const holders = peopleError
     ? t('uxs32.holdersUnavailable', "Couldn't check who holds these roles right now.")
     : people
-      ? names
-        ? t('uxs32.holders', { defaultValue: 'Right now: {{names}}.', names })
-        : t('uxs32.holdersNone', 'Nobody active holds these roles right now.')
+      ? names || t('uxs32.holdersNone', 'Nobody active holds these roles right now.')
       : '';
 
-  const flatRouteNote = (scope: 'org' | 'project') => (
+  const flatRouteNote = (scope: 'org' | 'project') => holders ? (
     <p data-testid={`spend-route-${scope}`} className="mt-2 max-w-[68ch] text-control text-muted-foreground">
-      {t('uxs32.roleRoute', {
-        defaultValue: "Standard rules: {{roles}} can approve another person's case.",
-        roles,
-      })}{' '}
-      {holders}
+      <span className="font-medium text-foreground">{t('administration:admin.spendApprovers.whoNow', 'Who can approve now')}</span>
+      {': '}{holders}
     </p>
-  );
+  ) : null;
   const adminRouteNote = (scope: 'org' | 'project') => (
     <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-control text-warning-foreground">
       {t('uxs32.noEligible', 'Nobody listed can approve right now. Only an Admin can decide.')}
@@ -150,16 +132,7 @@ const SpendApprovers: React.FC = () => {
       // Both lists empty: the standard rules were already said once, under the overhead list.
       if (orgRows.length === 0) return null;
       if (peopleReady && !orgRows.some((r) => eligibleIds.has(r.profileId))) return adminRouteNote(scope);
-      return (
-        <p data-testid="spend-route-project" className="mt-2 max-w-[68ch] text-control text-muted-foreground">
-          {t('uxs32.projectEmpty', {
-            defaultValue:
-              'Nobody listed. Within budget, {{roles}} can approve; over budget, the overhead approvers decide.',
-            roles,
-          })}{' '}
-          {holders}
-        </p>
-      );
+      return flatRouteNote('project');
     }
     if (peopleError) {
       return (
@@ -223,12 +196,6 @@ const SpendApprovers: React.FC = () => {
       <h2 className="text-group font-semibold tracking-[-0.01em]">
         {t('admin.spendApprovers.title', 'Spend approvers')}
       </h2>
-      <p className="mt-1 max-w-[68ch] text-control text-muted-foreground">
-        {t(
-          'admin.spendApprovers.description',
-          'Spend within a project\'s budget goes to its approvers; all other spend goes to the overhead approvers.',
-        )}
-      </p>
       {isError ? (
         <ListState
           variant="error"

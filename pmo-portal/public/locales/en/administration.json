@@ -447,6 +447,10 @@
         "seatLimit": "Your plan has no seats left",
         "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then re-enable this user."
       }
+    },
+    "spendApprovers": {
+      "whoNow": "Who can approve now",
+      "helpRule": "With nobody listed, {{roles}} can approve another person's case."
     }
   }
 }

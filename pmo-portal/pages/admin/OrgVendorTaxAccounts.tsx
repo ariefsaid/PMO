@@ -152,9 +152,6 @@ export default function OrgVendorTaxAccounts() {
       <h2 id="vendor-tax-accounts-heading" tabIndex={-1} className="scroll-mt-4 text-group font-semibold">
         {t('uxs11.vendorTaxHeading', 'Supplier bill tax accounts')}
       </h2>
-      <p className="mt-1 text-control text-muted-foreground">
-        {t('uxs11.vendorTaxIntro', 'Accounts for input VAT (Asset) and tax withheld from supplier bills (Liability).')}
-      </p>
       <div className="mt-3 max-w-md">
         {query.isError ? (
           <ListState variant="error" title={t('uxs11.vendorTaxLoadError', "Couldn't load the tax accounts")} onRetry={() => void query.refetch()} />
@@ -216,7 +213,7 @@ export default function OrgVendorTaxAccounts() {
                     clearable={Boolean(value && !mutation.isPending)}
                     loadOptions={loadOptions[field.purpose]}
                     noun={t('uxs11.accountNoun', 'account')}
-                    placeholder={t('uxs11.accountPlaceholder', 'Choose an account')}
+                    placeholder={t('uxs11.accountPlaceholder', 'Choose…')}
                     searchPlaceholder={t('uxs11.accountSearch', 'Search account name or number')}
                     disabled={mutation.isPending || !canBrowse}
                     error={isUnavailableDraftChoice ? t('v024Polish.accountDraftUnavailable', 'This unsaved choice is no longer available in the current chart. Choose another account or clear this field.') : undefined}

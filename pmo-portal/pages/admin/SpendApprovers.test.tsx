@@ -164,7 +164,7 @@ describe('UX-081 resolved approval route (S-32)', () => {
     ]);
     renderPanel('Admin');
     const route = await screen.findByTestId('spend-route-org');
-    expect(route).toHaveTextContent('Admin, Executive, Project Manager or Finance');
+    expect(route).toHaveTextContent('Who can approve now');
     await waitFor(() => expect(route).toHaveTextContent('Eve Exec'));
     expect(route).toHaveTextContent('Fay Fin');
     expect(route).not.toHaveTextContent('Eli Eng');
@@ -206,7 +206,6 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockRejectedValue(new Error('boom'));
     renderPanel('Admin');
     const route = await screen.findByTestId('spend-route-org');
-    expect(route).toHaveTextContent('Admin, Executive, Project Manager or Finance');
     await waitFor(() => expect(route).toHaveTextContent("Couldn't check who holds these roles right now."));
   });
 
@@ -219,8 +218,8 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockResolvedValue([{ id: 'u-exec', full_name: 'Eve Exec', role: 'Executive', status: 'active' }]);
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
-    expect(note).toHaveTextContent('Within budget,');
-    expect(note).toHaveTextContent('over budget, the overhead approvers decide');
+    expect(note).toHaveTextContent('Who can approve now');
+    await waitFor(() => expect(note).toHaveTextContent('Eve Exec'));
   });
 
   it('UX-081: an empty project list with no eligible senior approver leaves decisions to an Admin (DD-APR-4)', async () => {
@@ -273,8 +272,7 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockResolvedValue([{ id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' }]);
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
-    expect(note).toHaveTextContent("Standard rules:");
-    expect(note).toHaveTextContent("can approve another person's case");
+    expect(note).toHaveTextContent('Who can approve now');
     expect(note).not.toHaveTextContent('Only an Admin can decide');
   });
 

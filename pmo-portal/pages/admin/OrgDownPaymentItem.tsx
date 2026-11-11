@@ -76,9 +76,6 @@ export default function OrgDownPaymentItem() {
       <h2 id="down-payment-item-heading" tabIndex={-1} className="scroll-mt-4 text-group font-semibold">
         {t('uxs11.downPaymentHeading', 'Down payments')}
       </h2>
-      <p className="mt-1 text-control text-muted-foreground">
-        {t('uxs11.downPaymentIntro', 'The ERPNext item that bills a customer advance and recovers it from billing claims.')}
-      </p>
       <div className="mt-3 max-w-md">
         {query.isError ? <ListState variant="error" title={t('uxs11.downPaymentLoadError', "Couldn't load the down payment item")} onRetry={() => void query.refetch()} />
           : query.isPending ? <ListState variant="loading" rows={1} />

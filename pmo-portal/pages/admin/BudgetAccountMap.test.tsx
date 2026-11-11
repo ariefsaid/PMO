@@ -77,7 +77,7 @@ const selectCatalogueAccount = async (user: ReturnType<typeof userEvent.setup>, 
 
 const openRowOptions = async (user: ReturnType<typeof userEvent.setup>, category: string) => {
   const row = (await screen.findByText(category)).closest('tr')!;
-  await user.click(within(row).getByText('Account options'));
+  await user.click(within(row).getByLabelText('Account options'));
   return row;
 };
 
@@ -125,7 +125,6 @@ describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
     renderPage();
     expect(await screen.findByRole('button', { name: 'Review 1 proposal' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Suggested posting accounts' })).toBeInTheDocument();
-    expect(screen.getByText(/existing choices are kept/i)).toBeInTheDocument();
     expect(screen.queryByText('6100 - Office')).not.toBeInTheDocument();
   });
 
@@ -391,12 +390,11 @@ describe('BudgetAccountMap — I-8: reachable, and it marks what is blocking', (
     expect(document.activeElement).not.toBe(document.getElementById('budget-account-map'));
   });
 
-  it('I-8 an UNMAPPED category is marked "Not mapped" and the page says once that it blocks the whole push', async () => {
+  it('I-8 an UNMAPPED category is marked "Not mapped" (the push-blocking rule is in the page help)', async () => {
     renderPage('Admin');
     await screen.findByText('Labor');
     const row = screen.getByText('Contingency').closest('tr')!;
     expect(within(row).getByText('Not mapped')).toBeInTheDocument();
-    expect(screen.getAllByText(/blocks the whole push/i)).toHaveLength(1);
   });
 
   it('I-8 a MAPPED category is not marked as blocking', async () => {
@@ -419,7 +417,7 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
     const labor = (await screen.findByText('Labor')).closest('tr')!;
     const salary = within(labor).getByText('Salary - PSC').parentElement!;
     expect(within(salary).getByText('Budget push')).toBeInTheDocument();
-    await userEvent.click(within(labor).getByText(/additional account\(s\) count toward actuals only/i));
+    await userEvent.click(within(labor).getByText(/more, actuals only/i));
     expect(within(labor).getByText('Allowances - PSC')).toBeInTheDocument();
     expect(within(labor).getAllByText('Budget push')).toHaveLength(1);
     expect(within(labor).queryByText('No push account')).not.toBeInTheDocument();

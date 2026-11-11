@@ -72,7 +72,7 @@ describe('expense account readiness (AD-2, S-12)', () => {
     h.binding = { status: 'active' };
     renderMap();
     expect(await screen.findByText(
-      'Expense posting is not switched on yet. Switch it on in Integrations, under ERPNext setup.',
+      'Expense posting is off. Switch it on in Integrations, under ERPNext setup.',
     )).toBeInTheDocument();
     // The contradictory reconnect instruction is gone, the recovery doorway stays.
     expect(screen.queryByText('Connect ERPNext before mapping expense accounts.')).toBeNull();

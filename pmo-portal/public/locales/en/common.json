@@ -54,7 +54,7 @@
   },
   "uxs10": {
     "rowOptions": "Account options",
-    "countOnlyAccounts": "{{count}} additional account(s) count toward actuals only",
+    "countOnlyAccounts": "{{count}} more, actuals only",
     "proposalsLabel": "Suggested posting accounts",
     "proposalsTitle": "Review suggested posting accounts",
     "proposalsHelp": "Suggestions use direct-cost ledger accounts; existing choices are kept.",
@@ -78,7 +78,7 @@
   },
   "uxs11": {
     "accountNoun": "account",
-    "accountPlaceholder": "Choose an account",
+    "accountPlaceholder": "Choose…",
     "accountSearch": "Search account name or number",
     "bindingRequired": "An active ERPNext connection is needed to load these choices.",
     "bindingLoadError": "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.",
@@ -118,7 +118,7 @@
     "withholdingHeading": "Receipt withholding",
     "withholdingIntro": "Asset account for income tax withheld by clients. Set it before recording a receipt with withholding.",
     "withholdingLoadError": "Couldn't load the tax-prepaid account",
-    "withholdingPlaceholder": "Choose an Asset account",
+    "withholdingPlaceholder": "Choose…",
     "withholdingRemoteChanged": "The saved account changed. Your edit is kept; reload the saved value to discard it.",
     "withholdingSaved": "Receipt withholding account saved"
   },
@@ -4413,7 +4413,7 @@
   },
   "uxs12": {
     "expensePosting": {
-      "adminInactive": "Expense posting is not switched on yet. Switch it on in Integrations, under ERPNext setup.",
+      "adminInactive": "Expense posting is off. Switch it on in Integrations, under ERPNext setup.",
       "adminUnknown": "Couldn't check whether expense posting is ready. Try checking again.",
       "retryReadiness": "Check again",
       "mapIncomplete": "{{count}} of {{total}} accounts are not mapped; a posting that needs one stops.",
@@ -4472,14 +4472,11 @@
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} or {{fourth}}",
-    "roleRoute": "Standard rules: {{roles}} can approve another person's case.",
-    "holders": "Right now: {{names}}.",
     "holdersNone": "Nobody active holds these roles right now.",
     "holdersUnavailable": "Couldn't check who holds these roles right now.",
     "routeUnavailable": "Couldn't verify who can approve right now.",
     "noEligible": "Nobody listed can approve right now. Only an Admin can decide.",
-    "escalate": "Nobody listed can approve right now. The overhead approvers decide.",
-    "projectEmpty": "Nobody listed. Within budget, {{roles}} can approve; over budget, the overhead approvers decide."
+    "escalate": "Nobody listed can approve right now. The overhead approvers decide."
   },
   "uxs38": {
     "emptyScope": "Accounting records never change.",

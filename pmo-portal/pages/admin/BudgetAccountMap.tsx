@@ -260,7 +260,7 @@ const BudgetAccountMap: React.FC = () => {
             {accounts.some((account) => !account.isPushTarget) && (
               <details className="text-control">
                 <summary className="w-fit cursor-pointer text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
-                  {t('uxs10.countOnlyAccounts', { defaultValue: '{{count}} additional account(s) count toward actuals only', count: accounts.filter((account) => !account.isPushTarget).length })}
+                  {t('uxs10.countOnlyAccounts', { defaultValue: '{{count}} more, actuals only', count: accounts.filter((account) => !account.isPushTarget).length })}
                 </summary>
                 <ul className="mt-2 flex flex-col gap-1.5">
                   {accounts.filter((account) => !account.isPushTarget).map((account) => <li key={account.id} className="break-words">{account.erpAccount}</li>)}
@@ -282,8 +282,11 @@ const BudgetAccountMap: React.FC = () => {
         const hasPush = accounts.some((a) => a.isPushTarget);
         return (
           <details className="text-left">
-            <summary className="touch-target ml-auto w-fit cursor-pointer rounded-md px-2 py-1 text-control text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
-              {t('uxs10.rowOptions', 'Account options')}
+            <summary
+              aria-label={t('uxs10.rowOptions', 'Account options')}
+              className="touch-target ml-auto grid size-7 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <span aria-hidden className="text-base leading-none">⋯</span>
             </summary>
             <div className="mt-2 flex flex-wrap justify-end gap-1">
               <Button
@@ -328,18 +331,11 @@ const BudgetAccountMap: React.FC = () => {
       <h2 className="text-group font-semibold tracking-[-0.01em]">
         {t('admin.budgetMap.title', 'Budget account map')}
       </h2>
-      <p className="mt-1 text-control text-muted-foreground">
-        {t(
-          'admin.budgetMap.description',
-          'Each budget category needs one ERP account to receive its budget; other accounts count toward actuals only. An unmapped category blocks the whole push.',
-        )}
-      </p>
 
       {categoriesNeedingPosting.length > 0 && <div className="mt-4 border-y border-border py-3" role="region" aria-label={t('uxs10.proposalsLabel', 'Suggested posting accounts')}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold">{t('uxs10.proposalsTitle', 'Review suggested posting accounts')}</h3>
-            <p className="mt-1 text-control text-muted-foreground">{t('uxs10.proposalsHelp', 'Suggestions use direct-cost ledger accounts; existing choices are kept.')}</p>
           </div>
           {proposals.length > 0 && canManage && (
             <Button variant="primary" onClick={() => setConfirmProposals(true)}>

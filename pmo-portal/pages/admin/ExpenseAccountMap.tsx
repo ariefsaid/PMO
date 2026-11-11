@@ -53,6 +53,8 @@ const ExpenseAccountMap: React.FC = () => {
     queryFn: () => repositories.expensePostings.listAccountMap(),
   });
   const byKey = useMemo(() => new Map((data ?? []).map((r) => [r.accountKey, r.erpAccount])), [data]);
+  // Posting off and nothing mapped: "Not mapped" is said once above the list, not on every row.
+  const allIdle = !isReady && byKey.size === 0;
   const unmappedCount = useMemo(
     () => EXPENSE_ACCOUNT_KEYS.filter((key) => !byKey.get(key)).length,
     [byKey],
@@ -132,12 +134,6 @@ const ExpenseAccountMap: React.FC = () => {
   return (
     <section id="expense-account-map" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.expenseMap.title', 'Expense account map')}>
       <h2 className="text-group font-semibold tracking-[-0.01em]">{t('admin.expenseMap.title', 'Expense account map')}</h2>
-      <p className="mt-1 text-control text-muted-foreground">
-        {t(
-          'admin.expenseMap.description',
-          'ERPNext accounts that approved claims and advances post to. A posting with an unmapped account stops and is reported.',
-        )}
-      </p>
       {/* S-12 (UX-080/RF-053): one gate banner per readiness state, each naming its own missing step.
           The map stays readable in every state; only mapping actions wait for readiness. */}
       {readiness.state === 'notConnected' && (
@@ -148,7 +144,7 @@ const ExpenseAccountMap: React.FC = () => {
       )}
       {readiness.state === 'inactive' && (
         <GateNotice variant="blocked" className="mt-3">
-          <p>{t('uxs12.expensePosting.adminInactive', 'Expense posting is not switched on yet. Switch it on in Integrations, under ERPNext setup.')}</p>
+          <p>{t('uxs12.expensePosting.adminInactive', 'Expense posting is off. Switch it on in Integrations, under ERPNext setup.')}</p>
           <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
         </GateNotice>
       )}
@@ -165,6 +161,7 @@ const ExpenseAccountMap: React.FC = () => {
       )}
       {/* AC-MOBILE-OVERFLOW-001 — each row wraps (`flex-wrap`, `break-words`), so a long account name never pushes
           past 390px. */}
+      {allIdle && <p className="mt-3.5 text-control text-muted-foreground">{t('admin.expenseMap.unmappedIdle', 'Not mapped')}</p>}
       <ul className="mt-3.5 flex flex-col">
         {EXPENSE_ACCOUNT_KEYS.map((key) => {
           const account = byKey.get(key);
@@ -182,7 +179,7 @@ const ExpenseAccountMap: React.FC = () => {
                   // unmapped key stops nothing: say so plainly instead of warning.
                   : isReady
                     ? <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped')}</StatusPill>
-                    : <span className="text-muted-foreground">{t('admin.expenseMap.unmappedIdle', 'Not mapped')}</span>}
+                    : allIdle ? null : <span className="text-muted-foreground">{t('admin.expenseMap.unmappedIdle', 'Not mapped')}</span>}
                 {canManage && (
                   <>
                     {(isReady || account) && <Button variant="ghost" size="sm" disabled={!isReady} onClick={() => { setSaveError(null); setEditing(key); }}>

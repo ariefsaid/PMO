@@ -70,12 +70,6 @@ const OrgTaxDefault: React.FC = () => {
       <h2 className="text-group font-semibold tracking-[-0.01em]">
         {t('admin.taxDefault.title', 'Default tax treatment')}
       </h2>
-      <p className="mt-1 text-control text-muted-foreground">
-        {t(
-          'admin.taxDefault.description',
-          'New contracts, work orders and invoices start on this basis. Existing records keep theirs.',
-        )}
-      </p>
       <div className="mt-3 max-w-md">
         {loadFailed ? (
           <ListState
@@ -91,6 +85,7 @@ const OrgTaxDefault: React.FC = () => {
           <SelectField
             id="org-tax-default-select"
             label={t('admin.taxDefault.label', 'Default tax treatment')}
+            hideLabel
             value={current}
             onChange={(value) => void onChange(value)}
             options={taxOptions.options}

@@ -54,7 +54,7 @@
   },
   "uxs10": {
     "rowOptions": "Opsi akun",
-    "countOnlyAccounts": "{{count}} akun tambahan hanya dihitung dalam realisasi",
+    "countOnlyAccounts": "{{count}} lagi, hanya realisasi",
     "proposalsLabel": "Usulan akun pencatatan",
     "proposalsTitle": "Tinjau usulan akun pencatatan",
     "proposalsHelp": "Saran memakai akun buku besar biaya langsung; pilihan yang ada dipertahankan.",
@@ -78,7 +78,7 @@
   },
   "uxs11": {
     "accountNoun": "akun",
-    "accountPlaceholder": "Pilih akun",
+    "accountPlaceholder": "Pilih…",
     "accountSearch": "Cari nama atau nomor akun",
     "bindingRequired": "Koneksi ERPNext aktif diperlukan untuk memuat pilihan ini.",
     "bindingLoadError": "Penyiapan ERPNext tidak dapat diperiksa. Coba lagi sebelum memutuskan apakah koneksi diperlukan.",
@@ -118,7 +118,7 @@
     "withholdingHeading": "Potongan pajak pada penerimaan",
     "withholdingIntro": "Akun Aset untuk pajak penghasilan yang dipotong klien. Atur sebelum mencatat penerimaan dengan pemotongan.",
     "withholdingLoadError": "Tidak dapat memuat akun pajak dibayar di muka",
-    "withholdingPlaceholder": "Pilih akun Aset",
+    "withholdingPlaceholder": "Pilih…",
     "withholdingRemoteChanged": "Akun tersimpan berubah. Perubahan Anda tetap ada; muat ulang nilai tersimpan untuk membuangnya.",
     "withholdingSaved": "Akun potongan pajak penerimaan disimpan"
   },
@@ -4413,7 +4413,7 @@
   },
   "uxs12": {
     "expensePosting": {
-      "adminInactive": "Posting biaya belum diaktifkan. Aktifkan di Integrasi, pada pengaturan ERPNext.",
+      "adminInactive": "Posting biaya belum aktif. Aktifkan di Integrasi, di bawah pengaturan ERPNext.",
       "adminUnknown": "Tidak dapat memeriksa apakah posting biaya siap. Coba periksa lagi.",
       "retryReadiness": "Periksa lagi",
       "mapIncomplete": "{{count}} dari {{total}} akun belum dipetakan; posting yang membutuhkannya berhenti.",
@@ -4472,14 +4472,11 @@
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} atau {{fourth}}",
-    "roleRoute": "Aturan standar: {{roles}} dapat menyetujui kasus orang lain.",
-    "holders": "Saat ini: {{names}}.",
     "holdersNone": "Saat ini tidak ada anggota aktif yang memegang peran ini.",
     "holdersUnavailable": "Belum bisa memeriksa siapa yang memegang peran ini.",
     "routeUnavailable": "Belum bisa memastikan siapa yang dapat menyetujui saat ini.",
     "noEligible": "Tidak ada yang terdaftar dapat menyetujui saat ini. Hanya Admin yang dapat memutuskan.",
-    "escalate": "Tidak ada yang terdaftar dapat menyetujui saat ini. Penyetuju overhead yang memutuskan.",
-    "projectEmpty": "Belum ada. Dalam anggaran, {{roles}} dapat menyetujui; di atas anggaran, penyetuju overhead memutuskan."
+    "escalate": "Tidak ada yang terdaftar dapat menyetujui saat ini. Penyetuju overhead yang memutuskan."
   },
   "uxs38": {
     "emptyScope": "Catatan akuntansi tidak pernah berubah.",

@@ -62,7 +62,7 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(await screen.findByText('Biaya khusus')).toBeInTheDocument();
     expect(screen.getByText('Labor')).toBeInTheDocument();
     const row = (await screen.findByText('Biaya khusus')).closest('tr')!;
-    await userEvent.click(within(row).getByText('Opsi akun'));
+    await userEvent.click(within(row).getByLabelText('Opsi akun'));
     await userEvent.click(within(row).getByRole('button', { name: 'Petakan Biaya khusus' }));
     expect(await screen.findByRole('dialog', { name: 'Petakan Biaya khusus' })).toBeInTheDocument();
   });
@@ -73,7 +73,7 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(await screen.findByText('Perjalanan & akomodasi')).toBeInTheDocument();
     expect(screen.getByText('Kendaraan')).toBeInTheDocument();
     const row = screen.getByText('Kendaraan').closest('tr')!;
-    await userEvent.click(within(row).getByText('Opsi akun'));
+    await userEvent.click(within(row).getByLabelText('Opsi akun'));
     await userEvent.click(within(row).getByRole('button', { name: 'Petakan Kendaraan' }));
     expect(await screen.findByRole('dialog', { name: 'Petakan Kendaraan' })).toBeInTheDocument();
   });
@@ -87,23 +87,18 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(within(row).getByText('Biaya langsung proyek, bukan biaya overhead perusahaan.')).toBeInTheDocument();
   });
 
-  it('#693: heading, intro, column headers, unmapped pill and row actions are Bahasa', async () => {
+  it('#693: heading, column headers, unmapped pill and row actions are Bahasa', async () => {
     listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Peta akun anggaran' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Peta kategori anggaran ke akun ERP' })).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Setiap kategori anggaran memerlukan satu akun ERP untuk menerima anggarannya; akun lain hanya dihitung ke realisasi. Kategori yang belum dipetakan menahan seluruh pengiriman.',
-      ),
-    ).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Kategori' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Akun ERP' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Aksi' })).toBeInTheDocument();
     expect(screen.getAllByText('Belum dipetakan').length).toBe(9);
     const labor = (await screen.findByText('Labor')).closest('tr')!;
-    expect(within(labor).getByText('Opsi akun')).toBeInTheDocument();
-    await userEvent.click(within(labor).getByText('Opsi akun'));
+    expect(within(labor).getByLabelText('Opsi akun')).toBeInTheDocument();
+    await userEvent.click(within(labor).getByLabelText('Opsi akun'));
     expect(within(labor).getByRole('button', { name: 'Edit 5100 - Direct Costs' })).toBeInTheDocument();
     expect(within(labor).getByRole('button', { name: 'Hapus 5100 - Direct Costs' })).toBeInTheDocument();
   });
@@ -119,7 +114,7 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
     renderPage();
     const materials = (await screen.findByText('Materials')).closest('tr')!;
-    await userEvent.click(within(materials).getByText('Opsi akun'));
+    await userEvent.click(within(materials).getByLabelText('Opsi akun'));
     await userEvent.click(within(materials).getByRole('button', { name: 'Petakan Materials' }));
     const dialog = await screen.findByRole('dialog', { name: 'Petakan Materials' });
     expect(within(dialog).getByRole('combobox', { name: /Akun ERP/ })).toHaveTextContent('mis. 5100 - Biaya Langsung');
@@ -134,7 +129,7 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
     renderPage();
     const labor = (await screen.findByText('Labor')).closest('tr')!;
-    await userEvent.click(within(labor).getByText('Opsi akun'));
+    await userEvent.click(within(labor).getByLabelText('Opsi akun'));
     await userEvent.click(within(labor).getByRole('button', { name: 'Hapus 5100 - Direct Costs' }));
     const confirm = await screen.findByRole('alertdialog', { name: 'Hapus pemetaan Labor?' });
     expect(within(confirm).getByRole('button', { name: 'Hapus pemetaan' })).toBeInTheDocument();

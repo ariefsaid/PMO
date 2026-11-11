@@ -55,9 +55,6 @@ export default function OrgProcurementGates() {
       <h2 id="procurement-gates-heading" tabIndex={-1} className="scroll-mt-4 text-group font-semibold">
         {t('procurement:gates.heading', 'Purchase rules')}
       </h2>
-      <p className="mt-1 text-control text-muted-foreground">
-        {t('procurement:gates.intro', 'All off: a purchase can start at any step.')}
-      </p>
       <div className="mt-3 max-w-md">
         {query.isError ? <ListState variant="error" title={t('procurement:gates.loadError', 'Couldn’t load purchase rules')} onRetry={() => void query.refetch()} />
           : query.isPending ? <ListState variant="loading" rows={4} />

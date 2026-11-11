@@ -447,6 +447,10 @@
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",
         "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu aktifkan kembali pengguna ini."
       }
+    },
+    "spendApprovers": {
+      "whoNow": "Yang dapat menyetujui sekarang",
+      "helpRule": "Jika tidak ada yang terdaftar, {{roles}} dapat menyetujui kasus orang lain."
     }
   }
 }

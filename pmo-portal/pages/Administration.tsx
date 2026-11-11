@@ -19,6 +19,7 @@ import { FeedbackSurveysSetting } from '@/src/components/feedback/FeedbackSurvey
 import AdministrationExchangeRates from './AdministrationExchangeRates';
 import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
+import { AccountingHelp } from './admin/AccountingHelp';
 import OrgTaxDefault from './admin/OrgTaxDefault';
 import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
@@ -93,9 +94,15 @@ function administrationSectionForPath(pathname: string): AdministrationSection |
 const isOperatorSection = (section: AdministrationSection): boolean =>
   section === 'usage' || section === 'features';
 
-const AdministrationHeader: React.FC = () => {
+const AdministrationHeader: React.FC<{ section?: AdministrationSection }> = ({ section }) => {
   const { t } = useTranslation();
-  return <PageHeader title={t('admin.nav.title', 'Administration')} />;
+  return (
+    <PageHeader
+      title={t('admin.nav.title', 'Administration')}
+      help={section === 'accounting' ? <AccountingHelp /> : undefined}
+      helpSubject={t('admin.nav.accounting', 'Accounting setup')}
+    />
+  );
 };
 
 /** The selected section's name for assistive tech: the tab already shows it, so no second visible heading. */
@@ -356,7 +363,7 @@ const Administration: React.FC = () => {
 
   return (
     <div className="min-w-0">
-      <AdministrationHeader />
+      <AdministrationHeader section={section} />
 
       {operatorMembership.isPending && needsOperatorCheck ? (
         <OperatorMembershipPending />

@@ -80,12 +80,6 @@ export default function OrgWithholdingAccount() {
     <h2 id="withholding-account-heading" tabIndex={-1} className="scroll-mt-4 text-group font-semibold">
       {t('uxs11.withholdingHeading', 'Receipt withholding')}
     </h2>
-    <p className="mt-1 text-control text-muted-foreground">
-      {t('uxs11.withholdingIntro', 'Asset account for income tax withheld by clients. Set it before recording a receipt with withholding.')}
-    </p>
-    <p className="mt-1 text-control text-muted-foreground">
-      {t('administration:admin.receiptWithholding.fallbackHint', 'Receipts without their own account post to the default.')}
-    </p>
     <div className="mt-3 max-w-md">
       {query.isError ? <ListState variant="error" title={t('uxs11.withholdingLoadError', "Couldn't load the tax-prepaid account")} onRetry={() => void query.refetch()} />
         : query.isPending ? <ListState variant="loading" rows={3} />
@@ -125,7 +119,7 @@ export default function OrgWithholdingAccount() {
                 error={isUnavailableDraftChoice ? t('v024Polish.accountDraftUnavailable', 'This unsaved choice is no longer available in the current chart. Choose another account or clear this field.') : undefined}
                 loadOptions={loadOptions}
                 noun={noun}
-                placeholder={t('uxs11.withholdingPlaceholder', 'Choose an Asset account')}
+                placeholder={t('uxs11.withholdingPlaceholder', 'Choose…')}
                 searchPlaceholder={t('uxs11.accountSearch', 'Search account name or number')}
                 disabled={mutation.isPending || !canBrowse}
                 clearWhileDisabled

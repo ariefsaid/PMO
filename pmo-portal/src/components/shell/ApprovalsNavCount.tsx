@@ -11,6 +11,7 @@ import {
   expenseClaimsAwaitingKey,
   externalDomainOwnershipKey,
   nativeDraftInvoicesKey,
+  procurementsKey,
   requestedProcurementsKey,
 } from '@/src/hooks/approvalsQueryKeys';
 
@@ -45,15 +46,25 @@ export const ApprovalsNavCount: React.FC = () => {
   const invoiceMode = ownershipState?.status === 'success' ? routeWrite('revenue', ownershipMap) : undefined;
   const includeInvoices = canApproveInvoices && invoiceMode !== 'external';
 
+  // The approvals queue reads the Requested-only list; the dashboard's "needs you" reads the lean list of the same
+  // rows (same filter below). Either, when current, gives the count, so it shows wherever one of them is already loaded.
+  const procurementCandidates = useMemo(
+    () => canApproveProcurement ? [requestedProcurementsKey(orgId), procurementsKey(orgId, false, false, true, false)] : [],
+    [canApproveProcurement, orgId],
+  );
+  const procurementKey = procurementCandidates.find((key) => {
+    const state = queryClient?.getQueryState(key);
+    return state?.status === 'success' && !state.isInvalidated && queryClient?.getQueryData(key) !== undefined;
+  }) ?? procurementCandidates[0];  // none current: first candidate, so the count stays omitted
   const queueKeys = useMemo(() => [
-    ...(canApproveProcurement ? [requestedProcurementsKey(orgId), expenseClaimsAwaitingKey(orgId)] : []),
+    ...(canApproveProcurement ? [procurementKey, expenseClaimsAwaitingKey(orgId)] : []),
     ...(canApproveTimesheets ? [awaitingApprovalKey(orgId, userId, role)] : []),
     ...(includeInvoices ? [nativeDraftInvoicesKey(orgId)] : []),
-  ], [canApproveProcurement, canApproveTimesheets, includeInvoices, orgId, role, userId]);
+  ], [canApproveProcurement, canApproveTimesheets, includeInvoices, orgId, procurementKey, role, userId]);
   const getSnapshot = useCallback(() => {
     const currentOwnershipState = queryClient?.getQueryState(ownershipKey);
     return JSON.stringify([
-      ...queueKeys.map((key) => {
+      ...[...queueKeys, ...procurementCandidates].map((key) => {
         const state = queryClient?.getQueryState(key);
         return state ? [state.status, state.dataUpdatedAt, state.errorUpdatedAt, state.isInvalidated] : null;
       }),
@@ -61,7 +72,7 @@ export const ApprovalsNavCount: React.FC = () => {
         ? [currentOwnershipState.status, currentOwnershipState.dataUpdatedAt, currentOwnershipState.errorUpdatedAt]
         : null,
     ]);
-  }, [queueKeys, queryClient, ownershipKey]);
+  }, [queueKeys, procurementCandidates, queryClient, ownershipKey]);
   const subscribe = useCallback(
     (onStoreChange: () => void) => queryClient?.getQueryCache().subscribe(() => {
       // Query observers can publish while another route component is rendering; defer the rail
