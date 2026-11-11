@@ -43,7 +43,7 @@ values ('0aac0000-0000-0000-0000-000000000001','erpnext','timesheets');
 select is(
   (select string_agg(column_name, ',' order by column_name)
      from information_schema.columns where table_schema = 'public' and table_name = 'timesheets'),
-  'approved_at,approved_by,id,org_id,status,submitted_at,user_id,week_start_date',
+  'approved_at,approved_by,id,org_id,rejected_at,rejected_by,rejection_reason,status,submitted_at,user_id,week_start_date',
   'AC-TSP-004: timesheets column set unchanged on a flipped org');
 select is(
   (select string_agg(column_name, ',' order by column_name)

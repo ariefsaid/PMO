@@ -2286,6 +2286,8 @@ export type Database = {
           org_id: string
           project_id: string
           quantity: number
+          rejected_at: string | null
+          rejected_by: string | null
           status: string
           trips: number | null
           unit: string
@@ -2307,6 +2309,8 @@ export type Database = {
           org_id: string
           project_id: string
           quantity: number
+          rejected_at?: string | null
+          rejected_by?: string | null
           status?: string
           trips?: number | null
           unit: string
@@ -2328,6 +2332,8 @@ export type Database = {
           org_id?: string
           project_id?: string
           quantity?: number
+          rejected_at?: string | null
+          rejected_by?: string | null
           status?: string
           trips?: number | null
           unit?: string
@@ -2368,6 +2374,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_usage_entries_rejected_by_fkey"
+            columns: ["rejected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3595,6 +3608,8 @@ export type Database = {
           payment_reference: string | null
           project_id: string | null
           purpose: string | null
+          rejected_at: string | null
+          rejected_by: string | null
           rejection_notes: string | null
           returned_amount: number
           status: Database["public"]["Enums"]["expense_claim_status"]
@@ -3630,6 +3645,8 @@ export type Database = {
           payment_reference?: string | null
           project_id?: string | null
           purpose?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           rejection_notes?: string | null
           returned_amount?: number
           status?: Database["public"]["Enums"]["expense_claim_status"]
@@ -3665,6 +3682,8 @@ export type Database = {
           payment_reference?: string | null
           project_id?: string | null
           purpose?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           rejection_notes?: string | null
           returned_amount?: number
           status?: Database["public"]["Enums"]["expense_claim_status"]
@@ -3727,6 +3746,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claims_rejected_by_fkey"
+            columns: ["rejected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -4807,6 +4833,8 @@ export type Database = {
           paid_by: string | null
           paid_on: string | null
           payment_reference: string | null
+          rejected_at: string | null
+          rejected_by: string | null
           requested_at: string
           requested_by: string
           status: string
@@ -4826,6 +4854,8 @@ export type Database = {
           paid_by?: string | null
           paid_on?: string | null
           payment_reference?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           requested_at?: string
           requested_by: string
           status?: string
@@ -4845,6 +4875,8 @@ export type Database = {
           paid_by?: string | null
           paid_on?: string | null
           payment_reference?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           requested_at?: string
           requested_by?: string
           status?: string
@@ -4874,6 +4906,13 @@ export type Database = {
           {
             foreignKeyName: "imprest_replenishments_paid_by_fkey"
             columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_replenishments_rejected_by_fkey"
+            columns: ["rejected_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -10347,6 +10386,9 @@ export type Database = {
           approved_by: string | null
           id: string
           org_id: string
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
           status: Database["public"]["Enums"]["timesheet_status"]
           submitted_at: string | null
           user_id: string
@@ -10357,6 +10399,9 @@ export type Database = {
           approved_by?: string | null
           id?: string
           org_id?: string
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           status?: Database["public"]["Enums"]["timesheet_status"]
           submitted_at?: string | null
           user_id: string
@@ -10367,6 +10412,9 @@ export type Database = {
           approved_by?: string | null
           id?: string
           org_id?: string
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           status?: Database["public"]["Enums"]["timesheet_status"]
           submitted_at?: string | null
           user_id?: string
@@ -10385,6 +10433,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_rejected_by_fkey"
+            columns: ["rejected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
