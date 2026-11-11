@@ -4,13 +4,13 @@ import { useSearchParams } from 'react-router';
 export function useUrlFilters(keys: readonly string[]) {
   const [params, setParams] = useSearchParams();
   const values = Object.fromEntries(keys.map((key) => [key, params.get(key) ?? '']));
-  const setFilter = (key: string, value: string) => {
+  const setFilter = (key: string, value: string, options?: { replace?: boolean }) => {
     if (!keys.includes(key)) return;
     setParams((current) => {
       const next = new URLSearchParams(current);
       if (value) next.set(key, value); else next.delete(key);
       return next;
-    });
+    }, options);
   };
   const clear = () => setParams((current) => {
     const next = new URLSearchParams(current);

@@ -13,19 +13,17 @@ import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import {
   ListPage,
-  SearchMini,
   ListState,
   DataTable,
   Button,
   Icon,
   useToast,
+  useUrlFilters,
 } from '@/src/components/ui';
 import { EfakturModal } from '@/src/components/EfakturModal';
 import { issuedWithinMonthWindow, monthWindowFromParams } from '@/src/lib/finance/invoicePeriod';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton } from '@/src/components/export';
-import { useExport } from '@/src/components/export/useExport';
-import { PhoneListToolbar } from './sales-invoices/PhoneListToolbar';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -64,7 +62,7 @@ interface SalesInvoicesProps {
   onRecordPayment?: (invoice: SalesInvoiceRow) => void;
 }
 
-const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecordPayment, secondaryAction }) => {
+const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecordPayment, secondaryAction: _secondaryAction }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -136,14 +134,13 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
 
   // Search and status live in the list URL so a record address can retain and restore the exact context.
   const [searchParams, setSearchParams] = useSearchParams();
-  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
-  const urlSearch = searchParams.get('q') ?? '';
-  useEffect(() => setSearch(urlSearch), [urlSearch]);
+  const urlFilters = useUrlFilters(['q', 'status']);
+  const search = urlFilters.values.q;
   const requestedCustomerId = searchParams.get('customer');
   const selectedCustomer = requestedCustomerId
     ? customerOptionsQuery.data?.find((option) => option.value === requestedCustomerId) ?? null
     : null;
-  const requestedStatus = searchParams.get('status');
+  const requestedStatus = urlFilters.values.status;
   const statusFilter: StatusFilter = requestedStatus && statusFilters.includes(requestedStatus as StatusFilter)
     ? requestedStatus as StatusFilter
     : 'All';
@@ -151,12 +148,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     if (mode === undefined) return;
     const requested = searchParams.get('status');
     if (requested === null || (requested !== 'All' && statusFilters.includes(requested as StatusFilter))) return;
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
-      next.delete('status');
-      return next;
-    }, { replace: true });
-  }, [mode, searchParams, setSearchParams, statusFilters]);
+    urlFilters.setFilter('status', '', { replace: true });
+  }, [mode, searchParams, statusFilters, urlFilters]);
   // The list leaves out a PMO copy that counts through its ERP invoice (ECA-5); a direct link still opens it, read by id.
   const listedTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) : undefined;
   const unlisted = useQuery({
@@ -178,12 +171,18 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   const groupMode: InvoiceGroupMode = requestedGroup === 'client' || requestedGroup === 'project' ? requestedGroup : 'none';
 
   const updateListParam = (key: 'q' | 'status' | 'attribution' | 'project' | 'customer' | 'overdue', value: string) => {
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
-      if (!value || (key === 'status' && value === 'All')) next.delete(key);
-      else next.set(key, value);
-      return next;
-    }, { replace: true });
+    if (key === 'q') {
+      urlFilters.setFilter(key, value, { replace: true });
+    } else if (key === 'status') {
+      urlFilters.setFilter(key, value === 'All' ? '' : value);
+    } else {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        if (!value) next.delete(key);
+        else next.set(key, value);
+        return next;
+      }, { replace: true });
+    }
   };
 
   const setQueryValue = (key: string, value: string) => {
@@ -354,7 +353,6 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   }, [filtered, organizationToday, searchParams]);
   // P5: on a phone the status chips become one select, so no chip is clipped at the scroll edge.
   const isDesktop = useIsDesktop();
-  const { exportXlsx, busy: exporting } = useExport();
   // C6: the Amount header states the basis most listed amounts share, once; only rows on another basis carry their own.
   const sharedTaxBasis = useMemo(() => {
     if (!embedded) return null;
@@ -454,6 +452,11 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
               updateListParam('status', v);
               trackFilterApplied('status', statusFilters.length, 'salesInvoices');
             }}
+            search={search}
+            onSearchChange={(v) => updateListParam('q', v)}
+            onClearFilters={() => urlFilters.clear()}
+            shownCount={filtered.length}
+            totalCount={all.length}
             requestedCustomerId={requestedCustomerId}
             selectedCustomerLabel={selectedCustomer?.label ?? null}
             customerOptionsPending={customerOptionsQuery.isPending}
@@ -468,21 +471,6 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
             onGroupChange={(value) => setQueryValue('group', value === 'none' ? '' : value)}
           />
         );
-  const searchNode = state !== 'loading' && (
-          <SearchMini
-            placeholder={t('financeCopy.searchInvoices', "Search invoices…")}
-            aria-label={t('financeCopy.searchSalesInvoices', "Search sales invoices")}
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              updateListParam('q', e.target.value);
-            }}
-            searchSurface="sales-invoices-list"
-            module="salesInvoices"
-            resultCount={filtered.length}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
-          />
-        );
   const exportNode = state !== 'loading' && !(searchParams.get('overdue') === 'true' && !organizationToday) && (
           embedded && localSelectedKeys.size > 0
             ? <BulkBar count={localSelectedKeys.size} onClear={() => handleSelectionChange(new Set())}>
@@ -495,26 +483,12 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
             </BulkBar>
             : <ExportButton rows={sortedInvoices} columns={exportColumns} entity="Sales Invoices" />
         );
-  const activeFilterCount = [statusFilter !== 'All', searchParams.get('overdue') === 'true', groupMode !== 'none', Boolean(requestedCustomerId), Boolean(contextualProjectId)].filter(Boolean).length;
-  const exportRows = embedded && localSelectedKeys.size > 0 ? all.filter((invoice) => localSelectedKeys.has(invoice.id)) : sortedInvoices;
-  const phoneToolbar = embedded && state !== 'loading' && !isDesktop ? (
-    <PhoneListToolbar
-      search={searchNode}
-      filters={filtersNode}
-      activeFilters={activeFilterCount}
-      menuItems={[
-        { key: 'export', label: localSelectedKeys.size > 0 ? t('finance:bulk.exportSelected', 'Export selected') : t('finance:receivables.exportList', 'Export'), disabled: exporting || exportRows.length === 0 || (searchParams.get('overdue') === 'true' && !organizationToday), onSelect: () => void exportXlsx(exportRows, exportColumns, 'Sales Invoices') },
-        ...(secondaryAction ? [{ key: 'secondary', label: secondaryAction.label, onSelect: secondaryAction.onSelect }] : []),
-      ]}
-      selectionBar={localSelectedKeys.size > 0 ? <BulkBar count={localSelectedKeys.size} onClear={() => handleSelectionChange(new Set())} /> : undefined}
-    />
-  ) : undefined;
 
   return (
     <ListPage
       title={embedded ? t('finance:area.invoicesList', 'Invoices') : t('financeCopy.salesInvoices', "Sales Invoices")}
-      count={data ? filtered.length : undefined}
-      total={data ? all.length : undefined}
+      count={undefined}
+      total={undefined}
       headingLevel={embedded ? 2 : 1}
       banner={odooOffline ? <p role="status" className="mb-3 text-sm text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p> : undefined}
       primaryAction={!embedded && mode !== undefined && !createRequested && canCreate ? (
@@ -523,9 +497,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
           {t('financeCopy.newInvoice', "New Invoice")}</Button>
       ) : undefined}
       hideHeader={embedded}
-      mobileToolbar={phoneToolbar}
       filters={filtersNode}
-      search={searchNode}
       exportAction={exportNode}
       desktopToolbarClassName={embedded ? '!mb-0 min-w-0 !flex-nowrap overflow-x-auto !rounded-none !border-x-0 !border-t-0 border-b !bg-transparent !px-0 py-2' : undefined}
     >
