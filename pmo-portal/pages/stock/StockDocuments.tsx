@@ -5,6 +5,7 @@ import { Button, DataTable, ListPage, ListState, SelectField, StatusPill, type C
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { useStockDocuments } from '@/src/hooks/useStock';
 import { formatDay } from '@/src/lib/format';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import type { StockDocumentKind, StockDocumentListRow, StockDocumentStatus } from '@/src/lib/db/stockDocuments';
 
 const KINDS: StockDocumentKind[] = ['receive', 'transfer', 'issue', 'return', 'adjustment', 'count'];
@@ -12,6 +13,7 @@ const STATUSES: StockDocumentStatus[] = ['Draft', 'Posted', 'Cancelled'];
 
 const StockDocuments: React.FC = () => {
   const { t } = useTranslation('stock');
+  const { t: tStatus } = useTranslation('status');
   const navigate = useNavigate();
   const [kind, setKind] = useState('');
   const [status, setStatus] = useState('');
@@ -53,7 +55,7 @@ const StockDocuments: React.FC = () => {
           <SelectField label={t('documents.filters.kind')} hideLabel value={kind} onChange={setKind}
             options={KINDS.map((k) => ({ value: k, label: t(`kinds.${k}`) }))} placeholder={t('documents.filters.allKinds')} />
           <SelectField label={t('documents.filters.status')} hideLabel value={status} onChange={setStatus}
-            options={STATUSES.map((s) => ({ value: s, label: t(`documents.status.${s}`) }))} placeholder={t('documents.filters.allStatuses')} />
+            options={STATUSES.map((s) => ({ value: s, label: statusLabel('stockDocument', s, tStatus) }))} placeholder={t('documents.filters.allStatuses')} />
       </StockFilters>
       {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>}
       {state === 'error' && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void q.refetch()} />}

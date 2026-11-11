@@ -52,7 +52,7 @@ describe('AC-BUPOT-017 capture form', () => {
     h.fetchNextPage.mockClear();
     const view = render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
     expect(await screen.findByText('Case: Case first')).toBeInTheDocument();
-    expect(screen.getByText('Bill date: 2026-09-03')).toBeInTheDocument();
+    expect(screen.getByText('Bill date: 3 Sep 2026')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Load more bills' }));
     expect(h.fetchNextPage).toHaveBeenCalledOnce();
     h.data = { pages: [{ rows: [first] }, { rows: [second] }] };
@@ -62,7 +62,7 @@ describe('AC-BUPOT-017 capture form', () => {
     expect(screen.getByText('Supplier invoice no. (accounting): VI-FIRST')).toBeInTheDocument();
     expect(screen.getByText('Supplier invoice no. (accounting): VI-SECOND')).toBeInTheDocument();
     expect(screen.getByText('Case: Case second')).toBeInTheDocument();
-    expect(screen.getByText('Bill date: 2026-09-04')).toBeInTheDocument();
+    expect(screen.getByText('Bill date: 4 Sep 2026')).toBeInTheDocument();
     expect(screen.getByText('Selected bills (1)')).toBeInTheDocument();
   });
 
@@ -119,7 +119,7 @@ describe('AC-BUPOT-017 capture form', () => {
     render(<FinanceI18nTestProvider><VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} /></FinanceI18nTestProvider>);
     const label = locale === 'en' ? /SUP-DUP-7/ : /SUP-DUP-7/;
     expect(screen.getAllByText(label).length).toBeGreaterThan(0);
-    expect(screen.getByRole('checkbox', { name: /SUP-DUP-7.*VI-7001.*Case North.*Harbor works.*PRJ-2641.*2026-10-01/ })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /SUP-DUP-7.*VI-7001.*Case North.*Harbor works.*PRJ-2641.*1 Oct 2026/ })).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /SUP-DUP-7.*VI-7002.*Case South.*Canal works.*PRJ-2642/ })).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi faktur pemasok belum dicatat')).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent('invoice-a');
