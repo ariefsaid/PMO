@@ -114,6 +114,13 @@ afterEach(() => {
 });
 
 describe('Finance hub', () => {
+  it('shows known zero for no receivables and no supplier invoices', () => {
+    state.position = { ...positionFixture(), receivablesCount: 0, receivablesAgeing: {}, payables: [], payablesTotals: {} };
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'Open Receivables' }).parentElement).toHaveTextContent(/IDR\s*0/);
+    expect(screen.getByRole('link', { name: 'Open Payables' }).parentElement).toHaveTextContent(/IDR\s*0/);
+  });
+
   it('I2 mounts the invoice pair review on the page Finance lands on, handing it the caller org', () => {
     renderHub('Finance');
     expect(screen.getByTestId('invoice-pair-review')).toHaveTextContent('org-1');
