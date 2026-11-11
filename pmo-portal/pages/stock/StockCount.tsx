@@ -111,7 +111,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
   // FR-STK-062: a count whose every line is known and zero may be posted by its author; anything else goes to another person.
   const selfPostable = kind === 'count' && variances.every((v) => v === '0');
   const busy = m.create.isPending || m.saveDraft.isPending || m.post.isPending;
-  const heading = draft ? `${t(`kinds.${kind}`)} ${draft.number}` : t(`kinds.${kind}`);
+  const heading = draft ? draft.number : t(`kinds.${kind}`);
 
   const setLine = (key: number, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const whole = (l: Line) => { const i = l.itemId ? itemById.get(l.itemId) : undefined; return i ? (wholeByUnit.get(i.unit_id) ?? false) : false; };

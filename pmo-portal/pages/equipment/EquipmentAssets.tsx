@@ -99,7 +99,7 @@ const EquipmentAssetsPage: React.FC = () => {
 
   return (
     <ListPage
-      title={t('equipment:assets.title', 'Equipment assets')}
+      title={t('equipment:assets.title', 'Assets')}
       count={data ? rows.length : undefined}
       primaryAction={<CanWrite entity="equipmentAsset" action="create" ctx={writeCtx}>
         <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:assets.new', 'New asset')}</Button>
