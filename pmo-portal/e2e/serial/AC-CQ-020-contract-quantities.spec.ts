@@ -100,7 +100,10 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
     // --- WHEN the PM allocates 1,000 km to the order ----------------------------------------------------------
     await signIn(page, 'pm@acme.test');
     await openQuantities(page, projectId, woNumber);
-    await page.getByRole('button', { name: 'Edit lines' }).click();
+    // Two controls now read "Edit lines": the billing BOQ's own manage action and this work order's
+    // card. The journey edits THIS order's allocated contract lines, so scope to its card.
+    const orderCard = page.getByTestId(`customer-order-${workOrderId}`);
+    await orderCard.getByRole('button', { name: 'Edit lines' }).click();
     const linesDialog = page.getByRole('dialog', { name: new RegExp(`Contract lines: ${woNumber}`) });
     await expect(linesDialog).toBeVisible();
     await linesDialog.getByLabel(new RegExp(`${itemCode} — ${itemDescription}`)).fill('1000');
