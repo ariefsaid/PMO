@@ -330,9 +330,9 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       <PageHead canInvite={canInvite} onInvite={() => { setInviteError(null); setInviteOpen(true); }} embedded={embedded} />
 
       {isExecReadOnly && (
-        <GateNotice variant="blocked" className="mb-3.5">
-          {t('admin.users.execReadOnly', 'You can view the user directory, but only an Admin can add, edit, or disable users.')}
-        </GateNotice>
+        <p className="mb-3 text-control text-muted-foreground">
+          {t('admin.users.execReadOnly', 'View only. An Admin adds, edits or disables users.')}
+        </p>
       )}
 
       {/* Directory body (CROSS-65): toolbar, states, columns, row menu and manager navigation

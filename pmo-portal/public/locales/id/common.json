@@ -494,7 +494,7 @@
     },
     "users": {
       "blocked": "Administrasi hanya untuk Admin. Anda tidak memiliki akses ke manajemen pengguna.",
-      "execReadOnly": "Anda dapat melihat direktori pengguna, tetapi hanya Admin yang dapat menambah, mengedit, atau menonaktifkan pengguna.",
+      "execReadOnly": "Hanya lihat. Admin yang menambah, mengubah, atau menonaktifkan pengguna.",
       "allUsers": "Semua pengguna",
       "search": {
         "placeholder": "Cari berdasarkan nama atau email…",
@@ -3531,7 +3531,7 @@
       }
     },
     "personal": {
-      "description": "Hubungkan akun Microsoft 365 pribadi Anda agar PMO Portal dapat mengakses konten yang tersedia melalui akun Anda. Ini terpisah dari integrasi Administrasi organisasi Anda.",
+      "description": "Akun Microsoft 365 Anda sendiri, agar PMO Portal dapat mengakses konten yang tersedia di akun itu. Terpisah dari pengaturan organisasi di Administrasi.",
       "title": "Integrasi saya"
     },
     "personalM365": {

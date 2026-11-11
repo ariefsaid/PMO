@@ -377,7 +377,7 @@ describe('Administration route-backed shell', () => {
   it('AC-ADMIA-005: an Executive still gets the existing read-only Users directory notice', () => {
     renderShell('/administration/users', 'Executive');
 
-    expect(screen.getByText(/only an Admin can add, edit, or disable users/i)).toBeInTheDocument();
+    expect(screen.getByText(/an Admin adds, edits or disables users/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /invite user/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
   });

@@ -494,7 +494,7 @@
     },
     "users": {
       "blocked": "Administration is an Admin-only area. You don’t have access to user management.",
-      "execReadOnly": "You can view the user directory, but only an Admin can add, edit, or disable users.",
+      "execReadOnly": "View only. An Admin adds, edits or disables users.",
       "allUsers": "All users",
       "search": {
         "placeholder": "Search by name or email…",
@@ -3531,7 +3531,7 @@
       }
     },
     "personal": {
-      "description": "Connect your personal Microsoft 365 account so PMO Portal can reach the content your account has access to. This is separate from your organization’s Administration integrations.",
+      "description": "Your own Microsoft 365 account, so PMO Portal can reach the content it has access to. Separate from the organization setup under Administration.",
       "title": "My integrations"
     },
     "personalM365": {
