@@ -395,11 +395,14 @@ const TimesheetsPage: React.FC = () => {
         ) : (
           <TimesheetGrid days={gridDays} rows={gridRows} />
         )}
-
-        {editable && isDesktop && <TimesheetWeekActions mode="desktop" {...actionProps} />}
       </Card>
 
-      {editable && !isDesktop && <TimesheetWeekActions mode="mobile" {...actionProps} />}
+      {/* R2-c2c: the week's actions live in ONE place — the shared sticky form footer below the
+          grid (desktop) or the fixed phone strip (mobile); never a copy at the top. Outside the
+          Card because its clipped overflow would otherwise pin the sticky footer to the card. */}
+      {editable && (isDesktop
+        ? <TimesheetWeekActions mode="desktop" {...actionProps} />
+        : <TimesheetWeekActions mode="mobile" {...actionProps} />)}
 
       {/* AC-IXD-TS-004: the per-project + recent-entries rollup panels are removed — the grid's own
           TOTAL column + daily-total row + header weekly total are the single source of truth; the
