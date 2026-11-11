@@ -1,66 +1,110 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { ListState } from '@/src/components/ui/ListState';
-import { axisTickStyle, tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
+import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { formatCompactCurrency, formatCurrency } from '@/src/lib/format';
 import { planVsActualRows } from './planVsActual';
+import { wrapProjectName } from './projectName';
 import type { TopProject } from '@/src/lib/db/dashboard';
 
 export interface PlanVsActualChartProps { projects: TopProject[]; currency: string }
 
-/** Project names sit centred under their bars on two lines (a third is cut with an ellipsis). */
-const wrapName = (name: string): string[] => {
-  const lines: string[] = [];
-  let line = '';
-  for (const word of name.split(/\s+/)) {
-    if (line && `${line} ${word}`.length > 16) { lines.push(line); line = word; } else line = line ? `${line} ${word}` : word;
-  }
-  lines.push(line);
-  return lines.length > 2 ? [lines[0], `${lines[1].slice(0, 14)}…`] : lines;
+const NameTick: React.FC<{
+  x?: number | string;
+  y?: number | string;
+  payload?: { value: string };
+  compact: boolean;
+}> = ({ x = 0, y = 0, payload, compact }) => {
+  const name = payload?.value ?? '';
+  const lines = wrapProjectName(name, compact ? 19 : 22);
+  const textX = Number(x) - 4;
+  return (
+    <text x={textX} y={Number(y) + (lines.length > 1 ? -6 : 4)} textAnchor="end" style={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}>
+      <title>{name}</title>
+      {lines.map((line, index) => <tspan key={index} x={textX} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
+    </text>
+  );
 };
-const NameTick: React.FC<{ x?: number; y?: number; payload?: { value: string } }> = ({ x = 0, y = 0, payload }) => {
-  const lines = wrapName(payload?.value ?? '');
-  return <text x={x} y={y + 10} textAnchor="middle" style={axisTickStyle}>{lines.map((line, index) => <tspan key={index} x={x} dy={index === 0 ? 0 : 13}>{line}</tspan>)}</text>;
+
+interface DirectRowSummaryProps {
+  x?: number | string;
+  y?: number | string;
+  width?: number | string;
+  value?: unknown;
+}
+
+const DirectRowSummary: React.FC<DirectRowSummaryProps> = ({ x = 0, y = 0, width = 0, value }) => {
+  if (typeof value !== 'string' || !value) return null;
+  const lines = value.split('\n');
+  const textX = Number(x) + Number(width) + 6;
+  const textY = Number(y) + 4 - ((lines.length - 1) * 7);
+  return (
+    <text x={textX} y={textY} textAnchor="start" style={{ fontSize: 12, fontWeight: 600, fill: 'hsl(var(--foreground))' }}>
+      {lines.map((line, index) => <tspan key={index} x={textX} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
+    </text>
+  );
 };
+
+const rowSummary = () => (props: DirectRowSummaryProps) => <DirectRowSummary {...props} />;
 
 export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, currency }) => {
   const { t } = useTranslation('dashboard');
   const reduced = usePrefersReducedMotion();
-  const rows = React.useMemo(() => planVsActualRows(projects, currency).map((row) => ({ ...row, used: row.actual != null && row.budget ? Math.round((row.actual / row.budget) * 100) : null })), [projects, currency]);
-  const name = t('hub.company.planVsActual.name', 'Plan vs actual by project');
-  if (rows.length === 0) return <ListState variant="empty" icon="grid" title={t('hub.company.planVsActual.empty', 'No projects to compare yet')} />;
+  const [chartWidth, setChartWidth] = React.useState(0);
+  const compact = chartWidth > 0 && chartWidth < 480;
   const planLabel = t('hub.company.planVsActual.plan', 'Contract');
   const actualLabel = t('hub.company.planVsActual.actual', 'Spent');
   const budgetLabel = t('hub.company.planVsActual.budget', 'Active budget');
+  const budgetShortLabel = t('hub.company.planVsActual.budgetShort', 'Budget');
+  const rows = React.useMemo(() => planVsActualRows(projects, currency).map((row) => {
+    const planSummary = `${planLabel} ${formatCompactCurrency(row.plan, currency)}`;
+    const budgetSummary = row.budget == null ? null : `${budgetShortLabel} ${formatCompactCurrency(row.budget, currency)}`;
+    const actualSummary = row.actual == null ? null : `${actualLabel} ${formatCompactCurrency(row.actual, currency)}`;
+    const summary = compact
+      ? [planSummary, budgetSummary, actualSummary].filter((label): label is string => label !== null).join('\n')
+      : [[planSummary, budgetSummary].filter((label): label is string => label !== null).join(' · '), actualSummary].filter((label): label is string => label !== null).join('\n');
+    let anchor: 'plan' | 'budget' | 'actual' = 'plan';
+    let maxValue = row.plan;
+    if (row.budget != null && row.budget > maxValue) {
+      anchor = 'budget';
+      maxValue = row.budget;
+    }
+    if (row.actual != null && row.actual > maxValue) anchor = 'actual';
+    return {
+      ...row,
+      used: row.actual != null && row.budget ? Math.round((row.actual / row.budget) * 100) : null,
+      summaryOnPlan: anchor === 'plan' ? summary : null,
+      summaryOnBudget: anchor === 'budget' ? summary : null,
+      summaryOnActual: anchor === 'actual' ? summary : null,
+    };
+  }), [projects, currency, planLabel, budgetShortLabel, actualLabel, compact]);
+  const name = t('hub.company.planVsActual.name', 'Plan vs actual by project');
+  if (rows.length === 0) return <ListState variant="empty" icon="grid" title={t('hub.company.planVsActual.empty', 'No projects to compare yet')} />;
   const incomplete = rows.filter((row) => row.actual == null).length;
   const noBudget = rows.filter((row) => row.budget == null).length;
   const otherCurrency = projects.filter((project) => project.currency !== currency).length;
-  const anyOver = rows.some((row) => row.used != null && row.used > 100);
-  const legend = [
-    { label: planLabel, swatch: <span aria-hidden className="size-[9px] rounded-[2px]" style={{ background: chartTheme.series.neutral }} /> },
-    { label: budgetLabel, swatch: <span aria-hidden className="size-[9px] rounded-[2px] border border-primary bg-primary/15" /> },
-    { label: actualLabel, swatch: <span aria-hidden className="size-[9px] rounded-[2px]" style={{ background: chartTheme.series.primary }} /> },
-    ...(anyOver ? [{ label: t('hub.company.planVsActual.overBudget', 'Over budget'), swatch: <span aria-hidden className="size-[9px] rounded-[2px]" style={{ background: chartTheme.series.destructive }} /> }] : []),
-  ];
+  const chartHeight = Math.max(300, rows.length * 50);
   return (
     <div className="flex h-full flex-col">
-      <div className="min-h-[340px] flex-1 overflow-x-auto"><div role="img" aria-label={name} className="h-full min-h-[340px] min-w-[560px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 4, right: 8, bottom: 8, left: 0 }} barGap={3} barCategoryGap="22%">
-            <CartesianGrid vertical={false} stroke={chartTheme.grid} />
-            <XAxis dataKey="name" tick={<NameTick />} stroke={chartTheme.grid} interval={0} height={44} tickLine={false} />
-            <YAxis type="number" tick={axisTickStyle} stroke={chartTheme.grid} width={48} tickLine={false} axisLine={false} tickFormatter={(value: number) => formatCompactCurrency(value, currency)} />
+      <div className="min-h-[300px] flex-1"><div role="img" aria-label={`${name}. ${rows.map((row) => `${row.name}: ${planLabel} ${formatCurrency(row.plan, currency)}, ${budgetLabel} ${row.budget == null ? 'unknown' : formatCurrency(row.budget, currency)}, ${actualLabel} ${row.actual == null ? 'unknown' : formatCurrency(row.actual, currency)}`).join('; ')}`} className="h-full min-h-[300px]">
+        <ResponsiveContainer width="100%" height={chartHeight} onResize={(width) => setChartWidth(width)}>
+          <BarChart data={rows} layout="vertical" margin={{ top: 4, right: compact ? 128 : 200, bottom: 4, left: 0 }} barGap={2} barCategoryGap="22%">
+            <XAxis type="number" domain={[0, 'auto']} tick={false} tickLine={false} stroke={chartTheme.grid} />
+            <YAxis type="category" dataKey="name" tick={<NameTick compact={compact} />} stroke={chartTheme.grid} width={compact ? 142 : 160} interval={0} tickLine={false} axisLine={false} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key, item) => [formatCurrency(Number(value), currency) + (key === 'actual' && item?.payload?.used != null ? ` (${t('common:uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: item.payload.used })})` : ''), key === 'actual' ? actualLabel : key === 'budget' ? budgetLabel : planLabel]} />
-            <Legend verticalAlign="top" align="right" height={24} content={() => <ul className="m-0 flex list-none flex-wrap justify-end gap-x-3 p-0 text-control text-muted-foreground">{legend.map((item) => <li key={item.label} className="inline-flex items-center gap-1.5">{item.swatch}{item.label}</li>)}</ul>} />
-            <Bar dataKey="plan" name={planLabel} fill={chartTheme.series.neutral} radius={[3, 3, 0, 0]} isAnimationActive={!reduced} />
-            <Bar dataKey="budget" name={budgetLabel} fill={chartTheme.series.primary} fillOpacity={0.12} stroke={chartTheme.series.primary} radius={[3, 3, 0, 0]} isAnimationActive={!reduced} />
-            <Bar dataKey="actual" name={actualLabel} fill={chartTheme.series.primary} radius={[3, 3, 0, 0]} isAnimationActive={!reduced}>
+            <Bar dataKey="plan" name={planLabel} fill={chartTheme.series.neutral} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2}>
+              <LabelList dataKey="summaryOnPlan" position="right" content={rowSummary()} />
+            </Bar>
+            <Bar dataKey="budget" name={budgetLabel} fill={chartTheme.series.primary} fillOpacity={0.12} stroke={chartTheme.series.primary} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2}>
+              <LabelList dataKey="summaryOnBudget" position="right" content={rowSummary()} />
+            </Bar>
+            <Bar dataKey="actual" name={actualLabel} fill={chartTheme.series.primary} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2}>
               {rows.map((row) => <Cell key={row.id} fill={row.used != null && row.used > 100 ? chartTheme.series.destructive : chartTheme.series.primary} />)}
-              <LabelList dataKey="used" position="top" formatter={(value: unknown) => (value == null ? '' : `${value}%`)} style={{ fontSize: 10.5, fontWeight: 600, fill: 'hsl(var(--foreground))' }} />
+              <LabelList dataKey="summaryOnActual" position="right" content={rowSummary()} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -74,7 +118,7 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
       {(incomplete > 0 || otherCurrency > 0) && (
         <p data-testid="plan-actual-caption" className="mt-2 text-control text-muted-foreground">
           {[
-            incomplete > 0 ? t('hub.company.planVsActual.incomplete', { count: incomplete, defaultValue: '{{count}} projects have incomplete spending', defaultValue_one: '{{count}} project has incomplete spending' }) : null,
+            incomplete > 0 ? t('hub.company.planVsActual.incomplete', { count: incomplete, defaultValue: 'Spent is incomplete for {{count}} projects; known bars are shown', defaultValue_one: 'Spent is incomplete for {{count}} project; known bars are shown' }) : null,
             otherCurrency > 0 ? t('hub.company.planVsActual.otherCurrency', { count: otherCurrency, defaultValue: '{{count}} projects in another currency are left out', defaultValue_one: '{{count}} project in another currency is left out' }) : null,
           ].filter(Boolean).join(' · ')}
         </p>

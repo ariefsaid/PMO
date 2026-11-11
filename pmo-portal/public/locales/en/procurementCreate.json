@@ -65,5 +65,8 @@
     "payment": "Save and record payment"
   },
   "uncertainSave": "The save may have completed. Check its status before starting a new request; retrying here uses the same request.",
-  "checkSaveStatus": "Check request status"
+  "checkSaveStatus": "Check request status",
+  "actions": {
+    "cancel": "Cancel"
+  }
 }
