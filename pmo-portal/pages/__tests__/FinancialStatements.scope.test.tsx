@@ -366,12 +366,12 @@ describe('Financial statements company scope (AC-007)', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Period type' }), { target: { value: 'quarter' } });
     await waitFor(() => expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ periodKind: 'quarter', periodStart: '2026-04-01' })));
     fireEvent.change(screen.getByRole('combobox', { name: 'Statement' }), { target: { value: 'balance_sheet' } });
-    expect(await screen.findByText(/As at Jun 30, 2026/)).toBeInTheDocument();
+    expect(await screen.findByText(/As at 30 Jun 2026/)).toBeInTheDocument();
     expect(screen.getAllByText(/As at/)).toHaveLength(1);
     expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({
       periodKind: 'quarter', periodStart: '2026-04-01', statement: 'balance_sheet', viewKind: 'account_breakdown',
     }));
-    expect(screen.getByRole('table')).toHaveAccessibleName(/As at Jun 30, 2026/);
+    expect(screen.getByRole('table')).toHaveAccessibleName(/As at 30 Jun 2026/);
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Period type' }), { target: { value: 'fiscal_year' } });
     await waitFor(() => expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ periodKind: 'fiscal_year', periodStart: '2026-04-01' })));

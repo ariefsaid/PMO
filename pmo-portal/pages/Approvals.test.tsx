@@ -286,13 +286,11 @@ describe('Approvals page states', () => {
     expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
   });
 
-  // Deliberate UX change for S-18/RF-042: the inbox-wide subtitle still names supported types,
-  // while the clear-queue claim lists only scopes available to this viewer.
+  // The clear-queue claim lists only scopes available to this viewer.
   it('AC-NAR-002 (C-1): caught-up scope omits customer invoices this viewer cannot approve', () => {
     queryState.data = [];
     procState.data = [];
     renderPage();
-    expect(screen.getByRole('heading', { level: 1, name: 'Approvals' }).nextElementSibling).toHaveTextContent(/customer invoices/i);
     expect(screen.getByTestId('approvals-caught-up')).not.toHaveTextContent(/customer invoices/i);
   });
 

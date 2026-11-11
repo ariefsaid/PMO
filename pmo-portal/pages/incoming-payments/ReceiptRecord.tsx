@@ -39,7 +39,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       label: t('financeCopy.taxWithheld', 'Tax withheld'), testId: 'receipt-withheld',
       value: <>
         {money(receipt.withheld_amount!)}
-        {slip && <span className="mt-0.5 block font-mono text-[13px] font-normal text-muted-foreground">{slip}</span>}
+        {slip && <span className="mt-0.5 block font-mono text-control font-normal text-muted-foreground">{slip}</span>}
       </>,
     }] : []),
     ...(withheldShown ? [{
@@ -52,8 +52,8 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
   ];
   const allocationColumns = useMemo<Column<ReceiptAllocation & { rowKey: string }>[]>(() => [
     { key: 'invoice', header: t('financeCopy.invoice', 'Invoice #'), kind: 'primary', cell: (allocation) => allocation.invoice_id
-      ? <Link to={`/sales-invoices/${encodeURIComponent(allocation.invoice_id)}`} className="font-mono text-[13px] text-primary-text hover:underline focus-visible:underline">{allocation.invoice_number}</Link>
-      : <span className="font-mono text-[13px]" title={t('uxs06.invoiceNotInPmo', 'This invoice is not in PMO yet.')}>{allocation.invoice_number}</span>, primaryTitle: (allocation) => allocation.invoice_number },
+      ? <Link to={`/sales-invoices/${encodeURIComponent(allocation.invoice_id)}`} className="font-mono text-control text-primary-text hover:underline focus-visible:underline">{allocation.invoice_number}</Link>
+      : <span className="font-mono text-control" title={t('uxs06.invoiceNotInPmo', 'This invoice is not in PMO yet.')}>{allocation.invoice_number}</span>, primaryTitle: (allocation) => allocation.invoice_number },
     { key: 'amount', header: t('uxs06.applied', 'Applied'), kind: 'money', align: 'num', cell: (allocation) => allocation.amount != null && allocation.currency != null ? formatCurrencyCents(Number(allocation.amount), allocation.currency) : notReported },
   ], [notReported, t]);
 
@@ -89,7 +89,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       <dl className="mb-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
         {facts.map((f) => (
           <div key={f.label}>
-            <dt className="text-xs text-muted-foreground">{f.label}</dt>
+            <dt className="text-control text-muted-foreground">{f.label}</dt>
             <dd data-testid={f.testId} className="tabular mt-0.5 text-[15px] font-medium">{f.value}</dd>
           </div>
         ))}

@@ -157,7 +157,7 @@ describe('ProjectProfitLossSection host binding', () => {
     await waitFor(() => expect(catalogueSpy).toHaveBeenCalled());
     await act(async () => { await Promise.resolve(); });
     expect(unavailable.container).toBeEmptyDOMElement();
-    expect(screen.queryByText('Statements are not available yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('No statements yet')).not.toBeInTheDocument();
     unavailable.unmount();
 
     const quiet = totalsRead();

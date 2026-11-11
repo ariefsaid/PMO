@@ -52,14 +52,12 @@ describe('Management pack money display (#1260, #1437)', () => {
     renderPage();
 
     const figures = screen.getByRole('region', { name: 'Report figures' });
-    const backlogHelp = within(figures).getByRole('button', { name: 'How this figure is calculated: Backlog of contract total' });
-    expect(backlogHelp).toBeInTheDocument();
-    const backlogTile = backlogHelp.parentElement?.parentElement;
-    expect(backlogTile).not.toBeNull();
-    expect(backlogTile).not.toHaveTextContent(/\$|USD|\d|—|Unavailable/);
+    // Unknown is not a value: the backlog tile is hidden and one page line says why, with its fix link.
+    expect(within(figures).queryByText('Backlog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden');
     expect(within(figures).queryByRole('status')).not.toBeInTheDocument();
-    expect(within(figures).getAllByText('$0', { exact: true })).toHaveLength(1);
-    expect(within(figures).queryByRole('button', { name: /foreign-currency invoice needs reconciliation/i })).not.toBeInTheDocument();
+    // A known zero stays a figure in the home currency.
+    expect(within(figures).getAllByText('IDR 0', { exact: true }).length).toBeGreaterThan(0);
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
 
     expect(screen.getAllByText(/Backlog is left out where a foreign-currency invoice needs reconciliation before the balance can be known/)).toHaveLength(1);

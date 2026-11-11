@@ -32,14 +32,14 @@ export function ProcurementBulkToolbar({ controller }: { controller: Procurement
 
   return (
     <div role="group" aria-label={t('procurement:procurementBulk.groupLabel', 'Bulk approve purchases')} className="mb-3 flex flex-wrap items-center gap-2.5 rounded-lg bg-primary/[0.06] px-3 py-2.5">
-      <p className="basis-full text-[13px] text-muted-foreground">{scope}</p>
+      <p className="basis-full text-control text-muted-foreground">{scope}</p>
       <Checkbox
         checked={controller.allSelected ? true : controller.someSelected ? 'mixed' : false}
         onChange={controller.toggleSelectAll}
         label={t('procurement:procurementBulk.selectAll', 'Select all purchase requests')}
         disabled={controller.running}
       />
-      <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[12px] font-semibold tabular text-muted-foreground">
+      <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-control font-semibold tabular text-muted-foreground">
         {t('procurement:procurementBulk.selectedCount', '{{count}} selected', { count })}
       </span>
       <span className="flex-1" />
@@ -80,12 +80,12 @@ export function ProcurementBulkConfirm({
           {t('procurement:procurementBulk.confirmDescription', 'Each purchase is approved separately. If one cannot be approved, the others can still be completed.')}
           <span className="mt-2 block space-y-0.5">
             {selectedRows.slice(0, evidenceLimit).map((row) => (
-              <span key={row.id} className="block text-[13px]">
+              <span key={row.id} className="block text-control">
                 {row.title} · <span className="tabular">{formatCurrency(row.total_value, row.currency)}</span>
               </span>
             ))}
             {count > evidenceLimit && (
-              <span className="block text-[13px] text-muted-foreground">
+              <span className="block text-control text-muted-foreground">
                 {t('procurement:procurementBulk.confirmMore', '{{count}} more selected', { count: count - evidenceLimit })}
               </span>
             )}

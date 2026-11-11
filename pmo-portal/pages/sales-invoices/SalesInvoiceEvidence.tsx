@@ -67,7 +67,7 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
       <h2 id="invoice-evidence-heading" className="mb-3 text-base font-semibold">{t('uxs17.billEvidence', 'Bill evidence')}</h2>
       {odoo && (
         <div className="mb-4 space-y-3">
-          {unreachable && <p role="status" className="text-[12px] text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p>}
+          {unreachable && <p role="status" className="text-control text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p>}
           {/* An unsettled command is the Waiting on Odoo card's to show; this block carries what Odoo itself says about the invoice. */}
           {outcome && !latestInvoiceCommand && (
             <OdooOutcome outcome={outcome} sentTotal={invoice.odoo_sent_total != null ? { amount: invoice.odoo_sent_total, currency: invoice.currency } : null} />
@@ -95,7 +95,7 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
                     <li key={`${line.item_code ?? 'line'}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm">
                       <span className="min-w-0 flex-1 break-words">
                         <span className="block">{line.description ?? line.item_code ?? t('uxs17.lineDescriptionUnavailable', 'Description not available')}</span>
-                        {line.item_code && line.description && <span className="font-mono text-xs text-muted-foreground">{line.item_code}</span>}
+                        {line.item_code && line.description && <span className="font-mono text-control text-muted-foreground">{line.item_code}</span>}
                       </span>
                       <span className="tabular text-right text-muted-foreground">
                         {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatCurrencyCents(line.rate, invoice.currency)}{' = '}
@@ -116,7 +116,7 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
                       <li key={`${line.item_code ?? 'line'}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm">
                         <span className="min-w-0 flex-1 break-words">
                           <span className="block">{line.description ?? line.item_code ?? t('uxs17.lineDescriptionUnavailable', 'Description not available')}</span>
-                          {line.item_code && line.description && <span className="font-mono text-xs text-muted-foreground">{line.item_code}</span>}
+                          {line.item_code && line.description && <span className="font-mono text-control text-muted-foreground">{line.item_code}</span>}
                         </span>
                         <span className="tabular text-right text-muted-foreground">
                           {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatCurrencyCents(line.rate, invoice.currency)}{' = '}
@@ -191,13 +191,13 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
       )}
       {invoice.efaktur_number && (
         <dl className="mt-4 border-t border-border/70 pt-3 text-sm">
-          <dt className="text-xs font-medium text-muted-foreground">{t('finance:receivables.eFaktur', 'e-Faktur')}</dt>
+          <dt className="text-control font-medium text-muted-foreground">{t('finance:receivables.eFaktur', 'e-Faktur')}</dt>
           <dd className="mt-1 break-words">{invoice.efaktur_number}{invoice.efaktur_date ? ` · ${formatDateOnly(invoice.efaktur_date)}` : ''}</dd>
         </dl>
       )}
       {odoo && (
         <dl className="mt-4 border-t border-border/70 pt-3 text-sm" data-testid="odoo-tax-document">
-          <dt className="text-xs font-medium text-muted-foreground">{t('finance:odooOutcome.taxDocument', 'Tax document')}</dt>
+          <dt className="text-control font-medium text-muted-foreground">{t('finance:odooOutcome.taxDocument', 'Tax document')}</dt>
           <dd className="mt-1 text-sm text-muted-foreground">{invoice.efaktur_number
             ? t('finance:odooOutcome.taxDocumentRecorded', 'Odoo generates no tax document. The e-Faktur number recorded above stands.')
             : t('finance:odooOutcome.taxDocumentUnavailable', 'Tax documents are unavailable in Odoo.')}</dd>

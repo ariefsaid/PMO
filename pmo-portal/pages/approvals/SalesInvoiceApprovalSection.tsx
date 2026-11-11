@@ -52,7 +52,7 @@ export const SalesInvoiceApprovalSection: React.FC = () => {
   return (
     <section aria-label={t('approvals.salesInvoices.label', 'Customer invoices awaiting you')} className="mb-4">
       {/* M-8: the same overline heading as the other sections above the queue. */}
-      <h2 className="mb-2 text-[11px] font-semibold text-muted-foreground">
+      <h2 className="mb-2 text-control font-semibold text-muted-foreground">
         {t('approvals.salesInvoices.heading', 'Customer invoices awaiting you ({{count}})', { count: rows.length })}
       </h2>
       <Card>

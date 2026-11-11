@@ -56,6 +56,9 @@ export interface ListPageProps {
   /** Page-specific desktop toolbar layout refinements. */
   desktopToolbarClassName?: string;
 
+  /** Embedded under a page that already names the list (a switch labels it): no second title, help or count chip. */
+  hideHeader?: boolean;
+
   /** Optional banner (e.g. an in-use delete `GateNotice`) above the toolbar. */
   banner?: React.ReactNode;
   /** Body — the table / board / cards / calendar render + list states. */
@@ -91,6 +94,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   view,
   mobileToolbar,
   desktopToolbarClassName,
+  hideHeader = false,
   banner,
   children,
   bodyPanel = false,
@@ -109,16 +113,22 @@ export const ListPage: React.FC<ListPageProps> = ({
 
   return (
     <div className={className}>
-      <PageHeader
-        data-testid="list-page-header"
-        title={title}
-        headingLevel={headingLevel}
-        help={help}
-        action={primaryAction}
-        count={count === undefined ? undefined : total !== undefined && count < total
-          ? t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })
-          : count}
-      />
+      {hideHeader ? (
+        count !== undefined && total !== undefined && count < total && (
+          <p className="mb-2 text-control text-muted-foreground">{t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })}</p>
+        )
+      ) : (
+        <PageHeader
+          data-testid="list-page-header"
+          title={title}
+          headingLevel={headingLevel}
+          help={help}
+          action={primaryAction}
+          count={count === undefined ? undefined : total !== undefined && count < total
+            ? t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })
+            : count}
+        />
+      )}
       {description && <p className="-mt-2 mb-4 max-w-[68ch] text-sm text-muted-foreground">{description}</p>}
 
       {banner}

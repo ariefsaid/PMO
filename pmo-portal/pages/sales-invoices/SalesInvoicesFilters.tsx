@@ -116,14 +116,14 @@ const SalesInvoicesFilters: React.FC<{
           disabled={!organizationToday && !overdueActive}
           onClick={onToggleOverdue}
           className={cn(
-            'h-8',
+            'h-8 max-sm:h-11',
             overdueActive
               ? 'border-primary/40 bg-primary/10 font-semibold text-primary'
               : 'text-muted-foreground hover:text-foreground',
           )}
         >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
         {embedded && <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">{t('finance:receivables.groupBy', 'Group by')}</span>
+          <span className="text-control font-medium text-muted-foreground">{t('finance:receivables.groupBy', 'Group by')}</span>
           <ViewToggle<InvoiceGroupMode>
             options={[
               { value: 'none', label: t('finance:receivables.groupNone', 'None') },

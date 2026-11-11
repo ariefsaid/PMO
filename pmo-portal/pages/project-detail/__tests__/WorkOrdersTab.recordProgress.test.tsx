@@ -82,7 +82,7 @@ describe('SEC-RS-3: Record progress (month-end percent complete) on the Contract
 
     await user.click(screen.getByRole('button', { name: 'Record progress' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Harbour survey')).toBeInTheDocument();
+    expect(within(dialog).getByRole('heading', { name: /Harbour survey/ })).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText(/Percent complete to date/), '42.5');
     await user.click(within(dialog).getByRole('button', { name: 'Save progress' }));
 

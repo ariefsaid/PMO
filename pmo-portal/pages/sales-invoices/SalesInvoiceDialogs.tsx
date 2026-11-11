@@ -19,7 +19,7 @@ export function SalesInvoiceDialogs({ actions, submitFallback }: { actions: Retu
           onClose={() => setReceiptTarget(null)}
           onSave={async (date) => {
             await setReceivedDate.mutateAsync({ siId: receiptTarget.id, receivedDate: date });
-            toast(t('financeCopy.receivedDateSaved', 'Received date saved'), invoiceNumber(receiptTarget) ?? receiptTarget.id, 'success');
+            toast(t('financeCopy.receivedDateSaved', 'Delivery date saved'), invoiceNumber(receiptTarget) ?? receiptTarget.id, 'success');
             setReceiptTarget(null);
           }}
         />
@@ -73,8 +73,7 @@ const ReceivedDateModal: React.FC<{
   return (
     <EntityFormModal
       open
-      title={t('financeCopy.recordReceivedDate', 'Record received date')}
-      subtitle={t('financeCopy.receivedDateHelp', 'The date the client received this invoice. The due date follows it.')}
+      title={t('financeCopy.recordReceivedDate', 'Record delivery date')}
       submitLabel={t('financeCopy.save', 'Save')}
       onSubmit={(e) => {
         e.preventDefault();
@@ -91,7 +90,8 @@ const ReceivedDateModal: React.FC<{
       submitError={saveError}
     >
       <TextField
-        label={t('financeCopy.receivedDate', 'Received')}
+        label={t('financeCopy.receivedDate', 'Delivered')}
+        helper={t('financeCopy.receivedDateHelp', 'The due date follows this date')}
         type="date"
         value={value}
         onChange={setValue}

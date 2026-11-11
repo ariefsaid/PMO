@@ -9,7 +9,7 @@ export function invoiceTimelineSteps(inv: Pick<SalesInvoiceRow, 'status' | 'rece
   const labels = [
     t('finance:invoiceTimeline.draft', 'Draft'),
     t('finance:invoiceTimeline.submitted', 'Submitted'),
-    t('finance:invoiceTimeline.received', 'Received by client'),
+    t('finance:invoiceTimeline.received', 'Delivered to client'),
     t('finance:invoiceTimeline.paid', 'Paid'),
   ];
   return labels.map((label, i) => ({
