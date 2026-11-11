@@ -297,11 +297,14 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const panelGrid = 'grid items-start gap-[var(--space-panel-gap)]';
   if (overview) {
     // Overview: everything on one page. "Waits on you" is a third of the first row; charts carry the analysis.
-    // Still to invoice is a position figure: the executive's fourth tile, drawn only when known (unknown is counted in the hidden line).
+    // Left to bill is the executive's fourth visible figure, drawn only when known (unknown joins the hidden line).
     const stillTile = !finance && !(figures.todayPending || figures.periodPending)
       ? moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' })
       : null;
-    const overviewTiles = stillTile ? [...positionTiles.slice(0, 3), stillTile, ...positionTiles.slice(3)] : positionTiles;
+    const [contractTile, invoicedTile, owedClientsTile, supplierTile, ...otherTiles] = positionTiles;
+    const overviewTiles = stillTile
+      ? [contractTile, invoicedTile, supplierTile, stillTile, owedClientsTile, ...otherTiles]
+      : positionTiles;
     const tilesNode = tilesRow('grid-cols-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col [&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:[&>*:last-child:nth-child(odd)]:col-span-1', overviewTiles);
     const lossRange = figures.winRateRange;
     const wonAmounts = won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined;

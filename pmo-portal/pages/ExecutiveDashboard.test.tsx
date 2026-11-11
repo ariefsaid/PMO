@@ -589,6 +589,10 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(within(figures()).getByText('Left to bill')).toBeInTheDocument();
     expect(tile('Left to bill')).toHaveTextContent('$250K');
     expect(within(figures()).getByText('Contract on hand')).toBeInTheDocument();
+    const visibleFigureLabels = Array.from(figures().children)
+      .map((child) => ['Contract on hand', 'Invoiced', 'Owed to suppliers', 'Left to bill'].find((label) => child.textContent?.includes(label)))
+      .filter((label): label is string => label !== undefined);
+    expect(visibleFigureLabels).toEqual(['Contract on hand', 'Invoiced', 'Owed to suppliers', 'Left to bill']);
     expect(screen.queryByText('Analysis')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Plan vs actual' })).not.toBeInTheDocument();
     // One help control on the page: the win-rate definition is folded into it.
