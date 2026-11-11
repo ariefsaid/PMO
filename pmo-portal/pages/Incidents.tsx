@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage,
-  SearchMini,
-  ViewToggle,
+  FilterBar,
+  useUrlFilters,
   ListState,
   DataTable,
   StatusPill,
@@ -14,6 +14,7 @@ import {
   Icon,
   type Column,
   type RowMenuItem,
+  type FilterBarFilter,
 } from '@/src/components/ui';
 import { ExportAllButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
@@ -57,22 +58,20 @@ const Incidents: React.FC = () => {
   const { create, update, transition, remove } = useIncidentMutations();
   const exportAll = useIncidentsExportAll();
 
-  const [typed, setTyped] = useState('');
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<StatusFilter>('All');
+  const { values, setFilter, clear } = useUrlFilters(['q', 'status']);
+  const statusFilter = values.status as IncidentStatus | '';
+  const search = values.q;
   const [page, setPage] = useState(1);
 
-  // Search is applied 300 ms after the last keystroke; a new term or status starts at page 1.
   useEffect(() => {
-    const timer = setTimeout(() => { setSearch(typed.trim()); setPage(1); }, 300);
-    return () => clearTimeout(timer);
-  }, [typed]);
+    setPage(1);
+  }, [statusFilter, search]);
 
   const { list, allTotal } = useIncidentsPage({
     page,
     pageSize: INCIDENTS_PAGE_SIZE,
-    status: filter === 'All' ? undefined : filter,
-    search: search || undefined,
+    status: statusFilter || undefined,
+    search: search.trim() || undefined,
   });
   const { data, isPending, isError, refetch } = list;
   const rows = data?.rows;
@@ -202,11 +201,30 @@ const Incidents: React.FC = () => {
 
   const transitionCopy = transitionTarget ? TRANSITION_COPY[transitionTarget.to] : null;
 
+  const filters: FilterBarFilter[] = useMemo(() => [
+    {
+      key: 'status',
+      label: 'Filter by status',
+      kind: 'segment',
+      semantics: 'tabs',
+      options: ['Open', 'Investigating', 'Closed'].map((s) => ({
+        value: s,
+        label: statusLabel('incident', s as IncidentStatus, tStatus),
+      })),
+    },
+  ], [tStatus]);
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilter(key, value);
+    setPage(1);
+    if (key === 'status') {
+      trackFilterApplied('status', STATUS_FILTERS.length, 'incidents');
+    }
+  };
+
   return (
     <ListPage
       title="Incidents"
-      count={data ? total : undefined}
-      total={data ? allTotal : undefined}
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ incident: null })}>
@@ -217,32 +235,22 @@ const Incidents: React.FC = () => {
       }
       filters={
         state !== 'loading' && (
-          /* AC-2: scrollable so all status segments are reachable at 390px. */
-          <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
-            <ViewToggle<StatusFilter>
-              options={STATUS_FILTERS.map((f) => ({ value: f, label: f === 'All' ? 'All' : statusLabel('incident', f, tStatus) }))}
-              value={filter}
-              onChange={(v) => {
-                setFilter(v);
-                setPage(1);
-                trackFilterApplied('status', STATUS_FILTERS.length, 'incidents');
-              }}
-              ariaLabel="Filter by status"
-            />
-          </div>
-        )
-      }
-      search={
-        state !== 'loading' && (
-          <SearchMini
-            placeholder="Search incidents…"
-            aria-label="Search incidents"
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            searchSurface="incidents-list"
-            module="incidents"
-            resultCount={total}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+          <FilterBar
+            searchKey="q"
+            searchLabel="Search incidents"
+            filters={filters}
+            values={values}
+            onChange={handleFilterChange}
+            onClear={() => {
+              clear();
+              setPage(1);
+            }}
+            shown={data ? total : 0}
+            total={data ? (allTotal ?? total) : 0}
+            labels={{
+              all: 'All',
+              clear: 'Clear all',
+            }}
           />
         )
       }
@@ -254,7 +262,7 @@ const Incidents: React.FC = () => {
             entity="Incidents"
             columns={columns}
             hasRows={total > 0}
-            fetchRows={() => exportAll.mutateAsync({ status: filter === 'All' ? undefined : filter, search: search || undefined })}
+            fetchRows={() => exportAll.mutateAsync({ status: statusFilter || undefined, search: search.trim() || undefined })}
           />
         )
       }
@@ -306,6 +314,7 @@ const Incidents: React.FC = () => {
           state={(rows ?? []).length === 0 ? 'empty' : undefined}
           emptyTitle="No incidents match your filters"
           emptySub="Try a different status or clear the search."
+          emptyAction={{ label: 'Clear filters', onClick: () => { clear(); setPage(1); } }}
         tableId="incidents-table" />
       )}
 

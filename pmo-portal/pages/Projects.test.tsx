@@ -1031,6 +1031,16 @@ describe('Projects list working set — AC-LRC-001/002', () => {
       'true',
     );
   });
+
+  it('filter round-trips through the URL (R2-c2b)', async () => {
+    renderAt('/projects?filter=Ongoing');
+    const statusTabs = screen.getByRole('tablist', { name: /status filter/i });
+    expect(within(statusTabs).getByRole('tab', { name: /^Ongoing$/ })).toHaveAttribute('aria-selected', 'true');
+
+    const probe = screen.getByTestId('location-probe');
+    await userEvent.click(within(statusTabs).getByRole('tab', { name: /^Completed$/ }));
+    await waitFor(() => expect(probe.dataset.search).toBe('?filter=Completed'));
+  });
 });
 
 describe('#758 — End customer column + filter on the Projects list (AC-EC-003)', () => {

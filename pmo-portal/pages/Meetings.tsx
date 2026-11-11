@@ -3,8 +3,8 @@ import React, { useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage,
-  SearchMini,
-  SelectField,
+  FilterBar,
+  useUrlFilters,
   ListState,
   DataTable,
   ConfirmDialog,
@@ -15,6 +15,7 @@ import {
   Switch,
   type Column,
   type RowMenuItem,
+  type FilterBarFilter,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -23,7 +24,6 @@ import { useMeetings, useMeetingMutations } from '@/src/hooks/useMeetings';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { formatClockTime, formatDay } from '@/src/lib/format';
 import type { MeetingListItem } from '@/src/lib/db/meetings';
@@ -47,19 +47,14 @@ const Meetings: React.FC = () => {
   const currentUserId = currentUser?.id ?? null;
   const { toast } = useToast();
 
-  // list-working-set-return (#683): `project`/`q` are URL-owned (AC-LRC-008). Search stays LOCAL
-  // text (`search`, updated immediately per keystroke — see useUrlSearchInput's search contract)
-  // and is written to the URL only after a pause, so a copied link reproduces the same query.
-  // The SERVER query still derives from the LOCAL text deferred via useDeferredValue — exactly the
-  // prior timing — never from the debounced URL value, which would double the query's lag.
-  const { workingSet, setWorkingSet, search, setSearch, clearFilters } =
-    useListSearchWorkingSet('meetings');
-  const projectFilter = workingSet.project;
-  const showArchived = workingSet.archived;
+  const { values, setFilter, clear } = useUrlFilters(['q', 'project', 'archived']);
+  const projectFilter = values.project;
+  const showArchived = values.archived === '1';
+  const search = values.q;
   const deferredSearch = useDeferredValue(search);
 
   const { data, isPending, isError, isPlaceholderData, refetch } = useMeetings({
-    projectId: projectFilter === 'All' ? undefined : projectFilter,
+    projectId: !projectFilter || projectFilter === 'All' ? undefined : projectFilter,
     search: deferredSearch.trim() || undefined,
     includeArchived: showArchived,
   });
@@ -80,29 +75,47 @@ const Meetings: React.FC = () => {
 
   const canCreate = may('create', 'meeting');
 
+  const isFiltered = Boolean((projectFilter && projectFilter !== 'All') || search.trim());
+  const unfilteredTotalRef = React.useRef<number>(0);
+  if (!isFiltered && data) {
+    unfilteredTotalRef.current = data.length;
+  }
+  const scopeTotal = isFiltered ? Math.max(unfilteredTotalRef.current, rows.length) : rows.length;
+
   const projectOptions = useMemo(
-    () => [
-      { value: 'All', label: t('meetings.filters.allProjects', 'All projects') },
-      ...(projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })),
-    ],
-    [projects, t],
+    () => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })),
+    [projects],
   );
   // Spec decision 6: a `?project=` naming no project this user can see stays the ACTIVE choice —
   // the control agrees with the URL and the zero-match state offers Clear filters — rather than
   // the select silently showing "All projects". Filter-only: the create form never offers it.
   const projectFilterOptions = useMemo(() => {
-    if (projectFilter === 'All' || projectOptions.some((o) => o.value === projectFilter)) {
-      return projectOptions;
-    }
-    return [
-      ...projectOptions,
-      {
+    const options = [...projectOptions];
+    if (projectFilter && projectFilter !== 'All' && !options.some((o) => o.value === projectFilter)) {
+      options.push({
         value: projectFilter,
         // Until the projects have loaded the choice may yet resolve, so it is not called unavailable.
         label: projects ? t('meetings.filters.unavailableProject', 'Unavailable project') : '…',
-      },
-    ];
+      });
+    }
+    return options;
   }, [projectFilter, projectOptions, projects, t]);
+
+  const filters: FilterBarFilter[] = useMemo(() => [
+    {
+      key: 'project',
+      label: t('meetings.filters.projectLabel', 'Filter by project'),
+      kind: 'select',
+      options: projectFilterOptions,
+    },
+  ], [projectFilterOptions, t]);
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilter(key, value);
+    if (key === 'project') {
+      trackFilterApplied('project', (projects ?? []).length + 1, 'meetings');
+    }
+  };
 
   // Filter/search state changes keep the previous rows on screen (placeholderData in the hook),
   // so 'loading' (which also hides the toolbar) is only the true first load; a kept-previous empty
@@ -113,7 +126,7 @@ const Meetings: React.FC = () => {
       ? 'error'
       : awaitingRows
         ? undefined
-          : rows.length === 0 && !search.trim() && projectFilter === 'All'
+          : rows.length === 0 && !search.trim() && (!projectFilter || projectFilter === 'All')
           ? 'empty'
           : undefined;
 
@@ -232,7 +245,6 @@ const Meetings: React.FC = () => {
   return (
     <ListPage
       title={t('meetings.title', 'Meetings')}
-      count={data ? rows.length : undefined}
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => openRecord('/meetings/new')}>
@@ -243,42 +255,35 @@ const Meetings: React.FC = () => {
       }
       filters={
         state !== 'loading' && (
-          <div className="flex flex-wrap items-center gap-3">
-            <SelectField
-              label={t('meetings.filters.projectLabel', 'Filter by project')}
-              hideLabel
-              value={projectFilter}
-              onChange={(v) => {
-                setWorkingSet((ws) => ({ ...ws, project: v }));
-                trackFilterApplied('project', projectOptions.length, 'meetings');
-              }}
-              options={projectFilterOptions}
-            />
-            <div className="inline-flex min-h-11 items-center gap-2">
-              <span id="meetings-show-archived-label" className="text-control font-medium">
-                {tMeetings('filters.showArchived', 'Show archived')}
-              </span>
-              <Switch
-                checked={showArchived}
-                onChange={(archived) => setWorkingSet((ws) => ({ ...ws, archived }))}
-                labelledBy="meetings-show-archived-label"
-              />
-            </div>
-          </div>
+          <FilterBar
+            searchKey="q"
+            searchLabel={t('meetings.search.ariaLabel', 'Search meetings')}
+            searchPlaceholder={t('meetings.search.placeholder', 'Search notes and titles…')}
+            filters={filters}
+            values={values}
+            onChange={handleFilterChange}
+            onClear={clear}
+            shown={rows.length}
+            total={scopeTotal}
+            labels={{
+              all: t('meetings.filters.allProjects', 'All projects'),
+              clear: t('meetings.table.clearFilters', 'Clear filters'),
+            }}
+          />
         )
       }
-      search={
+      secondaryFilter={
         state !== 'loading' && (
-          <SearchMini
-            placeholder={t('meetings.search.placeholder', 'Search notes and titles…')}
-            aria-label={t('meetings.search.ariaLabel', 'Search meetings')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            searchSurface="meetings-list"
-            module="meetings"
-            resultCount={rows.length}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto sm:min-w-[220px]"
-          />
+          <div className="inline-flex min-h-11 items-center gap-2">
+            <span id="meetings-show-archived-label" className="text-control font-medium">
+              {tMeetings('filters.showArchived', 'Show archived')}
+            </span>
+            <Switch
+              checked={showArchived}
+              onChange={(archived) => setFilter('archived', archived ? '1' : '')}
+              labelledBy="meetings-show-archived-label"
+            />
+          </div>
         )
       }
     >
@@ -324,7 +329,7 @@ const Meetings: React.FC = () => {
           rowMenu={rowMenu}
           state={rows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('meetings.table.emptyTitle', 'No meetings match')}
-          emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
+          emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clear }}
         tableId="meetings-table" />
       )}
 
