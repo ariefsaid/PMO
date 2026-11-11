@@ -135,6 +135,7 @@
     "equipment": "Peralatan"
   },
   "panel": {
+    "notRecorded": "{{count}} tidak tercatat",
     "columns": {
       "allocated": "Dialokasikan",
       "equipment": "Peralatan"

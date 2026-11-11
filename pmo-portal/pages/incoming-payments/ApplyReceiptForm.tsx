@@ -80,7 +80,7 @@ export const ApplyReceiptForm: React.FC<ApplyReceiptFormProps> = ({ receipt, una
       .map((inv) => ({
         value: inv.id,
         label: invoiceNumber(inv) ?? inv.id,
-        sub: t('financeCopy.amountOutstanding', '{{amount}} outstanding', { amount: formatCurrency(inv.erp_outstanding_amount ?? 0, inv.currency, { precision: 'minor' }) }),
+        sub: inv.erp_outstanding_amount == null ? '—' : t('financeCopy.amountOutstanding', '{{amount}} outstanding', { amount: formatCurrency(inv.erp_outstanding_amount, inv.currency, { precision: 'minor' }) }),
       }));
   }, [candidates, rows, t]);
 

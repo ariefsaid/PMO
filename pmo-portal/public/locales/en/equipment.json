@@ -135,6 +135,7 @@
     "equipment": "Equipment"
   },
   "panel": {
+    "notRecorded": "{{count}} not recorded",
     "columns": {
       "allocated": "Allocated",
       "equipment": "Equipment"

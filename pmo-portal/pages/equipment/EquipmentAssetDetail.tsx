@@ -29,8 +29,8 @@ const Calculation: React.FC<{ r: EquipmentAllocationRow; t: T; money: (n: number
   const unit = unitLabel(t, r.unit);
   const rows: Array<[string, React.ReactNode]> = [];
   if (r.basis === 'hire_rate') {
-    rows.push([t('equipment:calc.work', 'Work'), t('equipment:calc.workLine', 'Work {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: formatNumberMax2(Number(r.work_units ?? 0)), unit, rate: money(Number(r.work_rate ?? 0)), perUnit: unit })]);
-    if (r.standby_rate != null) rows.push([t('equipment:calc.standby', 'Standby'), t('equipment:calc.standbyLine', 'Standby {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: formatNumberMax2(Number(r.standby_units ?? 0)), unit, rate: money(Number(r.standby_rate)), perUnit: unit })]);
+    rows.push([t('equipment:calc.work', 'Work'), t('equipment:calc.workLine', 'Work {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: r.work_units == null ? '—' : formatNumberMax2(Number(r.work_units)), unit, rate: r.work_rate == null ? '—' : money(Number(r.work_rate)), perUnit: unit })]);
+    if (r.standby_rate != null) rows.push([t('equipment:calc.standby', 'Standby'), t('equipment:calc.standbyLine', 'Standby {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: r.standby_units == null ? '—' : formatNumberMax2(Number(r.standby_units)), unit, rate: money(Number(r.standby_rate)), perUnit: unit })]);
   } else {
     if (r.pool != null) rows.push([t('equipment:calc.pool', 'Pool'), t('equipment:calc.poolLine', 'Pool {{amount}}', { amount: money(Number(r.pool)) }) + (r.line_count ? ` · ${t('equipment:calc.lines', 'Ledger lines: {{count}}', { count: r.line_count })}` : '')]);
     rows.push([t('equipment:calc.driver', 'Driver'), t('equipment:calc.driverLine', 'Shared by {{driver}}', { driver: driverLabel(t, r.driver) })]);
@@ -113,7 +113,7 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
   const settingLine = (s: EquipmentCostingRow) => {
     const bits: string[] = [];
     if (s.basis === 'hire_rate') {
-      bits.push(t('equipment:costing.workRateLine', 'Work {{rate}} per {{unit}}', { rate: formatNumberMax2(Number(s.work_rate ?? 0)), unit: unitLabel(t, s.rate_unit) }));
+      bits.push(t('equipment:costing.workRateLine', 'Work {{rate}} per {{unit}}', { rate: s.work_rate == null ? '—' : formatNumberMax2(Number(s.work_rate)), unit: unitLabel(t, s.rate_unit) }));
       if (s.standby_rate != null) bits.push(t('equipment:costing.standbyRateLine', 'Standby {{rate}} per {{unit}}', { rate: formatNumberMax2(Number(s.standby_rate)), unit: unitLabel(t, s.rate_unit) }));
     }
     if (s.basis === 'actual_cost') {
@@ -188,24 +188,27 @@ const UsageCard: React.FC<{ assetId: string; today: string; projectName: (id: st
   const columns: Column<EquipmentUsageTotalRow>[] = [
     { key: 'month', header: t('equipment:allocations.month', 'Month'), kind: 'primary', rowHeader: true, cell: (r) => formatMonthYear(fromIso(r.month)) },
     { key: 'project', header: t('equipment:allocations.project', 'Project'), cell: (r) => projectName(r.project_id) },
-    { key: 'work', header: t('equipment:usage.kindWork', 'Work'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(Number(r.work_units ?? 0))} {unitLabel(t, r.unit)}</span> },
-    { key: 'standby', header: t('equipment:usage.kindStandby', 'Standby'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(Number(r.standby_units ?? 0))} {unitLabel(t, r.unit)}</span> },
-    { key: 'fuel', header: t('equipment:usage.fuel', 'Fuel (litres)'), align: 'num', cell: (r) => formatNumberMax2(Number(r.fuel_litres ?? 0)) },
-    { key: 'trips', header: t('equipment:usage.trips', 'Trips'), align: 'num', cell: (r) => Number(r.trips ?? 0) },
-    { key: 'waiting', header: t('equipment:usage.waiting', 'Waiting approval'), align: 'num', cell: (r) => Number(r.submitted_count ?? 0) },
+    { key: 'work', header: t('equipment:usage.kindWork', 'Work'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{r.work_units == null ? '—' : formatNumberMax2(Number(r.work_units))} {unitLabel(t, r.unit)}</span> },
+    { key: 'standby', header: t('equipment:usage.kindStandby', 'Standby'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{r.standby_units == null ? '—' : formatNumberMax2(Number(r.standby_units))} {unitLabel(t, r.unit)}</span> },
+    { key: 'fuel', header: t('equipment:usage.fuel', 'Fuel (litres)'), align: 'num', cell: (r) => r.fuel_litres == null ? '—' : formatNumberMax2(Number(r.fuel_litres)) },
+    { key: 'trips', header: t('equipment:usage.trips', 'Trips'), align: 'num', cell: (r) => r.trips == null ? '—' : Number(r.trips) },
+    { key: 'waiting', header: t('equipment:usage.waiting', 'Waiting approval'), align: 'num', cell: (r) => r.submitted_count == null ? '—' : Number(r.submitted_count) },
   ];
   // Work units per month: a trend, drawn once there are three months and one unit to add up.
   const perMonth = useMemo(() => {
-    const byMonth = new Map<string, number>();
-    for (const row of rows) byMonth.set(row.month, (byMonth.get(row.month) ?? 0) + Number(row.work_units ?? 0));
-    return [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, units]) => ({ month: formatMonthYear(fromIso(month)), units: Math.round(units * 100) / 100 }));
+    const byMonth = new Map<string, number | null>();
+    for (const row of rows) {
+      const previous = byMonth.get(row.month);
+      byMonth.set(row.month, row.work_units == null || previous === null ? null : (previous ?? 0) + Number(row.work_units));
+    }
+    return [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, units]) => ({ month: formatMonthYear(fromIso(month)), units: units == null ? null : Math.round(units * 100) / 100 }));
   }, [rows]);
   const oneUnit = new Set(rows.map((row) => row.unit)).size === 1;
   return (
     <Card role="region" aria-label={t('equipment:usage.cardTitle', 'Usage')} className="mb-4">
       <CardHead>{t('equipment:usage.cardTitle', 'Usage')}</CardHead>
       <CardPad className="pt-0">
-        {!q.isPending && !q.isError && perMonth.length >= 3 && oneUnit && (
+        {!q.isPending && !q.isError && perMonth.length >= 3 && oneUnit && perMonth.every((month) => month.units != null) && (
           <div role="img" aria-label={t('equipment:usage.chartLabel', 'Work per month, {{unit}}', { unit: unitLabel(t, rows[0].unit) })} className="mb-3 h-36">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={perMonth} margin={{ top: 16, right: 4, left: 4, bottom: 0 }}>

@@ -60,6 +60,17 @@ describe('/equipment/assets/:assetId (AC-EQU-001 FE reference, FR-EQU-044/071)',
     h.end = vi.fn().mockResolvedValue(undefined);
   });
 
+  it('shows unrecorded usage and hire rates as unknown', async () => {
+    h.costing = ok([setting({ basis: 'hire_rate', work_rate: null, rate_unit: 'hours' })]);
+    h.allocations = ok({ rows: [alloc({ basis: 'hire_rate', work_units: null, work_rate: null })], truncated: false });
+    h.totals = ok({ rows: [{ asset_id: 'a1', project_id: 'pj1', month: '2026-10-01', work_units: null, standby_units: null, fuel_litres: null, trips: null, submitted_count: null, unit: 'hours' }], truncated: false });
+    renderPage();
+    expect(screen.getByRole('region', { name: 'Usage' })).toHaveTextContent('—');
+    expect(screen.getByRole('region', { name: 'Costing' })).toHaveTextContent('—');
+    await userEvent.setup().click(screen.getByRole('button', { name: /how this was calculated/i }));
+    expect(screen.getByRole('group', { name: /calculation/i })).toHaveTextContent('—');
+  });
+
   it('AC-EQU-001 the drill-down shows pool, driver, share and version for an actual-cost row', async () => {
     const user = userEvent.setup();
     renderPage();
