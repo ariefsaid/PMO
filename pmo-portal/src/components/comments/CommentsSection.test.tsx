@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Link, MemoryRouter, useLocation } from 'react-router';
 import { CommentsSection } from './CommentsSection';
 
 const list = vi.fn();
@@ -34,11 +35,17 @@ vi.mock('@/src/hooks/useTasks', () => ({
 const mine = { id: 'c1', author_id: 'me', body: 'My note', created_at: new Date().toISOString(), author: { id: 'me', full_name: 'Me Myself' } };
 const theirs = { id: 'c2', author_id: 'p2', body: 'Their note', created_at: new Date().toISOString(), author: { id: 'p2', full_name: 'Peer Person' } };
 
+const RouteProbe = () => <output data-testid="route-path">{useLocation().pathname}</output>;
+
 function renderIt() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <CommentsSection entityType="project" entityId="proj1" />
+      <MemoryRouter initialEntries={['/projects/proj1']}>
+        <RouteProbe />
+        <Link to="/next">Next page</Link>
+        <CommentsSection entityType="project" entityId="proj1" />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -69,6 +76,29 @@ describe('CommentsSection', () => {
       expect(create).toHaveBeenCalledWith({ entityType: 'project', entityId: 'proj1', body: 'Is the scope final?', mentions: [] }),
     );
     await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue(''));
+  });
+
+  it('CMP-009: leaving a comment draft asks first, and Stay keeps text and its picked mention', async () => {
+    const user = userEvent.setup();
+    renderIt();
+    await screen.findAllByTestId('comment-item');
+    const draft = screen.getByRole('textbox');
+    await user.type(draft, 'Please check with @Pee');
+    await user.click(await screen.findByRole('button', { name: 'Peer Person' }));
+
+    const unload = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+    await user.click(screen.getByRole('link', { name: 'Next page' }));
+    const leavePrompt = await screen.findByRole('dialog', { name: /unsaved comment/i });
+    await user.click(within(leavePrompt).getByRole('button', { name: /^stay$/i }));
+
+    expect(screen.getByTestId('route-path')).toHaveTextContent('/projects/proj1');
+    expect(screen.getByRole('textbox')).toHaveValue('Please check with @Peer Person ');
+    await user.click(screen.getByRole('button', { name: 'Post comment' }));
+    await waitFor(() => expect(create).toHaveBeenCalledWith({
+      entityType: 'project', entityId: 'proj1', body: 'Please check with @Peer Person ', mentions: ['p2'],
+    }));
   });
 
   it('AC-CMT-002 @ picks an org member and sends their id as a mention', async () => {
