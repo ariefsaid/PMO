@@ -1403,7 +1403,7 @@ describe('GR creation panel (D3, AC-816 UI support)', () => {
 
     await userEvent.click(within(form).getByRole('button', { name: /^Cancel$/i }));
     let dialog = await screen.findByRole('dialog', { name: 'Discard your changes?' });
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByTestId('gr-ref-input')).toHaveValue('GR-KEEP');
 
     await userEvent.click(screen.getByRole('button', { name: /Back to Procurement/i }));
