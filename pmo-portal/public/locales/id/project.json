@@ -843,6 +843,7 @@
       "form": {
         "noAssignees": "Belum ada orang yang dapat ditugaskan. Tambahkan atau aktifkan pengguna di Administrasi."
       },
+      "addTask": "Tambah tugas",
       "bulk": {
         "toast": {
           "partial": "{{succeeded}} diperbarui; {{failed}} gagal. Tinjau tugas yang dipilih lalu coba lagi.",
