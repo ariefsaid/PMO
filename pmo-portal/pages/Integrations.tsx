@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { PageHeader } from '@/src/components/ui';
 import { M365ConnectionCard } from '@/src/components/integrations/M365ConnectionCard';
 
 /**
@@ -24,18 +25,11 @@ const IntegrationsPage: React.FC = () => {
   const { t } = useTranslation();
   return (
     <div>
-      {/* C-MIN-3: page-level h1 so screen readers + document.querySelector('h1') find a level-1
-          heading. Token: DESIGN.md page-title (24px / 700 / –0.02em), matching every other page. */}
-      <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-        {t('integrations.personal.title', 'My integrations')}
-      </h1>
-      {/* max-width prose column (DESIGN.md content rhythm) — a single personal-connect card. */}
-      <p className="mt-1 max-w-[65ch] text-sm text-muted-foreground">
-        {t(
-          'integrations.personal.description',
-          'Connect your personal Microsoft 365 account so PMO Portal can reach the content your account has access to. This is separate from your organization’s Administration integrations.',
-        )}
-      </p>
+      <PageHeader
+        title={t('integrations.personal.title', 'My integrations')}
+        help={t('integrations.personal.description', 'Your own Microsoft 365 account, so PMO Portal can reach the content it has access to. Separate from the organization setup under Administration.')}
+        helpSubject={t('integrations.personal.title', 'My integrations')}
+      />
       <div className="mt-4 max-w-xl">
         <M365ConnectionCard showUnavailable />
       </div>

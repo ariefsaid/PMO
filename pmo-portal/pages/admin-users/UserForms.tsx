@@ -81,17 +81,6 @@ export const InviteFormModal: React.FC<{
     <EntityFormModal
       open
       title={t('admin.users.invite', 'Invite user')}
-      subtitle={
-        isOperator
-          ? t(
-              'admin.users.inviteForm.subtitleOperator',
-              "Invite someone by email. They'll set their own password and role takes effect immediately.",
-            )
-          : t(
-              'admin.users.inviteForm.subtitle',
-              "Invite someone to your workspace by email. They'll set their own password.",
-            )
-      }
       submitLabel={t('admin.users.invite', 'Invite user')}
       onSubmit={handleSubmit}
       submitError={submitError}
@@ -120,7 +109,7 @@ export const InviteFormModal: React.FC<{
           onChange={(v) => roleField.onChange(v as UserRole)}
           onBlur={roleField.onBlur}
           options={roleNames.options}
-          helper={t('admin.users.inviteForm.roleHelper', 'Determines what this person can see and do once they sign in.')}
+          helper={`${t('admin.users.inviteForm.roleHelper', 'Determines what this person can see and do once they sign in.')}${isOperator ? ` ${t('admin.users.inviteForm.subtitleOperator', 'Takes effect immediately.')}` : ''}`}
           fullWidth
         />
       </FormSection>
@@ -160,11 +149,7 @@ export const RoleFormModal: React.FC<{
   return (
     <EntityFormModal
       open
-      title={t('admin.users.roleForm.title', 'Edit role')}
-      subtitle={t('admin.users.roleForm.subtitle', {
-        defaultValue: 'Set the workspace role for {{name}}',
-        name: user.full_name,
-      })}
+      title={t('admin.users.roleForm.title', { defaultValue: 'Edit role: {{name}}', name: user.full_name })}
       submitLabel={t('admin.users.roleForm.submit', 'Save role')}
       onSubmit={handleSubmit}
       submitError={submitError}
@@ -263,11 +248,7 @@ export const ManagerFormModal: React.FC<{
   return (
     <EntityFormModal
       open
-      title={t('admin.users.managerForm.title', 'Change manager')}
-      subtitle={t('admin.users.managerForm.subtitle', {
-        defaultValue: 'Set the line manager for {{name}}',
-        name: user.full_name,
-      })}
+      title={t('admin.users.managerForm.title', { defaultValue: 'Change manager: {{name}}', name: user.full_name })}
       submitLabel={t('admin.users.managerForm.submit', 'Save manager')}
       onSubmit={handleSubmit}
       onClose={onClose}
@@ -291,16 +272,16 @@ export const ManagerFormModal: React.FC<{
           placeholder={t('admin.users.managerForm.placeholder', 'Assign a manager…')}
           searchPlaceholder={t('admin.users.managerForm.search', 'Search people…')}
         />
-        <p className="mt-1.5 text-[12px] text-muted-foreground">
+        <p className="mt-1.5 text-control text-muted-foreground">
           {t('admin.users.managerForm.hint', 'Used for timesheet-approval routing.')}
         </p>
         {choicesState === 'loading' && (
-          <p role="status" className="mt-1.5 text-[12px] text-muted-foreground">
+          <p role="status" className="mt-1.5 text-control text-muted-foreground">
             {t('administration:admin.users.managerForm.choicesLoading', 'Loading people…')}
           </p>
         )}
         {choicesState === 'error' && (
-          <p role="alert" className="mt-1.5 text-[12px] text-destructive">
+          <p role="alert" className="mt-1.5 text-control text-destructive">
             {t('administration:admin.users.managerForm.choicesError', "Couldn't load the people list.")}{' '}
             <button type="button" onClick={onRetryChoices} className="font-semibold underline underline-offset-2">
               {t('administration:admin.users.managerForm.choicesRetry', 'Retry')}
@@ -311,7 +292,7 @@ export const ManagerFormModal: React.FC<{
           <button
             type="button"
             onClick={() => form.setValue('managerId', null)}
-            className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-primary-text hover:underline"
+            className="mt-2 inline-flex items-center gap-1.5 text-control font-semibold text-primary-text hover:underline"
           >
             <Icon name="x" className="size-[13px]" />
             {t('admin.users.managerForm.clear', 'Clear manager')}

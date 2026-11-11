@@ -2,9 +2,6 @@
   "pages/Timesheets.tsx": {
     "date-fns-format": 1
   },
-  "pages/admin/CostAttribution.tsx": {
-    "date-fns-format": 1
-  },
   "pages/timesheets/timesheetWeekModel.ts": {
     "date-fns-format": 2
   },

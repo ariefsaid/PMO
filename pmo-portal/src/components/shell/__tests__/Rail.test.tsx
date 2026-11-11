@@ -15,6 +15,7 @@ vi.mock('@/src/lib/features', async (importOriginal) => {
 });
 
 import { Rail } from '../Rail';
+import { RailDrawerContext } from '../railDrawerContext';
 
 let effectiveRole = 'Executive';
 
@@ -66,7 +67,7 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
 const renderRail = () =>
   render(
     <MemoryRouter>
-      <Rail />
+      <RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider>
     </MemoryRouter>
   );
 
@@ -199,7 +200,7 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     const onNavigate = vi.fn();
     render(
       <MemoryRouter>
-        <Rail onNavigate={onNavigate} />
+        <RailDrawerContext.Provider value><Rail onNavigate={onNavigate} /></RailDrawerContext.Provider>
       </MemoryRouter>
     );
     await userEvent.click(screen.getByRole('link', { name: /Projects/ }));
@@ -221,7 +222,7 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     effectiveRole = 'Executive';
     render(
       <MemoryRouter initialEntries={['/settings/profile']}>
-        <Rail />
+        <RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider>
       </MemoryRouter>
     );
     expect(screen.queryByRole('link', { name: /profile & preferences/i })).toBeNull();
@@ -234,7 +235,7 @@ describe('Rail — routes that live under a module without sharing its URL', () 
     effectiveRole = 'Finance';
     render(
       <MemoryRouter initialEntries={['/erp-purchases']}>
-        <Rail />
+        <RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider>
       </MemoryRouter>,
     );
     expect(screen.getByRole('link', { name: 'Procurement' })).toHaveAttribute('aria-current', 'page');

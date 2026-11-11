@@ -547,7 +547,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
             action='manage'
             entity='integration'
             fallback={
-              <span className='text-xs text-muted-foreground'>
+              <span className='text-control text-muted-foreground'>
                 {t(
                   'integrations.connect.readOnlyNotice',
                   'Read only. Only administrators can accept all record matches.',
@@ -633,7 +633,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                   entity='integration'
                   ctx={{ record: { kind } }}
                   fallback={
-                    <span className='text-xs text-muted-foreground'>
+                    <span className='text-control text-muted-foreground'>
                       {may('manage', 'integration', { record: { kind } })
                         ? ''
                         : t('ux.readOnly', 'Read only')}
@@ -729,7 +729,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                         <span>{connectedName(proposal) || t('integrations.connect.notAvailable', 'Not available')}</span>
                       </p>
                       {['item', 'account', 'employee'].includes(proposal.kind) && (
-                        <p className='flex flex-wrap gap-x-3 text-xs text-muted-foreground'>
+                        <p className='flex flex-wrap gap-x-3 text-control text-muted-foreground'>
                           {proposal.pmo_ids.length > 0 && (
                             <span>
                               {t('integrations.connect.pmoRecordId', 'PMO ID')}: {' '}
@@ -744,7 +744,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                           )}
                         </p>
                       )}
-                      <p className='text-xs text-muted-foreground'>
+                      <p className='text-control text-muted-foreground'>
                         {actionName(proposal)}
                         {proposal.outcome === 'review' && proposal.reason_text ? ` · ${proposal.reason_text}` : ''}
                       </p>

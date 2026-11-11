@@ -194,7 +194,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const atTop = overlay.dialog || overlay.drawerInset !== null;
   const topOffset = overlay.drawerInset !== null ? `${overlay.drawerInset}px` : 'max(12px, env(safe-area-inset-top))';
-  const bottomOffset = 'calc(1.25rem + var(--mobile-action-bar-height, 0px))';
+  const bottomOffset = 'calc(1.25rem + var(--mobile-action-bar-height, 0px) + var(--phone-nav-height, 0px))';
 
   return (
     <ToastCtx.Provider value={api}>

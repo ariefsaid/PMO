@@ -6,6 +6,7 @@ import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 
 const keys = vi.hoisted(() => ({
   procurements: vi.fn(() => ['owner-factory', 'procurements'] as const),
+  leanProcurements: vi.fn(() => ['owner-factory', 'procurements-lean'] as const),
   expenses: vi.fn(() => ['owner-factory', 'expenses'] as const),
   timesheets: vi.fn(() => ['owner-factory', 'timesheets'] as const),
   invoices: vi.fn(() => ['owner-factory', 'invoices'] as const),
@@ -20,6 +21,7 @@ const keys = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/approvalsQueryKeys', () => ({
   requestedProcurementsKey: keys.procurements,
+  procurementsKey: keys.leanProcurements,
   expenseClaimsAwaitingKey: keys.expenses,
   awaitingApprovalKey: keys.timesheets,
   nativeDraftInvoicesKey: keys.invoices,
@@ -88,6 +90,18 @@ describe('ApprovalsNavCount owner cache keys', () => {
     expect(keys.invoices).toHaveBeenCalledWith(orgId);
     expect(keys.ownership).toHaveBeenCalledWith(orgId);
     expect(client.getQueryCache().findAll().every((query) => query.getObserversCount() === 0)).toBe(true);
+  });
+
+  it('AC-FAA-008 counts from the dashboard lean procurement list when the approvals queue is not loaded', () => {
+    const client = makeClient();
+    seedReady(client);
+    const requested = client.getQueryData(queueKeys[0]);
+    client.removeQueries({ queryKey: queueKeys[0], exact: true });
+    client.setQueryData(keys.leanProcurements(), requested);
+
+    renderCount(client);
+
+    expect(screen.getByText('4')).toBeInTheDocument();
   });
 
   it('AC-FAA-008 omits the count when an applicable owner cache is missing', () => {

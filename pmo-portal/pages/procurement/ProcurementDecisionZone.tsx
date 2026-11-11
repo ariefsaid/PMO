@@ -33,9 +33,12 @@ import {
   FormGrid,
   SelectField,
   Icon,
+  MobileDecisionBar,
   RecordActionZone,
   useMoneyInputMask,
+  type MobileDecisionAction,
 } from '@/src/components/ui';
+import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { RecordCaptureForm, RecordCaptureTrigger, type StagedRecord } from './RecordCaptureForm';
 import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
 import { RECORD_AMOUNT_ERROR, parseRecordAmount } from './recordAmount';
@@ -146,6 +149,10 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   mutations,
 }) => {
   const { t: tProcurement } = useTranslation('procurement');
+  // #2061: on a phone the decision actions move into the sticky bottom bar (same handlers,
+  // same confirm + SoD gates); the in-flow row is not rendered there, so a decision verb
+  // never exists twice in the DOM.
+  const isNarrow = useIsNarrow();
   /** Per-status ready copy teaches the relevant SoD rule without changing enforcement. */
   const readyGateMessage = (status: ProcurementStatus, requester: boolean, approver: boolean) => {
     switch (status) {
@@ -276,11 +283,12 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               onSubmit={(capture) => void submitVICapture(capture)}
               onCancel={() => { setShowVICapture(false); setMutationError(null); }}
             />
-          ) : actions.length > 0 ? (
+          ) : actions.length > 0 && !isNarrow ? (
             // D8: actions are pre-sorted (primary → outline/success → destructive) by
             // sortActions() above, so Cancel/Reject always render last in DOM order.
             // The flex-wrap direction preserves this: the destructive action wraps
             // below the primary on narrow layouts, never above it.
+            // #2061: below the phone breakpoint the same actions render in the sticky bar.
             <div className="flex flex-wrap gap-2">
               {actions.map((action) => {
                 // D10 (AC-W3-D10): block Draft → Requested when there are no line items.
@@ -395,6 +403,20 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
           )}
         </CardPad>
       </Card>
+      {/* #2061: sticky decision bar on a phone. It reuses this record's own actions and
+          `onActionClick` (the confirm dialog + SoD gate are unchanged); no actions = no bar. */}
+      <MobileDecisionBar
+        label={tProcurement('procurementDetail.decisionBar', 'Procurement decisions')}
+        context={`${p.title}${p.code ? ` · ${p.code}` : ''}`}
+        actions={showVICapture ? [] : actions.map((action): MobileDecisionAction => ({
+          key: action.to,
+          label: action.label,
+          variant: action.variant,
+          loading: mutations.transition.isPending,
+          disabled: action.to === 'Requested' && isDraft && p.items.length === 0,
+          onSelect: () => onActionClick(action),
+        }))}
+      />
     </RecordActionZone>
   );
 };

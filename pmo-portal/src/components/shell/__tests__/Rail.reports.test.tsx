@@ -6,6 +6,7 @@ import React from 'react';
 // (plain role) unless a specific test overrides it. Avoids a QueryClient in the harness.
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 import { Rail } from '../Rail';
+import { RailDrawerContext } from '../railDrawerContext';
 
 /** Finance Reports is now a real child destination inside the Finance rail group. */
 
@@ -47,7 +48,7 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
 const renderRail = () =>
   render(
     <MemoryRouter>
-      <Rail />
+      <RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider>
     </MemoryRouter>,
   );
 

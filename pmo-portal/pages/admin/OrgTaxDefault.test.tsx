@@ -101,7 +101,7 @@ describe('OrgTaxDefault — the org-wide pre-selection (OD-TAX-1, migration 0207
     // restate history. An Admin who believes otherwise flips it expecting old figures to move.
     renderPanel('Admin');
     expect(
-      await screen.findByText(/does not restate any existing figure/i),
+      await screen.findByText(/existing records keep theirs/i),
     ).toBeInTheDocument();
   });
 

@@ -251,7 +251,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
           <StockError error={submitError} />
 
           {canAuthor ? (
-            <MobileActionBar className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
+            <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {!selfPostable && <p className="mr-auto text-sm text-muted-foreground">{t('count.anotherPerson')}</p>}
                 <Button type="button" variant="ghost" onClick={() => navigate('/stock/documents')}>{t('actions.cancel')}</Button>
