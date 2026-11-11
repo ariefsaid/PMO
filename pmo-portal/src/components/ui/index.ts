@@ -122,3 +122,5 @@ export {
   type ValidateFn,
   type FieldProps,
 } from './useEntityForm';
+export { FilterBar, type FilterBarProps, type FilterBarFilter } from './FilterBar';
+export { useUrlFilters } from './useUrlFilters';
