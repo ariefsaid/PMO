@@ -6,7 +6,8 @@ import { Button, ConfirmDialog, Icon, PageHeader, Toolbar } from '@/src/componen
 type Props = {
   weekRangeLabel: string;
   isApprover: boolean;
-  pendingCount: number;
+  /** Known count of sheets awaiting approval; null while the read has not landed (no count shown). */
+  pendingCount: number | null;
   busy: boolean;
   stepWeek: (delta: number) => void;
   pendingWeekDelta: number | null;
@@ -60,7 +61,7 @@ export function TimesheetWeekToolbar({ weekRangeLabel, isApprover, pendingCount,
               to="/approvals?scope=timesheets"
               className="touch-target inline-flex h-8 items-center rounded-md px-2.5 text-control font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              {pendingCount > 0
+              {pendingCount !== null && pendingCount > 0
                 ? t('uxs28.nav.teamReviewAwaiting', 'Team review · {{n}} awaiting', { n: String(pendingCount) })
                 : t('uxs28.nav.teamReview', 'Team review')}
             </Link>

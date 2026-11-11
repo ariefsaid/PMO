@@ -2,6 +2,7 @@ import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { useUrlFilters } from '@/src/components/ui';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -73,10 +74,29 @@ const FinancialStatements: React.FC = () => {
   const catalogueQuery = useFinancialStatementCatalogue({ kind: 'company' }, companyReadAllowed && !odooMode.odoo);
   const catalogue = catalogueQuery.data;
 
-  const [periodKind, setPeriodKind] = useState<StatementPeriodKind>('month');
-  const [periodStart, setPeriodStart] = useState<string | null>(null);
-  const [statement, setStatement] = useState<Statement>('trial_balance');
-  const [selectedScope, setSelectedScope] = useState<string | null>(COMPANY_SCOPE);
+  // R2: period kind/start and statement are URL-owned so Back/refresh (and a shared link)
+  // restore them; defaults stay out of the URL (empty = monthly Trial Balance, latest period).
+  const { values, setFilter, setFilters } = useUrlFilters(['periodKind', 'periodStart', 'statement', 'scope']);
+  const PERIOD_KINDS: readonly StatementPeriodKind[] = ['month', 'quarter', 'fiscal_year'];
+  const periodKind = PERIOD_KINDS.includes(values.periodKind as StatementPeriodKind)
+    ? values.periodKind as StatementPeriodKind
+    : 'month';
+  const statement = (STATEMENTS as readonly string[]).includes(values.statement)
+    ? values.statement as Statement
+    : 'trial_balance';
+  const periodStart = values.periodStart || null;
+  // Scope stays component state because "retired" (a mapped name vanished) is a state the URL
+  // cannot carry: absent means the Company default. It seeds from the URL and follows it when
+  // Back/refresh change it underneath; user- and data-driven changes write state + URL together.
+  const scopeParam = values.scope;
+  const [selectedScope, setSelectedScope] = useState<string | null>(scopeParam || COMPANY_SCOPE);
+  useEffect(() => {
+    setSelectedScope(scopeParam || COMPANY_SCOPE);
+  }, [scopeParam]);
+  const writeScope = (next: string | null) => {
+    setSelectedScope(next);
+    setFilter('scope', next && next !== COMPANY_SCOPE ? next : '');
+  };
 
   const admittedProjectScopes = useMemo(
     () => (catalogue?.state === 'complete' ? catalogue.scopes : []).filter((scope) =>
@@ -326,10 +346,14 @@ const FinancialStatements: React.FC = () => {
                 noPeriods: t('financialStatements.noPeriods', 'No periods available'),
               }}
               onKindChange={(nextKind) => {
-                setPeriodKind(nextKind);
-                setPeriodStart(latestSuppliedPair(catalogue.periods, nextKind)?.currentStart ?? null);
+                // One batched write (react-router 8 does not queue same-tick param writes):
+                // the new period kind plus the period reset to that kind's latest pair.
+                setFilters({
+                  periodKind: nextKind === 'month' ? '' : nextKind,
+                  periodStart: latestSuppliedPair(catalogue.periods, nextKind)?.currentStart ?? '',
+                });
               }}
-              onPeriodChange={setPeriodStart}
+              onPeriodChange={(nextPeriodStart: string) => setFilter('periodStart', nextPeriodStart)}
               disabled={!catalogueQuery.eligible}
             />
             <SelectField
@@ -339,8 +363,13 @@ const FinancialStatements: React.FC = () => {
               onChange={(value) => {
                 if (!(STATEMENTS as readonly string[]).includes(value)) return;
                 const nextStatement = value as Statement;
-                setStatement(nextStatement);
-                if (nextStatement !== 'profit_and_loss') setSelectedScope(COMPANY_SCOPE);
+                // Batched write: project scope only exists on profit-and-loss, so switching away
+                // resets it to the Company default (absent from the URL) in the same update.
+                if (nextStatement !== 'profit_and_loss') {
+                  setFilters({ statement: nextStatement === 'trial_balance' ? '' : nextStatement, scope: '' });
+                } else {
+                  setFilter('statement', nextStatement);
+                }
               }}
               disabled={!catalogueQuery.eligible}
             />
@@ -351,7 +380,7 @@ const FinancialStatements: React.FC = () => {
                 options={scopeOptions}
                 placeholder={t('financialStatements.chooseScope', 'Choose a scope')}
                 onChange={(value) => {
-                  if (value === COMPANY_SCOPE || namedProjectOptions.some((option) => option.value === value)) setSelectedScope(value);
+                  if (value === COMPANY_SCOPE || namedProjectOptions.some((option) => option.value === value)) writeScope(value);
                 }}
                 disabled={!catalogueQuery.eligible}
               />

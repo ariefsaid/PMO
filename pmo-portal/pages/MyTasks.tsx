@@ -83,8 +83,18 @@ const MyTasks: React.FC = () => {
     return next;
   }, { replace: true });
   const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string } | null>(null);
-  const [queue, setQueue] = React.useState<'open' | 'completed'>('open');
-  const [search, setSearch] = React.useState('');
+  // R2: queue and search are URL-owned like the due=week drill, so Back/refresh keep them;
+  // defaults stay out of the URL (empty = open queue, no search).
+  const setParam = (key: string, value: string) => setSearchParams((current) => {
+    const next = new URLSearchParams(current);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    return next;
+  }, { replace: true });
+  const queue = searchParams.get('queue') === 'completed' ? 'completed' : 'open';
+  const setQueue = (next: 'open' | 'completed') => setParam('queue', next === 'completed' ? next : '');
+  const search = searchParams.get('q') ?? '';
+  const setSearch = (value: string) => setParam('q', value);
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
   const { toast } = useToast();
@@ -112,7 +122,9 @@ const MyTasks: React.FC = () => {
     });
   }, [tasks, queue, search, dueBy]);
 
-  const openTaskCount = tasks?.filter((task) => task.status !== 'Done').length ?? 0;
+  // Unknown (list not loaded) is null: the open-task figure is a fact only once the read has
+  // landed, and it never renders as a fabricated 0 (unknown-as-zero audit F19).
+  const openTaskCount = tasks ? tasks.filter((task) => task.status !== 'Done').length : null;
   const lateTasks = React.useMemo(
     () => visibleTasks
       .filter((task) => isOverdueTask(task, today))
@@ -161,7 +173,7 @@ const MyTasks: React.FC = () => {
 
       {!isPending && !isError && tasks && tasks.length > 0 && (
         <div className={`mb-4 flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between ${queue === 'open' ? 'rounded-lg border border-border bg-waiting-surface p-4' : 'border-b border-border pb-4'}`} data-testid={queue === 'open' ? 'my-tasks-waiting-summary' : undefined}>
-          {queue === 'open' && (
+          {queue === 'open' && openTaskCount !== null && (
             <div className="flex shrink-0 items-center gap-3">
               <span
                 data-testid="my-tasks-open-count"

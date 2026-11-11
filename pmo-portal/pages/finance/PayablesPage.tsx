@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, LateText, ListPage, SearchMini, StatusPill, Toolbar, isMostUrgentLateRow, type Column } from '@/src/components/ui';
+import { Button, DataTable, LateText, ListPage, SearchMini, StatusPill, Toolbar, useUrlFilters, isMostUrgentLateRow, type Column } from '@/src/components/ui';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
 import { useFinanceAccess } from '@/src/components/finance/useFinanceAccess';
@@ -46,7 +46,10 @@ const PayablesPage: React.FC = () => {
   const orgCurrency = currencyState.isResolved ? currencyState.currency : null;
   const home = orgCurrency ?? 'IDR';
   const { exportXlsx, busy } = useExport();
-  const [search, setSearch] = useState('');
+  // R2: the search box is URL-owned (`?q=`) so Back/refresh (and a shared link) keep it.
+  const { values, setFilter } = useUrlFilters(['q']);
+  const search = values.q;
+  const setSearch = (value: string) => setFilter('q', value);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
 
   const projectManagers = useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, project.pm?.full_name ?? ''])), [projects.data]);

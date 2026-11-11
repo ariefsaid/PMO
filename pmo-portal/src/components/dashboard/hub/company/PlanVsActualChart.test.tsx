@@ -53,6 +53,13 @@ describe('PlanVsActualChart', () => {
     expect(chart.getAttribute('aria-label')).toContain('Alpha: Contract $2,000, Budget $1,500, Spent $500');
   });
 
+  it('uses the measured lighter neutral contract bar with foreground labels', () => {
+    render(<MemoryRouter><PlanVsActualChart projects={[p({ id: 'a', name: 'Alpha' })]} currency="USD" /></MemoryRouter>);
+    const chart = screen.getByRole('img', { name: /plan vs actual by project/i });
+    expect(chart).toHaveAttribute('data-contract-fill', 'hsl(var(--muted-foreground) / 0.54)');
+    expect(chart).toHaveAttribute('data-contract-label-fill', 'hsl(var(--foreground))');
+  });
+
   it('names the chart and gives screen readers the figures as a table', () => {
     render(<MemoryRouter><PlanVsActualChart projects={[p({ id: 'a', name: 'Alpha', contract_value: 2000, spent: 500 })]} currency="USD" /></MemoryRouter>);
     expect(screen.getByRole('img', { name: /plan vs actual/i })).toBeInTheDocument();
