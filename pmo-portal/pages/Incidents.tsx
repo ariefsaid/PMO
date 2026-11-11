@@ -21,7 +21,8 @@ import { useIncidentsPage, useIncidentsExportAll, useIncidentMutations } from '@
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { INCIDENTS_PAGE_SIZE, type IncidentRow, type IncidentStatus } from '@/src/lib/db/incidents';
-import { severityVariant, workflowVariant } from '@/src/lib/status/statusVariants';
+import { formatDay } from '@/src/lib/format';
+import { severityVariant } from '@/src/lib/status/statusVariants';
 import { NEXT_STATUS, TRANSITION_COPY, type AdvanceStatus } from '@/src/lib/incidents/transitions';
 import { IncidentFormModal } from '@/components/IncidentFormModal';
 
@@ -105,7 +106,7 @@ const Incidents: React.FC = () => {
       key: 'type',
       header: 'Incident',
       cell: (i) => (
-        <span className="truncate font-semibold" title={i.type}>
+        <span className="truncate font-semibold" title={i.description ?? i.type}>
           {i.type}
         </span>
       ),
@@ -120,14 +121,14 @@ const Incidents: React.FC = () => {
     {
       key: 'status',
       header: 'Status',
-      cell: (i) => <StatusPill variant={workflowVariant(i.status)}>{i.status}</StatusPill>,
+      cell: (i) => <StatusPill record="incident" state={i.status} />,
       exportValue: (i) => i.status,
     },
     {
       key: 'incident_date',
       header: 'Date',
       kind: 'date',
-      cell: (i) => <span className="tabular text-muted-foreground">{i.incident_date}</span>,
+      cell: (i) => <span className="tabular text-muted-foreground">{formatDay(i.incident_date)}</span>,
       exportValue: (i) => i.incident_date,
       colClassName: 'hidden sm:table-cell',
     },
@@ -203,7 +204,6 @@ const Incidents: React.FC = () => {
       title="Incidents"
       count={data ? total : undefined}
       total={data ? allTotal : undefined}
-      description="The organisation incident register. Anyone can file an incident; managers investigate and close them."
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ incident: null })}>
@@ -307,7 +307,7 @@ const Incidents: React.FC = () => {
       )}
 
       {state === undefined && total > INCIDENTS_PAGE_SIZE && (
-        <nav aria-label="Pages" className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
+        <nav aria-label="Pages" className="mt-3 flex items-center justify-between gap-3 text-control tabular-nums">
           <span>{(page - 1) * INCIDENTS_PAGE_SIZE + 1}–{Math.min(page * INCIDENTS_PAGE_SIZE, total)} of {total}</span>
           <span className="flex gap-2">
             <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} aria-label="Previous page">

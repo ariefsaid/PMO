@@ -1,13 +1,4 @@
 {
-  "pages/Timesheets.tsx": {
-    "date-fns-format": 1
-  },
-  "pages/timesheets/timesheetWeekModel.ts": {
-    "date-fns-format": 2
-  },
-  "pages/timesheets/useTimesheetWeekEditor.ts": {
-    "date-fns-format": 2
-  },
   "src/components/reui/event-calendar/event-calendar-agenda-view.tsx": {
     "date-fns-format": 2
   },

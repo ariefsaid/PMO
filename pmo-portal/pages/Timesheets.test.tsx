@@ -1154,11 +1154,11 @@ describe('S-28: saved / unsaved state and Save (UX-063)', () => {
     projectsState.data = ongoingProjects;
   });
 
-  it('UX-063: an empty week has Save disabled and says there is nothing to save', () => {
+  it('UX-063: an empty week has Save disabled and no status line', () => {
     tsState.data = []; tsState.isPending = false; tsState.isError = false;
     renderPage();
     expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
-    expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent(/nothing to save/i);
+    expect(screen.getByTestId('timesheets-save-status')).toBeEmptyDOMElement();
   });
 
   it('UX-063: an unchanged saved week shows "All changes saved" and a disabled Save; Submit stays enabled', () => {

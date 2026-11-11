@@ -1,36 +1,5 @@
 {
-  "components/IncidentFormModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/Companies.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/Contacts.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/ExpenseClaims.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/ImprestFloats.tsx": {
-    "ListPage-description": 1,
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/Incidents.tsx": {
-    "ListPage-description": 1
-  },
-  "pages/Meetings.tsx": {
-    "ListPage-description": 1
-  },
   "pages/activity/EditActivityModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/company/CompanyFormModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/contact/ContactFormModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/expenses/ExpenseClaimFormModal.tsx": {
     "EntityFormModal-subtitle": 1
   },
   "src/components/EfakturModal.tsx": {
@@ -43,9 +12,6 @@
     "EntityFormModal-subtitle": 1
   },
   "src/components/builder/PanelEditorForm.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "src/components/meetings/ActionItemModal.tsx": {
     "EntityFormModal-subtitle": 1
   }
 }

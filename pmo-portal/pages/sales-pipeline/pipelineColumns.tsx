@@ -12,7 +12,6 @@ import { formatCurrency } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
-  pillVariantForStatus,
   weightedValue,
   daysSince,
   isStaleBid,
@@ -21,7 +20,6 @@ import {
 
 export interface BuildPipelineColumnsOptions {
   t: TFunction | ((key: string, fallback?: string, options?: Record<string, unknown>) => string);
-  stageName: (status: PipelineProject['status']) => string;
 }
 
 export interface PipelineColumnsResult {
@@ -36,7 +34,6 @@ export interface PipelineColumnsResult {
  */
 export function buildPipelineColumns({
   t,
-  stageName,
 }: BuildPipelineColumnsOptions): PipelineColumnsResult {
   const identifiers = (r: PipelineProject) =>
     [r.pmo_project_number, r.code].filter((v): v is string => Boolean(v));
@@ -76,7 +73,7 @@ export function buildPipelineColumns({
             {r.client_name ?? '—'}
           </span>
           {r.end_client_name && (
-            <span className="block truncate text-[12px] text-muted-foreground" title={r.end_client_name}>
+            <span className="block truncate text-control text-muted-foreground" title={r.end_client_name}>
               {t('sales:pipeline.endCustomerLine', 'for {{name}}', { name: r.end_client_name })}
             </span>
           )}
@@ -91,7 +88,7 @@ export function buildPipelineColumns({
       size: 132,
       cell: (r) => (
         <span className="inline-flex flex-wrap items-center gap-1.5">
-          <StatusPill variant={pillVariantForStatus(r.status)}>{stageName(r.status)}</StatusPill>
+          <StatusPill record="project" state={r.status} />
           {isStaleBid(r) && (
             <Badge role="status" data-testid={`stale-bid-${r.id}`}>
               {t('sales:pipeline.staleBid', 'Stale bid · stage unchanged for 90+ days')}
@@ -220,7 +217,7 @@ export function buildPipelineColumns({
               : `${days} ${t('sales.lastTouch.daysAgo', 'days ago')}`;
         return (
           <span
-            className={`tabular text-[12.5px] ${stale ? 'font-semibold text-warning-foreground' : 'text-muted-foreground'}`}
+            className={`tabular text-control ${stale ? 'font-semibold text-warning-foreground' : 'text-muted-foreground'}`}
             title={
               stale
                 ? t('sales.lastTouch.stale', 'Untouched for {{days}} days: needs attention', {

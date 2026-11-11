@@ -8,14 +8,14 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useTimesheetMutations } from '@/src/hooks/useTimesheetApproval';
 import { timesheetActions, type TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { TimesheetStatus } from '../../types';
-import { formatMonthDay } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 
 export type BulkController = ReturnType<typeof useTimesheetBulkApprove>;
 
 /** The one week label for every approvals surface — translated, never duplicated per view. */
 export function weekLabel(weekStart: string, t: TFunction): string {
   const [y, m, d] = weekStart.split('-').map(Number);
-  return `${t('approvals.weekOf', 'Week of')} ${formatMonthDay(new Date(y, (m ?? 1) - 1, d ?? 1))}`;
+  return `${t('approvals.weekOf', 'Week of')} ${formatDay(new Date(y, (m ?? 1) - 1, d ?? 1))}`;
 }
 
 export function useTimesheetBulkApprove(sheets: TimesheetAwaitingApproval[], eligibleFromQueue = false) {

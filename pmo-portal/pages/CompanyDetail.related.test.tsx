@@ -299,7 +299,7 @@ describe('CompanyDetail — customer collections (AC-S36-003)', () => {
     collectionsHook.useCompanyCollections.mockReturnValue(collectionsResult('unavailable'));
     const { rerender } = renderPage('co-client-1');
 
-    expect(screen.getByText(/does not indicate a zero balance/i)).toBeInTheDocument();
+    expect(screen.getByText('Customer aging position unavailable')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open invoices' })).toHaveAttribute(
       'href', '/finance/receivables?customer=co-client-1',
     );

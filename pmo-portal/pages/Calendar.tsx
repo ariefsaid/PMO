@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ListState, useToast } from '@/src/components/ui';
+import { ListState, PageHeader, useToast } from '@/src/components/ui';
 import { WorkCalendar } from '@/src/components/calendar/WorkCalendar';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -73,12 +73,7 @@ const CalendarPage: React.FC = () => {
 
   return (
     <div>
-      <div className="mb-4">
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('title', 'Calendar')}</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          {t('subtitle', 'Tasks by due date and milestones by target date, across your projects.')}
-        </p>
-      </div>
+      <PageHeader title={t('title', 'Calendar')} />
       {tasks.isError ? (
         <ListState
           variant="error"

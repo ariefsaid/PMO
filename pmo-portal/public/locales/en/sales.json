@@ -2,6 +2,7 @@
   "goProbability": "% Go",
   "getProbability": "% Get",
   "goShort": "Go",
+  "chanceShort": "{{pct}} chance",
   "getShort": "Get",
   "column": {
     "goPct": "% Go",
@@ -57,7 +58,7 @@
     "dealFiguresLabel": "Deal figures",
     "figuresLabel": "Pipeline figures",
     "weightedForecast": "Weighted forecast",
-    "weightedNote": "Value × chance it proceeds × chance we win",
+    "weightedNote": "Value × chance of winning",
     "openValue": "Open value",
     "openCount": "{{n}} open projects",
     "needsYou": "Needs attention",
@@ -70,6 +71,9 @@
     "quickView": "Quick view",
     "stageNav": "Pipeline stages",
     "needsYouHeading": "Needs you · {{n}}",
+    "nothingStale": "Nothing is stale",
+    "wonCount": "Won {{n}} all time",
+    "lostCount": "Lost {{n}} all time",
     "showAllAttention": "Show all {{n}}"
   }
 }

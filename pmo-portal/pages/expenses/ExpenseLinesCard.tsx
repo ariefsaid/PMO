@@ -7,7 +7,7 @@ import {
 import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency, formatDateOnly, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { ExpenseClaimLineRow, ExpenseLineInput, ExpenseType } from '@/src/lib/db/expenseClaims';
 import { expenseTypeLabel } from './expenseLabels';
 
@@ -30,7 +30,7 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
   const [removeTarget, setRemoveTarget] = useState<ExpenseClaimLineRow | null>(null);
   const totalCents = lines.reduce((sum, l) => sum + Math.round(Number(l.amount) * 100), 0);
   const columns = useMemo<Column<ExpenseClaimLineRow>[]>(() => [
-    { key: 'date', header: t('expenses.lines.columns.date', 'Date'), kind: 'date', cell: (line) => formatDateOnly(line.expense_date) },
+    { key: 'date', header: t('expenses.lines.columns.date', 'Date'), kind: 'date', cell: (line) => formatDay(line.expense_date) },
     { key: 'type', header: t('expenses.lines.columns.type', 'Type'), kind: 'text', cell: (line) => expenseTypeLabel(line.expense_type, t) },
     { key: 'description', header: t('expenses.lines.columns.description', 'Description'), kind: 'primary', cell: (line) => line.description, primaryTitle: (line) => line.description },
     { key: 'amount', header: t('expenses.lines.columns.amount', 'Amount'), kind: 'money', align: 'num', cell: (line) => formatCurrency(Number(line.amount), currency) },

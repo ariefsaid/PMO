@@ -219,7 +219,7 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
     // status surface — no tint slab, no leading dot.
     const pillCls = (label: string, rowType: string) => {
       const row = screen.getByText(rowType).closest('tr')!;
-      const pill = within(row).getByText(label).closest('span')!;
+      const pill = within(row).getByText(label).closest('span.rounded-full')!;
       return { cls: pill.className, style: pill.getAttribute('style') ?? '' };
     };
     const low = pillCls('Low', 'Near Miss');

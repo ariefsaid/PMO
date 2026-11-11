@@ -33,11 +33,13 @@ export function useProjectStatusLabel(): (status: string) => string {
  */
 export function useSalesStageLabel(): (col: { title: string; testId: string }) => string {
   const { t } = useTranslation();
+  const { t: tStatus } = useTranslation('status');
   const labels: Record<string, string> = {
     'stage-Leads': t('sales.stage.leads', 'Leads'),
-    'stage-PQ Submitted': t('sales.stage.preQual', 'Pre-Qual'),
-    'stage-Quotation Submitted': t('sales.stage.quotation', 'Quotation'),
-    'stage-Tender Submitted': t('sales.stage.tender', 'Tender'),
+    // The same words as the project status pill and filters (one name per state).
+    'stage-PQ Submitted': tStatus('project.pqSubmitted', 'PQ submitted'),
+    'stage-Quotation Submitted': tStatus('project.quotationSubmitted', 'Quotation submitted'),
+    'stage-Tender Submitted': tStatus('project.tenderSubmitted', 'Tender submitted'),
     'stage-Negotiation': t('sales.stage.negotiation', 'Negotiation'),
     'stage-Won': t('projects.kanban.won', 'Won'),
     'stage-Lost': t('sales.stage.lost', 'Lost'),

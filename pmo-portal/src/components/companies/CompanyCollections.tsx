@@ -54,7 +54,6 @@ export const CompanyCollections: React.FC<CompanyCollectionsProps> = ({ companyI
           variant="empty"
           icon="doc"
           title={t('dashboard.uxs36CollectionsUnavailableTitle', 'Customer aging position unavailable')}
-          sub={t('dashboard.uxs36CollectionsUnavailableDescription', 'No matching ERP customer aging position is available. This does not indicate a zero balance.')}
         />
       ) : (
         <AccountingSnapshotsSection

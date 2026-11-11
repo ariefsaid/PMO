@@ -181,11 +181,6 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
           ? t('companies.form.editTitle', 'Edit company')
           : t('companies.form.newTitle', 'New company')
       }
-      subtitle={
-        isEdit
-          ? t('companies.form.editSubtitle', 'Update this company record')
-          : t('companies.form.newSubtitle', 'Add a client or supplier to the directory')
-      }
       submitLabel={
         isEdit
           ? t('companies.form.editSubmit', 'Save company')
@@ -209,7 +204,7 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
         >
           <div className="min-w-0">
             <div className="text-control font-semibold">{partialSave.headline}</div>
-            <p className="text-support text-muted-foreground">{partialSave.detail}</p>
+            <p className="text-control text-muted-foreground">{partialSave.detail}</p>
           </div>
         </div>
       )}

@@ -1,11 +1,11 @@
 import React from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ListState, SearchMini, StatusPill, SelectField, useToast, ViewToggle } from '@/src/components/ui';
+import { ListState, PageHeader, SearchMini, StatusPill, SelectField, useToast, ViewToggle } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
-import { formatDateOnly, formatCalendarDayInTimeZone } from '@/src/lib/format';
+import { formatDay, formatCalendarDayInTimeZone, formatDaysOverdue } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskStatus } from '@/src/lib/db/tasks';
@@ -69,6 +69,7 @@ const MyTasks: React.FC = () => {
   const { t } = useTranslation();
   // #1461: the drill-window chip lives in the tasks feature namespace.
   const { t: tasksT } = useTranslation('tasks');
+  const { t: tStatus } = useTranslation('status');
   const today = useZonedToday();
   // #1461: the dashboard 'Tasks due' figure counts open tasks due by the end of this week, and its
   // drill carries `due=week`, so the list can show exactly that set (shareable URL, clearable chip).
@@ -147,12 +148,7 @@ const MyTasks: React.FC = () => {
 
   return (
     <div>
-      <div className="mb-4">
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('myTasks.title', 'My Tasks')}</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          {t('myTasks.subtitle', 'Your assigned tasks across all projects.')}
-        </p>
-      </div>
+      <PageHeader title={t('myTasks.title', 'My Tasks')} />
 
       {!isPending && !isError && tasks && tasks.length > 0 && (
         <div className="mb-4 flex flex-col gap-3 border-b border-border pb-4 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between">
@@ -195,7 +191,7 @@ const MyTasks: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSearch('')}
-                className="touch-target h-8 shrink-0 rounded-lg px-2 text-[13px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="touch-target h-8 shrink-0 rounded-lg px-2 text-control font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {t('myTasks.clearSearch', 'Clear search')}
               </button>
@@ -241,7 +237,7 @@ const MyTasks: React.FC = () => {
         <div className="space-y-6">
           {grouped.map((group) => (
             <section key={group.projectId} aria-label={group.projectName}>
-              <h2 className="mb-2 text-[13px] font-semibold text-muted-foreground">
+              <h2 className="mb-2 text-control font-semibold text-muted-foreground">
                 {/* CW-7: the Engineer's task entry point deep-links to the project's Tasks tab
                     explicitly (/projects/:id/tasks) — the project URL default is role-invariant
                     Overview, so this link carries the intent rather than mutating the default. */}
@@ -275,14 +271,14 @@ const MyTasks: React.FC = () => {
                         {task.project_id || task.meeting_id ? (
                           <Link
                             to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
-                            className="block min-w-0 flex-1 break-words text-[13.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded sm:truncate"
+                            className="block min-w-0 flex-1 break-words text-control font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded sm:truncate"
                             title={task.name}
                           >
                             {task.name}
                           </Link>
                         ) : (
                           <span
-                            className="block min-w-0 flex-1 break-words text-[13.5px] font-medium sm:truncate"
+                            className="block min-w-0 flex-1 break-words text-control font-medium sm:truncate"
                             title={task.name}
                           >
                             {task.name}
@@ -290,15 +286,17 @@ const MyTasks: React.FC = () => {
                         )}
                         {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA). */}
                         {isOverdueTask(task, today) && (
-                          <StatusPill variant="warn">{t('myTasks.overdue', 'Overdue')}</StatusPill>
+                          <StatusPill record="due" state="overdue">
+                            {formatDaysOverdue(task.end_date, tStatus) ?? t('myTasks.overdue', 'Overdue')}
+                          </StatusPill>
                         )}
                       </div>
                       {(task.start_date || task.end_date) && (
-                        <span className="mt-0.5 block text-[12px] text-muted-foreground">
+                        <span className="mt-0.5 block text-control text-muted-foreground">
                           {task.start_date && (
                             <span>
                               {t('myTasks.start', 'Start {{date}}', {
-                                date: formatDateOnly(task.start_date),
+                                date: formatDay(task.start_date),
                               })}
                             </span>
                           )}
@@ -306,7 +304,7 @@ const MyTasks: React.FC = () => {
                           {task.end_date && (
                             <span>
                               {t('myTasks.due', 'Due {{date}}', {
-                                date: formatDateOnly(task.end_date),
+                                date: formatDay(task.end_date),
                               })}
                             </span>
                           )}
@@ -320,7 +318,7 @@ const MyTasks: React.FC = () => {
                         type="button"
                         aria-label={`${t('comments.open', 'Comments')} ${task.name}`}
                         onClick={() => setCommentsTask({ id: task.id, name: task.name })}
-                        className="inline-flex h-7 items-center rounded-lg border border-input bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="inline-flex h-7 items-center max-md:h-11 rounded-lg border border-input bg-background px-2.5 text-control font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         {t('comments.open', 'Comments')}
                       </button>
@@ -332,7 +330,7 @@ const MyTasks: React.FC = () => {
                       {task.project_id ? (
                         <Link
                           to={`/timesheets?project=${task.project_id}`}
-                          className="inline-flex h-7 items-center rounded-lg border border-input bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="inline-flex h-7 items-center max-md:h-11 rounded-lg border border-input bg-background px-2.5 text-control font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           {t('myTasks.logTime', 'Log time')}
                         </Link>

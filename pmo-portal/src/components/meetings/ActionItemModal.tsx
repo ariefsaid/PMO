@@ -83,7 +83,6 @@ const ActionItemModal: React.FC<ActionItemModalProps> = ({
     <EntityFormModal
       open
       title={t('meetingDetail.action.modalTitle', 'New action item')}
-      subtitle={t('meetingDetail.action.modalSubtitle', 'This creates a real task. Its name is visible to everyone who can see tasks. Edit it before publishing.')}
       submitLabel={t('meetingDetail.action.modalSubmit', 'Create task')}
       onSubmit={handleSubmit}
       onClose={onClose}
@@ -100,11 +99,11 @@ const ActionItemModal: React.FC<ActionItemModalProps> = ({
             onChange={nameField.onChange}
             onBlur={nameField.onBlur}
             placeholder={t('meetingDetail.action.placeholderName', 'Untitled action')}
-            helper={t('meetingDetail.action.nameHelper', 'Prefilled from the minute line. Left empty, the task is created with the placeholder name.')}
+            helper={t('meetingDetail.action.nameHelper', 'Visible to everyone who can see tasks. Prefilled from the minute line.')}
             fullWidth
           />
           {profilesError && (
-            <p className="mt-1 text-[12px] text-muted-foreground">
+            <p className="mt-1 text-control text-muted-foreground">
               {t('projectDetail.tasks.form.peopleLoadFailed', 'People could not be loaded; you can still save and assign later.')}
             </p>
           )}

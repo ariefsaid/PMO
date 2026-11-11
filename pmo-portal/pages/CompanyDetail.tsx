@@ -229,9 +229,7 @@ const CompanyDetail: React.FC = () => {
         <CardHead>{t('companyDetail.sectionTitle', 'Company detail')}</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            <Field label={t('companyDetail.field.name', 'Name')} value={company.name} />
-            <Field label={t('companies.form.shortName.label', 'Short name')} value={company.short_name || '—'} />
-            <Field label={t('companyDetail.field.type', 'Type')} value={company.type} />
+            {company.short_name && <Field label={t('companies.form.shortName.label', 'Short name')} value={company.short_name} />}
             {company.client_number_segment && (
               <Field
                 label={t('companyDetail.field.clientNumberSegment', 'Client number segment')}
@@ -302,7 +300,6 @@ const CompanyDetail: React.FC = () => {
           companyOptions={[{ value: company.id, label: companyDisplayName(company) }]}
           lockedCompanyId={company.id}
           lockedCompanyLabel={companyDisplayName(company)}
-          createSubtitle={t('companyDetail.addContact.subtitle', 'Add a person at this company')}
           onClose={() => setAddContactOpen(false)}
           onCreate={async (input) => {
             await createContact.mutateAsync(input);
@@ -361,10 +358,10 @@ const CompanyDetail: React.FC = () => {
 /** A labelled read-only field (definition-list row) — body field primitive for the record page. */
 const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <div className="flex flex-col gap-0.5">
-    <dt className="text-[11px] font-semibold text-muted-foreground">
+    <dt className="text-control font-semibold text-muted-foreground">
       {label}
     </dt>
-    <dd className="text-[13.5px] text-foreground">{value}</dd>
+    <dd className="text-control text-foreground">{value}</dd>
   </div>
 );
 

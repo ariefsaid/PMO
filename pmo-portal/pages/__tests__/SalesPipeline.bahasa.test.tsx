@@ -66,12 +66,12 @@ describe('SalesPipeline funnel in Bahasa', () => {
     const grid = screen.getByTestId('funnel-stage-grid');
     const name = (n: string) => within(grid).getByText(n, { exact: true });
     expect(name('Prospek')).toBeInTheDocument();
-    expect(name('Pra-kualifikasi')).toBeInTheDocument();
-    expect(name('Penawaran')).toBeInTheDocument();
-    expect(name('Tender')).toBeInTheDocument();
+    expect(name('Pra-kualifikasi diajukan')).toBeInTheDocument();
+    expect(name('Penawaran diajukan')).toBeInTheDocument();
+    expect(name('Tender diajukan')).toBeInTheDocument();
     expect(name('Negosiasi')).toBeInTheDocument();
     expect(within(grid).queryByText('Leads', { exact: true })).toBeNull();
-    expect(within(grid).queryByText('Pre-Qual', { exact: true })).toBeNull();
-    expect(within(grid).queryByText('Quotation', { exact: true })).toBeNull();
+    expect(within(grid).queryByText('PQ submitted', { exact: true })).toBeNull();
+    expect(within(grid).queryByText('Quotation submitted', { exact: true })).toBeNull();
   });
 });

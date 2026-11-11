@@ -14,7 +14,7 @@ export const ProjectLoadNotice: React.FC<{ projects: ProjectLoad }> = ({ project
     );
   }
   if (projects.isPending) {
-    return <p role="status" className="col-span-full text-xs text-muted-foreground">{t('expenseClaims:projects.loading', 'Loading projects…')}</p>;
+    return <p role="status" className="col-span-full text-control text-muted-foreground">{t('expenseClaims:projects.loading', 'Loading projects…')}</p>;
   }
   return null;
 };

@@ -12,9 +12,7 @@ import type { BudgetCategory, ImprestPlanRow } from '@/src/lib/db/imprest';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { imprestStatusLabel } from './imprestLabels';
+import { formatCurrency, formatMonthYearShort, parseMoneyInputAtScale } from '@/src/lib/format';
 
 type PlanTo = 'Draft' | 'Submitted' | 'Approved' | 'Rejected' | 'Cancelled';
 const TO: Partial<Record<ImprestAction, PlanTo>> = {
@@ -24,7 +22,7 @@ const nextMonth = (m: string): string => {
   const [y, mo] = m.split('-').map(Number);
   return mo === 12 ? `${y + 1}-01-01` : `${y}-${String(mo + 1).padStart(2, '0')}-01`;
 };
-const monthLabel = (m: string): string => m.slice(0, 7);
+const monthLabel = (m: string): string => formatMonthYearShort(m);
 
 /** Lines of one plan; editable only while the viewer authored it and it is Draft/Rejected (RLS decides; this hides). */
 const PlanLines: React.FC<{ plan: ImprestPlanRow; currency: string; editable: boolean }> = ({ plan, currency, editable }) => {
@@ -120,7 +118,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                     <span className="font-medium">{monthLabel(plan.month)}</span>
                     <span className="text-muted-foreground">{plan.number ?? t('imprest:plan.draftNumber', 'Draft')}</span>
-                    <StatusPill variant={workflowVariant(plan.status)}>{imprestStatusLabel(plan.status, t)}</StatusPill>
+                    <StatusPill record="imprest" state={plan.status} />
                     {plan.is_late && <span className="text-muted-foreground">{t('imprest:plan.late', 'Late')}</span>}
                     <span className="flex-1 text-right tabular-nums">{formatCurrency(Number(plan.total), currency)}</span>
                     <Button variant="ghost" size="sm" aria-expanded={open === plan.id} onClick={() => setOpen((c) => (c === plan.id ? null : plan.id))}>
