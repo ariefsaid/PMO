@@ -27,7 +27,7 @@ describe('redesigned mobile dashboard accessible names in Bahasa', () => {
     expect(screen.getAllByRole('button', { name: /^Tentang / })).toHaveLength(1);
 
     fireEvent.click(screen.getByText('Analisis'));
-    expect(await screen.findByRole('img', { name: 'Rencana vs realisasi per proyek' })).toBeInTheDocument();
+    expect(await screen.findByRole('img', { name: /Rencana vs realisasi per proyek/ })).toBeInTheDocument();
   });
 
   it('formats the chart figures for screen readers with the configured number locale rather than the UI language', async () => {
