@@ -65,5 +65,8 @@
     "payment": "Simpan dan catat pembayaran"
   },
   "uncertainSave": "Penyimpanan mungkin sudah selesai. Periksa statusnya sebelum membuat permintaan baru; mencoba lagi di sini menggunakan permintaan yang sama.",
-  "checkSaveStatus": "Periksa status permintaan"
+  "checkSaveStatus": "Periksa status permintaan",
+  "actions": {
+    "cancel": "Batal"
+  }
 }
