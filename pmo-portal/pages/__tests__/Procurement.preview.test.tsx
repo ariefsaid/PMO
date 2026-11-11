@@ -7,12 +7,11 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 
 /**
- * Fix #5 — Procurement list: rows must support inline expand/preview
- * (asymmetry with /approvals which already has ProcurementApprovalRow expansion).
+ * Fix #5 — Procurement list: each row opens a preview drawer over the list.
  *
- * AC-FIX5-PREVIEW-01: each table row has a disclosure (expand) toggle button.
- * AC-FIX5-PREVIEW-02: clicking the toggle reveals the row's detail preview in place.
- * AC-FIX5-PREVIEW-03: the detail preview contains a "View full request" link to /procurement/:id.
+ * AC-FIX5-PREVIEW-01: each table row opens its preview.
+ * AC-FIX5-PREVIEW-02: the preview shows the row's details.
+ * AC-FIX5-PREVIEW-03: the detail preview contains an "Open full page" link to /procurement/:id.
  */
 
 // ── Hoisted mocks ─────────────────────────────────────────────────────────────
@@ -116,7 +115,7 @@ describe('Procurement list — inline preview (fix #5)', () => {
     renderPage();
     const row = screen.getByRole('button', { name: 'Open Steel Beams Supply' }).closest('tr');
     expect(row).not.toBeNull();
-    expect(within(row as HTMLElement).getByText('Request')).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText('Requested')).toBeInTheDocument();
     // Raised by the signed-in user, so the approval is waiting on someone else.
     expect(within(row as HTMLElement).getByText('Waiting on approver')).toBeInTheDocument();
     expect(within(row as HTMLElement).getByText('Alice Engineer')).toBeInTheDocument();
@@ -129,10 +128,11 @@ describe('Procurement list — inline preview (fix #5)', () => {
     expect(within(longRow).getByText('Unassigned')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open Steel Beams Supply' })).toBeInTheDocument();
   });
-  it('AC-FIX5-PREVIEW-01: each table row has an expand toggle button', () => {
+  it('AC-FIX5-PREVIEW-01: a row opens its preview drawer', async () => {
+    detailState.data = DETAIL;
     renderPage();
-    const toggles = screen.getAllByRole('button', { name: /show.*preview|expand|preview/i });
-    expect(toggles.length).toBeGreaterThan(0);
+    await userEvent.click(screen.getByRole('button', { name: 'Open Steel Beams Supply' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
   const DETAIL = {
@@ -141,28 +141,27 @@ describe('Procurement list — inline preview (fix #5)', () => {
     items: [{ id: 'i-1', name: 'Steel beam', description: 'IPE 300', quantity: 12 }],
     purchase_requests: [], quotations: [], purchase_orders: [], receipts: [], invoices: [], payments: [],
   };
-  const expandFirstRow = async () => {
+  const openPreview = async () => {
     detailState.data = DETAIL;
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getAllByRole('button', { name: /show.*preview|expand|preview/i })[0]);
+    await user.click(screen.getByRole('button', { name: 'Open Steel Beams Supply' }));
     return user;
   };
 
-  it('AC-FIX5-PREVIEW-02: clicking the toggle reveals the row detail panel in place', async () => {
-    await expandFirstRow();
-    // The row stays in the list; its line items and next step open beneath the title.
-    const toggle = screen.getByRole('button', { name: /collapse procurement details/i });
-    expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByText('Line items')).toBeInTheDocument();
-    expect(screen.getByText(/Steel beam · IPE 300 · 12/)).toBeInTheDocument();
-    expect(screen.getByText(/^Next step:/, { selector: 'span' })).toBeInTheDocument();
+  it('AC-FIX5-PREVIEW-02: the preview shows line items and the next step', async () => {
+    await openPreview();
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByText('Line items')).toBeInTheDocument();
+    expect(within(drawer).getByText('Steel beam · IPE 300')).toBeInTheDocument();
+    expect(within(drawer).getByText('12')).toBeInTheDocument();
+    expect(within(drawer).getByText('Next step')).toBeInTheDocument();
+    expect(within(drawer).getByText('Request')).toBeInTheDocument();
+    expect(within(drawer).getByText('Waiting on approver')).toBeInTheDocument();
   });
 
   it('AC-FIX5-PREVIEW-03: from the preview the user reaches the full record at /procurement/:id', async () => {
-    const user = await expandFirstRow();
-    await user.click(screen.getByRole('button', { name: 'Open procurement' }));
-    const link = await screen.findByRole('link', { name: /open full page/i });
-    expect(link).toHaveAttribute('href', '/procurement/pr-1');
+    await openPreview();
+    expect(within(screen.getByRole('dialog')).getByRole('link', { name: /open full page/i })).toHaveAttribute('href', '/procurement/pr-1');
   });
 });

@@ -46,7 +46,7 @@
     "notFoundSub": "It may have been archived.",
     "refLine": "ERP reference {{ref}}",
     "rowLabel": "Open {{name}}",
-    "title": "Equipment assets",
+    "title": "Assets",
     "truncated": "Showing the first {{count}} assets. Archive the ones you no longer use.",
     "unit": "Default unit",
     "unitLine": "Logged in {{unit}}"
