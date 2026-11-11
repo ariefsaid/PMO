@@ -1,10 +1,11 @@
 import React from 'react';
-import { Menu } from '@base-ui/react/menu';
+import { Menu } from './menu';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { buttonClasses } from './buttonClasses';
 import { menuItemClass, menuPopupClass, menuPopupOrigin, menuSeparatorClass } from './menuStyles';
+import { useOverlayPortalContainer } from './useOverlayPortalContainer';
 
 export interface RowMenuItem {
   label: string;
@@ -21,9 +22,11 @@ export interface RowMenuItem {
  */
 export const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel?: string }> = ({ items, label, ariaLabel }) => {
   const { t } = useTranslation('projects');
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const portalContainer = useOverlayPortalContainer(rootRef);
   return (
     // Keeps row-level click handlers (DataTable onActivate) from seeing trigger or item clicks.
-    <div className="contents" onClick={(e) => e.stopPropagation()}>
+    <div ref={rootRef} className="contents" onClick={(e) => e.stopPropagation()}>
       <Menu.Root>
         <Menu.Trigger
           aria-label={ariaLabel ?? (label ? undefined : t('table.rowActions', 'Row actions'))}
@@ -44,7 +47,7 @@ export const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel
             </span>
           )}
         </Menu.Trigger>
-        <Menu.Portal>
+        <Menu.Portal container={portalContainer}>
           {/* The toast stack is pinned to z-index 1000 (Toaster style) and may overlap the bottom row; keep row actions above it. */}
           <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={16} style={{ zIndex: 1010 }}>
             <Menu.Popup className={menuPopupClass} style={menuPopupOrigin}>

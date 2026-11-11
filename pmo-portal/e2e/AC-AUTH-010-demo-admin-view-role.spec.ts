@@ -19,9 +19,7 @@ test('AC-AUTH-010: demo Admin can view the Engineer navigation without changing 
   await expect(page.getByTestId('impersonation-banner')).toContainText('Engineer');
 
   const returnToAdmin = page.getByRole('menuitem', { name: /return to admin/i });
-  if (!await returnToAdmin.isVisible()) {
-    await page.getByRole('button', { name: /account menu/i }).click();
-  }
+  await page.getByRole('button', { name: /account menu/i }).click();
   await returnToAdmin.click();
   await expect(administration).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('impersonation-banner')).toHaveCount(0);

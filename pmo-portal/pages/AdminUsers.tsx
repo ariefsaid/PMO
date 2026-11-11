@@ -484,7 +484,7 @@ const PageHead: React.FC<{ canInvite: boolean; onInvite: () => void; embedded?: 
     );
   }
 
-  return <PageHeader title={t('admin.nav.title', 'Administration')} action={inviteAction} />;
+  return <PageHeader title={t('admin.nav.users', 'Users')} action={inviteAction} />;
 };
 
 export default AdminUsers;

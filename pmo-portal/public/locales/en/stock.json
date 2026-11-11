@@ -182,7 +182,7 @@
     "reorder": "Reorder"
   },
   "onHand": {
-    "title": "Stock on hand",
+    "title": "Stock",
     "columns": {
       "item": "Item",
       "warehouse": "Warehouse",
@@ -212,7 +212,7 @@
     "moreMovements": "More"
   },
   "documents": {
-    "title": "Stock documents",
+    "title": "Documents",
     "columns": {
       "number": "Document",
       "status": "Status",
@@ -278,7 +278,7 @@
     }
   },
   "ledger": {
-    "title": "Stock ledger",
+    "title": "Ledger",
     "columns": {
       "when": "Posted",
       "occurred": "Date",
@@ -468,7 +468,7 @@
   },
   "issueOverAllowance": "Over allowance: {{workItem}} has now used {{used}} of {{planned}} {{unit}} planned. The issue is posted; this is a flag, not a block.",
   "reorder": {
-    "title": "Reorder levels",
+    "title": "Reorder",
     "panel": {
       "title": "Set a reorder level",
       "item": "Item",

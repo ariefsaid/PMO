@@ -1,4 +1,5 @@
 {
+  "description": {"engineer": "Procurements you raised", "projectManager": "Procurements for projects you manage"},
   "title": {
     "default": "Procurement",
     "engineer": "Your procurements"

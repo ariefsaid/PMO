@@ -451,7 +451,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
           <TextField
             id={shortNameField.id}
-            label={t('projects:shortName.label', 'Short name (optional)')}
+            label={t('projects:shortName.label', 'Short name')}
             value={shortNameField.value}
             onChange={(value) => {
               shortNameField.onChange(value);

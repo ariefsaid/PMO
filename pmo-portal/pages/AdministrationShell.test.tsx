@@ -400,7 +400,7 @@ describe('Administration route-backed shell', () => {
       'aria-current',
       'page',
     );
-    expect(screen.getByRole('heading', { name: 'Organization integrations' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Organization integrations' })).toBeInTheDocument();
     // It is never mislabelled as the personal "My integrations" route (that lives at /integrations).
     expect(screen.queryByRole('heading', { name: 'My integrations' })).not.toBeInTheDocument();
   });
@@ -525,7 +525,7 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
   it('DOM order follows heading → section nav → selected panel heading/content', async () => {
     renderShell('/administration/users');
     await waitFor(() => expect(screen.getByTestId('administration-panel-users')).toBeInTheDocument());
-    const heading = screen.getByRole('heading', { level: 1, name: 'Administration' });
+    const heading = screen.getByRole('heading', { level: 1, name: 'Users' });
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const panel = screen.getByTestId('administration-panel-users');
     const follows = (a: Element, b: Element) =>
