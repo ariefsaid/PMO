@@ -379,7 +379,10 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     const alert = await screen.findByRole('alert');
     expect(alert.closest('form')).not.toBeNull();
-    expect(alert).toHaveTextContent("You don't have permission to do that.");
+    expect(alert.tagName).toBe('DIV');
+    expect(alert).toHaveClass('rounded-md', 'border', 'border-destructive/25', 'bg-destructive/[0.04]', 'px-3', 'py-2', 'text-sm', 'text-destructive-text');
+    expect(alert.querySelector('p')).toHaveClass('font-semibold');
+    expect(alert.textContent).toBe("You don't have permission to do that.");
     expect(mocks.toast).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Edited' } });
     expect(alert).toBeVisible();
@@ -488,7 +491,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.click(screen.getByRole('button', { name: /what do you have/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Back to Procurement' }));
     expect(mocks.navigate).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Leave' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
     expect(mocks.navigate).toHaveBeenCalledWith('/procurement');
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });
