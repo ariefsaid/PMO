@@ -57,13 +57,18 @@ const RouteProbe = () => {
 };
 
 function render(ui: React.ReactElement) {
-  return testingRender(
+  const wrap = (child: React.ReactElement) => (
     <MemoryRouter initialEntries={['/procurement/import']}>
       <RouteProbe />
       <Link to="/next">Next page</Link>
-      {ui}
-    </MemoryRouter>,
+      {child}
+    </MemoryRouter>
   );
+  const result = testingRender(wrap(ui));
+  return {
+    ...result,
+    rerender: (nextUi: React.ReactElement) => result.rerender(wrap(nextUi)),
+  };
 }
 
 function renderWizard(overrides?: { onClose?: (didImport: boolean) => void }) {
