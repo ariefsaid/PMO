@@ -245,8 +245,7 @@ export default function ProcurementCreate() {
       const detail = conflict
         ? t('reconcile', 'Open the saved request to reconcile it before retrying.')
         : definitive ? classified.detail : `${classified.detail} ${t('uncertainSave', 'The save may have completed. Check its status before starting a new request; retrying here uses the same request.')}`;
-      setErrors({ save: detail, conflict });
-      toast(classified.headline, detail, 'warning');
+      setErrors({ save: `${classified.headline} ${detail}`, conflict });
       savingRef.current = false;
       setSaving(false);
     }
@@ -305,6 +304,7 @@ export default function ProcurementCreate() {
             </Button>
           </div>
         </header>
+        {errors.save && <p role="alert" className="mb-4 text-control text-destructive-text">{errors.save}</p>}
         <section className="mb-6 border-b border-border pb-6" aria-label={t('details', 'Procurement details')}>
           <h2 className="mb-4 font-semibold">{t('details', 'Procurement details')}</h2>
           <fieldset disabled={Boolean(attempt) || saving}>
@@ -355,7 +355,6 @@ export default function ProcurementCreate() {
             </FormGrid>
           </fieldset>
         </section>
-        {errors.save && <p role="alert" className="mb-4 text-control text-destructive-text">{errors.save}</p>}
         {attempt && errors.save && <Button type="button" variant="outline" onClick={() => guardLeave(() => navigate(`/procurement/${attempt.input.id}`))}>{errors.conflict ? t('openSavedRequest', 'Open saved request') : t('checkSaveStatus', 'Check request status')}</Button>}
         {needForm && (
           <fieldset disabled={saving || Boolean(attempt)} className="contents">

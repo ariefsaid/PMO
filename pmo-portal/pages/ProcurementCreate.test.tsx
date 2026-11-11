@@ -372,6 +372,19 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.createAtomic.mock.calls[2][0]).toEqual(mocks.createAtomic.mock.calls[0][0]);
   });
 
+  it('keeps the classified permission reason in the form until another attempt', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Request refused', '42501'));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Original' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.closest('form')).not.toBeNull();
+    expect(alert).toHaveTextContent("You don't have permission to do that.");
+    expect(mocks.toast).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Edited' } });
+    expect(alert).toBeVisible();
+  });
+
   it.each(['42501', '22023', '23503', 'P0001', '22003', '23514', '42601'])('allows editing after first definitive refusal %s', async (code) => {
     mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Refused', code));
     renderCreate();
