@@ -1665,7 +1665,7 @@
     },
     "archive": "Arsipkan",
     "attendees": {
-      "addGuest": "Tambah tamu",
+      "addGuest": "Tambah",
       "addMember": "Tambah peserta",
       "addMemberPlaceholder": "Pilih anggota organisasi…",
       "contactTag": "Kontak",
@@ -4393,7 +4393,8 @@
       "teamReviewAwaiting": "Tinjauan tim · {{n}} menunggu"
     },
     "save": {
-      "dirty": "Perubahan belum disimpan"
+      "dirty": "Perubahan belum disimpan",
+      "saved": "Semua perubahan tersimpan"
     },
     "push": {
       "pending": "Pembaruan akuntansi menunggu",

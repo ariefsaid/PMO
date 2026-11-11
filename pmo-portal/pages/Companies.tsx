@@ -170,12 +170,6 @@ const Companies: React.FC = () => {
       cell: (c) => <StatusPill variant={companyTypeVariant(c.type)}>{typeLabel[c.type]}</StatusPill>,
       exportValue: (c) => c.type,
     },
-    {
-      key: 'client_number_segment',
-      header: t('companyDetail.field.clientNumberSegment', 'Client number segment'),
-      cell: (c) => <span className="font-mono text-muted-foreground">{c.client_number_segment ?? '—'}</span>,
-      exportValue: (c) => c.client_number_segment ?? '',
-    },
   ];
 
   const rowMenu = (c: CompanyListRow): RowMenuItem[] => {

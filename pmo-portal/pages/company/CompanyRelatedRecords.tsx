@@ -2,7 +2,6 @@ import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, ListState, StatusPill } from '@/src/components/ui';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { useProjectsByClient, useProcurementsByVendor } from '@/src/hooks/useCompanies';
 
 /**
@@ -25,6 +24,7 @@ interface RelatedItem {
 }
 
 interface RelatedListProps {
+  record: 'project' | 'procurement';
   heading: string;
   items: RelatedItem[];
   isPending: boolean;
@@ -42,6 +42,7 @@ interface RelatedListProps {
  * remain with the calling component.
  */
 const RelatedList: React.FC<RelatedListProps> = ({
+  record,
   heading,
   items,
   isPending,
@@ -81,9 +82,7 @@ const RelatedList: React.FC<RelatedListProps> = ({
                 <span className="text-[14px] font-medium text-foreground">{item.title}</span>
                 {item.subtitle && (
                   /* Fix #9 — Tinted-Status rule: status must be a dot+pill, never bare grey text. */
-                  <StatusPill variant={workflowVariant(item.subtitle)}>
-                    {item.subtitle}
-                  </StatusPill>
+                  <StatusPill record={record} state={item.subtitle} />
                 )}
               </Link>
             </li>
@@ -106,6 +105,7 @@ export const RelatedProjects: React.FC<{ companyId: string }> = ({ companyId }) 
 
   return (
     <RelatedList
+      record="project"
       heading={t('companyDetail.relatedProjects.heading', 'Related projects')}
       items={items}
       isPending={isPending}
@@ -138,6 +138,7 @@ export const RelatedProcurement: React.FC<{ companyId: string; isVendor: boolean
 
   return (
     <RelatedList
+      record="procurement"
       heading={t('companyDetail.relatedProcurement.heading', 'Procurement')}
       items={items}
       isPending={isPending}

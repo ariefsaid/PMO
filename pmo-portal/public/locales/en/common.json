@@ -1665,7 +1665,7 @@
     },
     "archive": "Archive",
     "attendees": {
-      "addGuest": "Add guest",
+      "addGuest": "Add",
       "addMember": "Add attendee",
       "addMemberPlaceholder": "Pick an organisation member…",
       "contactTag": "Contact",
@@ -4393,7 +4393,8 @@
       "teamReviewAwaiting": "Team review · {{n}} awaiting"
     },
     "save": {
-      "dirty": "Unsaved changes"
+      "dirty": "Unsaved changes",
+      "saved": "All changes saved"
     },
     "push": {
       "pending": "Accounting update waiting",

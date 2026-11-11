@@ -229,7 +229,7 @@ const CompanyDetail: React.FC = () => {
         <CardHead>{t('companyDetail.sectionTitle', 'Company detail')}</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            <Field label={t('companies.form.shortName.label', 'Short name')} value={company.short_name || '—'} />
+            {company.short_name && <Field label={t('companies.form.shortName.label', 'Short name')} value={company.short_name} />}
             {company.client_number_segment && (
               <Field
                 label={t('companyDetail.field.clientNumberSegment', 'Client number segment')}

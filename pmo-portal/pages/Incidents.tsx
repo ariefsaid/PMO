@@ -106,10 +106,9 @@ const Incidents: React.FC = () => {
       key: 'type',
       header: 'Incident',
       cell: (i) => (
-        <div className="min-w-0" title={i.description ?? i.type}>
-          <span className="block truncate font-semibold">{i.type}</span>
-          {i.description && <span className="block truncate text-control text-muted-foreground">{i.description}</span>}
-        </div>
+        <span className="truncate font-semibold" title={i.description ?? i.type}>
+          {i.type}
+        </span>
       ),
       exportValue: (i) => i.type,
     },

@@ -12,7 +12,6 @@ import { formatCurrency } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
-  pillVariantForStatus,
   weightedValue,
   daysSince,
   isStaleBid,
@@ -91,7 +90,7 @@ export function buildPipelineColumns({
       size: 132,
       cell: (r) => (
         <span className="inline-flex flex-wrap items-center gap-1.5">
-          <StatusPill variant={pillVariantForStatus(r.status)}>{stageName(r.status)}</StatusPill>
+          <StatusPill record="project" state={r.status} />
           {isStaleBid(r) && (
             <Badge role="status" data-testid={`stale-bid-${r.id}`}>
               {t('sales:pipeline.staleBid', 'Stale bid · stage unchanged for 90+ days')}

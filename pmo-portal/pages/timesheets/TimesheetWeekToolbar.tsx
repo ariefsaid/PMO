@@ -17,10 +17,28 @@ type Props = {
 export function TimesheetWeekToolbar({ weekRangeLabel, isApprover, pendingCount, busy, stepWeek, pendingWeekDelta, onCancelDiscard, onConfirmDiscard }: Props) {
   const { t } = useTranslation(['common', 'timesheets']);
   // ── Page head + toolbar (shared by both views) ──────────────────────────────
+  const stepper = (
+        <span className="ml-auto inline-flex items-center gap-0.5">
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label={t('timesheets.previousWeek', 'Previous week')}
+            disabled={busy}
+            onClick={() => stepWeek(-1)}
+          >
+            <Icon name="back" />
+          </Button>
+          <span className="px-2 text-control font-medium tabular text-foreground">{weekRangeLabel}</span>
+          <Button variant="outline" size="icon" aria-label={t('timesheets.nextWeek', 'Next week')} disabled={busy} onClick={() => stepWeek(1)}>
+            <Icon name="chev" />
+          </Button>
+        </span>
+  );
   return (
     <>
       <PageHeader title={t('timesheets.title', 'Timesheets')} />
 
+      {isApprover ? (
       <Toolbar standalone>
         {/* CW-6: the approvals queue has ONE home at /approvals. Approvers get a cross-link
             there (scoped to timesheets) instead of an in-page queue tab — so this page no longer
@@ -48,22 +66,9 @@ export function TimesheetWeekToolbar({ weekRangeLabel, isApprover, pendingCount,
             </Link>
           </nav>
         )}
-        <span className="ml-auto inline-flex items-center gap-0.5">
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label={t('timesheets.previousWeek', 'Previous week')}
-            disabled={busy}
-            onClick={() => stepWeek(-1)}
-          >
-            <Icon name="back" />
-          </Button>
-          <span className="px-2 text-control font-medium tabular text-foreground">{weekRangeLabel}</span>
-          <Button variant="outline" size="icon" aria-label={t('timesheets.nextWeek', 'Next week')} disabled={busy} onClick={() => stepWeek(1)}>
-            <Icon name="chev" />
-          </Button>
-        </span>
+        {stepper}
       </Toolbar>
+      ) : <div className="mb-3 flex justify-end">{stepper}</div>}
       {pendingWeekDelta !== null && (
         <ConfirmDialog
           open tone="destructive"

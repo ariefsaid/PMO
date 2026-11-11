@@ -59,7 +59,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
         </Button>
       )}
       {actions.includes('reopen') && (
-        <Button variant="outline" disabled={transition.isPending}
+        <Button variant="primary" disabled={transition.isPending}
           onClick={() => void move('Draft', t('expenses.toast.reopened', 'Back to Draft'))}>
           {t('expenses.actions.reopen', 'Edit and resubmit')}
         </Button>

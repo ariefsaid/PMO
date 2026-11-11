@@ -339,7 +339,9 @@ const TimesheetsPage: React.FC = () => {
                 ? t('timesheets:reconcile.message', 'Refresh this week before continuing.')
                 : dirty
                 ? t('uxs28.save.dirty', 'Unsaved changes')
-                : null}
+                : currentWeekEntries.length > 0
+                  ? t('uxs28.save.saved', 'All changes saved')
+                  : null}
             </span>
           )}
           <span

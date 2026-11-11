@@ -7,7 +7,7 @@ import {
 import { formatCurrency, formatDay, formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
-  dealJourneySteps, formatPercent, isNeedsAttention, isStaleBid, pillVariantForStatus, weightedValue,
+  dealJourneySteps, formatPercent, isNeedsAttention, isStaleBid, weightedValue,
 } from '../../components/salesPipeline';
 import { PipelineResults } from '../sales-pipeline/PipelineResults';
 import type { PipelineView } from '@/src/hooks/usePipelineView';
@@ -206,7 +206,7 @@ export const DealPreview: React.FC<{ m: SalesModel; deal: PipelineProject | null
       open={deal !== null}
       onClose={onClose}
       title={deal?.name ?? ''}
-      status={deal ? <StatusPill variant={pillVariantForStatus(deal.status)}>{m.stageName(deal.status)}</StatusPill> : undefined}
+      status={deal ? <StatusPill record="project" state={deal.status} /> : undefined}
       footer={deal ? (
         <Button variant="primary" onClick={() => { const d = deal; onClose(); m.onOpen(d); }}>
           {t('sales:options.openDeal', 'Open deal')}

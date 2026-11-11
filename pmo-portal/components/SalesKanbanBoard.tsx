@@ -6,7 +6,7 @@ import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasis
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { BoardDnd, DraggableCard, DroppableColumn } from '@/src/components/kanban/BoardDnd';
 import type { MoveState } from '@/src/components/kanban/useOptimisticMoves';
-import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
+import { useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { formatCurrency, formatCalendarDayInTimeZone } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
@@ -16,7 +16,6 @@ import type { PipelineProject } from '@/src/lib/db/dashboard';
 import ProjectCardShell from './ProjectCardShell';
 import {
   SALES_COLUMNS,
-  pillVariantForStatus,
   formatPercent,
   isStaleBid,
   stageLine,
@@ -94,7 +93,6 @@ const DealCard: React.FC<{
   onActivate: () => void;
 }> = ({ project, selected, onActivate }) => {
   const { t } = useTranslation();
-  const statusLabel = useProjectStatusLabel();
   const displayName = projectDisplayName(project);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
   // The column already names a single-status stage; only Won/Lost (several statuses) need the chip.
@@ -110,7 +108,7 @@ const DealCard: React.FC<{
       pmoProjectNumber={null}
       code={null}
       status={columnRepeatsStatus ? null : (
-        <StatusPill variant={pillVariantForStatus(project.status)} wrap>{statusLabel(project.status)}</StatusPill>
+        <StatusPill record="project" state={project.status} wrap />
       )}
       // The head (first child) keeps clear of the card menu's trigger.
       className="[&>div:first-child]:pr-7"
@@ -166,7 +164,6 @@ const CompactDealCard: React.FC<{
   hideStatus: boolean;
 }> = ({ project, onActivate, hideStatus }) => {
   const { t } = useTranslation();
-  const statusLabel = useProjectStatusLabel();
   const displayName = projectDisplayName(project);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
 
@@ -180,9 +177,7 @@ const CompactDealCard: React.FC<{
       pmoProjectNumber={null}
       code={null}
       status={hideStatus ? null : (
-        <StatusPill variant={pillVariantForStatus(project.status)}>
-          {statusLabel(project.status)}
-        </StatusPill>
+        <StatusPill record="project" state={project.status} />
       )}
       className="min-w-0 p-3 [&_button]:block [&_button]:overflow-visible [&_button]:[-webkit-line-clamp:unset] [&_span.truncate]:overflow-visible [&_span.truncate]:text-clip [&_span.truncate]:whitespace-normal [&_span.truncate]:break-words"
       body={

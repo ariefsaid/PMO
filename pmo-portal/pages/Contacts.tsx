@@ -182,22 +182,10 @@ const Contacts: React.FC = () => {
       exportValue: (c) => companyById.get(c.company_id) ?? '',
     },
     {
-      key: 'title',
-      header: t('contactDetail.field.title', 'Title'),
-      cell: (c) => <span className="truncate text-muted-foreground" title={c.title ?? ''}>{c.title ?? '—'}</span>,
-      exportValue: (c) => c.title ?? '',
-    },
-    {
       key: 'email',
       header: t('contacts.columns.email', 'Email'),
       cell: (c) => <span className="truncate text-muted-foreground">{c.email ?? '—'}</span>,
       exportValue: (c) => c.email ?? '',
-    },
-    {
-      key: 'phone',
-      header: t('contactDetail.field.phone', 'Phone'),
-      cell: (c) => <span className="tabular whitespace-nowrap text-muted-foreground">{c.phone ?? '—'}</span>,
-      exportValue: (c) => c.phone ?? '',
     },
   ];
 

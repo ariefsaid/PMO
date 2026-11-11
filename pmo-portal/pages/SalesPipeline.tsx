@@ -58,8 +58,8 @@ const SalesPipeline: React.FC = () => {
       ) : ready && m.isDesktop ? (
         <>
           <FigureHiddenLine className="mb-3 text-control text-muted-foreground" />
-          <div className="mb-4 grid items-start gap-4 lg:grid-cols-3">
-            <div className="lg:col-span-2">
+          <div className="mb-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+            <div className="min-w-0">
               <PipelineFunnel header={figures} projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} onSelectStage={(s) => m.selectStage(s)} />
             </div>
             <NeedsAttentionCard m={m} onOpen={setPreview} />
