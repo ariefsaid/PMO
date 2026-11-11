@@ -38,6 +38,23 @@ beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true);
 beforeEach(() => vi.clearAllMocks());
 
 describe('Project consumption report', () => {
+  it('keeps every allowance, monthly, and unplanned row readable in a stacked phone layout', async () => {
+    consumption.report.mockResolvedValue(report());
+    renderIt();
+
+    const allowances = await screen.findByTestId('consumption-phone-allowances');
+    const months = await screen.findByTestId('consumption-phone-months');
+    const unplanned = await screen.findByTestId('consumption-phone-unplanned');
+
+    expect(within(allowances).getByText('W1')).toBeInTheDocument();
+    expect(within(allowances).getByText('Over allowance')).toBeInTheDocument();
+    expect(within(months).getAllByRole('listitem')).toHaveLength(3);
+    expect(within(months).getAllByText('Nov 2026')).toHaveLength(2);
+    expect(within(months).getAllByText('Kai Keeper')).toHaveLength(2);
+    expect(within(unplanned).getByText('REB')).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'By month' })).toBeInTheDocument();
+  });
+
   it('defaults to the org\'s current month and the three before it', () => {
     expect(defaultRange('2026-11-15')).toEqual({ fromMonth: '2026-08', toMonth: '2026-11' });
     expect(defaultRange('2026-02-03')).toEqual({ fromMonth: '2025-11', toMonth: '2026-02' });

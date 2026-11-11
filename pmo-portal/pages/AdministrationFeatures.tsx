@@ -319,7 +319,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
             org: selectedOrg?.name ?? t('console.thisOrganisation', 'this organisation'),
           })}
         />
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+        <div className="hidden overflow-x-auto rounded-lg border border-border bg-card sm:block">
           <table className="w-full min-w-[720px] border-collapse text-control">
             <caption className="sr-only">
               {t('console.switchesCaption', 'Effective switch state, its source, the plan default, the per-organisation override and the all-organisations switch.')}
@@ -437,6 +437,92 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
               </tr>
             </tbody>
           </table>
+        </div>
+        <div className="space-y-4 sm:hidden" data-testid="feature-phone-rows">
+          {FEATURE_GROUPS.map((group) => (
+            <section key={group.id} aria-label={groupLabel(t, group.id)} className="min-w-0 overflow-hidden rounded-lg border border-border bg-card">
+              <h3 className="bg-secondary/40 px-3 py-2 text-control font-semibold text-muted-foreground">{groupLabel(t, group.id)}</h3>
+              <ul className="divide-y divide-border">
+                {group.keys.map((key) => {
+                  const state: FeatureResolution | undefined = states[key];
+                  const enabled = Boolean(state?.displayEnabled);
+                  const source = state?.source ?? 'unknown';
+                  const hasOverride = source === 'override' || Boolean(overrideKeys?.includes(key));
+                  const globalOn = global[key];
+                  const globalOffWins = source === 'global' && globalOn === false;
+                  const planDefault = orgPlanDefaults[key];
+                  const label = FEATURE_LABELS[key];
+                  const isAdminOwned = key === 'feedback_surveys';
+                  return (
+                    <li key={key} data-testid={`feature-phone-row-${key}`} className="min-w-0 space-y-2 p-3">
+                      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                        <h4 className="min-w-0 break-words text-control font-semibold text-foreground">{label}</h4>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <span data-testid={`effective-${key}`}><StatusPill variant={enabled ? 'won' : 'neutral'}><OnOff on={enabled} /></StatusPill></span>
+                          <span data-testid={`source-${key}`}><StatusPill variant={SOURCE_TONE[source]}>{sourceLabel(t, source)}</StatusPill></span>
+                        </div>
+                      </div>
+                      <p className="text-control text-muted-foreground">
+                        {t('console.colPlanDefault', 'Plan default')}: {planDefault === undefined ? '—' : <OnOff on={planDefault} />}
+                      </p>
+                      {isAdminOwned ? (
+                        <p className="text-control text-muted-foreground">{t('console.adminOwnedRow', 'Admin-owned')}</p>
+                      ) : (
+                        <div className="grid gap-2 border-t border-border pt-2">
+                          <div className="flex min-w-0 items-center justify-between gap-3">
+                            <span className="min-w-0 text-control">{t('console.thisOrganisation', 'This organisation')}</span>
+                            <div className="flex shrink-0 items-center gap-2">
+                              {hasOverride && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={anyPending}
+                                  onClick={() => clearMutation.mutate({ orgId: selectedOrgId, key })}
+                                >
+                                  {t('console.clearOverride', 'Clear')}
+                                </Button>
+                              )}
+                              <Switch
+                                checked={enabled}
+                                onChange={() => overrideMutation.mutate({ orgId: selectedOrgId, key, enabled: !enabled })}
+                                label={t('console.overrideSwitch', '{{feature}}: override for this organisation', { feature: label })}
+                                disabled={anyPending || globalOffWins}
+                              />
+                            </div>
+                          </div>
+                          {globalOffWins && (
+                            <span className="text-control text-muted-foreground">{t('console.globalOffWins', 'All-organisations off wins')}</span>
+                          )}
+                          <div className="flex min-w-0 items-center justify-between gap-3">
+                            <span className="min-w-0 text-control">{t('console.colGlobal', 'All organisations')}</span>
+                            {globalOn === null || globalOn === undefined ? (
+                              <span className="text-control text-muted-foreground">
+                                {t('console.noGlobalRow', 'No all-organisations row')}
+                              </span>
+                            ) : (
+                              <Switch
+                                checked={globalOn}
+                                onChange={() => {
+                                  if (globalOn) setPendingGlobalOff(key);
+                                  else globalMutation.mutate({ key, enabled: true });
+                                }}
+                                label={t('console.globalSwitch', '{{feature}}: switch for all organisations', { feature: label })}
+                                disabled={anyPending}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+          <section aria-label={t('console.coreHeading', 'Core modules (never switchable)')} className="rounded-lg border border-border bg-card p-3">
+            <h3 className="text-control font-semibold text-foreground">{t('console.coreHeading', 'Core modules (never switchable)')}</h3>
+            <p className="mt-2 text-control text-muted-foreground">{CORE_FEATURES.map((key) => FEATURE_LABELS[key]).join(' · ')}</p>
+          </section>
         </div>
       </section>
 

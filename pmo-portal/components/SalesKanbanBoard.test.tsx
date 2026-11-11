@@ -29,11 +29,14 @@ const projects: PipelineProject[] = [
 ];
 
 describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
-  it('shows shared tax basis and chance context once above compact rows', () => {
+  it('keeps the compact opportunity list first and places shared tax basis and chance context after it', () => {
     render(<SalesKanbanBoard projects={[projects[0]]} onOpen={vi.fn()} presentation="list" selectedStatus={projects[0].status} />);
     const context = screen.getByRole('group', { name: 'Board figure context' });
     expect(within(context).getByText('excl. PPN')).toBeInTheDocument();
     expect(within(context).getByText('Chance')).toBeInTheDocument();
+    const list = screen.getByTestId('sales-phone-stage-list');
+    expect(list.firstElementChild).toBeInTheDocument();
+    expect(list.compareDocumentPosition(context) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const card = screen.getByTestId('project-card');
     expect(within(card).queryByTestId('tax-basis')).toBeNull();
     expect(within(card).queryByText(/chance$/)).toBeNull();
