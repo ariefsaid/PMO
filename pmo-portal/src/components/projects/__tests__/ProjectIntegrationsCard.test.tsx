@@ -676,7 +676,7 @@ describe('ProjectIntegrationsCard', () => {
       await user.click(comboboxTrigger);
 
       await waitFor(() => expect(screen.getByRole('listbox')).toBeInTheDocument());
-      expect(screen.getByText(/No list matches/)).toBeInTheDocument();
+      expect(screen.getByText(/Nothing is available to select yet/)).toBeInTheDocument();
     });
   });
 

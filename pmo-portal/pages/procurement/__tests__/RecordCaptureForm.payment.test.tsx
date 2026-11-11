@@ -31,7 +31,7 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
   }),
 }));
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -134,8 +134,8 @@ describe('RecordCaptureForm — payment capture on a FLIPPED org (#910)', () => 
     onCreate.mockImplementationOnce(() => dispatchDomainCommand('procurement', 'create', { id: 'pay-1' }, { idempotencyKey: 'k1' }));
     await userEvent.selectOptions(screen.getByTestId('payment-invoice-select'), 'inv-1');
     await userEvent.click(screen.getByTestId('payment-save-btn'));
-    expect(await screen.findByText(locale === 'en' ? 'Payment already in progress' : 'Pembayaran sedang berlangsung')).toBeInTheDocument();
-    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(await within(await screen.findByTestId('record-capture-error')).getByText(locale === 'en' ? 'Payment already in progress' : 'Pembayaran sedang berlangsung')).toBeInTheDocument();
+    expect(await within(screen.getByTestId('record-capture-error')).getByText(message)).toBeInTheDocument();
   });
 
   it('the optional PMO-side reference still rides along (OQ-VPAY-4: PMO-side only, the dispatch drops it)', async () => {

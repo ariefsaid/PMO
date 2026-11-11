@@ -92,7 +92,7 @@ it('AC-ODC-040 an empty result says so and a failed read offers a retry', () => 
   h.records.mockReturnValue(result([]));
   mount();
   open();
-  expect(screen.getByText(/No item matches/)).toBeInTheDocument();
+  expect(screen.getByText(/Nothing is available to select yet/)).toBeInTheDocument();
   cleanup();
   const refetch = vi.fn();
   h.records.mockReturnValue({ data: undefined, isPending: false, isError: true, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch });
