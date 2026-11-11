@@ -151,7 +151,7 @@ const MeetingCreate: React.FC = () => {
       </ul>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1"><Combobox label={t('meetingDetail.attendees.addMember', 'Add attendee')} value={null} onChange={(_value, option) => setMembers((existing) => [...existing, option])} loadOptions={loadMembers} placeholder={t('meetingDetail.attendees.addMemberPlaceholder', 'Pick an organisation member…')} noun={t('meetingDetail.attendees.memberNoun', 'member')} /></div>
-        <div className="flex min-w-0 flex-1 items-end gap-2"><div className="min-w-0 flex-1"><TextField id="meeting-create-guest" label={t('meetingDetail.attendees.guestLabel', 'External guest')} value={guestName} onChange={setGuestName} /></div><Button type="button" variant="outline" disabled={!guestName.trim()} onClick={() => { setGuests((existing) => [...existing, guestName.trim()]); setGuestName(''); }}>{t('meetingDetail.attendees.addGuest', 'Add guest')}</Button></div>
+        <div className="flex min-w-0 flex-1 items-end gap-2"><div className="min-w-0 flex-1"><TextField id="meeting-create-guest" label={t('meetingDetail.attendees.guestLabel', 'External guest')} value={guestName} onChange={setGuestName} /></div><Button type="button" variant="outline" disabled={!guestName.trim()} onClick={() => { setGuests((existing) => [...existing, guestName.trim()]); setGuestName(''); }}>{t('meetingDetail.attendees.addGuest', 'Add')}</Button></div>
       </div>
       </fieldset>
     </CardPad></Card>

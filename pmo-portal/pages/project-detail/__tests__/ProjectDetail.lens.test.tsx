@@ -291,7 +291,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
   it('AC-009 support: other tabs and an unavailable project do not mount project totals', async () => {
     projectsState.data = [onHandRow];
     const tasks = await renderAt('/projects/p1/tasks');
-    expect(screen.getByRole('tab', { name: 'Tasks', selected: true })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Tasks 0', selected: true })).toBeInTheDocument();
     expect(screen.queryByTestId('project-profit-loss')).not.toBeInTheDocument();
     tasks.unmount();
     projectsState.data = [];

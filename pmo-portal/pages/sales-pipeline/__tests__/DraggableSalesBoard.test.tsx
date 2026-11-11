@@ -74,7 +74,7 @@ describe('DraggableSalesBoard', () => {
     await drop('leads', 'stage-PQ Submitted');
     expect(mutateAsync).not.toHaveBeenCalled();
     expect(inColumn('stage-Leads', 'leads')).toBeInTheDocument();
-    expect(await screen.findByText("leads deal can't move from Leads to Pre-Qual.")).toBeInTheDocument();
+    expect(await screen.findByText("leads deal can't move from Leads to PQ submitted.")).toBeInTheDocument();
   });
 
   it('AC-DND-003: Quotation → Pre-Qualification opens the menu confirm; Cancel snaps back with no write; Confirm writes once', async () => {
@@ -328,7 +328,7 @@ describe('DraggableSalesBoard', () => {
     const user = userEvent.setup();
     renderBoard();
     await user.click(screen.getByRole('button', { name: 'Actions for quotation deal' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Move to Pre-Qual' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Move to PQ submitted' }));
     expect(await screen.findByText('Move project to PQ Submitted?')).toBeInTheDocument();
     expect(mutateAsync).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Move to PQ Submitted' }));
@@ -349,8 +349,8 @@ describe('DraggableSalesBoard', () => {
     const user = userEvent.setup();
     renderBoard();
     await user.click(screen.getByRole('button', { name: 'Actions for leads deal' }));
-    expect(await screen.findByRole('menuitem', { name: 'Move to Quotation' })).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: 'Move to Pre-Qual' })).toBeNull();
+    expect(await screen.findByRole('menuitem', { name: 'Move to Quotation submitted' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Move to PQ submitted' })).toBeNull();
     cleanup();
     role = 'Viewer';
     renderBoard();
@@ -361,6 +361,6 @@ describe('DraggableSalesBoard', () => {
     renderBoard();
     const card = (col: string, id: string) => inColumn(col, id)!.closest('[data-testid="project-card"]') as HTMLElement;
     expect(within(card('stage-Leads', 'leads')).queryByText('Leads')).toBeNull();
-    expect(within(card('stage-Won', 'won')).getByText(/Pending KoM/)).toBeInTheDocument();
+    expect(within(card('stage-Won', 'won')).getByText(/pending kickoff/)).toBeInTheDocument();
   });
 });

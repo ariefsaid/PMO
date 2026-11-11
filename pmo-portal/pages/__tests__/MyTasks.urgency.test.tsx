@@ -116,14 +116,14 @@ describe('MyTasks — urgency ordering + overdue flag (AC-IFW-TASKS-01)', () => 
     renderMyTasks();
     // The pill renders the exact text "Overdue" (StatusPill variant="warn")
     // Use exact match to avoid matching the task name "Overdue Task"
-    const badges = screen.getAllByText(/^overdue$/i);
+    const badges = screen.getAllByText(/^[\d,]+ days? overdue$/i);
     expect(badges.length).toBeGreaterThan(0);
   });
 
   it('AC-IFW-TASKS-01: Done task does NOT carry an "Overdue" flag even with past end_date', () => {
     renderMyTasks();
     // Only one "Overdue" badge should appear, not two
-    const overdueBadges = screen.getAllByText(/^overdue$/i);
+    const overdueBadges = screen.getAllByText(/^[\d,]+ days? overdue$/i);
     expect(overdueBadges).toHaveLength(1);
   });
 
@@ -141,6 +141,6 @@ describe('MyTasks — urgency ordering + overdue flag (AC-IFW-TASKS-01)', () => 
       },
     ];
     renderMyTasks();
-    expect(screen.queryByText(/^overdue$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^[\d,]+ days? overdue$/i)).not.toBeInTheDocument();
   });
 });

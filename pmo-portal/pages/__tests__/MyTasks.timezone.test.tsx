@@ -81,7 +81,7 @@ describe('MyTasks timezone day rollover and overdue determination (PGA03-008)', 
     renderMyTasks();
 
     // Must show Overdue badge because local date is 2026-10-29
-    expect(screen.getByText(/^overdue$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^[\d,]+ days? overdue$/i)).toBeInTheDocument();
   });
 
   it('PGA03-008: updates overdue badges and sort order when midnight rolls over in user timezone', () => {
@@ -112,7 +112,7 @@ describe('MyTasks timezone day rollover and overdue determination (PGA03-008)', 
     renderMyTasks();
 
     // Before midnight: Task due Oct 28 is due today, so not overdue yet
-    expect(screen.queryByText(/^overdue$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^[\d,]+ days? overdue$/i)).not.toBeInTheDocument();
 
     // Advance time by 2 minutes: now 2026-10-29 00:01:00 in Asia/Jakarta
     act(() => {
@@ -120,7 +120,7 @@ describe('MyTasks timezone day rollover and overdue determination (PGA03-008)', 
     });
 
     // After midnight: Task due Oct 28 is now OVERDUE
-    expect(screen.getByText(/^overdue$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^[\d,]+ days? overdue$/i)).toBeInTheDocument();
 
     // And it must sort first in urgency
     const overdueEl = screen.getByText('Task due Oct 28');
@@ -146,12 +146,12 @@ describe('MyTasks timezone day rollover and overdue determination (PGA03-008)', 
     ];
 
     renderMyTasks();
-    expect(screen.queryByText(/^overdue$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^[\d,]+ days? overdue$/i)).not.toBeInTheDocument();
 
     act(() => {
       vi.advanceTimersByTime(61 * 1000);
     });
 
-    expect(screen.getByText(/^overdue$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^[\d,]+ days? overdue$/i)).toBeInTheDocument();
   });
 });

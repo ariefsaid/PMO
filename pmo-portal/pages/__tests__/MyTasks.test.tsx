@@ -191,8 +191,8 @@ describe('MyTasks page — component states (B-1, AC-W2-IXD-002)', () => {
     ];
     renderMyTasks();
     // Human-formatted (formatDate), and no raw ISO string leaks.
-    expect(screen.getByText(/Start Jun 14, 2026/)).toBeInTheDocument();
-    expect(screen.getByText(/Due Jul 1, 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Start 14 Jun/)).toBeInTheDocument();
+    expect(screen.getByText(/Due 1 Jul/)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/2026-06-14|2026-07-01/);
   });
 });

@@ -8,9 +8,7 @@ import { useDecideFloatChange, useImprestFloatChanges, useProposeFloatAmount } f
 import { availableFloatChangeActions } from '@/src/lib/imprest/imprestRules';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ImprestFloatChangeListRow } from '@/src/lib/db/imprest';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
-import { imprestStatusLabel } from './imprestLabels';
+import { formatCurrency, formatDay, parseMoneyInputAtScale } from '@/src/lib/format';
 
 /** The float's amount and its change proposals (FR-IMP-002): a new float starts at zero until a second person approves the
  *  proposed amount. The proposer and the custodian never decide; the RPC refuses anyone the senior route excludes. */
@@ -31,9 +29,9 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
   const actions = open ? availableFloatChangeActions({ userId, realRole, custodianId, change: open }) : [];
   const history = rows.filter((c) => c.status !== 'Proposed');
   const columns: Column<ImprestFloatChangeListRow>[] = [
-    { key: 'date', header: t('imprest:amount.history.date', 'Date'), rowHeader: true, cell: (r) => <span className="whitespace-nowrap">{r.proposed_at.slice(0, 10)}</span> },
+    { key: 'date', header: t('imprest:amount.history.date', 'Date'), rowHeader: true, cell: (r) => <span className="whitespace-nowrap">{formatDay(r.proposed_at)}</span> },
     { key: 'amount', header: t('imprest:amount.history.amount', 'Amount'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.proposed_amount)}</span> },
-    { key: 'status', header: t('imprest:amount.history.status', 'Status'), cell: (r) => <StatusPill variant={workflowVariant(r.status)}>{imprestStatusLabel(r.status, t)}</StatusPill> },
+    { key: 'status', header: t('imprest:amount.history.status', 'Status'), cell: (r) => <StatusPill record="imprest" state={r.status} /> },
     { key: 'who', header: t('imprest:amount.history.who', 'Proposed by'), cell: (r) => <span>{r.proposer?.full_name ?? '—'}{r.decider ? <span className="text-muted-foreground">{t('imprest:amount.history.decidedBy', ' · decided by {{name}}', { name: r.decider.full_name })}</span> : null}</span> },
     { key: 'note', header: t('imprest:amount.history.note', 'Note'), cell: (r) => r.notes ? <span className="block max-w-xs truncate text-muted-foreground" title={r.notes}>{r.notes}</span> : null },
   ];
@@ -57,7 +55,7 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
             <p>{t('imprest:amount.current', 'Current float: {{amount}}', { amount: money(floatAmount) })}</p>
             {open && (
               <div role="note" className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <span>{t('imprest:amount.open', 'Proposed {{amount}} on {{date}}: awaiting a senior approver.', { amount: money(open.proposed_amount), date: open.proposed_at.slice(0, 10) })}</span>
+                <span>{t('imprest:amount.open', 'Proposed {{amount}} on {{date}}: awaiting a senior approver.', { amount: money(open.proposed_amount), date: formatDay(open.proposed_at) })}</span>
                 {actions.includes('approveFloatChange') && <Button variant="primary" size="sm" onClick={() => setDialog('approve')}>{t('imprest:actions.approve', 'Approve')}</Button>}
                 {actions.includes('rejectFloatChange') && <Button variant="outline" size="sm" onClick={() => setDialog('reject')}>{t('imprest:actions.reject', 'Reject')}</Button>}
               </div>

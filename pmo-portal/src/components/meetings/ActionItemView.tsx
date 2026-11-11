@@ -6,7 +6,7 @@ import { StatusPill } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 
 /**
  * The body of the `actionItem` document block (DD-MTG-2): resolves the REAL `tasks` row by the id the
@@ -72,7 +72,7 @@ export const ActionItemView: React.FC<{ taskId: string }> = ({ taskId }) => {
       </span>
       {task.end_date && (
         <span className={`${shell}__meta`}>
-          {t('meetingDetail.minutes.dueLabel', 'Due date')}: {formatDateOnly(task.end_date)}
+          {t('meetingDetail.minutes.dueLabel', 'Due date')}: {formatDay(task.end_date)}
         </span>
       )}
     </div>

@@ -16,7 +16,7 @@ export const AdvanceLoadNotice: React.FC<{ advances: AdvanceLoad }> = ({ advance
     );
   }
   if (advances.isPending) {
-    return <p role="status" className="col-span-full text-xs text-muted-foreground">{t('expenseClaims:advances.loading', 'Loading your advances…')}</p>;
+    return <p role="status" className="col-span-full text-control text-muted-foreground">{t('expenseClaims:advances.loading', 'Loading your advances…')}</p>;
   }
   return null;
 };

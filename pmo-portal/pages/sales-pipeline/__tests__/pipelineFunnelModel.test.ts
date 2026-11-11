@@ -51,6 +51,18 @@ describe('pipelineFunnelModel — currency-safe stage projections and totals (TH
     expect(leadsProj?.mixedStage).toBe(false);
     expect(leadsProj?.stageCurrency).toBe('USD');
     expect(leadsProj?.weightedValue).toBe(10000);
+    expect(leadsProj?.barPct).toBe(20);
+  });
+
+  it('scales stage bars to open value and omits a bar for a stage with no deals', () => {
+    const stages = mockStages.map((stage) =>
+      stage.status === 'Quotation Submitted' ? { ...stage, count: 0, total_value: 0, weighted_value: 0 } : stage,
+    );
+    const model = projectFunnelModel(stages, [makeDeal('Leads', 'USD'), makeDeal('Negotiation', 'USD')], 'USD');
+
+    expect(model.stageProjections.find((stage) => stage.status === 'Leads')?.barPct).toBe(20);
+    expect(model.stageProjections.find((stage) => stage.status === 'Negotiation')?.barPct).toBe(100);
+    expect(model.stageProjections.find((stage) => stage.status === 'Quotation Submitted')?.barPct).toBeUndefined();
   });
 
   it('suppresses overall forecast when pipeline has mixed currencies', () => {

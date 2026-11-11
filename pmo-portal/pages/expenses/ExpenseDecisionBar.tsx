@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DecisionContextSummary, MobileDecisionBar, TextArea, TextField, useToast, type MobileDecisionAction } from '@/src/components/ui';
+import { Button, ConfirmDialog, DecisionContextSummary, MobileDecisionBar, ReasonDialog, TextArea, TextField, useToast, type MobileDecisionAction } from '@/src/components/ui';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -48,7 +48,6 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
   const preview = settlementPreview(Number(claim.amount), claim.advance_id ? advanceOutstanding : null);
   const parsedReturn = parseMoneyInputAtScale(returnAmount, 2);
   const returnValid = parsedReturn !== null && parsedReturn > 0 && advanceOutstanding !== null && parsedReturn <= advanceOutstanding;
-  const deciding = dialog === 'approve' || dialog === 'reject';
   const identity = [claim.claim_number, claim.title].filter(Boolean).join(' · ');
   const formattedAmount = formatCurrencyCents(Number(claim.amount), claim.currency);
   const decisionContext = <DecisionContextSummary identity={identity} amount={formattedAmount} />;
@@ -57,7 +56,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
   // handlers, same SoD checks) instead of the in-flow row — one placement, never two paths.
   const barActions: MobileDecisionAction[] = [
     ...(actions.includes('submit') ? [{ key: 'submit', label: t('expenses.actions.submit', 'Submit for approval'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Submitted', t('expenses.toast.submitted', 'Submitted for approval')) }] : []),
-    ...(actions.includes('reopen') ? [{ key: 'reopen', label: t('expenses.actions.reopen', 'Edit and resubmit'), variant: 'outline' as const, disabled: transition.isPending, onSelect: () => void move('Draft', t('expenses.toast.reopened', 'Back to Draft')) }] : []),
+    ...(actions.includes('reopen') ? [{ key: 'reopen', label: t('expenses.actions.reopen', 'Edit and resubmit'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Draft', t('expenses.toast.reopened', 'Back to Draft')) }] : []),
     ...(actions.includes('approve') ? [{ key: 'approve', label: t('expenses.actions.approve', 'Approve'), variant: 'primary' as const, onSelect: () => setDialog('approve') }] : []),
     ...(actions.includes('reject') ? [{ key: 'reject', label: t('expenses.actions.reject', 'Reject'), variant: 'outline' as const, onSelect: () => setDialog('reject') }] : []),
     ...(actions.includes('pay') ? [{ key: 'pay', label: t('expenses.actions.pay', 'Mark paid'), variant: 'primary' as const, onSelect: () => setDialog('pay') }] : []),
@@ -76,7 +75,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
         </Button>
       )}
       {actions.includes('reopen') && (
-        <Button variant="outline" disabled={transition.isPending}
+        <Button variant="primary" disabled={transition.isPending}
           onClick={() => void move('Draft', t('expenses.toast.reopened', 'Back to Draft'))}>
           {t('expenses.actions.reopen', 'Edit and resubmit')}
         </Button>
@@ -93,17 +92,22 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
     <MobileDecisionBar actions={barActions} context={identity} label={identity} />
 
       <ConfirmDialog
-        open={deciding}
-        tone={dialog === 'reject' ? 'destructive' : 'default'}
-        title={dialog === 'reject' ? t('expenses.confirm.rejectTitle', 'Reject {{number}}?', { number: claim.claim_number ?? claim.title }) : t('expenses.confirm.approveTitle', 'Approve {{number}} for {{amount}}?', { number: claim.claim_number ?? claim.title, amount: formattedAmount })}
+        open={dialog === 'approve'}
+        title={t('expenses.confirm.approveTitle', 'Approve {{number}} for {{amount}}?', { number: claim.claim_number ?? claim.title, amount: formattedAmount })}
         description={<div className="space-y-3"><DecisionContextSummary identity={identity} amount={formattedAmount} /><TextArea label={t('expenses.confirm.notesLabel', 'Note to the claimant (optional)')} value={notes} onChange={setNotes} /></div>}
-        confirmLabel={dialog === 'reject' ? t('expenses.actions.reject', 'Reject') : t('expenses.actions.approve', 'Approve')}
+        confirmLabel={t('expenses.actions.approve', 'Approve')}
         loading={transition.isPending}
-        onConfirm={() =>
-          void (dialog === 'reject'
-            ? move('Rejected', t('expenses.toast.rejected', 'Rejected'), { notes: notes.trim() || null })
-            : move('Approved', t('expenses.toast.approved', 'Approved'), { notes: notes.trim() || null }))
-        }
+        onConfirm={() => void move('Approved', t('expenses.toast.approved', 'Approved'), { notes: notes.trim() || null })}
+        onCancel={close}
+      />
+
+      <ReasonDialog
+        open={dialog === 'reject'}
+        kind="reject"
+        subject={claim.claim_number ?? claim.title}
+        context={decisionContext}
+        loading={transition.isPending}
+        onConfirm={(reason) => void move('Rejected', t('expenses.toast.rejected', 'Rejected'), { notes: reason })}
         onCancel={close}
       />
 

@@ -19,7 +19,7 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { ContactNameLink } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/lib/db/crmActivities';
 import { useContactsByCompany, useCompanyActivities, useContactMutations } from '@/src/hooks/useContacts';
@@ -50,7 +50,7 @@ const kindOptions = (t: TFunction) => [
 const formatOccurred = (iso: string): string => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return formatInstantDate(iso);
+  return formatDay(iso);
 };
 
 export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => void }> = ({
@@ -170,7 +170,7 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
         <CardHead>{t('companyDetail.activity.title', 'Activity')}</CardHead>
         <CardPad>
           <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-border px-4 py-8 text-center">
-            <p className="text-[13px] text-muted-foreground">
+            <p className="text-control text-muted-foreground">
               {t('companyDetail.activity.coldStart', 'Add a contact to start logging activity')}
             </p>
             {onAddContact && (
@@ -260,7 +260,7 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
         )}
 
         {!isPending && !isError && activities.length === 0 && (
-          <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[13px] text-muted-foreground">
+          <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-control text-muted-foreground">
             {t('companyDetail.activity.empty', 'No activity logged yet.')}
           </p>
         )}
@@ -277,7 +277,7 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
                   <div className="flex items-center justify-between gap-2">
                     <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
                     <div className="flex items-center gap-1">
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-control text-muted-foreground">
                         {formatOccurred(a.occurred_at)}
                       </span>
                       {canEdit && (
@@ -307,13 +307,13 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
                     <ContactNameLink
                       contactId={contact.id}
                       name={contact.full_name}
-                      className="text-[11px]"
+                      className="text-control"
                     />
                   )}
                   {a.subject && (
-                    <span className="text-[13.5px] font-medium text-foreground">{a.subject}</span>
+                    <span className="text-control font-medium text-foreground">{a.subject}</span>
                   )}
-                  {a.body && <p className="text-[13px] text-muted-foreground">{a.body}</p>}
+                  {a.body && <p className="text-control text-muted-foreground">{a.body}</p>}
                 </li>
               );
             })}

@@ -326,12 +326,12 @@ describe('AC-PLC-005: meeting occurrence follows the profile timezone', () => {
     listState.data = [{ ...seed[0], occurred_at: '2026-06-14T23:30:00Z' }];
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
     const { unmount } = renderPage();
-    expect(screen.getByText(/Jun 14, 2026, 11:30\sPM/)).toBeInTheDocument();
+    expect(screen.getByText(/14 Jun, 11:30\sPM/)).toBeInTheDocument();
     unmount();
 
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
     renderPage();
-    expect(screen.getByText(/Jun 15, 2026, 06:30\sAM/)).toBeInTheDocument();
+    expect(screen.getByText(/15 Jun, 06:30\sAM/)).toBeInTheDocument();
   });
 });
 

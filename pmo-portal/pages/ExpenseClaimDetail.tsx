@@ -2,7 +2,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ListState, RecordHeader, StatusPill } from '@/src/components/ui';
+import { Card, CardHead, CardPad, ListState, RecordHeader, StatusPill } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -16,14 +16,13 @@ import { availableExpenseActions, settlementPreview } from '@/src/lib/expenses/e
 import { approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency } from '@/src/lib/format';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { ExpenseDecisionBar } from './expenses/ExpenseDecisionBar';
 import { ExpenseLinesCard } from './expenses/ExpenseLinesCard';
 import { ExpenseReceiptsCard } from './expenses/ExpenseReceiptsCard';
 import { ExpensePostingsCard } from './expenses/ExpensePostingsCard';
 import { ExpenseClaimFormModal } from './expenses/ExpenseClaimFormModal';
 import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
-import { expenseKindLabel, expenseStatusLabel } from './expenses/expenseLabels';
+import { expenseKindLabel } from './expenses/expenseLabels';
 
 /** `/expenses/:claimId` (FR-EXP-063..065). Shows only the actions the server would allow; the RPCs decide. */
 const ExpenseClaimDetail: React.FC = () => {
@@ -92,12 +91,12 @@ const ExpenseClaimDetail: React.FC = () => {
         icon={claim.kind === 'advance' ? 'A' : 'E'}
         status={
           <span data-testid="expense-status" data-status={claim.status}>
-            <StatusPill variant={workflowVariant(claim.status)}>{expenseStatusLabel(claim.status, t)}</StatusPill>
+            <StatusPill record="expense" state={claim.status} />
           </span>
         }
         meta={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>{claim.claim_number ?? t('expenses.draftNumber', 'Draft')}</span>
+            {claim.claim_number && <span>{claim.claim_number}</span>}
             <span>{expenseKindLabel(claim.kind, t)}</span>
             <span>{claim.claimant?.full_name ?? '—'}</span>
             {claim.project_id ? (
@@ -108,7 +107,7 @@ const ExpenseClaimDetail: React.FC = () => {
             {claim.budget_category && <span>{budgetCategoryLabel(claim.budget_category, t)}</span>}
           </span>
         }
-        actions={canEdit ? <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>{t('expenses.detail.editDetails', 'Edit details')}</Button> : undefined}
+        menuItems={canEdit ? [{ key: 'edit', label: t('expenses.detail.editDetails', 'Edit details'), onSelect: () => setEditOpen(true) }] : undefined}
       />
 
       <Card variant="bare" className="mb-4">
@@ -116,30 +115,30 @@ const ExpenseClaimDetail: React.FC = () => {
         <CardPad>
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
-              <dt className="text-xs text-muted-foreground">{t('expenses.detail.amount', 'Amount')}</dt>
+              <dt className="text-control text-muted-foreground">{t('expenses.detail.amount', 'Amount')}</dt>
               <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrency(amount, claim.currency)}</dd>
             </div>
             {claim.kind === 'claim' && claim.status === 'Paid' && (
               <>
                 <div>
-                  <dt className="text-xs text-muted-foreground">{t('expenses.detail.advanceApplied', 'Advance applied')}</dt>
+                  <dt className="text-control text-muted-foreground">{t('expenses.detail.advanceApplied', 'Advance applied')}</dt>
                   <dd className="tabular-nums">{formatCurrency(paidSplit.applied, claim.currency)}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">{t('expenses.detail.cashPaid', 'Cash paid')}</dt>
+                  <dt className="text-control text-muted-foreground">{t('expenses.detail.cashPaid', 'Cash paid')}</dt>
                   <dd className="tabular-nums">{formatCurrency(paidSplit.cash, claim.currency)}</dd>
                 </div>
               </>
             )}
             {claim.kind === 'advance' && claim.status === 'Paid' && (
               <div>
-                <dt className="text-xs text-muted-foreground">{t('expenses.detail.outstanding', 'Outstanding')}</dt>
+                <dt className="text-control text-muted-foreground">{t('expenses.detail.outstanding', 'Outstanding')}</dt>
                 <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrency(outstanding, claim.currency)}</dd>
               </div>
             )}
             {claim.payment_reference && (
               <div>
-                <dt className="text-xs text-muted-foreground">{t('expenses.detail.reference', 'Payment reference')}</dt>
+                <dt className="text-control text-muted-foreground">{t('expenses.detail.reference', 'Payment reference')}</dt>
                 <dd>{claim.payment_reference}</dd>
               </div>
             )}

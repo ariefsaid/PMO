@@ -6,7 +6,7 @@ import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasis
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { BoardDnd, DraggableCard, DroppableColumn } from '@/src/components/kanban/BoardDnd';
 import type { MoveState } from '@/src/components/kanban/useOptimisticMoves';
-import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
+import { useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { formatCurrency, formatCalendarDayInTimeZone } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
@@ -16,7 +16,6 @@ import type { PipelineProject } from '@/src/lib/db/dashboard';
 import ProjectCardShell from './ProjectCardShell';
 import {
   SALES_COLUMNS,
-  pillVariantForStatus,
   formatPercent,
   isStaleBid,
   stageLine,
@@ -61,7 +60,7 @@ const DealStageLine: React.FC<{ project: PipelineProject }> = ({ project }) => {
     : project.stage_started_at?.slice(0, 10); // the pipeline RPC emits entered_on at UTC midnight
   if (!enteredOn) return null;
   return (
-    <p data-testid={`stage-line-${project.id}`} className="text-xs text-muted-foreground tabular">
+    <p data-testid={`stage-line-${project.id}`} className="text-control text-muted-foreground tabular">
       {stageLine(project.status, enteredOn, today, (k, d) => t(k, d))}
     </p>
   );
@@ -94,7 +93,6 @@ const DealCard: React.FC<{
   onActivate: () => void;
 }> = ({ project, selected, onActivate }) => {
   const { t } = useTranslation();
-  const statusLabel = useProjectStatusLabel();
   const displayName = projectDisplayName(project);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
   // The column already names a single-status stage; only Won/Lost (several statuses) need the chip.
@@ -110,12 +108,12 @@ const DealCard: React.FC<{
       pmoProjectNumber={null}
       code={null}
       status={columnRepeatsStatus ? null : (
-        <StatusPill variant={pillVariantForStatus(project.status)} wrap>{statusLabel(project.status)}</StatusPill>
+        <StatusPill record="project" state={project.status} wrap />
       )}
       // The head (first child) keeps clear of the card menu's trigger.
       className="[&>div:first-child]:pr-7"
       foot={project.pm_name ? (
-        <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+        <span className="flex min-w-0 items-center gap-2 text-control text-muted-foreground">
           <Avatar name={project.pm_name} size="xs" decorative fallback="" />
           <span className="truncate">{project.pm_name}</span>
         </span>
@@ -139,11 +137,8 @@ const DealCard: React.FC<{
               <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
-              <Badge aria-label={`${t('sales:goProbability', '% Go')} ${formatPercent(project.go_probability ?? project.win_probability)}`} className="px-1.5">
-                {t('sales:goShort', 'Go')} {formatPercent(project.go_probability ?? project.win_probability)}
-              </Badge>
-              <Badge aria-label={`${t('sales:getProbability', '% Get')} ${formatPercent(project.get_probability ?? 1)}`} className="px-1.5">
-                {t('sales:getShort', 'Get')} {formatPercent(project.get_probability ?? 1)}
+              <Badge aria-label={`${t('sales:goProbability', '% Go')} ${formatPercent(project.go_probability ?? project.win_probability)}, ${t('sales:getProbability', '% Get')} ${formatPercent(project.get_probability ?? 1)}`} className="px-1.5">
+                {t('sales:chanceShort', '{{pct}} chance', { pct: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)) })}
               </Badge>
             </div>
           </div>
@@ -169,7 +164,6 @@ const CompactDealCard: React.FC<{
   hideStatus: boolean;
 }> = ({ project, onActivate, hideStatus }) => {
   const { t } = useTranslation();
-  const statusLabel = useProjectStatusLabel();
   const displayName = projectDisplayName(project);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
 
@@ -183,9 +177,7 @@ const CompactDealCard: React.FC<{
       pmoProjectNumber={null}
       code={null}
       status={hideStatus ? null : (
-        <StatusPill variant={pillVariantForStatus(project.status)}>
-          {statusLabel(project.status)}
-        </StatusPill>
+        <StatusPill record="project" state={project.status} />
       )}
       className="min-w-0 p-3 [&_button]:block [&_button]:overflow-visible [&_button]:[-webkit-line-clamp:unset] [&_span.truncate]:overflow-visible [&_span.truncate]:text-clip [&_span.truncate]:whitespace-normal [&_span.truncate]:break-words"
       body={
@@ -205,11 +197,8 @@ const CompactDealCard: React.FC<{
               />
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
-              <Badge aria-label={`${t('sales:goProbability', '% Go')} ${formatPercent(project.go_probability ?? project.win_probability)}`} className="px-1.5">
-                {t('sales:goShort', 'Go')} {formatPercent(project.go_probability ?? project.win_probability)}
-              </Badge>
-              <Badge aria-label={`${t('sales:getProbability', '% Get')} ${formatPercent(project.get_probability ?? 1)}`} className="px-1.5">
-                {t('sales:getShort', 'Get')} {formatPercent(project.get_probability ?? 1)}
+              <Badge aria-label={`${t('sales:goProbability', '% Go')} ${formatPercent(project.go_probability ?? project.win_probability)}, ${t('sales:getProbability', '% Get')} ${formatPercent(project.get_probability ?? 1)}`} className="px-1.5">
+                {t('sales:chanceShort', '{{pct}} chance', { pct: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)) })}
               </Badge>
             </div>
           </div>
@@ -376,7 +365,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
           const declinedCount = colProjects.filter((p) => p.status === 'Declined').length;
           const lostCountsLine =
             declinedCount > 0 ? (
-              <span data-testid="lost-column-counts" className="text-[11.5px] text-muted-foreground tabular">
+              <span data-testid="lost-column-counts" className="text-control text-muted-foreground tabular">
                 {t('sales.lostCounts', 'Lost {{lost}} · Declined {{declined}}', {
                   lost: colProjects.length - declinedCount,
                   declined: declinedCount,
@@ -412,7 +401,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
                       {drag.canDrag(p) && <DealMoveMenu project={p} drag={drag} stageLabel={stageLabel} />}
                     </div>
                     {moveState === 'saving' && (
-                      <p className="px-1 pt-1 text-[11.5px] text-muted-foreground">{t('boardDrag:saving', 'Saving…')}</p>
+                      <p className="px-1 pt-1 text-control text-muted-foreground">{t('boardDrag:saving', 'Saving…')}</p>
                     )}
                   </DraggableCard>
                 );

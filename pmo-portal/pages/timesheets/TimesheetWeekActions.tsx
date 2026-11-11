@@ -33,7 +33,7 @@ export function TimesheetWeekActions({ mode, total, dirty, editValid, canSubmit,
   );
   return (
     <div data-testid="timesheets-footer" className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-3.5 py-2.5">
-      {!canSubmit && <span className="mr-auto text-[13px] text-muted-foreground">{t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}</span>}
+      {!canSubmit && <span className="mr-auto text-control text-muted-foreground">{t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}</span>}
       <Button variant="outline" onClick={onSave} disabled={!dirty || !editValid || saving || deleting || isReconciling} loading={saving}>
         <Icon name="check" />{t('timesheets.save', 'Save')}
       </Button>

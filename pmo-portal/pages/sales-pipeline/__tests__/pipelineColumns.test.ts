@@ -3,10 +3,9 @@ import { buildPipelineColumns } from '../pipelineColumns';
 
 describe('pipelineColumns — table and export column builder (THEME-CROSS-76)', () => {
   const t = vi.fn((_key: string, fallback?: string) => fallback ?? _key);
-  const stageName = vi.fn((status: string) => `Stage: ${status}`);
 
   it('builds table columns with all standard deal metrics', () => {
-    const { tableColumns } = buildPipelineColumns({ t, stageName });
+    const { tableColumns } = buildPipelineColumns({ t });
     const keys = tableColumns.map((c) => c.key);
     expect(keys).toEqual([
       'opp',
@@ -22,7 +21,7 @@ describe('pipelineColumns — table and export column builder (THEME-CROSS-76)',
   });
 
   it('inserts an export-only Currency column immediately after Value in exportColumns', () => {
-    const { exportColumns } = buildPipelineColumns({ t, stageName });
+    const { exportColumns } = buildPipelineColumns({ t });
     const keys = exportColumns.map((c) => c.key);
     expect(keys).toContain('currency');
 
@@ -35,7 +34,7 @@ describe('pipelineColumns — table and export column builder (THEME-CROSS-76)',
   });
 
   it('inserts an export-only End customer column immediately after Customer in exportColumns (#758)', () => {
-    const { exportColumns } = buildPipelineColumns({ t, stageName });
+    const { exportColumns } = buildPipelineColumns({ t });
     const keys = exportColumns.map((c) => c.key);
     expect(keys).toContain('end-customer');
 

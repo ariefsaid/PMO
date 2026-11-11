@@ -187,7 +187,7 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
     // The Type column pill is the closest pill ancestor of the type label inside its row.
     const pillEl = (label: string, rowName: string) => {
       const row = screen.getByText(rowName).closest('tr')!;
-      return within(row).getByText(label).closest('span')!;
+      return within(row).getByText(label).closest('span.rounded-full')!;
     };
     const client = pillEl('Client', 'Cascade Port Authority'); // categorical violet (highlighted)
     const vendor = pillEl('Supplier', 'Steelforge Fabrication'); // neutral grey

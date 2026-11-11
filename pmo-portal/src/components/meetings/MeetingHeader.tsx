@@ -12,7 +12,7 @@ import { useMeetingMutations } from '@/src/hooks/useMeetings';
 import { useToast } from '@/src/components/ui';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDateTime, instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/lib/format';
+import { formatClockTime, formatDay, instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/lib/format';
 import type { MeetingWithRefs } from '@/src/lib/db/meetings';
 import type { ProjectPickerOption } from '@/src/lib/db/projects';
 
@@ -152,7 +152,7 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
         </div>
       ) : (
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span>{formatDateTime(new Date(meeting.occurred_at))}</span>
+          <span>{formatDay(meeting.occurred_at)}, {formatClockTime(new Date(meeting.occurred_at))}</span>
           {meeting.location && <span>{meeting.location}</span>}
           {meeting.project && (
             <Link

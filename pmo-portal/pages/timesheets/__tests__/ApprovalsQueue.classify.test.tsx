@@ -107,12 +107,10 @@ describe('ApprovalsQueue error classification (W2-8)', () => {
     const returnBtn = screen.getByRole('button', { name: /return/i });
     await user.click(returnBtn);
 
-    // The confirm dialog opens — confirm it (tone=destructive → alertdialog)
-    await waitFor(() => {
-      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
-    });
-    const dialog = screen.getByRole('alertdialog');
-    await user.click(within(dialog).getByRole('button', { name: /return timesheet/i }));
+    // The return dialog opens: a reason is required before it will send
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/Reason for returning/), 'Needs correcting');
+    await user.click(within(dialog).getByRole('button', { name: 'Return' }));
 
     // The toast headline must be the classified one (not the raw error message)
     expect(await findToastAnnouncement('alert', /you don't have permission to do that/i)).toBeInTheDocument();
