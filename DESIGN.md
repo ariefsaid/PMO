@@ -17,12 +17,12 @@ colors:
   popover: "hsl(0 0% 100%)"
   popover-foreground: "hsl(218.1818 12.3596% 17.451%)"
   secondary: "hsl(220 11.1111% 94.7059%)"
-  secondary-foreground: "hsl(216 11.6279% 33.7255%)"
+  secondary-foreground: "hsl(216 12% 22%)"
   muted: "hsl(210 14.2857% 97.2549%)"
   muted-foreground: "hsl(216 12% 22%)"
   accent: "hsl(210 14.2857% 97.2549%)"
   accent-foreground: "hsl(218.1818 12.3596% 17.451%)"
-  count-foreground: "hsl(216 11.6279% 33.7255%)"
+  count-foreground: "hsl(216 12% 22%)"
   primary: "hsl(230.8966 67.4419% 57.8431%)"
   primary-foreground: "hsl(0 0% 100%)"
   primary-text: "hsl(230.8966 67.4419% 57.8431%)"
@@ -49,6 +49,7 @@ colors:
   status-neutral-surface: "hsl(220 11.1111% 94.7059%)"
   status-success-surface: "hsl(154.2857 36.8421% 96.2745%)"
   status-warning-surface: "hsl(46.875 88.8889% 92.9412%)"
+  waiting-surface: "{colors.status-warning-surface}"
   status-danger-surface: "hsl(4 71.4286% 95.8824%)"
   status-violet-surface: "hsl(250.9091 64.7059% 96.6667%)"
   chart-1: "hsl(217.2067 81.7352% 57.0588%)"
@@ -62,11 +63,11 @@ colors:
 typography:
   fontFamily: "\"Hanken Grotesk\", system-ui, -apple-system, Segoe UI, sans-serif"
   page-title: { size: "24px", weight: 600, lineHeight: 1.34 }
-  heading: { size: "20px", weight: 600, lineHeight: 1.43 }
+  heading: { size: "16px", weight: 600, lineHeight: 1.5 }
   group: { size: "16px", weight: 600, lineHeight: 1.5 }
   control: { size: "14px", weight: 400, lineHeight: 1.43, floor: "job text" }
   supporting: { size: "12px", weight: 400, lineHeight: 1.34, use: "chart ticks and legends, count badges, keyboard hints, timestamps, app-version footer" }
-  metric: { size: "24px", weight: 600, lineHeight: 1.34, numeric: "tabular" }
+  metric: { size: "30px", weight: 600, lineHeight: 1.2, numeric: "tabular", use: "key figures" }
   mono: "Tailwind v4 font-mono stack — identifiers only"
 rounded:
   sm: "4px"
@@ -135,12 +136,12 @@ Colors use bare HSL triplets so Tailwind slash-alpha utilities continue to work.
 | `--surface-table-head` | `var(--background)` | `var(--background)` | table header follows the canvas |
 | `--card-foreground` / `--popover-foreground` | `218.1818 12.3596% 17.451%` | `211.2 20.6612% 76.2745%` | text on work surfaces |
 | `--secondary` | `220 11.1111% 94.7059%` | `210 13.7255% 20%` | quiet surface |
-| `--secondary-foreground` | `216 11.6279% 33.7255%` | `211.0345 17.7914% 68.0392%` | stronger text on secondary |
+| `--secondary-foreground` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | alias of muted text |
 | `--muted` | `210 14.2857% 97.2549%` | `206.6667 11.6883% 15.098%` | subdued surface |
-| `--muted-foreground` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | supporting text and 55% neutral chart series; strengthened for AA |
+| `--muted-foreground` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | only secondary text grey; AA on white and card surfaces |
 | `--accent` | `210 14.2857% 97.2549%` | `207.2727 12.0879% 17.8431%` | hover wash |
 | `--accent-foreground` | `218.1818 12.3596% 17.451%` | `211.2 20.6612% 76.2745%` | text on accent |
-| `--count-foreground` | `216 11.6279% 33.7255%` | `211.0345 17.7914% 68.0392%` | neutral counts and quiet labels |
+| `--count-foreground` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | alias of muted text |
 
 ### Action, focus, and navigation
 | Token | Light | Dark | Role |
@@ -171,6 +172,7 @@ Colors use bare HSL triplets so Tailwind slash-alpha utilities continue to work.
 | `--status-neutral-surface` | `220 11.1111% 94.7059%` | `210 13.7255% 20%` | neutral status fill |
 | `--status-success-surface` | `154.2857 36.8421% 96.2745%` | `155.7143 65.625% 12.549%` | success status fill |
 | `--status-warning-surface` | `46.875 88.8889% 92.9412%` | `45.7895 54.2857% 13.7255%` | warning status fill |
+| `--waiting-surface` | `46.875 88.8889% 92.9412%` | `45.7895 54.2857% 13.7255%` | soft amber surface for work waiting on the person |
 | `--status-danger-surface` | `4 71.4286% 95.8824%` | `4.2105 57.5758% 19.4118%` | danger status fill |
 | `--status-violet-surface` | `250.9091 64.7059% 96.6667%` | `250 32.7273% 21.5686%` | violet status fill |
 | `--violet` | `250.5495 39.738% 55.098%` | `250.2439 59.4203% 72.9412%` | non-interactive category accent |
@@ -212,11 +214,11 @@ Hanken Grotesk remains self-hosted and is used without stylistic alternates. The
 | Role | Size / line height | Weight |
 |---|---:|---:|
 | Page title | 24px / 32.16px | 600 |
-| Section | 20px / 28.6px | 600 |
+| Card or section title | 16px / 24px | 600, foreground |
 | Group | 16px / 24px | 600 |
 | Control/body | 14px / 20.02px | 400 |
 | Supporting (restricted) | 12px / 16.08px | 400 |
-| Metric | 24px / 32.16px | 600, tabular |
+| Key figure | 30px / 36px | 600, tabular |
 
 14px is the floor for job text. 12px is limited to chart ticks and legends, count badges, keyboard hints, timestamps, and the app-version footer; nothing renders below 12px. Mono remains for identifiers only.
 
