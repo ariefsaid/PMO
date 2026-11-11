@@ -124,23 +124,23 @@ describe('Finance hub', () => {
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
     // Unknown is not a sentence in a tile and not "0": the tile is hidden and one page line says why.
     expect(screen.queryByRole('link', { name: 'Open Receivables' })).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('invoice balances are unknown');
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('invoice balances unknown');
     expect(screen.getByRole('link', { name: 'See invoices' })).toHaveAttribute('href', '/finance/receivables');
     expect(screen.queryByText('No balance')).not.toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /Client balances by age/ })).toHaveTextContent(/balance.*unknown/i);
+    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/balance.*unknown/i);
   });
 
   it('AC-1405-HUB-001: shows whole-unit figures and four linked figure tiles with one caption each', () => {
     renderHub();
 
     expect(screen.getByRole('heading', { name: 'Finance', level: 1 })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Overdue · IDR\s45,000,000 from 5 invoices/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Overdue · 5 invoices· IDR\s45,000,000/ })).toBeInTheDocument();
     expect(screen.queryByText(/\.00\b/)).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open Receivables' })).toHaveAttribute('href', '/finance/receivables');
     expect(screen.getByRole('link', { name: 'Open Payables' })).toHaveAttribute('href', '/finance/payables');
     expect(screen.getByRole('link', { name: 'Open Reports' })).toHaveAttribute('href', '/finance/reports');
-    expect(screen.getByText('Owed to you')).toBeInTheDocument();
-    expect(screen.getByText('To pay suppliers')).toBeInTheDocument();
+    expect(screen.getAllByText('Receivables').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Payables').length).toBeGreaterThan(0);
     expect(screen.getByText('through Oct 2026')).toBeInTheDocument();
     // One currency per figure: the other currency is its own second line, never "A · B".
     expect(screen.getByText('+ USD 5K')).toBeInTheDocument();
@@ -152,7 +152,7 @@ describe('Finance hub', () => {
     expect(screen.getAllByText(/45,000,000/)).toHaveLength(1);
     expect(screen.getAllByText(/62,400,000/)).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Open Payables' }).parentElement).toHaveTextContent('IDR 62.4M');
-    expect(screen.getByText(/1 supplier invoices? waiting to be paid/)).toBeInTheDocument();
+    expect(screen.getByText(/1 unpaid supplier invoices?/)).toBeInTheDocument();
   });
 
   it('F11: figure tiles show short amounts with the exact amount kept for hover and screen readers', () => {
@@ -175,10 +175,13 @@ describe('Finance hub', () => {
   it('AC-1405-HUB-003: keeps area cards, ageing figures and attention content accessible', async () => {
     const { container } = renderHub('Executive');
 
-    expect(screen.getByRole('region', { name: /Client balances by age/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Ageing' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Payables' })).toBeInTheDocument();
+    expect(screen.getAllByTestId('ageing-bar-IDR')).toHaveLength(2);
     expect(screen.getByRole('heading', { name: /Waiting on Finance/ })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
-    expect(within(screen.getByRole('region', { name: /Client balances by age/ })).getByText(/38[,.]?200[,.]?000/)).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Receivables' })).getByText(/38[,.]?200[,.]?000/)).toBeInTheDocument();
   });
 
   it('AC-1405-HUB-005: Executive sees no finance action controls while the read-only waiting list remains visible', () => {
@@ -195,8 +198,8 @@ describe('Finance hub', () => {
     expect(screen.queryByRole('link', { name: 'Open Statements' })).not.toBeInTheDocument();
     expect(screen.queryByText('Not available yet')).not.toBeInTheDocument();
     const hidden = screen.getByTestId('figures-hidden');
-    expect(hidden).toHaveTextContent('1 figure hidden: accounting is not connected');
-    expect(screen.getAllByText(/accounting is not connected/)).toHaveLength(1);
+    expect(hidden).toHaveTextContent('1 figure hidden: accounting disconnected');
+    expect(screen.getAllByText(/accounting disconnected/)).toHaveLength(1);
   });
 
   it('C4: with no statement yet, an Admin gets the link to where statements are set up', () => {
@@ -216,7 +219,7 @@ describe('Finance hub', () => {
     position.payablesUnknownCount = 1;
     state.position = position;
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
-    const ageing = screen.getByRole('region', { name: /Invoice age, by days/ });
+    const ageing = screen.getByRole('region', { name: 'Payables' });
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('+ 1 balance unknown');
   });
 

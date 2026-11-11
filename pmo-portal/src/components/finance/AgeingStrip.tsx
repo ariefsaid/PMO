@@ -13,6 +13,7 @@ type BucketKey = keyof AgeingBuckets | keyof PayablesAgeingBuckets;
 
 export interface AgeingStripProps {
   kind: AgeingKind;
+  heading?: string;
   values: AgeingValues;
   /** L12: invoices whose balance is unknown, counted in their age bucket — never added as zero, never dropped. */
   unknownCounts?: Record<string, Partial<Record<BucketKey, number>>>;
@@ -33,7 +34,7 @@ const BUCKET_COLORS: Record<BucketKey, string> = {
   over90: chartTheme.series.destructive,
 };
 
-export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values, unknownCounts = {}, unknownTotal = 0, scaleMaxByCurrency }) => {
+export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, values, unknownCounts = {}, unknownTotal = 0, scaleMaxByCurrency }) => {
   const { t } = useTranslation();
   const { currency: orgCurrency, isResolved } = useOrgCurrencyState();
   const bucketKeys: readonly BucketKey[] = kind === 'receivables' ? RECEIVABLE_BUCKETS : PAYABLE_BUCKETS;
@@ -46,9 +47,9 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values, unknownC
     over90: t('finance:area.over90Days', 'Over 90 days'),
   };
   // The basis of each age ("tax included", "since the invoice was recorded") lives in the page's one help control.
-  const title = kind === 'receivables'
+  const title = heading ?? (kind === 'receivables'
     ? t('finance:area.receivablesAgeingTitle', 'Client balances by age')
-    : t('finance:area.payablesAgeingBasis', 'Invoice age, by days');
+    : t('finance:area.payablesAgeingBasis', 'Invoice age, by days'));
   const currencies = [...new Set([...Object.keys(values), ...Object.keys(unknownCounts)])].map((currency) => [currency, values[currency]] as const).sort(([left], [right]) => {
     if (isResolved && left === orgCurrency) return -1;
     if (isResolved && right === orgCurrency) return 1;
@@ -64,7 +65,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values, unknownC
     <section aria-label={title} className="mb-5 min-w-0">
       <h2 className="mb-2 text-[14px] font-semibold">{title}</h2>
       {currencies.length === 0 && <p className="text-sm text-muted-foreground">{unknownTotal > 0
-        ? t('finance:area.ageingUnknown', { defaultValue: 'No known balances to group · {{count}} balance unknown', count: unknownTotal })
+        ? t('finance:area.ageingUnknown', { defaultValue: 'No known balances · {{count}} balance unknown', count: unknownTotal })
         : t('finance:area.ageingEmpty', 'No balances to group by age')}</p>}
       {currencies.length > 0 && unknownTotal > 0 && <p className="mb-2 text-control text-muted-foreground">{t('finance:area.ageingUnknownCount', { defaultValue: '{{count}} balance unknown', count: unknownTotal })}</p>}
       {currencies.map(([currency, buckets]) => {

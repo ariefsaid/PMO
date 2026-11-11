@@ -13,7 +13,7 @@ const textOf = (amount: unknown): string[] => {
 };
 
 const translate = (key: string, fallback: string, options?: Record<string, unknown>) =>
-  fallback.replace('{{count}}', String(options?.count ?? ''));
+  fallback.replace(/\{\{(\w+)\}\}/gu, (_, variable: string) => String(options?.[variable] ?? ''));
 
 describe('needs-you dashboard selectors', () => {
   it('QI-5 labels a partial PM at-risk count as a floor', () => {
@@ -64,9 +64,10 @@ describe('needs-you dashboard selectors', () => {
     ]);
     // The label names the kind; the one fact after it names what is missing. Unknown balances never become a partial sum.
     expect(items[0].label).toBe('client invoices overdue');
-    expect(items[0].detail).toContain('1 balance not synced');
+    expect(items[0].detail).toContain('1 unsynced balance');
+    expect(items[0].detail).toContain('Oldest 8d');
     expect(items[0].amount).toBeUndefined();
-    expect(items[1].label).toBe('supplier invoices to pay');
+    expect(items[1].label).toBe('Payables');
     expect(items[1].detail).toContain('1 amount missing');
     expect(items[1].amount).toBeUndefined();
   });

@@ -338,7 +338,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       href: '/finance/receivables?overdue=true',
     },
     {
-      id: 'supplier-payables', label: t('figures.owedToSuppliers', 'Owed to suppliers'),
+      id: 'supplier-payables', label: t('figures.owedToSuppliers', 'Payables'),
       value: suppliers === undefined ? null : suppliers.count === 0 ? moneyFigure(0, orgCurrency, moneyReason).value : supplierKnown,
       unavailableReason: suppliers?.unknownBalances
         ? t('dashboard:hub.company.supplierBalancesUnknown', '{{count}} supplier invoice balances are unknown.', { count: suppliers.unknownBalances })

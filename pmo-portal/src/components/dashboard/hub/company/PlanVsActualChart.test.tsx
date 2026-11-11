@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import type { TopProject } from '@/src/lib/db/dashboard';
 import { PlanVsActualChart } from './PlanVsActualChart';
 import { planVsActualRows } from './planVsActual';
+import { wrapProjectName } from './projectName';
 
 const p = (over: Partial<TopProject>): TopProject => ({
   id: 'x', name: 'X', client_name: null, contract_value: 1000, currency: 'USD', budget: null, spent: 400,
@@ -40,7 +41,11 @@ describe('planVsActualRows', () => {
 });
 
 describe('PlanVsActualChart', () => {
-  it('labels each project bar with its series name and money value', () => {
+  it('wraps project names onto two readable lines', () => {
+    expect(wrapProjectName('Cascade Foods 6.0 MW Ground-Mount PV')).toEqual(['Cascade Foods 6.0 MW', 'Ground-Mount PV']);
+  });
+
+  it('gives each project an accessible label with series names and money values', () => {
     render(<MemoryRouter><PlanVsActualChart projects={[p({
       id: 'a', name: 'Alpha', contract_value: 2000, budget: 1500, spent: 500,
     })]} currency="USD" /></MemoryRouter>);

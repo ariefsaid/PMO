@@ -129,14 +129,14 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     if (overdue) {
       const base = counted(t, 'needs.overdueInvoice', 'client invoice overdue', 'client invoices overdue', overdue.count);
       const detail = [
-        overdue.oldestDays !== null ? t('needs.oldestOverdue', 'oldest {{days}} days overdue', { days: overdue.oldestDays }) : null,
-        overdue.unknownBalances > 0 ? t('needs.balancesNotSynced', '{{count}} balance not synced', { count: overdue.unknownBalances }) : null,
+        overdue.oldestDays !== null ? t('needs.oldestOverdue', 'Oldest {{days}}d', { days: overdue.oldestDays }) : null,
+        overdue.unknownBalances > 0 ? t('needs.balancesNotSynced', '{{count}} unsynced balance', { count: overdue.unknownBalances }) : null,
       ].filter(Boolean).join(' · ');
       add({ id: 'overdue-invoices', count: overdue.count, label: base, detail: detail || undefined, amount: overdue.unknownBalances > 0 ? undefined : amountsText(overdue.knownTotals, t, orgCurrency), href: '/finance/receivables?overdue=true', tone: 'lost' });
     }
     if (facts.supplierInvoices) add({
       id: 'supplier-invoices', count: facts.supplierInvoices.count,
-      label: counted(t, 'needs.supplierInvoice', 'supplier invoice to pay', 'supplier invoices to pay', facts.supplierInvoices.count),
+      label: counted(t, 'needs.supplierInvoice', 'Payables', 'Payables', facts.supplierInvoices.count),
       detail: facts.supplierInvoices.unknownBalances > 0 ? t('needs.amountsMissing', '{{count}} amount missing', { count: facts.supplierInvoices.unknownBalances }) : undefined,
       amount: facts.supplierInvoices.unknownBalances > 0 ? undefined : amountsText(facts.supplierInvoices.knownTotals, t, orgCurrency), href: '/procurement?status=Vendor+Invoiced', tone: 'warn',
     });

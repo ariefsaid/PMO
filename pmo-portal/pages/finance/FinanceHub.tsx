@@ -78,16 +78,16 @@ const FinanceHub: React.FC = () => {
     <KPIRow aria-label={t('financeHub:hub.areas', 'Finance areas')} className={shownTiles <= 1 ? 'grid-cols-1' : 'grid-cols-2'}>
       {hasRevenue && <KPITile
         icon="grid" tone="blue" to="/finance/receivables" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.receivables', 'Receivables') })}
-        label={t('financeHub:hub.owed', 'Owed to you')} caption={t('financeHub:hub.taxIncluded', 'tax included')}
+        label={t('financeHub:hub.owed', 'Receivables')} caption={t('financeHub:hub.taxIncluded', 'tax included')}
         value={owed?.value ?? null} exactValue={owed?.exactValue}
-        unavailableReason={receivablesUnknown ? t('financeHub:hub.owedUnknown', 'invoice balances are unknown') : undefined}
+        unavailableReason={receivablesUnknown ? t('financeHub:hub.owedUnknown', 'invoice balances unknown') : undefined}
         hiddenLink={{ to: '/finance/receivables', label: t('financeHub:hub.seeInvoices', 'See invoices') }}
         help={t('financeHub:hub.receivablesHint', 'Sum of known outstanding balances on open invoices, including tax. Draft and cancelled invoices are excluded.')}
         loading={finance.isPending} error={finance.isError}
       />}
       {hasProcurement && <KPITile
         icon="grid" tone="blue" to="/finance/payables" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.payables', 'Payables') })}
-        label={t('financeHub:hub.toPay', 'To pay suppliers')} caption={t('financeHub:hub.waitingToPay', 'waiting to pay')}
+        label={t('financeHub:hub.toPay', 'Payables')} caption={t('financeHub:hub.waitingToPay', 'unpaid')}
         value={toPay?.value ?? null} exactValue={toPay?.exactValue}
         unavailableReason={payablesUnknown ? t('financeHub:hub.payablesUnknown', 'supplier balances are unknown') : undefined}
         hiddenLink={{ to: '/finance/payables', label: t('financeHub:hub.seePayables', 'See payables') }}
@@ -96,7 +96,7 @@ const FinanceHub: React.FC = () => {
       />}
       {hasRevenue && <KPITile
         icon="grid" tone="blue" to="/finance/reports" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.reports', 'Reports') })}
-        label={t('financeHub:hub.doneNotYetBilled', 'Done, not yet billed')} caption={pack?.asAt ? t('financeHub:hub.through', 'through {{month}}', { month: formatMonthYearShort(pack.asAt) }) : undefined}
+        label={t('financeHub:hub.doneNotYetBilled', 'Done · unbilled')} caption={pack?.asAt ? t('financeHub:hub.through', 'through {{month}}', { month: formatMonthYearShort(pack.asAt) }) : undefined}
         value={toInvoice?.value ?? null} exactValue={toInvoice?.exactValue}
         unavailableReason={pack ? undefined : t('financeHub:hub.reportsUnknown', 'report figures are not available')}
         hiddenLink={{ to: '/finance/reports', label: t('financeHub:hub.openReports', 'Open reports') }}
@@ -108,7 +108,7 @@ const FinanceHub: React.FC = () => {
         label={t('financeHub:hub.netProfit', 'Net profit')} caption={statementPeriod ? formatMonthYearShort(statementPeriod) : undefined}
         value={profit?.value ?? null} exactValue={profit?.exactValue}
         unavailableReason={profit ? undefined : statementUnavailable
-          ? t('financeHub:hub.fix.statements.notConnected', 'accounting is not connected')
+          ? t('financeHub:hub.fix.statements.notConnected', 'accounting disconnected')
           : t('financeHub:hub.fix.statements.noStatement', 'no statement period yet')}
         hiddenLink={statementUnavailable && manageIntegration ? { to: '/administration/integrations', label: t('financeHub:hub.fix.statements.setUp', 'Set up') } : undefined}
         help={t('financeHub:hub.statementsHint', 'Net profit from the latest available company profit and loss statement period.')}
@@ -137,11 +137,11 @@ const FinanceHub: React.FC = () => {
   ]));
   const ageings = (
     <Card role="region" aria-labelledby="finance-hub-ageings">
-      <CardHead id="finance-hub-ageings">{t('financeHub:hub.ageing', 'Balances by age')}</CardHead>
+      <CardHead id="finance-hub-ageings">{t('financeHub:hub.ageing', 'Ageing')}</CardHead>
       <CardPad>
         {finance.isPending ? <ListState variant="loading" rows={2} /> : finance.isError ? (
         <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} unknownTotal={finance.position.receivablesUnknownCount} scaleMaxByCurrency={ageScaleByCurrency} /><AgeingStrip kind="payables" values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} scaleMaxByCurrency={ageScaleByCurrency} /></div>}
+        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownTotal={finance.position.receivablesUnknownCount} scaleMaxByCurrency={ageScaleByCurrency} /><AgeingStrip kind="payables" heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} scaleMaxByCurrency={ageScaleByCurrency} /></div>}
       </CardPad>
     </Card>
   );
@@ -167,7 +167,7 @@ const FinanceHub: React.FC = () => {
           <Button type="button" variant="outline" size="sm" onClick={() => { if (finance.isError) finance.retry(); if (figures.isError) retryFigures(); }}>{t('financeHub:hub.retry', 'Retry')}</Button>
         </div>}
         {/* Waiting and balance-age bars form the left column; company figures and the six-month trend sit beside them. */}
-        <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] min-[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] min-[1100px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <div className="min-w-0 space-y-[var(--space-panel-gap)]">
             {attention}
             {ageings}

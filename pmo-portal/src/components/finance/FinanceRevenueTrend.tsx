@@ -41,7 +41,7 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
       } : {}),
     };
   });
-  const title = t('home.financeRevenueTrend', 'Invoiced and collected · last 6 months');
+  const title = t('home.financeRevenueTrend', 'Invoiced and collected · 6 months');
   const collectionGap = !hasCollections && !payments.isPending
     ? t('home.collectedTrendGap', 'Collected is incomplete; invoiced amounts are shown.')
     : null;
