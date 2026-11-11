@@ -140,7 +140,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Pending' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
-    fireEvent.click(screen.getByRole('button', { name: /what do you have/i }));
+    fireEvent.click(screen.getByRole('button', { name: /back to choose type/i }));
     expect(mocks.navigate).not.toHaveBeenCalled();
     expect(screen.getByText(/saving.*wait/i)).toBeVisible();
     expect(screen.getByRole('button', { name: 'Leave' })).toBeDisabled();
@@ -270,7 +270,7 @@ describe('AC-PROC1 one-page request creation', () => {
     renderCreate('/procurement/new');
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cable' } });
-    fireEvent.click(screen.getByRole('button', { name: /what do you have/i }));
+    fireEvent.click(screen.getByRole('button', { name: /back to choose type/i }));
     expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     expect(screen.getByLabelText(/title/i)).toHaveValue('Cable');
@@ -347,7 +347,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Existing document' } });
     fireEvent.click(screen.getByRole('button', { name: /^Save and record/ }));
     await screen.findByRole('alert');
-    fireEvent.click(screen.getByRole('button', { name: /what do you have/i }));
+    fireEvent.click(screen.getByRole('button', { name: /back to choose type/i }));
     expect(screen.getByRole('button', { name: /A new need/i })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: new RegExp(choice, 'i') }));
     expect(screen.getByLabelText(/title/i)).toBeDisabled();
@@ -504,7 +504,7 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.navigate.mockClear();
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'x' } });
-    fireEvent.click(screen.getByRole('button', { name: /what do you have/i }));
+    fireEvent.click(screen.getByRole('button', { name: /back to choose type/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Back to Procurement' }));
     expect(mocks.navigate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }));

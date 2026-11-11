@@ -245,14 +245,16 @@ test.describe('AC-TBL-STICKY-001 real Sales Invoices columns (DB rows)', () => {
         await expect(menu).toBeVisible();
         const menuInfo = await menu.evaluate((el) => {
           const r = el.getBoundingClientRect();
+          const positioner = el.parentElement;
+          const portal = el.closest('[data-base-ui-portal]');
           return {
-            parentIsBody: el.parentElement === document.body,
-            zIndex: Number(getComputedStyle(el).zIndex),
+            portalIsBodyChild: portal?.parentElement === document.body,
+            zIndex: Number(positioner && getComputedStyle(positioner).zIndex),
             box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
           };
         });
-        expect(menuInfo.parentIsBody, 'the menu must be portaled to document.body (never inside the clipped scroller/card)').toBe(true);
-        expect(menuInfo.zIndex, 'menu must stack above the sticky cells (z-[3])').toBeGreaterThanOrEqual(800);
+        expect(menuInfo.portalIsBodyChild, 'the menu portal must be a direct child of document.body (never inside the clipped scroller/card)').toBe(true);
+        expect(menuInfo.zIndex, 'menu positioner must stack above the sticky cells (z-[3])').toBeGreaterThanOrEqual(800);
         const vw = width;
         const vh = 900;
         expect(menuInfo.box.right).toBeLessThanOrEqual(vw + STICKY_EPSILON);

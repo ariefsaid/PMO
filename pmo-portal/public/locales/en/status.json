@@ -199,7 +199,9 @@
   },
   "age": {
     "overdue_one": "{{n}} day overdue",
-    "overdue_other": "{{n}} days overdue"
+    "overdue_other": "{{n}} days overdue",
+    "late_one": "{{n}} day late",
+    "late_other": "{{n}} days late"
   },
   "reasonDialog": {
     "returnTitle": "Return {{subject}}",

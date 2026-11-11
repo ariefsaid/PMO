@@ -1,6 +1,9 @@
 {
   "dueThisWeek": "Due this week",
   "clearDueWeek": "Clear the due-this-week filter",
+  "myTasks": {
+    "openTasksShort": "Open"
+  },
   "push": {
     "pushing": "Pushing…",
     "pushingAria": "pushing to external system",
