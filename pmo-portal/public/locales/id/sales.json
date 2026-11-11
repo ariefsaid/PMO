@@ -74,6 +74,6 @@
     "staleReason": "Di {{stage}} selama {{days}} hari",
     "viewByStage": "Per tahap",
     "weightedForecast": "Perkiraan tertimbang",
-    "weightedNote": "Nilai × peluang berjalan × peluang kita menang"
+    "weightedNote": "Nilai × peluang menang"
   }
 }

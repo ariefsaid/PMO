@@ -58,7 +58,7 @@
     "dealFiguresLabel": "Deal figures",
     "figuresLabel": "Pipeline figures",
     "weightedForecast": "Weighted forecast",
-    "weightedNote": "Value × chance it proceeds × chance we win",
+    "weightedNote": "Value × chance of winning",
     "openValue": "Open value",
     "openCount": "{{n}} open projects",
     "needsYou": "Needs attention",

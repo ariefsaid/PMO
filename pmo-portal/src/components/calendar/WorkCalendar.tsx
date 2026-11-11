@@ -134,7 +134,7 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
         onEventClick={handleClick}
         onRangeChange={handleRange}
         i18n={{ labels: { noEvents: t('empty', 'Nothing due in this period') } }}
-        className="min-h-[34rem] flex-1 text-sm"
+        className="min-h-[34rem] flex-1 text-control!"
       >
         <Toolbar />
         <EventCalendarContent className="rounded-lg border border-border bg-card" />
