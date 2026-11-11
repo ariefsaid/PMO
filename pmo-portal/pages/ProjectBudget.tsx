@@ -25,7 +25,7 @@ import { yearsInSpan } from '@/src/lib/budget/budgetDistribution';
 import { staleDistributionBasis } from '@/src/lib/budget/distributionStaleness';
 import {
   Button,
-  ConfirmDialog,
+  UnsavedChangesDialog,
   useToast,
   Card,
   CardHead,
@@ -1158,15 +1158,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         />
       )}
       {!authoringRefreshNeeded && budgetConfirm}
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        tone="default"
-        title={t('common:entityForm.discardTitle', 'Discard your changes?')}
-        description={t('common:entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
-        confirmLabel={t('common:entityForm.discard', 'Discard')}
-        cancelLabel={t('common:entityForm.keepEditing', 'Keep editing')}
-        onConfirm={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
-        onCancel={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
       />
     </div>
     </FigureScope>

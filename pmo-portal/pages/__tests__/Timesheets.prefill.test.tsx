@@ -138,8 +138,8 @@ describe('Timesheets — ?project= prefill (AC-IFW-TASKS-02)', () => {
     expect(rawHours).toHaveValue('8h');
 
     await userEvent.click(screen.getByRole('link', { name: 'Continue' }));
-    const discard = await screen.findByRole('dialog', { name: 'Discard unsaved hours?' });
-    await userEvent.click(within(discard).getByRole('button', { name: 'Stay' }));
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(discard).getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByRole('textbox', { name: /^Meridian Solar Phase 1, Mon hours$/ })).toHaveValue('8h');
     expect(screen.queryByText('Next page')).not.toBeInTheDocument();
   });

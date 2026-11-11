@@ -106,7 +106,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
     renderPage();
     fireEvent.change(languageSelect(), { target: { value: 'id' } });
     fireEvent.click(screen.getByRole('link', { name: 'Continue' }));
-    const discard = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
     fireEvent.click(within(discard).getByRole('button', { name: 'Keep editing' }));
     expect(languageSelect()).toHaveValue('id');
     expect(screen.queryByText('Next page')).not.toBeInTheDocument();

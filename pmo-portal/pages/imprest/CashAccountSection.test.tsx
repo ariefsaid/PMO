@@ -50,7 +50,7 @@ describe('#1515 S6 cash account', () => {
     await user.type(screen.getByLabelText('ERP cash account name'), 'Site Cash');
     await user.click(screen.getByRole('link', { name: 'Continue' }));
 
-    const discard = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
     await user.click(within(discard).getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByLabelText('ERP cash account name')).toHaveValue('Site Cash');
     expect(screen.queryByText('Next page')).not.toBeInTheDocument();

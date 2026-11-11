@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ConfirmDialog, TextField, useToast } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, ConfirmDialog, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useSetCashAccount } from '@/src/hooks/useImprest';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -58,15 +58,10 @@ export const CashAccountSection: React.FC<{ floatId: string; account: string | n
         onConfirm={() => void submit()}
         onCancel={() => setConfirming(false)}
       />
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        tone="default"
-        title={t('entityForm.discardTitle', 'Discard your changes?')}
-        description={t('entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
-        confirmLabel={t('entityForm.discard', 'Discard')}
-        cancelLabel={t('entityForm.keepEditing', 'Keep editing')}
-        onConfirm={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
-        onCancel={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
       />
     </Card>
   );

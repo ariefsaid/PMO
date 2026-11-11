@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DataTable, ListPage, ListState, SelectField, TextField, useToast, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, ListPage, ListState, SelectField, TextField, UnsavedChangesDialog, useToast, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { StockError } from '@/src/components/stock/StockError';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
@@ -237,15 +237,10 @@ const StockReorder: React.FC = () => {
         onConfirm={() => { if (clearTarget) void save({ level: null }, 'cleared', clearTarget).then((ok) => { if (ok) setClearTarget(null); }); }}
         onCancel={() => setClearTarget(null)}
       />
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        tone="default"
-        title={t('common:entityForm.discardTitle', 'Discard your changes?')}
-        description={t('common:entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
-        confirmLabel={t('common:entityForm.discard', 'Discard')}
-        cancelLabel={t('common:entityForm.keepEditing', 'Keep editing')}
-        onConfirm={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
-        onCancel={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
       />
     </ListPage>
   );

@@ -9,7 +9,7 @@ import { useOrgLocaleDefaults, useResolvedLocale } from '@/src/hooks/useResolved
 import { resolveLocale } from '@/src/lib/locale/resolveLocale';
 import { isValidTimeZone, listTimeZoneIds } from '@/src/lib/locale/timezones';
 import { formatMoneyInputValue } from '@/src/lib/format';
-import { Button, Combobox, ConfirmDialog, PageHeader, SelectField, type ComboboxOption } from '@/src/components/ui';
+import { Button, Combobox, PageHeader, SelectField, UnsavedChangesDialog, type ComboboxOption } from '@/src/components/ui';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 type LocaleChoice = 'inherit' | 'id' | 'en';
@@ -335,15 +335,10 @@ const ProfileSettings: React.FC = () => {
           </p>
         )}
       </div>
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        tone="default"
-        title={t('entityForm.discardTitle', 'Discard your changes?')}
-        description={t('entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
-        confirmLabel={t('entityForm.discard', 'Discard')}
-        cancelLabel={t('entityForm.keepEditing', 'Keep editing')}
-        onConfirm={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
-        onCancel={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
       />
     </div>
   );

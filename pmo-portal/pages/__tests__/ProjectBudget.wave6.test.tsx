@@ -179,7 +179,7 @@ describe('AC-W6-J7: Draft edit-mode Total footer', () => {
     await userEvent.type(screen.getByPlaceholderText('Amount'), '125');
 
     await userEvent.click(screen.getByRole('link', { name: 'Continue' }));
-    const discard = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
     await userEvent.click(within(discard).getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByPlaceholderText('Description')).toHaveValue('Temporary line');
     expect(screen.getByPlaceholderText('Amount')).toHaveValue('125');
@@ -212,7 +212,7 @@ describe('AC-W6-Distribution-Guard', () => {
     await userEvent.type(yearInput, '1');
 
     await userEvent.click(screen.getByRole('link', { name: 'Continue' }));
-    const discard = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
     await userEvent.click(within(discard).getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByRole('textbox', { name: 'Shared input for FY 2026' })).toHaveValue('1');
     expect(screen.queryByText('Next page')).not.toBeInTheDocument();

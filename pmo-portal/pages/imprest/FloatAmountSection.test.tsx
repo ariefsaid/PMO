@@ -69,7 +69,7 @@ describe('FR-IMP-002 float amount', () => {
     await user.type(amount, '6000000');
     await user.click(within(proposal).getByRole('button', { name: 'Cancel' }));
 
-    const discard = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
     await user.click(within(discard).getByRole('button', { name: 'Keep editing' }));
     expect(within(await screen.findByRole('dialog', { name: 'Propose a new float amount' })).getByLabelText(/New float amount/)).toHaveValue('6000000');
     expect(h.m.propose.mutateAsync).not.toHaveBeenCalled();

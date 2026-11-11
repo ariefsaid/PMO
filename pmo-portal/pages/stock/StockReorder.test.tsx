@@ -122,7 +122,7 @@ describe('StockReorder', () => {
     await userEvent.type(level, '44');
     await userEvent.click(screen.getByRole('link', { name: 'Continue' }));
 
-    const discard = await screen.findByRole('dialog', { name: 'Discard your changes?' });
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
     await userEvent.click(within(discard).getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByRole('textbox', { name: /^Reorder level/ })).toHaveValue('44');
     expect(screen.queryByText('Next page')).not.toBeInTheDocument();

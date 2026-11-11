@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { BackBar } from '@/src/components/shell';
-import { Button, Combobox, ConfirmDialog, FormGrid, Icon, SelectField, TextField, useToast } from '@/src/components/ui';
+import { Button, Combobox, FormGrid, Icon, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import type { IconName } from '@/src/components/ui/icons';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { usePermission } from '@/src/auth/usePermission';
@@ -129,6 +129,15 @@ export default function ProcurementCreate() {
   const [attempt, setAttempt] = useState<{ input: AtomicProcurementInput; have: ProcurementHave } | null>(null);
 
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
+  const saveNeedsAttention = saving || attempt !== null;
+  const leaveTitle = saveNeedsAttention ? t('unsaved.title', 'Unsaved procurement') : undefined;
+  const leaveDescription = saveNeedsAttention
+    ? saving
+      ? t('unsaved.saving', 'Saving is in progress. Please wait until it finishes.')
+      : t('unsaved.uncertain', 'The save may have completed. Leave this page?')
+    : undefined;
+  const leaveLabel = saveNeedsAttention ? t('unsaved.leave', 'Leave') : undefined;
+  const stayLabel = saveNeedsAttention ? t('unsaved.stay', 'Stay') : undefined;
   const dirty = saving || attempt !== null || (
     title !== '' || supplierId !== null || budgetCategory !== '' || lines.length > 0 || selectedProject !== projectId
   );
@@ -264,16 +273,15 @@ export default function ProcurementCreate() {
           onChoose={choose}
           lockedChoice={attempt?.have ?? null}
         />
-        <ConfirmDialog
+        <UnsavedChangesDialog
           open={pendingLeave !== null}
-          tone="default"
-          title={t('unsaved.title', 'Unsaved procurement')}
-          description={saving ? t('unsaved.saving', 'Saving is in progress. Please wait until it finishes.') : attempt ? t('unsaved.uncertain', 'The save may have completed. Leave this page?') : t('unsaved.description', 'This procurement has not been saved. Leave this page and discard it?')}
-          confirmDisabled={saving}
-        confirmLabel={t('unsaved.leave', 'Leave')}
-          cancelLabel={t('unsaved.stay', 'Stay')}
-          onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
-          onCancel={() => setPendingLeave(null)}
+          title={leaveTitle}
+          description={leaveDescription}
+          discardDisabled={saving}
+          discardLabel={leaveLabel}
+          keepEditingLabel={stayLabel}
+          onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
+          onKeepEditing={() => setPendingLeave(null)}
         />
       </div>
     );
@@ -371,16 +379,15 @@ export default function ProcurementCreate() {
           </fieldset>
         )}
       </form>
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        tone="default"
-        title={t('unsaved.title', 'Unsaved procurement')}
-        description={saving ? t('unsaved.saving', 'Saving is in progress. Please wait until it finishes.') : attempt ? t('unsaved.uncertain', 'The save may have completed. Leave this page?') : t('unsaved.description', 'This procurement has not been saved. Leave this page and discard it?')}
-        confirmDisabled={saving}
-        confirmLabel={t('unsaved.leave', 'Leave')}
-        cancelLabel={t('unsaved.stay', 'Stay')}
-        onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
-        onCancel={() => setPendingLeave(null)}
+        title={leaveTitle}
+        description={leaveDescription}
+        discardDisabled={saving}
+        discardLabel={leaveLabel}
+        keepEditingLabel={stayLabel}
+        onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
+        onKeepEditing={() => setPendingLeave(null)}
       />
     </div>
   );

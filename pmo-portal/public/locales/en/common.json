@@ -3929,10 +3929,6 @@
     "addPanel": "+ Add panel",
     "maximumPanelsReached": "Maximum of {{count}} panels reached.",
     "livePreview": "Live preview",
-    "discardChangesTitle": "Discard unsaved changes?",
-    "discardChangesDescription": "Your panel configuration and name will be lost.",
-    "discard": "Discard",
-    "keepEditing": "Keep editing",
     "panelList": "Panel list",
     "movePanelUp": "Move panel {{number}} up",
     "movePanelDown": "Move panel {{number}} down",
@@ -4294,6 +4290,12 @@
     "keepEditing": "Keep editing",
     "fixFields_one": "Fix {{count}} field before saving",
     "fixFields_other": "Fix {{count}} fields before saving"
+  },
+  "unsavedChanges": {
+    "title": "Discard your changes?",
+    "body": "What you typed here will be lost.",
+    "discard": "Discard",
+    "keepEditing": "Keep editing"
   },
   "projectFinances": {
     "title": "Project finances",

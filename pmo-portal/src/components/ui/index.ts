@@ -40,6 +40,7 @@ export {
   type ConfirmDialogProps,
   type ConfirmTone,
 } from './ConfirmDialog';
+export { UnsavedChangesDialog, type UnsavedChangesDialogProps } from './UnsavedChangesDialog';
 export { DecisionContextSummary, type DecisionContextSummaryProps } from './DecisionContextSummary';
 export { Drawer, type DrawerProps } from './Drawer';
 

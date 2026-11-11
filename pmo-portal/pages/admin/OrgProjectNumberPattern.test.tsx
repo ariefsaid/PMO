@@ -55,7 +55,7 @@ describe('AC-CODE-001 organisation PMO number pattern', () => {
     fireEvent.change(input, { target: { value: 'PRE-{CLIENT}-{YY}-{SEQ4}' } });
 
     await userEvent.click(screen.getByRole('link', { name: 'Continue' }));
-    expect(await screen.findByRole('dialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByRole('textbox', { name: /project number pattern/i })).toHaveValue('PRE-{CLIENT}-{YY}-{SEQ4}');
     expect(screen.queryByText('Next page')).not.toBeInTheDocument();

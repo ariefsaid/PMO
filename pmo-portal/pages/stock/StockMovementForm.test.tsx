@@ -105,7 +105,7 @@ describe('StockMovementForm', () => {
     await fillIssue('5');
 
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(await screen.findByRole('dialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByLabelText(/^Quantity/)).toHaveValue('5');
     expect(screen.getByRole('combobox', { name: /^Item/ })).toHaveTextContent('CEM - Cement 50kg');

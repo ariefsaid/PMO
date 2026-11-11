@@ -1213,14 +1213,14 @@ describe('S-28: saved / unsaved state and Save (UX-063)', () => {
     expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent('Unsaved changes');
 
     await userEvent.click(screen.getByRole('link', { name: /team review/i }));
-    const dialog = screen.getByRole('dialog', { name: 'Discard unsaved hours?' });
+    const dialog = screen.getByRole('alertdialog', { name: 'Discard your changes?' });
     expect(dialog).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
 
     expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toHaveValue('3');
     expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent('Unsaved changes');
     expect(screen.getByTestId('timesheets-save-status')).not.toHaveTextContent('All changes saved');
-    expect(screen.queryByRole('dialog', { name: 'Discard unsaved hours?' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog', { name: 'Discard your changes?' })).not.toBeInTheDocument();
   });
 });
 

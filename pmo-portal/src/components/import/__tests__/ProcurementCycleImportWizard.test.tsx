@@ -196,16 +196,16 @@ describe('ProcurementCycleImportWizard', () => {
     expect(unload.defaultPrevented).toBe(true);
 
     await user.click(screen.getByRole('button', { name: /^close$/i }));
-    const closePrompt = await screen.findByRole('alertdialog', { name: /unsaved procurement import/i });
-    await user.click(within(closePrompt).getByRole('button', { name: /^stay$/i }));
+    const closePrompt = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(within(closePrompt).getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByLabelText(/case_ref/)).toHaveValue('1');
     expect(onClose).not.toHaveBeenCalled();
 
     // The modal makes its route background inert; dispatch the shell's route action
     // directly to exercise the router blocker as a browser back/navigation would.
     fireEvent.click(screen.getByText('Next page'));
-    const leavePrompt = await screen.findByRole('alertdialog', { name: /unsaved procurement import/i });
-    await user.click(within(leavePrompt).getByRole('button', { name: /stay/i }));
+    const leavePrompt = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(within(leavePrompt).getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByTestId('route-path')).toHaveTextContent('/procurement/import');
     expect(screen.getByLabelText(/case_ref/)).toHaveValue('1');
   });

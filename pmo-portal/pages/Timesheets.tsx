@@ -12,6 +12,7 @@ import {
   StatusPill,
   TimesheetGrid,
   AccessDenied,
+  UnsavedChangesDialog,
   useToast,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router';
@@ -419,14 +420,10 @@ const TimesheetsPage: React.FC = () => {
       )}
       {submitConfirm}
 
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        title={t('timesheets:discardHours.title', 'Discard unsaved hours?')}
-        description={t('timesheets:discardHours.description', 'Leave this page and discard the hours you have not saved?')}
-        confirmLabel={t('timesheets:discardHours.leave', 'Leave')}
-        cancelLabel={t('timesheets:discardHours.stay', 'Stay')}
-        onCancel={() => { pendingLeave?.stay(); setPendingLeave(null); }}
-        onConfirm={() => { const leave = pendingLeave?.leave; setPendingLeave(null); leave?.(); }}
+        onKeepEditing={() => { pendingLeave?.stay(); setPendingLeave(null); }}
+        onDiscard={() => { const leave = pendingLeave?.leave; setPendingLeave(null); leave?.(); }}
       />
 
       {rowToDelete && (

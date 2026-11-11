@@ -69,7 +69,7 @@ const renderApp = () => {
   return router;
 };
 
-const unsavedDialog = () => screen.queryByRole('dialog', { name: 'Unsaved procurement' });
+const unsavedDialog = () => screen.queryByRole('alertdialog', { name: 'Discard your changes?' });
 
 describe('#1525 browser Back holds an unsaved purchase draft', () => {
   beforeEach(() => {
@@ -80,7 +80,7 @@ describe('#1525 browser Back holds an unsaved purchase draft', () => {
     mocks.createItem.mockResolvedValue({});
   });
 
-  it('asks before discarding: Stay keeps the draft and its typed title, Leave returns to the list', async () => {
+  it('asks before discarding: Keep editing retains the draft and Discard returns to the list', async () => {
     const router = renderApp();
     await act(async () => { await router.navigate('/procurement/new?have=need'); });
     const title = screen.getByLabelText(/^title/i);
@@ -91,15 +91,15 @@ describe('#1525 browser Back holds an unsaved purchase draft', () => {
     await waitFor(() => expect(unsavedDialog()).toBeInTheDocument());
     expect(window.location.pathname).toBe('/procurement/new');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Stay' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     await waitFor(() => expect(unsavedDialog()).not.toBeInTheDocument());
     expect(window.location.pathname).toBe('/procurement/new');
     expect(screen.getByLabelText(/^title/i)).toHaveValue('Aluminium sheets for Kiln 2');
 
-    // A second Back still asks, and Leave now honours the exit the user asked for.
+    // A second Back still asks, and Discard honours the exit the user asked for.
     await act(async () => { window.history.back(); });
     await waitFor(() => expect(unsavedDialog()).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Leave' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
 
     await waitFor(() => expect(window.location.pathname).toBe('/procurement'));
     expect(screen.getByTestId('procurement-list')).toBeVisible();

@@ -98,7 +98,7 @@ describe('StockCount', () => {
     await userEvent.type(screen.getByLabelText(/^Counted/), '92');
 
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(await screen.findByRole('dialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByLabelText(/^Counted/)).toHaveValue('92');
     expect(screen.queryByText('stock documents')).not.toBeInTheDocument();
