@@ -729,7 +729,11 @@
     "withholdingArticleNone": "Tidak disebutkan",
     "withholdingArticlePph23": "PPh 23",
     "withholdingArticlePph42": "PPh 4(2)",
-    "withholdingArticleNotStated": "Tidak disebutkan"
+    "withholdingArticleNotStated": "Tidak disebutkan",
+    "invoiceLoading": "Memuat faktur…",
+    "noOpenInvoicesForCustomer": "Tidak ada faktur terbuka untuk pelanggan ini.",
+    "otherLedgerInvoiceSingular": "1 faktur terbuka tercatat di sistem akuntansi: catat pembayarannya di sana.",
+    "otherLedgerInvoicesPlural": "{{count}} faktur terbuka tercatat di sistem akuntansi: catat pembayarannya di sana."
   },
   "odooOutcome": {
     "confirmed": "Ada di Odoo",

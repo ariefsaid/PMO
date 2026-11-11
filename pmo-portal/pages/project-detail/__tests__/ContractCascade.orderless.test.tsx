@@ -46,7 +46,7 @@ import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 const project = {
   id: 'p1', code: 'PRJ-1', name: 'Busy project', currency: 'IDR', contract_value: 500_000,
   tax_treatment: 'exclusive', tax_amount: 0, tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1,
-  client: null, end_client: null, pm: null,
+  client: null, end_client: null, pm: null, project_manager_id: 'pm-synthetic',
 } as unknown as ProjectWithRefs;
 
 const RouteSearch = () => {
@@ -121,6 +121,102 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(within(section).getByText('IDR 300').parentElement).toHaveTextContent(/^OverdueIDR 300$/);
     expect(within(section).getByText('Can invoice')).toBeInTheDocument();
     expect(within(section).getByText('Overdue')).toBeInTheDocument();
+  });
+
+  it('explains a zero billable amount when no customer order is recorded', () => {
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Before you can bill' });
+    expect(checklist).toHaveTextContent('Phase progress is not billable quantity.');
+    expect(checklist).toHaveTextContent('No customer orders.');
+    expect(within(checklist).getByTestId('billability-step-order')).toHaveTextContent('Customer order recorded');
+    expect(within(checklist).getByTestId('billability-step-order')).toHaveTextContent('Needed');
+    expect(within(checklist).getByTestId('billability-step-allocation')).toHaveTextContent('Not needed');
+    expect(within(checklist).getByTestId('billability-step-acceptance')).toHaveTextContent('Not needed');
+    expect(within(checklist).getByRole('link', { name: 'Add customer order' })).toHaveAttribute('href', '/projects/p1/contract#add-customer-order');
+  });
+
+  it('names a draft customer order as the blocker and links to that order', () => {
+    h.orders = { data: [{ id: 'wo-draft', status: 'Draft' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Before you can bill' });
+    expect(checklist).toHaveTextContent('The customer order is still a draft.');
+    expect(within(checklist).getByRole('link', { name: 'Open draft order' })).toHaveAttribute('href', '/projects/p1/contract?wo=wo-draft');
+  });
+
+  it('explains a zero billable amount when customer orders have no allocated contract lines', () => {
+    h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 10, allocations: [] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Before you can bill' });
+    expect(checklist).toHaveTextContent('No contract lines are allocated.');
+    expect(within(checklist).getByTestId('billability-step-order')).toHaveTextContent('Done');
+    expect(within(checklist).getByTestId('billability-step-allocation')).toHaveTextContent('Needed');
+    expect(within(checklist).getByRole('link', { name: 'Allocate contract lines' })).toHaveAttribute('href', '/projects/p1/contract?wo=wo-1');
+  });
+
+  it('explains a zero billable amount when allocated lines have no accepted quantities', () => {
+    h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: null, claimedQuantity: 0 }] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Before you can bill' });
+    expect(checklist).toHaveTextContent('No accepted quantities.');
+    expect(within(checklist).getByTestId('billability-step-acceptance')).toHaveTextContent('Needed');
+    expect(within(checklist).getByRole('link', { name: 'Record accepted quantity' })).toHaveAttribute('href', '/projects/p1/contract?wo=wo-1');
+  });
+
+  it('explains that accepted quantities are already claimed when nothing remains to bill', () => {
+    h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: 4, claimedQuantity: 4 }] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Before you can bill' });
+    expect(checklist).toHaveTextContent('Accepted quantities are already claimed.');
+    expect(within(checklist).getByTestId('billability-step-unclaimed')).toHaveTextContent('Needed');
+  });
+
+  it('explains when money-only customer order value is already invoiced', () => {
+    h.orders = { data: [{ id: 'wo-money', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.orderBilling = { data: [{ lineCount: 0, figuresComplete: true, remaining: 0 }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Before you can bill' });
+    expect(checklist).toHaveTextContent('Customer order value is already invoiced.');
+    expect(within(checklist).getByTestId('billability-step-order')).toHaveTextContent('Done');
+  });
+
+  it('shows a real computed zero separately from missing or claimed billing inputs', () => {
+    h.boq = { data: [{ id: 'b1', quantity: 10, rate: 0, item_code: 'L-1', description: 'Zero-rate line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 0, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: 4, claimedQuantity: 0 }] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Before you can bill' });
+    expect(checklist).toHaveTextContent('The billable total is zero at current contract rates.');
+    expect(within(checklist).getByTestId('billability-step-unclaimed')).toHaveTextContent('Done');
+    expect(within(checklist).queryByText('No accepted quantities.')).not.toBeInTheDocument();
+    expect(within(checklist).queryByText('Accepted quantities are already claimed.')).not.toBeInTheDocument();
+  });
+
+  it('marks every billability check done when accepted unclaimed quantity has value', () => {
+    h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: 4, claimedQuantity: 2 }] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Before you can bill' });
+    const summary = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
+    expect(within(summary).getByText('Can invoice').parentElement).toHaveTextContent(/^Can invoiceIDR 200$/);
+    for (const step of ['order', 'allocation', 'acceptance', 'unclaimed']) {
+      expect(within(checklist).getByTestId(`billability-step-${step}`)).toHaveTextContent('Done');
+    }
+    expect(within(checklist).queryByText(/zero at current contract rates/i)).not.toBeInTheDocument();
   });
 
   // #1457 regression: the shared overdue rule derives the due date when the ERP one is absent, so a

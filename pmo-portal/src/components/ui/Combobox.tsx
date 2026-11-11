@@ -33,6 +33,8 @@ export interface ComboboxOption {
   label: string;
   /** Optional secondary line (e.g. "Client" / "Vendor"). */
   sub?: string;
+  /** Additional terms accepted by the local search but not rendered in the option. */
+  searchTerms?: string[];
   /** Render a full, wrapping label with `sub` on its own line for server results that need distinguishing details. */
   wrapLabel?: boolean;
   /** Optional non-truncating labels shown as separate badges in the option row. */
@@ -66,6 +68,10 @@ export interface ComboboxProps {
   /** Async option loader (the DAL FK source). Re-invoked on retry. */
   loadOptions?: () => Promise<ComboboxOption[]>;
   serverSearch?: ComboboxServerSearch;
+  /** Override the local option load state when the options depend on an external query. */
+  statusOverride?: 'loading' | 'error';
+  /** Retry the external query when `statusOverride` is `error`. */
+  onRetry?: () => void;
   placeholder?: string;
   required?: boolean;
   error?: React.ReactNode;
@@ -73,6 +79,8 @@ export interface ComboboxProps {
   searchPlaceholder?: string;
   /** Noun for the empty/error copy, e.g. "company". */
   noun?: string;
+  /** Override the empty state. Return undefined from a callback to keep the standard copy. */
+  emptyMessage?: React.ReactNode | ((query: string) => React.ReactNode | undefined);
   /** Show a clear (x) affordance on a selected value; `onClear` resets to null. */
   clearable?: boolean;
   onClear?: () => void;
@@ -105,11 +113,14 @@ export const Combobox: React.FC<ComboboxProps> = ({
   onChange,
   loadOptions,
   serverSearch,
+  statusOverride,
+  onRetry,
   placeholder = 'Select…',
   required,
   error,
   searchPlaceholder,
   noun = 'option',
+  emptyMessage,
   clearable,
   onClear,
   disabled,
@@ -134,7 +145,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   const ss = serverSearch;
   const ssRef = useRef(ss);
   ssRef.current = ss;
-  const state: LoadState = ss ? ss.status : localState;
+  const state: LoadState = ss ? ss.status : statusOverride ?? localState;
   const options = ss ? ss.options : localOptions;
   const highlightedRef = useRef<ComboboxOption | undefined>(undefined);
 
@@ -166,7 +177,9 @@ export const Combobox: React.FC<ComboboxProps> = ({
   const filter = useCallback((o: ComboboxOption, query: string) => {
     const q = normalizeForSearch(query.trim());
     if (!q) return true;
-    return normalizeForSearch(o.label).includes(q) || !!(o.sub && normalizeForSearch(o.sub).includes(q));
+    return normalizeForSearch(o.label).includes(q)
+      || !!(o.sub && normalizeForSearch(o.sub).includes(q))
+      || !!o.searchTerms?.some((term) => normalizeForSearch(term).includes(q));
   }, []);
 
   // How many options match the query in TOTAL (not just the rendered page), so the
@@ -357,7 +370,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
                   {t('combobox.error.title', { defaultValue: "Couldn't load {{noun}}s.", noun })}
                   <button
                     type="button"
-                    onClick={() => (ss ? ss.onRetry() : load())}
+                    onClick={() => (ss ? ss.onRetry() : onRetry ? onRetry() : load())}
                     className="mt-2 inline-flex items-center gap-1.5 font-semibold text-primary"
                   >
                     <Icon name="refresh" className="size-[14px]" />
@@ -369,9 +382,13 @@ export const Combobox: React.FC<ComboboxProps> = ({
               {state === 'ready' && (
                 <>
                   <BaseCombobox.Empty className="px-3 py-3.5 text-center text-control text-muted-foreground empty:hidden">
-                    {query
-                      ? t('combobox.empty.withQuery', { defaultValue: 'No {{noun}} matches "{{query}}".', noun, query })
-                      : t('combobox.empty.bare', { defaultValue: 'No {{noun}} matches.', noun })}
+                    {(() => {
+                      const customMessage = typeof emptyMessage === 'function' ? emptyMessage(query) : emptyMessage;
+                      if (customMessage !== undefined) return customMessage;
+                      return query
+                        ? t('combobox.empty.withQuery', { defaultValue: 'No {{noun}} matches "{{query}}".', noun, query })
+                        : t('combobox.empty.bare', { defaultValue: 'No {{noun}} matches.', noun });
+                    })()}
                   </BaseCombobox.Empty>
                   <BaseCombobox.List
                     aria-label={t('combobox.listLabel', { defaultValue: '{{noun}}s', noun })}
