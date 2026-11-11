@@ -107,13 +107,13 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
                   key={invoice.id}
                   to={href}
                   aria-label={t('financeHub:hub.fix.overdue.openInvoice', { defaultValue: 'Open {{client}} invoice {{number}}', client, number: invoiceNumber(invoice) ?? '—' })}
-                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 py-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                  className="grid min-w-0 grid-cols-1 items-center gap-x-3 gap-y-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                 >
                   <span className="min-w-0">
-                    <span className="flex min-w-0 items-baseline gap-1"><span className="min-w-0 truncate font-medium">{client}</span><span className="shrink-0 font-mono text-muted-foreground">· {invoiceNumber(invoice) ?? '—'}</span></span>
-                    <span className="flex min-w-0 items-baseline gap-1 text-sm text-muted-foreground"><span className="min-w-0 truncate">{project ? projectDisplayName(project) : t('financeHub:hub.fix.overdue.unknownProject', 'Project unavailable')}</span><span className="shrink-0">· {t('financeHub:hub.fix.overdue.due', { defaultValue: 'Due {{date}}', date: dueDate ? formatDay(dueDate) : '—' })}</span></span>
+                    <span className="block min-w-0 break-words"><span className="font-medium">{client}</span><span className="font-mono text-muted-foreground"> · {invoiceNumber(invoice) ?? '—'}</span></span>
+                    <span className="block min-w-0 break-words text-sm text-muted-foreground">{project ? projectDisplayName(project) : t('financeHub:hub.fix.overdue.unknownProject', 'Project unavailable')} · {t('financeHub:hub.fix.overdue.due', { defaultValue: 'Due {{date}}', date: dueDate ? formatDay(dueDate) : '—' })}</span>
                   </span>
-                  <span className="min-w-0 text-right">
+                  <span className="min-w-0 sm:text-right">
                     <StatusPill variant="overdue">{partlyPaid
                       ? t('finance:receivables.statusPartlyPaidLate', { count: daysOverdue, n: String(daysOverdue), defaultValue_one: 'Partly paid · {{n}} day overdue', defaultValue_other: 'Partly paid · {{n}} days overdue' })
                       : t('status:age.overdue', { count: daysOverdue, n: String(daysOverdue), defaultValue_one: '{{n}} day overdue', defaultValue_other: '{{n}} days overdue' })}</StatusPill>
