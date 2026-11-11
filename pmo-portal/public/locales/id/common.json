@@ -3905,7 +3905,7 @@
     "viewNotFoundDescription": "Tampilan ini mungkin telah diarsipkan atau Anda tidak memiliki akses.",
     "goToMyViews": "Buka Tampilan Saya",
     "newView": "Tampilan Baru",
-    "editView": "Edit: {{name}}",
+    "editView": "{{name}}",
     "aiDraftReview": "Draf buatan AI: tinjau sebelum disimpan",
     "composeWithAi": "Susun tampilan dengan AI",
     "cancel": "Batal",
