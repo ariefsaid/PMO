@@ -8,6 +8,8 @@ import {
   type DataTableSelection,
 } from '@/src/components/ui';
 import { ProjectIntegrationsCard } from '@/src/components/projects/ProjectIntegrationsCard';
+import { StackedBar } from '@/src/components/projects/StackedBar';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { useLocation, useSearchParams } from 'react-router';
 import { scrollBehavior } from '@/src/lib/motion';
 import { useTranslation } from 'react-i18next';
@@ -68,6 +70,7 @@ const TasksTab: React.FC<TasksTabProps> = (props) => {
  */
 const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', onCountChange }) => {
   const { t } = useTranslation('project');
+  const { t: tStatus } = useTranslation('status');
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const { currentUser } = useAuth();
@@ -467,6 +470,23 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         onApplyBulk={() => void applyBulkAction()}
         selectedActiveCount={selectedTasks.filter((task) => task.archived_at == null).length}
       />
+
+      {/* Parts of a whole: where the work stands. Blocked is the one accent. */}
+      {state !== 'loading' && state !== 'error' && scopedTasks.length >= 3 && (
+        <div className="px-[var(--panel-inset)] pb-3">
+          <StackedBar
+            ariaLabel={t('projectDetail.tasks.statusMix', 'Tasks by status')}
+            otherLabel={t('projectDetail.tasks.statusMixOther', 'Other')}
+            segments={(['To Do', 'In Progress', 'Blocked', 'Done'] as const).map((status) => ({
+              key: status,
+              label: statusLabel('task', status, tStatus),
+              value: scopedTasks.filter((task) => task.status === status).length,
+              display: String(scopedTasks.filter((task) => task.status === status).length),
+              accent: status === 'Blocked',
+            }))}
+          />
+        </div>
+      )}
 
       {state === 'loading' && (
         <ListState variant="loading" rows={5} className="px-[var(--panel-inset)] pb-[var(--panel-inset)]" />

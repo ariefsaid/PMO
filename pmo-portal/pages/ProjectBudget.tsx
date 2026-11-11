@@ -17,6 +17,7 @@ import { useUsers } from '@/src/hooks/useUsers';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
+import { StackedBar } from '@/src/components/projects/StackedBar';
 import { formatNumberMax2, formatDay, formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatExactCents, parseExactCents } from '@/src/lib/exactDecimal';
@@ -859,6 +860,25 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')} />
         <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} {...tileAmount(totalLeft)} caption={spentExcludedNote} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? (compatibleBasis ? t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.') : t('projectDetail.budget.currencyComparisonUnavailable', 'Comparison unavailable because budget and spending use different currencies.')) : undefined} hiddenLink={compatibleBasis ? spendingSetupLink : undefined} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
       </KPIRow>
+
+      {/* Parts of a whole: where the budget sits, drawn so the shares read at a glance. */}
+      {view === 'actual' && enrichedRows.filter((row) => row.budget > 0).length >= 3 && (
+        <Card className="min-w-0">
+          <CardHead className="pb-1">{t('projectDetail.budget.byCategory', 'Budget by category')}</CardHead>
+          <CardPad className="pt-2">
+            <StackedBar
+              ariaLabel={t('projectDetail.budget.byCategory', 'Budget by category')}
+              otherLabel={t('projectDetail.budget.otherCategories', 'Other')}
+              segments={enrichedRows.filter((row) => row.budget > 0).map((row) => ({
+                key: row.category,
+                label: budgetCategoryLabel(row.category, t),
+                value: row.budget,
+                display: formatTileMoney(row.budget, activeBudgetCurrency ?? project.currency) ?? String(row.budget),
+              }))}
+            />
+          </CardPad>
+        </Card>
+      )}
 
       <Card role="region" aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0">
         <CardHead className="pb-1">{t('projectDetail.budget.budgetVsActual', 'Budget vs actual')}</CardHead>

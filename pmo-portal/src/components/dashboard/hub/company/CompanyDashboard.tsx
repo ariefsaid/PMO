@@ -282,7 +282,12 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const panelGrid = 'grid items-start gap-[var(--space-panel-gap)]';
   if (overview) {
     // Overview: everything on one page. "Waits on you" is a third of the first row; charts carry the analysis.
-    const tilesNode = tilesRow('grid-cols-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col [&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:[&>*:last-child:nth-child(odd)]:col-span-1', positionTiles);
+    // Still to invoice is a position figure: the executive's fourth tile, drawn only when known (unknown is counted in the hidden line).
+    const stillTile = !finance && !(figures.todayPending || figures.periodPending)
+      ? moneyTile(todayFigure('still-to-invoice'), { label: t('home.stillToInvoice', 'Still to invoice'), caption: '' })
+      : null;
+    const overviewTiles = stillTile ? [...positionTiles.slice(0, 3), stillTile, ...positionTiles.slice(3)] : positionTiles;
+    const tilesNode = tilesRow('grid-cols-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col [&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:[&>*:last-child:nth-child(odd)]:col-span-1', overviewTiles);
     const lossRange = figures.winRateRange;
     const wonAmounts = won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined;
     // The chart area is two independent columns (no card waits for its neighbour's height); on a phone the columns
@@ -290,14 +295,13 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const ORDER = ['', 'max-[899px]:order-1', 'max-[899px]:order-2', 'max-[899px]:order-3', 'max-[899px]:order-4', 'max-[899px]:order-5', 'max-[899px]:order-6'];
     const columns = 'grid content-start gap-[var(--space-panel-gap)] max-[899px]:contents';
     const invoicedCard = (order: number) => <InvoicedCollectedCard className={ORDER[order]} months={figures.invoicedByMonth} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.periodPending} error={figures.periodError} retry={figures.periodRetry} currency={orgCurrency} />;
-    // Billing (exec): Collected and Still to invoice, the figures that used to sit under "Analysis".
+    // Billing (exec): Collected, the figure that used to sit under "Analysis".
     const billingTiles = (
       <KPIRow aria-label={t('home.billing', 'Billing')} className={cn('grid-flow-col auto-cols-fr', ORDER[6])}>
         {moneyTile(collected, collectedOpts)}
-        {moneyTile(todayFigure('still-to-invoice'), { label: t('home.stillToInvoice', 'Still to invoice'), caption: '' })}
       </KPIRow>
     );
-    const billingKnown = (!collectedUnsynced && moneyTileValue(collected?.amounts, orgCurrency) !== null) || moneyTileValue(todayFigure('still-to-invoice')?.amounts, orgCurrency) !== null;
+    const billingKnown = !collectedUnsynced && moneyTileValue(collected?.amounts, orgCurrency) !== null;
     const billing = billingKnown
       ? billingTiles
       : <div hidden>{billingTiles}</div>;

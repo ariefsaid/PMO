@@ -44,7 +44,7 @@ vi.mock('@/src/components/shell', async (importOriginal) => ({
 }));
 
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
-import { ShellChrome } from '@/App';
+import { preloadsForPath, ShellChrome } from '@/App';
 
 const LocationProbe = () => { const loc = useLocation(); return <output data-testid="location">{loc.pathname + loc.search}</output>; };
 
@@ -76,5 +76,9 @@ describe('UXS-006 localized shell vocabulary', () => {
     expect(screen.queryByRole('option', { name: /^Pemasok$/ })).not.toBeInTheDocument();
     await user.keyboard('{Escape}');
     await choose('my tasks', /^Tugas Saya/, '/my-tasks', 'Tugas Saya');
+    // Route-entry and rail intent preloads can still be transforming when the journey ends.
+    await Promise.all(['/', '/approvals', '/companies', '/my-tasks'].flatMap((path) =>
+      preloadsForPath(path).map((chunk) => chunk.preload()),
+    ));
   });
 });

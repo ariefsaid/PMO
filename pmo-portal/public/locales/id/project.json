@@ -481,7 +481,8 @@
       "cashLead": "Diterima {{amount}}",
       "contractLocked": "hanya baca",
       "cashIncompleteShort": "Kas diterima (kwitansi belum dialokasikan ke faktur)",
-      "cashInvalidShort": "Kas diterima (pembacaan kwitansi belum diverifikasi)"
+      "cashInvalidShort": "Kas diterima (pembacaan kwitansi belum diverifikasi)",
+      "cashUnmatchedShort": "Kas diterima (belum ada penerimaan yang dicocokkan)"
     },
     "cost": {
       "estimateTitle": "Anggaran",
@@ -899,7 +900,9 @@
         "history": "Riwayat"
       },
       "noMilestone": "Tanpa fase",
-      "drawerMoreActions": "Tindakan tugas lainnya"
+      "drawerMoreActions": "Tindakan tugas lainnya",
+      "statusMix": "Tugas menurut status",
+      "statusMixOther": "Lainnya"
     },
     "workOrders": {
       "acceptanceAge": "Hari sejak BAST, belum ditagih: {{days}}",

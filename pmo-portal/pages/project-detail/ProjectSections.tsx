@@ -106,13 +106,16 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           <MyOpenTasks projectId={project.id} />
           {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
         </div>
-        <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
         {/* AC-PERF-003 (plan 1c): the work-order billing block sits below the fold — its three reads
             wait until the block nears the viewport (WhenNearViewport renders children immediately
-            where IntersectionObserver is absent, so unit tests and old browsers are unchanged). */}
-        <WhenNearViewport>
-          <BillingMilestonesBlock projectId={project.id} />
-        </WhenNearViewport>
+            where IntersectionObserver is absent, so unit tests and old browsers are unchanged).
+            A short list takes a third beside the wide timeline, not a full-width card. */}
+        <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
+          <WhenNearViewport>
+            <BillingMilestonesBlock projectId={project.id} />
+          </WhenNearViewport>
+        </div>
       </div>
     ) : (
       <FigureScope><div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
@@ -124,10 +127,12 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1"><MoneyBlock project={project} /></div>}
           <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} /></div>
         </div>
-        <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
-        <WhenNearViewport>
-          <BillingMilestonesBlock projectId={project.id} />
-        </WhenNearViewport>
+        <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
+          <WhenNearViewport>
+            <BillingMilestonesBlock projectId={project.id} />
+          </WhenNearViewport>
+        </div>
       </div></FigureScope>
     )
   );
