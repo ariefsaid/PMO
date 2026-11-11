@@ -1,9 +1,8 @@
 import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import {
-  Button, Combobox, ConfirmDialog, DataTable, Icon, ListPage, ListState, ReasonDialog, SelectField, StatusPill, Tabs, TextField, tabId, tabPanelId, useToast,
+  Button, Combobox, ConfirmDialog, DataTable, Icon, ListPage, ListState, ReasonDialog, SelectField, StatusPill, Tabs, TextField, tabId, tabPanelId, useToast, useUrlFilters,
   type Column,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
@@ -58,11 +57,16 @@ const EquipmentUsagePage: React.FC = () => {
   const canLog = may('create', 'equipmentUsage', writeCtx);
   const userId = useAuth().currentUser?.id ?? null;
   const today = toIso(new Date());
-  // `?week=YYYY-MM-DD` deep-links a week (any day in it); otherwise the grid opens on this week.
-  const [params] = useSearchParams();
-  const [weekStart, setWeekStart] = useState(() => mondayOf(/^\d{4}-\d{2}-\d{2}$/.test(params.get('week') ?? '') ? params.get('week')! : today));
-  const [tab, setTab] = useState<Tab>('log');
-  const [assetFilter, setAssetFilter] = useState<string | null>(null);
+  // R2: week/tab/asset are URL-owned (`?week=YYYY-MM-DD`, the same deep-link contract) so
+  // Back/refresh return to them; defaults (this week, My usage, all assets) stay out of the URL.
+  const { values, setFilter } = useUrlFilters(['week', 'tab', 'asset']);
+  const thisWeek = mondayOf(today);
+  const weekStart = /^\d{4}-\d{2}-\d{2}$/.test(values.week) ? mondayOf(values.week) : thisWeek;
+  const setWeekStart = (iso: string) => setFilter('week', iso === thisWeek ? '' : iso);
+  const tab: Tab = values.tab === 'approvals' ? 'approvals' : 'log';
+  const setTab = (next: Tab) => setFilter('tab', next === 'log' ? '' : next);
+  const assetFilter = values.asset || null;
+  const setAssetFilter = (next: string | null) => setFilter('asset', next ?? '');
   const [added, setAdded] = useState<Array<{ assetId: string; projectId: string; kind: Kind }>>([]);
   const [opened, setOpened] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);

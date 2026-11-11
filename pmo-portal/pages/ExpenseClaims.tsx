@@ -1,8 +1,8 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, useToast, type Column } from '@/src/components/ui';
+import { Button, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, useToast, useUrlFilters, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectChoices } from './expenses/useProjectChoices';
 import { useExpenseClaims, useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
@@ -28,24 +28,17 @@ const ExpenseClaims: React.FC = () => {
   const may = usePermission();
   const { toast } = useToast();
   // #1461: the dashboard 'Expense claims returned' figure counts Rejected claims and drills with
-  // `?status=Rejected`, so the list opens exactly that set. The select keeps the URL shareable.
-  const [searchParams, setSearchParams] = useSearchParams();
+  // `?status=Rejected`, so the list opens exactly that set. R2: status/kind/category are all
+  // URL-owned (the same hook as Contacts/Incidents), so Back/refresh and a shared link restore
+  // them; defaults stay out of the URL (empty = all).
   const VALID_STATUSES = Constants.public.Enums.expense_claim_status;
-  const requestedStatus = searchParams.get('status');
-  const [status, setStatusState] = useState(
-    requestedStatus && (VALID_STATUSES as readonly string[]).includes(requestedStatus) ? requestedStatus : '',
-  );
-  const setStatus = (next: string) => {
-    setStatusState(next);
-    setSearchParams((current) => {
-      const nextParams = new URLSearchParams(current);
-      if (next) nextParams.set('status', next);
-      else nextParams.delete('status');
-      return nextParams;
-    }, { replace: true });
-  };
-  const [kind, setKind] = useState('');
-  const [category, setCategory] = useState('');
+  const { values, setFilter } = useUrlFilters(['status', 'kind', 'category']);
+  const status = (VALID_STATUSES as readonly string[]).includes(values.status) ? values.status : '';
+  const kind = values.kind;
+  const category = values.category;
+  const setStatus = (next: string) => setFilter('status', next);
+  const setKind = (next: string) => setFilter('kind', next);
+  const setCategory = (next: string) => setFilter('category', next);
   const filters = useMemo<ExpenseClaimFilters>(
     () => ({
       ...(status ? { status: status as ExpenseClaimStatus } : {}),

@@ -83,8 +83,18 @@ const MyTasks: React.FC = () => {
     return next;
   }, { replace: true });
   const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string } | null>(null);
-  const [queue, setQueue] = React.useState<'open' | 'completed'>('open');
-  const [search, setSearch] = React.useState('');
+  // R2: queue and search are URL-owned like the due=week drill, so Back/refresh keep them;
+  // defaults stay out of the URL (empty = open queue, no search).
+  const setParam = (key: string, value: string) => setSearchParams((current) => {
+    const next = new URLSearchParams(current);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    return next;
+  }, { replace: true });
+  const queue = searchParams.get('queue') === 'completed' ? 'completed' : 'open';
+  const setQueue = (next: 'open' | 'completed') => setParam('queue', next === 'completed' ? next : '');
+  const search = searchParams.get('q') ?? '';
+  const setSearch = (value: string) => setParam('q', value);
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
   const { toast } = useToast();
