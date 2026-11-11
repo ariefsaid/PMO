@@ -633,6 +633,11 @@ export type AgeTranslate = (
   options: { count: number; n: string; defaultValue_one: string; defaultValue_other: string },
 ) => string;
 
+export type LateTranslate = (
+  key: 'status:age.late',
+  options: { count: number; n: string; defaultValue_one: string; defaultValue_other: string },
+) => string;
+
 /** "118 days overdue" — a number with its unit, nothing relative-sounding. null when not overdue. */
 export function formatDaysOverdue(due: DayInput, t: AgeTranslate, now: Date = new Date()): string | null {
   const days = daysOverdue(due, now);
@@ -642,6 +647,18 @@ export function formatDaysOverdue(due: DayInput, t: AgeTranslate, now: Date = ne
     n: formatNumberWhole(days),
     defaultValue_one: '{{n}} day overdue',
     defaultValue_other: '{{n}} days overdue',
+  });
+}
+
+/** "118 days late" — plain wording for the non-emphasized overdue rows in a grouped list. */
+export function formatDaysLate(due: DayInput, t: LateTranslate, now: Date = new Date()): string | null {
+  const days = daysOverdue(due, now);
+  if (days === null) return null;
+  return t('status:age.late', {
+    count: days,
+    n: formatNumberWhole(days),
+    defaultValue_one: '{{n}} day late',
+    defaultValue_other: '{{n}} days late',
   });
 }
 
