@@ -1,6 +1,6 @@
 {
   "backToProcurement": "Procurement",
-  "backToChoices": "What do you have?",
+  "backToChoices": "choose type",
   "denied": "You do not have permission to create procurements.",
   "question": "What do you have?",
   "continueAttempt": "The save may have completed. Continue with the same choice to retry.",

@@ -81,6 +81,10 @@ export interface ComboboxProps {
   searchPlaceholder?: string;
   /** Noun for the empty/error copy, e.g. "company". */
   noun?: string;
+  /** Plural of `noun` for the search/empty/list copy — pass it when the English plural is
+   *  irregular ("company" → "companies"); defaults to the regular "s". Indonesian copy never
+   *  pluralizes (it uses the bare `noun`), so only English callers with an irregular noun need it. */
+  nounPlural?: string;
   /** Override the empty state. Return undefined from a callback to keep the standard copy. */
   emptyMessage?: React.ReactNode | ((query: string) => React.ReactNode | undefined);
   /** Show a clear (x) affordance on a selected value; `onClear` resets to null. */
@@ -123,6 +127,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   helper,
   searchPlaceholder,
   noun = 'option',
+  nounPlural,
   emptyMessage,
   clearable,
   onClear,
@@ -137,6 +142,9 @@ export const Combobox: React.FC<ComboboxProps> = ({
   const labelId = `${baseId}-lbl`;
   const errId = `${baseId}-err`;
   const helpId = `${baseId}-help`;
+  // Both forms go into every copy string; each locale's catalogue picks the one it pluralizes with
+  // (en "Search {{nounPlural}}", id "Cari {{noun}}" — Indonesian does not inflect for number).
+  const nounPluralLabel = nounPlural ?? `${noun}s`;
 
   const [open, setOpen] = useState(false);
   // #2122: a keyboard-activated open appears instantly (no 120ms menuPopIn). Base UI's Menu derives
@@ -349,8 +357,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
               <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                 <Icon name="search" className="size-[15px] shrink-0 text-muted-foreground" />
                 <BaseCombobox.Input
-                  aria-label={t('combobox.search.label', { defaultValue: 'Search {{noun}}s', noun })}
-                  placeholder={searchPlaceholder ?? t('combobox.search.placeholder', { defaultValue: 'Search {{noun}}s…', noun })}
+                  aria-label={t('combobox.search.label', { defaultValue: 'Search {{nounPlural}}', noun, nounPlural: nounPluralLabel })}
+                  placeholder={searchPlaceholder ?? t('combobox.search.placeholder', { defaultValue: 'Search {{nounPlural}}…', noun, nounPlural: nounPluralLabel })}
                   onKeyDown={(e) => {
                     // Server paging: ArrowDown past the last loaded option asks for the next page.
                     if (e.key === 'ArrowDown' && ss?.hasMore && highlightedRef.current === options[options.length - 1]) {
@@ -366,13 +374,13 @@ export const Combobox: React.FC<ComboboxProps> = ({
                   <div className="skel skel-line" style={{ width: '72%' }} />
                   <div className="skel skel-line" style={{ width: '58%' }} />
                   <div className="skel skel-line" style={{ width: '65%' }} />
-                  <span className="sr-only">{t('combobox.loading', { defaultValue: 'Loading {{noun}}s…', noun })}</span>
+                  <span className="sr-only">{t('combobox.loading', { defaultValue: 'Loading {{nounPlural}}…', noun, nounPlural: nounPluralLabel })}</span>
                 </div>
               )}
 
               {state === 'error' && (
                 <div className="px-3 py-3.5 text-center text-control" style={{ color: 'hsl(0 72% 45%)' }}>
-                  {t('combobox.error.title', { defaultValue: "Couldn't load {{noun}}s.", noun })}
+                  {t('combobox.error.title', { defaultValue: "Couldn't load {{nounPlural}}.", noun, nounPlural: nounPluralLabel })}
                   <button
                     type="button"
                     onClick={() => (ss ? ss.onRetry() : onRetry ? onRetry() : load())}
@@ -396,7 +404,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
                     })()}
                   </BaseCombobox.Empty>
                   <BaseCombobox.List
-                    aria-label={t('combobox.listLabel', { defaultValue: '{{noun}}s', noun })}
+                    aria-label={t('combobox.listLabel', { defaultValue: '{{nounPlural}}', noun, nounPlural: nounPluralLabel })}
                     className="max-h-[220px] overflow-y-auto p-1.5 empty:hidden"
                   >
                     {(opt: ComboboxOption) => (

@@ -89,6 +89,15 @@ test('AC-1461: overdue and supplier-payable rows drill to lists whose count equa
     // "3" or "Showing 3 of 5" — the counted rows are the first number either way.
     return text.match(/\d+/)?.[0] ?? '';
   };
+  /** ux/1110: the receivables page embeds the invoice list and hides its page-header count chip
+   *  (`hideHeader`), so the count the user reads is the list's own filtered count — the FilterBar's
+   *  "Showing X of Y". The list is not paginated, so the rendered rows are the whole filtered set
+   *  and serve as the same count where the bar is not drawn. */
+  const filteredInvoiceCount = async () => {
+    const showing = page.getByText(/^Showing \d+ of \d+$/).first();
+    if (await showing.count() > 0) return (await showing.textContent())?.match(/\d+/)?.[0] ?? '';
+    return String(await page.locator('tbody tr').count());
+  };
   const rowCount = async (name: RegExp) => {
     const row = waits.getByRole('link', { name });
     await expect(row).toBeVisible();
@@ -100,11 +109,15 @@ test('AC-1461: overdue and supplier-payable rows drill to lists whose count equa
   expect(overdue.count, 'seed has overdue client invoices').not.toBe('');
   await overdue.row.click();
   await expect(page).toHaveURL(/\/finance\/receivables\?overdue=true/);
-  expect(await countFromBadge()).toBe(overdue.count);
+  // The overdue filter needs the org's today (it is skipped until that read lands), so wait for the
+  // list to report the filtered set rather than reading it mid-load.
+  await expect.poll(() => filteredInvoiceCount()).toBe(overdue.count);
 
   // ── Supplier invoices to pay → the exact Vendor Invoiced procurement segment ──
   await page.goto('/');
-  const supplier = await rowCount(/supplier invoices? to pay/);
+  // ux/1110 copy: the supplier-invoice row now reads "Payables" (the finance section's own word),
+  // instead of "N supplier invoices to pay". Same row, same drill to the Vendor Invoiced segment.
+  const supplier = await rowCount(/payables/i);
   expect(supplier.count, 'seed has awaiting-payment supplier invoices').not.toBe('');
   await supplier.row.click();
   await expect(page).toHaveURL(/[?&]status=Vendor\+Invoiced/);

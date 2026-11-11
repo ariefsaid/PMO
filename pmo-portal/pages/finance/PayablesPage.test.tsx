@@ -108,6 +108,24 @@ afterEach(() => {
 });
 
 describe('Payables page', () => {
+  it('uses plain lateness text except for the oldest overdue invoice', () => {
+    const base = payablesFixture();
+    const next = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-next', title: 'Inspection follow-up', code: 'PR-105' },
+      ageDays: 95,
+    } as FinancePosition['payables'][number];
+    renderPage('Finance', { ...base, payables: [next, base.payables[0]] });
+
+    const lateAges = screen.getAllByTestId('payables-late-age');
+    expect(lateAges).toHaveLength(2);
+    expect(screen.getByTestId('payables-overdue-count')).toHaveClass('bg-status-danger-surface');
+    expect(screen.getByTestId('payables-overdue-count')).toHaveTextContent('2 overdue');
+    expect(screen.getByRole('heading', { name: 'Invoice age' })).toBeVisible();
+    expect(lateAges.filter((row) => row.classList.contains('text-destructive-text'))).toHaveLength(1);
+    expect(lateAges.find((row) => row.classList.contains('text-destructive-text'))).toHaveTextContent('100 days');
+  });
+
   it('AC-1405-PAY-001: shows one shared to-pay total, ageing and supplier/project context', () => {
     renderPage();
 

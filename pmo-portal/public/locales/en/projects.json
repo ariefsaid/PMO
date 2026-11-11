@@ -91,5 +91,13 @@
     "actualInline": "{{amount}} actual"
   },
   "contractBasisNote": "Contract amounts are {{basis}}.",
-  "sharedManagerNote": "Project manager: {{name}}"
+  "sharedManagerNote": "Project manager: {{name}}",
+  "projectForm": {
+    "client": {
+      "nounPlural": "companies"
+    },
+    "endCustomer": {
+      "nounPlural": "companies"
+    }
+  }
 }

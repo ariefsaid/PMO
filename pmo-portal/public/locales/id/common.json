@@ -1816,7 +1816,7 @@
     "noSearchResults": "Tidak ada tugas yang cocok dengan pencarian",
     "noTasksInView": "Tidak ada tugas dalam tampilan ini",
     "start": "Mulai {{date}}",
-    "title": "Tugas Saya"
+    "title": "Tugas"
   },
   "procurement": {
     "columns": {
@@ -2405,7 +2405,9 @@
       "vatCommandLocked": "Terkunci selama perintah faktur sedang berjalan. Tunggu hingga selesai; perintah tertahan perlu ditinjau.",
       "vatCancelledHint": "Semua faktur proyek telah dibatalkan dan tidak ada perintah faktur yang berjalan. PPN dapat diubah untuk faktur berikutnya; pajak faktur yang dibatalkan tetap.",
       "vatEmptyHint": "Dapat diubah hingga faktur diterbitkan. Faktur baru mengikuti pengaturan ini.",
-      "vatStaleSave": "PPN tidak diubah. Status faktur proyek telah berubah; muat ulang dan coba lagi setelah semua faktur dibatalkan dan perintah selesai."
+      "vatStaleSave": "PPN tidak diubah. Status faktur proyek telah berubah; muat ulang dan coba lagi setelah semua faktur dibatalkan dan perintah selesai.",
+      "readOnly": "Hanya lihat",
+      "sodLockedNote": "Setelah proyek menang, nilai kontrak terkunci untuk role Anda. Hanya Eksekutif atau Keuangan yang dapat mengubahnya, dan perubahan itu tercatat."
     },
     "milestoneForm": {
       "create": "Buat fase",
@@ -3558,7 +3560,8 @@
         "inheritWithEffective": "Default organisasi: {{value}}",
         "id": "Bahasa Indonesia",
         "en": "English"
-      }
+      },
+      "effective": "Bahasa aktif: {{value}}"
     },
     "loading": "Memuat profil…",
     "number": {
@@ -3569,7 +3572,8 @@
         "inheritWithEffective": "Default organisasi: {{value}}",
         "id": "Indonesia (1.234.567,89)",
         "en": "Inggris (1,234,567.89)"
-      }
+      },
+      "effective": "Format angka aktif: {{value}}"
     },
     "refreshRetry": "Coba segarkan lagi",
     "save": "Simpan",
@@ -3584,7 +3588,8 @@
       "options": {
         "inherit": "Default organisasi",
         "inheritWithEffective": "Default organisasi: {{timezone}}"
-      }
+      },
+      "effective": "Zona waktu aktif: {{value}}"
     },
     "title": "Profil & preferensi"
   },

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { AccessDenied, Badge, Card, ListState, PageHeader, SelectField, ViewToggle } from '@/src/components/ui';
+import { AccessDenied, Card, ListState, PageHeader, SelectField, ViewToggle } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
@@ -296,14 +296,23 @@ const ApprovalsPage: React.FC = () => {
             data-testid="approvals-queue-region"
             className="min-w-0"
           >
-            <div className="mb-4 flex items-center justify-between gap-2 border-b border-border pb-3 [&>div]:ml-auto">
+            <div
+              data-testid="approvals-waiting-summary"
+              className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-waiting-surface p-4 [&>div]:ml-auto"
+            >
               <h2 className={activeScope === 'all' ? 'sr-only' : 'text-base font-semibold'}>
                 {activeScope === 'all' ? t('procurement:approvalQueue.headingAll', 'Purchases and timesheets') : t('approvals.queueHeading', 'Approvals queue')}
               </h2>
               <div className="flex flex-wrap items-center gap-2">
                 {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && <TimesheetBulkSelect controller={timesheetBulk} />}
                 {(activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement && <ProcurementBulkSelect controller={procurementBulk} />}
-                <Badge>{queueItems.length}</Badge>
+                <span
+                  data-testid="approvals-waiting-count"
+                  aria-label={`${queueItems.length} ${t('approvals.queueHeading', 'Approvals queue')}`}
+                  className="text-metric font-semibold tabular-nums text-foreground"
+                >
+                  {queueItems.length}
+                </span>
               </div>
             </div>
 
