@@ -134,7 +134,7 @@ const renderPage = () =>
   );
 
 async function openForm(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getAllByRole('button', { name: /Receive Payment|Terima Pembayaran/i })[0]);
+  await user.click(screen.getAllByRole('button', { name: /Receive payment|Terima Pembayaran/i })[0]);
 }
 
 async function pick(user: ReturnType<typeof userEvent.setup>, picker: string | RegExp, label: string) {
@@ -164,7 +164,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     hoisted.odooUnreachable = true;
     hoisted.paymentsState.data = [receipt()];
     renderPage();
-    expect(screen.queryByRole('button', { name: 'Receive Payment' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Receive payment' })).toBeNull();
     const row = screen.getByText('ODOO-PAY-001').closest('tr');
     expect(row).not.toBeNull();
     expect(within(row!).queryByRole('button', { name: 'Row actions' })).toBeNull();
@@ -497,7 +497,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await screen.findByText('Discard your changes?');
     await user.click(screen.getByRole('button', { name: /^Discard$/ }));
 
-    expect(screen.queryByRole('dialog', { name: /Receive Payment/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /Receive payment/i })).not.toBeInTheDocument();
     await openForm(user);
     const reopenedDisclosure = screen.getByRole('button', { name: 'Tax withheld' });
     expect(reopenedDisclosure).toHaveAttribute('aria-expanded', 'false');

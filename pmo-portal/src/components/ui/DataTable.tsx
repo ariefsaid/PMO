@@ -86,6 +86,8 @@ export interface DataTableSelection<Row> {
   onChange: (ids: Set<string>) => void;
   /** Accessible name for each checkbox; falls back to the primary title. */
   rowLabel?: (row: Row) => string;
+  /** Phone cards: show "Select all rows" only once a row is ticked, so the first card is not pushed down by a control. */
+  selectAllAfterFirst?: boolean;
 }
 
 export interface DataTableProps<Row> {

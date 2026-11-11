@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { AccessDenied, Badge, Card, ListState, ViewToggle } from '@/src/components/ui';
+import { AccessDenied, Badge, Card, ListState, PageHeader, SelectField, ViewToggle } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
@@ -223,47 +223,47 @@ const ApprovalsPage: React.FC = () => {
         variant="empty"
         icon="inbox"
         title={t('approvals.previewEmpty.title', 'Select an approval item')}
-        sub={t(
-          'approvals.previewEmpty.sub',
-          'When a pending procurement case is available, its preview and actions appear here.',
-        )}
       />
     );
   })();
 
   return (
     <div>
-      <div className="mb-4">
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-          {t('approvals.title', 'Approvals')}
-        </h1>
-        <p className="mt-0.5 max-w-[72ch] text-sm text-muted-foreground">
-          {t(
-            'approvals.subtitle',
-            'Needs my approval. Everything waiting on your decision: procurement, timesheets, expense claims and customer invoices.',
-          )}
-        </p>
-      </div>
+      <PageHeader title={t('approvals.title', 'Approvals')} />
 
       {hasTabs && !allCaughtUp && (
         <div className="mb-4 min-w-0">
-          <div
-            data-testid="approvals-scope-scroll"
-            className="min-w-0 overflow-x-auto scroll-fade-x lg:overflow-visible"
-          >
-            <ViewToggle<Scope>
-              className="max-w-full"
-              options={availableScopes.map((scope) => ({
-                value: scope,
-                label: scopeLabels[scope],
-                icon: ({ all: 'grid', procurement: 'cart', timesheets: 'clock', expense: 'file', invoice: 'file' } as const)[scope],
-                count: scope === 'all' ? allPopulation.length : countFor(scope),
-              }))}
+          {isLargeScreen ? (
+            <div
+              data-testid="approvals-scope-scroll"
+              className="min-w-0 overflow-x-auto scroll-fade-x lg:overflow-visible"
+            >
+              <ViewToggle<Scope>
+                className="max-w-full"
+                options={availableScopes.map((scope) => ({
+                  value: scope,
+                  label: scopeLabels[scope],
+                  icon: ({ all: 'grid', procurement: 'cart', timesheets: 'clock', expense: 'file', invoice: 'file' } as const)[scope],
+                  count: allScopePending ? undefined : scope === 'all' ? allPopulation.length : countFor(scope),
+                }))}
+                value={activeScope}
+                onChange={selectScope}
+                ariaLabel={t('approvals.scopeToggleLabel', 'Approvals scope')}
+              />
+            </div>
+          ) : (
+            // Phone: every scope is visible in one 44px control instead of a clipped strip.
+            <SelectField
+              label={t('approvals.scopeToggleLabel', 'Approvals scope')}
+              hideLabel
               value={activeScope}
-              onChange={selectScope}
-              ariaLabel={t('approvals.scopeToggleLabel', 'Approvals scope')}
+              options={availableScopes.map((scope) => ({ value: scope, label: allScopePending ? scopeLabels[scope] : `${scopeLabels[scope]} · ${scope === 'all' ? allPopulation.length : countFor(scope)}` }))}
+              onChange={(value) => selectScope(value as Scope)}
+              fullWidth
+              wrapperClassName="w-full"
+              className="h-11 w-full text-[16px]"
             />
-          </div>
+          )}
         </div>
       )}
 
@@ -272,15 +272,11 @@ const ApprovalsPage: React.FC = () => {
           className="flex flex-col items-center justify-center gap-2 rounded-lg border border-border bg-card px-6 py-14 text-center"
           data-testid="approvals-caught-up"
         >
-          <div className="text-[15px] font-semibold">
+          <div className="text-[16px] font-semibold">
             {t('approvals.caughtUp.title', 'You’re all caught up')}
           </div>
-          <p className="max-w-[44ch] text-[13px] text-muted-foreground">
-            {t(
-              'approvals.caughtUp.sub',
-              'Nothing is waiting on your approval in PMO right now. New {{kinds}} entered in PMO will appear here. Documents entered directly in ERPNext are approved in ERPNext.',
-              { kinds: caughtUpKinds },
-            )}
+          <p className="max-w-[60ch] text-control text-muted-foreground">
+            {t('approvals.caughtUp.sub', 'No {{kinds}} waiting in PMO. ERPNext documents are approved in ERPNext.', { kinds: caughtUpKinds })}
           </p>
         </div>
       ) : activeScope === 'expense' || activeScope === 'invoice' ? (
@@ -298,18 +294,10 @@ const ApprovalsPage: React.FC = () => {
             data-testid="approvals-queue-region"
             className="min-w-0"
           >
-            <div className="mb-4 flex items-center justify-between gap-2 border-b border-border pb-3">
-              <div>
-                <h2 className="text-base font-semibold">
-                  {t('approvals.queueHeading', 'Approvals queue')}
-                </h2>
-                <p className="mt-1 text-[13px] text-muted-foreground">
-                  {t(
-                    'approvals.queueHint',
-                    'Select an item to preview its details and decision controls.',
-                  )}
-                </p>
-              </div>
+            <div className="mb-4 flex items-center justify-between gap-2 border-b border-border pb-3 [&>div]:ml-auto">
+              <h2 className={activeScope === 'all' ? 'sr-only' : 'text-base font-semibold'}>
+                {activeScope === 'all' ? t('procurement:approvalQueue.headingAll', 'Purchases and timesheets') : t('approvals.queueHeading', 'Approvals queue')}
+              </h2>
               <div className="flex flex-wrap items-center gap-2">
                 {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && <TimesheetBulkSelect controller={timesheetBulk} />}
                 {(activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement && <ProcurementBulkSelect controller={procurementBulk} />}
@@ -346,10 +334,7 @@ const ApprovalsPage: React.FC = () => {
                     'approvals.group.procurement.emptyTitle',
                     'No procurement cases awaiting your decision',
                   )}
-                  emptySub={t(
-                    'approvals.group.procurement.emptySub',
-                    'Procurement cases that need your approval will appear here.',
-                  )}
+                  hideWhenEmpty={activeScope === 'all' && queueItems.length > 0}
                   procurementBulk={procurementBulk}
                 />
               )}
@@ -368,10 +353,7 @@ const ApprovalsPage: React.FC = () => {
                     'approvals.group.timesheets.emptyTitle',
                     'No timesheets awaiting your decision',
                   )}
-                  emptySub={t(
-                    'approvals.group.timesheets.emptySub',
-                    'Submitted timesheets from your reports will appear here for review.',
-                  )}
+                  hideWhenEmpty={activeScope === 'all' && queueItems.length > 0}
                   bulk={timesheetBulk}
                 />
               )}

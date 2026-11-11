@@ -66,7 +66,7 @@ export function buildInvoiceRowMenu(deps: InvoiceRowMenuDeps) {
     // #784 (DD-NAR-11): not on a frozen row — once an ERP owns revenue, a PMO invoice's fields are
     // the ERP's history; `set_sales_invoice_received_date` refuses it server-side too.
     if (canRecordReceipt && !frozen && inv.status !== 'Cancelled' && inv.status !== 'Draft')
-      items.push({ label: t('financeCopy.recordReceivedDate', "Record received date"), onClick: () => setReceiptTarget(inv) });
+      items.push({ label: t('financeCopy.recordReceivedDate', "Record delivery date"), onClick: () => setReceiptTarget(inv) });
     // FIN-S3: a Draft has no issued tax invoice yet, so there is nothing to record.
     // An e-Faktur is a VAT document: a sale outside VAT (project not subject to VAT) has none to record (AC-OCI-081).
     // A zero-rated invoice on a VAT-subject project still needs one, so tax_amount 0 does not hide it.

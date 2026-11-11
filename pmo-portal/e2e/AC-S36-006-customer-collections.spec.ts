@@ -555,8 +555,8 @@ test('AC-S36-006: Finance follows one customer’s source aging position to its 
     await waitForFonts(page);
     await expect(overdueInvoice).toContainText(fixture.companyName);
     await expect(overdueInvoice).toContainText(/\$\d/);
-    // #1405 copy: overdue age preserved
-    await expect(overdueInvoice).toContainText(/Overdue · \d+ days/);
+    // overdue age preserved (one age text: "118 days overdue")
+    await expect(overdueInvoice).toContainText(/\d+ days? overdue/);
   } catch (error) {
     journeyFailure = error;
   }

@@ -332,29 +332,21 @@
   },
   "approvalRow": {
     "approve": "Setujui",
-    "rejectShort": "Tolak",
     "unknownRequester": "Pemohon tidak diketahui",
     "loadErrorSub": "Dampak anggaran dan rincian barang gagal dimuat.",
     "lineItems": "Rincian barang",
-    "requestedBy": "Diminta oleh",
-    "project": "Proyek",
-    "requested": "Diminta",
-    "totalValue": "Nilai total",
-    "noProject": "Tidak ada proyek terkait",
     "approveTitle": "Setujui {{title}}?",
-    "rejectTitle": "Tolak {{title}}?",
     "approvedDetail": "{{title}} telah disetujui",
-    "rejectedDetail": "{{title}} telah ditolak",
     "open": "Buka pengadaan",
-    "details": "Rincian pengadaan",
     "loadError": "Rincian pengadaan gagal dimuat",
     "approved": "Pengadaan disetujui",
-    "rejected": "Pengadaan ditolak",
-    "reject": "Tolak pengadaan",
     "approveDescription": "Setujui {{title}} ({{amount}})? Pengadaan ini akan dilanjutkan ke tahap pemesanan.",
-    "rejectDescription": "Tolak {{title}}? Pemohon akan diberi tahu dan dapat memperbaiki lalu mengajukan ulang.",
     "rejectionComment": "Komentar penolakan",
-    "rejectionCommentHelp": "Tambahkan komentar untuk pemohon sebelum menolak pengadaan ini."
+    "rejectionCommentHelp": "Tambahkan komentar untuk pemohon sebelum menolak pengadaan ini.",
+    "rejectSubject": "permintaan pembelian",
+    "returnShort": "Kembalikan",
+    "returned": "Pengadaan dikembalikan",
+    "returnedDetail": "{{title}} telah dikembalikan"
   },
   "decisionSupport": {
     "thisProcurement": "Pengadaan ini",
@@ -718,5 +710,10 @@
       "retry": "Coba lagi",
       "clearAll": "Kosongkan jumlah dan terima semua yang masih terbuka"
     }
+  },
+  "approvalQueue": {
+    "headingAll": "Pembelian dan timesheet",
+    "waitingDays_one": "Menunggu {{count}} hari",
+    "waitingDays_other": "Menunggu {{count}} hari"
   }
 }

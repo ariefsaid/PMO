@@ -211,9 +211,6 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
     <EntityFormModal
       open
       title={t('financeCopy.newInvoiceTitle', 'New invoice')}
-      subtitle={native
-        ? t('financeCopy.nativeNewInvoiceSubtitle', 'Raises a draft. A different Finance or Admin user approves it.')
-        : t('financeCopy.newInvoiceSubtitle', 'Create a new sales invoice for a client')}
       submitLabel={t('financeCopy.createInvoice', 'Create invoice')}
       cancelLabel={t('financeCopy.cancel', 'Cancel')}
       onSubmit={handleSubmit}
@@ -226,7 +223,7 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
     >
       {!native && pendingPush.status !== 'idle' && (
         <div className="mb-3.5 flex justify-end">
-          <span className="text-xs text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
+          <span className="text-control text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
         </div>
       )}
       <FormSection legend={t('financeCopy.invoiceDetails', 'Invoice details')}>
@@ -387,7 +384,7 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         <h3 className="text-sm font-semibold">
           {t('uxs16.invoiceDraftReview', 'Invoice draft review')}
           {draftReviewCurrency && (
-            <span className="ml-2 text-xs font-normal text-muted-foreground">{draftReviewCurrency}</span>
+            <span className="ml-2 text-control font-normal text-muted-foreground">{draftReviewCurrency}</span>
           )}
         </h3>
         {!draftReviewCurrency ? (
@@ -441,6 +438,8 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         )}
       </section>
       )}
+      {/* The consequence of Create lives next to it: the draft waits for a second person. */}
+      {native && <p className="mt-4 text-control text-muted-foreground">{t('financeCopy.nativeNewInvoiceSubtitle', 'Raises a draft. A different Finance or Admin user approves it.')}</p>}
     </EntityFormModal>
   );
 };

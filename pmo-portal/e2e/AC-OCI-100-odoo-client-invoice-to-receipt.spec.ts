@@ -316,7 +316,7 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
 
     await approverPage.goto('/incoming-payments');
     for (let index = 0; index < 2; index++) {
-      await approverPage.getByRole('button', { name: 'Receive Payment', exact: true }).click();
+      await approverPage.getByRole('button', { name: 'Receive payment', exact: true }).click();
       await choose(approverPage, 'Customer', fixture.clientName);
       await choose(approverPage, 'Sales Invoice', invoices[index].si_number ?? '');
       await approverPage.getByLabel('Amount settled').fill('100000');
@@ -331,7 +331,7 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
       await expect(receiptConfirmation).toBeVisible();
       await receiptConfirmation.getByRole('button', { name: 'Record payment', exact: true }).click();
       await expect(receiptConfirmation).toBeHidden({ timeout: 60_000 });
-      await expect(approverPage.getByRole('dialog', { name: 'Receive Payment' })).toBeHidden({ timeout: 60_000 });
+      await expect(approverPage.getByRole('dialog', { name: 'Receive payment' })).toBeHidden({ timeout: 60_000 });
     }
 
     const { data: finalInvoices } = await admin.from('sales_invoices').select('id,si_number,project_id,amount,status,erp_docstatus,erp_outstanding_amount,efaktur_number,efaktur_date').eq('org_id', fixture.orgId).order('created_at');

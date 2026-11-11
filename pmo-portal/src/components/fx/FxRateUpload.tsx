@@ -204,7 +204,6 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
         <EntityFormModal
           open
           title={t('fx.upload', 'Upload rates')}
-          subtitle={t('fx.description', 'USD → IDR · JISDOR · display equivalents only')}
           submitLabel={t('common.continue', 'Continue')}
           cancelLabel={t('common.cancel', 'Cancel')}
           onSubmit={handleSubmit}
@@ -224,10 +223,11 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
             <div className="flex flex-col gap-1.5">
               <label
                 htmlFor="fx-rate-file"
-                className="text-[12px] font-semibold leading-[1.3] text-foreground"
+                className="text-control font-semibold leading-[1.3] text-foreground"
               >
                 {t('fx.chooseFile', 'Choose BI Excel or date,rate CSV')}
               </label>
+              <p className="text-control text-muted-foreground">{t('fx.description', 'USD → IDR · JISDOR · display equivalents only')}</p>
               <input
                 ref={fileInputRef}
                 id="fx-rate-file"
