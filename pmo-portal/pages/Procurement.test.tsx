@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
@@ -67,7 +67,16 @@ const effRole = { value: 'Project Manager' as string | null };
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: effRole.value, realRole: effRole.value }),
 }));
-const RouteProbe = () => <output data-testid="route-path">{useLocation().pathname + useLocation().search}</output>;
+const RouteProbe = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  return (
+    <>
+      <button onClick={() => navigate(-1)}>History back</button>
+      <output data-testid="route-path">{location.pathname + location.search}</output>
+    </>
+  );
+};
 
 // list-working-set-return (#682): the list-return seam captures context only from the list's own
 // canonical index path (`/procurement`), so the default entry must be `/procurement`, not `/`.
@@ -304,6 +313,22 @@ describe('Procurement index — IA-3 (real data)', () => {
     renderPage('/procurement?tab=all&view=grouped');
     await userEvent.selectOptions(screen.getByLabelText('Status'), 'Paid');
     expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
+    expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
+  });
+
+  it('filter round-trips through the URL and Back restores it', async () => {
+    const user = userEvent.setup();
+    renderPage('/procurement?tab=all&view=grouped');
+    expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
+    expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Status'), 'Paid');
+    expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
+    expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
+    expect(screen.getByTestId('route-path')).toHaveTextContent('status=Paid');
+
+    await user.click(screen.getByRole('button', { name: 'History back' }));
+    expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
   });
 

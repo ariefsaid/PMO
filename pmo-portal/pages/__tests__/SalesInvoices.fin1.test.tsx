@@ -245,6 +245,26 @@ describe('FIN-S1: project reaches the list through search and a removable chip',
     expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?q=INV');
     expect(screen.getByRole('link', { name: 'INV-002' })).toBeInTheDocument();
   });
+
+  it('filter round-trips through the URL and Back restores it', async () => {
+    h.invoices.data = [
+      invoice('INV-001', { status: 'Unpaid' }),
+      invoice('INV-002', { status: 'Paid' }),
+    ];
+    const user = userEvent.setup();
+    renderAt('/sales-invoices');
+    expect(screen.getByRole('link', { name: 'INV-001' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'INV-002' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Paid' }));
+    expect(screen.queryByRole('link', { name: 'INV-001' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'INV-002' })).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('status=Paid');
+
+    await user.click(screen.getByRole('button', { name: 'History back' }));
+    expect(screen.getByRole('link', { name: 'INV-001' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'INV-002' })).toBeInTheDocument();
+  });
 });
 
 describe('FIN-S1: Overdue only sorts oldest overdue first', () => {
