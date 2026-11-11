@@ -483,6 +483,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             placeholder={t('projectForm.client.placeholder', 'Select a company…')}
             searchPlaceholder={t('projectForm.client.search', 'Search companies…')}
             noun={t('projectForm.client.noun', 'company')}
+            nounPlural={t('projects:projectForm.client.nounPlural', 'companies')}
             error={form.errors.clientId}
           />
 
@@ -509,6 +510,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             placeholder={t('projectForm.endCustomer.placeholder', 'Select a company…')}
             searchPlaceholder={t('projectForm.endCustomer.search', 'Search companies…')}
             noun={t('projectForm.endCustomer.noun', 'company')}
+            nounPlural={t('projects:projectForm.endCustomer.nounPlural', 'companies')}
           />
 
           <Combobox

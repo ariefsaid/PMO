@@ -245,13 +245,21 @@ test.describe('AC-TBL-STICKY-001 real Sales Invoices columns (DB rows)', () => {
         await expect(menu).toBeVisible();
         const menuInfo = await menu.evaluate((el) => {
           const r = el.getBoundingClientRect();
+          // Base UI Menu portals the popup through a Positioner host at the end of <body>, so the
+          // popup's direct parent is that host rather than body itself. The defect this pins is that
+          // the menu ESCAPES the clipped scroller/card (never renders inside its overflow clip).
+          let zIndex = 0;
+          for (let node: HTMLElement | null = el as HTMLElement; node; node = node.parentElement) {
+            const value = Number(getComputedStyle(node).zIndex);
+            if (Number.isFinite(value) && value > zIndex) zIndex = value;
+          }
           return {
-            parentIsBody: el.parentElement === document.body,
-            zIndex: Number(getComputedStyle(el).zIndex),
+            escapesScroller: el.closest('[data-testid="dt-table-branch"]') === null,
+            zIndex,
             box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
           };
         });
-        expect(menuInfo.parentIsBody, 'the menu must be portaled to document.body (never inside the clipped scroller/card)').toBe(true);
+        expect(menuInfo.escapesScroller, 'the menu must escape the clipped scroller/card (portaled out of its overflow clip)').toBe(true);
         expect(menuInfo.zIndex, 'menu must stack above the sticky cells (z-[3])').toBeGreaterThanOrEqual(800);
         const vw = width;
         const vh = 900;

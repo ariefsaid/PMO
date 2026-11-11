@@ -21,7 +21,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { login, signIn, waitForFonts } from '../helpers';
-import { formatDateOnly } from '../../src/lib/format';
+import { formatDay } from '../../src/lib/format';
 import { registerLayoutSweep } from '../support/layout-sweep';
 import {
   assertCompactProjectHeader,
@@ -142,6 +142,10 @@ async function checkTabWork(
   } else if (tab === 'documents') {
     work = panel.getByRole('heading', { name: 'Document register', exact: true });
   } else if (tab === 'history') {
+    // ux/1110: project history is the Activity drawer (the old /history link opens it over the
+    // Overview) rather than an in-page tab. The goal is unchanged — the recorded changes are on
+    // screen on arrival, no scrolling — so the fold is now the drawer's own box. The section tab
+    // strip sits behind the open modal (inert + aria-hidden) and no longer has a History tab.
     const activity = page.getByRole('dialog', { name: 'Activity', exact: true });
     await expect(activity).toBeVisible();
     await activity.getByRole('tab', { name: 'Changes', exact: true }).click();
@@ -149,7 +153,15 @@ async function checkTabWork(
     const events = activity.getByTestId('history-event');
     const emptyState = activity.getByText('No changes recorded yet', { exact: true });
     await expect.poll(async () => (await events.count()) + (await emptyState.count())).toBeGreaterThan(0);
-    work = await events.count() ? events.first() : emptyState;
+    const shown = await events.count() ? events.first() : emptyState;
+    await expect(shown).toBeVisible();
+    await waitForFonts(page);
+    const drawerBox = await activity.boundingBox();
+    const viewport = page.viewportSize()!;
+    expect(drawerBox, 'the Activity drawer has a rendered box').not.toBeNull();
+    expect(drawerBox!.y, 'the Activity drawer starts inside the viewport').toBeGreaterThanOrEqual(0);
+    expect(drawerBox!.y + drawerBox!.height, 'the Activity drawer ends inside the viewport').toBeLessThanOrEqual(viewport.height + 1);
+    return;
   } else {
     // #1402 recomposition: use the named pending primary task for the fold goal; keep the completed target reachable below.
     work = panel.getByRole('button', { name: 'Open task PROC — Panel & Inverter Procurement', exact: true });
@@ -479,7 +491,9 @@ test('@layout m365 F1: a linked file row stays compact, its Date does not wrap, 
     expect(box?.height ?? Infinity).toBeLessThanOrEqual(140);
 
     const dateCell = row.locator('td').nth(dateIndex);
-    await expect(dateCell).toHaveText(formatDateOnly('2026-01-20'));
+    // ux/1110: the register's Date column reads the short day-month ("20 Jan"), the app-wide day
+    // format, instead of a full "Jan 20, 2026". The oracle below (one rendered line) is unchanged.
+    await expect(dateCell).toHaveText(formatDay('2026-01-20'));
     const lines = await dateCell.evaluate((cell) => {
       const range = document.createRange();
       range.selectNodeContents(cell);

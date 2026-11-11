@@ -347,7 +347,9 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
 
     for (const invoice of finalInvoices ?? []) {
       await approverPage.goto(`/sales-invoices/${invoice.id}`);
-      const collection = approverPage.getByRole('region', { name: 'Invoice collection details' });
+      // ux/1110: the collection facts moved from the record's own section into the record header
+      // (status + the Outstanding fact), so the header is the surface that shows the receipt state.
+      const collection = approverPage.getByTestId('record-header');
       await expect(collection).toContainText(invoice.status === 'Paid' ? 'Paid' : 'Receipt sent, awaiting Odoo');
       if (invoice.status !== 'Paid') await expect(collection).toContainText(/100[,.]000/);
     }
