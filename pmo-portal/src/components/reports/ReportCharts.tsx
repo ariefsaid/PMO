@@ -14,8 +14,8 @@ export interface EarnedBarRow {
 }
 
 /**
- * Comparison across projects: one bar per project on one scale (the largest contract), sorted by contract,
- * the earned share in the accent colour, both figures written on the row. The table below stays the exact record.
+ * Comparison across projects: one bar per project, sorted by contract, with earned shown as a share of that
+ * project's contract. The table below stays the exact record.
  */
 export const EarnedAgainstContract: React.FC<{ rows: EarnedBarRow[] }> = ({ rows }) => {
   const { t } = useTranslation();
@@ -24,28 +24,41 @@ export const EarnedAgainstContract: React.FC<{ rows: EarnedBarRow[] }> = ({ rows
   if (usable.length < 2) return null;
   return (
     <section aria-label={t('finance:managementPack.chart.earnedVsContract', 'Earned against contract')} data-testid="pack-earned-bars" className="min-w-0">
-      <h2 className="mb-2 text-control font-semibold">{t('finance:managementPack.chart.earnedVsContract', 'Earned against contract')}</h2>
+      <h2 className="mb-2 text-control font-semibold">
+        <span role="group" aria-label={t('finance:managementPack.chart.earnedVsContract', 'Earned against contract')} className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="size-2.5 rounded-sm" style={{ background: chartTheme.series.primary }} />
+            {t('finance:managementPack.chart.earnedEnd', 'Earned')}
+          </span>
+          <span>{t('finance:managementPack.chart.against', 'against')}</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="size-2.5 rounded-sm border border-border bg-secondary" />
+            {t('finance:managementPack.chart.contractSeries', 'Contract')}
+          </span>
+        </span>
+      </h2>
       {currencies.map((currency) => {
         const group = usable.filter((row) => row.currency === currency).sort((a, b) => b.contract - a.contract);
-        const scale = group[0]?.contract ?? 1;
         return (
-          <ul key={currency} role="list" className="space-y-2">
-            {group.map((row) => (
-              <li key={row.key} className="grid min-w-0 grid-cols-[minmax(0,9rem)_minmax(0,1fr)] items-center gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
-                <span className="min-w-0 truncate text-control" title={row.name}>{row.name}</span>
-                <span className="flex min-w-0 items-center gap-2">
-                  <span
-                    role="img"
-                    aria-label={t('finance:managementPack.chart.barLabel', '{{name}}: earned {{earned}} of {{contract}}', { name: row.name, earned: tile(row.earned, currency), contract: tile(row.contract, currency) })}
-                    className="relative h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-secondary"
-                  >
-                    <span aria-hidden className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${(Math.max(0, row.earned) / scale) * 100}%`, background: chartTheme.series.primary }} />
+          <div key={currency}>
+            <ul role="list" className="space-y-2">
+              {group.map((row) => (
+                <li key={row.key} className="grid min-w-0 grid-cols-[minmax(0,9rem)_minmax(0,1fr)] items-center gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
+                  <span className="min-w-0 truncate text-control" title={row.name}>{row.name}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      role="img"
+                      aria-label={t('finance:managementPack.chart.barLabel', '{{name}}: earned {{earned}} of {{contract}}', { name: row.name, earned: tile(row.earned, currency), contract: tile(row.contract, currency) })}
+                      className="relative h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-secondary"
+                    >
+                      <span aria-hidden className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(100, (Math.max(0, row.earned) / row.contract) * 100)}%`, background: chartTheme.series.primary }} />
+                    </span>
+                    <span className="shrink-0 whitespace-nowrap text-control tabular text-muted-foreground">{tile(row.earned, currency)} / {tile(row.contract, currency)}</span>
                   </span>
-                  <span className="shrink-0 whitespace-nowrap text-control tabular text-muted-foreground">{tile(row.earned, currency)} / {tile(row.contract, currency)}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          </div>
         );
       })}
     </section>
@@ -86,10 +99,18 @@ export const EarnedInvoicedTrend: React.FC<{ currency: string; months: TrendMont
         <span>{formatMonthYearShort(first.month)}</span>
         <span>{formatMonthYearShort(last.month)}</span>
       </div>
-      <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-control tabular">
-        <span><span className="font-medium" style={{ color: 'hsl(var(--primary-text, var(--primary)))' }}>{t('finance:managementPack.chart.earnedEnd', 'Earned')}</span> {tile(last.earnedToDate, currency)}</span>
-        <span><span className="font-medium text-muted-foreground">{t('finance:managementPack.chart.invoicedEnd', 'Invoiced')}</span> {tile(last.invoicedToDate, currency)}</span>
-      </p>
+      <div role="group" aria-label={t('finance:managementPack.chart.trendSeries', 'Trend series')} className="mt-2">
+        <p className="flex flex-wrap gap-x-4 gap-y-1 text-control tabular">
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="h-1 w-4 rounded-full" style={{ background: chartTheme.series.primary }} />
+            <span><span className="font-medium" style={{ color: 'hsl(var(--primary-text, var(--primary)))' }}>{t('finance:managementPack.chart.earnedEnd', 'Earned')}</span> {tile(last.earnedToDate, currency)}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="h-1 w-4 rounded-full" style={{ background: chartTheme.series.neutral }} />
+            <span><span className="font-medium text-muted-foreground">{t('finance:managementPack.chart.invoicedEnd', 'Invoiced')}</span> {tile(last.invoicedToDate, currency)}</span>
+          </span>
+        </p>
+      </div>
     </section>
   );
 };

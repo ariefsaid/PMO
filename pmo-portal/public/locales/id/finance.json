@@ -1057,9 +1057,12 @@
     },
     "chart": {
       "earnedVsContract": "Pendapatan terhadap kontrak",
+      "against": "terhadap",
       "barLabel": "{{name}}: pendapatan {{earned}} dari {{contract}}",
+      "contractSeries": "Kontrak",
       "trendName": "Pendapatan dan tagihan sampai saat ini, {{first}} sampai {{last}}",
       "trendTitle": "Pendapatan dan tagihan sampai saat ini",
+      "trendSeries": "Seri tren",
       "earnedEnd": "Pendapatan",
       "invoicedEnd": "Ditagih"
     }
