@@ -73,8 +73,8 @@
     "latestStatement": "Periode terbaru {{period}}",
     "back": "Kembali",
     "payablesAgeingBasis": "Usia faktur, menurut hari",
-    "ageingUnknown_one": "Tidak ada saldo diketahui untuk dikelompokkan · {{count}} saldo tidak diketahui",
-    "ageingUnknown_other": "Tidak ada saldo diketahui untuk dikelompokkan · {{count}} saldo tidak diketahui",
+    "ageingUnknown_one": "Tidak ada saldo diketahui · {{count}} saldo tidak diketahui",
+    "ageingUnknown_other": "Tidak ada saldo diketahui · {{count}} saldo tidak diketahui",
     "ageingUnknownCount_one": "{{count}} saldo tidak diketahui",
     "ageingUnknownCount_other": "{{count}} saldo tidak diketahui",
     "ageingEmpty": "Tidak ada saldo untuk dikelompokkan berdasarkan usia"

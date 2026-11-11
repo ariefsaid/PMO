@@ -48,6 +48,8 @@ export interface CompanyFiguresResult {
   isEmpty: boolean;
   /** #1597: the headline invoiced figure's monthly line; null = nothing invoiced yet. */
   invoicedTrend: InvoicedTrend | null;
+  /** Full completed-month window for the paired home trend, including known zero months before first invoicing. */
+  trendInvoicedByMonth: Array<{ month: string; amount: number }> | undefined;
   trendPending: boolean;
   trendError: boolean;
   trendRetry: () => void;
@@ -218,6 +220,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const trendRange = trendWindow(orgDay.day);
   const trendPack = useManagementPack(trendRange, Boolean(trendRange.to));
   const invoicedTrend = useMemo(() => selectInvoicedTrend(trendPack.data, orgCurrency), [trendPack.data, orgCurrency]);
+  const trendInvoicedByMonth = useMemo(() => selectInvoicedByMonth(trendPack.data, trendRange.from ?? null, trendRange.to ?? null, orgCurrency), [trendPack.data, trendRange.from, trendRange.to, orgCurrency]);
 
   const overdue = useMemo(() => selectOverdueInvoices(invoices.data, orgDay.day), [invoices.data, orgDay.day]);
   // L12: the supplier total reads linked accounting documents, the same amount as Payables and the record.
@@ -335,7 +338,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       href: '/finance/receivables?overdue=true',
     },
     {
-      id: 'supplier-payables', label: t('figures.owedToSuppliers', 'Owed to suppliers'),
+      id: 'supplier-payables', label: t('figures.owedToSuppliers', 'Payables'),
       value: suppliers === undefined ? null : suppliers.count === 0 ? moneyFigure(0, orgCurrency, moneyReason).value : supplierKnown,
       unavailableReason: suppliers?.unknownBalances
         ? t('dashboard:hub.company.supplierBalancesUnknown', '{{count}} supplier invoice balances are unknown.', { count: suppliers.unknownBalances })
@@ -410,6 +413,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     organizationDayPending: orgDay.isPending,
     isEmpty,
     invoicedTrend,
+    trendInvoicedByMonth,
     // Pending from the first paint: until the org day resolves there is no window to fetch, and a card that appears later shoves the page down.
     trendPending: trendRange.to ? trendPack.isPending : Boolean(orgDay.isPending),
     trendError: trendPack.isError,
