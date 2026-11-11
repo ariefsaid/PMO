@@ -113,7 +113,6 @@ const CostAttributionRuleForm: React.FC<Props> = ({ rule, projects, currency, on
       open
       width="lg"
       title={rule ? t('costAttribution:form.editTitle', 'Edit cost attribution rule') : t('costAttribution:form.addTitle', 'Add cost attribution rule')}
-      subtitle={t('costAttribution:form.subtitle', 'Places ledger cost that has no ERP project onto projects. Nothing is written to the ERP.')}
       submitLabel={t('costAttribution:form.save', 'Save rule')}
       onSubmit={submit}
       onClose={onClose}
@@ -212,6 +211,7 @@ const CostAttributionRuleForm: React.FC<Props> = ({ rule, projects, currency, on
           </Button>
           {!valid && <span className="text-control text-muted-foreground">{t('costAttribution:preview.needsValid', 'Complete the rule to preview it.')}</span>}
         </div>
+        <p className="mt-2 text-control text-muted-foreground">{t('costAttribution:preview.readOnly', 'Nothing is written to the ERP.')}</p>
         {previewError && (
           <p role="alert" className="mt-2 text-control text-destructive-text">
             {previewError.headline}{' — '}{previewError.detail}

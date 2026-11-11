@@ -235,7 +235,8 @@ export const IntegrationsView: React.FC = () => {
       {/* AC-ADMIA-006: organization-owned surface. States scope explicitly and separates it from the
           PERSONAL route at /integrations — a personal Microsoft 365 connection never implies that the
           organization integration is ready. The panel also names its next permitted action. */}
-      <p className="mb-4 flex justify-end text-control" data-testid="integrations-owner-scope">
+      <p className="mb-4 flex justify-end gap-1 text-control text-muted-foreground" data-testid="integrations-owner-scope">
+        {t('uxs07.organizationScope', 'Personal connections: ')}
         <a className="font-medium text-foreground underline underline-offset-4" href="/integrations">
           {t('uxs07.personalConnections', 'My integrations')}
         </a>

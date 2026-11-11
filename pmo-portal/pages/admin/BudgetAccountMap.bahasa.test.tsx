@@ -94,13 +94,13 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(screen.getByRole('region', { name: 'Peta kategori anggaran ke akun ERP' })).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Setiap kategori anggaran harus dipetakan ke akun ERP sebelum jumlahnya dapat dikirim ke ERP. Kategori yang belum dipetakan memblokir pengiriman SELURUH anggaran, bukan hanya baris itu.',
+        'Setiap kategori anggaran memerlukan satu akun ERP untuk menerima anggarannya; akun lain hanya dihitung ke realisasi. Kategori yang belum dipetakan menahan seluruh pengiriman.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Kategori' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Akun ERP' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Aksi' })).toBeInTheDocument();
-    expect(screen.getAllByText('Belum dipetakan: memblokir setiap pengiriman').length).toBe(9);
+    expect(screen.getAllByText('Belum dipetakan').length).toBe(9);
     const labor = (await screen.findByText('Labor')).closest('tr')!;
     expect(within(labor).getByText('Opsi akun')).toBeInTheDocument();
     await userEvent.click(within(labor).getByText('Opsi akun'));
@@ -122,7 +122,6 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     await userEvent.click(within(materials).getByText('Opsi akun'));
     await userEvent.click(within(materials).getByRole('button', { name: 'Petakan Materials' }));
     const dialog = await screen.findByRole('dialog', { name: 'Petakan Materials' });
-    expect(within(dialog).getByText('Pilih akun ERP tujuan pengiriman kategori ini')).toBeInTheDocument();
     expect(within(dialog).getByRole('combobox', { name: /Akun ERP/ })).toHaveTextContent('mis. 5100 - Biaya Langsung');
     await userEvent.click(within(dialog).getByRole('combobox', { name: /Akun ERP/ }));
     const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });

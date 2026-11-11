@@ -386,7 +386,6 @@ const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, eligible, sub
           ? t('admin.spendApprovers.form.projectTitle', 'Add a project approver')
           : t('admin.spendApprovers.form.orgTitle', 'Add an overhead approver')
       }
-      subtitle={t('admin.spendApprovers.form.subtitle', 'Any one listed approver can approve a procurement case.')}
       submitLabel={t('admin.spendApprovers.form.save', 'Add')}
       onSubmit={handleSubmit}
       submitError={submitError}

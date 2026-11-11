@@ -43,7 +43,8 @@
     "retryCheck": "Check setup again",
     "operatorHandoff": "Open accounting setup",
     "noDomains": "No connected information is currently updating from ERPNext",
-    "m365ApprovalDescription": "Only if Microsoft asks for organization approval."
+    "m365ApprovalDescription": "Only if Microsoft asks for organization approval.",
+    "organizationScope": "Personal connections: "
   },
   "uxs14": {
     "moreActions": "More actions",
@@ -441,7 +442,7 @@
       "toast": {
         "saved": "Expense account saved"
       },
-      "unmapped": "Not mapped: expense posting stops",
+      "unmapped": "Not mapped",
       "unmappedIdle": "Not mapped"
     },
     "access": {
@@ -456,7 +457,6 @@
       "accounting": "Accounting setup",
       "ariaLabel": "Administration sections",
       "credits": "Credits",
-      "description": "Organization setup and governance.",
       "features": "Features",
       "exchangeRates": "Exchange rates",
       "integrations": "Organization integrations",
@@ -559,12 +559,9 @@
         "description": "They will no longer be able to sign in. You can re-enable them at any time.",
         "confirm": "Disable"
       },
-      "page": {
-        "description": "Manage users’ role, status, and reporting line. Administration is Admin-only; role changes are high-impact and recorded."
-      },
+      "page": {},
       "inviteForm": {
-        "subtitleOperator": "Invite someone by email. They'll set their own password and role takes effect immediately.",
-        "subtitle": "Invite someone to your workspace by email. They'll set their own password.",
+        "subtitleOperator": "Takes effect immediately.",
         "legend": "Invite details",
         "email": "Email",
         "roleHelper": "Determines what this person can see and do once they sign in.",
@@ -572,14 +569,12 @@
         "emailInvalid": "Enter a valid email address."
       },
       "roleForm": {
-        "title": "Edit role",
-        "subtitle": "Set the workspace role for {{name}}",
+        "title": "Edit role: {{name}}",
         "submit": "Save role",
         "helper": "Determines what this user can see and do. Changes take effect immediately and are confirmed first."
       },
       "managerForm": {
-        "title": "Change manager",
-        "subtitle": "Set the line manager for {{name}}",
+        "title": "Change manager: {{name}}",
         "submit": "Save manager",
         "legend": "Reporting line",
         "label": "Manager",
@@ -614,15 +609,15 @@
     "budgetMap": {
       "sectionLabel": "Budget category to ERP account map",
       "title": "Budget account map",
-      "description": "Each budget category needs one ERP account to receive its budget; other accounts count toward actuals only.",
+      "description": "Each budget category needs one ERP account to receive its budget; other accounts count toward actuals only. An unmapped category blocks the whole push.",
       "columns": {
         "category": "Category",
         "erpAccount": "ERP account",
         "actions": "Actions"
       },
-      "unmapped": "Not mapped: blocks every push",
+      "unmapped": "Not mapped",
       "map": "Map {{category}}",
-      "noPush": "No push account: blocks every push",
+      "noPush": "No push account",
       "pushBadge": "Budget push",
       "addAccount": "Add account to {{category}}",
       "editAccount": "Edit {{account}}",
@@ -657,14 +652,11 @@
       },
       "form": {
         "editTitle": "Edit {{category}} mapping",
-        "editSubtitle": "Change the ERP account this category pushes to",
-        "createSubtitle": "Choose the ERP account this category pushes to",
         "save": "Save mapping",
         "legend": "Account",
         "placeholder": "e.g. 5100 - Direct Costs",
         "required": "An ERP account is required.",
-        "conflict": "{{account}} is already mapped to {{category}}.",
-        "readOnlySubtitle": "Its actuals count toward this category; its budget is not pushed here"
+        "conflict": "{{account}} is already mapped to {{category}}."
       }
     },
     "projectNumberPattern": {
@@ -713,7 +705,6 @@
       "form": {
         "orgTitle": "Add an overhead approver",
         "projectTitle": "Add a project approver",
-        "subtitle": "Any one listed approver can approve a procurement case.",
         "legend": "Approver",
         "person": "Person",
         "personPlaceholder": "Select a person…",
@@ -3488,7 +3479,6 @@
           "select": "Select Company",
           "selectRequired": "Select a Company to activate.",
           "title": "Select ERPNext Company",
-          "subtitle": "Choose the Company from your ERPNext instance to activate the integration",
           "companyLabel": "Company",
           "companyNoun": "company",
           "placeholder": "Select a Company...",
@@ -3542,7 +3532,6 @@
         },
         "connect": {
           "connectFailed": "Could not connect. Check the details and try again.",
-          "subtitle": "Enter your {{service}} credentials to establish the connection",
           "credentials": "Credentials",
           "tokenLabel": "Personal API token",
           "urlLabel": "Instance URL",
@@ -4476,16 +4465,7 @@
       "preview": "Preview:",
       "previewNote": "Illustrative only; the actual number is assigned when a project is created."
     },
-    "accounting": {
-      "sectionsLabel": "Accounting setup sections",
-      "taxDefault": "Default tax treatment",
-      "spendApprovers": "Spend approvers",
-      "withholding": "Receipt withholding",
-      "vendorTax": "Supplier bill tax accounts",
-      "downPayments": "Down payments",
-      "budgetMap": "Budget account map",
-      "expenseMap": "Expense account map"
-    }
+    "accounting": {}
   },
   "uxs03": {
     "spendingContract": "Spending vs contract",
@@ -4702,7 +4682,6 @@
     "unlinkTimeoutDetail": "The request timed out before the server answered.",
     "unlinkFailed": "Could not unlink from ClickUp. The project is still linked. Use Unlink from ClickUp to try again.",
     "reviewTitle": "Review ClickUp link",
-    "reviewSubtitle": "Confirm which existing list belongs to this project.",
     "reviewAction": "Review link",
     "confirmAction": "Confirm ClickUp link",
     "linkDetails": "Link details",
@@ -4808,7 +4787,6 @@
       "heading": "Default document library",
       "library": "Library",
       "loading": "Loading…",
-      "modalSub": "Pick a SharePoint site, then one of its document libraries.",
       "modalTitle": "Choose default library",
       "none": "No default library is set.",
       "pickLibrary": "Select a library",

@@ -58,7 +58,7 @@
       "location": "Self-hosted or Odoo-hosted ERP: your data stays in your Odoo; PMO keeps a read copy of its directories."
     },
     "connect": {
-      "subtitle": "Use an API key made for PMO in Odoo. PMO stores it encrypted and never shows it again.",
+      "subtitle": "Made for PMO in Odoo. Stored encrypted; never shown again.",
       "legend": "Odoo connection",
       "siteUrl": "Site URL",
       "database": "Database",

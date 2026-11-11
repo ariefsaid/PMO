@@ -58,7 +58,7 @@
       "location": "ERP milik sendiri atau di-host Odoo: data Anda tetap di Odoo; PMO menyimpan salinan baca direktorinya."
     },
     "connect": {
-      "subtitle": "Gunakan kunci API yang dibuat untuk PMO di Odoo. PMO menyimpannya terenkripsi dan tidak menampilkannya lagi.",
+      "subtitle": "Dibuat untuk PMO di Odoo. Disimpan terenkripsi; tidak pernah ditampilkan lagi.",
       "legend": "Koneksi Odoo",
       "siteUrl": "URL situs",
       "database": "Basis data",

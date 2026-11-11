@@ -140,8 +140,8 @@ const MAX_NAV_VIEWS = 8;
 const NAV_LINK_BASE =
   'touch-target flex h-[var(--control-height)] w-full items-center gap-3 rounded-md px-2.5 text-control font-medium [&_svg]:size-5 [&_svg]:shrink-0';
 
-/** Group labels read as groups, not as items: smaller, upper-case, muted (12px is the floor). */
-const GROUP_LABEL_CLASS = 'px-2.5 pb-1 pt-3 text-support font-semibold uppercase tracking-[0.06em] text-muted-foreground';
+/** Group labels read as groups, not as items: smaller, muted (12px is the floor). */
+const GROUP_LABEL_CLASS = 'px-2.5 pb-1 pt-3 text-support font-semibold text-muted-foreground';
 
 /** The two items that get stage-aware active-state overrides on `/projects/:id`. */
 const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);

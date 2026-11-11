@@ -179,7 +179,7 @@ describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
       { account: '6100 - Office', accountName: 'Office', accountNumber: '6100', parentAccount: 'Operating Expenses', rootType: 'Expense', isGroup: false, disabled: false },
     ] });
     renderPage();
-    expect(await screen.findByText(/overhead account will not be substituted/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No clear direct-cost match/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /review .*proposals/i })).not.toBeInTheDocument();
   });
 });
@@ -391,17 +391,18 @@ describe('BudgetAccountMap — I-8: reachable, and it marks what is blocking', (
     expect(document.activeElement).not.toBe(document.getElementById('budget-account-map'));
   });
 
-  it('I-8 an UNMAPPED category is marked as blocking every push, not merely "Not mapped"', async () => {
+  it('I-8 an UNMAPPED category is marked "Not mapped" and the page says once that it blocks the whole push', async () => {
     renderPage('Admin');
     await screen.findByText('Labor');
     const row = screen.getByText('Contingency').closest('tr')!;
-    expect(within(row).getByText(/blocks every push/i)).toBeInTheDocument();
+    expect(within(row).getByText('Not mapped')).toBeInTheDocument();
+    expect(screen.getAllByText(/blocks the whole push/i)).toHaveLength(1);
   });
 
   it('I-8 a MAPPED category is not marked as blocking', async () => {
     renderPage('Admin');
     const row = (await screen.findByText('Labor')).closest('tr')!;
-    expect(within(row).queryByText(/blocks every push/i)).not.toBeInTheDocument();
+    expect(within(row).queryByText('Not mapped')).not.toBeInTheDocument();
   });
 });
 
@@ -421,7 +422,7 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
     await userEvent.click(within(labor).getByText(/additional account\(s\) count toward actuals only/i));
     expect(within(labor).getByText('Allowances - PSC')).toBeInTheDocument();
     expect(within(labor).getAllByText('Budget push')).toHaveLength(1);
-    expect(within(labor).queryByText(/blocks every push/i)).not.toBeInTheDocument();
+    expect(within(labor).queryByText('No push account')).not.toBeInTheDocument();
     expect(within(labor).queryByRole('button')).not.toBeInTheDocument();
   });
 
@@ -429,7 +430,7 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
     listMock.mockResolvedValue(MULTI);
     renderPage('Admin');
     const materials = (await screen.findByText('Materials')).closest('tr')!;
-    expect(within(materials).getByText('No push account: blocks every push')).toBeInTheDocument();
+    expect(within(materials).getByText('No push account')).toBeInTheDocument();
   });
 
   it('AC-BAM-009 an account added to a category that has a push account is added read-only', async () => {

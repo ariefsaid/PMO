@@ -193,7 +193,6 @@ function ChooseLibraryModal({ onClose }: { onClose: () => void }) {
     <EntityFormModal
       open
       title={t('m365Documents.defaultLibrary.modalTitle', 'Choose default library')}
-      subtitle={t('m365Documents.defaultLibrary.modalSub', 'Pick a SharePoint site, then one of its document libraries.')}
       submitLabel={t('m365Documents.defaultLibrary.save', 'Save default')}
       disabledReason={t('m365Documents.defaultLibrary.disabledReason', 'Choose a site and a library to save.')}
       onSubmit={(e) => void submit(e)}

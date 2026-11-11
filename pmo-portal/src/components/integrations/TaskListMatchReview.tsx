@@ -75,7 +75,6 @@ export function TaskListMatchReview({
     <EntityFormModal
       open
       title={t('uxs21.reviewTitle', 'Review ClickUp link')}
-      subtitle={t('uxs21.reviewSubtitle', 'Confirm which existing list belongs to this project.')}
       submitLabel={stage === 'selection'
         ? t('uxs21.reviewAction', 'Review link')
         : t('uxs21.confirmAction', 'Confirm ClickUp link')}

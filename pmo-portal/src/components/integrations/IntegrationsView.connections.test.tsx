@@ -77,7 +77,7 @@ describe('Admin view (write controls visible)', () => {
 
       expect(screen.getByText('Connected')).toBeInTheDocument();
       expect(screen.getByText(/Connected by/)).toBeInTheDocument();
-      expect(screen.getByText(/Jan 1, 2026/)).toBeInTheDocument();
+      expect(screen.getByText(/1 Jan/)).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^connect clickup$/i })).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: /^disconnect clickup$/i })).toBeInTheDocument();
 
@@ -144,15 +144,15 @@ describe('Admin view (write controls visible)', () => {
       try {
         setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
         const { unmount } = wrapWithRole('Admin', <IntegrationsView />);
-        await waitFor(() => expect(screen.getByText('Jun 15, 2026')).toBeInTheDocument());
-        expect(screen.getByText('Jun 14, 2026')).toBeInTheDocument();
+        await waitFor(() => expect(screen.getByText('15 Jun')).toBeInTheDocument());
+        expect(screen.getByText('14 Jun')).toBeInTheDocument();
         unmount();
 
         setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
         wrapWithRole('Admin', <IntegrationsView />);
-        await waitFor(() => expect(screen.getByText('Jun 16, 2026')).toBeInTheDocument());
-        expect(screen.getByText('Jun 15, 2026')).toBeInTheDocument();
-        expect(screen.queryByText('Jun 14, 2026')).not.toBeInTheDocument();
+        await waitFor(() => expect(screen.getByText('16 Jun')).toBeInTheDocument());
+        expect(screen.getByText('15 Jun')).toBeInTheDocument();
+        expect(screen.queryByText('14 Jun')).not.toBeInTheDocument();
       } finally {
         resetActiveLocale();
       }

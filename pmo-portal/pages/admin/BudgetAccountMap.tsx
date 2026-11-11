@@ -245,15 +245,16 @@ const BudgetAccountMap: React.FC = () => {
         const accounts = accountsByCategory.get(category) ?? [];
         const hasPush = accounts.some((a) => a.isPushTarget);
         if (accounts.length === 0) {
-          return <StatusPill variant="warn">{t('admin.budgetMap.unmapped', 'Not mapped: blocks every push')}</StatusPill>;
+          return <StatusPill variant="warn">{t('admin.budgetMap.unmapped', 'Not mapped')}</StatusPill>;
         }
         return (
           <div className="space-y-2">
-            {!hasPush && <StatusPill variant="warn">{t('admin.budgetMap.noPush', 'No push account: blocks every push')}</StatusPill>}
+            {!hasPush && <StatusPill variant="warn">{t('admin.budgetMap.noPush', 'No push account')}</StatusPill>}
             {accounts.filter((account) => account.isPushTarget).map((account) => (
               <div key={account.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="break-words">{account.erpAccount}</span>
-                <StatusPill variant="open">{t('admin.budgetMap.pushBadge', 'Budget push')}</StatusPill>
+                {/* Only worth saying when the category has more than one account; alone, it is the push account by definition. */}
+                {accounts.length > 1 && <StatusPill variant="open">{t('admin.budgetMap.pushBadge', 'Budget push')}</StatusPill>}
               </div>
             ))}
             {accounts.some((account) => !account.isPushTarget) && (
@@ -330,7 +331,7 @@ const BudgetAccountMap: React.FC = () => {
       <p className="mt-1 text-control text-muted-foreground">
         {t(
           'admin.budgetMap.description',
-          'Each budget category needs one ERP account to receive its budget; other accounts count toward actuals only.',
+          'Each budget category needs one ERP account to receive its budget; other accounts count toward actuals only. An unmapped category blocks the whole push.',
         )}
       </p>
 
@@ -521,17 +522,10 @@ const MapFormModal: React.FC<MapFormModalProps> = ({ target, hasAccounts, allRow
       ? t('admin.budgetMap.addAccount', { defaultValue: 'Add account to {{category}}', category: categoryLabel(category) })
       : t('admin.budgetMap.map', { defaultValue: 'Map {{category}}', category: categoryLabel(category) });
 
-  const subtitle = !isPushTarget
-    ? t('admin.budgetMap.form.readOnlySubtitle', 'Its actuals count toward this category; its budget is not pushed here')
-    : isEdit
-      ? t('admin.budgetMap.form.editSubtitle', 'Change the ERP account this category pushes to')
-      : t('admin.budgetMap.form.createSubtitle', 'Choose the ERP account this category pushes to');
-
   return (
     <EntityFormModal
       open
       title={title}
-      subtitle={subtitle}
       submitLabel={t('admin.budgetMap.form.save', 'Save mapping')}
       onSubmit={handleSubmit}
       submitError={submitError}

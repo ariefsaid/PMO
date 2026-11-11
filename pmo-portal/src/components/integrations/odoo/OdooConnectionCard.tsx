@@ -202,7 +202,7 @@ export function OdooConnectionCard() {
       )}
 
       {formOpen && (
-        <EntityFormModal open title={connectLabel} subtitle={t('administration:odoo.connect.subtitle', 'Use an API key made for PMO in Odoo. PMO stores it encrypted and never shows it again.')}
+        <EntityFormModal open title={connectLabel}
           submitLabel={connectLabel} onSubmit={onSubmit} onClose={() => { setFormOpen(false); held.current = null; }}
           loading={connect.isPending} dirty={form.isDirty} submitDisabled={!form.isComplete}
           submitError={error ? { headline: error } : null}>
@@ -210,7 +210,7 @@ export function OdooConnectionCard() {
             <FormGrid>
               <TextField {...form.fieldProps('siteUrl')} label={t('administration:odoo.connect.siteUrl', 'Site URL')} required placeholder="https://mycompany.odoo.com" autoComplete="off" fullWidth />
               <TextField {...form.fieldProps('database')} label={t('administration:odoo.connect.database', 'Database')} required autoComplete="off" />
-              <TextField {...form.fieldProps('apiKey')} label={t('administration:odoo.connect.apiKey', 'API key')} required type="password" autoComplete="off" fullWidth />
+              <TextField {...form.fieldProps('apiKey')} label={t('administration:odoo.connect.apiKey', 'API key')} required type="password" autoComplete="off" helper={t('administration:odoo.connect.subtitle', 'Made for PMO in Odoo. Stored encrypted; never shown again.')} fullWidth />
               <TextField {...form.fieldProps('keyExpiresOn')} label={t('administration:odoo.connect.keyExpiresOn', 'Key expires on (optional)')} type="date" helper={t('administration:odoo.connect.expiryHelp', 'If you gave the key an expiry in Odoo, enter it so PMO can warn you before it lapses.')} />
             </FormGrid>
           </FormSection>

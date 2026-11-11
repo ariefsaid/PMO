@@ -141,11 +141,21 @@ export const YourPlan: React.FC = () => {
       <section aria-labelledby="your-plan-limits" className="min-w-0">
         <SectionHeader title={t('yourPlan.limitsHeading', 'Limits')} />
         <Card className="px-4 py-3">
-          <dl className="grid gap-4 sm:grid-cols-3">
-            <LimitFigure label={t('yourPlan.seats', 'Included seats')} limit={row.seatLimit} />
-            <LimitFigure label={t('yourPlan.projects', 'Active projects')} limit={row.projectLimit} />
-            <LimitFigure label={t('yourPlan.aiMessages', 'AI messages per month')} limit={row.aiMonthlyMessages} />
-          </dl>
+          {row.seatLimit === null && row.projectLimit === null && row.aiMonthlyMessages === null ? (
+            // Identical on all three: said once.
+            <dl>
+              <LimitFigure
+                label={[t('yourPlan.seats', 'Included seats'), t('yourPlan.projects', 'Active projects'), t('yourPlan.aiMessages', 'AI messages per month')].join(' · ')}
+                limit={null}
+              />
+            </dl>
+          ) : (
+            <dl className="grid gap-4 sm:grid-cols-3">
+              <LimitFigure label={t('yourPlan.seats', 'Included seats')} limit={row.seatLimit} />
+              <LimitFigure label={t('yourPlan.projects', 'Active projects')} limit={row.projectLimit} />
+              <LimitFigure label={t('yourPlan.aiMessages', 'AI messages per month')} limit={row.aiMonthlyMessages} />
+            </dl>
+          )}
           <p className="mt-3 text-control text-muted-foreground">{t('yourPlan.notTrackedYet', 'Usage not tracked yet')}</p>
         </Card>
       </section>

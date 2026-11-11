@@ -139,8 +139,8 @@ describe('AC-CODE-001 organisation PMO number pattern', () => {
   it('UX-075: describes the built-in pattern as valid without a client segment and a custom pattern as requiring all three tokens', async () => {
     renderPanel();
     await screen.findByRole('textbox', { name: /project number pattern/i });
-    expect(screen.getByText(/the built-in pattern is PRJ-\{YY\}-\{SEQ4\}/i)).toBeInTheDocument();
-    expect(screen.getByText(/a custom pattern must use \{CLIENT\}, \{YY\}, and \{SEQ4\} exactly once each/i)).toBeInTheDocument();
+    expect(screen.getByText(/the default is PRJ-\{YY\}-\{SEQ4\}/i)).toBeInTheDocument();
+    expect(screen.getByText(/a custom pattern uses \{CLIENT\}, \{YY\} and \{SEQ4\} once each/i)).toBeInTheDocument();
   });
 
   it('UX-075: shows a supported-token preview for the saved default pattern', async () => {

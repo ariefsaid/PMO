@@ -62,7 +62,7 @@ beforeEach(async () => {
 describe('expense account readiness (AD-2, S-12)', () => {
   it('names connecting ERPNext only when the org is actually not connected', async () => {
     renderMap();
-    expect(await screen.findByText('Connect ERPNext before mapping expense accounts. Expense posting is not active.')).toBeInTheDocument();
+    expect(await screen.findByText('Connect ERPNext before mapping expense accounts.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open integrations' })).toBeInTheDocument();
     expect(screen.getAllByText('Not mapped').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Map Travel' })).toBeNull();
@@ -72,10 +72,10 @@ describe('expense account readiness (AD-2, S-12)', () => {
     h.binding = { status: 'active' };
     renderMap();
     expect(await screen.findByText(
-      'ERPNext is connected, but expense posting is not switched on yet. An Admin can switch it on in Integrations under ERPNext setup.',
+      'Expense posting is not switched on yet. Switch it on in Integrations, under ERPNext setup.',
     )).toBeInTheDocument();
     // The contradictory reconnect instruction is gone, the recovery doorway stays.
-    expect(screen.queryByText('Connect ERPNext before mapping expense accounts. Expense posting is not active.')).toBeNull();
+    expect(screen.queryByText('Connect ERPNext before mapping expense accounts.')).toBeNull();
     expect(screen.getByRole('button', { name: 'Open integrations' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Map Travel' })).toBeNull();
     expect(screen.getAllByText('Not mapped').length).toBeGreaterThan(0);
@@ -90,7 +90,7 @@ describe('expense account readiness (AD-2, S-12)', () => {
     expect(h.bindingRefetch).toHaveBeenCalled();
     expect(h.ownershipRefetch).toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Map Travel' })).toBeNull();
-    expect(screen.queryByText('Connect ERPNext before mapping expense accounts. Expense posting is not active.')).toBeNull();
+    expect(screen.queryByText('Connect ERPNext before mapping expense accounts.')).toBeNull();
   });
 
   it('incomplete is distinct while ready: the unmapped count is named with its consequence, and disappears when fully mapped', async () => {
@@ -99,8 +99,8 @@ describe('expense account readiness (AD-2, S-12)', () => {
     h.list.mockResolvedValue([{ accountKey: 'employee_payable', erpAccount: 'Employee Payable - ABC' }]);
     const first = renderMap();
     expect(await screen.findByRole('button', { name: 'Map Travel' })).toBeEnabled();
-    expect(screen.getByText('7 of 8 accounts are not mapped yet. A posting that needs an unmapped account stops until it is mapped.')).toBeInTheDocument();
-    expect(screen.getAllByText('Not mapped: expense posting stops')).toHaveLength(7);
+    expect(screen.getByText('7 of 8 accounts are not mapped; a posting that needs one stops.')).toBeInTheDocument();
+    expect(screen.getAllByText('Not mapped')).toHaveLength(7);
 
     first.unmount();
     // Full map — the incomplete line is gone, every row reads mapped and offers Change.
@@ -108,8 +108,8 @@ describe('expense account readiness (AD-2, S-12)', () => {
     h.list.mockResolvedValue(allKeys.map((accountKey) => ({ accountKey, erpAccount: `${accountKey} - ABC` })));
     const { unmount } = renderMap();
     await screen.findByRole('button', { name: 'Change Travel' });
-    expect(screen.queryByText(/accounts are not mapped yet/)).not.toBeInTheDocument();
-    expect(screen.queryByText('Not mapped: expense posting stops')).toBeNull();
+    expect(screen.queryByText(/accounts are not mapped/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Not mapped')).toBeNull();
     unmount();
   });
 
@@ -158,7 +158,7 @@ describe('expense account readiness (AD-2, S-12)', () => {
     h.ownership = [{ externalTier: 'erpnext', domain: 'expenses' }];
     renderMap();
     expect(await screen.findByRole('button', { name: 'Map Travel' })).toBeEnabled();
-    expect(screen.queryByText('Connect ERPNext before mapping expense accounts. Expense posting is not active.')).toBeNull();
+    expect(screen.queryByText('Connect ERPNext before mapping expense accounts.')).toBeNull();
   });
 
   it('AC-EXP-130 the project direct-cost account is an eighth row an Admin maps under its own key', async () => {

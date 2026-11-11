@@ -148,7 +148,7 @@ it('AC-S11-002: without an active ERPNext binding the chart is not queried and t
   const field = await screen.findByRole('combobox', { name: 'Default account' });
 
   expect(field).toBeDisabled();
-  expect(screen.getByText(/active ERPNext organization connection is needed/)).toBeInTheDocument();
+  expect(screen.getByText(/active ERPNext connection is needed/)).toBeInTheDocument();
   expect(h.listAccounts).not.toHaveBeenCalled();
   expect(field).toHaveTextContent('Tax Prepaid - DEMO');
 
@@ -163,7 +163,7 @@ it('AC-S11-002: an unknown binding status stays unknown and can be checked again
   const user = userEvent.setup();
 
   expect(await screen.findByText(/Couldn't check ERPNext setup/)).toBeInTheDocument();
-  expect(screen.queryByText(/active ERPNext organization connection is needed/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/active ERPNext connection is needed/)).not.toBeInTheDocument();
   expect(h.listAccounts).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Check setup again' }));
   expect(h.retryBinding).toHaveBeenCalledTimes(1);
@@ -243,7 +243,7 @@ it('AC-WHA-001: an Admin chooses a PPh 23 and a PPh 4(2) prepaid account from As
 
 it('AC-WHA-004: the page says receipts with no article, or an article without its own account, post to the default account', async () => {
   renderSetting();
-  expect(await screen.findByText(/Receipts with no article, or an article without its own account, post to the default account/)).toBeInTheDocument();
+  expect(await screen.findByText(/Receipts without their own account post to the default/)).toBeInTheDocument();
 });
 
 it('AC-WHA-001: a non-Admin sees the three accounts read-only', async () => {

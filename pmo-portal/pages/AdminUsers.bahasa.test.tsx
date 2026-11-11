@@ -114,7 +114,7 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
     expect(screen.getAllByText('Keuangan').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Aktif').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Nonaktif').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Tanpa manajer').length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText('Tanpa manajer').length).toBeGreaterThan(0);
     expect(screen.queryByText('No manager')).toBeNull();
     expect(screen.queryByText('Invite user')).toBeNull();
   });
@@ -143,7 +143,7 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'Undang pengguna' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Undang seseorang ke organisasi Anda lewat email. Mereka akan menetapkan kata sandi sendiri.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('heading', { name: 'Undang pengguna' })).toBeInTheDocument();
     expect(within(dialog).getByText('Detail undangan')).toBeInTheDocument();
     expect(within(dialog).getByRole('option', { name: 'Manajer proyek' })).toBeInTheDocument();
     expect(within(dialog).getByRole('option', { name: 'Eksekutif' })).toBeInTheDocument();
@@ -161,7 +161,7 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
     expect(screen.getByRole('menuitem', { name: 'Nonaktifkan' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('menuitem', { name: 'Edit role' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Tetapkan role organisasi untuk Desmond Achebe')).toBeInTheDocument();
+    expect(within(dialog).getByRole('heading', { name: 'Ubah peran: Desmond Achebe' })).toBeInTheDocument();
     await userEvent.selectOptions(within(dialog).getByLabelText(/^Role/), 'Executive');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan role' }));
     const confirm = await screen.findByRole('dialog', { name: 'Ubah role Desmond Achebe menjadi Eksekutif?' });

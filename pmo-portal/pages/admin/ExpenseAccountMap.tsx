@@ -181,7 +181,7 @@ const ExpenseAccountMap: React.FC = () => {
                   // Until the `expenses` domain can be employed (#901, like ErpSetupChecklist), nothing posts, so an
                   // unmapped key stops nothing: say so plainly instead of warning.
                   : isReady
-                    ? <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped: expense posting stops')}</StatusPill>
+                    ? <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped')}</StatusPill>
                     : <span className="text-muted-foreground">{t('admin.expenseMap.unmappedIdle', 'Not mapped')}</span>}
                 {canManage && (
                   <>
@@ -250,7 +250,6 @@ const AccountForm: React.FC<AccountFormProps> = ({ title, initial, submitError, 
     <EntityFormModal
       open
       title={title}
-      subtitle={t('admin.expenseMap.form.subtitle', 'ERPNext checks the account before it is saved')}
       submitLabel={t('admin.expenseMap.form.save', 'Save account')}
       onSubmit={(e: React.FormEvent) => {
         e.preventDefault();
@@ -274,6 +273,7 @@ const AccountForm: React.FC<AccountFormProps> = ({ title, initial, submitError, 
             onBlur={field.onBlur}
             error={field.error}
             placeholder={t('admin.expenseMap.form.placeholder', 'e.g. Employee Payable - ABC')}
+            helper={t('admin.expenseMap.form.subtitle', 'ERPNext checks the account before it is saved')}
             fullWidth
           />
         </FormGrid>

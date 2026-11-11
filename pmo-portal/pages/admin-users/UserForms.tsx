@@ -81,17 +81,6 @@ export const InviteFormModal: React.FC<{
     <EntityFormModal
       open
       title={t('admin.users.invite', 'Invite user')}
-      subtitle={
-        isOperator
-          ? t(
-              'admin.users.inviteForm.subtitleOperator',
-              "Invite someone by email. They'll set their own password and role takes effect immediately.",
-            )
-          : t(
-              'admin.users.inviteForm.subtitle',
-              "Invite someone to your workspace by email. They'll set their own password.",
-            )
-      }
       submitLabel={t('admin.users.invite', 'Invite user')}
       onSubmit={handleSubmit}
       submitError={submitError}
@@ -120,7 +109,7 @@ export const InviteFormModal: React.FC<{
           onChange={(v) => roleField.onChange(v as UserRole)}
           onBlur={roleField.onBlur}
           options={roleNames.options}
-          helper={t('admin.users.inviteForm.roleHelper', 'Determines what this person can see and do once they sign in.')}
+          helper={`${t('admin.users.inviteForm.roleHelper', 'Determines what this person can see and do once they sign in.')}${isOperator ? ` ${t('admin.users.inviteForm.subtitleOperator', 'Takes effect immediately.')}` : ''}`}
           fullWidth
         />
       </FormSection>
@@ -160,11 +149,7 @@ export const RoleFormModal: React.FC<{
   return (
     <EntityFormModal
       open
-      title={t('admin.users.roleForm.title', 'Edit role')}
-      subtitle={t('admin.users.roleForm.subtitle', {
-        defaultValue: 'Set the workspace role for {{name}}',
-        name: user.full_name,
-      })}
+      title={t('admin.users.roleForm.title', { defaultValue: 'Edit role: {{name}}', name: user.full_name })}
       submitLabel={t('admin.users.roleForm.submit', 'Save role')}
       onSubmit={handleSubmit}
       submitError={submitError}
@@ -263,11 +248,7 @@ export const ManagerFormModal: React.FC<{
   return (
     <EntityFormModal
       open
-      title={t('admin.users.managerForm.title', 'Change manager')}
-      subtitle={t('admin.users.managerForm.subtitle', {
-        defaultValue: 'Set the line manager for {{name}}',
-        name: user.full_name,
-      })}
+      title={t('admin.users.managerForm.title', { defaultValue: 'Change manager: {{name}}', name: user.full_name })}
       submitLabel={t('admin.users.managerForm.submit', 'Save manager')}
       onSubmit={handleSubmit}
       onClose={onClose}

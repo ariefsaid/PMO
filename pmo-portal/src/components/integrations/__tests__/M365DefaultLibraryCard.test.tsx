@@ -111,7 +111,7 @@ describe('M365DefaultLibraryCard choose', () => {
     mock.docs = docs({ connection: { connected: false, status: null } });
     view();
     expect(screen.getByRole('button', { name: 'Choose default library' })).toBeDisabled();
-    expect(screen.getByText(/Connect your Microsoft 365 account/)).toBeInTheDocument();
+    expect(screen.getByText(/Needs your Microsoft 365 connection/)).toBeInTheDocument();
     expect(mock.browseSites).not.toHaveBeenCalled();
   });
 

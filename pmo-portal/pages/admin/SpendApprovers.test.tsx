@@ -169,8 +169,8 @@ describe('UX-081 resolved approval route (S-32)', () => {
     expect(route).toHaveTextContent('Fay Fin');
     expect(route).not.toHaveTextContent('Eli Eng');
     expect(route).not.toHaveTextContent('Gus Gone');
-    // project section follows the role rules too when no overhead set exists
-    expect(screen.getByTestId('spend-route-project')).toHaveTextContent('Admin, Executive, Project Manager or Finance');
+    // the project section follows the same rules when no overhead set exists; it does not repeat the note
+    expect(screen.queryByTestId('spend-route-project')).toBeNull();
   });
 
   it('UX-081: a configured list nobody on it can act on says only an Admin can decide', async () => {
@@ -219,8 +219,8 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockResolvedValue([{ id: 'u-exec', full_name: 'Eve Exec', role: 'Executive', status: 'active' }]);
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
-    expect(note).toHaveTextContent('Within budget, the standard rules apply');
-    expect(note).toHaveTextContent('procurement cases go to the overhead approvers');
+    expect(note).toHaveTextContent('Within budget,');
+    expect(note).toHaveTextContent('over budget, the overhead approvers decide');
   });
 
   it('UX-081: an empty project list with no eligible senior approver leaves decisions to an Admin (DD-APR-4)', async () => {
@@ -230,8 +230,8 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockResolvedValue([{ id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' }]);
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
-    expect(note).toHaveTextContent('Only an Admin can decide these procurement cases');
-    expect(note).not.toHaveTextContent('go to the overhead approvers');
+    expect(note).toHaveTextContent('Only an Admin can decide');
+    expect(note).not.toHaveTextContent('overhead approvers decide');
   });
 
   it('UX-081: a project list nobody on it can act on escalates to a working senior set (FR-APR-014)', async () => {
@@ -246,7 +246,7 @@ describe('UX-081 resolved approval route (S-32)', () => {
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
     await waitFor(() => expect(note).toHaveTextContent('Nobody listed can approve right now'));
-    expect(note).toHaveTextContent('These procurement cases go to the overhead approvers');
+    expect(note).toHaveTextContent('The overhead approvers decide');
   });
 
   it('shows escalation for each project whose own approvers are ineligible', async () => {
@@ -262,8 +262,8 @@ describe('UX-081 resolved approval route (S-32)', () => {
     ]);
     renderPanel('Admin');
     const projectB = await screen.findByRole('group', { name: 'Project B' });
-    expect(await within(projectB).findByText(/go to the overhead approvers/i)).toBeInTheDocument();
-    expect(within(screen.getByRole('group', { name: 'Project A' })).queryByText(/go to the overhead approvers/i)).not.toBeInTheDocument();
+    expect(await within(projectB).findByText(/overhead approvers decide/i)).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Project A' })).queryByText(/overhead approvers decide/i)).not.toBeInTheDocument();
   });
 
   it('UX-081: dead project rows with no senior rows fall back to the flat role rules', async () => {
@@ -273,8 +273,8 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockResolvedValue([{ id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' }]);
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
-    expect(note).toHaveTextContent("Standard rules: any of");
-    expect(note).toHaveTextContent("can approve another person's procurement case");
+    expect(note).toHaveTextContent("Standard rules:");
+    expect(note).toHaveTextContent("can approve another person's case");
     expect(note).not.toHaveTextContent('Only an Admin can decide');
   });
 

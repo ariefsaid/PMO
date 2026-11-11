@@ -43,7 +43,8 @@
     "retryCheck": "Periksa penyiapan lagi",
     "operatorHandoff": "Buka penyiapan akuntansi",
     "noDomains": "Belum ada informasi yang diperbarui dari ERPNext",
-    "m365ApprovalDescription": "Hanya jika Microsoft meminta persetujuan organisasi."
+    "m365ApprovalDescription": "Hanya jika Microsoft meminta persetujuan organisasi.",
+    "organizationScope": "Koneksi pribadi: "
   },
   "uxs14": {
     "moreActions": "Tindakan lainnya",
@@ -441,7 +442,7 @@
       "toast": {
         "saved": "Akun biaya disimpan"
       },
-      "unmapped": "Belum dipetakan: posting biaya berhenti",
+      "unmapped": "Belum dipetakan",
       "unmappedIdle": "Belum dipetakan"
     },
     "access": {
@@ -456,7 +457,6 @@
       "accounting": "Pengaturan akuntansi",
       "ariaLabel": "Bagian administrasi",
       "credits": "Kredit",
-      "description": "Pengaturan dan tata kelola organisasi.",
       "features": "Fitur",
       "exchangeRates": "Kurs mata uang",
       "integrations": "Integrasi organisasi",
@@ -559,12 +559,9 @@
         "description": "Mereka tidak akan bisa masuk lagi. Anda dapat mengaktifkannya kembali kapan saja.",
         "confirm": "Nonaktifkan"
       },
-      "page": {
-        "description": "Kelola role, status, dan atasan langsung pengguna. Administrasi hanya untuk Admin; perubahan role berdampak besar dan dicatat."
-      },
+      "page": {},
       "inviteForm": {
-        "subtitleOperator": "Undang seseorang lewat email. Mereka akan menetapkan kata sandi sendiri dan role langsung berlaku.",
-        "subtitle": "Undang seseorang ke organisasi Anda lewat email. Mereka akan menetapkan kata sandi sendiri.",
+        "subtitleOperator": "Berlaku segera.",
         "legend": "Detail undangan",
         "email": "Email",
         "roleHelper": "Menentukan apa yang dapat dilihat dan dilakukan orang ini setelah masuk.",
@@ -572,14 +569,12 @@
         "emailInvalid": "Masukkan alamat email yang valid."
       },
       "roleForm": {
-        "title": "Edit role",
-        "subtitle": "Tetapkan role organisasi untuk {{name}}",
+        "title": "Ubah peran: {{name}}",
         "submit": "Simpan role",
         "helper": "Menentukan apa yang dapat dilihat dan dilakukan pengguna ini. Perubahan berlaku segera dan dikonfirmasi terlebih dahulu."
       },
       "managerForm": {
-        "title": "Ubah manajer",
-        "subtitle": "Tetapkan manajer langsung untuk {{name}}",
+        "title": "Ubah manajer: {{name}}",
         "submit": "Simpan manajer",
         "legend": "Atasan langsung",
         "label": "Manajer",
@@ -614,15 +609,15 @@
     "budgetMap": {
       "sectionLabel": "Peta kategori anggaran ke akun ERP",
       "title": "Peta akun anggaran",
-      "description": "Setiap kategori anggaran memerlukan satu akun ERP untuk menerima anggarannya; akun lain hanya dihitung ke realisasi.",
+      "description": "Setiap kategori anggaran memerlukan satu akun ERP untuk menerima anggarannya; akun lain hanya dihitung ke realisasi. Kategori yang belum dipetakan menahan seluruh pengiriman.",
       "columns": {
         "category": "Kategori",
         "erpAccount": "Akun ERP",
         "actions": "Aksi"
       },
-      "unmapped": "Belum dipetakan: memblokir setiap pengiriman",
+      "unmapped": "Belum dipetakan",
       "map": "Petakan {{category}}",
-      "noPush": "Tanpa akun pengiriman: memblokir setiap pengiriman",
+      "noPush": "Tanpa akun pengiriman",
       "pushBadge": "Pengiriman anggaran",
       "addAccount": "Tambah akun ke {{category}}",
       "editAccount": "Edit {{account}}",
@@ -657,14 +652,11 @@
       },
       "form": {
         "editTitle": "Edit pemetaan {{category}}",
-        "editSubtitle": "Ubah akun ERP tujuan pengiriman kategori ini",
-        "createSubtitle": "Pilih akun ERP tujuan pengiriman kategori ini",
         "save": "Simpan pemetaan",
         "legend": "Akun",
         "placeholder": "mis. 5100 - Biaya Langsung",
         "required": "Akun ERP wajib diisi.",
-        "conflict": "{{account}} sudah dipetakan ke {{category}}.",
-        "readOnlySubtitle": "Realisasinya dihitung untuk kategori ini; anggarannya tidak dikirim ke sini"
+        "conflict": "{{account}} sudah dipetakan ke {{category}}."
       }
     },
     "projectNumberPattern": {
@@ -713,7 +705,6 @@
       "form": {
         "orgTitle": "Tambah penyetuju overhead",
         "projectTitle": "Tambah penyetuju proyek",
-        "subtitle": "Cukup satu penyetuju yang terdaftar untuk menyetujui kasus pengadaan.",
         "legend": "Penyetuju",
         "person": "Orang",
         "personPlaceholder": "Pilih orang…",
@@ -3488,7 +3479,6 @@
           "select": "Pilih Perusahaan",
           "selectRequired": "Pilih Perusahaan untuk mengaktifkan.",
           "title": "Pilih Perusahaan ERPNext",
-          "subtitle": "Pilih Perusahaan dari instans ERPNext Anda untuk mengaktifkan integrasi",
           "companyLabel": "Perusahaan",
           "companyNoun": "perusahaan",
           "placeholder": "Pilih Perusahaan...",
@@ -3542,7 +3532,6 @@
         },
         "connect": {
           "connectFailed": "Tidak dapat terhubung. Periksa detail dan coba lagi.",
-          "subtitle": "Masukkan kredensial {{service}} untuk membuat koneksi",
           "credentials": "Kredensial",
           "tokenLabel": "Token API pribadi",
           "urlLabel": "URL instans",
@@ -4476,16 +4465,7 @@
       "preview": "Pratinjau:",
       "previewNote": "Sekadar ilustrasi; nomor sebenarnya ditetapkan saat proyek dibuat."
     },
-    "accounting": {
-      "sectionsLabel": "Bagian pengaturan akuntansi",
-      "taxDefault": "Perlakuan pajak bawaan",
-      "spendApprovers": "Penyetuju pengeluaran",
-      "withholding": "Pajak yang dipotong pelanggan",
-      "vendorTax": "Akun pajak tagihan pemasok",
-      "downPayments": "Uang muka",
-      "budgetMap": "Pemetaan akun anggaran",
-      "expenseMap": "Pemetaan akun biaya"
-    }
+    "accounting": {}
   },
   "uxs03": {
     "spendingContract": "Pengeluaran dibanding kontrak",
@@ -4702,7 +4682,6 @@
     "unlinkTimeoutDetail": "Permintaan habis waktu sebelum server menjawab.",
     "unlinkFailed": "Tidak dapat melepas tautan dari ClickUp. Proyek masih tertaut. Gunakan Unlink from ClickUp untuk mencoba lagi.",
     "reviewTitle": "Tinjau tautan ClickUp",
-    "reviewSubtitle": "Pastikan daftar yang sudah ada memang milik proyek ini.",
     "reviewAction": "Tinjau tautan",
     "confirmAction": "Konfirmasi tautan ClickUp",
     "linkDetails": "Detail tautan",
@@ -4808,7 +4787,6 @@
       "heading": "Pustaka dokumen default",
       "library": "Pustaka",
       "loading": "Memuat…",
-      "modalSub": "Pilih situs SharePoint, lalu salah satu pustaka dokumennya.",
       "modalTitle": "Pilih pustaka default",
       "none": "Belum ada pustaka default.",
       "pickLibrary": "Pilih pustaka",

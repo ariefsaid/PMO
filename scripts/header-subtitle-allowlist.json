@@ -5,9 +5,6 @@
   "components/ProjectFormModal.tsx": {
     "EntityFormModal-subtitle": 1
   },
-  "pages/AdministrationCredits.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
   "pages/Companies.tsx": {
     "ListPage-description": 1
   },
@@ -30,9 +27,6 @@
   "pages/ManagementPack.tsx": {
     "ListPage-description": 1
   },
-  "pages/MasterData.tsx": {
-    "ListPage-description": 1
-  },
   "pages/Meetings.tsx": {
     "ListPage-description": 1
   },
@@ -46,21 +40,6 @@
     "ListPage-description": 1
   },
   "pages/activity/EditActivityModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/admin-users/UserForms.tsx": {
-    "EntityFormModal-subtitle": 3
-  },
-  "pages/admin/BudgetAccountMap.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/admin/CostAttributionRuleForm.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/admin/ExpenseAccountMap.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "pages/admin/SpendApprovers.tsx": {
     "EntityFormModal-subtitle": 1
   },
   "pages/company/CompanyFormModal.tsx": {
@@ -188,21 +167,6 @@
     "EntityFormModal-subtitle": 1
   },
   "src/components/fx/FxRateUpload.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "src/components/integrations/ConnectCredentialsModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "src/components/integrations/ErpCompanyModal.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "src/components/integrations/M365DefaultLibraryCard.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "src/components/integrations/TaskListMatchReview.tsx": {
-    "EntityFormModal-subtitle": 1
-  },
-  "src/components/integrations/odoo/OdooConnectionCard.tsx": {
     "EntityFormModal-subtitle": 1
   },
   "src/components/meetings/ActionItemModal.tsx": {

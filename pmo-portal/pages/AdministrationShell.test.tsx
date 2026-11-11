@@ -420,28 +420,15 @@ describe('Administration route-backed shell', () => {
     },
   );
 
-  it('UX-074: Accounting setup exposes direct links to its focused setup sections', async () => {
-    renderShell('/administration/accounting');
-    const nav = screen.getByRole('navigation', { name: 'Accounting setup sections' });
-
-    const destinations = [
-      ['Default tax treatment', 'org-tax-default'],
-      ['Spend approvers', 'spend-approvers'],
-      ['Receipt withholding', 'withholding-account-heading'],
-      ['Supplier bill tax accounts', 'vendor-tax-accounts-heading'],
-      ['Down payments', 'down-payment-item-heading'],
-      ['Purchase rules', 'procurement-gates-heading'],
-      ['Budget account map', 'budget-account-map'],
-      ['Expense account map', 'expense-account-map'],
-    ] as const;
-
-    for (const [label, id] of destinations) {
-      const link = within(nav).getByRole('link', { name: label });
-      expect(link).toHaveAttribute('href', `/administration/accounting#${id}`);
-      await userEvent.click(link);
-      expect(screen.getByTestId('location')).toHaveTextContent(`#${id}`);
+  it('UX-074: a link to a setup section of Accounting setup scrolls to and focuses it', async () => {
+    // The page is one stack of headed sections (no second tab row); links from elsewhere keep their anchor.
+    const destinations = ['org-tax-default', 'spend-approvers', 'withholding-account-heading', 'budget-account-map', 'expense-account-map'] as const;
+    for (const id of destinations) {
+      cleanup();
+      renderShell(`/administration/accounting#${id}`);
       await waitFor(() => expect(document.getElementById(id)).toHaveFocus());
     }
+    expect(screen.queryByRole('navigation', { name: 'Accounting setup sections' })).toBeNull();
   });
 
   it('AC-ADMIA-003: an unknown section is replaced with Users', async () => {
