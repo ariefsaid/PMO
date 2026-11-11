@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Button } from './Button';
 import { Icon } from './icons';
+import { FieldError } from './FormFields';
 import { useIsDesktop } from './useIsDesktop';
 import { acquireBackgroundInert } from './backgroundInert';
 import {
@@ -33,6 +34,8 @@ export interface ConfirmDialogProps {
   tone?: ConfirmTone;
   /** confirm in-flight: spinner + disabled (reuses Button loading); blocks Esc/scrim close */
   loading?: boolean;
+  /** A failed write, rendered inside the dialog using the shared form-error primitive. */
+  error?: React.ReactNode;
   /** Gate the confirm button — for a dialog that hosts a required input (e.g. an attestation reason).
    *  Cancel/Esc/scrim are NEVER blocked by this: the escape hatch stays open. */
   confirmDisabled?: boolean;
@@ -55,6 +58,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   cancelLabel: cancelLabelProp,
   tone = 'default',
   loading = false,
+  error,
   confirmDisabled = false,
   cancelFirstOnMobile = false,
   initialFocus,
@@ -67,6 +71,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const isDestructive = tone === 'destructive';
   const titleId = useId();
   const descId = useId();
+  const errorId = useId();
   const isDesktop = useIsDesktop();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const setCancelRef = useCallback((element: HTMLButtonElement | null) => {
@@ -133,7 +138,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           }}
           role={isDestructive ? 'alertdialog' : 'dialog'}
           aria-labelledby={titleId}
-          aria-describedby={descId}
+          aria-describedby={error != null ? `${descId} ${errorId}` : descId}
           aria-modal="true"
           className={cn(
             isDesktop ? overlayDesktopContainerClassName : overlayMobileContainerClassName,
@@ -156,6 +161,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             <Dialog.Description render={<div />} id={descId} className={cn('text-control text-foreground', isDesktop && 'max-w-[60ch]')}>
               {description}
             </Dialog.Description>
+            <FieldError id={errorId} className="mt-3">{error}</FieldError>
           </div>
           <div className={overlayFooterClassName}>
             <div data-testid="confirm-action-row" className={cn('flex gap-2', !isDesktop && 'w-full flex-col')}>
