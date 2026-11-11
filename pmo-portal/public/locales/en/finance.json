@@ -1043,6 +1043,14 @@
     "exclTax": "excl. tax",
     "progressModal": {
       "titleFor": "Record progress · {{project}}"
+    },
+    "chart": {
+      "earnedVsContract": "Earned against contract",
+      "barLabel": "{{name}}: earned {{earned}} of {{contract}}",
+      "trendName": "Earned and invoiced to date, {{first}} to {{last}}",
+      "trendTitle": "Earned and invoiced to date",
+      "earnedEnd": "Earned",
+      "invoicedEnd": "Invoiced"
     }
   }
 }

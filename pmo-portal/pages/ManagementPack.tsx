@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Avatar } from '@/src/components/ui/Avatar';
+import { EarnedAgainstContract, EarnedInvoicedTrend } from '@/src/components/reports/ReportCharts';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
@@ -395,6 +396,11 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const totalsRows: TotalsRow[] = (pack?.totals ?? []).flatMap((tot) =>
     tot.months.map((m) => ({ ...m, currency: tot.currency })),
   );
+  const earnedBars = (pack && last >= 0 ? filteredRows : []).flatMap((row) => {
+    const m = row.months[last];
+    return row.kind === 'contract' && row.contractNet != null && m ? [{ key: row.key, name: row.projectName ?? row.projectNumber ?? '—', currency: row.currency, contract: row.contractNet, earned: m.recognisedToDate }] : [];
+  });
+  const trendCurrencies = (pack?.totals ?? []).filter((tot) => tot.months.length >= 3);
   const totalsColumns: Column<TotalsRow>[] = [
     { key: 'month', header: t('managementPack.col.month', 'Month'), kind: 'date', size: 120, cell: (r) => monthLabel(r.month) },
     {
@@ -543,7 +549,14 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       )}
 
       {pack && state === undefined && (
-        <>
+        <div className="flex flex-col">
+          {/* Comparison across projects and the earned/invoiced trend. On a phone the table comes first. */}
+          {(earnedBars.length > 1 || trendCurrencies.length > 0) && (
+            <div className="order-last mt-6 grid min-w-0 gap-6 lg:order-none lg:grid-cols-2">
+              <EarnedAgainstContract rows={earnedBars} />
+              {trendCurrencies.map((tot) => <EarnedInvoicedTrend key={tot.currency} currency={tot.currency} months={tot.months.map((m) => ({ month: m.month, earnedToDate: m.recognisedToDate, invoicedToDate: m.invoicedToDate }))} />)}
+            </div>
+          )}
           {/* N6: group spacing between the filter panel and the table it introduces. */}
           <h2 className="mb-2 mt-6 text-[16px] font-semibold">
             {t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
@@ -580,7 +593,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             emptyTitle={t('financeHub:managementPack.noSearchMatches', 'No projects match your search')}
             emptySub={t('financeHub:managementPack.noSearchMatchesSub', 'Try another project, client or project manager name.')}
           />
-        </>
+        </div>
       )}
       </div>
 

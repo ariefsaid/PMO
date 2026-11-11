@@ -59,6 +59,9 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import ManagementPack from '../ManagementPack';
 
+// The project names also label the earned-against-contract bars; the table cell is the one these tests mean.
+const projectCell = (name: string) => screen.getAllByText(name).find((el) => !el.closest('[data-testid="pack-earned-bars"]'))!;
+
 const project = (id: string, name: string, pm: string) => ({
   id, name, pmo_project_number: null, code: null, status: 'Ongoing Project', currency: 'IDR', contract_net: 1_000,
   start_date: null, end_date: null, project_manager_id: pm, client_name: null,
@@ -115,16 +118,16 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
     h.role = 'Executive';
     h.query.data = buildManagementPack(progressFacts);
     const { unmount } = renderPage();
-    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(projectCell('Alpha')).toBeInTheDocument();
     unmount();
     h.role = 'Finance';
     renderPage();
     const user = userEvent.setup();
-    const alpha = screen.getByText('Alpha').closest('tr')!;
+    const alpha = projectCell('Alpha').closest('tr')!;
     await user.click(within(alpha).getByRole('button', { name: 'Actions for Alpha' }));
     expect(screen.getByRole('menuitem', { name: 'Record progress' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
-    const beta = screen.getByText('Beta').closest('tr')!;
+    const beta = projectCell('Beta').closest('tr')!;
     await user.click(within(beta).getByRole('button', { name: 'Actions for Beta' }));
     expect(screen.queryByRole('menuitem', { name: 'Record progress' })).not.toBeInTheDocument();
   });
@@ -146,7 +149,7 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
     renderPage();
 
     const user = userEvent.setup();
-    const alpha = screen.getByText('Alpha').closest('tr')!;
+    const alpha = projectCell('Alpha').closest('tr')!;
     const actionsButton = within(alpha).getByRole('button', { name: 'Actions for Alpha' });
     await user.click(actionsButton);
 
@@ -237,9 +240,9 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     renderPage();
     expect(screen.getByRole('img', { name: 'Test Manager' })).toHaveTextContent('TM');
     expect(screen.getByRole('columnheader', { name: 'Progress' })).toBeInTheDocument();
-    expect(within(screen.getByText('Alpha').closest('tr')!).getByText('No entry for Apr')).toBeInTheDocument();
+    expect(within(projectCell('Alpha').closest('tr')!).getByText('No entry for Apr')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Invoices' })).toBeInTheDocument();
-    expect(within(screen.getByText('Alpha').closest('tr')!).getByText('2')).toBeInTheDocument();
+    expect(within(projectCell('Alpha').closest('tr')!).getByText('2')).toBeInTheDocument();
   });
 
   it('embedded report uses a compact heading and reveals monthly totals only on request', async () => {
@@ -268,7 +271,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     renderPage();
     expect(screen.queryByRole('heading', { name: 'Current project position' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /^Projects as at Apr 2026/ })).toBeInTheDocument();
-    expect(within(screen.getByText('Alpha').closest('tr')!).getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/250/);
+    expect(within(projectCell('Alpha').closest('tr')!).getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/250/);
   });
 
   it('FIN-S8: exactly one Export control replaces the CSV and XLSX pair', () => {
@@ -279,7 +282,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
 
   it('T10: project amounts are full and exact — zero fraction suppressed, tabular, never monospace', () => {
     renderPage();
-    const cell = within(screen.getByText('Alpha').closest('tr')!).getByTestId('pack-cell-invoicedToDate');
+    const cell = within(projectCell('Alpha').closest('tr')!).getByTestId('pack-cell-invoicedToDate');
     expect(cell).toHaveTextContent(/250/);
     expect(cell.textContent).not.toMatch(/[.,]00(?!\d)/);
     expect(cell).toHaveClass('tabular');
@@ -288,7 +291,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
 
   it('AC-1405-REPORT-006: projects with no progress use invoiced basis without a false missing-month warning', () => {
     renderPage();
-    const row = within(screen.getByText('Alpha').closest('tr')!);
+    const row = within(projectCell('Alpha').closest('tr')!);
 
     // O11: with no progress on any project, the invoiced basis is said once, not repeated in a column.
     expect(screen.getByText('No progress assessments recorded, so earned revenue follows what has been invoiced.')).toBeInTheDocument();
@@ -303,7 +306,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
       progress: [{ project_id: 'p1', month: '2026-04-01', pct_complete: 40, entered_at: '2026-04-20T10:00:00Z', entered_by_name: 'Finance' }],
     });
     renderPage();
-    expect(within(screen.getByText('Beta').closest('tr')!).getByText('Invoiced basis')).toBeInTheDocument();
+    expect(within(projectCell('Beta').closest('tr')!).getByText('Invoiced basis')).toBeInTheDocument();
     expect(screen.queryByText(/No progress assessments recorded/)).not.toBeInTheDocument();
   });
 
@@ -332,7 +335,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
       progress: [{ project_id: 'p1', month: '2026-04-01', pct_complete: percent, entered_at: '2026-04-20T10:00:00Z', entered_by_name: 'Finance' }],
     });
     renderPage();
-    const row = within(screen.getByText('Alpha').closest('tr')!);
+    const row = within(projectCell('Alpha').closest('tr')!);
     const progress = row.getByRole('progressbar');
 
     expect(progress).toHaveAttribute('aria-valuenow', String(Math.min(percent, 100)));
@@ -446,7 +449,7 @@ describe('AC-V24P-017 real Bahasa balance-availability explanations', () => {
       progress: [{ project_id: 'p1', month: '2026-04-01', pct_complete: 55.25, entered_at: '2026-04-30T10:00:00Z', entered_by_name: 'Finance' }],
     });
     renderBahasa();
-    const row = within(screen.getByText('Alpha').closest('tr')!);
+    const row = within(projectCell('Alpha').closest('tr')!);
     expect(row.getByText('55,25% selesai')).toBeInTheDocument();
   });
 
@@ -517,7 +520,7 @@ describe('Management pack design polish', () => {
 describe('AC-MMP-011 export wiring', () => {
   it('AC-MMP-011: Export hands the long-format table and the as-at stem to the exporter', async () => {
     renderPage();
-    const row = within(screen.getByText('Alpha').closest('tr')!);
+    const row = within(projectCell('Alpha').closest('tr')!);
     expect(row.getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/250/);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Export' }));
     const [table, stem, format] = h.exportTable.mock.calls[0];

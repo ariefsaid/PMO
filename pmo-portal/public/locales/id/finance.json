@@ -1043,6 +1043,14 @@
     "exclTax": "tanpa pajak",
     "progressModal": {
       "titleFor": "Catat progres · {{project}}"
+    },
+    "chart": {
+      "earnedVsContract": "Pendapatan terhadap kontrak",
+      "barLabel": "{{name}}: pendapatan {{earned}} dari {{contract}}",
+      "trendName": "Pendapatan dan tagihan sampai saat ini, {{first}} sampai {{last}}",
+      "trendTitle": "Pendapatan dan tagihan sampai saat ini",
+      "earnedEnd": "Pendapatan",
+      "invoicedEnd": "Ditagih"
     }
   }
 }
