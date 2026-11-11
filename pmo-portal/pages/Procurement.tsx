@@ -313,7 +313,6 @@ const ProcurementPage: React.FC = () => {
   const statusOptions: Array<{ value: string; label: string }> = useMemo(() => {
     const options = STATUS_FILTERS
       .filter((filter) => filter !== 'Needs approval' || canApprove)
-      .filter((filter) => filter !== 'All')
       .map((filter) => ({
         value: filter === 'Ordered' ? 'group:Ordered' : filter,
         label: t(`statusFilter.${filter === 'Vendor Invoiced' ? 'supplierInvoiced' : filter === 'Needs approval' ? 'needsApproval' : filter.toLowerCase()}`, filter === 'Vendor Invoiced' ? 'Supplier invoiced' : filter),
@@ -383,7 +382,7 @@ const ProcurementPage: React.FC = () => {
     { key: 'project', label: t('filter.project', 'Project'), kind: 'select', options: projectFilters },
     { key: 'supplier', label: t('filter.supplier', 'Supplier'), kind: 'select', options: supplierFilters },
     { key: 'raisedBy', label: t('filter.raisedBy', 'Raised by'), kind: 'select', options: raisedByFilters },
-    { key: 'status', label: t('filter.status', 'Status'), kind: 'select', options: statusOptions },
+    { key: 'status', label: t('filter.status', 'Status'), kind: 'select', options: statusOptions.filter((option) => option.value !== 'All') },
   ], [projectFilters, raisedByFilters, statusOptions, supplierFilters, t]);
 
   const filterValues = useMemo(() => ({
@@ -516,7 +515,6 @@ const ProcurementPage: React.FC = () => {
                   total={tabRows.length}
                   labels={{
                     all: t('tab.all', 'All'),
-                    clear: t('noMatch.clear', 'Clear filters'),
                     filters: t('filter.filters', 'Filters'),
                   }}
                 />
