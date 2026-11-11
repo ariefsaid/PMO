@@ -841,6 +841,10 @@
     },
     "tasks": {
       "selectTask": "Select task {{name}}",
+      "form": {
+        "noAssignees": "No assignable people are available. Add or activate a user in Administration."
+      },
+      "addTask": "Add task",
       "bulk": {
         "toast": {
           "partial": "{{succeeded}} updated; {{failed}} failed. Review the selected tasks and retry.",

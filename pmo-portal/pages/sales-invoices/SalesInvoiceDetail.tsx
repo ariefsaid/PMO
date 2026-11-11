@@ -5,6 +5,7 @@ import { invoiceTimelineSteps } from './invoiceTimeline';
 import { usePermission } from '@/src/auth/usePermission';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
 import { formatCurrency, formatDayYear } from '@/src/lib/format';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { clientInvoiceOverdueDays, deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -12,7 +13,6 @@ import { invoiceNumber, isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { SalesInvoiceEvidenceSection } from './SalesInvoiceEvidence';
-import { salesInvoiceStatusLabel } from './salesInvoiceListModel';
 
 interface Props {
   viewTarget: SalesInvoiceRow | null;
@@ -63,8 +63,8 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
               status={receiptAwaitingOdoo
                 ? <StatusPill variant="progress">{t('finance:receivables.statusReceiptAwaitingOdoo', 'Receipt sent, awaiting Odoo')}</StatusPill>
                 : isPartlyPaid(viewTarget)
-                ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
-                : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{salesInvoiceStatusLabel(viewTarget.status, t)}</StatusPill>}
+                ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{statusLabel('salesInvoice', 'PartlyPaid', t)}</StatusPill>
+                : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{statusLabel('salesInvoice', viewTarget.status, t)}</StatusPill>}
               meta={<>
                 {viewTarget.customer_name ?? '—'}
                 {viewTarget.paired_erp_invoice_id && (

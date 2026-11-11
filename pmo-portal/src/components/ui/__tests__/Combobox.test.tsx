@@ -76,6 +76,16 @@ describe('Combobox: open + load + select', () => {
     expect(screen.getByRole('option', { name: /Camden Waterworks/ })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /Cascade Port Authority/ })).not.toBeInTheDocument();
   });
+
+  it('explains an empty list and gives a next step, while a search miss suggests another query', async () => {
+    render(<Combobox label="Supplier" noun="supplier" value={null} onChange={() => {}} loadOptions={async () => []} />);
+    await userEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+
+    expect(await screen.findByText(/Nothing is available to select yet.*ask an administrator to add an option/i)).toBeInTheDocument();
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
+    await userEvent.type(search, 'Northwind');
+    expect(await screen.findByText(/No supplier matches "Northwind"\. Try a different search\./i)).toBeInTheDocument();
+  });
 });
 
 describe('Combobox: disabled while open', () => {
@@ -254,7 +264,7 @@ describe('Combobox: load states', () => {
     render(<Harness />);
     await userEvent.click(screen.getByRole('combobox'));
     // First load resolves empty -> the empty message, NOT options.
-    expect(await screen.findByText(/No .*matches/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Nothing is available to select yet.*ask an administrator to add an option/i)).toBeInTheDocument();
     expect(screen.queryByRole('option')).not.toBeInTheDocument();
 
     // The data source populates while the popover is still open (async, no click).

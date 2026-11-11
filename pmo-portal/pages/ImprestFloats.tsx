@@ -57,7 +57,7 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   const navigate = useNavigate();
   const establish = useEstablishFloat();
   const { data: projects } = useProjectPickerOptions();
-  const { data: users } = useUsers();
+  const { data: users, isPending: usersPending, isError: usersError, refetch: refetchUsers } = useUsers();
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const form = useEntityForm({
     initialValues: { projectId: '', custodianId: '', amount: '' },
@@ -106,7 +106,12 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
           onChange={(value) => { form.setValues({ projectId: value, custodianId: '' }); }} error={projectField.error} />
         <Combobox id={custodianField.id} label={t('imprest:establish.custodian', 'Custodian')} required noun={t('imprest:establish.custodianNoun', 'custodian')}
           value={custodianField.value || null} selectedOption={custodianOptions.find((o) => o.value === custodianField.value) ?? null}
-          disabled={!form.values.projectId} loadOptions={() => Promise.resolve(custodianOptions)}
+          disabled={!form.values.projectId}
+          helper={!form.values.projectId ? t('imprest:establish.chooseProjectFirst', 'Choose a project to see eligible custodians.') : undefined}
+          statusOverride={usersPending ? 'loading' : usersError ? 'error' : undefined}
+          onRetry={() => void refetchUsers()}
+          emptyMessage={(query) => query ? undefined : t('imprest:establish.noEligibleCustodians', 'No eligible custodians: add a Finance user or assign a project manager.')}
+          loadOptions={() => Promise.resolve(custodianOptions)}
           onChange={(value) => form.setValue('custodianId', value)} error={custodianField.error} />
         <TextField label={t('imprest:establish.amount', 'Float amount')} required inputMode="decimal" {...amountField} />
       </FormGrid>

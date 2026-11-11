@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ConfirmDialog, ListState, StatusPill, useToast, type StatusVariant } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, ConfirmDialog, ListState, StatusPill, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay, formatNumberExact } from '@/src/lib/format';
@@ -31,8 +31,6 @@ export interface SubcontractLinesSectionProps {
 }
 
 const DAY_MS = 86_400_000;
-const ACCEPTANCE_VARIANT: Record<string, StatusVariant> = { Draft: 'draft', Confirmed: 'won', Withdrawn: 'superseded' };
-
 const value = (qty: number, rate: number) => Math.round(qty * rate * 100) / 100;
 
 export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = ({
@@ -251,9 +249,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                     <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border p-2 text-sm">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold tabular">{formatDay(a.acceptance_date)}</span>
-                        <StatusPill variant={ACCEPTANCE_VARIANT[a.status] ?? 'neutral'}>
-                          {t(`subcontract.acceptance.status.${a.status}`, a.status)}
-                        </StatusPill>
+                        <StatusPill record="acceptance" state={a.status} />
                         <span className="text-sm text-muted-foreground">
                           {doc ? t('subcontract.acceptance.document', 'Signed document: {{title}}', { title: doc.title })
                             : t('subcontract.acceptance.noDocument', 'No signed document linked')}

@@ -1,3 +1,4 @@
+import { RejectionDetails } from '@/src/components/ui/RejectionDetails';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
@@ -13,7 +14,7 @@ import {
 } from '@/src/hooks/useEquipment';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
-import { LIST_LIMIT, type EquipmentAssetRow, type EquipmentUsageRow, type UsageInput } from '@/src/lib/db/equipment';
+import { LIST_LIMIT, type EquipmentAssetRow, type EquipmentUsageWithRejecter as EquipmentUsageRow, type UsageInput } from '@/src/lib/db/equipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay, formatNumberMax2, formatWeekdayDay } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -24,7 +25,6 @@ type Kind = 'work' | 'standby';
 /** One grid line: an (asset, project, kind) pair, or a fuel/trips line opened under it. */
 interface GridRow { key: string; assetId: string; projectId: string; kind: Kind; field: Field }
 type Tab = 'log' | 'approvals';
-type Status = 'Draft' | 'Submitted' | 'Approved' | 'Rejected';
 type Pending = { id: string; label: string } | null;
 
 const cellKey = (assetId: string, projectId: string, kind: string, date: string) => `${assetId}|${projectId}|${kind}|${date}`;
@@ -192,7 +192,7 @@ const EquipmentUsagePage: React.FC = () => {
         if (r.field !== 'quantity') return null;
         const states = [...new Set(mine.filter((e) => rowKey(e.asset_id, e.project_id, e.kind) === r.key).map((e) => e.status))];
         if (states.length === 0) return <span className="text-muted-foreground">—</span>;
-        return <span className="flex flex-wrap gap-1">{states.map((s) => <StatusPill key={s} record="equipmentUsage" state={s}>{s === 'Rejected' ? statusLabel(t, 'Rejected') : undefined}</StatusPill>)}</span>;
+        return <span className="flex flex-wrap gap-1">{states.map((s) => <StatusPill key={s} record="equipmentUsage" state={s} />)}</span>;
       } },
     { key: 'more', size: 48, header: <span className="sr-only">{t('equipment:usage.columns.fuelTrips', 'Fuel · trips')}</span>,
       cell: (r) => r.field !== 'quantity' ? null : (
@@ -320,6 +320,10 @@ const EquipmentUsagePage: React.FC = () => {
                 </div>}
             </div>
           </CanWrite>
+          {mine.filter((e) => e.status === 'Rejected' || (e.status === 'Draft' && !!(e.rejected_at || e.rejected_by || e.decision_notes?.trim()))).map((e) => <div key={e.id} className="mb-3">
+            <strong>{assetName(e.asset_id)} · {projectName(e.project_id)} · {dayLabel(e.work_date)}</strong>
+            <RejectionDetails reason={e.decision_notes} person={e.rejecter?.full_name} at={e.rejected_at} />
+          </div>)}
           <DataTable<GridRow> embedded rows={gridRows} columns={columns} rowKey={(r) => r.key} tableId="equipment-usage-grid"
             accessibleName={t('equipment:usage.gridLabel', 'Equipment usage this week')}
             state={gridRows.length === 0 ? 'empty' : undefined}
@@ -342,20 +346,11 @@ const EquipmentUsagePage: React.FC = () => {
             </section>))
       )}
       </div>
-      <ReasonDialog open={rejecting !== null} kind="return" subject={t('equipment:usage.entrySubject', 'usage entry')} context={rejecting?.label}
+      <ReasonDialog maxLength={500} open={rejecting !== null} kind="return" subject={t('equipment:usage.entrySubject', 'usage entry')} context={rejecting?.label}
         loading={transition.isPending} onCancel={() => setRejecting(null)}
         onConfirm={(notes) => { const r = rejecting; setRejecting(null); if (r) void decide(r.id, 'Rejected', notes); }} />
     </ListPage>
   );
 };
-
-function statusLabel(t: (k: string, d: string) => string, s: Status): string {
-  switch (s) {
-    case 'Draft': return t('equipment:status.draft', 'Draft');
-    case 'Submitted': return t('equipment:status.submitted', 'Submitted');
-    case 'Approved': return t('equipment:status.approved', 'Approved');
-    case 'Rejected': return t('equipment:status.rejected', 'Returned');
-  }
-}
 
 export default EquipmentUsagePage;

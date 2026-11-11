@@ -75,6 +75,8 @@ export interface ComboboxProps {
   placeholder?: string;
   required?: boolean;
   error?: React.ReactNode;
+  /** Context for a disabled or empty picker, announced by the trigger. */
+  helper?: React.ReactNode;
   /** Search input placeholder. */
   searchPlaceholder?: string;
   /** Noun for the empty/error copy, e.g. "company". */
@@ -118,6 +120,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   placeholder = 'Select…',
   required,
   error,
+  helper,
   searchPlaceholder,
   noun = 'option',
   emptyMessage,
@@ -133,6 +136,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   const baseId = useId();
   const labelId = `${baseId}-lbl`;
   const errId = `${baseId}-err`;
+  const helpId = `${baseId}-help`;
 
   const [open, setOpen] = useState(false);
   // #2122: a keyboard-activated open appears instantly (no 120ms menuPopIn). Base UI's Menu derives
@@ -289,7 +293,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
             title={selected?.sub ? `${selected.label} — ${selected.sub}` : selected?.label}
             aria-required={required || undefined}
             aria-invalid={error ? true : undefined}
-            aria-describedby={error ? errId : undefined}
+            aria-describedby={error ? errId : helper ? helpId : undefined}
             className={cn(
               'flex w-full items-center gap-2 rounded-md border text-foreground',
               formControl
@@ -332,6 +336,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
         </div>
 
         <FieldError id={errId}>{error}</FieldError>
+        {helper && !error && <span id={helpId} className="text-control text-muted-foreground">{helper}</span>}
 
         <BaseCombobox.Portal>
           <BaseCombobox.Positioner sideOffset={5} collisionPadding={8} className="z-[820]">
@@ -386,8 +391,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
                       const customMessage = typeof emptyMessage === 'function' ? emptyMessage(query) : emptyMessage;
                       if (customMessage !== undefined) return customMessage;
                       return query
-                        ? t('combobox.empty.withQuery', { defaultValue: 'No {{noun}} matches "{{query}}".', noun, query })
-                        : t('combobox.empty.bare', { defaultValue: 'No {{noun}} matches.', noun });
+                        ? t('combobox.empty.withQuery', { defaultValue: 'No {{noun}} matches "{{query}}". Try a different search.', noun, query })
+                        : t('combobox.empty.bare', { defaultValue: 'Nothing is available to select yet. Check this field’s prerequisites or ask an administrator to add an option.' });
                     })()}
                   </BaseCombobox.Empty>
                   <BaseCombobox.List

@@ -7,6 +7,12 @@ import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
   floats: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
+  projects: { data: [{ id: 'p1', name: 'Site Alpha', short_name: null, project_manager_id: 'u-pm' }] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  users: { data: [
+    { id: 'u-pm', full_name: 'Pia Manager', role: 'Project Manager' },
+    { id: 'u-fin', full_name: 'Finn Finance', role: 'Finance' },
+    { id: 'u-eng', full_name: 'Eli Engineer', role: 'Engineer' },
+  ] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   positions: {} as Record<string, unknown>,
   establish: { mutateAsync: vi.fn(), isPending: false },
 }));
@@ -16,14 +22,8 @@ vi.mock('@/src/hooks/useImprest', () => ({
   useImprestPosition: (id: string) => ({ data: h.positions[id], isPending: !(id in h.positions), isError: false }),
   useEstablishFloat: () => h.establish,
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Site Alpha', short_name: null, project_manager_id: 'u-pm' }] }) }));
-vi.mock('@/src/hooks/useUsers', () => ({
-  useUsers: () => ({ data: [
-    { id: 'u-pm', full_name: 'Pia Manager', role: 'Project Manager' },
-    { id: 'u-fin', full_name: 'Finn Finance', role: 'Finance' },
-    { id: 'u-eng', full_name: 'Eli Engineer', role: 'Engineer' },
-  ] }),
-}));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => h.projects }));
+vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => h.users }));
 let realRole: Role = 'Finance';
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole, effectiveRole: realRole }) }));
 
@@ -43,6 +43,12 @@ describe('/imprest list (AC-IMP-082)', () => {
   beforeEach(() => {
     realRole = 'Finance';
     h.floats = { data: { rows: [float('f1', 'Site Alpha', 'Finn Finance'), float('f2', 'Site Beta', 'Pia Manager')], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    h.projects = { data: [{ id: 'p1', name: 'Site Alpha', short_name: null, project_manager_id: 'u-pm' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.users = { data: [
+      { id: 'u-pm', full_name: 'Pia Manager', role: 'Project Manager' },
+      { id: 'u-fin', full_name: 'Finn Finance', role: 'Finance' },
+      { id: 'u-eng', full_name: 'Eli Engineer', role: 'Engineer' },
+    ], isPending: false, isError: false, refetch: vi.fn() };
     h.positions = { f1: pos(), f2: pos({ float_id: 'f2', cash_book: 950000, gap: 250000 }) };
   });
 
@@ -123,5 +129,22 @@ describe('/imprest list (AC-IMP-082)', () => {
     await user.type(within(dialog).getByLabelText(/Float amount/), '5000000');
     await user.click(within(dialog).getByRole('button', { name: 'Establish float' }));
     await waitFor(() => expect(h.establish.mutateAsync).toHaveBeenCalledWith({ projectId: 'p1', custodianId: 'u-fin', amount: 5000000 }));
+  });
+
+  it('explains the project prerequisite and how to make a custodian eligible', async () => {
+    const user = userEvent.setup();
+    h.projects = { data: [{ id: 'p1', name: 'Site Alpha', short_name: null, project_manager_id: null }], isPending: false, isError: false, refetch: vi.fn() };
+    h.users = { data: [{ id: 'u-eng', full_name: 'Eli Engineer', role: 'Engineer' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Establish float' }));
+    const custodian = screen.getByRole('combobox', { name: /Custodian/ });
+    expect(custodian).toBeDisabled();
+    expect(screen.getByText('Choose a project to see eligible custodians.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('combobox', { name: /Project/ }));
+    await user.click(await screen.findByRole('option', { name: /Site Alpha/ }));
+    await user.click(custodian);
+    expect(await screen.findByText('No eligible custodians: add a Finance user or assign a project manager.')).toBeInTheDocument();
   });
 });

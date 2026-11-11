@@ -577,10 +577,6 @@ const ProcurementDetails: React.FC = () => {
     navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: Object.keys(rest).length ? rest : null });
     if (mainAction && mainAction.to === handoffTarget) clickMainAction();
   };
-  const secondaryClick = () => {
-    if (returnAction) onActionClick(returnAction);
-    else setTab('quotes');
-  };
   const openQuotationCapture = () => {
     if (tabParam === 'quotes') {
       document.querySelector<HTMLButtonElement>('[data-testid="add-quotation"]')?.click();
@@ -607,10 +603,7 @@ const ProcurementDetails: React.FC = () => {
   ];
   const cancelAction = actionFor('Cancelled');
   const moreMenuItems: RecordMenuItem[] = [
-    ...(isNarrow ? [
-      ...(returnAction ? [{ key: 'return', label: t('procurementRecord:action.return', 'Return'), onSelect: secondaryClick }] : []),
-      ...recordMenuItems,
-    ] : []),
+    ...(isNarrow ? recordMenuItems : []),
     ...(canEditHeader ? [{ key: 'edit-header', testId: 'edit-header', label: t('procurementRecord:editDetails', 'Edit details'), onSelect: () => setHeaderEditOpen(true) }] : []),
     { key: 'history', label: t('procurementRecord:timeline.fullHistory', 'Full history'), onSelect: () => { setHistoryOpen(true); setTab('timeline'); } },
     ...secondaryTransitionActions.map((action) => ({ key: `to-${action.to}`, label: action.label, onSelect: () => onActionClick(action) })),

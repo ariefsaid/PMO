@@ -175,8 +175,9 @@ select is((select rejected_by from equipment_usage_entries where id=(select v fr
 select is((select decision_notes from equipment_usage_entries where id=(select v from _e where k='e2')), null::text, 'AC-RSN-002 equipment reason cleared');
 select ok((select decision_notes is null and rejected_by is null and rejected_at is null from equipment_usage_entries where id=(select v from _e where k='e2')), 'AC-RSN-002 all equipment decision details cleared');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a5');
-select lives_ok($$ select transition_equipment_usage((select v from _e where k='e2'), 'Rejected') $$, 'AC-RSN-007 equipment rejection without notes');
-select is((select decision_notes from equipment_usage_entries where id=(select v from _e where k='e2')), null::text, 'AC-RSN-007 omitted equipment reason is null');
+select throws_ok($$ select transition_equipment_usage((select v from _e where k='e2'), 'Rejected') $$, '22023', 'A rejection reason is required', 'AC-RSN-001 equipment rejection without notes refused');
+select ok((select status='Submitted' and decision_notes is null and rejected_by is null and rejected_at is null from equipment_usage_entries where id=(select v from _e where k='e2')), 'AC-RSN-001 refused decision leaves record unchanged');
+select transition_equipment_usage((select v from _e where k='e2'),'Rejected', 'Please revise');
 select isnt((select rejected_at from equipment_usage_entries where id=(select v from _e where k='e2')), null::timestamptz, 'AC-RSN-007 equipment time recorded');
 
 
@@ -243,16 +244,18 @@ select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-
 select transition_equipment_usage((select v from _e where k='e2'),'Draft');
 select transition_equipment_usage((select v from _e where k='e2'),'Submitted');
 select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000a5', 'role','authenticated')::text, true);
-select lives_ok($$select transition_equipment_usage((select v from _e where k='e2'),'Rejected','   ')$$, 'AC-RSN-007 spaces-only notes accepted');
-select is((select decision_notes from equipment_usage_entries where id=(select v from _e where k='e2')), null::text, 'AC-RSN-007 spaces-only notes stored null');
+select throws_ok($$select transition_equipment_usage((select v from _e where k='e2'),'Rejected','   ')$$, '22023', 'A rejection reason is required', 'AC-RSN-001 spaces-only notes refused');
+select ok((select status='Submitted' and decision_notes is null and rejected_by is null and rejected_at is null from equipment_usage_entries where id=(select v from _e where k='e2')), 'AC-RSN-001 refused decision leaves record unchanged');
+select transition_equipment_usage((select v from _e where k='e2'),'Rejected', 'Please revise');
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000a6', 'role','authenticated')::text, true);
 select transition_equipment_usage((select v from _e where k='e2'),'Draft');
 select transition_equipment_usage((select v from _e where k='e2'),'Submitted');
 select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000a5', 'role','authenticated')::text, true);
-select lives_ok($$select transition_equipment_usage((select v from _e where k='e2'),'Rejected', E' \t\n ')$$, 'AC-RSN-007 whitespace-only notes accepted');
-select is((select decision_notes from equipment_usage_entries where id=(select v from _e where k='e2')), E'\t\n', 'AC-RSN-007 tabs and newlines retain existing behavior');
+select throws_ok($$select transition_equipment_usage((select v from _e where k='e2'),'Rejected', E' \t\n ')$$, '22023', 'A rejection reason is required', 'AC-RSN-001 whitespace-only notes refused');
+select ok((select status='Submitted' and decision_notes is null and rejected_by is null and rejected_at is null from equipment_usage_entries where id=(select v from _e where k='e2')), 'AC-RSN-001 refused decision leaves record unchanged');
+select transition_equipment_usage((select v from _e where k='e2'),'Rejected', 'Please revise');
 select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000a6', 'role','authenticated')::text, true);
 select transition_equipment_usage((select v from _e where k='e2'),'Draft');
 select transition_equipment_usage((select v from _e where k='e2'),'Submitted');

@@ -140,7 +140,8 @@
     "count": "Stok opname"
   },
   "empty": {
-    "noStock": "Belum ada stok"
+    "noStock": "Belum ada stok",
+    "itemPicker": "Belum ada barang stok: tambahkan di Pengaturan stok."
   },
   "errors": {
     "STK_INSUFFICIENT": "Stok tidak cukup untuk pergerakan ini.",

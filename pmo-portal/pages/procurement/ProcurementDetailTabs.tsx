@@ -6,7 +6,7 @@ import type { useProcurementItemEligibility } from '@/src/hooks/useProcurementIt
 import type { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import type { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
 import type { useProcurementMutations } from '@/src/hooks/useProcurementDetail';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatPercent } from '@/src/lib/format';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { selectedQuotation } from '../../components/procurement';
 import type { DetailRow } from './ProcurementOverviewTab';
@@ -106,8 +106,8 @@ export const ProcurementQuotesTab: React.FC<QuotesTabProps> = ({ p, selectedQuot
             {chosen && <StatusPill variant="won">{t('procurementRecord:quotes.chosen', 'Chosen')}</StatusPill>}
           </div>
           <p className="mt-3 text-[18px] font-semibold tabular-nums">{formatCurrency(Number(quote.total_amount), quote.currency)}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{t('procurementRecord:quotes.validUntil', 'Valid until')}: {quote.valid_until ?? '—'}</p>
-          {difference != null && <p className="mt-2 text-sm text-muted-foreground">{t('procurementRecord:quotes.vsChosen', 'vs chosen')}: {difference > 0 ? '+' : ''}{formatCurrency(difference, quote.currency)}{percent == null ? '' : ` · ${percent > 0 ? '+' : ''}${percent.toFixed(1)}%`}</p>}
+          <p className="mt-1 text-sm text-muted-foreground">{t('procurementRecord:quotes.validUntil', 'Valid until')}: {quote.valid_until ? formatDay(quote.valid_until) : '—'}</p>
+          {difference != null && <p className="mt-2 text-sm text-muted-foreground">{t('procurementRecord:quotes.vsChosen', 'vs chosen')}: {difference > 0 ? '+' : ''}{formatCurrency(difference, quote.currency)}{percent == null ? '' : ` · ${percent > 0 ? '+' : ''}${formatPercent(percent / 100, 1)}`}</p>}
         </article>;
       })}
     </div>}

@@ -13,6 +13,7 @@ import {
 } from '@/src/hooks/useStock';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseStockError } from '@/src/lib/stockErrors';
+import { categoryVariant } from '@/src/lib/status/statusVariants';
 import type {
   StockItemRow, StockUnitRow, StockWarehouseRow, StockItemInput, StockUnitInput, StockWarehouseInput,
 } from '@/src/lib/db/stockMaster';
@@ -99,7 +100,7 @@ const StockSetup: React.FC = () => {
     }
     return [
       code,
-      { key: 'kind', header: t('setup.columns.kind'), cell: (r) => <StatusPill variant={(r as StockWarehouseRow).kind === 'central' ? 'open' : 'neutral'}>{t(`setup.kinds.${(r as StockWarehouseRow).kind}`)}</StatusPill> },
+      { key: 'kind', header: t('setup.columns.kind'), cell: (r) => <StatusPill variant={categoryVariant((r as StockWarehouseRow).kind, 'central')}>{t(`setup.kinds.${(r as StockWarehouseRow).kind}`)}</StatusPill> },
       { key: 'project', header: t('setup.columns.project'), cell: (r) => <span className={dim(r)}>{projectName.get((r as StockWarehouseRow).project_id ?? '') ?? ''}</span> },
       {
         key: 'keepers', header: t('setup.columns.keepers'),
