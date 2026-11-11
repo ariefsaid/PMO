@@ -199,7 +199,9 @@
   },
   "age": {
     "overdue_one": "Terlambat {{n}} hari",
-    "overdue_other": "Terlambat {{n}} hari"
+    "overdue_other": "Terlambat {{n}} hari",
+    "late_one": "{{n}} hari terlambat",
+    "late_other": "{{n}} hari terlambat"
   },
   "reasonDialog": {
     "returnTitle": "Kembalikan {{subject}}",

@@ -1,6 +1,9 @@
 {
   "dueThisWeek": "Jatuh tempo minggu ini",
   "clearDueWeek": "Hapus filter jatuh tempo minggu ini",
+  "myTasks": {
+    "openTasksShort": "Aktif"
+  },
   "push": {
     "pushing": "Mengirim…",
     "pushingAria": "mengirim ke sistem eksternal",

@@ -1816,7 +1816,7 @@
     "noSearchResults": "No tasks match your search",
     "noTasksInView": "No tasks in this view",
     "start": "Start {{date}}",
-    "title": "My Tasks"
+    "title": "Tasks"
   },
   "procurement": {
     "columns": {

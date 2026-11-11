@@ -307,7 +307,7 @@ export default function ProcurementCreate() {
   return (
     <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
       {canCaptureDocuments
-        ? <BackBar label={t('backToChoices', 'What do you have?')} onBack={() => saving ? guardLeave(() => setHave(null)) : setHave(null)} />
+        ? <BackBar label={t('backToChoices', 'choose type')} onBack={() => saving ? guardLeave(() => setHave(null)) : setHave(null)} />
         : <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />}
       <form id="procurement-create-form" onSubmit={submit} noValidate>
         <header className="mb-6 border-b border-border pb-4">
