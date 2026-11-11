@@ -42,6 +42,10 @@ const RECORD_KIND: Record<Exclude<ProcurementHave, 'need'>, 'po' | 'invoice' | '
   payment: 'payment',
 };
 
+function isDefinitiveRefusal(code: unknown): boolean {
+  return typeof code === 'string' && code !== '23505' && /^(22|23|42|P0)[0-9A-Z]{3}$/.test(code);
+}
+
 function parseHave(value: string | null): ProcurementHave | null {
   return HAVE_VALUES.includes(value as ProcurementHave) ? value as ProcurementHave : null;
 }
@@ -236,10 +240,11 @@ export default function ProcurementCreate() {
       const classified = classifyMutationError(error);
       const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
       const conflict = code === '23505';
-      if (!attempt && (code === '22003' || code === '22023' || code === '23503' || code === '23514')) setAttempt(null);
+      const definitive = !attempt && isDefinitiveRefusal(code);
+      if (definitive) setAttempt(null);
       const detail = conflict
         ? t('reconcile', 'Open the saved request to reconcile it before retrying.')
-        : classified.detail;
+        : definitive ? classified.detail : `${classified.detail} ${t('uncertainSave', 'The save may have completed. Check its status before starting a new request; retrying here uses the same request.')}`;
       setErrors({ save: detail, conflict });
       toast(classified.headline, detail, 'warning');
       savingRef.current = false;
@@ -316,6 +321,7 @@ export default function ProcurementCreate() {
               <Combobox
                 label={t('project', 'Project')}
                 noun="project"
+                emptyMessage={(query) => query ? undefined : t('references.noProjects', 'No projects available. You can continue without a project or ask an administrator to add one.')}
                 placeholder={t('selectProject', 'Select a project…')}
                 value={selectedProject}
                 selectedOption={projectOption}
@@ -326,6 +332,7 @@ export default function ProcurementCreate() {
               <Combobox
                 label={t('supplier', 'Supplier')}
                 noun="supplier"
+                emptyMessage={(query) => query ? undefined : t('references.noSuppliers', 'No suppliers available. A supplier is optional; ask an administrator to add one if needed.')}
                 placeholder={t('selectSupplier', 'Optional: select a supplier…')}
                 value={supplierId}
                 selectedOption={supplierOptions.find((option) => option.value === supplierId) ?? null}
@@ -349,7 +356,7 @@ export default function ProcurementCreate() {
           </fieldset>
         </section>
         {errors.save && <p role="alert" className="mb-4 text-control text-destructive-text">{errors.save}</p>}
-        {errors.conflict && attempt && <Button type="button" variant="outline" onClick={() => guardLeave(() => navigate(`/procurement/${attempt.input.id}`))}>{t('openSavedRequest', 'Open saved request')}</Button>}
+        {attempt && errors.save && <Button type="button" variant="outline" onClick={() => guardLeave(() => navigate(`/procurement/${attempt.input.id}`))}>{errors.conflict ? t('openSavedRequest', 'Open saved request') : t('checkSaveStatus', 'Check request status')}</Button>}
         {needForm && (
           <fieldset disabled={saving || Boolean(attempt)} className="contents">
             <LineItemsSection
