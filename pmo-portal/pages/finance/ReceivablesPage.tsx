@@ -59,16 +59,17 @@ function owedTotals(position: ReturnType<typeof useFinancePosition>['position'])
   return totals;
 }
 
-function monthlyCash(payments: IncomingPaymentRow[], from: string, to: string): CurrencyTotals {
+function monthlyCash(payments: IncomingPaymentRow[], from: string, to: string): { totals: CurrencyTotals; unknown: number } {
   const totals: CurrencyTotals = {};
+  let unknown = 0;
   for (const payment of payments) {
     const date = payment.date?.slice(0, 10);
     if (!date || date < from || date >= to || payment.status !== 'Paid' || payment.cancelled_at || payment.erp_cancelled_at) continue;
     // `amount` includes withheld tax; this figure is cash actually received.
-    if (payment.received_amount == null || !Number.isFinite(payment.received_amount)) continue;
+    if (payment.received_amount == null || !Number.isFinite(payment.received_amount)) { unknown += 1; continue; }
     totals[payment.currency] = (totals[payment.currency] ?? 0) + Math.round(payment.received_amount * 100);
   }
-  return totals;
+  return { totals, unknown };
 }
 
 export default function ReceivablesPage() {
@@ -97,11 +98,13 @@ export default function ReceivablesPage() {
       return due && due >= today && due <= end ? [{ invoice, due }] : [];
     }).sort((a, b) => a.due.localeCompare(b.due));
   }, [openInvoices, today]);
+  const dueSoonUnknown = dueSoon.filter(({ invoice }) => invoice.erp_outstanding_amount == null || !Number.isFinite(invoice.erp_outstanding_amount)).length;
   const dueSoonByCurrency = useMemo(() => dueSoonTotals(dueSoon.map(({ invoice }) => invoice)), [dueSoon]);
-  const thisMonthCash = useMemo(() => today ? monthlyCash(payments, monthStart(today), nextMonthStart(today)) : {}, [payments, today]);
-  const lastMonthCash = useMemo(() => today ? monthlyCash(payments, previousMonthStart(today), monthStart(today)) : {}, [payments, today]);
-  const cashDeltaCents = (thisMonthCash[orgCurrency] ?? 0) - (lastMonthCash[orgCurrency] ?? 0);
+  const thisMonthCash = useMemo(() => today ? monthlyCash(payments, monthStart(today), nextMonthStart(today)) : { totals: {}, unknown: 0 }, [payments, today]);
+  const lastMonthCash = useMemo(() => today ? monthlyCash(payments, previousMonthStart(today), monthStart(today)) : { totals: {}, unknown: 0 }, [payments, today]);
+  const cashDeltaCents = (thisMonthCash.totals[orgCurrency] ?? 0) - (lastMonthCash.totals[orgCurrency] ?? 0);
   const cashDelta = (() => {
+    if (!today || thisMonthCash.unknown || lastMonthCash.unknown) return undefined;
     const amount = formatTileMoney(Math.abs(cashDeltaCents) / 100, orgCurrency);
     return amount === null ? undefined : cashDeltaCents > 0 ? `+${amount}` : cashDeltaCents < 0 ? `−${amount}` : amount;
   })();
@@ -113,7 +116,7 @@ export default function ReceivablesPage() {
     const date = payment.date?.slice(0, 10);
     return date && date >= monthStart(today) && date < nextMonthStart(today) && payment.status === 'Paid' && !payment.cancelled_at && !payment.erp_cancelled_at;
   });
-  const cashTile = moneyTileProps(today && !hasCurrentPayments ? { [orgCurrency]: 0 } : thisMonthCash, orgCurrency);
+  const cashTile = moneyTileProps(today && !hasCurrentPayments ? { [orgCurrency]: 0 } : thisMonthCash.totals, orgCurrency);
 
   const changeView = (nextView: ReceivablesView) => setSearchParams((current) => {
     const next = new URLSearchParams(current);
@@ -183,12 +186,14 @@ export default function ReceivablesPage() {
             icon="grid" tone="amber" label={t('finance:receivables.dueNext30', 'Due in next 30 days')}
             caption={dueSoon[0] ? t('finance:receivables.nextDue', 'next due {{date}}', { date: formatDay(dueSoon[0].due) }) : undefined}
             value={dataPending ? null : dueSoonTile.value} exactValue={dataPending ? undefined : dueSoonTile.exactValue} loading={dataPending}
+            unavailableReason={!dataPending && dueSoonTile.value == null && dueSoonUnknown > 0 ? unknownReason(dueSoonUnknown) : undefined} hiddenLink={seeInvoices}
             help={t('finance:receivables.dueHelp', 'Open invoices with a due date from today through 30 days from today, using the invoice date, client terms, and ERP due date.')}
           />
           <KPITile
             icon="grid" tone="green" label={t('finance:receivables.receivedThisMonth', 'Received this month')}
             caption={cashDelta ? t('finance:receivables.vsLastMonth', '{{delta}} vs last month', { delta: cashDelta }) : undefined}
-            value={dataPending ? null : cashTile.value} exactValue={dataPending ? undefined : cashTile.exactValue} loading={dataPending}
+            value={dataPending || thisMonthCash.unknown ? null : cashTile.value} exactValue={dataPending || thisMonthCash.unknown ? undefined : cashTile.exactValue} loading={dataPending}
+            unavailableReason={!dataPending && thisMonthCash.unknown ? t('finance:receivables.receiptUnknown', { defaultValue: '{{count}} receipt amounts unknown', count: thisMonthCash.unknown }) : undefined}
             help={t('finance:receivables.receivedHelp', 'Cash received on non-cancelled payments dated in this calendar month, compared with the previous calendar month.')}
           />
         </KPIRow>
