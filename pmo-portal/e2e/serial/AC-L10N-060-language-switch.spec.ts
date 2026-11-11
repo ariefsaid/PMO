@@ -20,11 +20,13 @@ const MONEY_ID = new Intl.NumberFormat('id-ID', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 0,
 }).format(P001_CONTRACT_USD);
-const DATE_ID = new Intl.DateTimeFormat('id-ID', {
-  year: 'numeric',
-  month: 'short',
-  day: 'numeric',
-}).format(new Date('2026-01-06T00:00:00'));
+// ux/1110's day vocabulary (F1a): "6 Jan 2026", but the year is DROPPED within the current year
+// (formatDay). Compute the same rule so the oracle tracks the app's deliberate shape change.
+const P001_START = new Date('2026-01-06T00:00:00');
+const yearShape = new Intl.DateTimeFormat('id-ID', { year: 'numeric' });
+const DATE_ID = yearShape.format(P001_START) === yearShape.format(new Date())
+  ? new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short' }).format(P001_START)
+  : new Intl.DateTimeFormat('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }).format(P001_START);
 
 /** The settings page's native labelled select; its option VALUES are locale-stable. */
 function languageSelect(page: Page) {
@@ -38,6 +40,11 @@ function saveButton(page: Page, { exact = false }: { exact?: boolean } = {}) {
 }
 
 test('AC-L10N-060: switching to Bahasa Indonesia re-renders money and dates, and persists', async ({ page }) => {
+  // Five full SPA bootstraps (sign-in, account menu → profile, save, reload, project record) plus
+  // the shell-wide re-render the language flip triggers. Sibling serial journeys here (AC-RAM-001,
+  // AC-ENT-005) carry the same explicit budget; the 30s default cannot hold this journey on a cold
+  // dev server. Every assertion below keeps its strict oracle — this widens only the overall budget.
+  test.setTimeout(120_000);
   await signIn(page, 'pm@acme.test');
 
   // 1. Enter the profile page through the ONE account menu (AC-ACCT-001), then choose
@@ -60,15 +67,20 @@ test('AC-L10N-060: switching to Bahasa Indonesia re-renders money and dates, and
   await expect(page.locator('html')).toHaveAttribute('lang', 'id');
 
   // 3. Project detail → the SAME settled screen shows the contract value and start date in
-  //    Indonesian convention (AC-L10N-060's goal oracle). S-13 (#1087, ae6ab208) deliberately
-  //    moved secondary project context into the details/actions disclosure, so open it before
-  //    checking the start date rather than weakening the visibility assertion.
+  //    Indonesian convention (AC-L10N-060's goal oracle). ux/1110 recomposed the header: the
+  //    secondary project context (details rail incl. the start date) now lives in ONE
+  //    "Project details" popover in the header (formerly the S-13 details/actions disclosure),
+  //    so open that before checking the start date rather than weakening the visibility assertion.
   await page.goto(`/projects/${PROJECT_ID}`);
   await expect(page.locator('main')).toBeVisible();
   await expect(page.getByText(MONEY_ID, { exact: true }).first()).toBeVisible();
-  await page.getByLabel('Tindakan lainnya', { exact: true }).click();
   await page.getByRole('button', { name: 'Detail proyek', exact: true }).click();
   await expect(page.getByText(DATE_ID, { exact: true }).first()).toBeVisible();
+  // Close the popover the way a user does before moving on, and wait for the close to settle —
+  // its dismiss/exit window swallows an immediately-following outside click (the afterEach's
+  // account-menu open), which would leave the locale restoration without its menu.
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Detail proyek', exact: true })).not.toHaveAttribute('aria-expanded', 'true');
 });
 
 test.afterEach(async ({ page }) => {

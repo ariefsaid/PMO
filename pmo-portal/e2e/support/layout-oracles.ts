@@ -1039,10 +1039,20 @@ export async function driveAdministrationSections(
   sections: ReadonlyArray<(typeof ADMINISTRATION_OPERATOR_SECTIONS)[number]> = ADMINISTRATION_ORGANIZATION_SECTIONS,
 ) {
   const sectionNav = page.getByRole('navigation', { name: 'Administration sections' });
+  // ux/1110 recomposed the section nav: below the sm breakpoint the nav renders ONE <select> with
+  // an <option> per section instead of the link strip (pages/Administration.tsx, useIsNarrow).
+  // Same journey — reach each section, panel visible, no overflow — via the control that exists.
+  const narrow = vw < 600;
   for (const s of sections) {
-    const link = sectionNav.getByRole('link', { name: s.name });
-    await expect(link).toBeVisible();
-    await link.click();
+    if (narrow) {
+      const select = sectionNav.getByRole('combobox');
+      await expect(select).toBeVisible();
+      await select.selectOption({ label: s.name });
+    } else {
+      const link = sectionNav.getByRole('link', { name: s.name });
+      await expect(link).toBeVisible();
+      await link.click();
+    }
     await expect(page).toHaveURL(new RegExp(`${s.url}$`));
     await expect(page.getByTestId(s.testid)).toBeVisible();
 
@@ -1051,8 +1061,9 @@ export async function driveAdministrationSections(
     await expect(heading).toBeVisible();
     await expect(panelHeading).toBeVisible();
     await waitForFonts(page);
-    if (vw < 600) {
-      for (const el of [heading, sectionNav.getByRole('link', { name: s.name }), panelHeading]) {
+    if (narrow) {
+      const control = narrow ? sectionNav.getByRole('combobox') : sectionNav.getByRole('link', { name: s.name });
+      for (const el of [heading, control, panelHeading]) {
         const box = await el.boundingBox();
         expect(box, `${s.name} control should have a layout box at ${vw}px`).not.toBeNull();
         expect(
@@ -1060,11 +1071,11 @@ export async function driveAdministrationSections(
           `${s.name} control must sit within the first scroll region at ${vw}px — its top (${Math.round(box!.y)}px) is below the ${height}px viewport.`,
         ).toBeLessThan(height);
       }
-      const linkBox = await link.boundingBox();
-      expect(linkBox, `${s.name} link should have a layout box at ${vw}px`).not.toBeNull();
+      const controlBox = await control.boundingBox();
+      expect(controlBox, `${s.name} nav control should have a layout box at ${vw}px`).not.toBeNull();
       expect(
-        linkBox!.height,
-        `${s.name} link must offer a 44px-tall phone touch target, without overlap from adjacent links`,
+        controlBox!.height,
+        `${s.name} nav control must offer a 44px-tall phone touch target`,
       ).toBeGreaterThanOrEqual(44);
     }
 
