@@ -38,7 +38,6 @@ const renderBar = () =>
       <ContextBar
         breadcrumb={[{ label: 'Dashboard' }]}
         onOpenPalette={vi.fn()}
-        onToggleRail={vi.fn()}
       />
     </MemoryRouter>,
   );

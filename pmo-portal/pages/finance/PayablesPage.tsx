@@ -33,6 +33,9 @@ function currencyTotals(rows: PayableRow[]): Record<string, number> {
 const PayablesPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const openProcurement = (procurementId: string) => navigate(`/procurement/${procurementId}`, {
+    state: { recordContext: { origin: 'finance-payables' } },
+  });
   const { canView } = useFinanceAccess();
   const finance = useFinancePosition(canView);
   // L12: supplier invoices kept in the accounting system count here exactly as on the procurement record.
@@ -159,10 +162,10 @@ const PayablesPage: React.FC = () => {
         columns={columns}
         rowKey={(row) => row.procurement.id}
         rowLabel={(row) => t('financeHub:hub.openSupplierInvoice', 'Open supplier invoice for {{supplier}}', { supplier: row.procurement.vendor?.name ?? row.procurement.title })}
-        onActivate={(row) => navigate(`/procurement/${row.procurement.id}`)}
+        onActivate={(row) => openProcurement(row.procurement.id)}
         selection={{ selectedIds: selectedKeys, onChange: setSelectedKeys }}
         rowMenu={(row) => [
-          { label: t('financeHub:hub.openProcurement', 'Open procurement'), onClick: () => navigate(`/procurement/${row.procurement.id}`) },
+          { label: t('financeHub:hub.openProcurement', 'Open procurement'), onClick: () => openProcurement(row.procurement.id) },
           ...(row.procurement.vendor_id ? [{ label: t('financeHub:hub.openSupplier', 'Open supplier'), onClick: () => navigate(`/companies/${row.procurement.vendor_id}`) }] : []),
         ]}
         totals={totals}

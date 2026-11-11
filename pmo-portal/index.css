@@ -496,6 +496,13 @@
   }
 }
 
+/* The rail is hidden on compact tablets, between the phone bar and desktop rail
+   breakpoints. Keep its More drawer reachable from the header in that interval. */
+.tablet-nav-more { display: none; }
+@media (min-width: 640px) and (max-width: 920px) {
+  .tablet-nav-more { display: flex; }
+}
+
 /* #2061: the phone bottom bar owns 56px plus the device safe-area inset below the `sm`
    breakpoint (the same edge `useIsNarrow` reads). Above it the token stays 0, so nothing
    moves on desktop or tablet. */
@@ -506,7 +513,7 @@
 }
 
 /* ≤920px: collapse the rail column so the grid snaps to full-width and the
-   hamburger drawer becomes the sole rail. SINGLE SOURCE OF TRUTH for the
+   More drawer becomes the sole rail. SINGLE SOURCE OF TRUTH for the
    breakpoint — this one query both zeroes the grid column (--rail-w:0) AND
    hides the persistent grid-area rail (.rail-persistent). The Rail <aside>
    itself carries NO hide class, so its drawer copy (not under .rail-persistent)

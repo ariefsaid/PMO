@@ -90,6 +90,7 @@ describe('FR-L10N — Bahasa Administration breadcrumbs agree with the shell', (
 
   it('AC-1405-L10N-001: each Finance area renders its Bahasa shell label', () => {
     const cases = [
+      ['/finance', 'Ringkasan'],
       ['/finance/receivables', 'Piutang'],
       ['/finance/payables', 'Utang'],
       ['/finance/reports', 'Laporan'],
@@ -102,13 +103,13 @@ describe('FR-L10N — Bahasa Administration breadcrumbs agree with the shell', (
     }
   });
 
-  it('AC-1405-L10N-002: Finance record breadcrumbs use the translated Finance and Receivables labels', () => {
+  it('AC-1405-L10N-002: Finance record breadcrumbs use the translated Overview and Receivables labels', () => {
     const view = renderBreadcrumb('/sales-invoices/invoice-1');
-    expect(screen.getByText('Keuangan')).toBeInTheDocument();
+    expect(screen.getByText('Ringkasan')).toBeInTheDocument();
     expect(screen.getByText('Piutang')).toBeInTheDocument();
     view.unmount();
     const payment = renderBreadcrumb('/incoming-payments/receipt-1');
-    expect(screen.getByText('Keuangan')).toBeInTheDocument();
+    expect(screen.getByText('Ringkasan')).toBeInTheDocument();
     expect(screen.getByText('Piutang')).toBeInTheDocument();
     payment.unmount();
   });

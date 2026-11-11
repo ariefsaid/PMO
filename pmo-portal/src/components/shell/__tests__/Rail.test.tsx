@@ -148,14 +148,30 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     expect(screen.getByText('Sales Pipeline')).toBeInTheDocument();
   });
 
-  it('renders Overline group labels — FIX-3: Sales group renamed to CRM', () => {
+  it('renders the ruling group names and leaves the top navigation unheaded', () => {
     effectiveRole = 'Executive';
     renderRail();
-    for (const group of ['Overview', 'CRM', 'Delivery', 'Workforce']) {
-      expect(screen.getByText(group)).toBeInTheDocument();
+    for (const group of ['My work', 'Delivery', 'Sales', 'Finance']) {
+      expect(screen.getByRole('button', { name: group })).toBeInTheDocument();
     }
-    // The old 'Sales' section header must no longer appear (items 'Sales Pipeline' etc. still exist).
-    expect(screen.queryByText('Sales', { selector: 'div' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Approvals' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Overview' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'CRM' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Workforce' })).not.toBeInTheDocument();
+  });
+
+  it('keeps group headers at 14px with muted regular text while retaining their chevrons', () => {
+    effectiveRole = 'Executive';
+    renderRail();
+    for (const group of ['My work', 'Delivery', 'Sales', 'Finance']) {
+      const header = screen.getByRole('button', { name: group });
+      expect(header.className).toContain('text-control');
+      expect(header.className).toContain('text-muted-foreground');
+      expect(header.className).toContain('font-normal');
+      expect(header.className).not.toContain('font-semibold');
+      expect(header.querySelector('svg')).toHaveAttribute('data-icon', 'chev');
+    }
   });
 
   // AC-AUTH-003: nav items MUST be anchors (role=link) so e2e getByRole('link') works

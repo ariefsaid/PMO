@@ -16,6 +16,8 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { awaitingApprovalKey, expenseClaimsAwaitingKey } from '@/src/hooks/approvalsQueryKeys';
 import { usePMDashboardProjects } from '@/src/hooks/useDashboard';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
+import type { ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
+import { useApprovalPopulation } from '@/src/hooks/useApprovalPopulation';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects } from '@/src/lib/db/dashboard';
@@ -279,8 +281,10 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const orgId = currentUser?.org_id;
   const userId = currentUser?.id;
   const companyRole = isCompanyRole(role);
-  const approvalRole = can('transition', 'approval', { realRole });
   const procurementApprovalRole = can('transition', 'procurement', { realRole });
+  // The inbox exposes caller-filtered assigned timesheets to any authenticated real role.
+  const readAwaitingTimesheets = Boolean(orgId && userId && realRole);
+  const expenseApprovalRole = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(realRole ?? '');
   const needsProcurements = procurementApprovalRole && role !== 'Engineer';
   const organizationDay = useFxOrgDay(true);
 
@@ -320,7 +324,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const timesheetsAwaitingQuery = useQuery({
     queryKey: awaitingApprovalKey(orgId, userId, realRole),
     queryFn: () => listTimesheetsAwaitingApproval(userId!, realRole!),
-    enabled: Boolean(orgId && userId && approvalRole),
+    enabled: readAwaitingTimesheets,
   });
   const expenseApprovalsQuery = useQuery({
     queryKey: expenseClaimsAwaitingKey(orgId),
@@ -330,7 +334,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
       const byId = new Map(routes.map((route) => [route.claimId, route]));
       return rows.map((claim) => ({ claim, route: byId.get(claim.id) ?? null }));
     },
-    enabled: Boolean(orgId && procurementApprovalRole),
+    enabled: Boolean(orgId && expenseApprovalRole),
   });
   const invoiceApprovals = useInvoicesAwaitingViewer();
 
@@ -342,23 +346,24 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     () => claimsAwaitingViewer(expenseApprovalsQuery.data ?? [], userId, realRole),
     [expenseApprovalsQuery.data, realRole, userId],
   );
+  const approvalEntries = useMemo<ApprovalPopulationEntry[]>(() => [
+    ...(procurementApprovalRole ? procApprovals.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, createdAt: row.created_at, row })) : []),
+    ...(readAwaitingTimesheets ? (timesheetsAwaitingQuery.data ?? []).map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, createdAt: row.week_start_date, row })) : []),
+    ...(expenseApprovalRole ? expenseApprovals.map((entry) => ({ key: `expense:${entry.claim.id}`, kind: 'expense' as const, createdAt: entry.claim.created_at, row: entry })) : []),
+    ...((role === 'Admin' || role === 'Finance') ? invoiceApprovals.rows.map((row) => ({ key: `invoice:${row.id}`, kind: 'invoice' as const, createdAt: row.created_at, row })) : []),
+  ], [expenseApprovalRole, expenseApprovals, invoiceApprovals.rows, procurementApprovalRole, procApprovals, readAwaitingTimesheets, role, timesheetsAwaitingQuery.data]);
+  const approvalPopulation = useApprovalPopulation(approvalEntries);
   const approvalSourcesPending =
     (needsProcurements && procurementsQuery.isPending) ||
-    (procurementApprovalRole && expenseApprovalsQuery.isPending) ||
-    (approvalRole && timesheetsAwaitingQuery.isPending) ||
+    (expenseApprovalRole && expenseApprovalsQuery.isPending) ||
+    (readAwaitingTimesheets && timesheetsAwaitingQuery.isPending) ||
     (invoiceApprovals.isPending && (role === 'Admin' || role === 'Finance'));
   const approvalSourcesError =
     (needsProcurements && procurementsQuery.isError) ||
-    (procurementApprovalRole && expenseApprovalsQuery.isError) ||
-    (approvalRole && timesheetsAwaitingQuery.isError) ||
+    (expenseApprovalRole && expenseApprovalsQuery.isError) ||
+    (readAwaitingTimesheets && timesheetsAwaitingQuery.isError) ||
     (invoiceApprovals.isError && (role === 'Admin' || role === 'Finance'));
-  const approvalsCount = approvalSourcesPending || approvalSourcesError ? undefined :
-    (procurementApprovalRole ? procApprovals.length + expenseApprovals.length : 0) +
-    (approvalRole ? timesheetsAwaitingQuery.data?.length ?? 0 : 0) +
-    ((role === 'Admin' || role === 'Finance') ? invoiceApprovals.rows.length : 0);
-  const approvalsWithoutTimesheets = approvalSourcesPending || approvalSourcesError ? undefined :
-    (procurementApprovalRole ? procApprovals.length + expenseApprovals.length : 0) +
-    ((role === 'Admin' || role === 'Finance') ? invoiceApprovals.rows.length : 0);
+  const approvalsCount = approvalSourcesPending || approvalSourcesError ? undefined : approvalPopulation.length;
 
   const invoiceNeeds = useMemo(
     () => selectOverdueInvoices(salesInvoiceQuery.data, organizationDay.day),
@@ -391,7 +396,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     row.claimant_id === userId && row.status === 'Rejected',
   ), [expenseClaimsQuery.data?.rows, userId]);
   const facts: NeedsYouFacts = {
-    approvals: role === 'Project Manager' ? approvalsWithoutTimesheets : approvalsCount,
+    approvals: approvalsCount,
     atRiskProjects: companyRole ? dashboardQuery.data?.projects_at_risk : undefined,
     riskUncheckedProjects: companyRole ? dashboardQuery.data?.risk_unchecked_projects : undefined,
     procurementsAwaitingApproval: procurementApprovalRole ? procApprovals.length : undefined,

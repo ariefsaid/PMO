@@ -957,8 +957,8 @@ export async function setDarkTheme(page: Page, dark: boolean) {
   expect(await page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(dark);
 }
 
-/** AC-1201: the persistent rail shows at desktop with nav links and no hamburger; collapsed at
- *  mobile where the hamburger opens a drawer copy of the rail. Installs the English-profile read
+/** AC-1201: the persistent rail shows at desktop; mobile puts Home/Approvals/Search/More in the
+ *  fixed phone bar, and More opens a drawer copy of the rail. Installs the English-profile read
  *  rewrite BEFORE sign-in so the DOM landmark labels never depend on a persisted seed locale. */
 export async function assertResponsiveRailAndDrawer(page: Page, email = 'exec@acme.test') {
   // The DOM landmark labels below are English; avoid dependence on a persisted seed locale
@@ -968,29 +968,21 @@ export async function assertResponsiveRailAndDrawer(page: Page, email = 'exec@ac
   await signIn(page, email);
   await page.goto('/');
 
-  // --- Desktop: persistent grid-area rail is visible, no hamburger. ---
+  // --- Desktop: persistent grid-area rail is visible, no phone navigation trigger. ---
   const persistent = page.locator('.rail-persistent');
   await expect(persistent).toBeVisible();
   const desktopNavCount = await persistent.locator('nav a').count();
   expect(desktopNavCount).toBeGreaterThan(0);
   await expect(page.locator('.mobile-rail-toggle')).toBeHidden();
 
-  // --- Mobile: persistent rail collapses, hamburger appears. ---
+  // --- Mobile: persistent rail collapses, the phone bar carries navigation. ---
   await page.setViewportSize({ width: 560, height: 800 });
   await expect(persistent).toBeHidden();
-  const hamburger = page.locator('.mobile-rail-toggle');
-  await expect(hamburger).toBeVisible();
-
-  // Opening the hamburger reveals a drawer copy of the rail WITH nav links.
-  await hamburger.click();
-  const drawerNav = page.locator('nav[aria-label="Primary navigation"]').nth(1);
-  await expect(drawerNav.getByRole('link', { name: /Approvals/ })).toBeVisible();
-  const drawerNavCount = await page.evaluate(() => {
-    const navs = Array.from(document.querySelectorAll('nav[aria-label="Primary navigation"]'));
-    const drawer = navs.find((n) => !n.closest('.rail-persistent'));
-    return drawer ? drawer.querySelectorAll('a').length : 0;
-  });
-  expect(drawerNavCount).toBeGreaterThan(0);
+  await expect(page.locator('.mobile-rail-toggle')).toHaveCount(0);
+  const phoneNav = page.getByRole('navigation', { name: 'Phone navigation' });
+  await expect(phoneNav).toBeVisible();
+  await expect(phoneNav.getByRole('link', { name: /Approvals/ })).toBeVisible();
+  await expect(phoneNav.getByRole('button', { name: 'More' })).toBeVisible();
 }
 
 /** UX-001: every persistent-rail nav link — Approvals included — stays inside the rail box and the

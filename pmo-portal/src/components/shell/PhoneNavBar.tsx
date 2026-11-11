@@ -6,6 +6,7 @@ import { Icon, type IconName } from '@/src/components/ui/icons';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { ApprovalsNavCount } from './ApprovalsNavCount';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
 
 export interface PhoneNavBarProps {
   /** Opens the existing full navigation: the rail's mobile drawer. */
@@ -21,12 +22,16 @@ type Destination = 'home' | 'approvals' | 'myTasks';
 const isActive = (pathname: string, to: string) =>
   to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`);
 
-/** Four role-independent phone actions: Home, Approvals, Search, and More. */
-export const PhoneNavBar: React.FC<PhoneNavBarProps> = ({ onOpenMore, onOpenSearch, moreOpen = false }) => {
+const PhoneNavBarContent: React.FC<PhoneNavBarProps & { role: string | null; hasEligibleDecisions: boolean }> = ({
+  onOpenMore,
+  onOpenSearch,
+  moreOpen = false,
+  role,
+  hasEligibleDecisions,
+}) => {
   const { t } = useTranslation('home');
   const { pathname } = useLocation();
   const isNarrow = useIsNarrow();
-  const { effectiveRole } = useEffectiveRole();
 
   if (!isNarrow) return null;
 
@@ -37,11 +42,12 @@ export const PhoneNavBar: React.FC<PhoneNavBarProps> = ({ onOpenMore, onOpenSear
     search: t('nav.search', 'Search'),
     more: t('nav.more', 'More'),
   };
+  const mayViewApprovals = ['Executive', 'Project Manager', 'Finance', 'Admin'].includes(role ?? '') || hasEligibleDecisions;
+  const mayViewMyTasks = ['Project Manager', 'Finance', 'Engineer', 'Admin'].includes(role ?? '');
   const destinations: { key: Destination; to: string; icon: IconName }[] = [
     { key: 'home', to: '/', icon: 'dashboard' },
-    ['Executive', 'Project Manager', 'Finance', 'Admin'].includes(effectiveRole ?? '')
-      ? { key: 'approvals', to: '/approvals', icon: 'approvals' }
-      : { key: 'myTasks', to: '/my-tasks', icon: 'tasks' },
+    ...(mayViewApprovals ? [{ key: 'approvals' as const, to: '/approvals', icon: 'approvals' as const }] : []),
+    ...(mayViewMyTasks ? [{ key: 'myTasks' as const, to: '/my-tasks', icon: 'tasks' as const }] : []),
   ];
   const itemClass = (active: boolean) =>
     cn(
@@ -82,7 +88,7 @@ export const PhoneNavBar: React.FC<PhoneNavBarProps> = ({ onOpenMore, onOpenSear
           </button>
         </li>
         <li className="flex min-w-0 flex-1">
-          <button type="button" onClick={onOpenMore} aria-expanded={moreOpen} className={itemClass(false)}>
+          <button type="button" onClick={onOpenMore} data-drawer-toggle aria-expanded={moreOpen} className={itemClass(false)}>
             <Icon name="menu" className="size-[18px]" />
             <span>{labels.more}</span>
           </button>
@@ -90,6 +96,22 @@ export const PhoneNavBar: React.FC<PhoneNavBarProps> = ({ onOpenMore, onOpenSear
       </ul>
     </nav>
   );
+};
+
+const EngineerPhoneNavBar: React.FC<PhoneNavBarProps> = (props) => {
+  const pending = useTimesheetsAwaitingApproval();
+  const reopenable = useReopenableApprovedTimesheets();
+  const hasEligibleDecisions = Boolean(
+    pending.data?.length || reopenable.data?.length || pending.isPending || pending.isError || reopenable.isPending || reopenable.isError,
+  );
+  return <PhoneNavBarContent {...props} role="Engineer" hasEligibleDecisions={hasEligibleDecisions} />;
+};
+
+/** Fixed phone slots are hide-only: each role's available destinations keep this order. */
+export const PhoneNavBar: React.FC<PhoneNavBarProps> = (props) => {
+  const { effectiveRole } = useEffectiveRole();
+  if (effectiveRole === 'Engineer') return <EngineerPhoneNavBar {...props} />;
+  return <PhoneNavBarContent {...props} role={effectiveRole} hasEligibleDecisions={false} />;
 };
 
 export default PhoneNavBar;
