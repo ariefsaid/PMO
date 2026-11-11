@@ -458,6 +458,26 @@ describe('continuous desktop delivery track (no rounded per-segment fills)', () 
       expect(fill.classList.contains('rounded-full')).toBe(false);
     }
   });
+
+  it('names completed, overdue, and current or planned phase colours', () => {
+    milestoneState.data = [
+      {
+        id: 'done', project_id: 'p1', name: 'Done', sort_order: 0, target_date: null,
+        weight: 1, input_pct: 100, task_count: 1, calculated_pct: 100, effective_pct: 100,
+      },
+      {
+        id: 'planned', project_id: 'p1', name: 'Planned', sort_order: 1, target_date: null,
+        weight: 1, input_pct: null, task_count: 0, calculated_pct: null, effective_pct: 0,
+      },
+    ];
+    mockIsDesktop = true;
+    render$();
+
+    const statusKey = screen.getByRole('list', { name: 'Delivery phase status key' });
+    expect(statusKey).toHaveTextContent('Completed');
+    expect(statusKey).toHaveTextContent('Overdue');
+    expect(statusKey).toHaveTextContent('Current / planned');
+  });
 });
 
 describe('C2: mobile stepper reflow', () => {

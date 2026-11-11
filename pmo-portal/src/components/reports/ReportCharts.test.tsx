@@ -38,6 +38,34 @@ describe('report charts', () => {
     expect(screen.getByRole('img')).toBeInTheDocument();
   });
 
+  it('labels each trend line series with its matching name', () => {
+    const months = ['2026-01-01', '2026-02-01', '2026-03-01'].map((month, i) => ({ month, earnedToDate: (i + 1) * 100_00, invoicedToDate: i * 50_00 }));
+    render(<EarnedInvoicedTrend currency="USD" months={months} />);
+    const series = within(screen.getByRole('group', { name: 'Trend series' }));
+    expect(series.getByText('Earned')).toBeVisible();
+    expect(series.getByText('Invoiced')).toBeVisible();
+  });
+
+  it('names the earned and contract series beside the project bars', () => {
+    render(<EarnedAgainstContract rows={[
+      { key: 'a', name: 'Small', currency: 'USD', contract: 100_000, earned: 50_000 },
+      { key: 'b', name: 'Large', currency: 'USD', contract: 400_000, earned: 100_000 },
+    ]} />);
+    const series = within(screen.getByRole('group', { name: 'Earned against contract' }));
+    expect(series.getByText('Earned')).toBeVisible();
+    expect(series.getByText('Contract')).toBeVisible();
+  });
+
+  it('scales each earned bar against that project’s own contract', () => {
+    render(<EarnedAgainstContract rows={[
+      { key: 'small', name: 'Small', currency: 'USD', contract: 100, earned: 100 },
+      { key: 'large', name: 'Large', currency: 'USD', contract: 1_000, earned: 500 },
+    ]} />);
+    const bars = screen.getAllByRole('img');
+    expect(bars[0]?.firstElementChild).toHaveStyle({ width: '50%' });
+    expect(bars[1]?.firstElementChild).toHaveStyle({ width: '100%' });
+  });
+
   it('keeps two months as figures, no line', () => {
     const { container } = render(<EarnedInvoicedTrend currency="USD" months={[{ month: '2026-01-01', earnedToDate: 1, invoicedToDate: 1 }, { month: '2026-02-01', earnedToDate: 2, invoicedToDate: 1 }]} />);
     expect(container).toBeEmptyDOMElement();

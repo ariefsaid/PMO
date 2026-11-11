@@ -547,7 +547,13 @@
     "milestones": {
       "currentPhaseLabel": "Current phase",
       "taskCount": "{{done}} of {{total}} tasks",
-      "noCurrentPhase": "No active phase"
+      "noCurrentPhase": "No active phase",
+      "deliveryStatusKey": {
+        "label": "Delivery phase status key",
+        "completed": "Completed",
+        "overdue": "Overdue",
+        "currentOrPlanned": "Current / planned"
+      }
     },
     "billingMilestones": {
       "title": "Billing milestones",

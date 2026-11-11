@@ -1055,9 +1055,12 @@
     },
     "chart": {
       "earnedVsContract": "Earned against contract",
+      "against": "against",
       "barLabel": "{{name}}: earned {{earned}} of {{contract}}",
+      "contractSeries": "Contract",
       "trendName": "Earned and invoiced to date, {{first}} to {{last}}",
       "trendTitle": "Earned and invoiced to date",
+      "trendSeries": "Trend series",
       "earnedEnd": "Earned",
       "invoicedEnd": "Invoiced"
     }
