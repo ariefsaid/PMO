@@ -824,6 +824,10 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     const stageRows = rows.filter((row) => stageForStatus(row.status) === key);
     return { key, rows: stageRows, currencyTotals: totalsByStage.get(key) ?? [] };
   });
+  // The stage band is a funnel: its bars share ONE scale (the largest stage in the first currency), so the
+  // stages compare by length as well as by number.
+  const scaleCurrency = stageStats.flatMap((stage) => stage.currencyTotals)[0]?.currency;
+  const scaleMax = Math.max(0, ...stageStats.map((stage) => stage.currencyTotals.find((item) => item.currency === scaleCurrency)?.value ?? 0));
   const moneyTooltip = t(
     'procurement.moneyTooltip',
     'Most recorded amount: paid, invoiced, ordered, then requested. Source: procurement records.',
@@ -864,6 +868,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                     </span>
                   )}
                   </span>
+                  {canSeeMoney && scaleMax > 0 && (
+                    <span aria-hidden="true" data-testid={`stage-bar-${key}`} className="mt-2 block h-1.5 w-full rounded-full bg-secondary">
+                      <span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${Math.max(0, Math.min(100, ((currencyTotals.find((item) => item.currency === scaleCurrency)?.value ?? 0) / scaleMax) * 100))}%` }} />
+                    </span>
+                  )}
                 </button>
               </Tooltip>
             );

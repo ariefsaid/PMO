@@ -706,7 +706,9 @@
       "confirmDistributionTitle": "Save this distribution?",
       "confirmDistributionBody": "This saves the reviewed exact fiscal-year amounts to the current Draft. Source line amounts stay unchanged.",
       "confirmDistributionSave": "Save distribution",
-      "distributionSavedToast": "Fiscal-year distribution saved"
+      "distributionSavedToast": "Fiscal-year distribution saved",
+      "byCategory": "Budget by category",
+      "otherCategories": "Other"
     },
     "cost": {
       "spendingChecking": "Checking spending…",

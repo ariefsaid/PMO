@@ -355,9 +355,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       <div className="min-w-0">
         {cellOf('project', p)}
         {(p.client || ids) && (
-          <div className="mt-1 min-w-0 break-words text-sm font-normal text-muted-foreground" onClick={(event) => event.stopPropagation()}>
+          <div className="mt-1 flex min-w-0 flex-wrap gap-x-3 break-words text-sm font-normal text-muted-foreground" onClick={(event) => event.stopPropagation()}>
             {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="inline" />}
-            {p.client && ids && ' · '}
             {ids && <span className="whitespace-nowrap font-mono" title={ids}>{ids}</span>}
           </div>
         )}

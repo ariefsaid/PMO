@@ -706,7 +706,9 @@
       "confirmDistributionTitle": "Simpan alokasi ini?",
       "confirmDistributionBody": "Jumlah tahun fiskal yang ditinjau akan disimpan ke Draf saat ini. Jumlah baris sumber tetap sama.",
       "confirmDistributionSave": "Simpan alokasi",
-      "distributionSavedToast": "Alokasi tahun fiskal tersimpan"
+      "distributionSavedToast": "Alokasi tahun fiskal tersimpan",
+      "byCategory": "Anggaran per kategori",
+      "otherCategories": "Lainnya"
     },
     "cost": {
       "spendingChecking": "Memeriksa pengeluaran…",
