@@ -55,6 +55,7 @@ vi.mock('@/src/hooks/useManagementPack', () => ({
 }));
 vi.mock('@/src/hooks/useRevenue', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/hooks/useRevenue')>()),
+  useMonthlyInvoiceFacts: () => ({ data: [{ invoice_date: '2026-09-01', currency: 'IDR', net: 1000, recovery: 0 }], isPending: false, isError: false, refetch: vi.fn() }),
   usePaidPaymentFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
@@ -140,7 +141,7 @@ describe('Finance hub', () => {
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
     const receivables = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
     expect(receivables).toHaveTextContent('IDR 400K');
-    expect(receivables).toHaveTextContent('1 invoice · balance unknown');
+    expect(receivables).toHaveTextContent('1 balance unknown');
     expect(receivables).not.toHaveTextContent('$0');
     expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/no balance reported by the accounting system/i);
   });
