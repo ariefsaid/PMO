@@ -148,7 +148,9 @@
     "balancesNotSynced_one": "{{count}} unsynced balance",
     "balancesNotSynced_other": "{{count}} unsynced balances",
     "amountsMissing_one": "{{count}} amount missing",
-    "amountsMissing_other": "{{count}} amounts missing"
+    "amountsMissing_other": "{{count}} amounts missing",
+    "yourTasksOverdue": "of your tasks overdue",
+    "yourTasksDueToday": "of your tasks due today"
   },
   "figures": {
     "stillToInvoice": "Still to invoice on work orders",
@@ -351,7 +353,11 @@
       "atRiskAtLeast": "At least {{count}}",
       "riskPartial": "At 90% or more of budget; other projects have incomplete budget or spending data",
       "spendingIncompleteNote": "Some projects have incomplete spending, so margin, contract left and contract spent are shown only where they are known.",
-      "reasonMoneyIncomplete": "a project has incomplete spending or contract data"
+      "reasonMoneyIncomplete": "a project has incomplete spending or contract data",
+      "overNinety": "Over 90% of budget",
+      "riskUncheckedCaption_one": "{{count}} without a checkable budget",
+      "riskUncheckedCaption_other": "{{count}} without a checkable budget",
+      "tasksOverdueInProjects": "Tasks overdue in my projects"
     },
     "company": {
       "topAttentionProjects": "The 5 projects that most need attention",
@@ -912,6 +918,9 @@
     "retry": "Retry",
     "findingNoneCheckedOffTrack": "No checked project is off track",
     "moreProcurements_one": "more procurement awaiting approval",
-    "moreProcurements_other": "more procurements awaiting approval"
+    "moreProcurements_other": "more procurements awaiting approval",
+    "marginBilledShort": "Margin on billed work {{amount}}",
+    "nothingBilledYet": "Nothing billed yet",
+    "reasonNothingBilled": "nothing is billed yet"
   }
 }

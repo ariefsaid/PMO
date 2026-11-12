@@ -106,7 +106,9 @@ export const DashboardWaitsOnYou: React.FC<{
   className?: string;
   plain?: boolean;
   count?: number;
-}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId, lead, actions, className, plain, count }) => {
+  /** Name the person's own task rows as theirs, where the page also counts tasks of a wider population. */
+  ownTasks?: 'yours';
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId, lead, actions, className, plain, count, ownTasks }) => {
   const { t } = useTranslation('dashboard');
   const tasks = useMyTasks();
   const today = useOrgToday();
@@ -121,7 +123,7 @@ export const DashboardWaitsOnYou: React.FC<{
       next.push({
         id: 'my-overdue-tasks',
         count: overdueCount,
-        label: t(overdueCount === 1 ? 'needs.myTaskOverdueOne' : 'needs.myTaskOverdueOther', overdueCount === 1 ? 'task overdue' : 'tasks overdue'),
+        label: ownTasks ? t('needs.yourTasksOverdue', 'of your tasks overdue') : t(overdueCount === 1 ? 'needs.myTaskOverdueOne' : 'needs.myTaskOverdueOther', overdueCount === 1 ? 'task overdue' : 'tasks overdue'),
         href: '/my-tasks',
         tone: 'lost',
       });
@@ -130,13 +132,13 @@ export const DashboardWaitsOnYou: React.FC<{
       next.push({
         id: 'my-tasks-due-today',
         count: dueTodayCount,
-        label: t(dueTodayCount === 1 ? 'needs.myTaskDueTodayOne' : 'needs.myTaskDueTodayOther', dueTodayCount === 1 ? 'task due today' : 'tasks due today'),
+        label: ownTasks ? t('needs.yourTasksDueToday', 'of your tasks due today') : t(dueTodayCount === 1 ? 'needs.myTaskDueTodayOne' : 'needs.myTaskDueTodayOther', dueTodayCount === 1 ? 'task due today' : 'tasks due today'),
         href: '/my-tasks',
         tone: 'warn',
       });
     }
     return next;
-  }, [tasks.data, today, t]);
+  }, [tasks.data, today, t, ownTasks]);
 
   const retry = () => {
     onRetry?.();

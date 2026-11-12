@@ -78,8 +78,8 @@ for figures, weight for titles and ONE muted grey for secondary text:
    (4.5:1). Collapse the near-identical dark greys to two text colours: foreground and muted.
 6. 12px only for the allowed list (chart ticks, count badges, shortcut hints, timestamps, version).
 Emphasis:
-- The block that waits on the person ("Waits on you", a return, an approval to decide) sits on a tinted
-  surface (the waiting tone's soft surface) so it is the heaviest block at a glance; its count is a figure.
+- The block that waits on the person ("Waits on you", a return, an approval to decide) is a white card like
+  the others; the waiting tone goes only on its counts, which are figures, so it is the heaviest block at a glance.
 - Exception colour appears ONCE per group: on the group's count or pill ("14 overdue"), and on the single
   most urgent row of the screen. Rows below it state lateness in plain foreground text ("263 days late").
   A list where every row is red tells nothing.

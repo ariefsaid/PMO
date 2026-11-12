@@ -260,8 +260,9 @@ describe('Project Manager home (one question: what needs me, which of my project
     ];
     renderDashboard();
 
-    const overdue = within(waitsRegion()).getByRole('link', { name: /1\s*task overdue/ });
-    const dueToday = within(waitsRegion()).getByRole('link', { name: /2\s*tasks due today/ });
+    // The person's own tasks are named as theirs: the band counts every overdue task in their projects.
+    const overdue = within(waitsRegion()).getByRole('link', { name: /1\s*of your tasks overdue/ });
+    const dueToday = within(waitsRegion()).getByRole('link', { name: /2\s*of your tasks due today/ });
     expect(overdue).toHaveAttribute('href', '/my-tasks');
     expect(dueToday).toHaveAttribute('href', '/my-tasks');
     expect(overdue.compareDocumentPosition(dueToday) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -404,12 +405,45 @@ describe('Project Manager home (one question: what needs me, which of my project
   });
 });
 
+describe('Project Manager home — one screen agrees with itself', () => {
+  it('the band counts overdue tasks in my projects; Waits on you counts the ones that are mine, each named for its population', () => {
+    state.needs.items = [...approvalItems, { id: 'overdue-project-tasks', count: 20, label: 'overdue tasks on your projects', href: '/projects?filter=My+Projects', tone: 'lost' }];
+    state.myTasks.data = [{ id: 'late', status: 'In Progress', end_date: '2026-11-07' }];
+    renderDashboard();
+    expect(screen.getByTestId('kpi-tasks-overdue')).toHaveTextContent('Tasks overdue in my projects20');
+    expect(within(waitsRegion()).getByRole('link', { name: /1\s*of your tasks overdue/ })).toBeInTheDocument();
+  });
+
+  it('the at-risk figure says what it counts, in the words of its Waits row', () => {
+    renderDashboard();
+    const tile = screen.getByTestId('kpi-at-risk');
+    expect(tile).toHaveTextContent('Over 90% of budget');
+    expect(tile).not.toHaveTextContent('At risk');
+  });
+
+  it('margin is shown only where work is billed; nothing billed says so; the band equals the sum of the row margins', () => {
+    state.projects.data = [
+      makeProject({ id: 'p1', name: 'Project One', status: 'Ongoing Project', realized_margin: 12_500, realized_margin_pct: 0.125 }),
+      makeProject({ id: 'p2', name: 'Project Two', status: 'Ongoing Project', realized_margin: -3_000, realized_margin_pct: -0.05 }),
+      // Nothing billed: the read reports billed revenue 0 less spending, which is not a margin.
+      makeProject({ id: 'p3', name: 'Project Three', status: 'Ongoing Project', realized_margin: -95_000, realized_margin_pct: null }),
+    ];
+    renderDashboard();
+    expect(rowFor('Project One')).toHaveTextContent('Margin on billed work $12.5K');
+    expect(rowFor('Project Two')).toHaveTextContent('Margin on billed work −$3K');
+    expect(rowFor('Project Three')).toHaveTextContent('Nothing billed yet');
+    expect(rowFor('Project Three')).not.toHaveTextContent('−$95K');
+    // 12,500 - 3,000: the projects with billed work, as the company figure sums them.
+    expect(screen.getByTestId('kpi-margin-to-date')).toHaveTextContent('Margin on billed work$9.5K');
+  });
+});
+
 describe('Project Manager home — the floor restored (overnight recompose)', () => {
   it('each project row carries its number, client and currency, its contract, share of contract spent and margin to date', () => {
     renderDashboard();
     const one = rowFor('Project One');
     expect(one).toHaveTextContent('PRJ-26-0001 · Acme Works · USD');
-    expect(one).toHaveTextContent('Contract $100K · 95% of contract · Margin to date $12.5K');
+    expect(one).toHaveTextContent('Contract $100K · 95% of contract · Margin on billed work $12.5K');
   });
 
   it('a project with nothing open says so', () => {
@@ -423,11 +457,12 @@ describe('Project Manager home — the floor restored (overnight recompose)', ()
     expect(within(finding).getByRole('link', { name: '1 of 3 active projects off track' })).toHaveAttribute('href', '/projects?filter=delivery&pm=pm-1');
   });
 
-  it('At risk: the count of my projects at 90% or more of budget, its definition, and its drill', () => {
+  it('Over 90% of budget: the count of my projects at 90% or more of budget, its definition, and its drill', () => {
     renderDashboard();
     const tile = screen.getByTestId('kpi-at-risk');
     expect(tile).toHaveTextContent('1');
-    expect(tile).toHaveTextContent('Projects at 90% or more of budget');
+    // The label is the definition (the same words as its Waits row).
+    expect(tile).toHaveTextContent('Over 90% of budget');
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=at-risk&pm=pm-1');
   });
 
@@ -435,6 +470,7 @@ describe('Project Manager home — the floor restored (overnight recompose)', ()
     renderDashboard();
     // 12,500 + 40,000 + 30,000 margin; 5,000 + 200,000 + 140,000 contract remaining.
     expect(screen.getByTestId('kpi-margin-to-date')).toHaveTextContent('$82.5K');
+    expect(screen.getByTestId('kpi-margin-to-date')).toHaveTextContent('Margin on billed work');
     expect(screen.getByTestId('kpi-contract-left')).toHaveTextContent('Left after spending$345K');
   });
 
