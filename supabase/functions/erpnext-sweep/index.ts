@@ -2148,11 +2148,19 @@ export function reportVersionFromOrg(org: Pick<OrgBinding, 'versionMajor'>): str
  * one mapping, consumed inverted, never a second one invented here.
  */
 export async function feedOrgPurchasesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ fed: number; error?: string }> {
+  const startedAt = new Date().toISOString();
   try {
     const client = await erpClientForOrg(serviceClient, org, cache);
     const r = await feedPurchaseMirror(serviceClient as unknown as PurchaseFeedServiceClient, { client, orgId: org.orgId, company: org.company });
-    // A bounded backfill is progress, not a failure — warn like the ledger feed does.
+    // A bounded backfill is progress, not evidence of a completed census.
     if (!r.caughtUp) console.warn(`[erpnext-sweep] org ${org.orgId}: purchase feed backfill continues next tick`);
+    else {
+      if (!org.bindingId) return { fed: r.fed, error: 'purchase feed binding unavailable' };
+      const { error } = await serviceClient.rpc('record_purchase_capture_feed_completion', {
+        p_org_id: org.orgId, p_binding_id: org.bindingId, p_started_at: startedAt,
+      });
+      if (error) return { fed: r.fed, error: 'purchase feed completion could not be recorded' };
+    }
     return { fed: r.fed };
   } catch (err) {
     return { fed: 0, error: errorMessage(err) };
