@@ -42,8 +42,7 @@ import {
   projectMoneyFigure,
   projectRiskBasisKnown,
   projectSpendOfContractPct,
-  sumAwaitingTimesheetHours,
-} from './hub/pm/metrics';
+  sumAwaitingTimesheetHours, projectBilledMargin, projectNothingBilled } from './hub/pm/metrics';
 
 const DELIVERY_PROJECT_STATUSES = new Set([...ON_HAND_STATUSES, ...INTERNAL_STATUSES]);
 /** #1461: the drill lands on exactly the figure's set — my delivery projects (the figure's
@@ -134,11 +133,12 @@ export const PMDashboard: React.FC = () => {
   }), [needs.pmOverdueTasksByProject, projects, purchasesByProject, rows]);
   const healthExtras = useMemo(() => new Map<string, HealthExtras>(projects.map((project) => {
     const overdue = needs.pmOverdueTasksByProject[project.id] ?? 0;
-    const margin = project.realized_margin;
+    const margin = projectBilledMargin(project);
     return [project.id, {
       meta: [projectNumbers.data?.[project.id], project.client_name, project.currency].filter(Boolean).join(' · '),
       facts: projectAtRisk(project) ? [{ key: 'risk', red: true, text: t('home.budgetAtNinety', 'Budget at 90% or more') }] : [],
-      figures: margin != null && Number.isFinite(margin) ? t('home.marginShort', 'Margin to date {{amount}}', { amount: formatTileMoney(margin, project.currency) ?? '' }) : undefined,
+      figures: margin != null ? t('home.marginBilledShort', 'Margin on billed work {{amount}}', { amount: formatTileMoney(margin, project.currency) ?? '' })
+        : projectNothingBilled(project) ? t('home.nothingBilledYet', 'Nothing billed yet') : undefined,
       items: [
         ...(overdue > 0 ? [{ key: 'tasks', red: true, href: `/projects/${project.id}/tasks`, label: t('home.mobileTasksOverdue', { count: overdue, defaultValue_one: '{{count}} task overdue', defaultValue_other: '{{count}} tasks overdue' }) }] : []),
         ...(purchasesByProject.get(project.id) ?? []).map((procurement) => ({
@@ -172,8 +172,15 @@ export const PMDashboard: React.FC = () => {
     return moneyTileValue([...totals].map(([currency, amount]) => ({ currency, amount })), orgCurrency);
   };
   const contractLeftTile = perCurrency('contract_remaining');
-  const marginTile = perCurrency('realized_margin');
-  const marginKnown = marginTile !== null;
+  // Margin on billed work: unknown while any project's spending or billing is incomplete; otherwise the sum over the
+  // projects with billed work (the company figure's rule), hidden when none has billed anything yet.
+  const billedProjects = projects.filter((project) => projectBilledMargin(project) !== null);
+  const marginTile = projects.length === 0 || moneyReason('realized_margin') || billedProjects.length === 0 ? null : (() => {
+    const totals = new Map<string, number>();
+    for (const project of billedProjects) totals.set(project.currency, (totals.get(project.currency) ?? 0) + (projectBilledMargin(project) as number));
+    return moneyTileValue([...totals].map(([currency, amount]) => ({ currency, amount })), orgCurrency);
+  })();
+  const marginKnown = marginTile !== null || (projects.length > 0 && !moneyReason('realized_margin'));
   const atRisk = atRiskCount(projects);
   const spendingIncomplete = projects.length > 0 && (!marginKnown || contractLeftTile === null || projects.some((project) => projectSpendOfContractPct(project) === null));
 
@@ -233,7 +240,7 @@ export const PMDashboard: React.FC = () => {
       </div>
     </div>
   );
-  const waitsEl = <DashboardWaitsOnYou plain rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />;
+  const waitsEl = <DashboardWaitsOnYou plain ownTasks="yours" rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />;
   const projectsEl = (
     <ProjectHealthCard
       testId="pm-projects"
@@ -319,10 +326,10 @@ export const PMDashboard: React.FC = () => {
               testId="kpi-at-risk"
               tone="amber"
               icon="alert"
-              label={t('hub.pm.atRisk', 'At risk')}
+              label={t('hub.pm.overNinety', 'Over 90% of budget')}
               value={projectsError || atRisk === null ? null : atRisk.partial ? t('hub.pm.atRiskAtLeast', 'At least {{count}}', { count: atRisk.count }) : String(atRisk.count)}
               unavailableReason={projectsError ? t('hub.pm.projectsFigureUnavailable', 'Project data could not be loaded. Retry to refresh this figure.') : atRisk !== null ? undefined : t('hub.pm.riskUnavailable', 'Budget risk is unknown because one or more projects have incomplete actual spending or budget data.')}
-              caption={atRisk?.partial ? t('hub.pm.riskPartial', 'At 90% or more of budget; other projects have incomplete budget or spending data') : t('hub.pm.riskDefinition', 'Projects at 90% or more of budget')}
+              caption={atRisk?.partial ? t('hub.pm.riskUncheckedCaption', { count: projects.filter((project) => !projectRiskBasisKnown(project)).length, defaultValue_one: '{{count}} without a checkable budget', defaultValue_other: '{{count}} without a checkable budget' }) : undefined}
               loading={projectsPending}
               to={atRiskHref}
               linkLabel={t('hub.pm.openAtRisk', 'Open at-risk projects')}
@@ -333,10 +340,10 @@ export const PMDashboard: React.FC = () => {
                 testId="kpi-margin-to-date"
                 tone="blue"
                 icon="grid"
-                label={t('hub.pm.marginToDate', 'Margin to date')}
+                label={t('figures.billedMargin', 'Margin on billed work')}
                 value={marginTile?.value ?? null}
                 exactValue={marginTile?.exact}
-                unavailableReason={marginTile ? undefined : t('hub.pm.reasonMoneyIncomplete', 'a project has incomplete spending or contract data')}
+                unavailableReason={marginTile ? undefined : moneyReason('realized_margin') ? t('hub.pm.reasonMoneyIncomplete', 'a project has incomplete spending or contract data') : t('home.reasonNothingBilled', 'nothing is billed yet')}
                 loading={projectsPending}
                 to={projectsHref(userId)}
                 linkLabel={t('hub.pm.openMarginProjects', 'Open projects with billed-work margin')}
@@ -358,7 +365,7 @@ export const PMDashboard: React.FC = () => {
               testId="kpi-tasks-overdue"
               tone="red"
               icon="grid"
-              label={t('home.tasksOverdue', 'Tasks overdue')}
+              label={t('hub.pm.tasksOverdueInProjects', 'Tasks overdue in my projects')}
               value={tasksOverdue === null ? null : String(tasksOverdue)}
               unavailableReason={tasksOverdue === null ? t('home.reasonTasksOverdue', 'task dates could not be read') : undefined}
               to={tasksHref}

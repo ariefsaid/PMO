@@ -10,6 +10,19 @@ import { orderByCurrency } from '../../restructure/currencyOrder';
 export type ProjectMoneyField = 'contract_value' | 'contract_remaining' | 'realized_margin';
 
 /** Summarize one project money field without combining currencies or hiding incomplete rows. */
+/**
+ * Margin on billed work, the company home's rule: only a project with billed work has one. The read reports billed
+ * revenue 0 less spending for a project that has billed nothing, which is not a margin; its percentage is null.
+ */
+export function projectBilledMargin(project: Pick<PMDashboardProject, 'realized_margin' | 'realized_margin_pct'>): number | null {
+  return project.realized_margin != null && Number.isFinite(project.realized_margin) && project.realized_margin_pct != null ? project.realized_margin : null;
+}
+
+/** Spending and billing are known, but nothing has been billed yet. */
+export function projectNothingBilled(project: Pick<PMDashboardProject, 'realized_margin' | 'realized_margin_pct'>): boolean {
+  return project.realized_margin != null && project.realized_margin_pct == null;
+}
+
 export function projectMoneyFigure(
   projects: readonly PMDashboardProject[],
   field: ProjectMoneyField,
