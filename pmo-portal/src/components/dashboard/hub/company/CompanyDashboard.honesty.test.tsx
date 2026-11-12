@@ -32,7 +32,7 @@ const base = {
   procurements_by_status: [],
   top_projects: [],
 };
-const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: null as unknown, loss: null as unknown, delivery: {} as Record<string, number>, projectsPending: false, invoices: [] as unknown[] }));
+const h = vi.hoisted(() => ({ budgetReviewHangs: false, dash: null as unknown, win: null as unknown, pack: null as unknown, loss: null as unknown, delivery: {} as Record<string, number>, projectsPending: false, invoices: [] as unknown[] }));
 const attn = (id: string, name: string, over: Record<string, unknown> = {}) => ({
   id, name, short_name: null, client_name: null, contract_value: 100, currency: 'USD', budget: null, spent: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD',
   status: 'Ongoing Project', attention_signals: 0, overdue_items: 0, overdue_tasks: 0, overdue_milestones: 0, overdue_invoices: 0, waiting_approvals: 0, over_budget: false, budget_used_ratio: null, ...over,
@@ -66,6 +66,8 @@ vi.mock('@/src/hooks/useManagementPack', () => ({
 vi.mock('@/src/lib/db/dashboard', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/lib/db/dashboard')>()),
   getExecutiveDashboard: async () => h.dash,
+  // Never resolves when set: a slow read the finding line does not depend on.
+  getFinanceBudgetReview: () => (h.budgetReviewHangs ? new Promise(() => {}) : Promise.resolve([])),
 }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: h.dash, isPending: false, isError: false, refetch: vi.fn() }),
@@ -111,6 +113,7 @@ beforeEach(() => {
   h.delivery = {};
   h.projectsPending = false;
   h.invoices = [];
+  h.budgetReviewHangs = false;
   localStorage.removeItem('home-layout');
 });
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
@@ -248,6 +251,13 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     renderExec();
     const finding = screen.getByTestId('home-finding');
     expect(within(finding).getByRole('link', { name: '1 of 11 active projects off track' })).toHaveAttribute('href', '/projects');
+    expect(await within(finding).findByRole('link', { name: 'No client invoice overdue' })).toHaveAttribute('href', '/finance/receivables?overdue=true');
+  });
+
+  it('the finance clause waits only on its own invoices read: a slow unrelated read never drops it from the finding line', async () => {
+    h.budgetReviewHangs = true;
+    renderExec();
+    const finding = screen.getByTestId('home-finding');
     expect(await within(finding).findByRole('link', { name: 'No client invoice overdue' })).toHaveAttribute('href', '/finance/receivables?overdue=true');
   });
 
