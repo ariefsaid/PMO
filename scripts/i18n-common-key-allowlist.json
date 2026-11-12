@@ -23,6 +23,7 @@
   "financialStatements.refreshNowQueued",
   "financialStatements.refreshNowUnavailable",
   "fx.expandedFileTooLarge",
+  "fx.pager.range",
   "history.action.project_stage_entry_add",
   "history.action.project_stage_entry_redate",
   "history.field.entered_on",

@@ -4,8 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
-const { mutations, permission } = vi.hoisted(() => ({
+const { mutations, permission, projectsState } = vi.hoisted(() => ({
   permission: { allowed: true },
+  /** The picker read's rows, in whatever order the reader returns them (C18 order is the page's). */
+  projectsState: {
+    data: [] as Array<{ id: string; name: string; short_name?: string | null }>,
+  },
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -21,7 +25,7 @@ const { mutations, permission } = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/useMeetings', () => ({ useMeetingMutations: () => mutations }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => permission.allowed }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: projectsState.data }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Admin', effectiveRole: 'Admin' }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { profile: { listOrgProfiles: vi.fn().mockResolvedValue([{ id: 'u2', full_name: 'Sam Member' }]) } } }));
@@ -48,6 +52,7 @@ const Probe = () => {
 const renderPage = (path = '/meetings/new') => render(<ToastProvider><MemoryRouter initialEntries={[path]}><Probe /><Link to="/meetings">Meetings</Link><MeetingCreate /></MemoryRouter></ToastProvider>);
 
 beforeEach(() => {
+  projectsState.data = [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }];
   Object.values(mutations).forEach((mutation) => { mutation.mutateAsync.mockReset().mockResolvedValue(undefined); mutation.isPending = false; });
   mutations.create.mutateAsync.mockResolvedValue({ id: 'meeting-new' });
   permission.allowed = true;
@@ -57,6 +62,19 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
   it('AC-002 #1325: new meeting project option shows the short name only on its stable UUID', () => {
     renderPage();
     expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
+  });
+
+  it('C18 #1325: the new-meeting project select lists projects by the name a person reads, not the picker UUID order', () => {
+    projectsState.data = [
+      { id: '90000000-0000-4000-8000-000000000001', name: 'Zulu Refinery Upgrade', short_name: null },
+      { id: '10000000-0000-4000-8000-000000000002', name: 'Legal Title', short_name: 'Arun Terminal' },
+    ];
+    renderPage();
+    const select = screen.getByLabelText('Project', { selector: 'select' });
+    expect([...select.querySelectorAll('option')].slice(1).map((option) => option.textContent)).toEqual([
+      'Arun Terminal',
+      'Zulu Refinery Upgrade',
+    ]);
   });
 
   it('AC-MTG1-001: shows inline header, minutes and attendees, but no saved-only sections', () => {
@@ -119,6 +137,28 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     await user.click(screen.getByRole('button', { name: 'Save meeting' }));
 
     await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledWith({
+      meetingId: 'meeting-new',
+      identity: { display_name: 'Guest One' },
+    });
+  });
+
+  it('C10 MeetingCreate.tsx:155: prevents adding the same guest twice', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    const guest = screen.getByLabelText(/External guest/);
+    await user.type(guest, 'Guest One');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.type(guest, ' guest one ');
+
+    expect(screen.getByText('This guest is already on the list.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    expect(screen.getAllByText(/Guest One/i)).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledTimes(1);
     expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledWith({
       meetingId: 'meeting-new',
       identity: { display_name: 'Guest One' },

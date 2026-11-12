@@ -42,6 +42,18 @@ beforeEach(() => {
   reorder.worklist.mockResolvedValue([]);
 });
 
+describe('C18 — the balance list is ordered for scanning', () => {
+  it('orders by item, then warehouse, so one item sits with all its stores instead of three lookups by eye', async () => {
+    const siteB = { ...row, warehouseId: 'w2', warehouseCode: 'SITE-B', warehouseName: 'Site B' };
+    const cable = { ...row, itemId: 'i2', itemCode: 'CAB', itemName: 'Cable 4mm' };
+    // The RPC's own warehouse-then-item order, exactly what a reader is given today.
+    reports.onHand.mockResolvedValue([row, cable, siteB]);
+    renderPage();
+    const table = await screen.findByRole('table');
+    expect(within(table).getAllByRole('link').map((link) => link.textContent)).toEqual(['CAB', 'CEM', 'CEM']);
+  });
+});
+
 describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
   it('AC-STK-032 loading, then the populated balance with its quantity and unit', async () => {
     renderPage();

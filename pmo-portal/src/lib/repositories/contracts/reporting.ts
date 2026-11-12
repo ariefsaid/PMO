@@ -12,7 +12,8 @@ export type FxRateInput = { rate_date: string; rate: number };
 
 export type FxRateMatch = Pick<FxRateRow, 'rate' | 'rate_date'>;
 
-export type FxRatePage = { rows: FxRateRow[]; nextCursor: string | null };
+/** `total` is the whole history (not the page), so the pager can state a position; null when the count could not be read. */
+export type FxRatePage = { rows: FxRateRow[]; nextCursor: string | null; total: number | null };
 
 export type FxCommitCounts = { new: number; changed: number; unchanged: number };
 
