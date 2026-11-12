@@ -3736,8 +3736,6 @@
     "salesInvoices": "Sales Invoices",
     "newInvoice": "New Invoice",
     "filterByStatus": "Filter by status",
-    "clearAll": "Clear all",
-    "clearAttribution": "Clear attribution",
     
     "searchInvoices": "Search invoices…",
     "searchSalesInvoices": "Search sales invoices",
@@ -4430,7 +4428,6 @@
     "pageSummary": "Dates from {{first}} to {{last}}: {{count}} with rates",
     "pageGaps": "No rate for {{dates}}",
     "moreEarlier": "earlier rates on the next pages",
-    "pageDisplayOnly": "Display equivalents only",
     "previewCoverage": "Dates from {{first}} to {{last}}: {{count}} with rates",
     "previewGaps": "No rate for {{dates}}",
     "previewGapSummary_one": "{{dates}} dates without rates across {{count}} gap",

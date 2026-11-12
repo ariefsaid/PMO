@@ -258,7 +258,7 @@ const AdministrationExchangeRates: React.FC = () => {
                 feed display equivalents and never write an accounting record. (The empty state
                 said it; a loaded page did not.) */}
             {' · '}
-            {t('uxs38.pageDisplayOnly', 'Display equivalents only')}
+            {t('administration:exchangeRates.displayOnly', 'Display equivalents only')}
           </p>
           <DataTable<FxRateRow>
             rows={rates.data.rows}

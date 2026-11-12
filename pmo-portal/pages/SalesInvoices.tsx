@@ -530,7 +530,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
             {t('invoiceProject.unassignedFilter', 'Unassigned invoices')}
           </span>
           <Button variant="ghost" size="sm" onClick={() => updateListParam('attribution', '')}>
-            {t('financeCopy.clearAttribution', 'Clear attribution')}
+            {t('finance:financeCopy.clearAttribution', 'Clear attribution')}
           </Button>
         </div>
       )}
