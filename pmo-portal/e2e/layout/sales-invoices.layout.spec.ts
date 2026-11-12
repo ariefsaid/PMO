@@ -82,11 +82,17 @@ const CLEAN_FIT_INVOICE = {
  *  trigger must be up before any geometry is measured. */
 async function openInvoicesTable(page: Page) {
   await signIn(page, 'finance@acme.test');
+  // /sales-invoices is a legacy redirect to the Receivables hub (FinanceLegacyRedirect, ux/1110):
+  // the hub draws its figures and the age strip above the register, so the table arrives BELOW the
+  // 900px fold and the screenshot-based seam oracle (viewport clip) must measure it in view. The
+  // geometry oracles themselves are unchanged.
   await page.goto('/sales-invoices');
   const scrollerLoc = page.getByTestId('dt-table-branch');
   await expect(scrollerLoc).toBeVisible({ timeout: 20_000 });
   await expect(scrollerLoc.locator('tbody tr').first()).toBeVisible({ timeout: 20_000 });
   await expect(scrollerLoc.locator('tbody button[aria-label="Row actions"]').first()).toBeVisible();
+  await scrollerLoc.scrollIntoViewIfNeeded();
+  await waitForFonts(page);
   return scrollerLoc;
 }
 
