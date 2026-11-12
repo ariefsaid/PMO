@@ -284,7 +284,7 @@ const EquipmentUsagePage: React.FC = () => {
       <div className="w-64">
         <Combobox label={t('equipment:usage.assetFilter', 'Show equipment')} noun={t('equipment:usage.assetNoun', 'equipment')} value={assetFilter}
           selectedOption={assetOptions.find((o) => o.value === assetFilter) ?? null} loadOptions={() => Promise.resolve(assetOptions)}
-          onChange={(v) => setAssetFilter(v)} clearable onClear={() => setAssetFilter(null)} placeholder={t('equipment:usage.allAssets', 'All equipment')} />
+          onChange={(v) => setAssetFilter(v)} clearable onClear={() => setAssetFilter(null)} placeholder={t('equipment:usage.allAssets', 'All equipment')} compact />
       </div>
     </div>
   );

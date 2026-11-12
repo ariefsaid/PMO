@@ -24,6 +24,7 @@ describe('FilterBar', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search records' }), { target: { value: 'bridge' } });
     fireEvent.click(screen.getByRole('button', { name: 'Open' }));
     fireEvent.change(screen.getByRole('combobox', { name: 'Project' }), { target: { value: 'one' } });
+    expect(screen.getByRole('combobox', { name: 'Project' })).toHaveClass('sm:h-[var(--control-height-sm)]');
     expect(screen.getByTestId('url')).toHaveTextContent('other=keep&q=bridge&status=open&project=one');
     expect(screen.getByText('Showing 2 of 5')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));

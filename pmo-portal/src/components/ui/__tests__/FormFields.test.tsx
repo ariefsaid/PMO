@@ -370,6 +370,16 @@ describe('SelectField: native select for short fixed enums', () => {
     expect(screen.getByRole('option', { name: 'Internal project' })).toBeInTheDocument();
   });
 
+  it('renders its chevron using the muted foreground token', () => {
+    const { container } = render(
+      <SelectField label="Origination stage" value="Lead" onChange={() => {}} options={[{ value: 'Lead', label: 'Lead' }]} />,
+    );
+    const select = screen.getByLabelText('Origination stage');
+    const chevron = container.querySelector('[data-icon="chev"]');
+    expect(chevron).toHaveClass('text-muted-foreground');
+    expect(select.style.backgroundImage).toBe('');
+  });
+
   it('fires onChange with the selected value', () => {
     const onChange = vi.fn();
     render(
