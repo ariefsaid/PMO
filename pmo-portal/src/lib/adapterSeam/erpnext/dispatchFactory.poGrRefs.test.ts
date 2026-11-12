@@ -209,6 +209,48 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
     expect(body.items[0]).toMatchObject({ purchase_order: 'PUR-ORD-2026-00001', purchase_order_item: 'item-ref' });
   });
 
+  it('refuses ambiguous linked purchase orders before sending a receipt', async () => {
+    const client = multiTableClient({
+      external_org_bindings: ACTIVATED_ROW,
+      procurements: { org_id: 'org-1', vendor_id: 'company-1' },
+      external_refs: [{ external_record_id: 'Supplier:Spike Supplier' }],
+      procurement_items: [{ name: 'SPIKE-ITEM-1', quantity: 1, rate: 10 }],
+      purchase_orders: [],
+      procurement_erp_links: [
+        { erp_purchase_documents: { erp_name: 'PO-1' } },
+        { erp_purchase_documents: { erp_name: 'PO-2' } },
+      ],
+    });
+    const command = { domain: 'procurement' as const, operation: 'create' as const,
+      record: { id: 'pmo-gr-1', procurementId: 'proc-1', erp_doc_kind: 'goods-receipt' } };
+    const fetchImpl = erpFetch([]);
+    await expect(resolveErpDispatchAdapter({ serviceClient: client, orgId: 'org-1', command,
+      fetchImpl, apiKey: 'k', apiSecret: 's', doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES }))
+      .rejects.toThrow('More than one linked purchase order is available.');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('uses the linked order for supplied receipt lines', async () => {
+    const client = multiTableClient({
+      external_org_bindings: ACTIVATED_ROW,
+      procurements: { org_id: 'org-1', vendor_id: 'company-1' },
+      external_refs: [{ external_record_id: 'Supplier:Spike Supplier' }],
+      purchase_orders: [],
+      procurement_erp_links: [{ erp_purchase_documents: { erp_name: 'PUR-ORD-2026-00001' } }],
+    });
+    const command = { domain: 'procurement' as const, operation: 'create' as const,
+      record: { id: 'pmo-gr-1', procurementId: 'proc-1', erp_doc_kind: 'goods-receipt',
+        items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 10 }] } };
+    const fetchImpl = erpFetch([{ item_code: 'SPIKE-ITEM-1', name: 'item-ref' }]);
+    const adapter = await resolveErpDispatchAdapter({ serviceClient: client, orgId: 'org-1', command,
+      fetchImpl, apiKey: 'k', apiSecret: 's', doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES });
+    await adapter.commit(command);
+    const post = (fetchImpl as unknown as { mock: { calls: unknown[][] } }).mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+    expect(JSON.parse((post![1] as RequestInit).body as string).items[0]).toMatchObject({
+      purchase_order: 'PUR-ORD-2026-00001', purchase_order_item: 'item-ref',
+    });
+  });
+
   it('freezes goods receipt lines with their purchase-order item references', async () => {
     const client = multiTableClient({
       external_org_bindings: ACTIVATED_ROW,

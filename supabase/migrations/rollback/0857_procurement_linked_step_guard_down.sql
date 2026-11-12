@@ -43,6 +43,7 @@ begin
   end if;
   return v_refusal;
 end $$;
-drop trigger external_command_outbox_linked_step on public.external_command_outbox;
+drop trigger if exists external_command_outbox_linked_step on public.external_command_outbox;
+drop trigger if exists external_command_outbox_zz_linked_step on public.external_command_outbox;
 drop function public.guard_linked_procurement_step();
 drop function public.linked_step_state(uuid,uuid,text);

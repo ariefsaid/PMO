@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(25);
 
 insert into organizations (id, name, default_currency) values
   ('91120000-0000-0000-0000-000000000001', 'W9 ERP Link Verify', 'IDR');
@@ -48,6 +48,7 @@ select throws_ok($$ insert into external_command_outbox (org_id,domain,pmo_recor
 select throws_ok($$ insert into external_command_outbox (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id) values ('91120000-0000-0000-0000-000000000001','procurement','i1','linked-i1','erpnext','create','pending','{"erp_doc_kind":"purchase-invoice","procurementId":"91120000-0000-0000-0000-00000000c002"}','91120000-0000-0000-0000-00000000a001') $$, 'P0001', 'step_already_recorded', 'Admin linked invoice is refused');
 select throws_ok($$ insert into external_command_outbox (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id) values ('91120000-0000-0000-0000-000000000001','procurement','i2','linked-i2','erpnext','create','pending','{"erp_doc_kind":"purchase-invoice","procurementId":"91120000-0000-0000-0000-00000000c002"}','91120000-0000-0000-0000-00000000f001') $$, 'P0001', 'step_already_recorded', 'Finance linked invoice is refused');
 select is((select count(*)::int from external_command_outbox where org_id='91120000-0000-0000-0000-000000000001'),0,'refused steps create no outbox rows');
+select lives_ok($$ insert into external_command_outbox (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload) values ('91120000-0000-0000-0000-000000000001','procurement','odoo-r','odoo-linked-r','odoo','create','pending','{"erp_doc_kind":"goods-receipt","procurementId":"91120000-0000-0000-0000-00000000c001"}') $$, 'Odoo commands are not judged by the ERPNext linked-step guard');
 select lives_ok($$ insert into external_command_outbox (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id) values ('91120000-0000-0000-0000-000000000001','procurement','r3','linked-r3','erpnext','create','pending','{"erp_doc_kind":"goods-receipt","procurementId":"91120000-0000-0000-0000-00000000c004"}','91120000-0000-0000-0000-00000000f001') $$, 'new receipt on linked order is allowed');
 select is(public.linked_step_state('91120000-0000-0000-0000-000000000001','91120000-0000-0000-0000-00000000c004','goods-receipt'), 'new_step', 'order-only case permits a new receipt');
 select throws_ok($$ select public.linked_step_state('91120000-0000-0000-0000-000000000099','91120000-0000-0000-0000-00000000c001','goods-receipt') $$, '42501', 'purchase not found', 'another organization cannot inspect a purchase');

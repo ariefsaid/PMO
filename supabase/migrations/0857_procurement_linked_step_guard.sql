@@ -35,10 +35,11 @@ create function public.guard_linked_procurement_step() returns trigger
 language plpgsql security definer set search_path = public, pg_catalog as $$
 declare v_case uuid; v_state text;
 begin
-  if new.domain = 'procurement' and new.operation = 'create'
+  if new.external_tier = 'erpnext' and new.domain = 'procurement' and new.operation = 'create'
      and new.payload->>'erp_doc_kind' in ('goods-receipt','purchase-invoice') then
     v_case := public.procurement_case_uuid(new.payload->>'procurementId');
     perform 1 from public.procurements where id = v_case and org_id = new.org_id for update;
+    if not found then return new; end if;
     v_state := public.linked_step_state(new.org_id, v_case, new.payload->>'erp_doc_kind');
     if v_state like 'already_in_erp_unlinked:%' then
       raise exception 'ERP % already records this; link it instead of sending a new one.', substr(v_state, 25) using errcode = 'P0001';
@@ -50,7 +51,7 @@ begin
   return new;
 end $$;
 revoke all on function public.guard_linked_procurement_step() from public, anon, authenticated;
-create trigger external_command_outbox_linked_step before insert on public.external_command_outbox
+create trigger external_command_outbox_zz_linked_step before insert on public.external_command_outbox
 for each row execute function public.guard_linked_procurement_step();
 
 create or replace function public.procurement_create_refusal(
