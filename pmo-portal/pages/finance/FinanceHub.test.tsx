@@ -86,7 +86,8 @@ function positionFixture(): FinancePosition {
     payables: [{ procurement: { id: 'procurement-1', vendor_id: 'supplier-1', vendor: { name: 'Supplier A' } } as never, ageDays: 100, amount: 6_240_000_000 }],
     payablesTotals: { IDR: 6_240_000_000, USD: 500_000 },
     payablesUnknownCount: 0,
-    receivablesAgeing: { IDR: { notDue: 3_820_000_000, d1_30: 1_220_000_000, d31_60: 1_430_000_000, d61_90: 0, over90: 1_850_000_000 } },
+    receivablesAgeing: { IDR: { notDue: 3_820_000_000, noDueDate: 0, d1_30: 1_220_000_000, d31_60: 1_430_000_000, d61_90: 0, over90: 1_850_000_000 } },
+    receivablesNoDueDateCounts: {},
     payablesAgeing: { IDR: { d0_30: 2_100_000_000, d31_60: 940_000_000, d61_90: 1_200_000_000, over90: 2_000_000_000 } },
   };
 }
@@ -133,7 +134,7 @@ describe('Finance hub', () => {
     state.currency = 'USD';
     state.position = {
       ...positionFixture(),
-      receivablesAgeing: { IDR: { notDue: 40_000_000, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+      receivablesAgeing: { IDR: { notDue: 40_000_000, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
       receivablesUnknownCount: 1,
       overdueUnknownCount: 1,
       overdue: [],
@@ -310,9 +311,51 @@ describe('Finance hub', () => {
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('+ 1 balance unknown');
   });
 
+  it('G1c/F7: places an unknown overdue receivable in its due-date bucket without inventing a value', () => {
+    const position = positionFixture();
+    position.receivablesCount = 2;
+    position.receivablesUnknownCount = 1;
+    position.receivablesAgeing = { IDR: { notDue: 40_000_000, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } };
+    position.overdueUnknownCount = 1;
+    position.overdue = [{
+      invoice: { ...position.overdue[0]!.invoice, id: 'unknown-overdue', erp_outstanding_amount: null } as never,
+      daysOverdue: 120,
+      outstanding: null,
+    }];
+    state.position = position;
+    state.role = 'Executive';
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    const receivables = screen.getByRole('region', { name: 'Receivables' });
+    expect(within(receivables).getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent('IDR 400,000');
+    const over90 = within(receivables).getByTestId('ageing-bucket-IDR-over90');
+    expect(over90).toHaveTextContent('1 balance unknown');
+    expect(over90).not.toHaveTextContent('IDR 0');
+    expect(within(receivables).queryByText(/no balance reported by the accounting system/i)).not.toBeInTheDocument();
+  });
+
+  it('F8: keeps a known balance with no due date in its own counted bucket and preserves the receivable total', () => {
+    const position = positionFixture();
+    position.receivablesCount = 1;
+    position.receivablesAgeing = { IDR: { notDue: 0, noDueDate: 10_000, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } };
+    position.receivablesNoDueDateCounts = { IDR: 1 };
+    position.overdue = [];
+    state.position = position;
+    state.role = 'Executive';
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    const receivables = screen.getByRole('region', { name: 'Receivables' });
+    const noDueDate = within(receivables).getByTestId('ageing-bucket-IDR-noDueDate');
+    expect(noDueDate).toHaveTextContent('No due date');
+    expect(noDueDate).toHaveTextContent('1 invoice');
+    expect(noDueDate).toHaveTextContent('IDR 100');
+    expect(within(receivables).getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent('IDR 0');
+    expect(screen.getByRole('link', { name: 'Open Receivables' }).parentElement).toHaveTextContent('IDR 100');
+  });
+
   it('F6: each ageing chart uses its own currency total and zero buckets recede visually', () => {
     const position = positionFixture();
-    position.receivablesAgeing = { IDR: { notDue: 100, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } };
+    position.receivablesAgeing = { IDR: { notDue: 100, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } };
     position.payablesAgeing = { IDR: { d0_30: 1_000_000, d31_60: 0, d61_90: 0, over90: 0 } };
     state.position = position;
     state.role = 'Executive';

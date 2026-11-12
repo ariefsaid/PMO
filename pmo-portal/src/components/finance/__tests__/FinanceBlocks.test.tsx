@@ -37,8 +37,8 @@ describe('Finance blocks', () => {
       <AgeingStrip
         kind="receivables"
         values={{
-          IDR: { notDue: 20_000, d1_30: 20_000, d31_60: 20_000, d61_90: 20_000, over90: 20_000 },
-          USD: { notDue: 100, d1_30: 100, d31_60: 100, d61_90: 100, over90: 100 },
+          IDR: { notDue: 20_000, noDueDate: 0, d1_30: 20_000, d31_60: 20_000, d61_90: 20_000, over90: 20_000 },
+          USD: { notDue: 100, noDueDate: 0, d1_30: 100, d31_60: 100, d61_90: 100, over90: 100 },
         }}
       />,
     );
@@ -54,6 +54,22 @@ describe('Finance blocks', () => {
     const chartLabel = bar.getAttribute('aria-label')?.replace(/\u00a0/g, ' ');
     expect(chartLabel).toContain('Not yet due IDR 200');
     expect(chartLabel).toContain('Over 90 days IDR 200');
+  });
+
+  it('F8: displays the receivables no-due-date amount and invoice count in its own bucket', () => {
+    render(
+      <AgeingStrip
+        kind="receivables"
+        values={{ IDR: { notDue: 0, noDueDate: 10_000, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } }}
+        noDueDateCounts={{ IDR: 1 }}
+      />,
+    );
+
+    const noDueDate = screen.getByTestId('ageing-bucket-IDR-noDueDate');
+    expect(noDueDate).toHaveTextContent('No due date');
+    expect(noDueDate).toHaveTextContent('1 invoice');
+    expect(noDueDate.querySelector('.tabular')).toHaveTextContent(/IDR\s?100\b/);
+    expect(screen.getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent(/IDR\s?0\b/);
   });
 
   it('opens an overdue invoice from the finance receivables list with its amount, due date and project', () => {

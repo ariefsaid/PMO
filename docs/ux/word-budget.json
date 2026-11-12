@@ -324,6 +324,7 @@
     "/expenses/new@390@pm@acme.test": 0,
     "/expenses@390@engineer@acme.test": 0,
     "/expenses@390@finance@acme.test": 0,
+    "/finance/receivables@1440@exec@acme.test": 0,
     "/finance/receivables@390@exec@acme.test": 0,
     "/finance/receivables@390@finance@acme.test": 0,
     "/incidents@390@engineer@acme.test": 0,

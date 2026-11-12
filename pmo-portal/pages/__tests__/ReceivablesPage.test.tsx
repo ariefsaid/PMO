@@ -16,7 +16,8 @@ const h = vi.hoisted(() => ({
     receivablesCount: 0, receivablesUnknownCount: 0, overdue: [], overdueTotals: {}, overdueUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [],
     unappliedPayments: [], unappliedTotals: {}, payables: [], payablesTotals: {}, payablesUnknownCount: 0,
-    receivablesAgeing: { IDR: { notDue: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+    receivablesAgeing: { IDR: { notDue: 0, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+    receivablesNoDueDateCounts: {},
     payablesAgeing: {},
   } as FinancePosition,
 }));
@@ -90,7 +91,8 @@ beforeEach(async () => {
     overdueTotals: { IDR: 1000 }, overdueUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [], unappliedPayments: [], unappliedTotals: {},
     payables: [], payablesTotals: {}, payablesUnknownCount: 0,
-    receivablesAgeing: { IDR: { notDue: 8000, d1_30: 1000, d31_60: 0, d61_90: 0, over90: 1000 } },
+    receivablesAgeing: { IDR: { notDue: 8000, noDueDate: 0, d1_30: 1000, d31_60: 0, d61_90: 0, over90: 1000 } },
+    receivablesNoDueDateCounts: {},
     payablesAgeing: {},
   };
   await financeTestI18n.changeLanguage('en');
@@ -113,9 +115,51 @@ describe('Receivables page', () => {
 
     renderPage();
 
-    expect(screen.getByRole('region', { name: /Client balances by age/ }))
-      .toHaveTextContent('1 invoice has no balance reported by the accounting system');
-    expect(screen.getByRole('region', { name: /Client balances by age/ })).not.toHaveTextContent('No balances');
+    const ageing = screen.getByRole('region', { name: /Client balances by age/ });
+    const over90 = within(ageing).getByTestId('ageing-bucket-IDR-over90');
+    expect(over90).toHaveTextContent('1 balance unknown');
+    expect(over90).not.toHaveTextContent(/IDR\s?0\b/);
+    expect(ageing).not.toHaveTextContent('No balances');
+  });
+
+  it('F7: an overdue receivable with an unknown balance is counted in its age bucket, never shown as zero', () => {
+    const unknownInvoice = invoice({ id: 'unknown-overdue', erp_outstanding_amount: null });
+    h.invoices = [unknownInvoice];
+    h.position = {
+      ...h.position,
+      receivablesCount: 1,
+      receivablesUnknownCount: 1,
+      overdueUnknownCount: 1,
+      overdue: [{ invoice: unknownInvoice, daysOverdue: 119, outstanding: null }],
+      receivablesAgeing: { IDR: { notDue: 0, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+    };
+
+    renderPage();
+
+    const ageing = screen.getByRole('region', { name: /Client balances by age/ });
+    const over90 = within(ageing).getByTestId('ageing-bucket-IDR-over90');
+    expect(over90).toHaveTextContent('1 balance unknown');
+    expect(over90).not.toHaveTextContent(/IDR\s?0\b/);
+  });
+
+  it('F8: a known receivable without a due date has its own counted bucket and stays in owed total', () => {
+    h.invoices = [invoice({ id: 'no-due-date', invoice_date: null, erp_payment_terms_days: null, erp_outstanding_amount: 100 })];
+    h.position = {
+      ...h.position,
+      receivablesCount: 1,
+      receivablesAgeing: { IDR: { notDue: 0, noDueDate: 10_000, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+      receivablesNoDueDateCounts: { IDR: 1 },
+    };
+
+    renderPage();
+
+    const ageing = screen.getByRole('region', { name: /Client balances by age/ });
+    const noDueDate = within(ageing).getByTestId('ageing-bucket-IDR-noDueDate');
+    expect(noDueDate).toHaveTextContent('No due date');
+    expect(noDueDate).toHaveTextContent('1 invoice');
+    expect(noDueDate.querySelector('.tabular')).toHaveTextContent(/IDR\s?100\b/);
+    expect(within(ageing).getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent(/IDR\s?0\b/);
+    expect(tile('Owed to you')).toHaveTextContent(/IDR\s?100/);
   });
 
   it('F4 identifies unknown due-soon balances without inventing zero', () => {
@@ -135,7 +179,7 @@ describe('Receivables page', () => {
     }
   });
 
-  it('hides unknown owed and overdue figures and says why once, in one page line', () => {
+  it('hides unknown owed and overdue figures, with the overdue count in its age bucket', () => {
     h.invoices = [invoice({ erp_outstanding_amount: null })];
     h.position = { ...h.position, receivablesAgeing: {}, receivablesUnknownCount: 1, overdueTotals: {}, overdueUnknownCount: 1,
       overdue: [{ invoice: invoice({ erp_outstanding_amount: null }), daysOverdue: 5, outstanding: null }] };
@@ -143,7 +187,9 @@ describe('Receivables page', () => {
     expect(screen.queryByText('Owed to you')).not.toBeInTheDocument();
     expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('3 figures hidden: 1 invoice has no balance reported by the accounting system');
-    expect(screen.getByRole('region', { name: /Client balances by age/ })).toHaveTextContent(/no balance reported by the accounting system/i);
+    const ageing = screen.getByRole('region', { name: /Client balances by age/ });
+    expect(within(ageing).getByTestId('ageing-bucket-IDR-d1_30')).toHaveTextContent('1 balance unknown');
+    expect(ageing).not.toHaveTextContent(/no balance reported by the accounting system/i);
     // The overdue filter in the list is the one way in; no second "N overdue" line sits above it.
     expect(screen.queryByTestId('receivables-overdue-row')).toBeNull();
     expect(screen.queryByText(/Show all \d+ overdue/)).toBeNull();
@@ -167,8 +213,8 @@ describe('Receivables page', () => {
     h.position = {
       ...h.position,
       receivablesAgeing: {
-        IDR: { notDue: 90000, d1_30: 10000, d31_60: 0, d61_90: 0, over90: 0 },
-        USD: { notDue: 7500, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 },
+        IDR: { notDue: 90000, noDueDate: 0, d1_30: 10000, d31_60: 0, d61_90: 0, over90: 0 },
+        USD: { notDue: 7500, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 },
       },
       overdueTotals: { IDR: 10000, USD: 5000 },
       overdue: [{ invoice: invoice({ id: 'late-idr' }), daysOverdue: 12, outstanding: 10000 }],
@@ -217,7 +263,7 @@ describe('Receivables page', () => {
   });
 
   it('F11: figure tiles show short amounts with the exact amount kept for screen readers', () => {
-    h.position = { ...h.position, receivablesAgeing: { IDR: { notDue: 6_240_000_000, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } } };
+    h.position = { ...h.position, receivablesAgeing: { IDR: { notDue: 6_240_000_000, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } } };
     renderPage();
     const strip = screen.getByRole('region', { name: 'Receivables figures' });
     const short = within(strip).getByText('IDR 62.4M');
