@@ -50,9 +50,11 @@ test('AC-ODC-094: matching partners link, PMO-only are sent, Odoo-only are broug
     { id: E2, org_id: orgId, name: n('PT Sinar Baja E'), type: 'Vendor' as const },
   ]).select('id'));
   // The project's number (the field the connect match uses for Odoo) matches an account that already exists on the bed.
+  // The minted number is per-org (every fresh org numbers its first project alike), so seed this run's stamped number
+  // explicitly: exactly one account on the shared bed can ever carry it, and the link proposal is that account's.
   const project = crypto.randomUUID();
-  const created = await must('project', admin.from('projects').insert({ id: project, org_id: orgId, code: `${stamp}-P1`.toUpperCase(), name: n('project'), status: 'Ongoing Project' as const }).select('id,pmo_project_number').single());
-  const code = created.pmo_project_number;
+  const code = `${stamp}-P1`;
+  await must('project', admin.from('projects').insert({ id: project, org_id: orgId, code: code.toUpperCase(), name: n('project'), pmo_project_number: code, status: 'Ongoing Project' as const }).select('id,pmo_project_number').single());
   bedAccounts = await call<number[]>('account.analytic.account', 'create', { vals_list: [{ name: n('existing cost account'), code, plan_id: scenario.planId }] });
 
   // Odoo: A' (same tax id, other spelling), B' (same name as B), D (Odoo-only), E' (same name as E).

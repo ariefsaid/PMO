@@ -80,7 +80,11 @@ test('AC-ODC-014: with Odoo down the item directory shows last data and the unav
   await expect(page.getByTestId('odoo-connection-banner')).toContainText('Odoo cannot be reached');
 
   // The project's link screen: the mirrored cost accounts stay readable, and the notice belongs here too (soft: still a failure until the screen renders it).
+  // The link card lives inside the header's "More actions" overflow menu (ProjectDetailHeader → ProjectErpLink; the detailsOnly
+  // rail renders none). A person opens that menu, so the journey does too — waiting without opening it is the 2026-11-10
+  // "hidden 60 s" failure (locator resolved to a hidden node inside the closed <details>), a test race, not app slowness.
   await page.goto(`/projects/${projectId}`);
+  await page.locator('summary[aria-label="More actions"]').click();
   const projectLink = page.getByTestId('project-odoo-link');
   await projectLink.waitFor({ timeout: 60_000 });
   await expect(projectLink.getByLabel('Cost account')).toBeVisible();

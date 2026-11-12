@@ -56,6 +56,14 @@ Deno.test({
         supabaseSelect('platform_operators', none),
         supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true })),
         supabaseSelect('external_org_bindings', () => one(binding)),
+        // The shipped sweep reads three employment switches before it walks anything. This bed test
+        // predates those reads and never mocked them, so `sweepOdooOrg` died with "could not read
+        // Odoo revenue ownership" (and logged the equipment one first): equipment not employed, the
+        // procurement switch off (no purchase documents are exercised here; erp_sync stays on so
+        // `link-project` passes its gate), and no Odoo domain ownership (revenue not employed).
+        supabaseRpc('org_employs_odoo_equipment', () => jsonResponse(false)),
+        supabaseRpc('service_feature_enabled', (c) => jsonResponse((c.bodyJson as { p_key?: string } | null)?.p_key !== 'procurement')),
+        supabaseSelect('external_domain_ownership', () => jsonResponse([])),
         supabaseRpc('read_vault_secret', () => jsonResponse(KEY)),
         supabaseRpc('claim_erp_sweep_lock', () => jsonResponse(true)),
         supabaseRpc('release_erp_sweep_lock', () => jsonResponse(true)),

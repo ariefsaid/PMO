@@ -37,6 +37,9 @@ Deno.test({
         supabaseSelect('profiles', () => one({ org_id: 'org-1', role: 'Admin' })),
         supabaseSelect('platform_operators', none),
         supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true })),
+        // `recheck` sits behind the org's plan-switch gate; mock it on (the real DB has erp_sync on),
+        // which this bed test never did — hence "Could not resolve the plan switch" on every run.
+        supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
         supabaseSelect('external_org_bindings', () => one({ site_url: bed.origin, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { database: DB, odoo_company_id: 1 } })),
         supabaseRpc('read_vault_secret', () => jsonResponse(KEY)),
         supabaseRpc('merge_external_org_binding_config', () => jsonResponse(null)),
