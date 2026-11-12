@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { billingAgreementRoutes } from '@/src/test/figureAgreementRoutes';
 import { renderFigureAgreementRoute } from '@/src/test/figureAgreementHarness';
@@ -30,6 +30,7 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
 
 const contractRoute = billingAgreementRoutes.find((route) => route.id === 'billing.project.contract')!;
 const reportRoute = billingAgreementRoutes.find((route) => route.id === 'billing.reports')!;
+const homeRoute = billingAgreementRoutes.find((route) => route.id === 'billing.home.executive.overview')!;
 
 for (const route of billingAgreementRoutes) {
   if (route.id === 'billing.project.contract' || route.id === 'billing.reports') continue;
@@ -39,21 +40,42 @@ for (const route of billingAgreementRoutes) {
   });
 }
 
-describe('S01 invoiced figure agreement on real screens', () => {
-  it('smoke: Reports keeps cumulative and selected-period billed work labelled separately', async () => {
+describe('S02 billed-work figure agreement on real screens', () => {
+  it('Reports shows selected-period, cumulative, and opening billed work as distinct figures', async () => {
     const user = userEvent.setup();
     const { container } = renderFigureAgreementRoute(reportRoute);
-    await waitFor(() => expect(container.textContent).toContain('Invoiced to date'));
-    await waitFor(() => expect(container.textContent).toMatch(/150/u));
+    const figures = await screen.findByRole('region', { name: 'Report figures' });
+    await waitFor(() => expect(figures.textContent).toMatch(/Billed work in period\s*\$110/u));
+    expect(figures.textContent).toMatch(/Billed work in period\s*\$110/u);
+    expect(figures.textContent).toMatch(/Invoiced to date\s*\$150/u);
+    expect(figures.textContent).toMatch(/Opening billed work\s*\$40/u);
+    expect(screen.getByRole('columnheader', { name: 'Invoiced to date' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Show monthly totals/u }));
     await waitFor(() => expect(container.textContent).toContain('Nov 2026'));
     expect(container.textContent).toMatch(/110/u);
-    expect(container.textContent).toContain('Invoiced to date');
+    expect(screen.getByRole('columnheader', { name: 'Billed work in period' })).toBeInTheDocument();
   });
 
-  // S02 flips this baseline red case after replacing the Contract tab's all-kind, unfiltered invoice sum with the contract-kind,
-  // project-currency reading already exposed by Project finances.
-  it.fails('contract invoiced agrees with the independently pinned USD contract-kind total', async () => {
+  it('home and Reports agree when both use the same selected month', async () => {
+    const home = renderFigureAgreementRoute({
+      ...homeRoute,
+      location: '/?period=custom&from=2026-11&to=2026-11',
+    });
+    const homeFigures = await screen.findByRole('region', { name: 'Company figures' });
+    await waitFor(() => expect(homeFigures.textContent).toMatch(/Billed work in period\s*\$110/u));
+    const homeAmount = homeFigures.textContent?.match(/Billed work in period\s*(\$[\d,.]+)/u)?.[1];
+    home.unmount();
+
+    renderFigureAgreementRoute(reportRoute);
+    const reportFigures = await screen.findByRole('region', { name: 'Report figures' });
+    await waitFor(() => expect(reportFigures.textContent).toMatch(/Billed work in period\s*\$110/u));
+    const reportAmount = within(reportFigures).getByText('Billed work in period').parentElement?.parentElement?.textContent?.match(/\$[\d,.]+/u)?.[0];
+
+    expect(homeAmount).toBe('$110');
+    expect(reportAmount).toBe(homeAmount);
+  });
+
+  it('contract invoiced agrees with the independently pinned USD contract-kind total', async () => {
     renderFigureAgreementRoute(contractRoute);
     let observed = '';
     await waitFor(() => {
@@ -61,7 +83,7 @@ describe('S01 invoiced figure agreement on real screens', () => {
       observed = invoicedStep.getAttribute('aria-label') ?? '';
       expect(observed).not.toBe('');
     });
-    console.info(`FIGURE AGREEMENT RED · contract-invoiced · ProjectDetail Contract tab · expected USD $100 · observed ${observed}`);
+    console.info(`FIGURE AGREEMENT OBSERVED · contract-invoiced · ProjectDetail Contract tab · expected USD $100 · observed ${observed}`);
     expect(observed).toContain('$100');
   });
 });

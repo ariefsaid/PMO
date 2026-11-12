@@ -15,7 +15,11 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { formatDashboardPercent, moneyFigure } from '@/src/lib/dashboardMoney';
 import { formatTileMoney } from '@/src/lib/format';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
-import { selectLeftToBillTotals } from '@/src/lib/reports/managementPack';
+import {
+  selectBilledWorkByMonth,
+  selectBilledWorkInPeriod,
+  selectLeftToBillTotals,
+} from '@/src/lib/reports/managementPack';
 import type { PaidPaymentFact } from '@/src/lib/db/revenue';
 import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
 import { selectOverdueInvoices, selectSupplierInvoices } from './useNeedsYou';
@@ -149,15 +153,6 @@ export function selectLeftToBillByProject(pack: ManagementPack | undefined, curr
     .sort((a, b) => b.amount - a.amount);
 }
 
-export function selectInvoicedTotals(pack: ManagementPack | undefined, from: string | null, to: string | null) {
-  if (!pack || !from || !to) return undefined;
-  return pack.totals.map((row) => ({
-    currency: row.currency,
-    amount: row.months.filter((month) => month.month.slice(0, 7) >= from.slice(0, 7) && month.month.slice(0, 7) <= to.slice(0, 7))
-      .reduce((sum, month) => sum + month.invoiced, 0) / 100,
-  }));
-}
-
 export interface CollectedTotals {
   totals: Array<{ currency: string; amount: string }>;
   unknownCurrencies: string[];
@@ -185,15 +180,6 @@ export function selectCollectedTotals(payments: PaidPaymentFact[] | undefined, f
     totals.set(payment.currency, (totals.get(payment.currency) ?? 0n) + cents);
   }
   return { totals: [...totals].map(([currency, amount]) => ({ currency, amount: formatExactCents(amount) })), unknownCurrencies: [...unknownCurrencies] };
-}
-
-/** Every month of the period with what was invoiced in it (a month with no invoices is a real zero). One currency, never summed across. */
-export function selectInvoicedByMonth(pack: ManagementPack | undefined, from: string | null, to: string | null, currency: string): Array<{ month: string; amount: number }> | undefined {
-  const series = pack?.totals.find((row) => row.currency === currency);
-  if (!series || !from || !to) return undefined;
-  return series.months
-    .filter((row) => row.month.slice(0, 7) >= from.slice(0, 7) && row.month.slice(0, 7) <= to.slice(0, 7))
-    .map((row) => ({ month: row.month.slice(0, 7), amount: row.invoiced / 100 }));
 }
 
 /** Paid receipts per calendar month in one currency. One receipt with no amount makes the whole series unknown, never a partial sum. */
@@ -310,7 +296,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const trendRange = trendWindow(orgDay.day);
   const trendPack = useManagementPack(trendRange, Boolean(trendRange.to));
   const invoicedTrend = useMemo(() => selectInvoicedTrend(trendPack.data, orgCurrency), [trendPack.data, orgCurrency]);
-  const trendInvoicedByMonth = useMemo(() => selectInvoicedByMonth(trendPack.data, trendRange.from ?? null, trendRange.to ?? null, orgCurrency), [trendPack.data, trendRange.from, trendRange.to, orgCurrency]);
+  const trendInvoicedByMonth = useMemo(() => selectBilledWorkByMonth(trendPack.data, trendRange.from ?? null, trendRange.to ?? null, orgCurrency), [trendPack.data, trendRange.from, trendRange.to, orgCurrency]);
 
   const overdue = useMemo(() => selectOverdueInvoices(invoices.data, orgDay.day), [invoices.data, orgDay.day]);
   // L12: the supplier total reads linked accounting documents, the same amount as Payables and the record.
@@ -320,9 +306,9 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const receivables = useMemo(() => splitReceivables(invoices.data, orgDay.day), [invoices.data, orgDay.day]);
   const payables = useMemo(() => splitPayables(linkedProcurements, orgDay.day), [linkedProcurements, orgDay.day]);
   const leftToBillByProject = useMemo(() => selectLeftToBillByProject(pack.data, orgCurrency), [pack.data, orgCurrency]);
-  const invoiced = useMemo(() => selectInvoicedTotals(pack.data, period.from, period.to), [pack.data, period.from, period.to]);
+  const invoiced = useMemo(() => selectBilledWorkInPeriod(pack.data, period.from, period.to), [pack.data, period.from, period.to]);
   const collected = useMemo(() => selectCollectedTotals(payments.data, period.from, period.to), [payments.data, period.from, period.to]);
-  const invoicedByMonth = useMemo(() => selectInvoicedByMonth(pack.data, period.from, period.to, orgCurrency), [pack.data, period.from, period.to, orgCurrency]);
+  const invoicedByMonth = useMemo(() => selectBilledWorkByMonth(pack.data, period.from, period.to, orgCurrency), [pack.data, period.from, period.to, orgCurrency]);
   const collectedByMonth = useMemo(() => selectCollectedByMonth(payments.data, orgCurrency), [payments.data, orgCurrency]);
   const leftToBillTotals = useMemo(() => selectLeftToBillTotals(pack.data, orgCurrency), [pack.data, orgCurrency]);
   const leftToBillKnown = leftToBillTotals?.some((row) => row.amount === null)

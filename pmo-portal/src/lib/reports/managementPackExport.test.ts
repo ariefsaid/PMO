@@ -5,7 +5,7 @@ import type { ManagementPackFacts } from '@/src/lib/db/managementPack';
 
 const labels: ManagementPackExportLabels = {
   month: 'Month', projectNumber: 'Project number', project: 'Project', client: 'Client', currency: 'Currency',
-  taxBasis: 'Tax basis', planned: 'Planned', recognised: 'Recognised', invoiced: 'Invoiced',
+  taxBasis: 'Tax basis', planned: 'Planned', recognised: 'Recognised', invoiced: 'Billed work in period',
   recognisedToDate: 'Recognised to date', invoicedToDate: 'Invoiced to date', unbilled: 'Done, not yet billed',
   backlog: 'Left to bill', basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
   basisInvoiced: 'Invoiced', basisProgress: 'Progress', basisEarned: 'Earned value',
@@ -69,6 +69,11 @@ describe('AC-MMP-011 management pack export', () => {
     expect(feb[col('Basis')]).toBe('Progress');
     expect(feb[col('Planned')]).toBe('');
     expect(table.body[3][col('Project')]).toBe('Unassigned');
+  });
+
+  it('S02: export labels identify monthly billed work as period scope beside cumulative scope', () => {
+    expect(table.header).toContain('Billed work in period');
+    expect(table.header).toContain('Invoiced to date');
   });
 
   it('RF-036: an unreconciled cross-currency backlog exports as blank, not a contract-sized debt', () => {

@@ -30,7 +30,7 @@ const base = {
   procurements_by_status: [],
   top_projects: [],
 };
-// One contract-less month of the pack: the period figures read it, so "Invoiced $0" is a known zero from
+// One contract-less month of the pack: the period figures read it, so "Billed work in period $0" is a known zero from
 // real pack data rather than the home-currency zero the shared formatter no longer invents (80f05c77f).
 const pack = {
   from: '2026-01-01', to: '2026-10-31', timezone: 'UTC', undatedInvoiceCount: 0,
@@ -106,7 +106,7 @@ describe('company dashboard procurement reads (PERF-FIN-1)', () => {
   it('fetches the org procurement list once, routed, and renders the company figures', async () => {
     renderExec();
     const figures = await screen.findByRole('region', { name: /Company figures|Angka perusahaan/ });
-    const label = await within(figures).findByText('Invoiced', { exact: true });
+    const label = await within(figures).findByText('Billed work in period', { exact: true });
     expect(label.parentElement?.parentElement?.parentElement).toHaveTextContent('$0');
     await waitFor(() => expect(h.procurementList).toHaveBeenCalled());
     await act(async () => { await new Promise((r) => setTimeout(r, 50)); });

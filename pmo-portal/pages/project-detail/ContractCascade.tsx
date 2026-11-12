@@ -11,6 +11,7 @@ import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
+import { invoiceNet } from '@/src/lib/revenue/nativeInvoice';
 import { formatNumberMax2, formatNumberWhole, formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -96,6 +97,15 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const notYetOrdered = items.reduce((sum, item) => sum + (facts.get(item.id)?.contractBalance ?? 0) * Number(item.rate), 0);
   const invoiceRows = (invoices.data ?? []) as InvoiceRowWithWorkOrder[];
   const settlement = summarizeInvoiceSettlement(invoiceRows);
+  const contractInvoiceNets = invoiceRows
+    .filter((invoice) => invoice.billing_kind === 'contract'
+      && invoice.status !== 'Draft'
+      && invoice.status !== 'Cancelled'
+      && invoice.currency === project.currency)
+    .map(invoiceNet);
+  const contractInvoicedAmount = contractInvoiceNets.every((amount) => amount !== null)
+    ? contractInvoiceNets.reduce<number>((sum, amount) => sum + Math.round((amount ?? 0) * 100), 0) / 100
+    : null;
   const showSummary = !isCascadePending && !isCascadeError && canViewMoney && (hasReadingLayer || (
     invoices.isPending || invoices.isError || invoiceRows.length > 0 || Number(project.contract_value) > 0
   ));
@@ -257,8 +267,8 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={tileMoney(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
               <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={tileMoney(delivered)} percentage={percent(delivered)} detail={t('projectDetail.cascade.source.delivered', 'Source: quantities accepted on confirmed BASTs × contract rates.')} />
             </>}
-            {canViewMoney && settlement.invoiced !== null && !invoices.isPending && !invoices.isError && <>
-              <MoneyStep label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={tileMoney(settlement.invoiced)} percentage={percent(settlement.invoiced)} detail={t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />
+            {canViewMoney && contractInvoicedAmount !== null && !invoices.isPending && !invoices.isError && <>
+              <MoneyStep label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={tileMoney(contractInvoicedAmount)} percentage={percent(contractInvoicedAmount)} detail={t('projectDetail.cascade.source.invoiced', 'Source: comparable Contract invoices in the project currency.')} />
             </>}
             {canViewMoney && settlement.balancesKnown && !invoices.isPending && !invoices.isError && <>
               <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.paid)} percentage={percent(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />

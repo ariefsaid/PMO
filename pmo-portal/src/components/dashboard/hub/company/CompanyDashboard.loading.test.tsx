@@ -81,11 +81,11 @@ beforeEach(() => {
 });
 
 describe('company home loading gates: one read pending', () => {
-  it('the management pack still loading holds only Invoiced and Left to bill; Contract on hand, Project health and Owed to us show', () => {
+  it('the management pack still loading holds only Billed work in period and Left to bill; Contract on hand, Project health and Owed to us show', () => {
     h.reads.pack = pending;
     renderExec();
     expect(tile('Contract on hand')).toHaveTextContent('$8M');
-    expect(within(tile('Invoiced')).getByTestId('kpi-skeleton')).toBeInTheDocument();
+    expect(within(tile('Billed work in period')).getByTestId('kpi-skeleton')).toBeInTheDocument();
     expect(within(screen.getByTestId('project-health')).getByRole('link', { name: /River project/ })).toBeInTheDocument();
     expect(screen.getByTestId('owed-to-us')).toHaveTextContent('$40K');
   });
@@ -94,35 +94,35 @@ describe('company home loading gates: one read pending', () => {
     h.reads.invoices = pending;
     renderExec();
     expect(tile('Contract on hand')).toHaveTextContent('$8M');
-    expect(tile('Invoiced')).toHaveTextContent('$1.2M');
+    expect(tile('Billed work in period')).toHaveTextContent('$1.2M');
     expect(within(screen.getByTestId('owed-to-us')).getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
     expect(screen.getByTestId('owed-to-suppliers')).toHaveTextContent('No supplier invoice to pay');
   });
 
-  it('the dashboard read still loading holds Contract on hand and Project health; Invoiced shows', () => {
+  it('the dashboard read still loading holds Contract on hand and Project health; Billed work in period shows', () => {
     h.reads.dashboard = pending;
     renderExec();
     expect(within(tile('Contract on hand')).getByTestId('kpi-skeleton')).toBeInTheDocument();
-    expect(tile('Invoiced')).toHaveTextContent('$1.2M');
+    expect(tile('Billed work in period')).toHaveTextContent('$1.2M');
   });
 });
 
 describe('company home loading gates: one read failed', () => {
-  it('a failed management pack says so on Invoiced (never blank, never $0); the other figures show', () => {
+  it('a failed management pack says so on Billed work in period (never blank, never $0); the other figures show', () => {
     h.reads.pack = failed;
     renderExec();
-    expect(tile('Invoiced')).toHaveTextContent("Couldn't load");
-    expect(tile('Invoiced')).not.toHaveTextContent('$0');
+    expect(tile('Billed work in period')).toHaveTextContent("Couldn't load");
+    expect(tile('Billed work in period')).not.toHaveTextContent('$0');
     expect(tile('Contract on hand')).toHaveTextContent('$8M');
     expect(screen.getByTestId('owed-to-us')).toHaveTextContent('$40K');
   });
 
-  it('a failed dashboard read says so on Contract on hand and in Project health; Invoiced and Owed to us show', () => {
+  it('a failed dashboard read says so on Contract on hand and in Project health; Billed work in period and Owed to us show', () => {
     h.reads.dashboard = failed;
     renderExec();
     expect(tile('Contract on hand')).toHaveTextContent("Couldn't load");
     expect(within(screen.getByTestId('project-health')).getByText("Couldn't load projects")).toBeInTheDocument();
-    expect(tile('Invoiced')).toHaveTextContent('$1.2M');
+    expect(tile('Billed work in period')).toHaveTextContent('$1.2M');
     expect(screen.getByTestId('owed-to-us')).toHaveTextContent('$40K');
   });
 

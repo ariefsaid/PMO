@@ -1,21 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { amountFromDashboard, currencyFigure, exactFromDashboard, selectCollectedTotals, selectInvoicedTotals, selectUnbilledTotals } from './useCompanyFigures';
+import { amountFromDashboard, currencyFigure, exactFromDashboard, selectCollectedTotals, selectUnbilledTotals } from './useCompanyFigures';
+import { selectBilledWorkByMonth, selectBilledWorkInPeriod } from '@/src/lib/reports/managementPack';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
 import { monthsBetween } from '@/src/lib/reports/months';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
 
 describe('company period totals', () => {
-  it('sums invoiced net amounts in the selected months by currency', () => {
+  it('sums selected-period billed work in the selected months by currency', () => {
     const pack = {
       totals: [
         { currency: 'USD', months: [{ month: '2026-01', invoiced: 120_000 }, { month: '2026-02', invoiced: 80_000 }, { month: '2026-03', invoiced: 900_000 }] },
         { currency: 'IDR', months: [{ month: '2026-02', invoiced: 500_000 }] },
       ],
     } as unknown as ManagementPack;
-    expect(selectInvoicedTotals(pack, '2026-01', '2026-02')).toEqual([
+    expect(selectBilledWorkInPeriod(pack, '2026-01', '2026-02')).toEqual([
       { currency: 'USD', amount: 2_000 },
       { currency: 'IDR', amount: 5_000 },
+    ]);
+    expect(selectBilledWorkByMonth(pack, '2026-01', '2026-02', 'USD')).toEqual([
+      { month: '2026-01', amount: 1_200 },
+      { month: '2026-02', amount: 800 },
     ]);
   });
 
@@ -28,17 +33,17 @@ describe('company period totals', () => {
       ],
     } as unknown as ManagementPack;
 
-    expect(selectInvoicedTotals(pack, '2026-02', '2026-03')).toEqual([
+    expect(selectBilledWorkInPeriod(pack, '2026-02', '2026-03')).toEqual([
       { currency: 'USD', amount: 191.34 },
       { currency: 'IDR', amount: 300 },
     ]);
-    expect(selectInvoicedTotals(pack, '2026-03', '2026-03')).toEqual([
+    expect(selectBilledWorkInPeriod(pack, '2026-03', '2026-03')).toEqual([
       { currency: 'USD', amount: 67.89 },
       { currency: 'IDR', amount: 200 },
     ]);
-    expect(selectInvoicedTotals(undefined, '2026-02', '2026-03')).toBeUndefined();
-    expect(selectInvoicedTotals(pack, null, '2026-03')).toBeUndefined();
-    expect(selectInvoicedTotals(pack, '2026-02', null)).toBeUndefined();
+    expect(selectBilledWorkInPeriod(undefined, '2026-02', '2026-03')).toBeUndefined();
+    expect(selectBilledWorkInPeriod(pack, null, '2026-03')).toBeUndefined();
+    expect(selectBilledWorkInPeriod(pack, '2026-02', null)).toBeUndefined();
   });
 
   it('collects only paid receipts dated inside the inclusive period', () => {

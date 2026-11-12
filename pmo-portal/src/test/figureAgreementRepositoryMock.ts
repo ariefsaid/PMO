@@ -122,7 +122,7 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
       listClaims: async () => [],
       summary: async () => billing,
     }),
-    workOrder: override('workOrder', { list: async () => [], drawdown: async () => null, billing: async () => [], acceptanceAge: async () => [], unbilled: async () => [] }),
+    workOrder: override('workOrder', { list: async () => [], drawdown: async () => null, billing: async () => [], acceptanceAge: async () => [], unbilled: async () => ({ totals: [], incompleteCount: 0 }) }),
     company: override('company', { list: async () => [], listClients: async () => [] }),
     profile: override('profile', { listProjectManagers: async () => [fixture.users.projectManager] }),
     orgFeature: override('orgFeature', { listOwn: async () => [] }),
