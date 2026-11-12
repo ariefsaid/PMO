@@ -53,6 +53,7 @@
     "procurementTitleCode": "Procurement title + code",
     "project": "Project",
     "invoiceRecorded": "Invoice recorded",
+    "overdueHint": "Count of open invoices past their derived due date; total sums known outstanding balances, including tax, by currency. Unknown balances are not added.",
     "waiting": "Waiting to pay",
     "daysWaiting": "{{count}} days",
     "amount": "Amount",
@@ -107,6 +108,9 @@
         "headingCount_other": "Overdue · {{count}} invoices"
       },
       "waiting": {
+        "draftsApproveDetail": "Invoices waiting for your approval",
+        "draftsSecondDetail": "Your invoices need another approver",
+        "toSendDetail": "Approved invoices without a received date",
         "draftsApprove_one": "{{count}} draft to approve",
         "draftsApprove_other": "{{count}} drafts to approve",
         "draftsSecond_one": "{{count}} draft waiting for a second approver",
@@ -131,8 +135,8 @@
         "oldestMeaning": "Calendar days since the supplier invoice date",
         "unknownCount_one": "{{count}} balance unknown",
         "unknownCount_other": "{{count}} balances unknown",
-        "unknownNote_one": "{{count}} invoice has no amount and is left out of the total",
-        "unknownNote_other": "{{count}} invoices have no amount and are left out of the total",
+        "unknownNote_one": "{{count}} supplier invoice has no amount on record, so its balance is left out of the total. Open the procurement to record it.",
+        "unknownNote_other": "{{count}} supplier invoices have no amount on record, so their balances are left out of the total. Open the procurement to record them.",
         "oldestBasis": "since invoice date"
       },
       "attention": {

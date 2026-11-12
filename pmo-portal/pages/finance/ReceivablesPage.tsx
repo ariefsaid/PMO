@@ -84,6 +84,7 @@ export default function ReceivablesPage() {
   const canCreatePayment = may('create', 'incomingPayment');
   const owed = useMemo(() => owedTotals(position), [position]);
   const openInvoices = useMemo(() => invoices.filter((invoice) => isOpenClientInvoiceStatus(invoice.status) && (invoice.erp_outstanding_amount == null || invoice.erp_outstanding_amount > 0)), [invoices]);
+  const clientsCount = new Set(openInvoices.map((invoice) => invoice.customer_id).filter((customerId): customerId is string => Boolean(customerId))).size;
   const owedUnknown = position.receivablesUnknownCount;
   const receivablesUnknownAgeing = groupUnknownOverdueReceivablesByAge(position.overdue);
   const unknownBalancesWithoutAge = Math.max(0, owedUnknown - receivablesUnknownAgeing.total);
@@ -175,20 +176,25 @@ export default function ReceivablesPage() {
         <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className={`mb-5 ${figureCols((owedTile || receivablesPending || receivablesError ? 1 : 0) + (overdueTile || receivablesPending || receivablesError ? 1 : 0) + 2)}`}>
           <KPITile
             icon="grid" tone="blue" label={t('finance:receivables.owed', 'Owed to you')} caption={t('financeHub:hub.taxIncluded', 'tax included')}
+            detail={!receivablesPending && !receivablesError ? t('finance:receivables.invoiceClients', { count: openInvoices.length, clients: clientsCount, clientLabel: t(clientsCount === 1 ? 'finance:receivables.clientSingular' : 'finance:receivables.clientPlural', clientsCount === 1 ? 'client' : 'clients'), defaultValue_one: '{{count}} invoice · {{clients}} {{clientLabel}}', defaultValue_other: '{{count}} invoices · {{clients}} {{clientLabel}}' }) : undefined}
             value={owedTile?.value ?? null} exactValue={owedTile?.exactValue} loading={receivablesPending} error={receivablesError}
+            loadingLabel={t('financeHub:hub.loadingFigure', 'Loading figure')}
             unavailableReason={owedTile || receivablesPending || receivablesError ? undefined : unknownReason(owedUnknown)} hiddenLink={seeInvoices}
             help={t('finance:receivables.owedHelp', 'Known outstanding balances on submitted and unpaid client invoices, including tax.')}
           />
           <KPITile
             icon="grid" tone="red" label={t('finance:receivables.overdue', 'Overdue')} caption={receivablesPending || receivablesError || overduePercent == null ? undefined : t('finance:receivables.overduePercent', '{{percent}}% of owed', { percent: overduePercent })}
+            detail={!receivablesPending && !receivablesError ? t('finance:receivables.overdueCountAge', '{{count}} invoices · oldest {{days}} days', { count: position.overdue.length, days: position.overdue[0]?.daysOverdue ?? 0 }) : undefined}
             value={overdueTile?.value ?? null} exactValue={overdueTile?.exactValue} loading={receivablesPending} error={receivablesError}
+            loadingLabel={t('financeHub:hub.loadingFigure', 'Loading figure')}
             unavailableReason={overdueTile || receivablesPending || receivablesError ? undefined : unknownReason(overdueUnknown)} hiddenLink={seeInvoices}
             help={t('finance:receivables.overdueHelp', 'Known overdue balances divided by known owed balances in the same currency. Invoice count includes invoices with an unknown balance.')}
           />
           <KPITile
             icon="grid" tone="amber" label={t('finance:receivables.dueNext30', 'Due in next 30 days')}
-            caption={!receivablesPending && !receivablesError && dueSoon[0] ? t('finance:receivables.nextDue', 'next due {{date}}', { date: formatDay(dueSoon[0].due) }) : undefined}
+            detail={!receivablesPending && !receivablesError && dueSoon[0] ? t('finance:receivables.dueDetails', '{{count}} invoices · next due {{date}}', { count: dueSoon.length, date: formatDay(dueSoon[0].due) }) : undefined}
             value={receivablesPending || receivablesError ? null : dueSoonTile.value} exactValue={receivablesPending || receivablesError ? undefined : dueSoonTile.exactValue} loading={receivablesPending} error={receivablesError}
+            loadingLabel={t('financeHub:hub.loadingFigure', 'Loading figure')}
             unavailableReason={!receivablesPending && !receivablesError && dueSoonTile.value == null && dueSoonUnknown > 0 ? unknownReason(dueSoonUnknown) : undefined} hiddenLink={seeInvoices}
             help={t('finance:receivables.dueHelp', 'Open invoices with a due date from today through 30 days from today, using the invoice date, client terms, and ERP due date.')}
           />
@@ -196,6 +202,7 @@ export default function ReceivablesPage() {
             icon="grid" tone="green" label={t('finance:receivables.receivedThisMonth', 'Received this month')}
             caption={!cashPending && !cashError && cashDelta ? t('finance:receivables.vsLastMonth', '{{delta}} vs last month', { delta: cashDelta }) : undefined}
             value={cashPending || cashError || thisMonthCash.unknown ? null : cashTile.value} exactValue={cashPending || cashError || thisMonthCash.unknown ? undefined : cashTile.exactValue} loading={cashPending} error={cashError}
+            loadingLabel={t('financeHub:hub.loadingFigure', 'Loading figure')}
             unavailableReason={!cashPending && !cashError && thisMonthCash.unknown ? t('finance:receivables.receiptUnknown', { defaultValue: '{{count}} receipt amounts unknown', count: thisMonthCash.unknown }) : undefined}
             help={t('finance:receivables.receivedHelp', 'Cash received on non-cancelled payments dated in this calendar month, compared with the previous calendar month.')}
           />

@@ -78,6 +78,7 @@ const FinanceHub: React.FC = () => {
 
   const owed = moneyTileProps(finance.position.receivablesCount === 0 ? { [home]: 0 } : receivableValues, home);
   const toPay = moneyTileProps(finance.position.payables.length === 0 ? { [home]: 0 } : finance.position.payablesTotals, home);
+  const supplierCount = new Set(finance.position.payables.map(({ procurement }) => procurement.vendor_id ?? procurement.id)).size;
   const toInvoice = pack ? moneyTileProps(
     Object.keys(unbilled).length === 0 && pack.invoicedBasisRows === pack.contractRows ? { [home]: 0 } : unbilled,
     home,
@@ -98,42 +99,49 @@ const FinanceHub: React.FC = () => {
         icon="grid" tone="blue" to="/finance/receivables" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.receivables', 'Receivables') })}
         label={t('financeHub:hub.owed', 'Receivables')}
         value={owed.value} exactValue={owed.exactValue}
+        detail={!receivablesPending && !receivablesError ? t('financeHub:hub.fix.area.receivablesMeaning', { defaultValue: 'owed to you · {{count}} invoices · tax included', count: finance.position.receivablesCount }) : undefined}
         caption={finance.position.receivablesUnknownCount > 0
           ? t('financeHub:hub.owedUnknownCaption', { count: finance.position.receivablesUnknownCount, defaultValue_one: '{{count}} balance unknown', defaultValue_other: '{{count}} balances unknown' })
           : t('financeHub:hub.taxIncluded', 'tax included')}
         unavailableReason={owed.unknown ? t('financeHub:hub.owedUnknown', 'invoice balances unknown') : undefined}
         hiddenLink={{ to: '/finance/receivables', label: t('financeHub:hub.seeInvoices', 'See invoices') }}
         help={t('financeHub:hub.receivablesHint', 'Sum of known outstanding balances on open invoices, including tax. Draft and cancelled invoices are excluded.')}
-        loading={receivablesPending} error={receivablesError}
+        loading={receivablesPending} loadingLabel={t('financeHub:hub.loadingFigure', 'Loading figure')} error={receivablesError}
       />}
       {hasProcurement && <KPITile
         icon="grid" tone="blue" to="/finance/payables" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.payables', 'Payables') })}
         label={t('financeHub:hub.toPay', 'Owed to suppliers')} caption={t('financeHub:hub.waitingToPay', 'unpaid')}
+        detail={!payablesRegionPending && !payablesRegionError ? t('financeHub:hub.fix.area.payablesSuppliers', { defaultValue: supplierCount === 1 ? 'to pay {{count}} supplier' : 'to pay {{count}} suppliers', count: supplierCount }) : undefined}
         value={toPay.value} exactValue={toPay.exactValue}
         unavailableReason={toPay.unknown ? t('financeHub:hub.payablesUnknown', 'supplier balances are unknown') : undefined}
         hiddenLink={{ to: '/finance/payables', label: t('financeHub:hub.seePayables', 'See payables') }}
         help={t('financeHub:hub.payablesHint', 'Unpaid supplier invoice balances (invoice amount less payments made), grouped by currency. Unknown balances are counted, not added.')}
-        loading={payablesRegionPending} error={payablesRegionError}
+        loading={payablesRegionPending} loadingLabel={t('financeHub:hub.loadingFigure', 'Loading figure')} error={payablesRegionError}
       />}
       {hasRevenue && <KPITile
         icon="grid" tone="blue" to="/finance/reports" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.reports', 'Reports') })}
         label={t('financeHub:hub.doneNotYetBilled', 'Done, not yet billed')} caption={pack?.asAt ? t('financeHub:hub.through', 'through {{month}}', { month: formatMonthYearShort(pack.asAt) }) : undefined}
+        detail={pack && pack.contractRows > 0 && pack.invoicedBasisRows === pack.contractRows
+          ? t('financeHub:hub.fix.area.noProgressProjects', { defaultValue: 'No progress recorded on {{count}} projects', count: pack.contractRows })
+          : undefined}
         value={toInvoice?.value ?? null} exactValue={toInvoice?.exactValue}
         unavailableReason={!toInvoice || toInvoice.unknown ? t('financeHub:hub.reportsUnknown', 'report figures are not available') : undefined}
         hiddenLink={{ to: '/finance/reports', label: t('financeHub:hub.openReports', 'Open reports') }}
         help={t('financeHub:hub.reportsHint', 'Earned revenue minus invoiced revenue through the latest selected month, before tax.')}
-        loading={figures.isPending} error={figures.isError}
+        loading={figures.isPending} loadingLabel={t('financeHub:hub.loadingFigure', 'Loading figure')} error={figures.isError}
       />}
       {may('view', 'financialStatements') && <KPITile
         icon="grid" tone="blue" to="/finance/statements" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.statements', 'Statements') })}
         label={t('financeHub:hub.netProfit', 'Net profit')} caption={statementPeriod ? formatMonthYearShort(statementPeriod) : undefined}
         value={profit?.value ?? null} exactValue={profit?.exactValue}
         unavailableReason={profit ? undefined : statementUnavailable
-          ? t('financeHub:hub.fix.statements.notConnected', 'accounting disconnected')
+          ? manageIntegration
+            ? t('financeHub:hub.fix.statements.notConnected', 'accounting disconnected')
+            : t('financeHub:hub.fix.statements.askAdmin', 'Statements come from the accounting system; an Admin sets this up in Integrations.')
           : t('financeHub:hub.fix.statements.noStatement', 'no statement period yet')}
         hiddenLink={statementUnavailable && manageIntegration ? { to: '/administration/integrations', label: t('financeHub:hub.fix.statements.setUp', 'Set up') } : undefined}
         help={t('financeHub:hub.statementsHint', 'Net profit from the latest available company profit and loss statement period.')}
-        loading={figures.isPending && !statementUnavailable} error={figures.isError}
+        loading={figures.isPending && !statementUnavailable} loadingLabel={t('financeHub:hub.loadingFigure', 'Loading figure')} error={figures.isError}
       />}
     </KPIRow>
   );
@@ -144,7 +152,7 @@ const FinanceHub: React.FC = () => {
       <CardPad>
         <FinanceAttention
         position={finance.position} scope="all" canAct={canAct} isPending={attentionPending} isError={attentionError}
-        onRetry={finance.retry} withLayout={(path) => path} orgCurrency={orgCurrency} showOverdueUnknownCount={false}
+        onRetry={finance.retry} withLayout={(path) => path} orgCurrency={orgCurrency}
         projects={new Map((projects.data ?? []).map((project) => [project.id, project]))}
       />
       </CardPad>

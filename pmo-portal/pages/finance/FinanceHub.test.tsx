@@ -1,5 +1,6 @@
 import React from 'react';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'jest-axe';
@@ -254,7 +255,7 @@ describe('Finance hub', () => {
     expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent('1 balance unknown');
 
     const attention = screen.getByRole('region', { name: 'Finance attention' });
-    expect(within(attention).getByRole('heading', { name: /Overdue/ })).not.toHaveTextContent('balance unknown');
+    expect(within(attention).getByRole('heading', { name: /Overdue/ })).toHaveTextContent('1 balance unknown');
     const row = screen.getByRole('link', { name: /Open Client 1 invoice INV-1/ });
     expect(row).toBeInTheDocument();
     expect(row).not.toHaveTextContent(/balance unknown|—|IDR 0/);
@@ -302,6 +303,55 @@ describe('Finance hub', () => {
     const areas = screen.getByRole('region', { name: 'Finance areas' });
     expect(areas).toHaveClass('min-[900px]:grid-cols-3');
     expect(areas.children).toHaveLength(3);
+  });
+
+  it('AC-R2R-E-001: keeps invoice, supplier and no-progress counts beside hub figures', () => {
+    renderHub();
+
+    const receivables = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    const payables = screen.getByRole('link', { name: 'Open Payables' }).parentElement as HTMLElement;
+    const reports = screen.getByRole('link', { name: 'Open Reports' }).parentElement as HTMLElement;
+    expect(within(receivables).getByText(/5 invoices/)).toBeInTheDocument();
+    expect(within(payables).getByText(/1 supplier/)).toBeInTheDocument();
+    expect(within(reports).getByText('No progress recorded on 2 projects')).toBeInTheDocument();
+  });
+
+  it('AC-R2R-E-002: announces finance-figure loading to screen readers', () => {
+    state.financeSources.invoicesPending = true;
+    renderHub();
+
+    const receivables = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    expect(within(receivables).getByRole('status', { name: 'Loading figure' })).toBeInTheDocument();
+  });
+
+  it('AC-R2R-E-003: gives non-integration roles the Statements setup remedy', () => {
+    renderHub('Finance');
+
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Statements come from the accounting system; an Admin sets this up in Integrations.');
+  });
+
+  it('AC-R2R-E-004: explains the overdue count and tax-inclusive known-balance scope', async () => {
+    renderHub();
+    const heading = screen.getByRole('heading', { name: /Overdue · 5 invoices/ });
+    await userEvent.hover(within(heading).getByText(/Overdue/));
+
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent('open invoices past their derived due date');
+    expect(tooltip).toHaveTextContent('known outstanding balances, including tax');
+    expect(tooltip).toHaveTextContent(/unknown balances are not added/i);
+  });
+
+  it('AC-R2R-E-011: states what each waiting count represents', () => {
+    state.position = {
+      ...positionFixture(),
+      drafts: { canApprove: [{}] as never, awaitingOther: [{}] as never, all: [{}] as never },
+      toSend: [{}] as never,
+    };
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    expect(screen.getByText('Invoices waiting for your approval')).toBeInTheDocument();
+    expect(screen.getByText('Your invoices need another approver')).toBeInTheDocument();
+    expect(screen.getByText('Approved invoices without a received date')).toBeInTheDocument();
   });
 
   it('L6: each overdue and supplier figure is shown once on the hub', () => {
@@ -373,8 +423,8 @@ describe('Finance hub', () => {
     expect(screen.queryByRole('link', { name: 'Open Statements' })).not.toBeInTheDocument();
     expect(screen.queryByText('Not available yet')).not.toBeInTheDocument();
     const hidden = screen.getByTestId('figures-hidden');
-    expect(hidden).toHaveTextContent('1 figure hidden: accounting disconnected');
-    expect(screen.getAllByText(/accounting disconnected/)).toHaveLength(1);
+    expect(hidden).toHaveTextContent('Statements come from the accounting system; an Admin sets this up in Integrations.');
+    expect(screen.getAllByText(/an Admin sets this up in Integrations/)).toHaveLength(1);
   });
 
   it('C4: with no statement yet, an Admin gets the link to where statements are set up', () => {

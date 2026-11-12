@@ -53,12 +53,16 @@ export interface KPITileProps {
   helpLabel?: string;
   /** The tile's ONE caption (at most 6 words, truncated to one line). */
   caption?: string;
+  /** Optional supporting count or state shown below the figure. */
+  detail?: string;
   /** @deprecated Use `caption`. */
   vs?: string;
   /** @deprecated A tile has one caption; the text is used as `caption` when none is given. */
   delta?: KPIDelta;
   /** Skeleton while the metric query loads. */
   loading?: boolean;
+  /** Accessible live announcement for a loading skeleton. */
+  loadingLabel?: string;
   /** When true, omits the value (fetch error state); the surrounding block carries the error. */
   error?: boolean;
   /**
@@ -119,9 +123,11 @@ export function KPITile({
   help,
   helpLabel,
   caption: captionProp,
+  detail,
   vs,
   delta,
   loading = false,
+  loadingLabel,
   error = false,
   to,
   linkLabel,
@@ -131,6 +137,12 @@ export function KPITile({
   const { t } = useTranslation();
   const inRow = React.useContext(KPIRowContext);
   const caption = captionProp ?? vs ?? delta?.text;
+  const loadingContent = loadingLabel ? (
+    <div role="status" aria-live="polite" aria-label={loadingLabel}>
+      <span className="sr-only">{loadingLabel}</span>
+      <div aria-hidden="true" data-testid="kpi-skeleton" className="skel h-9 w-2/3" />
+    </div>
+  ) : <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />;
   const unknown = !loading && !error && (unavailableReason != null || value == null);
   const hiddenEntry: HiddenFigure[] = unknown
     ? [{ label, reason: unavailableReason ?? '', ...(hiddenLink ? { link: hiddenLink } : {}) }]
@@ -187,7 +199,7 @@ export function KPITile({
         <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 pointer-events-none">
           {head}
           {loading ? (
-            <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />
+            loadingContent
           ) : error ? null : (
             <div
               className={cn(
@@ -198,6 +210,7 @@ export function KPITile({
               <FigureContent value={value} exactValue={exactValue} unavailableReason={unavailableReason} />
             </div>
           )}
+          {detail && <div className="truncate text-control text-muted-foreground" title={detail}>{detail}</div>}
           {caption && <Caption>{caption}</Caption>}
         </div>
       </div>
@@ -209,7 +222,7 @@ export function KPITile({
       {head}
 
       {loading ? (
-        <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />
+        loadingContent
       ) : error ? null : (
         <div
           className={cn(
@@ -221,6 +234,7 @@ export function KPITile({
         </div>
       )}
 
+      {detail && <div className="truncate text-control text-muted-foreground" title={detail}>{detail}</div>}
       {caption && <Caption>{caption}</Caption>}
     </div>
   );

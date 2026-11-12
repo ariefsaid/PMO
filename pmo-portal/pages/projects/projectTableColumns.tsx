@@ -3,7 +3,7 @@ import { CompanyNameLink, ProgressBar, StatusPill, TaxBasisLabel, type Column } 
 import { withCurrencyColumn } from '@/src/components/export';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import { deriveBudgetConsumption, deriveCollectionActual, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -40,17 +40,35 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     moneyPending,
     moneyError,
   });
+  const actualPositions = filtered.map((project) => ({ project, position: actualPosition(project) }));
+  const knownActualCount = actualPositions.filter(({ position }) => position.text !== null).length;
+  const partialActualCount = actualPositions.filter(({ position }) => position.state === 'partial').length;
+  const unknownActualCount = actualPositions.filter(({ position }) => position.state === 'unknown').length;
+  const coverageAsOf = filtered.reduce<string | null>((latest, project) => {
+    const asOf = projectMoney?.[project.id]?.actuals.asOf ?? null;
+    return asOf && (!latest || asOf > latest) ? asOf : latest;
+  }, null);
+  // A caveat belongs to a mixed column. When every figure is unknown, FigureScope already names
+  // the hidden column and its reason once above the table.
+  const coverageReason = moneyPending ? undefined : moneyError
+    ? t('projects:coverage.readError', 'Project spending could not be read.')
+    : knownActualCount === 0 ? undefined
+    : partialActualCount > 0
+      ? coverageAsOf
+        ? t('projects:coverage.partialUpdated', 'Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}.', { partial: partialActualCount, total: filtered.length, date: formatInstantDate(coverageAsOf) })
+        : t('projects:coverage.partial', 'Actual is partial on {{partial}} of {{total}} projects.', { partial: partialActualCount, total: filtered.length })
+      : unknownActualCount > 0
+        ? t('projects:coverage.unknown', 'Actual is unknown on {{count}} of {{total}} projects.', { count: unknownActualCount, total: filtered.length })
+        : undefined;
   // The Actual column drops itself when no row has a figure. Say why once, on the page's hidden-figures
   // line, instead of a sentence about a column that is not there. A role whose money read never runs
   // (no data, no error) has nothing to set up, so it gets no line.
-  const actualHidden = !moneyPending && (moneyError || projectMoney !== undefined) && filtered.length > 0
+  const actualHidden = !moneyPending && !moneyError && projectMoney !== undefined && filtered.length > 0
     && filtered.every((project) => {
       const position = actualPosition(project);
       return !position.text && !position.restricted;
     });
-  const actualHiddenReason = !actualHidden ? null : moneyError
-    ? t('projects:coverage.hiddenReadError', 'spending could not be read')
-    : t('projects:coverage.hiddenNotLinked', 'spending is not linked');
+  const actualHiddenReason = actualHidden ? t('projects:coverage.hiddenNotLinked', 'spending is not linked') : null;
   // One tax basis across the visible contracts is said once, in the header; a mix keeps it on each figure.
   const bases = [...new Set(filtered.map((p) => p.tax_treatment).filter((x): x is NonNullable<typeof x> => x === 'inclusive' || x === 'exclusive'))];
   const sharedBasis = bases.length === 1
@@ -256,6 +274,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'actual',
       header: t('projects.columns.actual', 'Actual'),
       kind: 'money',
+      caveat: coverageReason ? { reason: coverageReason } : undefined,
       size: 136,
       minSize: 128,
       maxSize: 320,

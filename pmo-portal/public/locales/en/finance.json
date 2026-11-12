@@ -107,6 +107,7 @@
     "clientSingular": "client",
     "clientPlural": "clients",
     "overdueDetails": "{{percent}} of owed · {{count}} {{invoiceLabel}} · oldest {{days}} days",
+    "overdueCountAge": "{{count}} invoices · oldest {{days}} days",
     "invoiceSingular": "invoice",
     "invoicePlural": "invoices",
     "dueDetails": "{{count}} invoices · next due {{date}}",

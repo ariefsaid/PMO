@@ -2,7 +2,11 @@
   "coverage": {
     "hiddenNotLinked": "spending is not linked",
     "hiddenReadError": "spending could not be read",
-    "setUp": "Set up"
+    "setUp": "Set up",
+    "partial": "Actual is partial on {{partial}} of {{total}} projects.",
+    "partialUpdated": "Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}.",
+    "unknown": "Actual is unknown on {{count}} of {{total}} projects.",
+    "readError": "Project spending could not be read."
   },
   "moneyFiguresUnavailable": "Some project financial figures are still being confirmed.",
   "actual": {

@@ -65,6 +65,7 @@ const archiveTargetsState = {
 const mockListArchiveTargets = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 archiveTargetsState.refetch.mockImplementation(() => Promise.resolve({ data: archiveTargetsState.data, error: null }));
 const positionState = { isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0 };
+const odooActualsState = vi.hoisted(() => ({ onLedger: false, unlinked: false }));
 const procurementsState = { data: [] as unknown[], isPending: false, isError: false };
 const budgetPushState = vi.hoisted(() => ({ rows: [] as Array<Record<string, unknown>> }));
 const mockBudgetRepository = vi.hoisted(() => ({ getDistribution: vi.fn().mockResolvedValue(null), createLineItem: vi.fn() }));
@@ -110,6 +111,10 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => procurementsState }));
 vi.mock('@/src/hooks/useProjectPosition', () => ({ useBudgetPosition: () => positionState }));
+vi.mock('@/src/hooks/useOdooLedger', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/hooks/useOdooLedger')>()),
+  useOdooProjectActuals: () => odooActualsState,
+}));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
 vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({ data: { status: 'active' }, isPending: false }) }));
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
@@ -301,6 +306,8 @@ function resetState() {
   positionState.canSeeActual = true;
   positionState.rows = [];
   positionState.unknown = 0;
+  odooActualsState.onLedger = false;
+  odooActualsState.unlinked = false;
   procurementsState.data = [];
   procurementsState.isPending = false;
   procurementsState.isError = false;
@@ -452,16 +459,37 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     resetState();
   });
 
-  it('renders active budget KPIs before the budget-by-category table', () => {
+  it('renders active budget KPIs and marks unknown category and total values with scoped fallbacks', async () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
     expect(screen.getAllByText(/4,700,000/).length).toBeGreaterThan(0);
-    // Spending is unknown here, so the table drops the blank Spent column; the tile still names it.
-    expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
+    // Unknown values stay explicit so a blank doesn't read as zero or a missing field.
+    expect(within(table).getByRole('columnheader', { name: 'Spent' })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Committed' })).toBeInTheDocument();
-    expect(within(table).queryByRole('columnheader', { name: 'Left after spend' })).not.toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Left after spend' })).toBeInTheDocument();
+    expect(within(table).getAllByText('—').length).toBeGreaterThan(0);
+    const headers = within(table).getAllByRole('columnheader');
+    const row = within(table).getByRole('row', { name: /Labor/ }) as HTMLTableRowElement;
+    const spentCell = row.cells[headers.findIndex((header) => header.textContent?.includes('Spent'))];
+    const leftCell = row.cells[headers.findIndex((header) => header.textContent?.includes('Left after spend'))];
+    const usedCell = row.cells[headers.findIndex((header) => header.textContent?.includes('% used'))];
+    const spentTrigger = spentCell.querySelector('[data-base-ui-tooltip-trigger]') as HTMLElement;
+    await userEvent.hover(spentTrigger);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Source: project finance by category');
+    await userEvent.unhover(spentTrigger);
+    await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
+    const leftTrigger = leftCell.querySelector('[data-base-ui-tooltip-trigger]') as HTMLElement;
+    await userEvent.hover(leftTrigger);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Calculated as budget minus spent and committed.');
+    await userEvent.unhover(leftTrigger);
+    await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
+    const usedTrigger = usedCell.querySelector('[data-base-ui-tooltip-trigger]') as HTMLElement;
+    await userEvent.hover(usedTrigger);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Utilization is unavailable when budget, spending, or commitments are unknown, or when budget is zero.');
+    const totalRow = within(table).getByRole('row', { name: /Total/ });
+    expect(totalRow).toHaveTextContent('—');
     expect(within(table).getAllByText(/2,000,000/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/USD/).length).toBeGreaterThan(0);
     expect(screen.getByTestId('tax-basis')).toBeInTheDocument();
@@ -490,12 +518,29 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     renderPage();
 
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    // Unknown spending is not a column of dashes: the column is dropped and the reason is said once.
-    expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Spent' })).toBeInTheDocument();
+    expect(within(table).getAllByText('—').length).toBeGreaterThan(0);
     // One line on the page names what is hidden and why, instead of dashes in every row.
     const hidden = screen.getByTestId('figures-hidden');
     expect(hidden).toHaveTextContent(/2 figures hidden: spending is not linked/);
     expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
+  });
+
+  it('AC-R2R-E-008: restores the spending setup remedy when only some budget categories are unmapped', () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    positionState.rows = [
+      { category: 'Labor', budget: 2000000, actual: 55 },
+      { category: 'Materials', budget: 1700000, actual: null },
+      { category: 'Contingency', budget: 1000000, actual: 0 },
+    ];
+    positionState.unknown = 1;
+    odooActualsState.onLedger = true;
+    roleState.realRole = 'Admin';
+    renderPage();
+
+    expect(screen.getByText(/Spending isn't linked yet\./)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Finish spending setup' })).toHaveAttribute('href', '/administration/accounting#budget-account-map');
   });
 
   it('places the accounting-system notice after the budget table for Admin and Finance, and hides it from PMs', async () => {

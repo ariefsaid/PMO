@@ -521,7 +521,7 @@ describe('Projects table — compact layout (#1)', () => {
       renderPage();
       expect(screen.getByRole('columnheader', { name: 'Progress' })).toBeInTheDocument();
       expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
-      expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden: spending could not be read');
+      expect(screen.getByText('Project spending could not be read.')).toBeInTheDocument();
     } finally {
       Object.assign(deliverySummaryState, priorDelivery, { isError: priorDeliveryError });
       projectMoneyState.data = priorMoney;
@@ -869,15 +869,17 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     expect(within(body).queryByText('$0')).not.toBeInTheDocument();
   });
 
-  it('AC-MONEY-DISPLAY: a failed collection read drops the money columns and explains once', () => {
+  it('AC-MONEY-DISPLAY: a failed collection read keeps Actual visible with a table caveat', () => {
     projectMoneyState.data = {};
     projectMoneyState.isError = true;
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(screen.queryByRole('columnheader', { name: /Actual/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Actual/ })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Budget used/ })).not.toBeInTheDocument();
-    expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('spending could not be read');
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    expect(screen.getByText('Project spending could not be read.')).toBeInTheDocument();
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.startsWith('Actual'));
+    expect(body.querySelector('tr')!.cells[actualHeaderIndex]).toHaveTextContent('—');
     expect(within(body).queryByText('Unavailable')).not.toBeInTheDocument();
   });
 

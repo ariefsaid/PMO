@@ -722,7 +722,7 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
     expect(screen.getByText(/receipt reading not verified/)).toBeInTheDocument();
   });
 
-  it('AC-UWC-009: Money position shows known cash received — a known zero stays 0, and only the project-currency bucket counts', () => {
+  it('AC-UWC-009: Money position shows known cash received — a known zero stays 0, and only the project-currency bucket counts', async () => {
     state.finances = { contract_invoiced: '100', remaining_to_invoice: '900', invoices: [],
       cash_received: { state: 'known', buckets: [], receipt_count: 0 } };
     const first = renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
@@ -732,6 +732,21 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
       cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '30.00' }, { currency: 'IDR', amount: '7.00' }], receipt_count: 2 } };
     renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
     expect(screen.getByTestId('money-lead-cash')).toHaveTextContent(/\$30$/);
+    await userEvent.hover(within(screen.getByTestId('money-lead-cash')).getByText('Received $30'));
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Receipt cash allocated to invoices for this project; separate from invoice settlement.');
+  });
+
+  it('AC-R2R-E-009: reports invoice loading and known cash when the invoiced share is unavailable', () => {
+    state.role = 'Admin';
+    state.invoicesPending = true;
+    state.finances = {
+      contract_invoiced: null, remaining_to_invoice: null, invoices: [],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '40.00' }], receipt_count: 1 },
+    };
+    renderMoneyPosition(project({ contract_value: null }));
+
+    expect(screen.getByText('Checking invoices…')).toBeInTheDocument();
+    expect(screen.getByTestId('money-lead-cash')).toHaveTextContent('Received $40');
   });
 
   it('L10: the phase timeline lists phases only, marks an overdue phase, and links to Tasks › Timeline instead of embedding the Gantt', () => {

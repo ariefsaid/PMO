@@ -2,7 +2,7 @@ import { Avatar } from '@/src/components/ui/Avatar';
 import React from 'react';
 import { Link, type Location } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Badge, StatusPill, TaxBasisLabel, type Column } from '@/src/components/ui';
+import { Badge, Icon, StatusPill, TaxBasisLabel, Tooltip, type Column } from '@/src/components/ui';
 import { EfakturCell } from '@/src/components/EfakturCell';
 import { withCurrencyColumn } from '@/src/components/export';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
@@ -168,19 +168,24 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
   };
   const outstandingColumn: Column<SalesInvoiceRow> = {
     key: 'erp_outstanding_amount',
-    header: embedded ? t('financeCopy.outstanding', 'Outstanding') : t('financeCopy.outstanding', "Outstanding"),
+    header: embedded ? (
+      <span className="inline-flex items-center gap-1">
+        {t('financeCopy.outstanding', 'Outstanding')}
+        <Tooltip content={t('finance:receivables.outstanding', 'Outstanding · tax included')}>
+          <button type="button" aria-label={t('finance:receivables.outstanding', 'Outstanding · tax included')} className="inline-grid size-4 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button>
+        </Tooltip>
+      </span>
+    ) : t('financeCopy.outstanding', 'Outstanding'),
     kind: 'money',
     align: 'num',
     size: embedded ? 140 : 170,
     cell: (inv) => {
       const overpaid = overpaidBy(inv);
       const paid = paidToDate(inv);
-      // Unknown is not a dash in every row: a column unknown on every row is dropped, and the page says why once.
-      if (inv.erp_outstanding_amount == null && paid == null && overpaid == null) return null;
       return (
         <span className="flex w-full flex-col items-end gap-0.5 text-right">
           <span className="tabular text-control">
-            {inv.erp_outstanding_amount != null ? listMoney(inv.erp_outstanding_amount, inv.currency) : null}
+            {inv.erp_outstanding_amount != null ? listMoney(inv.erp_outstanding_amount, inv.currency) : '—'}
           </span>
           {inv.erp_outstanding_amount != null && <FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" />}
           {/* I-4: what a PMO invoice has been paid so far (total due − paid = outstanding). */}
@@ -284,7 +289,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
         {statusColumn.cell(inv)}
         <span className="shrink-0 text-control text-muted-foreground">{due ? formatDay(due) : '—'}</span>
       </div>
-      <span className="text-right text-control tabular">{inv.tax_treatment === 'inclusive' ? t('finance:receivables.mobileInvoiceAmountInclusive', 'Invoice total incl. PPN') : inv.tax_treatment === 'exclusive' ? t('finance:receivables.mobileInvoiceAmount', 'Invoice total excl. PPN') : t('finance:receivables.mobileInvoiceAmountUnspecified', 'Invoice amount')}: {inv.amount == null ? '—' : listMoney(inv.amount, inv.currency)}{total != null && total !== inv.amount && <span className="block">{t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: listMoney(total, inv.currency) })}</span>}{unknown ? null : inv.erp_outstanding_amount != null && inv.status !== 'Paid' && inv.status !== 'Cancelled' && <span className="block text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}: {listMoney(inv.erp_outstanding_amount, inv.currency)}{partial && total != null && <span> {t('finance:receivables.ofTotal', 'of {{total}}', { total: listMoney(total, inv.currency) })}</span>}</span>}</span>
+      <span className="text-right text-control tabular">{inv.tax_treatment === 'inclusive' ? t('finance:receivables.mobileInvoiceAmountInclusive', 'Invoice total incl. PPN') : inv.tax_treatment === 'exclusive' ? t('finance:receivables.mobileInvoiceAmount', 'Invoice total excl. PPN') : t('finance:receivables.mobileInvoiceAmountUnspecified', 'Invoice amount')}: {inv.amount == null ? '—' : listMoney(inv.amount, inv.currency)}{total != null && total !== inv.amount && <span className="block">{t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: listMoney(total, inv.currency) })}</span>}{unknown ? <span className="block text-muted-foreground">{t('finance:receivables.mobileOutstandingUnknown', 'Outstanding balance unknown')}</span> : inv.erp_outstanding_amount != null && inv.status !== 'Paid' && inv.status !== 'Cancelled' && <span className="block text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}: {listMoney(inv.erp_outstanding_amount, inv.currency)}{partial && total != null && <span> {t('finance:receivables.ofTotal', 'of {{total}}', { total: listMoney(total, inv.currency) })}</span>}</span>}</span>
     </div>;
   };
 

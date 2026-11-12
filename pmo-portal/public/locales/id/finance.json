@@ -107,6 +107,7 @@
     "clientSingular": "klien",
     "clientPlural": "klien",
     "overdueDetails": "{{percent}} dari piutang · {{count}} {{invoiceLabel}} · terlama {{days}} hari",
+    "overdueCountAge": "{{count}} faktur · terlama {{days}} hari",
     "invoiceSingular": "faktur",
     "invoicePlural": "faktur",
     "dueDetails": "{{count}} faktur · jatuh tempo berikutnya {{date}}",
