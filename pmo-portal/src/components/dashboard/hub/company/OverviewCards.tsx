@@ -25,6 +25,7 @@ export const CardLink: React.FC<{ to: string; children: React.ReactNode }> = ({ 
 );
 
 const money = (amount: number, currency: string) => formatTileMoney(amount, currency) ?? '';
+const cnJoin = (...parts: Array<string | undefined>) => parts.filter(Boolean).join(' ');
 
 /** Budget against spending per project, worst first. Spending nobody recorded draws no bar; with none recorded the chart is left out. */
 export const BudgetVsSpentCard: React.FC<{ projects: TopProject[]; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string }> = ({ projects, currency, pending, error, retry, className }) => {
@@ -55,17 +56,22 @@ export const SalesOverviewCard: React.FC<{
   won?: { count: number; amounts: Array<{ currency: string; amount: number }>; href?: string };
   range: WinRateRange;
   className?: string;
-}> = ({ weighted, forecastMargin, stages, pending, error, retry, currency, period, won, range, className }) => {
+  /** Pipeline and win rate side by side (a two-thirds-wide card). */
+  wide?: boolean;
+  /** Drawn under the win rate (e.g. win and loss by client). */
+  aside?: React.ReactNode;
+}> = ({ weighted, forecastMargin, stages, pending, error, retry, currency, period, won, range, className, wide = false, aside }) => {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const statusLabel = useProjectStatusLabel();
   const open = openPipelineStages(stages);
-  const rows: BarRow[] = open.map((stage) => ({ id: String(stage.status), name: `${statusLabel(stage.status as string)} · ${stage.count}`, value: stage.weighted_value, label: money(stage.weighted_value, currency), tone: 'accent' }));
+  const max = Math.max(1, ...open.map((stage) => stage.weighted_value));
   const wonValue = won ? tileMoneyLines(won.amounts, currency, formatTileMoney).join(' ') : '';
   return (
-    <Card data-testid="sales-overview" className={className}>
+    <Card data-testid="sales-overview" className={cnJoin('flex flex-col', className)}>
       <CardHead level={2} actions={<CardLink to="/sales">{t('dashboard:hub.company.openSales', 'Open sales')}</CardLink>}>{t('home.sales', 'Sales')}</CardHead>
-      <CardPad className="grid gap-4">
+      <CardPad className={wide ? 'grid flex-1 gap-x-[var(--space-panel-gap)] gap-y-4 min-[900px]:grid-cols-2' : 'grid gap-4'}>
+        <div className={wide ? 'flex flex-col gap-4' : 'contents'}>
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
           {weighted && (
             <div>
@@ -83,9 +89,33 @@ export const SalesOverviewCard: React.FC<{
         </div>
         {pending ? <ListState variant="loading" shape="chart" rows={2} />
           : error ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={retry} />
-            : rows.length === 0 ? <ListState variant="empty" icon="pipe" title={t('hub.company.noPipeline', 'No open pipeline stages')} />
-              : <BarList rows={rows} ariaLabel={t('home.pipelineChart', 'Weighted pipeline by stage')} />}
-        <WinRateCard currency={currency} range={range} hidePeriodControl embedded helpInPage />
+            : open.length === 0 ? <ListState variant="empty" icon="pipe" title={t('hub.company.noPipeline', 'No open pipeline stages')} />
+              : (
+                // AC-1117: each stage bar is a link to the pipeline filtered to that stage (one scale, weighted value).
+                <ul aria-label={t('home.pipelineChart', 'Weighted pipeline by stage')} className="flex flex-1 flex-col justify-between gap-1">
+                  {open.map((stage) => {
+                    const name = `${statusLabel(stage.status as string)} · ${stage.count}`;
+                    const value = money(stage.weighted_value, currency);
+                    return (
+                      <li key={String(stage.status)}>
+                        <Link to={`/sales?status=${encodeURIComponent(stage.status as string)}`} aria-label={`${name}: ${value}`}
+                          className="grid min-h-11 grid-cols-[minmax(7rem,9.5rem)_minmax(0,1fr)] items-center gap-x-3 text-control text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                          <span className="truncate text-right">{name}</span>
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span aria-hidden className="h-[18px] min-w-0.5 rounded-r bg-primary" style={{ width: `${Math.max(1, (stage.weighted_value / max) * 75)}%` }} />
+                            <span className="shrink-0 font-semibold tabular">{value}</span>
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+        </div>
+        <div className={wide ? 'grid content-start gap-4' : 'contents'}>
+          <WinRateCard currency={currency} range={range} hidePeriodControl embedded helpInPage />
+          {aside}
+        </div>
       </CardPad>
     </Card>
   );
@@ -103,7 +133,10 @@ export const InvoicedCollectedCard: React.FC<{
   retry: () => void;
   currency: string;
   className?: string;
-}> = ({ months, periodMonths = [], collectedByMonth, collectedUnsynced, pending, error, retry, currency, className }) => {
+  /** Inside the Finances card: no frame, no link of its own, a value axis with faint lines. */
+  embedded?: boolean;
+  chartHeight?: number;
+}> = ({ months, periodMonths = [], collectedByMonth, collectedUnsynced, pending, error, retry, currency, className, embedded = false, chartHeight }) => {
   const { t } = useTranslation('dashboard');
   const withCollected = Boolean(collectedByMonth && !collectedUnsynced);
   const hasInvoices = months !== undefined;
@@ -134,10 +167,11 @@ export const InvoicedCollectedCard: React.FC<{
     : null;
   const gap = [invoiceGap, collectionGap].filter(Boolean).join(' ');
   return (
-    <ChartCard title={title} actions={<CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
+    <ChartCard title={title} embedded={embedded} className={className} actions={embedded ? undefined : <CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
       known={activeMonths >= 3} hiddenReason={t('home.reasonTrend', 'fewer than three months have invoiced or collected amounts')}
-      pending={pending} error={error ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry } : undefined} testId="chart-invoiced-collected" className={className}>
-      <MonthColumns points={points} ariaLabel={collectionsPrimary ? `${title} · ${collectedName}` : title} seriesNames={collectionsPrimary ? [collectedName] : [invoicedName, collectedName]} tickInterval={points.length > 8 ? 1 : 0} />
+      pending={pending} error={error ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry } : undefined} testId="chart-invoiced-collected">
+      <MonthColumns points={points} ariaLabel={collectionsPrimary ? `${title} · ${collectedName}` : title} seriesNames={collectionsPrimary ? [collectedName] : [invoicedName, collectedName]} tickInterval={points.length > 8 ? 1 : 0} height={chartHeight}
+        valueAxis={embedded ? (value) => (value === 0 ? '0' : money(value, currency)) : undefined} />
       {gap && <p data-testid="invoiced-collected-gap" className="mt-2 text-control text-muted-foreground">{gap}</p>}
     </ChartCard>
   );
@@ -162,7 +196,7 @@ export const PurchasingCard: React.FC<{ counts: Array<{ status: ProcurementStage
  * Why deals were lost: bars for the reasons that were recorded. With none recorded the chart is left out (and counted in
  * the page's hidden line); win and loss by client stay as rows under their own heading.
  */
-export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string }> = ({ range, className }) => {
+export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string; /** A titled section inside another card. */ embedded?: boolean }> = ({ range, className, embedded = false }) => {
   const { t } = useTranslation('dashboard');
   const { t: tl } = useTranslation('lostReason');
   const { data, isPending, isError, refetch } = useLossBreakdown(range);
@@ -187,10 +221,9 @@ export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string
   );
   const nothing = reasons.length === 0 && clients.length === 0;
   if (!isError && noneRecorded && !clientRows) return null;
-  return (
-    <Card data-testid="chart-loss-reasons" className={className}>
-      <CardHead level={2} actions={<CardLink to="/sales">{t('dashboard:hub.company.openSales', 'Open sales')}</CardLink>}>{reasons.length > 0 || nothing ? title : tl('breakdown.clientsTitle', 'Win and loss by client')}</CardHead>
-      <div className="px-[var(--panel-inset)] pb-4">
+  const heading = reasons.length > 0 || nothing ? title : tl('breakdown.clientsTitle', 'Win and loss by client');
+  const body = (
+    <>
         {isError ? <ListState variant="error" title={tl('breakdown.errorTitle', "Couldn't load the loss breakdown")} onRetry={() => void refetch()} />
           : (
             <>
@@ -199,7 +232,20 @@ export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string
               {reasons.length > 0 ? clientRows : <div>{clientRows}</div>}
             </>
           )}
-      </div>
+    </>
+  );
+  if (embedded) {
+    return (
+      <section data-testid="chart-loss-reasons" aria-label={heading} className={cnJoin('border-t border-border pt-4', className)}>
+        <h3 className="mb-2 text-control font-semibold">{heading}</h3>
+        {body}
+      </section>
+    );
+  }
+  return (
+    <Card data-testid="chart-loss-reasons" className={className}>
+      <CardHead level={2} actions={<CardLink to="/sales">{t('dashboard:hub.company.openSales', 'Open sales')}</CardLink>}>{heading}</CardHead>
+      <div className="px-[var(--panel-inset)] pb-4">{body}</div>
     </Card>
   );
 };
@@ -208,7 +254,7 @@ const AGE_TONE: Record<keyof AgeingBuckets, ChartTone> = { notDue: 'accent', noD
 const AGE_KEYS = ['notDue', 'noDueDate', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
 
 /** What clients owe, by how long it has been due (known balances only, in the organisation currency). */
-export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets>; unknownCount: number; noDueDateCount?: number; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string }> = ({ ageing, unknownCount, noDueDateCount = 0, currency, pending, error, retry, className }) => {
+export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets>; unknownCount: number; noDueDateCount?: number; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string; embedded?: boolean; rowPitch?: number }> = ({ ageing, unknownCount, noDueDateCount = 0, currency, pending, error, retry, className, embedded = false, rowPitch }) => {
   const { t } = useTranslation();
   const buckets = ageing[currency];
   const labels: Record<keyof AgeingBuckets, string> = {
@@ -222,10 +268,10 @@ export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets
   const rows: BarRow[] = buckets ? AGE_KEYS.map((key) => ({ id: key, name: labels[key], value: buckets[key] / 100, label: money(buckets[key] / 100, currency), tone: AGE_TONE[key] })) : [];
   const title = t('dashboard:home.receivablesByAge', 'Owed by clients, by age');
   return (
-    <ChartCard title={title} actions={<CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
+    <ChartCard title={title} embedded={embedded} actions={embedded ? undefined : <CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
       known={Boolean(buckets) && (noDueDateCount > 0 || rows.some((row) => (row.value ?? 0) > 0))} hiddenReason={t('dashboard:home.reasonAgeing', 'no client balance is known')}
       pending={pending} error={error ? { title: t('dashboard:home.overdueError', "Couldn't load overdue invoices"), retry } : undefined} testId="chart-receivables-age" className={className}>
-      <BarList rows={rows} ariaLabel={title} />
+      <BarList rows={rows} ariaLabel={title} rowPitch={rowPitch} />
       {noDueDateCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('finance:area.ageingNoDueDateSummary', { count: noDueDateCount, defaultValue_one: '{{count}} invoice with no due date', defaultValue_other: '{{count}} invoices with no due date' })}</p>}
       {unknownCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('dashboard:home.ageingUnknown', { count: unknownCount, defaultValue_one: '{{count}} invoice with an unknown balance is not drawn', defaultValue_other: '{{count}} invoices with unknown balances are not drawn' })}</p>}
     </ChartCard>

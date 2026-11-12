@@ -115,13 +115,14 @@ describe('company dashboard procurement reads (PERF-FIN-1)', () => {
   });
 });
 
-describe('company dashboard layout stability (CLS)', () => {
-  it('holds each figure tile and the approvals line at their loaded height while loading', () => {
+describe('company dashboard layout stability (CLS) and loading gates', () => {
+  it('while the procurement list loads, the figures band shows its figures, the supplier side holds a loading state and the approvals line keeps its loaded height', () => {
+    h.procurementList.mockReset().mockReturnValue(new Promise(() => {}));
     renderExec();
-    const tiles = screen.getAllByTestId('kpi-skeleton').map((bar) => bar.parentElement as HTMLElement);
-    expect(tiles).toHaveLength(4);
-    tiles.forEach((tile) => expect(tile.className).toMatch(/min-h-\[/));
-    const approvals = screen.getAllByTestId('liststate-loading')[0];
+    const band = screen.getByRole('region', { name: 'Company figures' });
+    expect(within(band).queryAllByTestId('kpi-skeleton')).toHaveLength(0);
+    expect(within(screen.getByTestId('owed-to-suppliers')).getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
+    const approvals = within(screen.getByTestId('waits-on-you')).getAllByTestId('liststate-loading')[0];
     expect(approvals.className).toMatch(/\bh-11\b/);
   });
 });

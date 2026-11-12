@@ -21,18 +21,20 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 
-const invoiceAgeDays = (row: ProcurementWithRefs) => Math.max(0, Math.floor((Date.now() - new Date(row.vendor_invoiced_at ?? row.updated_at).getTime()) / 86400000));
+import { calendarAgeDays, supplierInvoiceDate } from '@/src/lib/finance/financePosition';
 
 /** Supplier invoices ready to pay: supplier · procurement · unpaid · invoice age. Blank columns drop out by themselves. */
-export function ReadyToPayCard({ rows, pending, error, retry, unpaidOf }: { rows: ProcurementWithRefs[]; pending: boolean; error: boolean; retry: () => void; unpaidOf: (row: ProcurementWithRefs) => number | null }) {
+export function ReadyToPayCard({ rows, pending, error, retry, unpaidOf, today }: { rows: ProcurementWithRefs[]; pending: boolean; error: boolean; retry: () => void; unpaidOf: (row: ProcurementWithRefs) => number | null; today: string | null }) {
   const { t } = useTranslation('dashboard');
+  // Invoice age is the Payables page's: days since the supplier's invoice date, on the organisation's day (unknown stays blank).
+  const invoiceAgeDays = (row: ProcurementWithRefs) => calendarAgeDays(supplierInvoiceDate(row), today);
   const navigate = useNavigate();
   const ready = rows.filter((row) => row.status === 'Vendor Invoiced');
   const columns: Column<ProcurementWithRefs>[] = [
     { key: 'procurement', header: t('dashboard:hub.company.procurement', 'Procurement'), rowHeader: true, cell: (row) => <span className="font-medium">{row.title}</span>, exportValue: (row) => row.title },
     { key: 'supplier', header: t('dashboard:hub.company.supplier', 'Supplier'), cell: (row) => row.vendor?.name ?? null, exportValue: (row) => row.vendor?.name ?? '' },
     { key: 'amount', header: t('dashboard:hub.company.unpaid', 'Unpaid'), kind: 'money', align: 'num', cell: (row) => { const unpaid = unpaidOf(row); return unpaid === null ? null : formatTableMoney(unpaid, row.currency); }, exportValue: (row) => unpaidOf(row) ?? '' },
-    { key: 'age', header: t('home.invoiceAge', 'Invoice age'), align: 'num', cell: (row) => t('home.days', { count: invoiceAgeDays(row), defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' }), exportValue: (row) => invoiceAgeDays(row) },
+    { key: 'age', header: t('home.invoiceAge', 'Invoice age'), align: 'num', cell: (row) => { const days = invoiceAgeDays(row); return days === null ? null : t('home.days', { count: days, defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' }); }, exportValue: (row) => invoiceAgeDays(row) ?? '' },
   ];
   return (
     <Card>

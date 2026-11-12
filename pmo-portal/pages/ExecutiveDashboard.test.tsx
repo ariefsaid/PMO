@@ -145,6 +145,11 @@ beforeEach(() => {
     winRateRange: { key: 'test-period', from: new Date(2026, 0, 1), to: new Date(2026, 9, 27) },
     orgCurrency: 'USD', currencyPending: false, organizationToday: '2026-10-27', organizationDayPending: false,
     isEmpty: false,
+    figureStatus: () => ({ pending: false, error: false }),
+    receivables: { count: 0, notDue: [], overdue: [], overdueCount: 0, unknownBalances: 0, oldestDays: null },
+    payables: { count: 0, notDue: [], overdue: [], overdueCount: 0, unknownBalances: 0, oldestDays: null },
+    receivablesPending: false, receivablesError: false, payablesPending: false, payablesError: false,
+    leftToBillByProject: [], collectedPending: false,
   };
 });
 
@@ -267,11 +272,14 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(won.querySelector('[aria-hidden="true"]')).toBeNull();
   });
 
-  it('says so when no project is off track, and names projects that cannot be checked against their budget', () => {
+  it('says so when no project is off track, and names projects that cannot be checked against their budget', async () => {
     (figureState.result?.dashboard as Record<string, unknown>).risk_unchecked_projects = 6;
     renderPage();
     expect(screen.getByText('No checked project is off track.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Budget check unavailable for 6 projects/ })).toHaveAttribute('href', '/projects');
+    // The unchecked projects are one entry in the page's Why list, with the fix link.
+    await openHiddenReasons();
+    expect(await screen.findByText(/Budget check unavailable for 6 projects/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open projects' })).toHaveAttribute('href', '/projects');
   });
 
   it('shows the position as money tiles that each carry their currency, with no bare count among them', () => {
@@ -493,9 +501,12 @@ describe('company home — finance (one question: what must I collect, pay and i
     procurementsState.data = [{
       id: 'procurement-1', title: 'Supplier invoice 42', status: 'Vendor Invoiced', total_value: 250,
       currency: 'USD', updated_at: '2026-10-20T00:00:00.000Z', vendor_invoiced_at: '2026-10-20T00:00:00.000Z',
+      // Invoice age reads the supplier's invoice date (the Payables page's rule).
+      procurement_invoices: [{ amount: 250, invoice_date: '2026-10-20', created_at: '2026-10-20T00:00:00.000Z', erp_outstanding_amount: null, external_ref: null }],
       project: { name: 'Project North' }, vendor: null,
     }];
     renderPage();
+    expect(screen.getByRole('cell', { name: '7 days' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Supplier' })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Invoice age' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Due state' })).not.toBeInTheDocument();
@@ -573,7 +584,8 @@ describe('company home — routing, states and loading', () => {
   });
 
   it('AC-706: the position figures show loading skeletons while pending, never values', () => {
-    figureState.result = { ...figureState.result, todayPending: true };
+    // A1: each figure waits on its own read; with every source pending, every tile is a skeleton.
+    figureState.result = { ...figureState.result, todayPending: true, figureStatus: () => ({ pending: true, error: false }) };
     renderPage();
     expect(within(figures()).getAllByTestId('kpi-skeleton').length).toBeGreaterThan(0);
     expect(within(figures()).queryByText('$1M')).not.toBeInTheDocument();
@@ -581,10 +593,12 @@ describe('company home — routing, states and loading', () => {
 
   it('AC-707: a failed figures load shows the error with a working retry', () => {
     const retry = vi.fn();
-    figureState.result = { ...figureState.result, todayError: true, todayRetry: retry };
+    // A1: a failed read is said on the figures made from it, each with its own retry.
+    figureState.result = { ...figureState.result, todayError: true, todayRetry: retry, figureStatus: (id: string) => ({ pending: false, error: id === 'contract-on-hand', retry }) };
     renderPage();
-    expect(screen.getByText("Couldn't load company position figures")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    const failed = screen.getByTestId('figure-error-contract-on-hand');
+    expect(failed).toHaveTextContent("Couldn't load");
+    fireEvent.click(within(failed).getByRole('button', { name: 'Retry' }));
     expect(retry).toHaveBeenCalled();
   });
 
@@ -613,16 +627,18 @@ describe('company home — Overview layout (the default: one page, charts carry 
 
   it('executive: waits, off-track, figures and Sales on the page, billing figures in their own row, no Analysis section', () => {
     renderPage();
-    for (const name of ['Waits on you', 'Projects off track', 'Sales']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
+    // R2-HOME3 composition: figures band · Project health | Finances · Waits on you | Sales.
+    for (const name of ['Waits on you', 'Project health', 'Finances', 'Sales']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
     expect(within(figures()).getByText('Left to bill')).toBeInTheDocument();
     expect(tile('Left to bill')).toHaveTextContent('$250K');
     expect(within(figures()).getByText('Contract on hand')).toBeInTheDocument();
     const visibleFigureLabels = Array.from(figures().children)
-      .map((child) => ['Contract on hand', 'Invoiced', 'Owed to suppliers', 'Left to bill'].find((label) => child.textContent?.includes(label)))
+      .map((child) => ['Contract on hand', 'Invoiced', 'Collected', 'Left to bill'].find((label) => child.textContent?.includes(label)))
       .filter((label): label is string => label !== undefined);
-    expect(visibleFigureLabels).toEqual(['Contract on hand', 'Invoiced', 'Owed to suppliers', 'Left to bill']);
+    expect(visibleFigureLabels).toEqual(['Contract on hand', 'Invoiced', 'Collected', 'Left to bill']);
+    // Owed to suppliers moved from the band into Finances, with its payables link (AC-1461).
+    expect(within(screen.getByTestId('finances')).getByRole('link', { name: /Open payables/ })).toHaveAttribute('href', '/finance/payables');
     expect(screen.queryByText('Analysis')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Plan vs actual' })).toBeInTheDocument();
     // One help control on the page: the win-rate definition is folded into it.
     expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
   });
@@ -632,13 +648,14 @@ describe('company home — Overview layout (the default: one page, charts carry 
     renderPage();
 
     expect(within(figures()).queryByText('Left to bill')).not.toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Billing' })).queryByText('Left to bill')).not.toBeInTheDocument();
   });
 
-  it('draws contract, budget and known spending per project and names unknown spending', () => {
+  it('draws contract, budget and known spending per project and names unknown spending', async () => {
+    localStorage.setItem('home-layout', 'focused');
     const top = (id: string, spent: number | null) => ({ id, name: `Delivery ${id}`, client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent, actual_complete: spent !== null, actual_currency: 'USD', status: 'Ongoing Project' });
     (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top('a', 1_000), top('b', 5_000), top('c', null)];
     renderPage();
+    await openAnalysis();
     const chart = screen.getByRole('img', { name: /^Plan vs actual by project\./ });
     const label = chart.getAttribute('aria-label') ?? '';
     expect(label).toContain('Delivery a: Contract $10,000, Budget $4,000, Spent $1,000');
@@ -646,10 +663,12 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(label).toContain('Delivery c: Contract $10,000, Budget $4,000, Spent unknown');
   });
 
-  it('keeps contract and budget visible when spending is unknown and marks spent as unknown', () => {
+  it('keeps contract and budget visible when spending is unknown and marks spent as unknown', async () => {
+    localStorage.setItem('home-layout', 'focused');
     const top = { id: 'a', name: 'Delivery a', client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent: null, actual_complete: false, actual_currency: null, status: 'Ongoing Project' };
     (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top];
     renderPage();
+    await openAnalysis();
     expect(screen.getByRole('heading', { name: 'Plan vs actual' })).toBeInTheDocument();
     const chart = screen.getByRole('img', { name: /^Plan vs actual by project\./ });
     expect(chart.getAttribute('aria-label')).toContain('Delivery a: Contract $10,000, Budget $4,000, Spent unknown');
@@ -662,11 +681,13 @@ describe('company home — Overview layout (the default: one page, charts carry 
       { status: 'Ongoing Project', count: 5, total_value: 9, weighted_value: 9, win_probability: 1 },
     ], projects: [] };
     renderPage();
-    const rows = tableCells('Weighted pipeline by stage');
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toContain('Leads · 8');
-    expect(rows[1]).toContain('Negotiation · 2');
-    expect(rows.join(' ')).not.toContain('Ongoing');
+    // AC-1117: each open stage is a bar that links to the pipeline filtered to that stage.
+    const stages = within(screen.getByRole('list', { name: 'Weighted pipeline by stage' })).getAllByRole('link');
+    expect(stages).toHaveLength(2);
+    expect(stages[0]).toHaveAccessibleName(/^Leads · 8: /);
+    expect(stages[0]).toHaveAttribute('href', '/sales?status=Leads');
+    expect(stages[1]).toHaveAccessibleName(/^Negotiation · 2: /);
+    expect(stages.map((link) => link.textContent).join(' ')).not.toContain('Ongoing');
     const sales = screen.getByRole('heading', { name: 'Sales' }).closest('.panel-card') as HTMLElement;
     expect(within(sales).getByRole('button', { name: /Won · 2/ })).toHaveTextContent('$14.4M');
   });
@@ -703,8 +724,8 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(screen.getByText('1 won, 1 lost')).toBeInTheDocument();
     const sales = screen.getByTestId('sales-overview');
     const winLoss = screen.getByTestId('chart-loss-reasons');
-    expect(winLoss.parentElement).toBe(sales.parentElement);
-    expect(sales.compareDocumentPosition(winLoss) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    // Win and loss by client sits inside the Sales card, under the win rate.
+    expect(sales).toContainElement(winLoss);
     await openHiddenReasons();
     expect(await screen.findByText('no loss reason is recorded')).toBeInTheDocument();
   });

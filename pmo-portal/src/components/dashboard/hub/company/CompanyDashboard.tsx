@@ -22,7 +22,6 @@ import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useCompanyFigures } from '@/src/components/dashboard/restructure/useCompanyFigures';
-import { selectOverdueTaskCount } from '@/src/components/dashboard/restructure/overdueTasks';
 import { useNeedsYou } from '@/src/components/dashboard/restructure/useNeedsYou';
 import { PeriodPicker } from '@/src/components/dashboard/restructure/PeriodPicker';
 import { usePeriod } from '@/src/components/dashboard/restructure/usePeriod';
@@ -40,7 +39,6 @@ import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { invoiceGross } from '@/src/lib/revenue/nativeInvoice';
 import { trendWindow } from '@/src/lib/dashboardTrend';
 import { monthsBetween } from '@/src/lib/reports/months';
-import type { AttentionProject } from '@/src/lib/db/dashboard';
 import type { Role } from '@/src/auth/AuthContext';
 import { InvoicedTrendCard } from './InvoicedTrendCard';
 import { PlanVsActualChart } from './PlanVsActualChart';
@@ -48,6 +46,11 @@ import { SalesFunnel } from './SalesFunnel';
 import { BudgetReviewCard, FinanceAnalysis, ReadyToPayCard } from './FinanceBlocks';
 import { useSupplierUnpaid } from './financeData';
 import { InvoicedCollectedCard, LossReasonsCard, PurchasingCard, ReceivablesAgeCard, SalesOverviewCard } from './OverviewCards';
+import { ApprovalItems } from './ApprovalItems';
+import { FindingLine, UncheckedReport } from './FindingLine';
+import { ProjectHealthCard } from './ProjectHealthCard';
+import { FinancesCard } from './FinancesCard';
+import { healthOrder, isOffTrack, overBudget, overdueTaskCount } from './homeHealth';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
@@ -57,7 +60,6 @@ const WAIT_ORDER: Record<'Executive' | 'Admin' | 'Finance', string[]> = {
   Finance: ['approvals', 'supplier-invoices', 'overdue-invoices', 'ready-to-bill'],
 };
 
-const overBudget = (row: AttentionProject) => row.over_budget || (row.budget_used_ratio !== null && row.budget_used_ratio >= 1);
 
 export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | 'Admin' | 'Finance'> }) {
   const { t } = useTranslation('dashboard');
@@ -88,12 +90,19 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   // Projects off track: over budget or with overdue work, worst first (the server's order), at most five.
   const attention = data?.attention_projects ?? [];
   const offTrack = attention.filter((row) => overBudget(row) || row.overdue_items > 0)
-    .sort((a, b) => selectOverdueTaskCount(b.overdue_tasks, figures.organizationToday)!
-      - selectOverdueTaskCount(a.overdue_tasks, figures.organizationToday)!)
+    .sort((a, b) => (overdueTaskCount(b) ?? -1) - (overdueTaskCount(a) ?? -1))
     .slice(0, 5);
-  const deliveryQuery = useProjectsDelivery(offTrack.map((row) => row.id));
+  // Project health (overview): every attention project, worst first; one delivery read covers both layouts.
+  const healthRows = healthOrder(attention);
+  const healthDelivery = useProjectsDelivery(attention.map((row) => row.id));
+  const deliveryQuery = healthDelivery;
+  const offTrackCount = attention.filter(isOffTrack).length;
+  // The server sends the top five by attention; when all five are off track there may be more.
+  const offTrackSaturated = attention.length >= 5 && offTrackCount === attention.length;
+  const activeProjectCount = data?.active_delivery_projects ?? data?.active_projects;
   const projectRows: ProjectRow[] = offTrack.map((row) => {
-    const overdueTasks = selectOverdueTaskCount(row.overdue_tasks, figures.organizationToday) ?? 0;
+    // F2: an unknown count stays unknown (null), never a printed 0.
+    const overdueTasks = overdueTaskCount(row);
     return {
     id: row.id,
     name: projectDisplayName(row),
@@ -112,8 +121,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     delivery: deliveryQuery.data?.[row.id] ?? null,
     budgetUsed: row.budget_used_ratio === null ? null : row.budget_used_ratio * 100,
   }; });
-  const projectsPending = figures.dashboardPending || projects.isPending;
-  const projectsError = figures.dashboardError || projects.isError;
+  // A7: project rows and the plan chart are drawn from the dashboard read alone; the project list only names the link.
+  const projectsPending = figures.dashboardPending;
+  const projectsError = figures.dashboardError;
   const unchecked = data?.risk_unchecked_projects ?? 0;
 
   const refresh = () => {
@@ -154,7 +164,18 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const money = opts.hide ? null : moneyTileValue(figure.amounts, orgCurrency);
     const label = opts.label ?? figure.label;
     const caption = opts.caption ?? (typeof figure.subline === 'string' ? figure.subline : undefined);
-    return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={caption} to={figure.href} linkLabel={label} loading={figures.todayPending} help={helpText[figure.id]} />;
+    // A1/A4: a tile waits on (and fails with) the one read it is made of; a failed read says so, never blank, never 0.
+    const status = figures.figureStatus(figure.id);
+    if (status.error) {
+      return (
+        <div key={figure.id} data-testid={`figure-error-${figure.id}`} className="flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4">
+          <span className="text-control font-medium text-foreground">{label}</span>
+          <span className="text-control text-muted-foreground">{t('home.figureError', "Couldn't load")}</span>
+          {status.retry && <button type="button" onClick={status.retry} className="mt-auto self-start text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('home.retry', 'Retry')}</button>}
+        </div>
+      );
+    }
+    return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={caption} to={figure.href} linkLabel={label} loading={status.pending} help={helpText[figure.id]} />;
   };
 
   const supplier = todayFigure('supplier-payables');
@@ -167,9 +188,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   // Collected: no receipts recorded is not evidence of "nothing collected" while client balances are not synced.
   const collectedUnsynced = (collected?.amounts ?? []).every((row) => row.amount === 0) && todayFigure('owed-clients')?.amounts == null;
   const collectedOpts = { label: t('home.collected', 'Collected'), caption: periodLabel, hide: collectedUnsynced, reason: t('home.reasonCollected', 'incoming payments are not synced'), link: setUp };
-  const positionTiles = figures.todayPending || figures.periodPending
-    ? Array.from({ length: 4 }, (_, i) => <KPITile key={i} loading icon="grid" tone="blue" label="" value="" className="min-h-[96px]" />)
-    : (finance
+  // A1: each tile fills in on its own read (no shared skeleton row).
+  const positionTiles = (finance
     ? [
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
@@ -270,7 +290,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       </div>
     </Card>
   );
-  const readyCard = <ReadyToPayCard rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} unpaidOf={unpaidOf} />;
+  const readyCard = <ReadyToPayCard rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} unpaidOf={unpaidOf} today={figures.organizationToday} />;
   const offTrackEl = (
     <ProjectRows
       title={t('home.offTrack', 'Projects off track')}
@@ -278,9 +298,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       pending={projectsPending}
       error={projectsError}
       onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }}
-      allLink={{ to: '/projects', label: t('home.allProjects', 'All {{count}} projects', { count: projects.data?.length ?? 0 }) }}
+      allLink={{ to: '/projects', label: projects.isPending || projects.isError ? t('home.allProjectsBare', 'All projects') : t('home.allProjects', 'All {{count}} projects', { count: projects.data?.length ?? 0 }) }}
       emptyLabel={unchecked > 0 ? t('home.noneCheckedOffTrack', 'No checked project is off track.') : t('home.noneOffTrack', 'No project is off track.')}
-      footer={unchecked > 0 ? <Link to="/projects" className="text-primary-text hover:underline">{t('home.uncheckedProjectsShort', { count: unchecked, defaultValue_one: 'Budget check unavailable for {{count}} project', defaultValue_other: 'Budget check unavailable for {{count}} projects' })}</Link> : undefined}
     />
   );
   const header = (
@@ -294,87 +313,107 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <FigureHiddenLine compact />
     </div>
   );
-  const tilesRow = (cols: string, tileList: React.ReactNode[]) => figures.todayError
-    ? <ListState variant="error" title={t('dashboard:hub.company.figuresError', "Couldn't load company position figures")} onRetry={figures.todayRetry} />
-    : <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className={cols}>{tileList}</KPIRow>;
+  // Each tile carries its own error, so one failed read never hides the healthy figures beside it.
+  const tilesRow = (cols: string, tileList: React.ReactNode[]) => <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className={cols}>{tileList}</KPIRow>;
 
-  const panelGrid = 'grid items-start gap-[var(--space-panel-gap)]';
   if (overview) {
-    // Overview: everything on one page. "Waits on you" is a third of the first row; charts carry the analysis.
-    // Left to bill is the executive's fourth visible figure, drawn only when known (unknown joins the hidden line).
-    const stillTile = !finance && !(figures.todayPending || figures.periodPending)
-      ? moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' })
-      : null;
-    const [contractTile, invoicedTile, owedClientsTile, supplierTile, ...otherTiles] = positionTiles;
-    const overviewTiles = stillTile
-      ? [contractTile, invoicedTile, supplierTile, stillTile, owedClientsTile, ...otherTiles]
-      : positionTiles;
-    const tilesNode = tilesRow('grid-cols-2 min-[900px]:grid-cols-2', overviewTiles);
+    // One grid: 12 columns, one gutter (--space-panel-gap, 24px desktop). At 1440 the canvas is 1168px:
+    // 12c + 11 x 24 = 1168 -> c = 75.33; a half is 6c + 5g = 572, a third 4c + 3g = 373.3; 3 x 373.3 + 2 x 24 = 1168.
+    // Rows: figures (12) · Project health (6) | Finances (6) · [Waits on you over Purchasing] (4) | Sales with win and loss (8).
+    // Finance: figures · health | finances (with owed by age) · Waits on you (4) | Payables (8) · Client overdue (12, a table).
+    // Below 900px every block takes the full width, in the phone order: finding, figures, waits, health, finances, the rest.
     const lossRange = figures.winRateRange;
     const wonAmounts = won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined;
-    // The chart area is two independent columns (no card waits for its neighbour's height); on a phone the columns
-    // dissolve into one stack in the order given by each card's `order`.
-    const ORDER = ['', 'max-[899px]:order-1', 'max-[899px]:order-2', 'max-[899px]:order-3', 'max-[899px]:order-4', 'max-[899px]:order-5', 'max-[899px]:order-6'];
-    const columns = 'grid content-start gap-[var(--space-panel-gap)] max-[899px]:contents';
     const trendRange = trendWindow(figures.organizationToday);
     const trendMonths = trendRange.from && trendRange.to ? monthsBetween(trendRange.from, trendRange.to).map((month) => month.slice(0, 7)) : [];
-    const invoicedCard = (order: number) => <InvoicedCollectedCard className={ORDER[order]} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.todayPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />;
-    // Billing (exec): Collected, the figure that used to sit under "Analysis".
-    const billingTiles = (
-      <KPIRow aria-label={t('home.billing', 'Billing')} className={cn('grid-flow-col auto-cols-fr', ORDER[6])}>
-        {moneyTile(collected, collectedOpts)}
-      </KPIRow>
+    const half = 'min-w-0 min-[900px]:col-span-6';
+    const third = 'min-w-0 min-[900px]:col-span-4';
+    // A1: every tile fills in on its own read; there is no band-wide skeleton or band-wide error.
+    // Each tile carries a secondary line so their captions end together at the band's foot.
+    const bandTiles = [
+      moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.signedContractCount', { count: onHandCount, defaultValue_one: '{{count}} with a signed contract', defaultValue_other: '{{count}} with a signed contract' }), reason: t('home.reasonContract', 'contract values are missing') }),
+      moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
+      moneyTile(collected, collectedOpts),
+      moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: t('home.onSignedContracts', 'On signed contracts') }),
+      figures.figureStatus('billed-margin').pending || margin?.amounts ? moneyTile(margin, { caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,
+    ].filter((tile) => tile !== null);
+    const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);
+
+    // Finances: what is owed each way (not yet due | overdue), money in by month, then what is left to bill.
+    const overdue = needs.overdueInvoices;
+    const financesCard = (
+      <FinancesCard className={cn(half, 'max-[899px]:order-5')} currency={orgCurrency}
+        receivables={figures.receivables} receivablesPending={figures.receivablesPending} receivablesError={figures.receivablesError}
+        payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError}
+        retry={() => { figures.todayRetry(); figures.periodRetry(); }}
+        chart={<InvoicedCollectedCard embedded chartHeight={188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />}
+        leftToBill={{ rows: figures.leftToBillByProject, pending: figures.figureStatus('left-to-bill').pending, error: figures.figureStatus('left-to-bill').error }} />
     );
-    const billingKnown = !collectedUnsynced && moneyTileValue(collected?.amounts, orgCurrency) !== null;
-    const billing = billingKnown
-      ? billingTiles
-      : <div hidden>{billingTiles}</div>;
-    const chartsRow = finance ? (
-      <div className={cn(panelGrid, 'min-[900px]:grid-cols-2 max-[899px]:grid-cols-1')}>
-        <div className={columns}>
-          <ReceivablesAgeCard className={ORDER[1]} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />
-          <div className={ORDER[3]}>{readyCard}</div>
-        </div>
-        <div className={columns}>
-          {invoicedCard(2)}
-          <div className={ORDER[4]}>{planCard}</div>
-        </div>
-      </div>
+    const healthCard = (
+      <ProjectHealthCard className={cn(half, 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
+        pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
+    );
+    const approvalsTotal = needs.approvals?.length ?? 0;
+    const otherWaits = waitRows.filter((row) => row.id !== 'approvals');
+    const nothingYet = otherWaits.length === 0 && approvalsTotal === 0;
+    // The badge counts the items themselves (each approval, each invoice in a row), never the number of rows.
+    const waitingTotal = approvalsTotal + otherWaits.reduce((sum, row) => sum + (typeof row.count === 'number' ? row.count : 0), 0);
+    const waits = (
+      <DashboardWaitsOnYou plain count={waitingTotal || undefined} className={cn(third, 'max-[899px]:order-3')} rows={otherWaits}
+        pending={needs.approvalsPending || (nothingYet && needs.isPending)} error={needs.approvalsError || (nothingYet && needs.isError)} onRetry={needs.refetch}
+        lead={needs.approvals && needs.approvals.length > 0 ? <ApprovalItems entries={needs.approvals} /> : undefined}
+        actions={approvalsTotal > 0 ? cardLink('/approvals', t('home.allApprovals', { count: approvalsTotal, defaultValue_one: 'All {{count}} approvals', defaultValue_other: 'All {{count}} approvals' })) : undefined} />
+    );
+    // Finance: Waits on you beside what clients owe by age (a short list at a third, bars at two-thirds); the two
+    // tables then take the full width, each as tall as its rows.
+    const lowerRow = finance ? (
+      <>
+        {waits}
+        <ReceivablesAgeCard rowPitch={40} className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />
+        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-7')}>{readyCard}</div>
+        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-8')}>{overdueCard}</div>
+      </>
     ) : (
-      <div className={cn(panelGrid, 'min-[900px]:grid-cols-2 max-[899px]:grid-cols-1')}>
-        <div className={columns}>
-          <div className={ORDER[1]}>{planCard}</div>
-          {invoicedCard(3)}
-          <PurchasingCard className={ORDER[4]} counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
+      <>
+        {/* Left third: Waits on you over Purchasing by stage (the column closes level with Sales; Purchasing takes the slack). */}
+        <div className={cn(third, 'flex flex-col gap-[var(--space-panel-gap)] max-[899px]:contents')}>
+          {waits}
+          <PurchasingCard className="flex-1 max-[899px]:order-7" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
         </div>
-        <div className={columns}>
-          <SalesOverviewCard className={ORDER[2]} weighted={weighted} forecastMargin={data?.pipeline_projected_margin} stages={pipeline.data?.stages ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange} />
-          <LossReasonsCard className={ORDER[5]} range={lossRange} />
-          {billing}
-        </div>
-      </div>
+        <SalesOverviewCard wide className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} weighted={weighted} forecastMargin={data?.pipeline_projected_margin} stages={pipeline.data?.stages ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
+          aside={<LossReasonsCard embedded range={lossRange} />} />
+      </>
     );
     return (
       <FigureScope>
+        <UncheckedReport count={unchecked} />
         <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="overview">
-          {header}
-          <div data-testid="home-primary-layout" className={cn(panelGrid, 'min-[900px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]')}>
-            <div className="grid min-w-0 content-start gap-[var(--space-panel-gap)]">
-              {waitsEl}
-              {tilesNode}
+          <div>
+            <PageHeader
+              className="mb-1"
+              title={t('dashboard:hub.company.title', 'Dashboard')}
+              help={t('home.help.basis', 'Position today in each record currency. Invoiced, collected and won cover the period chosen.')}
+              action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
+            />
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+              <FindingLine offTrack={figures.dashboardPending || figures.dashboardError ? undefined : { count: offTrackCount, atLeast: offTrackSaturated, total: activeProjectCount, unchecked }} overdue={needs.isPending ? undefined : overdue} approvals={needs.approvals?.length} />
+              <FigureHiddenLine compact />
             </div>
-            <div className="min-w-0">{finance ? overdueCard : offTrackEl}</div>
           </div>
-          {chartsRow}
-          {/* Executive: everything is on the page. Finance keeps the accounting-system ageing and ledger tables collapsed: they are long tables from the accounting source, not figures. */}
+          {band}
+          <div data-testid="home-grid" className="grid items-stretch gap-[var(--space-panel-gap)] max-[899px]:grid-cols-1 min-[900px]:grid-cols-12">
+            {healthCard}
+            {financesCard}
+            {lowerRow}
+          </div>
           {finance && <Analysis title={t('home.analysis', 'Analysis')}><FinanceAnalysis /></Analysis>}
         </div>
       </FigureScope>
     );
   }
-
   return (
     <FigureScope>
+      <UncheckedReport count={unchecked} />
       <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="focused">
         {header}
         {waitsEl}

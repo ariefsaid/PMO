@@ -6,7 +6,7 @@ import { openAppPath, signIn, waitForFonts } from './helpers';
  * UXS-013 — a named risk/budget signal carries its own lever (rendered acceptance).
  *
  * Oracles (2026-10-10 UX Discover synthesis §4, re-expressed on the rebuilt homes):
- * - Rich phone risk journey: at 390×844 the Executive's "Projects off track" card names the seeded
+ * - Rich phone risk journey: at 390×844 the Executive's "Project health" block names the seeded
  *   flagged project and its row opens that project (UXD-A-001).
  * - Finance one-step budget drill: activating a Budget review row opens the canonical project Budget tab
  *   (`/projects/:id/budget`) — one activation from signal to lever (UXD-A-006). Amounts/ranking are untouched (fence): this spec only follows the existing link.
@@ -44,8 +44,8 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
     await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
     await waitForFonts(page);
 
-    // The "Projects off track" card names the flagged project, and the row itself is the lever.
-    const offTrack = page.getByTestId('project-rows');
+    // The "Project health" block names the flagged project, and the row itself is the lever.
+    const offTrack = page.getByTestId('project-health');
     const flagged = offTrack.getByRole('link', { name: new RegExp(SP2402_NAME) });
     await expect(flagged).toBeVisible();
     await expect(flagged).toHaveAttribute('href', `/projects/${SP2402_ID}`);

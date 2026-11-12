@@ -46,6 +46,10 @@ vi.mock('@/src/components/dashboard/restructure/useCompanyFigures', () => ({
     organizationToday: '2026-10-27',
     organizationDayPending: false,
     isEmpty: false,
+    figureStatus: () => ({ pending: false, error: false }),
+    receivables: undefined, payables: undefined,
+    receivablesPending: false, receivablesError: false, payablesPending: false, payablesError: false,
+    leftToBillByProject: [], collectedPending: false,
   }),
 }));
 vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({

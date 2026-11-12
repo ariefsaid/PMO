@@ -257,6 +257,13 @@ export interface NeedsYouResult {
   items: NeedsItem[];
   /** Role queues reused by layout C to place each exception beside its owning area. */
   areaItems: NeedsItem[];
+  /** The approvals themselves (oldest first); undefined while unknown. */
+  approvals: ApprovalPopulationEntry[] | undefined;
+  /** Overdue client invoices for company roles; undefined while unknown or for other roles. */
+  overdueInvoices: OverdueInvoiceNeeds | undefined;
+  /** The approval sources alone (A14): the approval rows draw as soon as these land, whatever else is still loading. */
+  approvalsPending: boolean;
+  approvalsError: boolean;
   isPending: boolean;
   isError: boolean;
   refetch: () => void;
@@ -461,6 +468,10 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   return {
     items,
     areaItems,
+    approvals: approvalsCount === undefined ? undefined : approvalPopulation,
+    overdueInvoices: companyRole ? invoiceNeeds : undefined,
+    approvalsPending: approvalSourcesPending,
+    approvalsError: approvalSourcesError,
     isPending: needsPending,
     isError: needsError,
     refetch,
