@@ -72,7 +72,7 @@ export type CaptureState = 'draft' | 'ordered' | 'received' | 'invoiced' | 'part
 export interface CaptureScope { projectId: string | null }
 export interface CaptureLine {
   id: string; projectId: string | null; description: string;
-  account: string | null; documentAmount: string | null; ledgerAmount: string | null;
+  account: string | null; costKind: 'project_cost' | 'capital_spending' | 'non_cost' | 'unclassified'; documentAmount: string | null; ledgerAmount: string | null;
 }
 export interface CaptureSource {
   id: string; version: string; kind: CaptureKind; state: CaptureState;
@@ -93,7 +93,7 @@ export interface CaptureProposal {
 export interface CaptureReport {
   projectId: string; currency: string; revision: string; complete: boolean;
   ledgerCost: string; representedCost: string; remainderCost: string; pmoAssignmentBridge: string;
-  remainder: Array<{ sourceId: string; lineId: string; kind: CaptureKind; amount: string; reason: string }>;
+  remainder: Array<{ sourceId: string; lineId: string; kind: CaptureKind | 'capital_spending'; amount: string; reason: string }>;
 }
 ```
 
@@ -146,6 +146,7 @@ create table public.erp_capture_sources (
 alter table public.erp_capture_sources enable row level security;
 alter table public.erp_capture_sources force row level security;
 revoke all on public.erp_capture_sources from anon, authenticated;
+grant select,insert,update,delete on public.erp_capture_sources to service_role;
 -- Sources are server-only staging; RPC/edge readers return audience-filtered normalized facts.
 
 -- At the start of capture_existing_purchases and undo_captured_purchase:
@@ -181,7 +182,7 @@ where g.org_id=public.auth_org_id() and not g.is_cancelled
 group by m.category;
 ```
 
-Here `p_gl_ids uuid[]` is read from trusted source-to-GL lineage inside the definer, never client-sent. If that inner join produces no eligible mapped lines for an invoice, assignment returns `invoice_has_no_mapped_cost`; mixed invoices show the other lines as excluded. Credit/negative journal groups are refused independently and never netted into positive journal wrapper amounts. No new asset recognition rule is part of this SQL (#2196).
+Here `p_gl_ids uuid[]` is read from trusted source-to-GL lineage inside the definer, never client-sent. If that inner join produces no eligible mapped lines for an invoice, assignment returns `capital_spending_not_assignable` for chart-proved capital spending or `invoice_has_no_mapped_cost` for other non-cost sources; mixed invoices show the other lines as excluded. Credit/negative journal groups are refused independently and never netted into positive journal wrapper amounts. No new asset recognition rule is part of this SQL (#2196).
 
 ## Review focus
 
@@ -292,13 +293,13 @@ Each numbered task is a 2–5 minute TDD iteration; repeat only its named check 
 
 ### B1.1 (5 min): explicit PMO invoice assignments — AC-ROP-003/006/015
 
-- [ ] Red: `supabase/tests/0863_capture_invoice_project_assignment.test.sql`: genuinely unprojected invoice assigned once; unrelated org/unmapped ERP project refused; bulk overhead decisions write no assignment; marked invoice requires explicit acceptance and undo restores mark.
-- [ ] Green: 0863 creates `erp_capture_invoice_assignments` keyed by org/binding/source, owning purchase/project, actor/time and active/undone history. RLS scoped money-role SELECT, RPC-only writes; `assign_capture_invoices` allows only active Admin. Project/overhead decision is per normalized source id; no ERP doctype constants and no direct mirror project edits. Existing mark RPC is reused for overhead. Run scoped pgTAP.
+- [ ] Red: `supabase/tests/0863_capture_invoice_project_assignment.test.sql`: genuinely unprojected invoice assigned once; unrelated org/unmapped ERP project refused; bulk overhead decisions write no assignment; all-capital invoices refuse project assignment as capital_spending_not_assignable, refuse overhead marking as capital_spending_requires_override without allow_capital_as_overhead:true, and audited override retains original classification; marked invoice requires explicit acceptance and undo restores mark.
+- [ ] Green: 0863 creates `erp_capture_invoice_assignments` keyed by org/binding/source, owning purchase/project, actor/time and active/undone history. RLS scoped money-role SELECT, RPC-only writes; `assign_capture_invoices` allows only active Admin. Project/overhead decision is per normalized source id; no ERP doctype constants and no direct mirror project edits. Existing mark RPC is reused for overhead only after the capital-spending decision guard. Classify capital spending from chart/account facts, never from a missing category map alone; report kind capital_spending separately and keep unknown account types unresolved (AC-ROP-026). Run scoped pgTAP.
 
 ### B1.2 (5 min): one GL placement engine — AC-ROP-003/010
 
 - [ ] Red: same pgTAP file proves rule-attributed and equipment-pooled invoice GL lines move to the explicit project once, foreign document currency uses company-currency GL, unmapped/unknown expense coverage remains explicit, an all-unmapped/capitalised invoice is refused and remains named non-cost remainder, mixed invoices count mapped lines only, and existing mapped amortisation journals count once, and single/all-project actuals agree.
-- [ ] Green: add private `capture_assigned_gl(p_org_id uuid,p_project_id uuid default null)` returning current eligible GL identities/project/account/year/net/as_of. Join trusted normalized source-to-GL lineage; require truly empty ERP project and active invoice assignment, never match invoice names across tiers. Exclude these GL ids at the **0471 `cost_attribution_engine` ledger CTE**, then union the explicit allocation into shared attribution aggregation. Extend 0720/0794 fast-path predicates to include active assignments even with no rules/equipment. Invoice contribution uses only mapped expense accounts; refuse assignment with `invoice_has_no_mapped_cost` when every invoice line is outside the map, preserve it as capitalised/non-cost remainder, count only mapped lines for mixed invoices and label excluded lines in preview/read metadata (AC-ROP-025). Keep 0497 output signatures; include explicit placements in existing attributed totals and expose their origin separately in source drilldown. Run scoped pgTAP.
+- [ ] Green: add private `capture_assigned_gl(p_org_id uuid,p_project_id uuid default null)` returning current eligible GL identities/project/account/year/net/as_of. Join trusted normalized source-to-GL lineage; require truly empty ERP project and active invoice assignment, never match invoice names across tiers. Exclude these GL ids at the **0471 `cost_attribution_engine` ledger CTE**, then union the explicit allocation into shared attribution aggregation. Extend 0720/0794 fast-path predicates to include active assignments even with no rules/equipment. Invoice contribution uses only mapped expense accounts; refuse assignment with `invoice_has_no_mapped_cost` when every invoice line is outside the map, preserve it as separate capital_spending or non_cost remainder, count only mapped lines for mixed invoices and label excluded lines in preview/read metadata (AC-ROP-025). Keep 0497 output signatures; include explicit placements in existing attributed totals and expose their origin separately in source drilldown. Run scoped pgTAP.
 
 ### B1.3 (5 min): synchronize placement and undo — AC-ROP-009/011
 
@@ -307,7 +308,7 @@ Each numbered task is a 2–5 minute TDD iteration; repeat only its named check 
 
 ### B1.4 (4 min): bulk assignment CLI — AC-ROP-012/015
 
-- [ ] Red: CLI test supplies several rows with `{source_id,decision:'project',project_id}` or `{source_id,decision:'set_aside'}`; rejects both/neither, reports deltas by affected project and stable refusal reasons.
+- [ ] Red: CLI test supplies several rows with `{source_id,decision:'project',project_id}` or `{source_id,decision:'set_aside'}`; rejects both/neither, requires allow_capital_as_overhead:true for an explicit capital-to-overhead override, reports deltas by affected project and stable refusal reasons.
 - [ ] Green: `runCaptureAssignments(api,rows,{dryRun})` in `pmo-capture.mjs`, route `purchases assign`, preserve bounded groups and no direct table writes. Add exact commands/output to `docs/runbooks/pmo-cli.md` §6. Run node:test.
 
 ### B2.1 (5 min): per-project source slices — AC-ROP-019
@@ -388,10 +389,11 @@ Read DESIGN.md, `docs/ux/screen-rules.md` and `docs/e2e-parallel-conventions.md`
 | 020 | `supabase/tests/0865_capture_standalone_payments.test.sql` | B4.1 |
 | 021,023 | `supabase/functions/_shared/purchaseCapture/contract.test.ts` | A1, C1–C2 |
 | 022 | `pmo-portal/e2e/AC-ROP-022-connect-capture.spec.ts` | U3 |
+| 026 | `supabase/tests/0863_capture_invoice_project_assignment.test.sql` | B1.1, B1.4, A10 report support |
 | 025 | `supabase/tests/0863_capture_invoice_project_assignment.test.sql` | B1.2, B3.1 |
 | 024 | `supabase/tests/0862_captured_purchase_continuation.test.sql` | D1–D2 |
 
-There are **29 numbered TDD iterations**. Four-case mapping is in the spec; run the shared adapter suite with S-A and S-D source fixtures and S-B/S-C no-source fixtures. No owner question remains: all-unmapped/capitalised invoices are not assignable; mixed invoices count mapped lines only; new amortised/internal-asset recognition is deferred to #2196. Amount placement, provenance and continuation semantics above are fixed outcomes; an active builder's equivalent already-written function names can be retained by updating both interface blocks together before acceptance.
+There are **29 numbered TDD iterations**. Four-case mapping is in the spec; run the shared adapter suite with S-A and S-D source fixtures and S-B/S-C no-source fixtures. No owner question remains: capital spending is separate from overhead, overhead marking requires the explicit audited override, all-unmapped/capitalised invoices are not assignable; mixed invoices count mapped lines only; new amortised/internal-asset recognition is deferred to #2196. Amount placement, provenance and continuation semantics above are fixed outcomes; an active builder's equivalent already-written function names can be retained by updating both interface blocks together before acceptance.
 
 Final builder checks, only after the coordinator releases the heavy batch:
 
@@ -403,7 +405,7 @@ node --test scripts/pmo-capture.test.mjs
 env PMO_TEST_LOCK_SLOTS=1 ../scripts/with-test-lock.sh npm run check:guards
 env PMO_TEST_LOCK_SLOTS=1 ../scripts/with-test-lock.sh npm run typecheck
 # A: from root, lint exact changed JS/server files
-pmo-portal/node_modules/.bin/eslint --max-warnings=0 scripts/pmo.mjs scripts/lib/pmo-capture.mjs scripts/pmo-capture.test.mjs
+pmo-portal/node_modules/.bin/eslint --config pmo-portal/eslint.config.js --max-warnings=0 scripts/pmo.mjs scripts/lib/pmo-capture.mjs scripts/pmo-capture.test.mjs
 # Deno served entry and shared tests: use the A command above plus the changed served payment test for D.
 # S2, from app: touched tests only
 env PMO_TEST_LOCK_SLOTS=1 ../scripts/with-test-lock.sh npx vitest run --maxWorkers=2 components/ErpPurchaseCaptureDialog.test.tsx src/lib/repositories/erpCapture.test.ts pages/ErpPurchases.test.tsx pages/project-detail/ErpJournalLinesSection.test.tsx
@@ -414,6 +416,6 @@ scripts/with-db-lock.sh env PMO_TEST_LOCK_SLOTS=1 scripts/with-test-lock.sh scri
 scripts/with-db-lock.sh env PMO_TEST_LOCK_SLOTS=1 scripts/with-test-lock.sh scripts/e2e-local.sh AC-ROP-022
 ```
 
-For S2 lint use `npx eslint --max-warnings=0 pages/ErpPurchases.tsx pages/ProcurementDetails.tsx pages/project-detail/ErpJournalLinesSection.tsx pages/project-detail/ErpPurchasesSection.tsx src/hooks/useErpJournalLines.ts src/hooks/useErpPurchaseLinks.ts src/lib/repositories/erpCapture.ts src/lib/repositories/contracts/erpCapture.ts components/ErpPurchaseCaptureDialog.tsx` from app; append any additional actually changed TS files. Run `scripts/ux-proof.sh` using its current help for `/procurement`, the touched project Procurement tab and `/procurement/:id`; render loading/empty/error/conflict and captured/assigned stages. Keep route capture evidence private. No local full-suite or DB reset.
+For S2 lint use `npx eslint --max-warnings=0 pages/ErpPurchases.tsx pages/ProcurementDetails.tsx pages/project-detail/ErpJournalLinesSection.tsx pages/project-detail/ErpPurchasesSection.tsx src/hooks/useErpJournalLines.ts src/hooks/useErpPurchaseLinks.ts src/lib/repositories/erpCapture.ts src/lib/repositories/contracts/erpCapture.ts components/ErpPurchaseCaptureDialog.tsx` from app; append any additional actually changed TS files. Run `scripts/ux-proof.sh /procurement` from root and then run it with the actual self-isolated project and purchase URLs produced by the e2e fixtures; render loading/empty/error/conflict and captured/assigned stages. Keep route capture evidence private. No local full-suite or DB reset.
 
 CI merge gates: A/D/B/C without frontend app code use verify + affected unit + pgTAP; a no-frontend hotfix may follow the owner-approved exception without integration. S2 follows the full frontend release gate. Mutation evidence must show that removing the Admin, source uniqueness, no-resend or count-once rule turns its test red. Update `docs/runbooks/pmo-cli.md` and ADR-0093's historical-capture/remaining-step explanation after owner sign-off; no new integration posture or standalone money writer is introduced. The current docs-only worker runs no heavy checks and does not claim the feature implemented.
