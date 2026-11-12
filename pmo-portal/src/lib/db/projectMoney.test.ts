@@ -65,3 +65,71 @@ describe('getProjectsMoneyCollection (AC-S02-001..006)', () => {
     await expect(getProjectsMoneyCollection(['p1'])).rejects.toMatchObject({ code: '42501' });
   });
 });
+
+describe('getProjectBudgetPositions', () => {
+  it('preserves exact decimal strings and nulls from the canonical set-based reader', async () => {
+    const { getProjectBudgetPositions } = await import('./projectMoney');
+    expect(getProjectBudgetPositions).toBeTypeOf('function');
+    h.result = { data: [
+      {
+        project_id: 'p1',
+        ledger_basis: 'pmo',
+        currency: 'USD',
+        budget_currency: 'USD',
+        active_budget_amount: '1000.00',
+        spent: '500.25',
+        open_commitment: '499.75',
+        consumption: '1000.00',
+        complete: true,
+        used_ratio: '1.00000000000000000000',
+        used_percent: '100',
+        consumption_variance: '0.00',
+        risk_eligible: true,
+        at_risk: true,
+      },
+      {
+        project_id: 'p2',
+        ledger_basis: 'erp',
+        currency: 'USD',
+        budget_currency: null,
+        active_budget_amount: null,
+        spent: null,
+        open_commitment: null,
+        consumption: null,
+        complete: false,
+        used_ratio: null,
+        used_percent: null,
+        consumption_variance: null,
+        risk_eligible: true,
+        at_risk: null,
+      },
+    ], error: null };
+
+    const result = await getProjectBudgetPositions(['p1', 'p2']);
+
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+    expect(h.rpc).toHaveBeenCalledWith('project_budget_positions', { p_project_ids: ['p1', 'p2'] });
+    expect(result.p1).toEqual({
+      projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD',
+      activeBudgetAmount: '1000.00', spent: '500.25', openCommitment: '499.75', consumption: '1000.00',
+      complete: true, usedRatio: '1.00000000000000000000', usedPercent: '100', consumptionVariance: '0.00',
+      riskEligible: true, atRisk: true,
+    });
+    expect(result.p2).toEqual({
+      projectId: 'p2', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: null,
+      activeBudgetAmount: null, spent: null, openCommitment: null, consumption: null,
+      complete: false, usedRatio: null, usedPercent: null, consumptionVariance: null,
+      riskEligible: true, atRisk: null,
+    });
+  });
+
+  it('does not make an RPC for an empty collection and preserves backend errors', async () => {
+    const { getProjectBudgetPositions } = await import('./projectMoney');
+    expect(getProjectBudgetPositions).toBeTypeOf('function');
+    await expect(getProjectBudgetPositions([])).resolves.toEqual({});
+    expect(h.rpc).not.toHaveBeenCalled();
+
+    h.result = { data: null, error: { message: 'denied', code: '42501' } };
+    await expect(getProjectBudgetPositions(['p1'])).rejects.toMatchObject({ code: '42501' });
+  });
+});
