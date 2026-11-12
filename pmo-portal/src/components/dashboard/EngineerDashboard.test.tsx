@@ -191,10 +191,13 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(tile('kpi-timesheet-status')).toHaveTextContent('Returned');
     expect(card).toHaveTextContent('Sent back for correction.');
     expect(band().compareDocumentPosition(screen.getByTestId('waits-on-you')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // Own work first: what waits, then my tasks, then the week's timesheet, then what was returned.
-    expect(screen.getByTestId('waits-on-you').compareDocumentPosition(tasksCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Own work first: what waits, with what was returned under it, beside my tasks; then the week's timesheet, which
+    // carries the week's hours by project.
+    const waits = screen.getByTestId('waits-on-you');
+    expect(waits.compareDocumentPosition(screen.getByTestId('engineer-returned')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(waits.compareDocumentPosition(tasksCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(tasksCard().compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(card.compareDocumentPosition(screen.getByTestId('engineer-returned')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(card).getByTestId('chart-hours-by-project')).toBeInTheDocument();
 
     const text = document.body.textContent ?? '';
     expect(text).not.toMatch(/(?:Rp|USD|IDR|\$|invoice|budget|revenue|spending)/i);

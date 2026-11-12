@@ -202,7 +202,7 @@ export const EngineerDashboard: React.FC = () => {
   );
   const hoursTitle = t('hub.engineer.byProject', 'This week by project');
   const projectHours = (
-    <ChartCard title={hoursTitle} known={projectRows.length > 0} hiddenReason={t('home.eng.reasonNoHours', 'no time is logged this week')} pending={timeLoading} error={timeError ? { title: t('hub.engineer.timesheetsError', "Couldn't load your timesheets"), retry: refresh } : undefined} testId="chart-hours-by-project">
+    <ChartCard embedded title={hoursTitle} known={projectRows.length > 0} hiddenReason={t('home.eng.reasonNoHours', 'no time is logged this week')} testId="chart-hours-by-project">
       <BarList ariaLabel={hoursTitle} rows={projectRows} />
     </ChartCard>
   );
@@ -214,7 +214,7 @@ export const EngineerDashboard: React.FC = () => {
       action={<Button variant="outline" size="sm" onClick={refresh} aria-label={t('hub.engineer.refresh', 'Refresh')}><Icon name="refresh" /><span className="hidden sm:inline">{t('hub.engineer.refresh', 'Refresh')}</span></Button>}
     />
   );
-  const waitsEl = <DashboardWaitsOnYou plain className="min-w-0 min-[900px]:col-span-4" rows={waitRows} pending={needs.isPending} error={needs.isError || (taskReadError && waitRows.length === 0)} onRetry={refresh} />;
+  const waitsEl = <DashboardWaitsOnYou plain className="min-w-0 max-[899px]:order-1" rows={waitRows} pending={needs.isPending} error={needs.isError || (taskReadError && waitRows.length === 0)} onRetry={refresh} />;
   const recentEl = (
     <EngineerRecentEntriesPanel
       entries={recent}
@@ -226,7 +226,10 @@ export const EngineerDashboard: React.FC = () => {
   );
 
   const timesheetCard = (chart: boolean) => (
-    <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} clear={timesheetClear} chart={chart} />
+    <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} clear={timesheetClear} chart={chart}>
+      {/* The card says loading and failure once for the whole week. */}
+      {!timeLoading && !timeError && projectHours}
+    </EngineerTimesheetCard>
   );
   const tasksCard = <EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} today={organizationDay.day} loading={taskLoading} error={taskDataError || tasks.isError} onRetry={refresh} />;
   const returnedEl = !claimsError && <EngineerReturnedCard claims={returnedClaims} />;
@@ -237,18 +240,18 @@ export const EngineerDashboard: React.FC = () => {
       <div className="space-y-[var(--space-panel-gap)]" data-home-layout={overview ? 'overview' : 'focused'}>
         <div>{header}<FigureHiddenLine compact /></div>
         {band}
-        {/* Own work first: what waits (a third) beside my tasks, then the week, then what was returned. */}
+        {/* Own work first. Row one: what waits on me and what was returned to me, stacked, beside my tasks (on a phone:
+            waits, tasks, returned). Row two: the week's timesheet (with its hours by project) beside recent entries. */}
         <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-12 min-[900px]:items-start">
-          {waitsEl}
-          <div className="min-w-0 min-[900px]:col-span-8">{tasksCard}</div>
+          <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)] max-[899px]:contents min-[900px]:col-span-4">
+            {waitsEl}
+            {returnedEl && <div className="min-w-0 max-[899px]:order-3">{returnedEl}</div>}
+          </div>
+          <div className="min-w-0 max-[899px]:order-2 min-[900px]:col-span-8">{tasksCard}</div>
         </div>
         <div className={twoUp}>
           {timesheetCard(overview)}
-          {projectHours}
-        </div>
-        <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-12 min-[900px]:items-start">
-          {returnedEl && <div className="min-w-0 min-[900px]:col-span-4">{returnedEl}</div>}
-          <div className={returnedEl ? 'min-w-0 min-[900px]:col-span-8' : 'min-w-0 min-[900px]:col-span-12'}>{recentEl}</div>
+          {recentEl}
         </div>
       </div>
     </FigureScope>

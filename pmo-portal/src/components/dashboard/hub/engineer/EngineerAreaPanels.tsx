@@ -39,6 +39,7 @@ export function EngineerTimesheetCard({
   hours,
   clear = false,
   chart = false,
+  children,
 }: PanelState & {
   /** The stored timesheet status of this week; null when no sheet exists yet. */
   status: string | null;
@@ -48,6 +49,8 @@ export function EngineerTimesheetCard({
   clear?: boolean;
   /** Overview: the week as a column chart instead of the strip. */
   chart?: boolean;
+  /** The week's hours by project, under the week. */
+  children?: React.ReactNode;
 }) {
   const { t } = useTranslation('dashboard');
   const open = status === 'Submitted' || status === 'Approved';
@@ -76,6 +79,7 @@ export function EngineerTimesheetCard({
                 {clear && <p className="text-control text-muted-foreground">{t('hub.engineer.noTimeAttention', 'No timesheet needs your attention.')}</p>}
               </>
             )}
+        {children}
         {/* The way into the timesheet stays whatever state the data is in. */}
         {action
           ? <Link to="/timesheets" className={buttonClasses('primary', 'default', 'w-full sm:w-fit pointer-coarse:min-h-11')}>{action}</Link>
