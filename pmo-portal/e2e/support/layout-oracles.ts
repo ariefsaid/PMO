@@ -498,7 +498,7 @@ export async function assertProjectsTableLayout(page: Page) {
     await expect(table.getByRole('columnheader', { name: /^Contract/ }),
       'core Projects column "Contract" should be visible at 1440px').toBeVisible();
     await expect(page.getByRole('button', { name: /optional columns/i })).toHaveCount(0);
-    for (const header of ['Progress', 'Budget used']) {
+    for (const header of ['Progress', 'Budget used before tax']) {
       await expect(table.getByRole('columnheader', { name: header, exact: true }),
         `Projects column "${header}" should be visible when its data exists`).toBeVisible();
     }

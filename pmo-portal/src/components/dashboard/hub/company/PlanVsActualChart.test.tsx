@@ -1,11 +1,35 @@
 import React from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import type { TopProject } from '@/src/lib/db/dashboard';
 import { PlanVsActualChart } from './PlanVsActualChart';
 import { planVsActualRows } from './planVsActual';
 import { wrapProjectName } from './projectName';
+
+let actualTooltipFormatter: ((value: unknown, name: unknown, item: { payload?: { used?: number } }) => unknown) | undefined;
+
+function getTypeName(type: unknown): string | undefined {
+  if (typeof type === 'string') return type;
+  if (type && typeof type === 'object') return (type as { displayName?: string }).displayName;
+  if (typeof type === 'function') return (type as { displayName?: string; name?: string }).displayName ?? (type as { name?: string }).name;
+  return undefined;
+}
+
+vi.mock('recharts', async () => {
+  const actual = await vi.importActual<typeof import('recharts')>('recharts');
+  return {
+    ...actual,
+    BarChart: ({ children, ...props }: React.ComponentProps<typeof actual.BarChart>) => {
+      React.Children.forEach(children as React.ReactNode, (child) => {
+        if (!React.isValidElement(child) || getTypeName(child.type) !== 'Tooltip') return;
+        actualTooltipFormatter = (child.props as { formatter?: typeof actualTooltipFormatter }).formatter;
+      });
+      const ActualBarChart = actual.BarChart;
+      return <ActualBarChart {...props}>{children}</ActualBarChart>;
+    },
+  };
+});
 
 const p = (over: Partial<TopProject>): TopProject => ({
   id: 'x', name: 'X', client_name: null, contract_value: 1000, currency: 'USD', budget: null, spent: 400,
@@ -51,6 +75,16 @@ describe('PlanVsActualChart', () => {
     })]} currency="USD" /></MemoryRouter>);
     const chart = screen.getByRole('img', { name: /plan vs actual by project/i });
     expect(chart.getAttribute('aria-label')).toContain('Alpha: Contract $2,000, Budget $1,500, Spent $500');
+  });
+
+  it('labels the spent share with the before-tax active budget basis', () => {
+    render(<MemoryRouter><PlanVsActualChart projects={[p({
+      id: 'a', name: 'Alpha', contract_value: 2000, budget: 1000, spent: 500,
+    })]} currency="USD" /></MemoryRouter>);
+
+    expect(actualTooltipFormatter).toBeDefined();
+    expect(actualTooltipFormatter!(500, 'actual', { payload: { used: 50 } }))
+      .toEqual(['$500 (50% of Active budget before tax)', 'Spent']);
   });
 
   it('uses the measured lighter neutral contract bar with foreground labels', () => {

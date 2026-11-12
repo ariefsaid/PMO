@@ -143,12 +143,12 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     expect(screen.getAllByText('Restricted excluded')).toHaveLength(1);
   });
 
-  it('Budget used is bar + % only; the "x of y" detail is a title, not text', () => {
+  it('Budget used before tax is bar + % only; the "x of y" detail is a title, not text', () => {
     renderPage();
     const body = document.querySelector('tbody')!;
     expect(within(body).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
-    const bar = within(screen.getByText('Synthetic project 4').closest('tr')!).getByRole('progressbar', { name: '25% of Active budget' });
-    expect(bar.closest('[title]')).toHaveAttribute('title', '$1,000,004 of $4,000,000 Active budget');
+    const bar = within(screen.getByText('Synthetic project 4').closest('tr')!).getByRole('progressbar', { name: '25% of Active budget before tax' });
+    expect(bar.closest('[title]')).toHaveAttribute('title', '$1,000,004 of $4,000,000 Active budget before tax');
   });
 
   it('Progress without phases is a dash, not "No phases yet"', () => {

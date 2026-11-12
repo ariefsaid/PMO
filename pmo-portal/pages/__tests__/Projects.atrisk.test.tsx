@@ -1,8 +1,8 @@
 /**
  * AC-W6-IXD-ATRISK — Projects list co-locates the budget-util basis WITH the
- * delivery-progress bar. The budget basis lives in the new "Budget used" column, while
+ * delivery-progress bar. The budget basis lives in the new "Budget used before tax" column, while
  * the Project/name cell carries only identity + at-risk pill. Healthy rows still have
- * a Budget used value; budget===0 → muted dash, no NaN.
+ * a Budget used before tax value; budget===0 → muted dash, no NaN.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -144,7 +144,7 @@ beforeEach(() => {
 });
 
 describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () => {
-  it('AC-W6-IXD-ATRISK: an at-risk row renders the "% of budget" caption in the Budget used cell', () => {
+  it('AC-W6-IXD-ATRISK: an at-risk row renders the "% of budget" caption in the Budget used before tax cell', () => {
     renderPage();
     const row = screen.getByText('At Risk Project').closest('tr')!;
     // Use aria-label on the progressbar to find the budget-used cell (robust to column-count changes)
@@ -185,7 +185,7 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     expect(within(card).getByRole('progressbar', { name: '95% of Active budget before tax' }).closest('[title]')).toHaveAttribute('title', '$95,000 of $100,000 Active budget before tax');
   });
 
-  it('AC-W6-IXD-ATRISK: a healthy row still renders Budget used in its own column', () => {
+  it('AC-W6-IXD-ATRISK: a healthy row still renders Budget used before tax in its own column', () => {
     renderPage();
     const row = screen.getByText('Safe Project').closest('tr')!;
     // Seek by aria-label — robust to column count (a rowMenu column was added)

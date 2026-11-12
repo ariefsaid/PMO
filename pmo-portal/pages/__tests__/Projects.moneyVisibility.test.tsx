@@ -232,10 +232,10 @@ describe('Projects persona money visibility — contract figure gated on the sha
     const ws = await exportWorkbook();
     expect(ws.getRow(2).getCell(col(ws, 'Actual')).value).toBe('$104.25 USD');
     expect(ws.getRow(2).getCell(col(ws, 'Progress')).value).toBe(78);
-    expect(ws.getRow(2).getCell(col(ws, 'Budget used')).value).toBe(104);
+    expect(ws.getRow(2).getCell(col(ws, 'Budget used before tax')).value).toBe(104);
     expect(ws.getRow(3).getCell(col(ws, 'Actual')).value).toBe('');
     expect(ws.getRow(3).getCell(col(ws, 'Progress')).value).toBe('');
-    expect(ws.getRow(3).getCell(col(ws, 'Budget used')).value).toBe('');
+    expect(ws.getRow(3).getCell(col(ws, 'Budget used before tax')).value).toBe('');
   });
 
   it('keeps exact large Actual amounts as currency-qualified workbook text', async () => {
@@ -255,9 +255,9 @@ describe('Projects persona money visibility — contract figure gated on the sha
     const ws = await exportWorkbook();
     expect(ws.getRow(2).getCell(col(ws, 'Actual')).value).toBe('$0.00 USD');
     expect(ws.getRow(2).getCell(col(ws, 'Progress')).value).toBe(0);
-    expect(ws.getRow(2).getCell(col(ws, 'Budget used')).value).toBe(0);
+    expect(ws.getRow(2).getCell(col(ws, 'Budget used before tax')).value).toBe(0);
     expect(ws.getRow(3).getCell(col(ws, 'Actual')).value).toBe('Restricted excluded');
-    expect(ws.getRow(3).getCell(col(ws, 'Budget used')).value).toBe('');
+    expect(ws.getRow(3).getCell(col(ws, 'Budget used before tax')).value).toBe('');
   });
 
   it('exports budget availability reasons as readable text', async () => {
@@ -267,8 +267,8 @@ describe('Projects persona money visibility — contract figure gated on the sha
     };
     renderPage('Project Manager');
     const ws = await exportWorkbook();
-    expect(ws.getRow(2).getCell(col(ws, 'Budget used')).value).toBe('No active budget');
-    expect(ws.getRow(3).getCell(col(ws, 'Budget used')).value).toBe('Budget currency differs from Actual');
+    expect(ws.getRow(2).getCell(col(ws, 'Budget used before tax')).value).toBe('No active budget');
+    expect(ws.getRow(3).getCell(col(ws, 'Budget used before tax')).value).toBe('Budget currency differs from project currency');
   });
 
   it('exports blank unavailable values even when failed reads retain cached data', async () => {
@@ -277,16 +277,16 @@ describe('Projects persona money visibility — contract figure gated on the sha
     projectMoneyState.isError = true;
     renderPage('Project Manager');
     const ws = await exportWorkbook();
-    for (const header of ['Actual', 'Progress', 'Budget used']) expect(ws.getRow(2).getCell(col(ws, header)).value).toBe('');
+    for (const header of ['Actual', 'Progress', 'Budget used before tax']) expect(ws.getRow(2).getCell(col(ws, header)).value).toBe('');
   });
 
   it('exports only columns shown on the table, plus the contract currency', async () => {
     renderPage('Project Manager');
     expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Budget used before tax' })).not.toBeInTheDocument();
     const ws = await exportWorkbook();
     expect(headersOf(ws)).not.toContain('Progress');
-    expect(headersOf(ws)).not.toContain('Budget used');
+    expect(headersOf(ws)).not.toContain('Budget used before tax');
   });
 
   it.each([[false, 'error'], [true, 'error'], [false, 'pending'], [true, 'pending']] as const)('blocks stale assignment export and exports fresh rows on mobile=%s during %s', async (mobile, state) => {

@@ -82,7 +82,7 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
           <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 0, bottom: 4, left: 0 }} barGap={4} barCategoryGap="16%">
             <XAxis type="number" domain={[0, maxValue * 1.3]} tick={false} tickLine={false} stroke={chartTheme.grid} />
             <YAxis type="category" dataKey="name" tick={<NameTick compact={compact} />} stroke={chartTheme.grid} width={compact ? 112 : 140} interval={0} tickLine={false} axisLine={false} />
-            <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key, item) => [formatCurrency(Number(value), currency) + (key === 'actual' && item?.payload?.used != null ? ` (${t('common:uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: item.payload.used })})` : ''), key === 'actual' ? actualLabel : key === 'budget' ? budgetLabel : planLabel]} />
+            <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key, item) => [formatCurrency(Number(value), currency) + (key === 'actual' && item?.payload?.used != null ? ` (${t('common:uxs02.budgetUsed', '{{percent}}% of Active budget before tax', { percent: item.payload.used })})` : ''), key === 'actual' ? actualLabel : key === 'budget' ? budgetLabel : planLabel]} />
             <Bar dataKey="plan" name={planLabel} fill={CONTRACT_BAR_FILL} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2} barSize={16}>
               <LabelList dataKey="labelPlan" content={BAR_LABEL_CONTRACT} />
             </Bar>

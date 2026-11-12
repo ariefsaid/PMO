@@ -51,7 +51,7 @@ for (const route of budgetAgreementRoutes) {
 }
 
 describe('S01 budget figure agreement on real screens', () => {
-  it('smoke: the real Projects table renders PMO Budget used at 90%', async () => {
+  it('smoke: the real Projects table renders PMO Budget used before tax at 90%', async () => {
     renderFigureAgreementRoute(tableRoute);
     await waitFor(() => expect(screen.getByRole('row', { name: /S01 Primary Project/u })).toHaveTextContent('$500'));
     const primaryRow = screen.getByRole('row', { name: /S01 Primary Project/u });
@@ -86,9 +86,9 @@ describe('S01 budget figure agreement on real screens', () => {
   });
 
   // S04 flips this baseline red case after replacing the card's spend-only Budget used with PMO consumption.
-  it('Budget used agrees with the Active budget consumption on the real Projects card', async () => {
+  it('Budget used before tax agrees with the Active budget consumption on the real Projects card', async () => {
     const { container } = renderFigureAgreementRoute(cardRoute);
-    await waitFor(() => expect(container.textContent).toContain('Budget used'));
+    await waitFor(() => expect(container.textContent).toContain('Budget used before tax'));
     const observed = container.textContent?.replace(/\s+/gu, ' ').trim() ?? '';
     console.info(`FIGURE AGREEMENT RED · budget-used · Projects cards · expected 90% · observed screen: ${observed}`);
     expect(observed).toContain('90%');
@@ -122,7 +122,7 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(laborRow).not.toHaveTextContent('$500');
   });
 
-  it('uses ledger spending only for an ERP Budget used and left position', async () => {
+  it('uses ledger spending only for an ERP Budget used before tax and left position', async () => {
     const erpPosition: CanonicalBudgetReading = {
       projectId: 'project-figure-primary', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
       spent: '500.00', openCommitment: null, consumption: '500.00', complete: true, usedRatio: '0.5', usedPercent: '50',

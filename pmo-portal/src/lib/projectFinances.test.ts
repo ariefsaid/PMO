@@ -30,7 +30,7 @@ describe('S03 canonical project budget consumption', () => {
     usedRatio: '0.9', usedPercent: '90', consumptionVariance: '-100.00', riskEligible: true, atRisk: true,
   };
 
-  it('AC-FT-S04-001 takes Budget used and consumption from the canonical project position', () => {
+  it('AC-FT-S04-001 takes Budget used before tax and consumption from the canonical project position', () => {
     expect(projectBudgetUsedPercent(reading, 'USD')).toBe(90);
     expect(deriveBudgetConsumption(reading)).toEqual({ amount: '900.00', complete: true });
   });
