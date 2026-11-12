@@ -1,5 +1,5 @@
 -- Record historical journal costs without writing to the accounting system.
--- Rollback: rollback/0857_record_only_journal_down.sql
+-- Rollback: rollback/0858_record_only_journal_down.sql
 alter table public.procurements
   add column record_only boolean not null default false,
   add column record_only_stage text,
