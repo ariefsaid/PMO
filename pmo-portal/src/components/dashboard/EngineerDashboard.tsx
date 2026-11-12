@@ -183,6 +183,8 @@ export const EngineerDashboard: React.FC = () => {
       />
       <KPITile
         testId="kpi-tasks-due" tone="amber" icon="tasks"
+        // Its caption carries two counts: on a phone it takes the full row so they never truncate.
+        className="max-sm:col-span-2"
         label={t('hub.engineer.tasksOverdueOrDue', 'Overdue or due this week')}
         value={taskDataError || taskLoading ? null : String(overdueTasks.length + dueTasks.length)}
         loading={taskLoading} error={taskDataError}
