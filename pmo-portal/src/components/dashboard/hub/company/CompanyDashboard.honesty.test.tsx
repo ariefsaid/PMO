@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import i18next from 'i18next';
@@ -32,7 +32,11 @@ const base = {
   procurements_by_status: [],
   top_projects: [],
 };
-const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: null as unknown, loss: null as unknown, delivery: {} as Record<string, number> }));
+const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: null as unknown, loss: null as unknown, delivery: {} as Record<string, number>, projectsPending: false }));
+const attn = (id: string, name: string, over: Record<string, unknown> = {}) => ({
+  id, name, short_name: null, client_name: null, contract_value: 100, currency: 'USD', budget: null, spent: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD',
+  status: 'Ongoing Project', attention_signals: 0, overdue_items: 0, overdue_tasks: 0, overdue_milestones: 0, overdue_invoices: 0, waiting_approvals: 0, over_budget: false, budget_used_ratio: null, ...over,
+});
 
 // Ready to pay / payables ageing read linked accounting documents (L12); none linked here.
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
@@ -80,7 +84,7 @@ vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useArAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjectIdentity: () => ({ data: [] }), useProjects: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectIdentity: () => ({ data: [] }), useProjects: () => ({ data: h.projectsPending ? undefined : [], isPending: h.projectsPending, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive' }) }));
 
@@ -105,23 +109,32 @@ beforeEach(() => {
   h.pack = { months: [], rows: [], totals: [] };
   h.loss = null;
   h.delivery = {};
+  h.projectsPending = false;
   localStorage.removeItem('home-layout');
 });
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
-  it('Executive home makes Plan vs actual the main half-width project chart', () => {
+  it('Project health draws budget against actual spending per project, with the share delivered and the contract as a quiet figure', () => {
     h.dash = {
       ...base,
-      top_projects: [{
-        id: 'p1', name: 'River project', client_name: null, contract_value: 2_000_000, currency: 'USD',
-        budget: 1_500_000, budget_currency: 'USD', spent: 900_000, actual_currency: 'USD', actual_complete: true,
-        status: 'Ongoing Project',
-      }],
+      attention_projects: [attn('p1', 'River project', { budget: 1_500_000, spent: 900_000, contract_value: 2_000_000 })],
     };
+    h.delivery = { p1: 51 };
     renderExec();
-    const chart = screen.getByRole('img', { name: /plan vs actual by project/i });
-    expect(chart.getAttribute('aria-label')).toContain('River project: Contract $2,000,000, Budget $1,500,000, Spent $900,000');
+    const row = within(screen.getByTestId('project-health')).getByRole('link', { name: /River project/ });
+    expect(row).toHaveTextContent('$900K spent of $1.5M budget · 51% delivered');
+    expect(row).toHaveTextContent('Contract $2M');
+    // Spent 60% of budget with 51% delivered: spending is ahead of delivery.
+    expect(within(row).getByTestId('health-bullet')).toHaveAttribute('data-tone', 'ahead');
+  });
+
+  it('a project with no spending recorded keeps its budget track, says so in words, and is never drawn as zero spent', () => {
+    h.dash = { ...base, attention_projects: [attn('p1', 'Quiet project', { budget: 500_000, spent: null, actual_complete: false })] };
+    renderExec();
+    const row = within(screen.getByTestId('project-health')).getByRole('link', { name: /Quiet project/ });
+    expect(row).toHaveTextContent('No spending recorded · $500K budget');
+    expect(row).not.toHaveTextContent('$0 spent');
   });
 
   it('AC-IXD-DASH-002: no figure carries the ambiguous "Projected margin" name; forecast margin appears once, on the weighted pipeline', () => {
@@ -181,99 +194,60 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     expect(within(figures()).getByRole('link', { name: /Kontrak berjalan/ })).toHaveAttribute('href', '/projects?filter=on-hand');
   });
 
-  it('AC-RD-RISK-001: unbudgeted active projects are named once under Projects off track, so no off-track project is not read as all clear', async () => {
+  it('AC-RD-RISK-001: unbudgeted active projects are named once, in the page\'s Why list with a link, so no off-track project is not read as all clear', async () => {
     h.dash = { ...base, risk_unchecked_projects: 2 };
     renderExec();
+    fireEvent.click(await screen.findByRole('button', { name: 'Why' }));
     const notice = /Budget check unavailable for 2 projects/;
     expect(await screen.findByText(notice)).toBeInTheDocument();
     expect(screen.getAllByText(notice)).toHaveLength(1);
-    expect(screen.queryByText('No project is off track.')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open projects' })).toHaveAttribute('href', '/projects');
   });
 
-  it('H2: phone project cards name each non-zero need and delivery figure, worst needs first', () => {
+  it('Project health names each non-zero need in words, overdue and late in red, approvals not; zero needs are not printed', () => {
+    h.dash = { ...base, attention_projects: [attn('p1', 'Project One', { attention_signals: 2, overdue_items: 3, overdue_tasks: 2, overdue_milestones: 1, waiting_approvals: 1 })] };
+    renderExec();
+    const wrong = within(screen.getByTestId('project-health')).getByTestId('health-wrong');
+    expect(within(wrong).getByText('2 tasks overdue')).toHaveClass('text-destructive-text');
+    expect(within(wrong).getByText('1 phase late')).toHaveClass('text-destructive-text');
+    expect(within(wrong).getByText('1 awaiting approval')).not.toHaveClass('text-destructive-text');
+    expect(wrong).not.toHaveTextContent(/0 invoices overdue/);
+  });
+
+  it('F2: an overdue-task count that is unknown is never printed as 0', () => {
+    h.dash = { ...base, attention_projects: [attn('p1', 'Project One', { overdue_tasks: null as unknown as number, overdue_milestones: 1, attention_signals: 1, overdue_items: 1 })] };
+    renderExec();
+    const health = screen.getByTestId('project-health');
+    expect(health).not.toHaveTextContent(/0 tasks? overdue/);
+    expect(health).toHaveTextContent('1 phase late');
+  });
+
+  it('F1: "All N projects" never reads "All 0 projects" while the project list is loading', () => {
+    h.projectsPending = true;
+    renderExec();
+    expect(screen.queryByText(/All 0 projects/)).not.toBeInTheDocument();
+  });
+
+  it('Project health lists projects worst first, off-track before the rest', () => {
     h.dash = {
       ...base,
-      attention_projects: [{
-        id: 'p1', name: 'Project One', short_name: null, client_name: null, contract_value: 100, currency: 'USD', budget: null, spent: null,
-        status: 'Ongoing Project', attention_signals: 2, overdue_items: 4, overdue_tasks: 2, overdue_milestones: 1,
-        overdue_invoices: 0, waiting_approvals: 1, over_budget: false, budget_used_ratio: null,
-      }],
+      attention_projects: [
+        attn('p1', 'Calm project'),
+        attn('p2', 'Late project', { attention_signals: 1, overdue_items: 4, overdue_milestones: 4 }),
+        attn('p3', 'Worse project', { attention_signals: 2, overdue_items: 2, overdue_tasks: 2, over_budget: true }),
+      ],
     };
-    h.delivery = { p1: 51 };
     renderExec();
-
-    const list = screen.getByTestId('project-rows');
-    const project = within(list).getByRole('link', { name: /Project One/ });
-    const mobileNeeds = within(project).getByTestId('project-needs-mobile');
-    expect(mobileNeeds).toHaveTextContent('2 tasks overdue');
-    expect(mobileNeeds).toHaveTextContent('1 phase late');
-    expect(mobileNeeds).toHaveTextContent('1 awaiting approval');
-    expect(mobileNeeds).toHaveTextContent('51% delivered');
-    expect(mobileNeeds).not.toHaveTextContent('Invoices overdue');
-    expect(project).toHaveAccessibleName(/2 tasks overdue/);
-    expect(project).toHaveAccessibleName(/1 phase late/);
-    expect(project).toHaveAccessibleName(/1 awaiting approval/);
+    const names = within(screen.getByTestId('project-health')).getAllByRole('link').filter((link) => /^\/projects\/p\d$/.test(link.getAttribute('href') ?? '')).map((link) => link.textContent ?? '');
+    expect(names.map((name) => name.match(/(Calm|Late|Worse) project/)?.[0])).toEqual(['Worse project', 'Late project', 'Calm project']);
   });
 
-  it('Added: off-track projects stop at five, numeric columns have room, and status labels stay on one line', () => {
-    h.dash = {
-      ...base,
-      attention_projects: Array.from({ length: 6 }, (_, index) => ({
-        id: `p${index + 1}`, name: `Project ${index + 1}`, short_name: null, client_name: null, contract_value: 100, currency: 'USD', budget: null, spent: null,
-        status: 'Ongoing Project', attention_signals: 1, overdue_items: 1, overdue_tasks: 1, overdue_milestones: 0,
-        overdue_invoices: 0, waiting_approvals: 0, over_budget: false, budget_used_ratio: null,
-      })),
-    };
+  it('the finding line names the operations fact, the finance fact and what waits, each linked', async () => {
+    h.dash = { ...base, active_delivery_projects: 11, attention_projects: [attn('p1', 'Late project', { attention_signals: 1, overdue_items: 1, overdue_milestones: 1 }), attn('p2', 'Calm project')] };
     renderExec();
-
-    const list = screen.getByTestId('project-rows');
-    const projects = within(list).getAllByRole('link').filter((link) => /^\/projects\/p\d+$/.test(link.getAttribute('href') ?? ''));
-    expect(projects).toHaveLength(5);
-    expect(within(list).queryByRole('link', { name: /Project 6/ })).not.toBeInTheDocument();
-
-    const numericHeader = within(list).getByText('Project', { exact: true }).parentElement;
-    expect(numericHeader).toHaveClass('gap-x-5');
-    const needsGrid = projects[0].querySelector('[data-testid="project-needs-mobile"]')?.previousElementSibling;
-    expect(needsGrid).toHaveClass('gap-x-5');
-    expect(projects[0].querySelector('.inline-flex')).toHaveClass('whitespace-nowrap');
-  });
-
-  it('H1: Waits and the four position figures share the left desktop column; off-track projects stay content-sized on the right', () => {
-    h.dash = {
-      ...base,
-      attention_projects: [{
-        id: 'p1', name: 'Project One', short_name: null, client_name: null, contract_value: 100, currency: 'USD', budget: null, spent: null,
-        status: 'Ongoing Project', attention_signals: 2, overdue_items: 4, overdue_tasks: 2, overdue_milestones: 1,
-        overdue_invoices: 0, waiting_approvals: 1, over_budget: false, budget_used_ratio: null,
-      }],
-    };
-    h.delivery = { p1: 51 };
-    renderExec();
-
-    const layout = screen.getByTestId('home-primary-layout');
-    const waits = within(layout).getByTestId('waits-on-you');
-    const figures = within(layout).getByRole('region', { name: /Company figures/ });
-    const projects = within(layout).getByTestId('project-rows');
-    expect(waits.parentElement).toBe(figures.parentElement);
-    expect(projects.parentElement).not.toBe(waits.parentElement);
-    expect(waits.compareDocumentPosition(figures) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-    expect(figures.compareDocumentPosition(projects) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-    expect(layout).toHaveClass('items-start');
-    expect(layout).not.toHaveClass('items-stretch');
-    expect(within(layout).getByRole('region', { name: /Company figures/ })).toHaveClass('grid-cols-2');
-  });
-
-  it('H3: places Win and loss by client under Sales in the right dashboard column', () => {
-    h.loss = {
-      by_reason: [],
-      by_client: [{ client_id: 'c1', client_name: 'Client One', wins_count: 1, losses_count: 0 }],
-    };
-    renderExec();
-
-    const sales = screen.getByTestId('sales-overview');
-    const loss = screen.getByTestId('chart-loss-reasons');
-    expect(sales.parentElement).toBe(loss.parentElement);
-    expect(sales.compareDocumentPosition(loss) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    const finding = screen.getByTestId('home-finding');
+    expect(within(finding).getByRole('link', { name: '1 of 11 projects off track' })).toHaveAttribute('href', '/projects');
+    expect(await within(finding).findByRole('link', { name: 'No client invoice overdue' })).toHaveAttribute('href', '/finance/receivables?overdue=true');
   });
 
   it('shows mixed-currency contract on hand per currency, never as a blend or "USD $", with the exact amounts kept', () => {

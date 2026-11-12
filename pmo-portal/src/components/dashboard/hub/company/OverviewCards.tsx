@@ -25,6 +25,7 @@ export const CardLink: React.FC<{ to: string; children: React.ReactNode }> = ({ 
 );
 
 const money = (amount: number, currency: string) => formatTileMoney(amount, currency) ?? '';
+const cnJoin = (...parts: Array<string | undefined>) => parts.filter(Boolean).join(' ');
 
 /** Budget against spending per project, worst first. Spending nobody recorded draws no bar; with none recorded the chart is left out. */
 export const BudgetVsSpentCard: React.FC<{ projects: TopProject[]; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string }> = ({ projects, currency, pending, error, retry, className }) => {
@@ -55,7 +56,9 @@ export const SalesOverviewCard: React.FC<{
   won?: { count: number; amounts: Array<{ currency: string; amount: number }>; href?: string };
   range: WinRateRange;
   className?: string;
-}> = ({ weighted, forecastMargin, stages, pending, error, retry, currency, period, won, range, className }) => {
+  /** Pipeline and win rate side by side (a two-thirds-wide card). */
+  wide?: boolean;
+}> = ({ weighted, forecastMargin, stages, pending, error, retry, currency, period, won, range, className, wide = false }) => {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const statusLabel = useProjectStatusLabel();
@@ -65,7 +68,8 @@ export const SalesOverviewCard: React.FC<{
   return (
     <Card data-testid="sales-overview" className={className}>
       <CardHead level={2} actions={<CardLink to="/sales">{t('dashboard:hub.company.openSales', 'Open sales')}</CardLink>}>{t('home.sales', 'Sales')}</CardHead>
-      <CardPad className="grid gap-4">
+      <CardPad className={wide ? 'grid gap-x-[var(--space-panel-gap)] gap-y-4 min-[900px]:grid-cols-2' : 'grid gap-4'}>
+        <div className={wide ? 'grid content-start gap-4' : 'contents'}>
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
           {weighted && (
             <div>
@@ -85,6 +89,7 @@ export const SalesOverviewCard: React.FC<{
           : error ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={retry} />
             : rows.length === 0 ? <ListState variant="empty" icon="pipe" title={t('hub.company.noPipeline', 'No open pipeline stages')} />
               : <BarList rows={rows} ariaLabel={t('home.pipelineChart', 'Weighted pipeline by stage')} />}
+        </div>
         <WinRateCard currency={currency} range={range} hidePeriodControl embedded helpInPage />
       </CardPad>
     </Card>
@@ -103,7 +108,10 @@ export const InvoicedCollectedCard: React.FC<{
   retry: () => void;
   currency: string;
   className?: string;
-}> = ({ months, periodMonths = [], collectedByMonth, collectedUnsynced, pending, error, retry, currency, className }) => {
+  /** Inside the Finances card: no frame, no link of its own, a taller plot. */
+  embedded?: boolean;
+  chartHeight?: number;
+}> = ({ months, periodMonths = [], collectedByMonth, collectedUnsynced, pending, error, retry, currency, className, embedded = false, chartHeight }) => {
   const { t } = useTranslation('dashboard');
   const withCollected = Boolean(collectedByMonth && !collectedUnsynced);
   const hasInvoices = months !== undefined;
@@ -134,10 +142,10 @@ export const InvoicedCollectedCard: React.FC<{
     : null;
   const gap = [invoiceGap, collectionGap].filter(Boolean).join(' ');
   return (
-    <ChartCard title={title} actions={<CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
+    <ChartCard title={title} embedded={embedded} className={embedded ? cnJoin('flex flex-1 flex-col', className) : className} actions={embedded ? undefined : <CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
       known={activeMonths >= 3} hiddenReason={t('home.reasonTrend', 'fewer than three months have invoiced or collected amounts')}
-      pending={pending} error={error ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry } : undefined} testId="chart-invoiced-collected" className={className}>
-      <MonthColumns points={points} ariaLabel={collectionsPrimary ? `${title} · ${collectedName}` : title} seriesNames={collectionsPrimary ? [collectedName] : [invoicedName, collectedName]} tickInterval={points.length > 8 ? 1 : 0} />
+      pending={pending} error={error ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry } : undefined} testId="chart-invoiced-collected">
+      <MonthColumns points={points} ariaLabel={collectionsPrimary ? `${title} · ${collectedName}` : title} seriesNames={collectionsPrimary ? [collectedName] : [invoicedName, collectedName]} tickInterval={points.length > 8 ? 1 : 0} height={chartHeight} fill={embedded} />
       {gap && <p data-testid="invoiced-collected-gap" className="mt-2 text-control text-muted-foreground">{gap}</p>}
     </ChartCard>
   );

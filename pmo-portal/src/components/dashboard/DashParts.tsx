@@ -47,16 +47,22 @@ export const WaitsOnYou: React.FC<{
   title?: string;
   emptyLabel?: string;
   testId?: string;
-}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId = 'waits-on-you' }) => {
+  /** Items listed before the kind rows (e.g. the first approvals themselves). */
+  lead?: React.ReactNode;
+  /** Header link ("All approvals"). */
+  actions?: React.ReactNode;
+  className?: string;
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId = 'waits-on-you', lead, actions, className }) => {
   const { t } = useTranslation('dashboard');
   return (
-    <Card data-testid={testId} aria-label={title ?? t('home.waits', 'Waits on you')} className="bg-waiting-surface">
-      <CardHead level={2}>{title ?? t('home.waits', 'Waits on you')}</CardHead>
+    <Card data-testid={testId} aria-label={title ?? t('home.waits', 'Waits on you')} className={cn('bg-waiting-surface', className)}>
+      <CardHead level={2} actions={actions}>{title ?? t('home.waits', 'Waits on you')}</CardHead>
       {pending ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="loading" rows={1} className="h-11 overflow-hidden" /></div>
         : error ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="error" title={t('home.waitsError', "Couldn't load what waits on you")} onRetry={onRetry} /></div>
-          : rows.length === 0 ? <p className="px-[var(--panel-inset)] pb-4 text-control text-muted-foreground">{emptyLabel ?? t('home.waitsNone', 'Nothing waits on you.')}</p>
+          : rows.length === 0 && !lead ? <p className="px-[var(--panel-inset)] pb-4 text-control text-muted-foreground">{emptyLabel ?? t('home.waitsNone', 'Nothing waits on you.')}</p>
             : (
               <ul className="divide-y divide-border px-[var(--panel-inset)] pb-1">
+                {lead}
                 {rows.map((row, index) => (
                   <li key={row.id}>
                     <Link
@@ -88,7 +94,10 @@ export const DashboardWaitsOnYou: React.FC<{
   title?: string;
   emptyLabel?: string;
   testId?: string;
-}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId }) => {
+  lead?: React.ReactNode;
+  actions?: React.ReactNode;
+  className?: string;
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId, lead, actions, className }) => {
   const { t } = useTranslation('dashboard');
   const tasks = useMyTasks();
   const today = useOrgToday();
@@ -135,6 +144,9 @@ export const DashboardWaitsOnYou: React.FC<{
       title={title}
       emptyLabel={emptyLabel}
       testId={testId}
+      lead={lead}
+      actions={actions}
+      className={className}
     />
   );
 };
@@ -146,7 +158,8 @@ export interface ProjectRow {
   reason: string | null;
   /** Company dashboard counts are structured for desktop columns and labelled per project on phones. */
   needs?: {
-    tasksOverdue: number;
+    /** Null = unknown (never printed as 0). */
+    tasksOverdue: number | null;
     phasesLate: number;
     invoicesOverdue: number;
     awaitingApproval: number;
@@ -249,7 +262,7 @@ export const ProjectRows: React.FC<{
                       ].filter((fact): fact is { key: string; label: string; urgent: boolean } => fact !== null) : [];
                       const structuredAriaLabel = row.needs ? [
                         row.name,
-                        ...needFacts.map((fact) => fact.label),
+                        ...needFacts.filter((fact) => row.needs?.[fact.key] !== null).map((fact) => fact.label),
                         ...mobileFacts.filter((fact) => fact.key === 'delivery' || fact.key === 'budget').map((fact) => fact.label),
                         `${t('home.colStatus', 'Status')}: ${rowStatus}`,
                       ].filter(Boolean).join('; ') : undefined;
@@ -278,7 +291,7 @@ export const ProjectRows: React.FC<{
                                       )}
                                     >
                                       <span className="min-[900px]:hidden">{column.label}: </span>
-                                      {row.needs?.[column.key]}
+                                      {row.needs?.[column.key] ?? '—'}
                                     </span>
                                   );
                                 })}

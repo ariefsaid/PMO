@@ -120,7 +120,8 @@ const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, serie
   const barWidth = Number(width);
   // Paired labels meet at the midpoint between the columns. Each series keeps its own half of the month,
   // so their values stay readable even when both amounts are non-zero.
-  const pairedCenter = side === 'end' ? barX + (barWidth * 1.5) + 1 : barX - (barWidth / 2) - 1;
+  // The pair's midpoint is the 2px gap between the columns; each label keeps 3px off it so the two never touch.
+  const pairedCenter = side === 'end' ? barX + barWidth - 2 : barX + 2;
   const anchorX = paired ? pairedCenter : side === 'end' ? barX + barWidth : side === 'start' ? barX : barX + barWidth / 2;
   return <text x={anchorX} y={Number(y) - 5} textAnchor={side} style={LABEL_STYLE}>{String(value)}</text>;
 };
@@ -139,7 +140,9 @@ export const MonthColumns: React.FC<{
   /** Keep paired value labels legible on narrow screens; the chart can scroll horizontally. */
   minWidth?: number;
   tickInterval?: number;
-}> = ({ points, ariaLabel, seriesNames, labelAll = false, height = 168, minWidth, tickInterval = 0 }) => {
+  /** Fill the parent's remaining height (a flex column) instead of a fixed height; `height` is then the minimum. */
+  fill?: boolean;
+}> = ({ points, ariaLabel, seriesNames, labelAll = false, height = 168, minWidth, tickInterval = 0, fill = false }) => {
   const reduced = usePrefersReducedMotion();
   const two = points.some((point) => point.b !== undefined);
   const data = points.map((point) => ({ ...point }));
@@ -152,10 +155,10 @@ export const MonthColumns: React.FC<{
   return (
     <>
       {legendItems && <SeriesKey items={legendItems} />}
-      <div className={minWidth ? 'overflow-x-auto' : undefined} role={minWidth ? 'region' : undefined} aria-label={minWidth ? ariaLabel : undefined} tabIndex={minWidth ? 0 : undefined}>
-        <div role="img" aria-label={`${ariaLabel}. ${points.map((point) => `${point.tick}: ${[point.labelA && `${two && seriesNames?.[0] ? `${seriesNames[0]} ` : ''}${point.labelA}`, point.labelB && `${seriesNames?.[1] ? `${seriesNames[1]} ` : ''}${point.labelB}`].filter(Boolean).join(', ')}`).join('; ')}`} style={{ height, minWidth }}>
+      <div className={[minWidth ? 'overflow-x-auto' : '', fill ? 'flex flex-1 flex-col' : ''].join(' ').trim() || undefined} role={minWidth ? 'region' : undefined} aria-label={minWidth ? ariaLabel : undefined} tabIndex={minWidth ? 0 : undefined}>
+        <div role="img" className={fill ? 'flex-1' : undefined} aria-label={`${ariaLabel}. ${points.map((point) => `${point.tick}: ${[point.labelA && `${two && seriesNames?.[0] ? `${seriesNames[0]} ` : ''}${point.labelA}`, point.labelB && `${seriesNames?.[1] ? `${seriesNames[1]} ` : ''}${point.labelB}`].filter(Boolean).join(', ')}`).join('; ')}`} style={fill ? { minHeight: height, minWidth } : { height, minWidth }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 22, right: two ? 8 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
+            <BarChart data={data} margin={{ top: 22, right: two ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
               <XAxis dataKey="tick" tick={TICK_STYLE} tickLine={false} stroke={chartTheme.grid} interval={tickInterval} />
               <YAxis hide domain={[0, 'auto']} />
               <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.labelA : item.payload.labelB) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
@@ -244,11 +247,24 @@ export const ChartCard: React.FC<{
   error?: { title: string; retry?: () => void };
   className?: string;
   testId?: string;
+  /** Inside another card: a titled section with no frame of its own. */
+  embedded?: boolean;
   children: React.ReactNode;
-}> = ({ title, actions, known = true, hiddenReason, pending = false, error, className, testId, children }) => {
+}> = ({ title, actions, known = true, hiddenReason, pending = false, error, className, testId, embedded = false, children }) => {
   const hide = !pending && !error && !known;
   useFigureReport(hide && hiddenReason ? [{ label: title, reason: hiddenReason }] : []);
   if (hide) return null;
+  const body = pending ? <ListState variant="loading" shape="chart" rows={2} />
+    : error ? <ListState variant="error" title={error.title} onRetry={error.retry} />
+      : children;
+  if (embedded) {
+    return (
+      <section className={className} data-testid={testId} aria-label={title}>
+        <div className="mb-2 flex items-baseline justify-between gap-3"><h3 className="text-control font-semibold">{title}</h3>{actions}</div>
+        {body}
+      </section>
+    );
+  }
   return (
     <Card className={className} data-testid={testId} aria-label={title}>
       <CardHead level={2} actions={actions}>{title}</CardHead>
