@@ -86,6 +86,14 @@ async function readCursor(sc: SupabaseClient, orgId: string, domain = DOMAIN): P
   return (data?.watermark_cursor as string | undefined) ?? '';
 }
 
+/** The stored link fingerprint's timestamp marks when the ledger cursor was rewound for a new attribution map. */
+async function linkFingerprintUpdatedAt(sc: SupabaseClient, orgId: string): Promise<string | null> {
+  const { data, error } = await sc.from('external_sync_watermarks').select('updated_at')
+    .eq('org_id', orgId).eq('external_tier', 'odoo').eq('domain', LINKS_DOMAIN).maybeSingle();
+  if (error) throw new Error('could not read the Odoo ledger link fingerprint');
+  return (data as { updated_at?: string } | null)?.updated_at ?? null;
+}
+
 /** The company's year end (`fiscalyear_last_month` is a string on v20, V-ODA4); refused, unset or malformed means the calendar year (OQ-ODA-3).
  *  A transient failure (timeout, outage) throws instead, so a hiccup never stamps a whole page with the wrong year. */
 async function fiscalYearEnd(call: OdooCall, companyId: number): Promise<{ fy: FiscalYearEnd | null; calendarYear: boolean }> {
@@ -187,7 +195,10 @@ async function runLedgerCheck(sc: SupabaseClient, orgId: string, call: OdooCall,
     const last = await sc.from('odoo_ledger_checks').select('checked_at').eq('org_id', orgId).order('checked_at', { ascending: false }).limit(1);
     if (last.error) throw new Error('could not read the last ledger check');
     const lastAt = (last.data as Array<{ checked_at: string }> | null)?.[0]?.checked_at;
-    if (lastAt && now.getTime() - Date.parse(lastAt) < CHECK_EVERY_MS) return undefined;
+    if (lastAt && now.getTime() - Date.parse(lastAt) < CHECK_EVERY_MS) {
+      const linksUpdatedAt = await linkFingerprintUpdatedAt(sc, orgId);
+      if (!linksUpdatedAt || Date.parse(lastAt) >= Date.parse(linksUpdatedAt)) return undefined;
+    }
     const rawCursor = await readCursor(sc, orgId);
     const cursor = parseCursor(rawCursor);
     if (!cursor.w || !budget.spend()) return undefined;
