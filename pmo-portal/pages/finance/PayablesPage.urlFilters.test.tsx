@@ -19,6 +19,25 @@ vi.mock('@/src/auth/usePermission', () => ({
 vi.mock('@/src/hooks/useFinancePosition', () => ({
   useFinancePosition: () => ({ position: state.position, isPending: false, isError: false, retry: vi.fn() }),
 }));
+// The page reads procurements and the org day directly since the regions load on their own reads (r2-gates-c).
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProcurements: () => ({
+    data: state.position?.payables.map(({ procurement, ageDays, amount }) => ({
+      ...procurement,
+      procurement_invoices: procurement.procurement_invoices?.length === 0 && amount === null ? [] : [{
+        invoice_date: ageDays === null ? null : new Date(Date.parse(`2026-07-19T00:00:00Z`) - ageDays * 86_400_000).toISOString().slice(0, 10),
+        amount: amount === null ? null : (amount / 100),
+        erp_outstanding_amount: amount === null ? null : (amount / 100),
+      }],
+    })) ?? [],
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-07-19', isPending: false, isError: false, retry: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpPurchases: () => ({ data: [], isPending: false, isError: false }),
 }));
