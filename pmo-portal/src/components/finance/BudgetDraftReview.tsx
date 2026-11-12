@@ -151,7 +151,10 @@ export function BudgetDraftReview() {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 id="budget-draft-review" className="text-base font-semibold">{t('draftReview.title', 'Review and activate drafts')}</h2>
-          <p className="text-sm text-muted-foreground">{t('draftReview.hint', 'Check each draft against its source, tick the ones to activate, then confirm once. Each draft is activated and recorded on its own.')}</p>
+          <p className="text-sm text-muted-foreground">
+            <span>{t('financeHub:draftReview.countToReview', { count: rows.length, defaultValue_one: '{{count}} draft to review.', defaultValue_other: '{{count}} drafts to review.' })}</span>{' '}
+            {t('draftReview.hint', 'Check each draft against its source, tick the ones to activate, then confirm once. Each draft is activated and recorded on its own.')}
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {rows.length > 0 && <Button variant="outline" aria-expanded={open} disabled={running} onClick={() => setOpen((o) => !o)}>

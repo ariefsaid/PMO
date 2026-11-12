@@ -6,6 +6,7 @@
     "areas": "Area keuangan",
     "receivables": "Piutang",
     "payables": "Utang",
+    "payablesAgeTitle": "Utang · usia faktur, menurut hari",
     "reports": "Laporan",
     "statements": "Laporan keuangan",
     "newInvoice": "Buat faktur",
@@ -113,6 +114,8 @@
         "draftsSecond_other": "{{count}} draf menunggu penyetuju kedua",
         "toSend_one": "{{count}} faktur disetujui untuk dicatat pengirimannya",
         "toSend_other": "{{count}} faktur disetujui untuk dicatat pengirimannya",
+        "toReceive_one": "{{count}} pesanan pembelian untuk diterima",
+        "toReceive_other": "{{count}} pesanan pembelian untuk diterima",
         "unapplied_one": "{{count}} pembayaran belum diterapkan",
         "unapplied_other": "{{count}} pembayaran belum diterapkan",
         "payables_one": "{{count}} faktur pemasok belum dibayar",
@@ -146,7 +149,8 @@
       "ageing": {
         "unknownCount_one": "{{count}} saldo tidak diketahui",
         "unknownCount_other": "{{count}} saldo tidak diketahui",
-        "plusUnknown": "+ {{label}}"
+        "plusUnknown": "+ {{label}}",
+        "showFullBreakdown": "Lihat rincian lengkap"
       }
     },
     "payableBucketBasis": "Hari kalender sejak tanggal faktur pemasok. Faktur tanpa tanggal tidak memiliki umur; saldo yang tidak diketahui dihitung jumlahnya, tidak dijumlahkan.",
@@ -236,6 +240,8 @@
   },
   "draftReview": {
     "title": "Tinjau dan aktifkan draf",
+    "countToReview_one": "{{count}} draf untuk ditinjau.",
+    "countToReview_other": "{{count}} draf untuk ditinjau.",
     "hint": "Periksa setiap draf terhadap sumbernya, centang yang akan diaktifkan, lalu konfirmasi sekali. Setiap draf diaktifkan dan dicatat sendiri-sendiri.",
     "activateSelected": "Aktifkan terpilih ({{count}})",
     "summary": "{{ok}} diaktifkan, {{failed}} gagal",

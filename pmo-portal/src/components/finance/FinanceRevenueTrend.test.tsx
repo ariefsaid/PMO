@@ -11,6 +11,34 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 
 vi.mock('@/src/lib/repositories', () => ({ repositories: { revenue: { listMonthlyInvoiceFacts: repo.invoices, listPaidPaymentFacts: repo.payments } } }));
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrencyState: () => ({ currency: 'USD', isResolved: true, isError: false }) }));
+vi.mock('@/src/components/dashboard/charts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/dashboard/charts')>();
+  return {
+    ...actual,
+    MonthColumns: (props: {
+      points: Array<{ tick: string; labelA?: string; labelB?: string }>;
+      ariaLabel: string;
+      seriesNames?: [string, string?];
+      labelAll?: boolean;
+      pairedLabelsOnBars?: boolean;
+    }) => {
+      const points = props.points.map((point) => {
+        const values = [
+          point.labelA && `${props.seriesNames?.[0] ?? ''} ${point.labelA}`.trim(),
+          point.labelB && `${props.seriesNames?.[1] ?? ''} ${point.labelB}`.trim(),
+        ].filter(Boolean);
+        return `${point.tick}: ${values.join(', ')}`;
+      });
+      return React.createElement('div', {
+        role: 'img',
+        'aria-label': `${props.ariaLabel}. ${points.join('; ')}`,
+        'data-testid': 'finance-revenue-trend-labels',
+        'data-label-all': String(props.labelAll ?? false),
+        'data-paired-labels-on-bars': String(props.pairedLabelsOnBars ?? false),
+      });
+    },
+  };
+});
 
 const renderTrend = (enabled = true) => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><FigureScope><FigureHiddenLine /><FinanceRevenueTrend today="2026-11-11" enabled={enabled} /></FigureScope></MemoryRouter></QueryClientProvider>,
@@ -51,5 +79,16 @@ describe('FinanceRevenueTrend', () => {
     repo.payments.mockResolvedValue([]);
     renderTrend();
     expect(await screen.findByRole('img', { name: /invoiced and collected/i })).toHaveAccessibleName(/Oct/);
+  });
+
+  it('labels only the latest non-zero pair while keeping every month in the accessible chart name', async () => {
+    renderTrend();
+    const chart = await screen.findByRole('img', { name: /invoiced and collected/i });
+    const directLabels = screen.getByTestId('finance-revenue-trend-labels');
+
+    expect(directLabels).toHaveAttribute('data-label-all', 'false');
+    expect(directLabels).toHaveAttribute('data-paired-labels-on-bars', 'false');
+    expect(chart).toHaveAccessibleName(/May:.*\$100.*Collected \$100/);
+    expect(chart).toHaveAccessibleName(/Oct:.*\$600.*Collected \$600/);
   });
 });

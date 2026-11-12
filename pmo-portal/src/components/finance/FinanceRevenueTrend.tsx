@@ -78,8 +78,6 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
         seriesNames={collectionsPrimary
           ? [collectedLabel]
           : [t('home.chartInvoiced', 'Invoiced, excl. tax'), collectedLabel]}
-        labelAll
-        pairedLabelsOnBars
         minWidth={660}
       />
       {!hasPair && <SeriesKey items={collectionsPrimary

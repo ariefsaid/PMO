@@ -22,6 +22,8 @@ export interface AgeingStripProps {
   /** Known receivables with no derivable due date, counted separately from balances. */
   noDueDateCounts?: Record<string, number>;
   unknownTotal?: number;
+  /** On the finance hub, keep a single-bucket secondary currency to one line with its full breakdown disclosed. */
+  compactSingleBucketSecondaryCurrency?: boolean;
 }
 
 const RECEIVABLE_BUCKETS = ['notDue', 'noDueDate', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
@@ -37,7 +39,7 @@ const BUCKET_COLORS: Record<BucketKey, string> = {
   over90: chartTheme.series.destructive,
 };
 
-export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, noDueDateCounts = {}, unknownTotal = 0 }) => {
+export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, noDueDateCounts = {}, unknownTotal = 0, compactSingleBucketSecondaryCurrency = false }) => {
   const { t } = useTranslation();
   const { currency: orgCurrency, isResolved } = useOrgCurrencyState();
   const bucketKeys: readonly BucketKey[] = kind === 'receivables' ? RECEIVABLE_BUCKETS : PAYABLE_BUCKETS;
@@ -72,50 +74,78 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
         ? t('finance:area.ageingUnknown', { defaultValue: unknownTotal === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknownTotal })
         : t('finance:area.ageingEmpty', 'No balances to group by age')}</p>}
       {currencies.length > 0 && unknownTotal > 0 && <p className="mb-2 text-control text-muted-foreground">{t('finance:area.ageingUnknownCount', { defaultValue: unknownTotal === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknownTotal })}</p>}
-      {currencies.map(([currency, buckets]) => {
+      {currencies.map(([currency, buckets], currencyIndex) => {
         const amounts = bucketKeys.map((key) => amountFor(buckets, key));
         const total = amounts.reduce((sum, amount) => sum + Math.max(amount, 0), 0);
         const chartData = { name: currency, ...Object.fromEntries(bucketKeys.map((key, index) => [key, Math.max(amounts[index] ?? 0, 0)])) };
         const chartLabel = `${t('financeHub:hub.fix.ageingBarLabel', '{{currency}} balance distribution by age', { currency })}. ${bucketKeys.map((key, index) => `${labels[key]} ${formatCurrency((amounts[index] ?? 0) / 100, currency)}`).join(', ')}`;
-        return (
-          <div key={currency} className="mb-4 min-w-0 last:mb-0">
-            <div className="mb-1 text-control font-medium text-muted-foreground">{currency}</div>
-            {total > 0 && <div
-              role="img"
-              aria-label={chartLabel}
-              data-testid={`ageing-bar-${currency}`}
-              data-scale-max={total}
-              className="h-9 min-w-0 overflow-hidden rounded-md"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={[chartData]} layout="vertical" margin={{ top: 3, right: 0, bottom: 3, left: 0 }} barSize={24}>
-                  <XAxis type="number" hide domain={[0, total]} />
-                  <YAxis type="category" dataKey="name" hide />
-                  <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key) => [formatCurrency(Number(value) / 100, currency), labels[key as BucketKey]]} />
-                  {bucketKeys.map((key) => <Bar key={key} dataKey={key} stackId="age" fill={BUCKET_COLORS[key]} />)}
-                </BarChart>
-              </ResponsiveContainer>
-            </div>}
-            <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-x-3 gap-y-2">
-              {bucketKeys.map((key, index) => {
-                const amount = amounts[index] ?? 0;
-                const unknown = unknownCounts[currency]?.[key] ?? 0;
-                const noDueDateCount = kind === 'receivables' && key === 'noDueDate' ? noDueDateCounts[currency] ?? 0 : 0;
-                const unknownLabel = t('financeHub:hub.fix.ageing.unknownCount', { defaultValue: unknown === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknown });
-                return (
-                  <div key={key} data-testid={`ageing-bucket-${currency}-${key}`} className="grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-baseline gap-x-2">
-                    <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ background: BUCKET_COLORS[key] }} />
-                    <span className="min-w-0 break-words text-control text-muted-foreground">{labels[key]}</span>
-                    {unknown > 0 && amount === 0
-                      ? <span className="text-right text-control text-muted-foreground">{unknownLabel}</span>
-                      : <span className={cn('max-w-full break-all text-right tabular text-sm', amount === 0 ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground')}>{formatCurrency(amount / 100, currency)}</span>}
-                    {unknown > 0 && amount !== 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('financeHub:hub.fix.ageing.plusUnknown', { defaultValue: '+ {{label}}', label: unknownLabel })}</span>}
-                    {noDueDateCount > 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('finance:area.ageingNoDueDateCount', { count: noDueDateCount, defaultValue_one: '{{count}} invoice', defaultValue_other: '{{count}} invoices' })}</span>}
-                  </div>
-                );
-              })}
-            </div>
+        const nonZeroIndexes = amounts.flatMap((amount, index) => amount > 0 ? [index] : []);
+        const hasUnknownBucket = bucketKeys.some((key) => (unknownCounts[currency]?.[key] ?? 0) > 0);
+        const hasNoDueDateInvoices = kind === 'receivables' && (noDueDateCounts[currency] ?? 0) > 0;
+        const compactBucketKey = compactSingleBucketSecondaryCurrency
+          && currencyIndex > 0
+          && unknownTotal === 0
+          && !hasUnknownBucket
+          && !hasNoDueDateInvoices
+          && total > 0
+          && nonZeroIndexes.length === 1
+          ? bucketKeys[nonZeroIndexes[0]!]!
+          : null;
+        const breakdown = <>
+          {total > 0 && <div
+            role="img"
+            aria-label={chartLabel}
+            data-testid={`ageing-bar-${currency}`}
+            data-scale-max={total}
+            className="h-9 min-w-0 overflow-hidden rounded-md"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={[chartData]} layout="vertical" margin={{ top: 3, right: 0, bottom: 3, left: 0 }} barSize={24}>
+                <XAxis type="number" hide domain={[0, total]} />
+                <YAxis type="category" dataKey="name" hide />
+                <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key) => [formatCurrency(Number(value) / 100, currency), labels[key as BucketKey]]} />
+                {bucketKeys.map((key) => <Bar key={key} dataKey={key} stackId="age" fill={BUCKET_COLORS[key]} />)}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>}
+          <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-x-3 gap-y-2">
+            {bucketKeys.map((key, index) => {
+              const amount = amounts[index] ?? 0;
+              const unknown = unknownCounts[currency]?.[key] ?? 0;
+              const noDueDateCount = kind === 'receivables' && key === 'noDueDate' ? noDueDateCounts[currency] ?? 0 : 0;
+              const unknownLabel = t('financeHub:hub.fix.ageing.unknownCount', { defaultValue: unknown === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknown });
+              return (
+                <div key={key} data-testid={`ageing-bucket-${currency}-${key}`} className="grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-baseline gap-x-2">
+                  <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ background: BUCKET_COLORS[key] }} />
+                  <span className="min-w-0 break-words text-control text-muted-foreground">{labels[key]}</span>
+                  {unknown > 0 && amount === 0
+                    ? <span className="text-right text-control text-muted-foreground">{unknownLabel}</span>
+                    : <span className={cn('max-w-full break-all text-right tabular text-sm', amount === 0 ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground')}>{formatCurrency(amount / 100, currency)}</span>}
+                  {unknown > 0 && amount !== 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('financeHub:hub.fix.ageing.plusUnknown', { defaultValue: '+ {{label}}', label: unknownLabel })}</span>}
+                  {noDueDateCount > 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('finance:area.ageingNoDueDateCount', { count: noDueDateCount, defaultValue_one: '{{count}} invoice', defaultValue_other: '{{count}} invoices' })}</span>}
+                </div>
+              );
+            })}
           </div>
+        </>;
+        return (
+          compactBucketKey ? (
+            <details key={currency} data-testid={`ageing-compact-${currency}`} className="mb-4 min-w-0 last:mb-0">
+              <summary className="list-item min-h-11 cursor-pointer whitespace-nowrap py-1 text-control font-medium text-foreground">
+                {formatCurrency(amounts[nonZeroIndexes[0]!]! / 100, currency)} · {labels[compactBucketKey]}
+                <span className="sr-only">{t('financeHub:hub.fix.ageing.showFullBreakdown', 'Show full breakdown')}</span>
+              </summary>
+              <div className="pt-2">
+                <div className="mb-1 text-control font-medium text-muted-foreground">{currency}</div>
+                {breakdown}
+              </div>
+            </details>
+          ) : (
+            <div key={currency} className="mb-4 min-w-0 last:mb-0">
+              <div className="mb-1 text-control font-medium text-muted-foreground">{currency}</div>
+              {breakdown}
+            </div>
+          )
         );
       })}
     </section>

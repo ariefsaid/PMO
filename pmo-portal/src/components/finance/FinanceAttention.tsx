@@ -20,6 +20,7 @@ export interface FinanceAttentionProps {
   withLayout: (path: string) => string;
   orgCurrency?: string | null;
   showOverdueUnknownCount?: boolean;
+  purchaseOrdersToReceive?: number;
   projects?: Map<string, { name?: string | null; short_name?: string | null; pm?: { full_name?: string | null } | null }>;
 }
 
@@ -33,7 +34,7 @@ interface WaitingItem {
 }
 
 export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
-  position, scope, canAct, isPending, isError, onRetry, withLayout, orgCurrency, showOverdueUnknownCount = true, projects = new Map(),
+  position, scope, canAct, isPending, isError, onRetry, withLayout, orgCurrency, showOverdueUnknownCount = true, purchaseOrdersToReceive = 0, projects = new Map(),
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -58,6 +59,12 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
       label: t('financeHub:hub.fix.waiting.toSend', { defaultValue: '{{count}} approved invoices to record delivery', count: position.toSend.length }),
       detail: [],
       to: '/finance/receivables?todo=send', action: t('financeHub:hub.fix.waiting.markReceived', 'Record delivery'),
+    }] : []),
+    ...(scope === 'all' && purchaseOrdersToReceive > 0 ? [{
+      key: 'receive', count: purchaseOrdersToReceive,
+      label: t('financeHub:hub.fix.waiting.toReceive', { count: purchaseOrdersToReceive, defaultValue_one: '{{count}} purchase order to receive', defaultValue_other: '{{count}} purchase orders to receive' }),
+      detail: [],
+      to: '/procurement?stage=receive', action: t('financeHub:hub.openProcurement', 'Open procurement'),
     }] : []),
     ...(position.unappliedPayments.length > 0 ? [{
       key: 'unapplied', count: position.unappliedPayments.length,
@@ -113,18 +120,23 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
                   key={invoice.id}
                   to={href}
                   aria-label={t('financeHub:hub.fix.overdue.openInvoice', { defaultValue: 'Open {{client}} invoice {{number}}', client, number: invoiceNumber(invoice) ?? '—' })}
-                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring sm:grid-cols-[minmax(0,1fr)_auto_auto]"
                 >
-                  <span className="min-w-0 break-words"><span className="font-normal">{client}</span><span className="font-mono text-muted-foreground"> · {invoiceNumber(invoice) ?? '—'}</span></span>
-                  <LateText className="justify-self-end whitespace-nowrap" emphasis={isUrgent}>{partlyPaid
+                  <span className="col-span-2 min-w-0 break-words sm:col-span-1">
+                    <span className="font-normal">{client}</span>
+                    <span className="shrink-0 whitespace-nowrap font-mono text-muted-foreground"> · {invoiceNumber(invoice) ?? '—'}</span>
+                  </span>
+                  <LateText className="col-start-1 row-start-2 whitespace-nowrap text-control text-destructive-text sm:col-start-2 sm:row-start-1" emphasis={isUrgent}>{partlyPaid
                         ? t('finance:receivables.statusPartlyPaidLate', { count: daysOverdue, n: String(daysOverdue), defaultValue_one: 'Partly paid · {{n}} day overdue', defaultValue_other: 'Partly paid · {{n}} days overdue' })
                         : t('status:age.overdue', { count: daysOverdue, n: String(daysOverdue), defaultValue_one: '{{n}} day overdue', defaultValue_other: '{{n}} days overdue' })}</LateText>
-                  <span className="min-w-0 break-words text-control text-muted-foreground">{project ? projectDisplayName(project) : t('financeHub:hub.fix.overdue.unknownProject', 'Project unavailable')} · {t('financeHub:hub.fix.overdue.due', { defaultValue: 'Due {{date}}', date: dueDate ? formatDay(dueDate) : '—' })}</span>
-                  <span className="min-w-0 text-right">
+                  <span className="col-start-2 row-start-2 min-w-0 text-right sm:col-start-3 sm:row-start-1">
                     {/* C4: an unknown balance is left out here; the heading counts it once ("· 1 balance unknown"). */}
                     {outstanding != null && (
-                      <span className={isUrgent ? 'whitespace-nowrap tabular text-metric font-semibold text-foreground' : 'whitespace-nowrap tabular text-control font-normal text-foreground'}>{formatCurrency(outstanding / 100, invoice.currency)}</span>
+                      <span className="whitespace-nowrap text-control font-semibold tabular text-foreground">{formatCurrency(outstanding / 100, invoice.currency)}</span>
                     )}
+                  </span>
+                  <span className="col-start-1 row-start-3 min-w-0 break-words text-control text-muted-foreground sm:col-start-1 sm:row-start-2">{project ? projectDisplayName(project) : t('financeHub:hub.fix.overdue.unknownProject', 'Project unavailable')} · {t('financeHub:hub.fix.overdue.due', { defaultValue: 'Due {{date}}', date: dueDate ? formatDay(dueDate) : '—' })}</span>
+                  <span className="col-start-2 row-start-3 min-w-0 text-right sm:col-start-3 sm:row-start-2">
                     {outstanding != null && gross != null && <span className="block whitespace-nowrap tabular text-control text-muted-foreground">{t('financeHub:hub.fix.overdue.ofGross', { defaultValue: 'of {{amount}}', amount: formatCurrency(gross, invoice.currency) })}</span>}
                   </span>
                 </Link>
@@ -149,7 +161,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
                   <span className="block text-control font-normal">{item.label}</span>
                   {item.detail.map((line, index) => <span key={`${item.key}-${index}`} className="block truncate text-control text-muted-foreground">{line}</span>)}
                 </span>
-                {item.key === 'payables' ? (
+                {item.key === 'payables' || item.key === 'receive' ? (
                   <Link to={withLayout(item.to)} className={buttonClasses('outline', 'sm', 'shrink-0')}>{item.action}</Link>
                 ) : canAct && <Button variant="outline" size="sm" onClick={() => navigate(withLayout(item.to))}>{item.action}</Button>}
               </div>

@@ -20,10 +20,12 @@ import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useFinanceHubFigures } from '@/src/hooks/useFinanceHubFigures';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
+import { useProcurements } from '@/src/hooks/useProcurements';
 import { useProjects } from '@/src/hooks/useProjects';
 import { formatMonthYearShort } from '@/src/lib/format';
 import { groupUnknownOverdueReceivablesByAge } from '@/src/lib/finance/financePosition';
 import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
+import { needsYou } from '@/pages/procurement/blocks/needsYou';
 
 const FinanceHub: React.FC = () => {
   const { t } = useTranslation();
@@ -38,11 +40,16 @@ const FinanceHub: React.FC = () => {
   const orgCurrency = currencyState.isResolved ? currencyState.currency : null;
   const financePosition = useFinancePosition(canView);
   const erpPurchases = useErpPurchases(undefined, { enabled: canView && hasProcurement });
+  const procurementQueue = useProcurements({ lean: true, enabled: canView && hasProcurement });
+  const purchaseOrdersToReceive = hasProcurement
+    ? (procurementQueue.data ?? []).filter((procurement) => needsYou(procurement, { role: realRole, userId: currentUser?.id })?.reason === 'receive').length
+    : 0;
   // L12: supplier invoices kept in the accounting system count here exactly as on the procurement record.
   const { isPending: payablesPending, payablesUnknownAgeing, ...payables } = usePayablesPosition(financePosition.position, canView && hasProcurement);
   const retryFinance = () => {
     financePosition.retry();
     void erpPurchases.refetch();
+    if (hasProcurement) void procurementQueue.refetch();
   };
   const finance = {
     ...financePosition,
@@ -54,8 +61,8 @@ const FinanceHub: React.FC = () => {
   const receivablesError = financePosition.invoicesError || financePosition.orgDayError;
   const payablesRegionPending = financePosition.procurementsPending || payablesPending;
   const payablesRegionError = financePosition.procurementsError || erpPurchases.isError;
-  const attentionPending = financePosition.isPending || payablesPending;
-  const attentionError = financePosition.isError || erpPurchases.isError;
+  const attentionPending = financePosition.isPending || payablesPending || (hasProcurement && procurementQueue.isPending);
+  const attentionError = financePosition.isError || erpPurchases.isError || (hasProcurement && procurementQueue.isError);
   // #1988: the Reports and Statements figures arrive from ONE narrow read, not the whole pack + P&L.
   const figures = useFinanceHubFigures(canView);
   const projects = useProjects({ enabled: canView });
@@ -145,6 +152,7 @@ const FinanceHub: React.FC = () => {
         <FinanceAttention
         position={finance.position} scope="all" canAct={canAct} isPending={attentionPending} isError={attentionError}
         onRetry={finance.retry} withLayout={(path) => path} orgCurrency={orgCurrency} showOverdueUnknownCount={false}
+        purchaseOrdersToReceive={purchaseOrdersToReceive}
         projects={new Map((projects.data ?? []).map((project) => [project.id, project]))}
       />
       </CardPad>
@@ -160,12 +168,12 @@ const FinanceHub: React.FC = () => {
           <div>
             {receivablesPending ? <ListState variant="loading" rows={2} /> : receivablesError ? (
               <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-            ) : <AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={finance.position.receivablesNoDueDateCounts} unknownTotal={receivablesUnknownWithoutAge} />}
+            ) : <AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={finance.position.receivablesNoDueDateCounts} unknownTotal={receivablesUnknownWithoutAge} compactSingleBucketSecondaryCurrency />}
           </div>
           <div>
             {payablesRegionPending ? <ListState variant="loading" rows={2} /> : payablesRegionError ? (
               <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-            ) : <AgeingStrip kind="payables" heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} />}
+            ) : <AgeingStrip kind="payables" heading={t('financeHub:hub.payablesAgeTitle', 'Payables · invoice age, by days')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} />}
           </div>
         </div>
       </CardPad>

@@ -55,6 +55,14 @@ async function mount(opts: { open?: boolean; role?: 'Finance' | 'Engineer' } = {
 }
 const box = (name: RegExp) => screen.getByRole('checkbox', { name });
 
+it('prepends the draft count while retaining the existing review procedure', async () => {
+  await mount({ open: false });
+
+  await screen.findByRole('button', { name: 'Review 3 drafts' });
+  expect(screen.getByText('3 drafts to review.')).toBeInTheDocument();
+  expect(screen.getByText('Check each draft against its source, tick the ones to activate, then confirm once. Each draft is activated and recorded on its own.')).toBeInTheDocument();
+});
+
 describe('draftTickState', () => {
   const base = { mode: 'allowed' as const, precheck: ready as never, canTransition: true };
   it('AC-BAD-003 a mode that is not allowed/sole_operator is never tickable, and each block names its own reason', () => {

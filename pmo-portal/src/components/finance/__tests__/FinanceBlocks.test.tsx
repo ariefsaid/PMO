@@ -111,11 +111,12 @@ describe('Finance blocks', () => {
     expect(screen.getByText(/North delivery · Due /)).toBeInTheDocument();
     const row = screen.getByRole('link', { name: /Northstar Client.*INV-104/ });
     const late = screen.getByText('Partly paid · 104 days overdue');
-    expect(late).toHaveClass('text-destructive-text');
+    expect(late).toHaveClass('text-control', 'text-destructive-text');
     expect(late.parentElement).toBe(row);
     const amount = screen.getByText('IDR 625,000');
-    expect(amount).toHaveClass('text-metric', 'font-semibold', 'tabular');
+    expect(amount).toHaveClass('text-control', 'font-semibold', 'tabular');
     expect(row).toHaveClass('grid-cols-[minmax(0,1fr)_auto]');
+    expect(screen.getByText(/INV-104/)).toHaveClass('whitespace-nowrap');
     expect(screen.getByText(/of IDR/)).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Alex Rivera' })).toBeNull();
   });
@@ -132,7 +133,7 @@ describe('Finance blocks', () => {
     };
     const props = {
       position, scope: 'all' as const, isPending: false, isError: false, onRetry: () => {},
-      withLayout: (path: string) => path, orgCurrency: 'IDR', projects: new Map(),
+      withLayout: (path: string) => path, orgCurrency: 'IDR', projects: new Map(), purchaseOrdersToReceive: 2,
     };
     const user = userEvent.setup();
     const { rerender } = render(<MemoryRouter><FinanceAttention {...props} canAct /><CurrentLocation /></MemoryRouter>);
@@ -142,6 +143,8 @@ describe('Finance blocks', () => {
     expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?todo=approve');
     await user.click(screen.getByRole('button', { name: 'Record delivery' }));
     expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?todo=send');
+    expect(screen.getByText('2 purchase orders to receive')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open procurement' })).toHaveAttribute('href', '/procurement?stage=receive');
     await user.click(screen.getByRole('button', { name: 'Apply' }));
     expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?view=payments&todo=unapplied');
     expect(screen.getByRole('link', { name: 'Open payables' })).toHaveAttribute('href', '/finance/payables');

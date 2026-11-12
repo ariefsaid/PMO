@@ -53,6 +53,7 @@ vi.mock('@/src/hooks/useFinancePosition', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
   useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }),
 }));

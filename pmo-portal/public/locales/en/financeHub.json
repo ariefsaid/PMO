@@ -6,6 +6,7 @@
     "areas": "Finance areas",
     "receivables": "Receivables",
     "payables": "Payables",
+    "payablesAgeTitle": "Payables · invoice age, by days",
     "reports": "Reports",
     "statements": "Statements",
     "newInvoice": "New invoice",
@@ -113,6 +114,8 @@
         "draftsSecond_other": "{{count}} drafts waiting for a second approver",
         "toSend_one": "{{count}} approved invoice to record delivery",
         "toSend_other": "{{count}} approved invoices to record delivery",
+        "toReceive_one": "{{count}} purchase order to receive",
+        "toReceive_other": "{{count}} purchase orders to receive",
         "unapplied_one": "{{count}} payment not yet applied",
         "unapplied_other": "{{count}} payments not yet applied",
         "payables_one": "{{count}} unpaid supplier invoice",
@@ -146,7 +149,8 @@
       "ageing": {
         "unknownCount_one": "{{count}} balance unknown",
         "unknownCount_other": "{{count}} balances unknown",
-        "plusUnknown": "+ {{label}}"
+        "plusUnknown": "+ {{label}}",
+        "showFullBreakdown": "Show full breakdown"
       }
     },
     "payableBucketBasis": "Calendar days since the supplier invoice date. Invoices without an invoice date have no age; unknown balances are counted, not added.",
@@ -236,6 +240,8 @@
   },
   "draftReview": {
     "title": "Review and activate drafts",
+    "countToReview_one": "{{count}} draft to review.",
+    "countToReview_other": "{{count}} drafts to review.",
     "hint": "Check each draft against its source, tick the ones to activate, then confirm once. Each draft is activated and recorded on its own.",
     "activateSelected": "Activate selected ({{count}})",
     "summary": "{{ok}} activated, {{failed}} failed",

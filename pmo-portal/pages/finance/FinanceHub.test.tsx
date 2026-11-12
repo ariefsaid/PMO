@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'jest-axe';
@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   role: 'Finance',
   currency: 'IDR',
   position: null as FinancePosition | null,
+  procurementRows: [] as unknown[],
   financeSources: {
     invoicesPending: false,
     invoicesError: false,
@@ -56,6 +57,9 @@ vi.mock('@/src/hooks/useFinancePosition', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], ...state.erp }) }));
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProcurements: () => ({ data: state.procurementRows, isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useFinanceHubFigures', () => ({
   useFinanceHubFigures: () => state.figures,
 }));
@@ -113,6 +117,7 @@ function renderHub(role = 'Finance') {
 beforeEach(() => {
   state.currency = 'IDR';
   state.position = positionFixture();
+  state.procurementRows = [];
   state.financeSources = {
     invoicesPending: false,
     invoicesError: false,
@@ -157,7 +162,7 @@ describe('Finance hub', () => {
     expect(within(receivablesTile).getByText('IDR 83.2M')).toBeInTheDocument();
     expect(within(payablesTile).getByText('IDR 62.4M')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Payables' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Payables · invoice age, by days' })).toBeInTheDocument();
     expect(screen.getByTestId('finance-attention-loading')).toBeInTheDocument();
   });
 
@@ -171,7 +176,7 @@ describe('Finance hub', () => {
     expect(receivablesTile).not.toHaveTextContent('IDR 0');
     expect(within(payablesTile).getByText('IDR 62.4M')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Receivables' })).not.toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Payables' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Payables · invoice age, by days' })).toBeInTheDocument();
     expect(screen.getAllByText("Couldn't load balance ageings").length).toBeGreaterThan(0);
   });
 
@@ -185,7 +190,7 @@ describe('Finance hub', () => {
     expect(payablesTile).not.toHaveTextContent('IDR 62.4M');
     expect(payablesTile).not.toHaveTextContent('IDR 0');
     expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Payables' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Payables · invoice age, by days' })).not.toBeInTheDocument();
     expect(screen.getAllByText("Couldn't load balance ageings").length).toBeGreaterThan(0);
   });
 
@@ -196,7 +201,7 @@ describe('Finance hub', () => {
     const receivablesTile = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
     expect(within(receivablesTile).getByText('IDR 83.2M')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Payables' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Payables · invoice age, by days' })).not.toBeInTheDocument();
   });
 
   it('keeps receivables visible and reports the linked supplier invoice error on payables', () => {
@@ -288,7 +293,7 @@ describe('Finance hub', () => {
     expect(screen.getByRole('link', { name: 'Open Payables' })).toHaveAttribute('href', '/finance/payables');
     expect(screen.getByRole('link', { name: 'Open Reports' })).toHaveAttribute('href', '/finance/reports');
     expect(screen.getAllByText('Receivables').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Payables').length).toBeGreaterThan(0);
+    expect(screen.getByText('Payables · invoice age, by days')).toBeInTheDocument();
     expect(screen.getByText('through Oct 2026')).toBeInTheDocument();
     // The supplier figure keeps the home and foreign currencies on separate lines without joining them.
     const payables = screen.getByRole('link', { name: 'Open Payables' }).parentElement as HTMLElement;
@@ -339,7 +344,7 @@ describe('Finance hub', () => {
     expect(ageing.parentElement).not.toBe(trend.parentElement);
     expect(trend.compareDocumentPosition(ageing) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Payables' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Payables · invoice age, by days' })).toBeInTheDocument();
     expect(screen.getAllByTestId('ageing-bar-IDR')).toHaveLength(2);
     expect(screen.getByRole('heading', { name: /Waiting on Finance/ })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Finance areas' }).children).toHaveLength(3);
@@ -394,8 +399,50 @@ describe('Finance hub', () => {
     position.payablesUnknownCount = 1;
     state.position = position;
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
-    const ageing = screen.getByRole('region', { name: 'Payables' });
+    const ageing = screen.getByRole('region', { name: 'Payables · invoice age, by days' });
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('+ 1 balance unknown');
+  });
+
+  it('keeps approved invoices to record delivery separate from purchase orders awaiting receipt', () => {
+    const position = positionFixture();
+    position.toSend = [{ id: 'invoice-delivery-1' } as never];
+    state.position = position;
+    state.role = 'Admin';
+    state.procurementRows = [
+      { id: 'purchase-order-1', status: 'Ordered', requested_by_id: 'requester-a', created_at: '2026-10-01', project: null, purchase_orders: [{ date: '2026-10-02' }] },
+      { id: 'purchase-order-2', status: 'Ordered', requested_by_id: 'requester-b', created_at: '2026-10-03', project: null, purchase_orders: [{ date: '2026-10-03' }] },
+      { id: 'purchase-order-received', status: 'Received', requested_by_id: 'requester-c', created_at: '2026-10-04', project: null, purchase_orders: [{ date: '2026-10-04' }] },
+    ];
+
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    const attention = screen.getByRole('region', { name: 'Finance attention' });
+    expect(within(attention).getByText(/1 approved invoices? to record delivery/)).toBeInTheDocument();
+    expect(within(attention).getByText('2 purchase orders to receive')).toBeInTheDocument();
+    expect(within(attention).queryByText(/3 .*receive|3 .*delivery/)).not.toBeInTheDocument();
+    expect(within(attention).getByRole('link', { name: 'Open procurement' })).toHaveAttribute('href', '/procurement?stage=receive');
+  });
+
+  it('compacts a single-bucket secondary currency while keeping its full ageing breakdown reachable', () => {
+    const position = positionFixture();
+    state.currency = 'USD';
+    state.role = 'Finance';
+    position.receivablesAgeing = {
+      USD: { notDue: 80_000_000, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 },
+      IDR: { notDue: 40_000_000, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 },
+    };
+    state.position = position;
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    const receivables = screen.getByRole('region', { name: 'Receivables' });
+    const compact = within(receivables).getByTestId('ageing-compact-IDR');
+    expect(within(compact).getByText(/IDR\s?400,000\s?·\s?Not yet due/)).toBeVisible();
+    expect(within(compact).getByTestId('ageing-bar-IDR')).not.toBeVisible();
+    fireEvent.click(within(compact).getByText(/IDR\s?400,000\s?·\s?Not yet due/));
+    expect(compact).toHaveAttribute('open');
+    expect(within(compact).getByTestId('ageing-bar-IDR')).toBeVisible();
+    expect(within(compact).getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent('IDR 400,000');
+    expect(within(compact).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('IDR 0');
   });
 
   it('G1c/F7: places an unknown overdue receivable in its due-date bucket without inventing a value', () => {
@@ -449,7 +496,7 @@ describe('Finance hub', () => {
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
 
     const receivables = screen.getByRole('region', { name: 'Receivables' });
-    const payables = screen.getByRole('region', { name: 'Payables' });
+    const payables = screen.getByRole('region', { name: 'Payables · invoice age, by days' });
     expect(within(receivables).getByTestId('ageing-bar-IDR')).toHaveAttribute('data-scale-max', '100');
     expect(within(payables).getByTestId('ageing-bar-IDR')).toHaveAttribute('data-scale-max', '1000000');
     const zeroBucket = within(receivables).getByTestId('ageing-bucket-IDR-d1_30').querySelector('.tabular');
