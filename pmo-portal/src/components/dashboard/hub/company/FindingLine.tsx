@@ -21,7 +21,7 @@ export const FindingLine: React.FC<{
   currency?: string;
 }> = ({ offTrack, overdue, approvals, currency = 'USD' }) => {
   const { t } = useTranslation('dashboard');
-  const clauses: Array<{ key: string; to: string; text: string }> = [];
+  const clauses: Array<{ key: string; to: string; text: React.ReactNode }> = [];
   if (offTrack) {
     const text = offTrack.count === 0
       // The company-wide all-clear: every active project checked and none off track.
@@ -39,8 +39,9 @@ export const FindingLine: React.FC<{
         ? t('home.findingOverdueOldest', { count: overdue.count, days: overdue.oldestDays, defaultValue_one: '{{count}} client invoice overdue, {{days}} days', defaultValue_other: '{{count}} client invoices overdue, oldest {{days}} days' })
         : t('home.findingOverdue', { count: overdue.count, defaultValue_one: '{{count}} client invoice overdue', defaultValue_other: '{{count}} client invoices overdue' });
     // The known overdue money, only when every overdue balance is known (never a partial sum).
-    const amount = overdue.count > 0 && overdue.unknownBalances === 0 && overdue.knownTotals.length > 0 ? tileMoneyLines(overdue.knownTotals, currency, formatTileMoney).join(' ') : '';
-    clauses.push({ key: 'finance', to: '/finance/receivables?overdue=true', text: amount ? `${text} · ${amount}` : text });
+    // The organisation currency is the figure; another currency takes its own line.
+    const amount = overdue.count > 0 && overdue.unknownBalances === 0 && overdue.knownTotals.length > 0 ? tileMoneyLines(overdue.knownTotals, currency, formatTileMoney) : [];
+    clauses.push({ key: 'finance', to: '/finance/receivables?overdue=true', text: amount.length ? <>{text} · {amount[0]}{amount.slice(1).map((line) => <span key={line} className="block">{line}</span>)}</> : text });
   }
   if (approvals) clauses.push({ key: 'approvals', to: '/approvals', text: t('home.findingApprovals', { count: approvals, defaultValue_one: '{{count}} approval waits on you', defaultValue_other: '{{count}} approvals wait on you' }) });
   if (clauses.length === 0) return null;

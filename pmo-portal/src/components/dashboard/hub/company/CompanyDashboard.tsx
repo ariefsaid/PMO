@@ -333,7 +333,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const trendRange = trendWindow(figures.organizationToday);
     // The open pipeline before weighting, per currency (the dashboard read's own totals).
     const grossTotals = (data?.pipeline_total_value_by_currency ?? []).filter((row) => Number.isFinite(row.total_value)).map((row) => ({ currency: row.currency, amount: row.total_value }));
-    const pipelineGross = grossTotals.length ? tileMoneyLines(grossTotals, orgCurrency, formatTileMoney).join(' ') : null;
+    const pipelineGross = grossTotals.length ? tileMoneyLines(grossTotals, orgCurrency, formatTileMoney) : null;
     // Caveats and definitions for the page's one help list ("About Dashboard"), each said once.
     const activeDelivery = data?.active_delivery_projects ?? 0;
     const actualsCount = data?.active_delivery_actual_project_count;
@@ -403,7 +403,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     );
     // Finance: the Sales block (dev's finance home had it) without the loss breakdown, which it never read.
     const sales = (className: string, aside?: React.ReactNode) => (
-      <SalesOverviewCard wide className={className} weighted={weighted} gross={pipelineGross} forecastMargin={data?.pipeline_projected_margin} stages={pipeline.data?.stages ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
+      <SalesOverviewCard wide className={className} weighted={weighted} gross={pipelineGross} forecastMargin={data?.pipeline_projected_margin} stages={pipeline.data?.stages ?? []} stageProjects={pipeline.data?.projects} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
         aside={aside} />
     );
     const lowerRow = finance ? (

@@ -134,6 +134,14 @@ describe('HOME4 floor: the finding line and the page help', () => {
     expect(screen.getByRole('link', { name: /2 client invoices overdue, oldest 120 days · \$45K/ })).toHaveAttribute('href', '/finance/receivables?overdue=true');
   });
 
+  it('a two-currency overdue amount puts the second currency on its own line', () => {
+    h.overdue = { count: 2, knownTotals: [{ currency: 'EUR', amount: 10_000 }, { currency: 'USD', amount: 45_000 }], unknownBalances: 0, oldestDays: 120 };
+    renderHome();
+    const clause = screen.getByRole('link', { name: /2 client invoices overdue/ });
+    expect(clause).toHaveTextContent('$45K');
+    expect(within(clause).getByText('+ EUR 10K')).toHaveClass('block');
+  });
+
   it('keeps the overdue amount out while any overdue balance is unknown (never a partial sum)', () => {
     h.overdue = { count: 2, knownTotals: [{ currency: 'USD', amount: 45_000 }], unknownBalances: 1, oldestDays: 120 };
     renderHome();
@@ -223,11 +231,35 @@ describe('HOME4 floor: figures, sales and purchasing', () => {
   });
 
   it('the pipeline shows its gross beside the weighted total, and each stage its gross value', () => {
-    h.pipeline = { stages: [{ status: 'Leads', count: 2, total_value: 3_000_000, weighted_value: 600_000, win_probability: 0.2 }], projects: [] };
+    h.pipeline = { stages: [{ status: 'Leads', count: 2, total_value: 3_000_000, weighted_value: 600_000, win_probability: 0.2 }], projects: [{ id: 'o1', name: 'One', status: 'Leads', currency: 'USD', contract_value: 3_000_000 }] };
     renderHome();
     const sales = screen.getByTestId('sales-overview');
     expect(sales).toHaveTextContent('Gross $2M');
     expect(within(sales).getByRole('link', { name: /Leads · 2: \$600K weighted of \$3M gross/ })).toHaveAttribute('href', '/sales?status=Leads');
+  });
+
+  it('a stage with projects in two currencies shows each currency gross on its own line, never one sum labelled in the home currency', () => {
+    // The stage read sums contract values across currencies (4,000,000 here): the gross is grouped from the stage's own projects instead.
+    h.pipeline = {
+      stages: [{ status: 'Leads', count: 2, total_value: 4_000_000, weighted_value: 600_000, win_probability: 0.2 }],
+      projects: [
+        { id: 'o1', name: 'One', status: 'Leads', currency: 'USD', contract_value: 3_000_000 },
+        { id: 'o2', name: 'Two', status: 'Leads', currency: 'EUR', contract_value: 1_000_000 },
+      ],
+    };
+    renderHome();
+    const stage = within(screen.getByTestId('sales-overview')).getByRole('link', { name: /Leads · 2/ });
+    expect(stage).toHaveAccessibleName(/\$3M.*EUR\s1M/);
+    expect(stage).not.toHaveTextContent('$4M');
+    expect(within(stage).getByText('+ EUR 1M')).toHaveClass('block');
+  });
+
+  it('a two-currency pipeline gross keeps the second currency on its own line', () => {
+    h.dash = { ...base, pipeline_total_value_by_currency: [{ currency: 'USD', total_value: 2_000_000, weighted_value: 800_000, forecast_margin: null, no_active_budget: 0 }, { currency: 'EUR', total_value: 1_000_000, weighted_value: 100_000, forecast_margin: null, no_active_budget: 0 }] };
+    renderHome();
+    const sales = screen.getByTestId('sales-overview');
+    expect(sales).toHaveTextContent('Gross $2M');
+    expect(within(sales).getByText('+ EUR 1M')).toHaveClass('block');
   });
 
   it('each purchasing stage is a drill to its procurements, named with its count', () => {
