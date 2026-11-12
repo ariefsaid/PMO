@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { reconcileCapture } from './captureHistory.ts';
 
 test('AC-ROP-018 signed ledger components reconcile without adding purchase face values', () => {
-  const report = reconcileCapture({ projectId: 'p1', currency: 'USD', complete: true,
+  const report = reconcileCapture({ projectId: 'p1', currency: 'USD', complete: true, expectedActualsCents: '8800',
     ledger: [
       { id: 'a', documentId: 'inv', amountCents: '10000', kind: 'supplier_invoice' },
       { id: 'b', documentId: 'j', amountCents: '-1200', kind: 'journal' },

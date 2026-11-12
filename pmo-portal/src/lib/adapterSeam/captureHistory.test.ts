@@ -4,7 +4,7 @@ import { reconcileCapture } from './captureHistory';
 describe('AC-ROP-018 capture census', () => {
   it('reconciles signed ledger lines, with uncovered lines named and orders separate', () => {
     const result = reconcileCapture({
-      projectId: 'p1', currency: 'USD', complete: true,
+      projectId: 'p1', currency: 'USD', complete: true, expectedActualsCents: '100',
       ledger: [
         { id: 'line-1', documentId: 'invoice-1', amountCents: '125', kind: 'supplier_invoice' },
         { id: 'line-2', documentId: 'journal-1', amountCents: '-25', kind: 'journal' },
@@ -26,7 +26,7 @@ describe('AC-ROP-018 capture census', () => {
   });
 
   it('never counts a different project purchase as covering this project line', () => {
-    const result = reconcileCapture({ projectId: 'p1', currency: 'USD', complete: true,
+    const result = reconcileCapture({ projectId: 'p1', currency: 'USD', complete: true, expectedActualsCents: '50',
       ledger: [{ id: 'l1', documentId: 'i1', amountCents: '50', kind: 'supplier_invoice' }],
       documents: [{ id: 'i1', projectId: 'p2', purchaseId: 'purchase-2', kind: 'supplier_invoice', state: 'invoiced' }],
     });
@@ -41,7 +41,7 @@ describe('AC-ROP-018 capture census', () => {
   });
 
   it('names capital spending separately from overhead', () => {
-    const report = reconcileCapture({ projectId: 'p1', currency: 'USD', complete: true,
+    const report = reconcileCapture({ projectId: 'p1', currency: 'USD', complete: true, expectedActualsCents: '0',
       ledger: [{ id: 'cap', documentId: 'bill', amountCents: '700', kind: 'capital_spending' }], documents: [],
     });
     expect(report.remainder[0]?.reason).toBe('capital_spending');
@@ -94,4 +94,20 @@ describe('AC-ROP-017 reviewed source versions', () => {
     expect(verifyCaptureRevision('g', 'g', reviewed, [...reviewed, { id: 'b', version: '1' }])).toBe(false);
     expect(verifyCaptureRevision('g', 'g', [...reviewed, ...reviewed], [...reviewed, ...reviewed])).toBe(false);
   });
+});
+
+describe('AC-ROP-018 coherent actuals witness', () => {
+  it('does not present a complete reconciliation when the ledger and actuals snapshot differ', () => {
+    const report = reconcileCapture({ projectId: 'p1', currency: 'USD', complete: true, expectedActualsCents: '200',
+      ledger: [{ id: 'l', documentId: null, amountCents: '100', kind: 'journal' }], documents: [],
+    });
+    expect(report.complete).toBe(false);
+    expect(report.ledgerTotalCents).toBeNull();
+  });
+});
+
+it('AC-ROP-018 a missing actuals witness is not a complete reconciliation', () => {
+  const report = reconcileCapture({ projectId: 'p1', currency: 'USD', complete: true, ledger: [], documents: [] });
+  expect(report.complete).toBe(false);
+  expect(report.ledgerTotalCents).toBeNull();
 });

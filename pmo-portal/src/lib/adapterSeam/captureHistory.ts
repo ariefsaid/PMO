@@ -22,6 +22,8 @@ export interface CaptureCensus {
   currency: string;
   /** False whenever a page, account classification, or source generation could not be verified. */
   complete: boolean;
+  /** Snapshot-derived actuals, excluding non-ledger charges; absent when not yet coherent. */
+  expectedActualsCents?: string | null;
   ledger: CaptureLedgerLine[];
   documents: CaptureDocument[];
 }
@@ -70,13 +72,16 @@ export function reconcileCapture(census: CaptureCensus): CaptureReport {
       : document ? 'not_captured' : 'other';
     remainder.push({ ...line, reason });
   }
+  const total = covered + remaining;
+  const coherent = census.complete && typeof census.expectedActualsCents === 'string'
+    && /^-?\d+$/.test(census.expectedActualsCents) && BigInt(census.expectedActualsCents) === total;
   return {
     projectId: census.projectId,
     currency: census.currency,
-    complete: census.complete,
-    ledgerTotalCents: census.complete ? (covered + remaining).toString() : null,
-    coveredTotalCents: census.complete ? covered.toString() : null,
-    remainderTotalCents: census.complete ? remaining.toString() : null,
+    complete: coherent,
+    ledgerTotalCents: coherent ? total.toString() : null,
+    coveredTotalCents: coherent ? covered.toString() : null,
+    remainderTotalCents: coherent ? remaining.toString() : null,
     remainder,
     openOrders: census.documents.filter((d) => d.projectId === census.projectId && d.purchaseId !== null && d.kind === 'order' && d.state === 'ordered'),
   };
@@ -97,6 +102,8 @@ export interface CaptureSource {
   currency?: string | null;
   amount?: string | null;
   parentIds?: string[];
+  accountClass?: 'expense' | 'capital_spending' | 'mixed' | 'unknown';
+  unavailableReason?: string;
 }
 export interface CaptureProposal {
   id: string;
@@ -116,7 +123,8 @@ export function proposeCapture(sources: CaptureSource[], projectId: string | nul
     seen.add(source.id);
     if (projectId && source.projectIds.length > 0 && !source.projectIds.includes(projectId)) continue;
     let reason: string | undefined;
-    if (source.kind === 'capital_spending') reason = 'capital_spending';
+    if (source.unavailableReason) reason = source.unavailableReason;
+    else if (source.kind === 'capital_spending') reason = 'capital_spending';
     else if (source.state === 'cancelled') reason = 'cancelled';
     else if (source.state === 'draft') reason = 'unposted_source';
     else if (source.kind === 'journal') reason = 'journal';

@@ -18,6 +18,7 @@ export interface CaptureMirrorRow {
   net_total: string | null;
   is_return: boolean;
   purchase_orders: string[];
+  account_class?: 'expense' | 'capital_spending' | 'mixed' | 'unknown';
 }
 
 const KINDS: Record<PurchaseDoctype, CaptureKind> = {
@@ -26,7 +27,10 @@ const KINDS: Record<PurchaseDoctype, CaptureKind> = {
 
 export function normalisePurchaseMirror(row: CaptureMirrorRow): CaptureSource {
   if (!row.id || !row.erp_modified) throw new Error('source identity and revision are required');
-  const kind: CaptureKind = row.is_return ? 'adjustment' : KINDS[row.erp_doctype];
+  const invoiceWithoutBasis = row.erp_doctype === 'Purchase Invoice' && row.account_class !== 'expense' && row.account_class !== 'capital_spending' && row.account_class !== 'mixed';
+  const kind: CaptureKind = row.is_return ? 'adjustment'
+    : row.erp_doctype === 'Purchase Invoice' && row.account_class === 'capital_spending' ? 'capital_spending'
+    : invoiceWithoutBasis ? 'other' : KINDS[row.erp_doctype];
   let state: CaptureState;
   if (row.erp_docstatus === 2) state = 'cancelled';
   else if (row.erp_docstatus !== 1) state = 'draft';
@@ -38,7 +42,8 @@ export function normalisePurchaseMirror(row: CaptureMirrorRow): CaptureSource {
   return { id: row.id, kind, state, projectIds: row.project_ids, version: row.erp_modified,
     purchaseId: row.procurement_id, reference: row.erp_name, supplier: row.supplier,
     supplierName: row.supplier_name, date: row.doc_date, currency: row.currency,
-    amount: row.net_total, parentIds: row.purchase_orders };
+    amount: row.net_total, parentIds: row.purchase_orders, accountClass: row.account_class,
+    ...(invoiceWithoutBasis && !row.is_return ? { unavailableReason: 'unknown_account_basis' } : {}) };
 }
 
 /** The caller supplies the paged, organization-scoped mirror reader. */

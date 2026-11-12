@@ -57,3 +57,14 @@ it('AC-ROP-021 does not claim completeness when the same source is repeated acro
   expect(result.complete).toBe(false);
   expect(result.missing).toContain('duplicate source identity');
 });
+
+it('AC-ROP-018 classifies capital invoices distinctly and refuses an unknown account basis', () => {
+  const base = { id: 'bill', erp_doctype: 'Purchase Invoice' as const, erp_name: 'BILL', erp_docstatus: 1,
+    erp_status: 'Unpaid', erp_modified: 'rev', project_ids: ['p'], procurement_id: null,
+    supplier: 's', supplier_name: 'S', doc_date: '2026-01-01', currency: 'USD', net_total: '12.00',
+    is_return: false, purchase_orders: [] };
+  expect(normalisePurchaseMirror({ ...base, account_class: 'capital_spending' }).kind).toBe('capital_spending');
+  expect(normalisePurchaseMirror({ ...base, account_class: 'unknown' }).kind).toBe('other');
+  expect(normalisePurchaseMirror({ ...base, account_class: 'expense' }).kind).toBe('supplier_invoice');
+  expect(normalisePurchaseMirror({ ...base, account_class: 'mixed' })).toMatchObject({ kind: 'supplier_invoice', accountClass: 'mixed' });
+});
