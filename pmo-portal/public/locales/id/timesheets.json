@@ -1,5 +1,10 @@
 {
   "submitWeek": "Ajukan minggu ini",
+  "saveStatus": {
+    "invalid": "Perbaiki jam yang ditandai untuk menyimpan",
+    "saving": "Menyimpan…",
+    "failed": "Gagal menyimpan — perubahan masih ada"
+  },
   "approvalQueue": {
     "unknownProject": "Proyek tidak diketahui",
     "approved": "Lembar waktu disetujui",

@@ -1,5 +1,10 @@
 {
   "submitWeek": "Submit week",
+  "saveStatus": {
+    "invalid": "Fix the highlighted hours to save",
+    "saving": "Saving…",
+    "failed": "Save failed — your changes are still here"
+  },
   "approvalQueue": {
     "unknownProject": "Unknown Project",
     "approved": "Timesheet approved",

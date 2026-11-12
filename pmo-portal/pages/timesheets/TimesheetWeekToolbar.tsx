@@ -27,7 +27,8 @@ export function TimesheetWeekToolbar({ weekRangeLabel, isApprover, pendingCount,
             disabled={busy}
             onClick={() => stepWeek(-1)}
           >
-            <Icon name="back" />
+            {/* E30: matched chevrons — previous was an arrow ("back") while next was a chevron. */}
+            <Icon name="chev" className="rotate-180" />
           </Button>
           <span className="px-2 text-control font-medium tabular text-foreground">{weekRangeLabel}</span>
           <Button variant="outline" size="icon" aria-label={t('timesheets.nextWeek', 'Next week')} disabled={busy} onClick={() => stepWeek(1)}>

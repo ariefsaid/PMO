@@ -129,7 +129,7 @@ const TimesheetsPage: React.FC = () => {
     allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit,
   });
   const { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
-    editRawHours, rowToDelete, dirty, hasUnsavedBuffer, weeklyTotal, pendingWeekDelta, weekRangeLabel,
+    editRawHours, rowToDelete, dirty, hasUnsavedBuffer, saveState, weeklyTotal, pendingWeekDelta, weekRangeLabel,
     isOwner, editBufferHasHours, canSubmit, confirmSubmit, copyPlan } = editor.view;
   const { setCell, setNote, addProject, copyLastWeek, requestDelete, cancelDelete, confirmDeleteRow,
     commitSave, stepWeek, cancelWeekChange, confirmWeekChange, requestSubmit,
@@ -294,13 +294,22 @@ const TimesheetsPage: React.FC = () => {
                 role="status"
                 className="text-control text-muted-foreground md:ml-auto"
               >
+                {/* N02/P6: the status renders the editor's explicit save-state machine — never a
+                    reassuring "All changes saved" while the buffer is invalid, a save is in
+                    flight or the last save failed (precedence lives in useTimesheetWeekEditor). */}
                 {deleteRow.isPending || isReconciling
                   ? t('timesheets:reconcile.message', 'Refresh this week before continuing.')
-                  : dirty
-                  ? t('uxs28.save.dirty', 'Unsaved changes')
-                  : currentWeekEntries.length > 0
-                    ? t('uxs28.save.saved', 'All changes saved')
-                    : null}
+                  : saveState === 'invalid'
+                    ? t('timesheets:saveStatus.invalid', 'Fix the highlighted hours to save')
+                    : saveState === 'saving'
+                      ? t('timesheets:saveStatus.saving', 'Saving…')
+                      : saveState === 'failed'
+                        ? t('timesheets:saveStatus.failed', 'Save failed — your changes are still here')
+                        : saveState === 'unsaved'
+                          ? t('uxs28.save.dirty', 'Unsaved changes')
+                          : saveState === 'saved'
+                            ? t('uxs28.save.saved', 'All changes saved')
+                            : null}
               </div>
             )}
             <span

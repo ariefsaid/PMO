@@ -31,6 +31,10 @@ type Props = {
   submit: ReturnType<typeof useTimesheetMutations>['submit'];
 };
 
+/** N02/P6: the week editor's save status, one explicit machine — never claims "saved" wrongly.
+ * Precedence: invalid > saving > failed > unsaved > saved > none. */
+export type WeekSaveState = 'invalid' | 'saving' | 'failed' | 'unsaved' | 'saved' | 'none';
+
 export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, gridRows, weekDates, weekStartDate, weekStartString, allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit }: Props) {
   const { t } = useTranslation(['common', 'timesheets']);
   const { toast } = useToast();
@@ -305,6 +309,22 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
   // still loses what the user typed.
   const hasUnsavedBuffer = dirty || JSON.stringify(editRows) !== JSON.stringify(seedRows);
 
+  // N02 (P6): ONE explicit save-state machine for the header status — the header used to key off
+  // the cell-diff `dirty` alone, so an invalid raw buffer ("abc" → inline "0–24 only") left the
+  // status claiming "All changes saved". Precedence is fixed:
+  //   invalid — a raw cell fails validation (grid shows the inline error; Save stays disabled)
+  //   saving  — a save is in flight (outranks unsaved so the manual Save shows progress)
+  //   failed  — the last save errored; editRows are untouched, so a retry keeps the typed input
+  //   unsaved — the buffer, INCLUDING raw invalid text, differs from the server week
+  //   saved   — everything is persisted (an empty week shows no status at all)
+  const saveState = useMemo<WeekSaveState>(() => {
+    if (!editValid) return 'invalid';
+    if (saveWeek.isPending) return 'saving';
+    if (saveWeek.isError) return 'failed';
+    if (hasUnsavedBuffer) return 'unsaved';
+    return currentWeekEntries.length > 0 ? 'saved' : 'none';
+  }, [editValid, saveWeek.isPending, saveWeek.isError, hasUnsavedBuffer, currentWeekEntries.length]);
+
   const weeklyTotal = useMemo(
     () => currentWeekEntries.reduce((sum, e) => sum + e.hours, 0),
     [currentWeekEntries]
@@ -356,7 +376,9 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
   };
   const stepWeek = (delta: number) => {
     if (deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending) return;
-    if (dirty || JSON.stringify(editRows) !== JSON.stringify(seedRows)) setPendingWeekDelta(delta);
+    // One guard for every unsaved shape — diff-dirty OR raw invalid text ("abc") — so the
+    // discard prompt always covers exactly what leaving would lose.
+    if (hasUnsavedBuffer) setPendingWeekDelta(delta);
     else moveWeek(delta);
   };
 
@@ -463,7 +485,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
 
   return {
     view: { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
-      editRawHours, rowToDelete, dirty, hasUnsavedBuffer, weeklyTotal, pendingWeekDelta, weekRangeLabel,
+      editRawHours, rowToDelete, dirty, hasUnsavedBuffer, saveState, weeklyTotal, pendingWeekDelta, weekRangeLabel,
       isOwner, editBufferHasHours, canSubmit, confirmSubmit,
       copyPlan: { addedCount: copyPlan.addedCount, lastWeekHasRows: copySource.length > 0 } },
     actions: { setCell, setNote, addProject, copyLastWeek, requestDelete: setConfirmDeleteRowId,

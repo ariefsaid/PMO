@@ -3353,9 +3353,7 @@
     "returned": {
       "revise": "Revise this week"
     },
-    "save": "Save",
     "status": {},
-    "submit": "Submit timesheet",
     "submitConfirm": {
       "confirmLabel": "Submit timesheet",
       "description": "This sends the whole week to your line manager. You can't edit it again until it's returned.",

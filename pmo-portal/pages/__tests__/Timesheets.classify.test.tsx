@@ -108,15 +108,15 @@ describe('Timesheets error classification (W2-8)', () => {
 
     renderPage();
 
-    // Click "Submit timesheet" — opens confirm dialog
-    const submitBtn = await screen.findByRole('button', { name: /submit timesheet/i });
+    // Click "Submit week" (the shared footer action, P18) — opens confirm dialog
+    const submitBtn = await screen.findByRole('button', { name: /submit week/i });
     await user.click(submitBtn);
 
     // Confirm dialog — confirm
     await waitFor(() => {
       expect(screen.getByText(/submit this week for approval/i)).toBeInTheDocument();
     });
-    // Multiple "Submit timesheet" buttons — get all and click the confirm one
+    // The dialog confirm keeps its own "Submit timesheet" label — click it
     const allSubmitBtns = screen.getAllByRole('button', { name: /submit timesheet/i });
     await user.click(allSubmitBtns[allSubmitBtns.length - 1]);
 

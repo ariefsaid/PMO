@@ -77,7 +77,7 @@ const saveWeekMutate = vi.fn();
 const saveWeekMutateAsync = vi.fn().mockResolvedValue('ts-auto');
 const deleteRowMutate = vi.fn();
 const entryMutations = {
-  saveWeek: { mutate: saveWeekMutate, mutateAsync: saveWeekMutateAsync, isPending: false },
+  saveWeek: { mutate: saveWeekMutate, mutateAsync: saveWeekMutateAsync, isPending: false, isError: false },
   deleteRow: { mutate: deleteRowMutate, isPending: false },
   isReconciling: false,
   retryDeleteRefresh: vi.fn(),
@@ -95,16 +95,16 @@ vi.mock('@/src/hooks/useProjects', () => ({
 // These journeys are a PM entering / viewing their own week + the approvals queue; render
 // under a PM real role so the A-6 timesheet-entry gate (Admin·Exec·PM·Engineer) keeps the grid
 // editable and the A-2 approver gate keeps the queue actionable.
-const renderPage = () =>
-  render(
-    <ImpersonationProvider realRole="Project Manager">
-      <MemoryRouter>
-        <ToastProvider>
-          <Timesheets />
-        </ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
-  );
+const pageTree = () => (
+  <ImpersonationProvider realRole="Project Manager">
+    <MemoryRouter>
+      <ToastProvider>
+        <Timesheets />
+      </ToastProvider>
+    </MemoryRouter>
+  </ImpersonationProvider>
+);
+const renderPage = () => render(pageTree());
 
 beforeEach(() => {
   sessionStorage.clear(); // reset the persisted view so each test starts on the grid
@@ -360,7 +360,7 @@ describe('Timesheets submit button', () => {
 
     renderPage();
 
-    const submitBtn = screen.getByRole('button', { name: /submit timesheet/i });
+    const submitBtn = screen.getByRole('button', { name: /submit week/i });
     expect(submitBtn).toBeInTheDocument();
     expect(submitBtn).not.toBeDisabled();
 
@@ -402,7 +402,7 @@ describe('Timesheets submit button', () => {
     renderPage();
 
     // Submit button should NOT be present for Submitted status
-    expect(screen.queryByRole('button', { name: /submit timesheet/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /submit week/i })).toBeNull();
 
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
   });
@@ -467,7 +467,7 @@ describe('timesheet-entry: editable gating (Task 14)', () => {
     const addProject = screen.getByLabelText(/add a project/i);
     expect(addProject).toBeInTheDocument();
     expect(document.querySelector('label[for="ts-add-project"]')).toHaveClass('sr-only');
-    expect(screen.getByRole('button', { name: /^save$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^save draft$/i })).toBeInTheDocument();
   });
 
   it('AC-TSE-002: an empty week renders an editable empty grid with Add project and issues NO create write on mount', () => {
@@ -486,7 +486,7 @@ describe('timesheet-entry: editable gating (Task 14)', () => {
     // The hour cell is a static DIV (read-only), not an editable INPUT.
     expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours').tagName).toBe('DIV');
     expect(screen.queryByLabelText(/add a project/i)).toBeNull();
-    expect(screen.queryByRole('button', { name: /^save$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^save draft$/i })).toBeNull();
   });
 
   it('AC-TSE-004: an Approved sheet renders read-only', () => {
@@ -547,7 +547,7 @@ describe('timesheet-entry: Save (Tasks 16–17)', () => {
     await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
     const mon = screen.getByLabelText('Acme Internal Platform, Mon hours');
     await userEvent.type(mon, '8');
-    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^save draft$/i }));
     expect(saveWeekMutate).toHaveBeenCalledTimes(1);
     const arg = saveWeekMutate.mock.calls[0][0];
     expect(arg.currentTimesheetId).toBeNull();
@@ -576,7 +576,7 @@ describe('timesheet-entry: Save (Tasks 16–17)', () => {
     await userEvent.type(tue, '4');
     const wedCell = screen.getByLabelText('Innovate Corp HQ Fit-Out, Wed hours');
     await userEvent.clear(wedCell);
-    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^save draft$/i }));
     const diff = saveWeekMutate.mock.calls[0][0].diff;
     expect(diff.upserts.find((u: { entry_date: string; hours: number }) => u.entry_date === weekStr)?.hours).toBe(6);
     expect(diff.upserts.some((u: { hours: number }) => u.hours === 4)).toBe(true);
@@ -589,9 +589,9 @@ describe('timesheet-entry: Save (Tasks 16–17)', () => {
     await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
     const mon = screen.getByLabelText('Acme Internal Platform, Mon hours');
     await userEvent.type(mon, '25');
-    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^save draft$/i })).toBeDisabled();
     await userEvent.clear(mon); await userEvent.type(mon, '8');
-    expect(screen.getByRole('button', { name: /^save$/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /^save draft$/i })).not.toBeDisabled();
   });
 
   it('AC-TSE-012: the header weekly total gates invalid cells to 0 (agrees with the grid footer, not a raw sum)', async () => {
@@ -617,7 +617,7 @@ describe('timesheet-entry: Save (Tasks 16–17)', () => {
     await userEvent.type(mon, '24');
     const tue = screen.getByLabelText('Acme Internal Platform, Tue hours');
     await userEvent.type(tue, '0');
-    expect(screen.getByRole('button', { name: /^save$/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /^save draft$/i })).not.toBeDisabled();
   });
 
   it('AC-TSE-018: a Save failure shows a failure toast carrying the error message and keeps the unsaved edits', async () => {
@@ -630,7 +630,7 @@ describe('timesheet-entry: Save (Tasks 16–17)', () => {
     await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
     const mon = screen.getByLabelText('Acme Internal Platform, Mon hours');
     await userEvent.type(mon, '8');
-    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^save draft$/i }));
     expect(await findToastAnnouncement('alert', /rls denied/i)).toHaveTextContent(/rls denied/i);
     // Edit retained — the cell still holds 8.
     expect((screen.getByLabelText('Acme Internal Platform, Mon hours') as HTMLInputElement).value).toBe('8');
@@ -882,7 +882,7 @@ describe('AC-W3-O1: Submit auto-saves valid dirty rows first, then submits', () 
     await userEvent.type(mon, '8');
 
     const footer = screen.getByTestId('timesheets-footer');
-    const submitBtn = within(footer).getByRole('button', { name: /submit timesheet/i });
+    const submitBtn = within(footer).getByRole('button', { name: /submit week/i });
     // OD-W3-1: Submit must be ENABLED (buffer has valid hours).
     expect(submitBtn).toBeEnabled();
   });
@@ -894,7 +894,7 @@ describe('AC-W3-O1: Submit auto-saves valid dirty rows first, then submits', () 
     renderPage();
 
     const footer = screen.getByTestId('timesheets-footer');
-    expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
+    expect(within(footer).getByRole('button', { name: /submit week/i })).toBeDisabled();
   });
 
   it('AC-W3-O1: Submit is DISABLED when the edit buffer has only invalid hours (e.g. 25)', async () => {
@@ -907,7 +907,7 @@ describe('AC-W3-O1: Submit auto-saves valid dirty rows first, then submits', () 
     await userEvent.type(mon, '25');
 
     const footer = screen.getByTestId('timesheets-footer');
-    expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
+    expect(within(footer).getByRole('button', { name: /submit week/i })).toBeDisabled();
   });
 
   it('AC-W3-O1: on a fresh (no-prior-Save) week, Submit+confirm calls saveWeek THEN submit (in order)', async () => {
@@ -929,7 +929,7 @@ describe('AC-W3-O1: Submit auto-saves valid dirty rows first, then submits', () 
     await userEvent.type(mon, '8');
 
     const footer = screen.getByTestId('timesheets-footer');
-    await userEvent.click(within(footer).getByRole('button', { name: /submit timesheet/i }));
+    await userEvent.click(within(footer).getByRole('button', { name: /submit week/i }));
 
     // The confirm dialog opens (consequential action, still needs confirmation).
     const dialog = screen.getByRole('dialog');
@@ -978,7 +978,7 @@ describe('AC-W3-O1: Submit auto-saves valid dirty rows first, then submits', () 
     renderPage();
 
     const footer = screen.getByTestId('timesheets-footer');
-    await userEvent.click(within(footer).getByRole('button', { name: /submit timesheet/i }));
+    await userEvent.click(within(footer).getByRole('button', { name: /submit week/i }));
 
     const dialog = screen.getByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /^Submit timesheet$/i }));
@@ -1009,7 +1009,7 @@ describe('AC-W3-O1: Submit auto-saves valid dirty rows first, then submits', () 
     await userEvent.type(screen.getByLabelText('Acme Internal Platform, Mon hours'), '8');
 
     const footer = screen.getByTestId('timesheets-footer');
-    await userEvent.click(within(footer).getByRole('button', { name: /submit timesheet/i }));
+    await userEvent.click(within(footer).getByRole('button', { name: /submit week/i }));
     const dialog = screen.getByRole('dialog');
     const confirmBtn = within(dialog).getByRole('button', { name: /^Submit timesheet$/i });
 
@@ -1040,7 +1040,7 @@ describe('AC-W3-O1: Submit auto-saves valid dirty rows first, then submits', () 
     renderPage();
     const footer = screen.getByTestId('timesheets-footer');
     // Persisted valid entry → Submit starts enabled.
-    expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeEnabled();
+    expect(within(footer).getByRole('button', { name: /submit week/i })).toBeEnabled();
 
     // Type an invalid value (25) into the persisted Monday cell.
     const mon = screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours');
@@ -1048,7 +1048,7 @@ describe('AC-W3-O1: Submit auto-saves valid dirty rows first, then submits', () 
     await userEvent.type(mon, '25');
 
     // Submit must now be DISABLED — fix the invalid cell first; never silently submit stale data.
-    expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
+    expect(within(footer).getByRole('button', { name: /submit week/i })).toBeDisabled();
   });
 });
 
@@ -1110,8 +1110,8 @@ describe('#596: delete-row race', () => {
     tsState.isPending = false; tsState.isError = false;
     entryMutations.deleteRow.isPending = true;
     renderPage();
-    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^save draft$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /submit week/i })).toBeDisabled();
   });
 
   it('#596b: a failed delete does NOT append a second row for a project the user re-added meanwhile', async () => {
@@ -1176,7 +1176,7 @@ describe('S-28: saved / unsaved state and Save (UX-063)', () => {
   it('UX-063: an empty week has Save disabled and no status line', () => {
     tsState.data = []; tsState.isPending = false; tsState.isError = false;
     renderPage();
-    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^save draft$/i })).toBeDisabled();
     expect(screen.getByTestId('timesheets-save-status')).toBeEmptyDOMElement();
   });
 
@@ -1184,9 +1184,9 @@ describe('S-28: saved / unsaved state and Save (UX-063)', () => {
     tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
     tsState.isPending = false; tsState.isError = false;
     renderPage();
-    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^save draft$/i })).toBeDisabled();
     expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent(/all changes saved/i);
-    expect(screen.getByRole('button', { name: /submit timesheet/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /submit week/i })).toBeEnabled();
   });
 
   it('UX-063: editing an hour flips to "Unsaved changes" and enables Save; reverting returns to saved', async () => {
@@ -1197,10 +1197,10 @@ describe('S-28: saved / unsaved state and Save (UX-063)', () => {
     const original = mon.value;
     await userEvent.clear(mon); await userEvent.type(mon, '3');
     expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent(/unsaved changes/i);
-    expect(screen.getByRole('button', { name: /^save$/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^save draft$/i })).toBeEnabled();
     await userEvent.clear(mon); await userEvent.type(mon, original);
     expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent(/all changes saved/i);
-    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^save draft$/i })).toBeDisabled();
   });
 
   it('asks before leaving with edited hours and Stay preserves both the week and unsaved status', async () => {
@@ -1312,8 +1312,8 @@ describe('Week safety', () => {
     entryMutations.isReconciling = true;
     renderPage();
     expect(screen.getByRole('button', { name: /next week/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^save draft$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /submit week/i })).toBeDisabled();
     await userEvent.click(screen.getByRole('button', { name: /retry week refresh/i }));
     expect(entryMutations.retryDeleteRefresh).toHaveBeenCalled();
   });
@@ -1331,5 +1331,140 @@ describe('Week safety', () => {
     renderPage();
     expect(screen.getByText(/loading projects/i)).toBeInTheDocument();
     expect(screen.queryByText('No projects to add')).not.toBeInTheDocument();
+  });
+});
+
+// ===========================================================================
+// N02 (ux-1110 figure-truth plan): P6 truthful save status, invalid-raw
+// discard guard, E30 matched week stepper. The header status must never say
+// "All changes saved" while the buffer is invalid, a save is in flight or the
+// last save failed; the raw input survives a failed save for retry.
+// ===========================================================================
+describe('N02 P6: the save status never lies about the buffer (invalid / in-flight / failed / saved)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    saveWeekMutate.mockClear();
+    entryMutations.saveWeek.isPending = false;
+    entryMutations.saveWeek.isError = false;
+    projectsState.data = ongoingProjects;
+  });
+  afterEach(() => {
+    entryMutations.saveWeek.isPending = false;
+    entryMutations.saveWeek.isError = false;
+  });
+
+  it('P6: typing an invalid "abc" cell into a SAVED week stops claiming "All changes saved" and names the fix', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent(/all changes saved/i);
+
+    await userEvent.type(screen.getByLabelText('Innovate Corp HQ Fit-Out, Tue hours'), 'abc');
+    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Tue hours')).toHaveValue('abc');
+
+    const status = screen.getByTestId('timesheets-save-status');
+    expect(status).not.toHaveTextContent(/all changes saved/i);
+    expect(status).toHaveTextContent(/fix the highlighted hours/i);
+  });
+
+  it('P6: an in-flight save shows "Saving…" and never "All changes saved"', () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    entryMutations.saveWeek.isPending = true;
+    renderPage();
+    const status = screen.getByTestId('timesheets-save-status');
+    expect(status).toHaveTextContent(/saving/i);
+    expect(status).not.toHaveTextContent(/all changes saved/i);
+    expect(screen.getByRole('button', { name: /^save draft$/i })).toBeDisabled();
+  });
+
+  it('P6: after a failed save the status says "Save failed" and the raw input is retained for retry', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    saveWeekMutate.mockImplementation(
+      (_vars: unknown, opts?: { onError?: (e: Error) => void }) => {
+        entryMutations.saveWeek.isError = true;
+        opts?.onError?.(Object.assign(new Error('rls denied'), { code: '42501' }));
+      },
+    );
+    const { rerender } = renderPage();
+    const mon = screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours') as HTMLInputElement;
+    await userEvent.clear(mon);
+    await userEvent.type(mon, '6');
+    await userEvent.click(screen.getByRole('button', { name: /^save draft$/i }));
+    // The mocked mutation object is inert — in production react-query's isError flip notifies the
+    // page; emulate that notification with a rerender (same trick as the success-path test).
+    rerender(pageTree());
+
+    const status = screen.getByTestId('timesheets-save-status');
+    expect(status).toHaveTextContent(/save failed/i);
+    expect(status).not.toHaveTextContent(/all changes saved/i);
+    expect(
+      (screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours') as HTMLInputElement).value,
+    ).toBe('6');
+    // Retry keeps the buffer: the second Save re-sends the same diff.
+    await userEvent.click(screen.getByRole('button', { name: /^save draft$/i }));
+    expect(saveWeekMutate).toHaveBeenCalledTimes(2);
+  });
+
+  it('P6: after a successful save and the refetch lands, the status returns to "All changes saved"', async () => {
+    const weekStr = currentWeekStartStr();
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    saveWeekMutate.mockImplementation((_vars: unknown, opts?: { onSuccess?: () => void }) => {
+      opts?.onSuccess?.();
+    });
+    const { rerender } = renderPage();
+    const mon = screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours') as HTMLInputElement;
+    await userEvent.clear(mon);
+    await userEvent.type(mon, '6');
+    expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent(/unsaved changes/i);
+
+    await userEvent.click(screen.getByRole('button', { name: /^save draft$/i }));
+    // The refetch lands: the server week now matches the typed buffer (Mon 6, same sheet/week/status).
+    tsState.data = currentDraftSheet('Draft', [
+      { id: 'ed1', timesheet_id: 'ts-draft', project_id: 'pP', entry_date: weekStr, hours: 6,
+        notes: 'work', project: { name: 'Innovate Corp HQ Fit-Out', code: 'P001' } },
+    ]) as unknown as TimesheetWithEntries[];
+    rerender(pageTree());
+
+    expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent(/all changes saved/i);
+    expect(screen.getByRole('button', { name: /^save draft$/i })).toBeDisabled();
+  });
+
+  it('P6/E30: navigating weeks with an invalid raw buffer prompts before discarding, then moves', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    await userEvent.type(screen.getByLabelText('Innovate Corp HQ Fit-Out, Tue hours'), 'abc');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Next week' }));
+    // The typed (invalid) hours hold the week in place until confirmed.
+    expect(screen.getByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+    // Week navigation still works after the discard confirm: the discard prompt is gone and
+    // the next week (which has no hours) renders its empty state — no stale invalid input.
+    expect(screen.queryByRole('alertdialog', { name: 'Discard unsaved changes?' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Innovate Corp HQ Fit-Out, Tue hours')).toBeNull();
+  });
+
+  it('P6/E30: a clean week navigates without a prompt (week navigation still works)', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Next week' }));
+    expect(screen.queryByRole('alertdialog', { name: 'Discard unsaved changes?' })).not.toBeInTheDocument();
+  });
+
+  it('E30: the week stepper uses matched chevrons — previous is no longer an arrow while next is a chevron', () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    const prev = screen.getByRole('button', { name: 'Previous week' });
+    const next = screen.getByRole('button', { name: 'Next week' });
+    expect(prev.querySelector('[data-icon="chev"]')).not.toBeNull();
+    expect(prev.querySelector('[data-icon="back"]')).toBeNull();
+    expect(next.querySelector('[data-icon="chev"]')).not.toBeNull();
   });
 });
