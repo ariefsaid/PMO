@@ -37,7 +37,7 @@ import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { formatCurrencyCents } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
-import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceOverdueDays, deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { useAuth } from '@/src/auth/useAuth';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { invoiceNumber } from '@/src/lib/revenue/nativeInvoice';
@@ -338,19 +338,21 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
         || [projectOptionsById.get(inv.project_id ?? '')].some((o) => o && (o.label.toLowerCase().includes(q) || o.contractualName?.toLowerCase().includes(q))));
   }, [all, canApproveDraft, currentUser?.id, organizationToday, projectOptionsById, search, searchParams, statusFilter]);
 
-  // FIN-S1: "Overdue only" is also the oldest-overdue-first view, so it needs no separate sort control.
+  // FIN-S1: the full Receivables list defaults to most overdue first. "Overdue only" remains a filter.
   const sortedInvoices = useMemo(() => {
-    if (searchParams.get('overdue') !== 'true') return filtered;
+    if (!embedded && searchParams.get('overdue') !== 'true') return filtered;
     return filtered
       .map((invoice, index) => ({
         invoice,
         index,
-        // #1457: the one shared overdue rule also provides the oldest-first sort age.
+        // #1457: the shared overdue rule provides the whole age; its nulls sort after overdue rows.
         age: clientInvoiceOverdueDays(invoice, organizationToday) ?? 0,
+        due: deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date),
       }))
-      .sort((a, b) => b.age - a.age || a.index - b.index)
+      .sort((a, b) => b.age - a.age
+        || (a.due === b.due ? a.index - b.index : !a.due ? 1 : !b.due ? -1 : a.due.localeCompare(b.due)))
       .map(({ invoice }) => invoice);
-  }, [filtered, organizationToday, searchParams]);
+  }, [embedded, filtered, organizationToday, searchParams]);
   // P5: on a phone the status chips become one select, so no chip is clipped at the scroll edge.
   const isDesktop = useIsDesktop();
   // C6: the Amount header states the basis most listed amounts share, once; only rows on another basis carry their own.
@@ -392,7 +394,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     return <SalesInvoiceDetail viewTarget={viewTarget} isPending={isPending || unlisted.isFetching} isError={isError || unlisted.isError} data={data} mode={mode} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} receiptAwaitingOdoo={viewTarget ? receiptAwaitingOdooForInvoice(viewTarget) : false} odoo={odoo} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
   }
 
-  const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus });
+  const { projectLabelOf, projectManagerNameOf, deliveryLabelOf, displayColumns, exportColumns, mobileCardDetails } = salesInvoiceColumns({ t, all, visibleInvoices: sortedInvoices, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus });
   const groupRowsBy = groupMode === 'client'
     ? (inv: SalesInvoiceRow) => inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')
     : groupMode === 'project'
@@ -522,6 +524,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
       )}
       {search.trim() && projectOptionsQuery.isPending && <p role="status" className="text-sm text-muted-foreground">{t('finance:receivables.projectSearchLoading', 'Loading projects for search…')}</p>}
       {searchParams.get('overdue') === 'true' && !organizationToday && !orgDayError && <p role="status" className="text-sm text-muted-foreground">{t('finance:receivables.businessDayLoading', 'Loading the business day; overdue results cannot be calculated yet.')}</p>}
+      {embedded && organizationToday && state === undefined && <p className="mb-2 text-control text-muted-foreground">{t('finance:receivables.sortedByOverdueThenDue', 'Sorted by overdue days, then due date')}</p>}
       {projectOptionsQuery.isError && <div role="alert" className="flex items-center gap-3 text-sm">{t('finance:receivables.projectSearchUnavailable', 'Project search is unavailable.')} <Button variant="outline" size="sm" onClick={() => void refetchProjectOptions()}>{t('finance:receivables.retryProjects', 'Retry projects')}</Button></div>}
       {orgDayError && <div role="alert" className="flex items-center gap-3 text-sm">{t('finance:receivables.businessDayUnavailable', 'Business day unavailable; overdue results cannot be calculated.')} <Button variant="outline" size="sm" onClick={retryOrgDay}>{t('finance:receivables.retryBusinessDay', 'Retry business day')}</Button></div>}
       {searchParams.get('attribution') === 'unassigned' && (
@@ -653,6 +656,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
         panelPrimary={panelPrimary}
         invoiceStatus={invoiceStatus}
         projectLabelOf={projectLabelOf}
+        projectManagerNameOf={projectManagerNameOf}
+        deliveryLabelOf={deliveryLabelOf}
         rowMenu={rowMenu}
         odoo={odoo}
         onClose={closeInvoicePanel}

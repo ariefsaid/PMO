@@ -20,6 +20,10 @@ const h = vi.hoisted(() => ({
   cashError: false,
   invoiceError: false,
   paymentError: false,
+  exposeRecordPayment: false,
+  invoiceRefetch: vi.fn(),
+  paymentRefetch: vi.fn(),
+  orgDayRetry: vi.fn(),
   position: {
     receivablesCount: 0, receivablesUnknownCount: 0, overdue: [], overdueTotals: {}, overdueUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [],
@@ -34,11 +38,11 @@ vi.mock('@/src/hooks/useFinancePosition', () => ({
   useFinancePosition: () => ({ position: h.position, today: '2026-10-27', isPending: h.financePending, isError: h.financeError, retry: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
-  useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
+  useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: h.orgDayRetry }),
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
-  useSalesInvoices: () => ({ data: h.invoices, isPending: h.receivablesPending, isError: h.invoiceError, refetch: vi.fn() }),
-  useIncomingPayments: () => ({ data: h.payments, isPending: h.cashPending, isError: h.paymentError, refetch: vi.fn() }),
+  useSalesInvoices: () => ({ data: h.invoices, isPending: h.receivablesPending, isError: h.invoiceError, refetch: h.invoiceRefetch }),
+  useIncomingPayments: () => ({ data: h.payments, isPending: h.cashPending, isError: h.paymentError, refetch: h.paymentRefetch }),
 }));
 vi.mock('@/src/lib/finance/financePosition', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/finance/financePosition')>();
@@ -51,7 +55,11 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({
 vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (action: string) => h.role !== 'Executive' || action === 'view',
 }));
-vi.mock('@/pages/SalesInvoices', () => ({ default: () => null }));
+vi.mock('@/pages/SalesInvoices', () => ({
+  default: ({ onRecordPayment }: { onRecordPayment?: (invoice: SalesInvoiceRow) => void }) => h.exposeRecordPayment
+    ? <button type="button" onClick={() => { const row = h.invoices[0] as SalesInvoiceRow | undefined; if (row) onRecordPayment?.(row); }}>Record payment</button>
+    : null,
+}));
 vi.mock('@/pages/IncomingPayments', () => ({ default: () => null }));
 
 import ReceivablesPage from '../finance/ReceivablesPage';
@@ -101,6 +109,10 @@ beforeEach(async () => {
   h.cashError = false;
   h.invoiceError = false;
   h.paymentError = false;
+  h.exposeRecordPayment = false;
+  h.invoiceRefetch.mockClear();
+  h.paymentRefetch.mockClear();
+  h.orgDayRetry.mockClear();
   h.invoices = [invoice(), invoice({ id: 'invoice-2', si_number: 'SI-2', invoice_date: '2026-10-01', erp_payment_terms_days: 14 })];
   h.payments = [
     payment(),
@@ -264,14 +276,17 @@ describe('Receivables page', () => {
     expect(screen.queryByText(/Show all \d+ overdue/)).toBeNull();
   });
 
-  it('uses the shared ageing and overdue totals; counts stay out of the money tiles', () => {
+  it('uses the shared ageing and overdue totals and names the owed tile tax basis', async () => {
     renderPage();
     expect(tile('Owed to you')).toHaveTextContent(/IDR\s*100/);
-    expect(tile('Owed to you')).toHaveTextContent('tax included');
+    expect(tile('Owed to you')).toHaveTextContent('Including tax');
     expect(tile('Owed to you')).not.toHaveTextContent(/invoices?\b/);
     expect(tile('Overdue')).toHaveTextContent(/^Overdue.*IDR/);
     expect(tile('Overdue')).toHaveTextContent('10% of owed');
     expect(screen.queryByTestId('receivables-overdue-row')).toBeNull();
+
+    await financeTestI18n.changeLanguage('id');
+    expect(tile('Piutang kepada Anda')).toHaveTextContent('Termasuk pajak');
   });
 
   it('shows whole-unit money for upcoming invoices and puts another currency on its own second line', () => {
@@ -323,12 +338,30 @@ describe('Receivables page', () => {
     expect(cash).not.toHaveTextContent(/999/);
   });
 
-  it('O8: an unchanged month carries no sign', () => {
+  it('O8 says there was no change when both months have the same receipts', () => {
     h.payments = [payment(), payment({ id: 'payment-previous', date: '2026-09-05', amount: 100, received_amount: 100, withheld_amount: 0 })];
     renderPage();
-    const delta = within(tile('Received this month')).getByText(/vs last month/);
-    expect(delta).not.toHaveTextContent('+');
-    expect(delta).not.toHaveTextContent('−');
+    expect(within(tile('Received this month')).getByText('No change since last month')).toBeInTheDocument();
+  });
+
+  it('O8 localizes the no-change wording', async () => {
+    h.payments = [payment(), payment({ id: 'payment-previous', date: '2026-09-05', amount: 100, received_amount: 100, withheld_amount: 0 })];
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    expect(within(tile('Diterima bulan ini')).getByText('Tidak ada perubahan dari bulan lalu')).toBeInTheDocument();
+  });
+
+  it('O8 says nothing was received last month when there were no prior-month receipts', async () => {
+    h.payments = [payment()];
+    renderPage();
+    const cash = tile('Received this month');
+    expect(within(cash).getByText('Nothing received last month')).toBeInTheDocument();
+    expect(cash).not.toHaveTextContent('%');
+
+    await financeTestI18n.changeLanguage('id');
+    const cashId = tile('Diterima bulan ini');
+    expect(within(cashId).getByText('Tidak ada penerimaan bulan lalu')).toBeInTheDocument();
+    expect(cashId).not.toHaveTextContent('%');
   });
 
   it('F11: figure tiles show short amounts with the exact amount kept for screen readers', () => {
@@ -369,11 +402,76 @@ describe('Receivables page', () => {
     const paymentHeaderActions = screen.getByTestId('receivables-header-new-invoice').parentElement!;
     expect(paymentHeaderActions).toContainElement(screen.getByRole('button', { name: /New invoice/i }));
     expect(paymentHeaderActions).toContainElement(screen.getByRole('button', { name: 'Receive payment' }));
+    await user.click(screen.getByRole('button', { name: /New invoice/i }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?create=1');
   });
 
   it('hides New invoice for an Executive', () => {
     h.role = 'Executive';
     renderPage();
     expect(screen.queryByRole('button', { name: /New invoice/i })).not.toBeInTheDocument();
+  });
+
+  it('Step 0: opens the page definitions from the single Receivables help control', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'About Receivables' }));
+
+    expect(await screen.findByText(/Client balances by age count days past due, tax included/)).toBeInTheDocument();
+    expect(screen.getByTestId('figure-help-list')).toHaveTextContent('Owed to you');
+    expect(screen.getByTestId('figure-help-list')).toHaveTextContent('Received this month');
+  });
+
+  it('Step 0: follows See invoices from the hidden-figure line to the unpaid list', async () => {
+    const user = userEvent.setup();
+    h.invoices = [invoice({ erp_outstanding_amount: null })];
+    h.position = { ...h.position, receivablesUnknownCount: 1, overdueUnknownCount: 1, receivablesAgeing: {}, overdueTotals: {} };
+    renderPage();
+
+    await user.click(within(screen.getByTestId('figures-hidden')).getByRole('link', { name: 'See invoices' }));
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?status=Unpaid');
+  });
+
+  it('Step 0: Receive payment opens the new-payment route and removes an invoice-specific intent', async () => {
+    const user = userEvent.setup();
+    const invoicesView = renderPage('/finance/receivables?view=invoices&invoice=invoice-1&open=invoice-1');
+
+    await user.click(screen.getByRole('button', { name: 'Receive payment' }));
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=payments&create=1');
+    invoicesView.unmount();
+    renderPage('/finance/receivables?view=payments&todo=unapplied');
+
+    await user.click(screen.getByRole('button', { name: 'Receive payment' }));
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=payments&todo=unapplied&create=1');
+  });
+
+  it('Step 0: an invoice drawer payment intent opens payment creation for that invoice', async () => {
+    const user = userEvent.setup();
+    h.exposeRecordPayment = true;
+    renderPage('/finance/receivables?view=invoices&q=Northwind');
+
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=payments&q=Northwind&invoice=invoice-1&create=1');
+  });
+
+  it('Step 0: retries the invoice and cash reads from their separate error controls', async () => {
+    const user = userEvent.setup();
+    h.invoiceError = true;
+    h.paymentError = true;
+    renderPage();
+
+    const [cashAlert, receivablesAlert] = screen.getAllByRole('alert');
+    await user.click(within(receivablesAlert).getByRole('button', { name: /retry/i }));
+    expect(h.invoiceRefetch).toHaveBeenCalledOnce();
+    expect(h.orgDayRetry).toHaveBeenCalledOnce();
+
+    await user.click(within(cashAlert).getByRole('button', { name: /retry/i }));
+    expect(h.paymentRefetch).toHaveBeenCalledOnce();
+    expect(h.orgDayRetry).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,4 +1,3 @@
-import { Avatar } from '@/src/components/ui/Avatar';
 import React from 'react';
 import { Link, type Location } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +18,7 @@ import type { OdooOutcome as OdooOutcomeValue } from '@/src/lib/procurement/odoo
 interface Props {
   t: ReturnType<typeof useTranslation>['t'];
   all: SalesInvoiceRow[];
+  visibleInvoices: SalesInvoiceRow[];
   embedded: boolean;
   native: boolean;
   location: Location;
@@ -36,10 +36,20 @@ interface Props {
     odooOffline?: boolean;
   };
 }
-export function salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }: Props) {
-  // FIN-S1 / T4 (AC-RD-TBL-INV-001): one primary cell (number over customer), then at most six more
-  // columns. Dates other than Due, and the separate Customer, are export-only below.
+export function salesInvoiceColumns({ t, all, visibleInvoices, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }: Props) {
+  // FIN-S1 / T4 (AC-RD-TBL-INV-001): the embedded table keeps one compact invoice id and one client/project cell,
+  // then at most six more columns. Dates other than Due, and the separate Customer, are export-only below.
   const projectLabelOf = (inv: SalesInvoiceRow) => projectOptionsById.get(inv.project_id ?? '')?.contractualName;
+  const projectManagerNameOf = (inv: SalesInvoiceRow) => {
+    const name = inv.project_id ? projectsById.get(inv.project_id)?.pm?.full_name?.trim() : null;
+    return name || t('finance:receivables.unassignedProjectManager', 'Unassigned PM');
+  };
+  const deliveryLabelOf = (inv: SalesInvoiceRow) => inv.received_date
+    ? t('finance:receivables.deliveryReceived', 'Delivered {{date}}', { date: formatDay(inv.received_date) })
+    : inv.status === 'Draft'
+      ? t('finance:receivables.deliveryDraft', 'Draft by {{name}}', { name: inv.author_user_id ? profilesById.get(inv.author_user_id)?.full_name ?? t('finance:receivables.authorUnavailable', 'unknown') : t('finance:receivables.authorUnavailable', 'unknown') })
+      : t('finance:receivables.deliveryNotReceived', 'Not delivered yet');
+  const showDeliveryColumn = visibleInvoices.length === 0 || new Set(visibleInvoices.map(deliveryLabelOf)).size > 1;
   const showEfaktur = all.some((inv) => inv.efaktur_number || inv.efaktur_date);
   // Lists show whole units (G1); exact cents stay on the record page.
   // Tables show the full amount with its currency (screen rule: "IDR 1,467,628,320"), right-aligned.
@@ -67,7 +77,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
         : preErp;
       return (
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          {embedded ? <span className={draftLabel ? 'min-w-0 break-words text-control text-foreground' : 'min-w-0 break-all font-mono text-control text-foreground'}>{draftLabel ?? number ?? '—'}</span> : <Link
+          {embedded ? <span className={draftLabel ? 'min-w-0 max-w-full truncate whitespace-nowrap text-control text-foreground' : 'min-w-0 max-w-full truncate whitespace-nowrap font-mono text-control text-foreground'} title={draftLabel ?? number ?? ''}>{draftLabel ?? number ?? '—'}</span> : <Link
             to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
             state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
             className={draftLabel ? 'truncate text-control text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate font-mono text-control text-foreground underline-offset-2 hover:underline focus-visible:underline'}
@@ -230,14 +240,11 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     size: 192,
     cell: (inv) => {
       const project = projectLabelOf(inv);
-      const manager = inv.project_id ? projectsById.get(inv.project_id)?.pm?.full_name?.trim() : null;
+      const customer = inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded');
+      const projectText = project ?? '—';
       return <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="min-w-0 break-words font-medium">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
-        <span className="flex min-w-0 flex-wrap items-center gap-1 text-control text-muted-foreground">
-          <span className="min-w-0 break-words">{project ?? '—'}</span>
-          <Avatar name={manager} size="xs" decorative />
-          <span className="min-w-0 break-words">{manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}</span>
-        </span>
+        <span className="block min-w-0 truncate whitespace-nowrap font-medium" title={customer}>{customer}</span>
+        <span className="block min-w-0 truncate whitespace-nowrap text-control text-muted-foreground" title={projectText}>{projectText}</span>
       </span>;
     },
     exportValue: (inv) => inv.customer_name ?? '',
@@ -247,16 +254,12 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     header: t('finance:receivables.delivery', 'Delivery'),
     kind: 'date',
     size: embedded ? 124 : 165,
-    cell: (inv) => <span className="block min-w-0 whitespace-normal break-words">{inv.received_date
-      ? t('finance:receivables.deliveryReceived', 'Delivered {{date}}', { date: formatDay(inv.received_date) })
-      : inv.status === 'Draft'
-        ? t('finance:receivables.deliveryDraft', 'Draft by {{name}}', { name: inv.author_user_id ? profilesById.get(inv.author_user_id)?.full_name ?? t('finance:receivables.authorUnavailable', 'unknown') : t('finance:receivables.authorUnavailable', 'unknown') })
-        : t('finance:receivables.deliveryNotReceived', 'Not delivered yet')}</span>,
+    cell: (inv) => <span className="block min-w-0 whitespace-normal break-words">{deliveryLabelOf(inv)}</span>,
     exportValue: (inv) => inv.received_date ?? '',
   };
   const displayColumns = embedded
     // ponytail: e-Faktur lives in the drawer and the export on the embedded list, so the money columns fit at 1440.
-    ? [invoiceColumn, clientColumn, statusColumn, dueColumn, deliveryColumn, amountColumn, outstandingColumn, { ...efakturColumn, exportOnly: true }]
+    ? [invoiceColumn, clientColumn, statusColumn, dueColumn, ...(showDeliveryColumn ? [deliveryColumn] : []), amountColumn, outstandingColumn, { ...efakturColumn, exportOnly: true }]
     : columns;
   // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only). Everything the
   // screen no longer shows (customer, invoice and received dates, the e-Faktur pair) stays in the download.
@@ -288,5 +291,5 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     </div>;
   };
 
-  return { projectLabelOf, displayColumns, exportColumns, mobileCardDetails };
+  return { projectLabelOf, projectManagerNameOf, deliveryLabelOf, displayColumns, exportColumns, mobileCardDetails };
 }

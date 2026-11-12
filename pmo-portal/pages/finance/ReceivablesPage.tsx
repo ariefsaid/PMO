@@ -104,6 +104,9 @@ export default function ReceivablesPage() {
   const thisMonthCash = useMemo(() => today ? monthlyCash(payments, monthStart(today), nextMonthStart(today)) : { totals: {}, unknown: 0 }, [payments, today]);
   const lastMonthCash = useMemo(() => today ? monthlyCash(payments, previousMonthStart(today), monthStart(today)) : { totals: {}, unknown: 0 }, [payments, today]);
   const cashDeltaCents = (thisMonthCash.totals[orgCurrency] ?? 0) - (lastMonthCash.totals[orgCurrency] ?? 0);
+  const cashCurrencies = new Set([...Object.keys(thisMonthCash.totals), ...Object.keys(lastMonthCash.totals)]);
+  const cashChanged = [...cashCurrencies].some((currency) => (thisMonthCash.totals[currency] ?? 0) !== (lastMonthCash.totals[currency] ?? 0));
+  const hasPreviousMonthReceipts = Object.values(lastMonthCash.totals).some((amount) => amount !== 0);
   const cashDelta = (() => {
     if (!today || cashPending || cashError || thisMonthCash.unknown || lastMonthCash.unknown) return undefined;
     const amount = formatTileMoney(Math.abs(cashDeltaCents) / 100, orgCurrency);
@@ -174,7 +177,7 @@ export default function ReceivablesPage() {
       <div className="order-4 max-sm:order-5 min-w-0">
         <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className={`mb-5 ${figureCols((owedTile || receivablesPending || receivablesError ? 1 : 0) + (overdueTile || receivablesPending || receivablesError ? 1 : 0) + 2)}`}>
           <KPITile
-            icon="grid" tone="blue" label={t('finance:receivables.owed', 'Owed to you')} caption={t('financeHub:hub.taxIncluded', 'tax included')}
+            icon="grid" tone="blue" label={t('finance:receivables.owed', 'Owed to you')} caption={t('finance:receivables.owedTaxBasis', 'Including tax')}
             value={owedTile?.value ?? null} exactValue={owedTile?.exactValue} loading={receivablesPending} error={receivablesError}
             unavailableReason={owedTile || receivablesPending || receivablesError ? undefined : unknownReason(owedUnknown)} hiddenLink={seeInvoices}
             help={t('finance:receivables.owedHelp', 'Known outstanding balances on submitted and unpaid client invoices, including tax.')}
@@ -194,7 +197,13 @@ export default function ReceivablesPage() {
           />
           <KPITile
             icon="grid" tone="green" label={t('finance:receivables.receivedThisMonth', 'Received this month')}
-            caption={!cashPending && !cashError && cashDelta ? t('finance:receivables.vsLastMonth', '{{delta}} vs last month', { delta: cashDelta }) : undefined}
+            caption={!cashPending && !cashError && cashDelta
+              ? !hasPreviousMonthReceipts
+                ? t('finance:receivables.nothingReceivedLastMonth', 'Nothing received last month')
+                : cashDeltaCents === 0 && !cashChanged
+                  ? t('finance:receivables.noChangeSinceLastMonth', 'No change since last month')
+                  : t('finance:receivables.vsLastMonth', '{{delta}} vs last month', { delta: cashDelta })
+              : undefined}
             value={cashPending || cashError || thisMonthCash.unknown ? null : cashTile.value} exactValue={cashPending || cashError || thisMonthCash.unknown ? undefined : cashTile.exactValue} loading={cashPending} error={cashError}
             unavailableReason={!cashPending && !cashError && thisMonthCash.unknown ? t('finance:receivables.receiptUnknown', { defaultValue: '{{count}} receipt amounts unknown', count: thisMonthCash.unknown }) : undefined}
             help={t('finance:receivables.receivedHelp', 'Cash received on non-cancelled payments dated in this calendar month, compared with the previous calendar month.')}

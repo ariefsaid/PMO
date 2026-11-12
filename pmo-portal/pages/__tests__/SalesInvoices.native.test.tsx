@@ -16,6 +16,7 @@ import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 const h = vi.hoisted(() => ({
   createMutate: vi.fn(async () => ({ id: 'si-new', si_number: '' })),
   submitMutate: vi.fn(async () => undefined),
+  cancelMutate: vi.fn(async () => undefined),
   setReceivedDate: vi.fn(async () => undefined),
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   payments: [] as IncomingPaymentRow[],
@@ -27,15 +28,16 @@ const h = vi.hoisted(() => ({
   role: 'Finance' as 'Finance' | 'Project Manager' | 'Executive',
   toast: vi.fn(),
   exportedRows: [] as unknown[],
+  exportedColumns: [] as unknown[],
   projects: [] as unknown[],
   profiles: [] as unknown[],
 }));
 vi.mock('@/src/components/export', async () => {
   const React = await import('react');
   return {
-    ExportButton: ({ rows, label = 'Export' }: { rows: unknown[]; label?: string }) => React.createElement('button', {
+    ExportButton: ({ rows, columns = [], label = 'Export' }: { rows: unknown[]; columns?: unknown[]; label?: string }) => React.createElement('button', {
       type: 'button',
-      onClick: () => { h.exportedRows = rows; },
+      onClick: () => { h.exportedRows = rows; h.exportedColumns = columns; },
     }, label),
     withCurrencyColumn: <Row,>(columns: Row[]) => columns,
   };
@@ -55,7 +57,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useRevenueMutations: () => ({
     create: { mutateAsync: h.createMutate, isPending: false },
     submitInvoice: { mutateAsync: h.submitMutate, isPending: false },
-    cancelInvoice: { mutateAsync: vi.fn(), isPending: false },
+    cancelInvoice: { mutateAsync: h.cancelMutate, isPending: false },
     setReceivedDate: { mutateAsync: h.setReceivedDate, isPending: false },
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },
   }),
@@ -136,16 +138,16 @@ const LocationProbe = () => {
   return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
 };
 
-const page = (initialEntry = '/sales-invoices', embedded = false) => (
+const page = (initialEntry = '/sales-invoices', embedded = false, onRecordPayment?: (invoice: SalesInvoiceRow) => void) => (
   <QueryClientProvider client={queryClient}>
   <FinanceI18nTestProvider>
     <ImpersonationProvider realRole={h.role}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <ToastProvider>
           <Routes>
-            <Route path="/sales-invoices" element={<SalesInvoices embedded={embedded} />} />
-            <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices embedded={embedded} />} />
-            <Route path="/finance/receivables" element={<SalesInvoices embedded={embedded} />} />
+            <Route path="/sales-invoices" element={<SalesInvoices embedded={embedded} onRecordPayment={onRecordPayment} />} />
+            <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices embedded={embedded} onRecordPayment={onRecordPayment} />} />
+            <Route path="/finance/receivables" element={<SalesInvoices embedded={embedded} onRecordPayment={onRecordPayment} />} />
           </Routes>
           <LocationProbe />
         </ToastProvider>
@@ -154,7 +156,7 @@ const page = (initialEntry = '/sales-invoices', embedded = false) => (
   </FinanceI18nTestProvider>
   </QueryClientProvider>
 );
-const renderPage = (initialEntry?: string, embedded = false) => render(page(initialEntry, embedded));
+const renderPage = (initialEntry?: string, embedded = false, onRecordPayment?: (invoice: SalesInvoiceRow) => void) => render(page(initialEntry, embedded, onRecordPayment));
 
 async function pick(user: ReturnType<typeof userEvent.setup>, picker: string, label: string) {
   await user.click(screen.getByRole('combobox', { name: picker }));
@@ -164,6 +166,7 @@ async function pick(user: ReturnType<typeof userEvent.setup>, picker: string, la
 beforeEach(async () => {
   h.createMutate.mockClear();
   h.submitMutate.mockClear();
+  h.cancelMutate.mockClear();
   h.setReceivedDate.mockReset().mockResolvedValue(undefined);
   h.invoices.data = [];
   h.payments = [];
@@ -176,6 +179,7 @@ beforeEach(async () => {
   h.profiles = [];
   h.toast.mockClear();
   h.exportedRows = [];
+  h.exportedColumns = [];
   await financeTestI18n.changeLanguage('en');
 });
 
@@ -231,6 +235,69 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(within(drawer).getAllByText('INV-2610070001')).toHaveLength(1);
   });
 
+  it('Step 0: the drawer action menu opens and Open full page returns to the filtered receivables list', async () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-NAV', erp_outstanding_amount: 610_000 })];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices&q=Acme', true);
+
+    await user.click(screen.getByRole('button', { name: 'Open INV-NAV' }));
+    const drawer = await screen.findByRole('dialog');
+    await user.click(within(drawer).getByRole('button', { name: 'Invoice actions' }));
+    expect(await screen.findByRole('menuitem', { name: 'View invoice' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+
+    await user.click(within(drawer).getByRole('button', { name: 'Open full page' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices/si-n1?view=invoices&q=Acme'));
+    await user.click(screen.getByRole('button', { name: 'Back to Receivables' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=invoices&q=Acme'));
+  });
+
+  it('Step 0: pressing the drawer primary action opens the approval dialog', async () => {
+    h.invoices.data = [nativeInvoice()];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?open=si-n1', true);
+
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve invoice' })).toBeInTheDocument();
+  });
+
+  it('Step 0: pressing the drawer delivery action opens the delivery-date form', async () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: null, erp_outstanding_amount: 500_000 })];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?open=si-n1', true);
+
+    await user.click(screen.getByRole('button', { name: 'Record delivery' }));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByLabelText('Delivered')).toBeInTheDocument();
+  });
+
+  it('Step 0: pressing the drawer payment action sends the invoice to the payment intent', async () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: 500_000 })];
+    const user = userEvent.setup();
+    const onRecordPayment = vi.fn();
+    renderPage('/finance/receivables?open=si-n1', true, onRecordPayment);
+
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+
+    expect(onRecordPayment).toHaveBeenCalledWith(expect.objectContaining({ id: 'si-n1' }));
+  });
+
+  it('Step 0: confirms the row-menu cancellation action for the selected invoice', async () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-CANCEL' })];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices', true);
+    await openMenu(user, rowFor('INV-CANCEL'));
+
+    await user.click(screen.getByRole('menuitem', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel invoice' }));
+
+    expect(h.cancelMutate).toHaveBeenCalledWith(expect.objectContaining({ siId: 'si-n1' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it('AC-1405 renders each invoice status and its detail in one pill, with overdue age only once', () => {
     h.invoices.data = [
       nativeInvoice({ id: 'draft-approve', pmo_number: 'DRAFT-APPROVE' }),
@@ -282,9 +349,90 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(within(toolbar).getByRole('button', { name: 'Export' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Client' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Project' })).not.toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Delivery' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Delivery' })).not.toBeInTheDocument();
     // e-Faktur moved to the side panel and the export to give the money columns room (owner bar, 1440).
     expect(screen.queryByRole('columnheader', { name: 'e-Faktur' })).not.toBeInTheDocument();
+  });
+
+  it('R-1 sorts the default receivables list by days overdue, then due date, and keeps Overdue only', async () => {
+    h.invoices.data = [
+      nativeInvoice({ id: 'due-soon', pmo_number: 'DUE-SOON', status: 'Unpaid', erp_due_date: '2026-10-13' }),
+      nativeInvoice({ id: 'late-11', pmo_number: 'LATE-11', status: 'Unpaid', erp_due_date: '2026-10-01' }),
+      nativeInvoice({ id: 'late-41', pmo_number: 'LATE-41', status: 'Unpaid', erp_due_date: '2026-09-01' }),
+      nativeInvoice({ id: 'due-later', pmo_number: 'DUE-LATER', status: 'Unpaid', erp_due_date: '2026-10-30' }),
+    ];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices', true);
+
+    expect(screen.getByText('Sorted by overdue days, then due date')).toBeInTheDocument();
+    const invoiceOrder = () => screen.getAllByRole('button', { name: /^Open / }).map((button) => button.getAttribute('aria-label') ?? button.textContent);
+    expect(invoiceOrder()).toEqual(['Open LATE-41', 'Open LATE-11', 'Open DUE-SOON', 'Open DUE-LATER']);
+
+    await user.click(screen.getByRole('button', { name: 'Overdue only' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=invoices&overdue=true');
+    expect(invoiceOrder()).toEqual(['Open LATE-41', 'Open LATE-11']);
+    await financeTestI18n.changeLanguage('id');
+    expect(screen.getByText('Diurutkan menurut hari keterlambatan, lalu tanggal jatuh tempo')).toBeInTheDocument();
+  });
+
+  it('R-2 keeps a long invoice id on one line and exposes its full value in title, drawer, and export', async () => {
+    const longId = 'INV-2026-RECEIVABLES-000000123456789';
+    h.invoices.data = [nativeInvoice({ pmo_number: longId, status: 'Unpaid' })];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices', true);
+
+    const row = rowFor(longId);
+    const id = within(row).getByText(longId);
+    expect(id).toHaveAttribute('title', longId);
+    expect(id).toHaveClass('whitespace-nowrap');
+
+    await user.click(within(row).getByRole('button', { name: `Open ${longId}` }));
+    const drawer = await screen.findByRole('dialog');
+    expect(within(drawer).getByText(longId)).toBeInTheDocument();
+    await user.click(within(drawer).getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    const numberColumn = (h.exportedColumns as Array<{ key: string; exportValue?: (invoice: SalesInvoiceRow) => unknown }>)
+      .find((column) => column.key === 'si_number');
+    expect(numberColumn?.exportValue?.(h.exportedRows[0] as SalesInvoiceRow)).toBe(longId);
+  });
+
+  it('R-3 hides a constant delivery column but keeps the value in the drawer and export schema', async () => {
+    h.invoices.data = [
+      nativeInvoice({ pmo_number: 'INV-DELIVERY-A', status: 'Unpaid' }),
+      nativeInvoice({ id: 'si-delivery-b', pmo_number: 'INV-DELIVERY-B', status: 'Unpaid' }),
+    ];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices', true);
+
+    expect(screen.queryByRole('columnheader', { name: 'Delivery' })).not.toBeInTheDocument();
+    const row = rowFor('INV-DELIVERY-A');
+    await user.click(within(row).getByRole('button', { name: 'Open INV-DELIVERY-A' }));
+    const drawer = await screen.findByRole('dialog');
+    expect(within(drawer).getByText('Delivery')).toBeInTheDocument();
+    const deliveryField = within(drawer).getByText('Delivery', { selector: 'dt' });
+    expect(deliveryField.nextElementSibling).toHaveTextContent('Not delivered yet');
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect((h.exportedColumns as Array<{ key: string }>).some((column) => column.key === 'received_date')).toBe(true);
+  });
+
+  it('R-3 keeps the delivery column and received date in export when visible rows differ', async () => {
+    h.invoices.data = [
+      nativeInvoice({ pmo_number: 'INV-DELIVERY-A', status: 'Unpaid' }),
+      nativeInvoice({ id: 'si-delivery-b', pmo_number: 'INV-DELIVERY-B', status: 'Unpaid', received_date: '2026-10-01' }),
+    ];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices', true);
+
+    expect(screen.getByRole('columnheader', { name: 'Delivery' })).toBeInTheDocument();
+    const row = rowFor('INV-DELIVERY-B');
+    expect(within(row).getByText(/Delivered/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    const receivedDate = (h.exportedColumns as Array<{ key: string; exportValue?: (invoice: SalesInvoiceRow) => unknown }>)
+      .find((column) => column.key === 'received_date');
+    const exportedInvoice = (h.exportedRows as SalesInvoiceRow[]).find((invoice) => invoice.pmo_number === 'INV-DELIVERY-B');
+    if (!exportedInvoice) throw new Error('Expected the delivered invoice in the export rows');
+    expect(receivedDate?.exportValue?.(exportedInvoice)).toBe('2026-10-01');
   });
 
   it('AC-1405 renders an embedded invoice as a compact phone card', () => {
@@ -381,15 +529,33 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=invoices&group=client');
     expect(screen.getByRole('button', { name: /Acme Energy\s*2/ })).toBeInTheDocument();
     expect(screen.getByText(/Open balance/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Project' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=invoices&group=project');
+    expect(screen.getByRole('tab', { name: 'Project' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText(/Open balance/)).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'None' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=invoices');
   });
 
-  it('shows the project manager avatar and name under the project in the invoice table', () => {
+  it('R-2 moves the project manager name from the invoice row into the invoice drawer', async () => {
     h.projects = [{ id: 'proj-1', pm: { full_name: 'Project Manager Test' } }];
     h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-PM', erp_outstanding_amount: 100_000 })];
+    const user = userEvent.setup();
     renderPage('/finance/receivables?view=invoices', true);
     const row = rowFor('INV-PM');
-    expect(within(row).getByText('Alpha Platform')).toBeInTheDocument();
-    expect(within(row).getByText('Project Manager Test')).toBeInTheDocument();
+    const project = within(row).getByText('Alpha Platform');
+    const clientCell = project.parentElement;
+    expect(within(row).getByText('Acme Energy')).toBeInTheDocument();
+    expect(clientCell).toHaveClass('flex-col');
+    expect(clientCell?.children).toHaveLength(2);
+    expect(within(row).queryByText('Project Manager Test')).not.toBeInTheDocument();
+    expect(within(row).queryByText('PM', { hidden: true })).not.toBeInTheDocument();
+    await user.click(within(row).getByRole('button', { name: 'Open INV-PM' }));
+    const drawer = await screen.findByRole('dialog');
+    expect(within(drawer).getByText('Project manager')).toBeInTheDocument();
+    expect(within(drawer).getByText('Project Manager Test')).toBeInTheDocument();
+    expect(within(drawer).getByText('PM', { hidden: true })).toBeInTheDocument();
   });
 
   it('AC-1405 a URL open parameter opens a draft drawer, while its author cannot approve it', () => {
@@ -416,6 +582,10 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     ];
     const user = userEvent.setup();
     renderPage('/finance/receivables?view=invoices', true);
+    expect(screen.queryByRole('button', { name: 'Export selected' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Select all rows' }));
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
     expect(screen.queryByRole('button', { name: 'Export selected' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('checkbox', { name: 'Select INV-A' }));
     expect(screen.getByText('1 selected')).toBeInTheDocument();

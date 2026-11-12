@@ -17,7 +17,7 @@ const inv = (over: Partial<SalesInvoiceRow> = {}) => ({
 function cell(status: { label: string; odooOutcome?: { cls: 'confirmed' | 'pending' | 'held' | 'needs-attention' | 'refused'; asOf: string | null; reason: string | null } | null; odooOffline?: boolean }, row = inv()) {
   const t = ((_: string, d?: string) => d ?? _) as never;
   const { mobileCardDetails } = salesInvoiceColumns({
-    t, all: [row], embedded: false, native: false, location: { pathname: '/', search: '', hash: '', state: null, key: 'k' }, orgCurrency: 'IDR', sharedTaxBasis: null,
+    t, all: [row], visibleInvoices: [row], embedded: false, native: false, location: { pathname: '/', search: '', hash: '', state: null, key: 'k' }, orgCurrency: 'IDR', sharedTaxBasis: null,
     projectOptionsById: new Map(), projectsById: new Map(), profilesById: new Map(),
     invoiceStatus: () => ({ variant: 'neutral' as never, partlySettled: false, ...status }),
   });

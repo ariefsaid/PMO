@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  Avatar,
   Button,
   Drawer,
   Icon,
@@ -26,6 +27,8 @@ const SalesInvoicePanelDrawer: React.FC<{
   panelPrimary: { label: string; onClick: () => void } | null;
   invoiceStatus: (inv: SalesInvoiceRow) => { label: string; variant: StatusVariant };
   projectLabelOf: (inv: SalesInvoiceRow) => string | null | undefined;
+  projectManagerNameOf: (inv: SalesInvoiceRow) => string;
+  deliveryLabelOf: (inv: SalesInvoiceRow) => string;
   rowMenu: (inv: SalesInvoiceRow) => RowMenuItem[];
   odoo: boolean;
   onClose: () => void;
@@ -39,6 +42,8 @@ const SalesInvoicePanelDrawer: React.FC<{
   panelPrimary,
   invoiceStatus,
   projectLabelOf,
+  projectManagerNameOf,
+  deliveryLabelOf,
   rowMenu,
   odoo,
   onClose,
@@ -73,6 +78,7 @@ const SalesInvoicePanelDrawer: React.FC<{
           // C4: a field with nothing recorded is left out; an unknown open balance is said once, never shown as a dash.
           const due = deriveArDueDate(panelInvoice.invoice_date, panelInvoice.erp_payment_terms_days, panelInvoice.erp_due_date, panelInvoice.received_date);
           const outstandingUnknown = panelInvoice.erp_outstanding_amount == null && (panelInvoice.status === 'Unpaid' || panelInvoice.status === 'Submitted');
+          const managerName = projectManagerNameOf(panelInvoice);
           const field = (key: string, label: string, value: React.ReactNode) => <div key={key}><dt className="text-control text-muted-foreground">{label}</dt><dd className="mt-1">{value}</dd></div>;
           return <div className="border-b border-border pb-4">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
@@ -81,6 +87,8 @@ const SalesInvoicePanelDrawer: React.FC<{
               {due && field('due', t('finance:receivables.dueDate', 'Due date'), formatDay(due))}
               {panelInvoice.invoice_date && field('invoiceDate', t('finance:receivables.invoiceDate', 'Invoice date'), formatDay(panelInvoice.invoice_date))}
               {panelInvoice.erp_payment_terms_days != null && field('terms', t('finance:receivables.paymentTerms', 'Terms'), t('finance:receivables.paymentTermsDays', '{{count}} days', { count: panelInvoice.erp_payment_terms_days }))}
+              {field('projectManager', t('finance:receivables.projectManager', 'Project manager'), <span className="inline-flex items-center gap-2"><Avatar name={managerName} size="xs" decorative />{managerName}</span>)}
+              {field('delivery', t('finance:receivables.delivery', 'Delivery'), deliveryLabelOf(panelInvoice))}
               {panelInvoice.efaktur_number && field('efaktur', t('finance:receivables.eFaktur', 'e-Faktur'), `${panelInvoice.efaktur_number}${panelInvoice.efaktur_date ? ` · ${formatDay(panelInvoice.efaktur_date)}` : ''}`)}
             </dl>
             {outstandingUnknown && <p className="mt-3 text-control text-muted-foreground">{t('finance:receivables.outstandingUnknown', 'The outstanding balance is not known yet: the accounting system has not reported it for this invoice.')}</p>}

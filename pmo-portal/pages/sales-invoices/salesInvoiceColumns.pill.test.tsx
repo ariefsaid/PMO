@@ -23,7 +23,7 @@ const row = {
 function statusPill(embedded: boolean) {
   const t = ((_: string, d?: string) => d ?? _) as never;
   const { displayColumns } = salesInvoiceColumns({
-    t, all: [row], embedded, native: false, location: { pathname: '/', search: '', hash: '', state: null, key: 'k' }, orgCurrency: 'IDR', sharedTaxBasis: null,
+    t, all: [row], visibleInvoices: [row], embedded, native: false, location: { pathname: '/', search: '', hash: '', state: null, key: 'k' }, orgCurrency: 'IDR', sharedTaxBasis: null,
     projectOptionsById: new Map(), projectsById: new Map(), profilesById: new Map(),
     invoiceStatus: () => ({ label: 'Paid', variant: 'won' as never, partlySettled: false, odooOutcome: null }),
   });
