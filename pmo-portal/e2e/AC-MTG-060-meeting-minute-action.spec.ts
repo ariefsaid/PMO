@@ -85,7 +85,7 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     await page.waitForURL('**/meetings/new');
     // The visible label carries the required marker; the textbox's accessible name is Title.
     await page.getByRole('textbox', { name: 'Title', exact: true }).fill(meetingTitle);
-    await page.getByRole('button', { name: 'Save meeting' }).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
 
     // Creation lands on the detail route — capture the id for cleanup.
     await page.waitForURL(/\/meetings\/[0-9a-f-]{36}/);
@@ -117,6 +117,10 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     //       and, once the task exists, the line is replaced by the action-item block.
     // Save took focus, so the author clicks back to the end of the action line first.
     // Clicking the block's far right puts the caret at the end of the line on every platform.
+    // Read the signed-in name from the banner BEFORE the modal opens: an open dialog makes the
+    // shell behind it inert, so the banner cannot be queried while the modal is up (release trace).
+    const currentUserName = (await page.getByRole('button', { name: 'Account menu' })
+      .locator('span.block.max-w-full').innerText()).trim();
     const actionBlock = editor.locator('.bn-block-content', { hasText: actionLine });
     await waitForFonts(page);
     const box = await actionBlock.boundingBox();
@@ -128,10 +132,6 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     const nameBox = actionModal.getByRole('textbox', { name: 'Task name' });
     await expect(nameBox).toHaveValue(actionLine); // prefilled from the minute line
     await nameBox.fill(taskName); // …and consciously edited before publishing
-    const currentUserName = await page
-      .getByRole('button', { name: 'Account menu' })
-      .locator('span.block.max-w-full')
-      .innerText();
     const ownerPicker = actionModal.getByRole('combobox', { name: /^Owner$/ });
     await ownerPicker.click();
     await expect(page.getByTestId('combo-loading')).toHaveCount(0, { timeout: 30_000 });

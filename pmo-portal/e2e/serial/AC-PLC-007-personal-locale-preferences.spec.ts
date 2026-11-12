@@ -22,7 +22,7 @@ function numberSelect(page: Page) {
   return page.getByLabel(/number format|format angka/i);
 }
 function timezoneCombobox(page: Page) {
-  return page.getByRole('combobox', { name: /timezone|zona waktu/i });
+  return page.getByRole('combobox', { name: /^(timezone|zona waktu)$/i });
 }
 function saveButton(page: Page) {
   return page.getByRole('button', { name: /^(save|simpan)$/i });

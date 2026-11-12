@@ -116,6 +116,19 @@ prioritize simplicity. Deliver technical decisions, tradeoff analysis, recommend
 implementation plan, and a production-ready solution. Build a production-grade MVP — minimal enough
 for one client, architected to scale to millions.
 
+**Maintainer duty (owner, 2026-11-12):** the Director owns this codebase as its maintainer under the
+owner. Improving it is standing work, done without being asked, and its state lives in the roadmap
+issue (#1571), the Engineering health map (#1533) and the screen scorecard, never only in a chat.
+- **After every release:** run `improve-codebase-architecture` on the areas that changed (hot spots
+  from `git log`), in the `codebase-design` vocabulary. File each candidate under #1533; take the
+  strongest into the next cycle.
+- **In any PR that adds a term or changes a rule:** `domain-modeling` updates `docs/glossary.md`; an
+  architectural or irreversible choice gets its ADR.
+- **Every screen** meets the `restructure` skill. Re-measure the all-screens scorecard
+  (`docs/private/ux-1110/all-screens/scorecard.md`) each release; fix a regression before new screens.
+- **Leave less than you found:** delete dead code, duplicate rules and look-pinning tests in the PR
+  that meets them.
+
 **Before asserting a fact, name the artifact that decides it and read THAT one.** A doc, a memory, a
 test name, a policy body and an exit code are all *claims about* the deciding artifact, and each has
 been wrong here: `role_table_grants` decides reachability (not the policy) · `pg_policies` at head

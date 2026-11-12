@@ -1,6 +1,6 @@
 # Craft relations
 
-Read whole at step 5; these are relations between parts, adapted from stageshow, inside PMO's existing controls and tokens.
+Read impeccable's `reference/craft-floor.md` first (the floor every UI edit meets), then read this whole at step 5; these are relations between parts, adapted from stageshow, inside PMO's existing controls and tokens.
 
 ## Use the CRAFT shelf
 
