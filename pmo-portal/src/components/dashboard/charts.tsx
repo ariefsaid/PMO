@@ -60,13 +60,15 @@ export const BarList: React.FC<{
   nameWidth?: number;
   /** A fixed upper bound for the value scale (e.g. 100 for percentages). */
   domainMax?: number;
-}> = ({ rows, ariaLabel, seriesNames, nameWidth: fixedNameWidth, domainMax }) => {
+  /** Row pitch for single bars (default 34px). */
+  rowPitch?: number;
+}> = ({ rows, ariaLabel, seriesNames, nameWidth: fixedNameWidth, domainMax, rowPitch = 34 }) => {
   // The name column fits the longest name (up to 22 characters; longer names end in an ellipsis).
   const nameWidth = fixedNameWidth ?? Math.min(190, Math.max(96, Math.ceil(Math.max(0, ...rows.map((row) => row.name.length)) * 8.4)));
   const reduced = usePrefersReducedMotion();
   const paired = rows.some((row) => row.value2 !== undefined);
   const data = rows.map((row) => ({ ...row, a: row.value, b: row.value2 ?? null }));
-  const rowHeight = paired ? 62 : 34;
+  const rowHeight = paired ? 62 : rowPitch;
   const max = domainMax ?? Math.max(1, ...rows.flatMap((row) => [row.value ?? 0, row.value2 ?? 0]));
   return (
     <div>

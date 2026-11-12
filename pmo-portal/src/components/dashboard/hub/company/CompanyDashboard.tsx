@@ -290,7 +290,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       </div>
     </Card>
   );
-  const readyCard = <ReadyToPayCard rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} unpaidOf={unpaidOf} />;
+  const readyCard = <ReadyToPayCard rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} unpaidOf={unpaidOf} today={figures.organizationToday} />;
   const offTrackEl = (
     <ProjectRows
       title={t('home.offTrack', 'Projects off track')}
@@ -346,9 +346,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         receivables={figures.receivables} receivablesPending={figures.receivablesPending} receivablesError={figures.receivablesError}
         payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError}
         retry={() => { figures.todayRetry(); figures.periodRetry(); }}
-        chart={<InvoicedCollectedCard embedded chartHeight={220} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />}
-        extra={finance ? <ReceivablesAgeCard embedded ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} /> : undefined}
-        leftToBill={finance ? undefined : { rows: figures.leftToBillByProject, pending: figures.figureStatus('left-to-bill').pending, error: figures.figureStatus('left-to-bill').error }} />
+        chart={<InvoicedCollectedCard embedded chartHeight={200} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />}
+        leftToBill={{ rows: figures.leftToBillByProject, pending: figures.figureStatus('left-to-bill').pending, error: figures.figureStatus('left-to-bill').error }} />
     );
     const healthCard = (
       <ProjectHealthCard className={cn(half, 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
@@ -357,17 +356,22 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const approvalsTotal = needs.approvals?.length ?? 0;
     const otherWaits = waitRows.filter((row) => row.id !== 'approvals');
     const nothingYet = otherWaits.length === 0 && approvalsTotal === 0;
+    // The badge counts the items themselves (each approval, each invoice in a row), never the number of rows.
+    const waitingTotal = approvalsTotal + otherWaits.reduce((sum, row) => sum + (typeof row.count === 'number' ? row.count : 0), 0);
     const waits = (
-      <DashboardWaitsOnYou plain count={approvalsTotal + otherWaits.length || undefined} className={cn(third, 'max-[899px]:order-3')} rows={otherWaits}
+      <DashboardWaitsOnYou plain count={waitingTotal || undefined} className={cn(third, 'max-[899px]:order-3')} rows={otherWaits}
         pending={needs.approvalsPending || (nothingYet && needs.isPending)} error={needs.approvalsError || (nothingYet && needs.isError)} onRetry={needs.refetch}
         lead={needs.approvals && needs.approvals.length > 0 ? <ApprovalItems entries={needs.approvals} /> : undefined}
         actions={approvalsTotal > 0 ? cardLink('/approvals', t('home.allApprovals', { count: approvalsTotal, defaultValue_one: 'All {{count}} approvals', defaultValue_other: 'All {{count}} approvals' })) : undefined} />
     );
+    // Finance: Waits on you beside what clients owe by age (a short list at a third, bars at two-thirds); the two
+    // tables then take the full width, each as tall as its rows.
     const lowerRow = finance ? (
       <>
         {waits}
-        <div className={cn('min-w-0 min-[900px]:col-span-8 [&>*]:h-full', 'max-[899px]:order-6')}>{readyCard}</div>
-        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-7')}>{overdueCard}</div>
+        <ReceivablesAgeCard rowPitch={40} className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />
+        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-7')}>{readyCard}</div>
+        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-8')}>{overdueCard}</div>
       </>
     ) : (
       <>

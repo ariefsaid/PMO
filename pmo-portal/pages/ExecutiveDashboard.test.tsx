@@ -501,9 +501,12 @@ describe('company home — finance (one question: what must I collect, pay and i
     procurementsState.data = [{
       id: 'procurement-1', title: 'Supplier invoice 42', status: 'Vendor Invoiced', total_value: 250,
       currency: 'USD', updated_at: '2026-10-20T00:00:00.000Z', vendor_invoiced_at: '2026-10-20T00:00:00.000Z',
+      // Invoice age reads the supplier's invoice date (the Payables page's rule).
+      procurement_invoices: [{ amount: 250, invoice_date: '2026-10-20', created_at: '2026-10-20T00:00:00.000Z', erp_outstanding_amount: null, external_ref: null }],
       project: { name: 'Project North' }, vendor: null,
     }];
     renderPage();
+    expect(screen.getByRole('cell', { name: '7 days' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Supplier' })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Invoice age' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Due state' })).not.toBeInTheDocument();
@@ -634,7 +637,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
       .filter((label): label is string => label !== undefined);
     expect(visibleFigureLabels).toEqual(['Contract on hand', 'Invoiced', 'Collected', 'Left to bill']);
     // Owed to suppliers moved from the band into Finances, with its payables link (AC-1461).
-    expect(within(screen.getByTestId('owed-to-suppliers')).getByRole('link', { name: /Open payables/ })).toHaveAttribute('href', '/finance/payables');
+    expect(within(screen.getByTestId('finances')).getByRole('link', { name: /Open payables/ })).toHaveAttribute('href', '/finance/payables');
     expect(screen.queryByText('Analysis')).not.toBeInTheDocument();
     // One help control on the page: the win-rate definition is folded into it.
     expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);

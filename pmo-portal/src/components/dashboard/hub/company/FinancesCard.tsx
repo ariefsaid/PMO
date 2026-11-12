@@ -20,7 +20,6 @@ const money = (amount: number, currency: string) => formatTileMoney(amount, curr
 const OwedFigure: React.FC<{
   testId: string;
   title: string;
-  link: { to: string; label: string };
   split: OwedSplit | undefined;
   pending: boolean;
   error: boolean;
@@ -28,7 +27,7 @@ const OwedFigure: React.FC<{
   currency: string;
   countLine: (split: OwedSplit) => string;
   errorTitle: string;
-}> = ({ testId, title, link, split, pending, error, retry, currency, countLine, errorTitle }) => {
+}> = ({ testId, title, split, pending, error, retry, currency, countLine, errorTitle }) => {
   const { t } = useTranslation('dashboard');
   const totals = split ? owedTotals(split) : [];
   const figure = moneyTileValue(totals.length > 0 ? totals : split && split.unknownBalances === 0 ? [{ currency, amount: 0 }] : null, currency);
@@ -36,10 +35,7 @@ const OwedFigure: React.FC<{
   const shares = split ? owedShares(split, barCurrency) : null;
   return (
     <section data-testid={testId} aria-label={title} className="grid min-w-0 content-start gap-2 px-[var(--panel-inset)] py-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-control font-medium">{title}</h3>
-        <CardLink to={link.to}>{link.label}</CardLink>
-      </div>
+      <h3 className="text-control font-medium">{title}</h3>
       {pending ? <ListState variant="loading" rows={2} />
         : error || !split ? <ListState variant="error" title={errorTitle} onRetry={retry} />
           : (
@@ -51,11 +47,12 @@ const OwedFigure: React.FC<{
               </div>
               {shares && (
                 <div className="flex flex-wrap justify-between gap-x-4 text-control tabular">
-                  <span className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rounded-[3px] bg-primary" />{t('home.notYetDue', 'Not yet due')} {money(shares.notDueAmount, barCurrency)}</span>
+                  {shares.notDueAmount > 0 && <span className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rounded-[3px] bg-primary" />{t('home.notYetDue', 'Not yet due')} {money(shares.notDueAmount, barCurrency)}</span>}
                   {shares.overdueAmount > 0 && <span className="inline-flex items-center gap-1.5 text-destructive-text"><span aria-hidden className="size-2.5 rounded-[3px] bg-destructive" />{t('home.overdueShort', 'Overdue')} {money(shares.overdueAmount, barCurrency)}</span>}
                 </div>
               )}
               <p className="text-control text-muted-foreground">{countLine(split)}</p>
+              {split.unknownBalances > 0 && <p className="-mt-2 text-control text-muted-foreground">{t('home.balancesUnknown', { count: split.unknownBalances, defaultValue_one: '{{count}} balance unknown, not in the total', defaultValue_other: '{{count}} balances unknown, not in the total' })}</p>}
             </>
           )}
     </section>
@@ -81,29 +78,24 @@ export const FinancesCard: React.FC<{
   extra?: React.ReactNode;
 }> = ({ className, currency, receivables, receivablesPending, receivablesError, payables, payablesPending, payablesError, retry, chart, leftToBill, extra }) => {
   const { t } = useTranslation('dashboard');
-  const unknownPart = (split: OwedSplit) => split.unknownBalances > 0
-    ? t('home.balancesUnknown', { count: split.unknownBalances, defaultValue_one: '{{count}} balance unknown, not in the total', defaultValue_other: '{{count}} balances unknown, not in the total' })
-    : null;
   const receivableLine = (split: OwedSplit) => split.count === 0 ? t('home.noOpenInvoices', 'No open client invoices') : [
     t('home.openInvoiceCount', { count: split.count, defaultValue_one: '{{count}} invoice', defaultValue_other: '{{count}} invoices' }),
     split.oldestDays !== null ? t('home.oldestOverdueDays', 'oldest {{days}} days overdue', { days: split.oldestDays }) : null,
-    unknownPart(split),
   ].filter(Boolean).join(' · ');
   const payableLine = (split: OwedSplit) => split.count === 0 ? t('home.noSupplierInvoices', 'No supplier invoice to pay') : [
     t('home.supplierInvoiceCount', { count: split.count, defaultValue_one: '{{count}} supplier invoice', defaultValue_other: '{{count}} supplier invoices' }),
     split.oldestDays !== null ? t('home.oldestDaysOld', 'oldest {{days}} days', { days: split.oldestDays }) : null,
-    unknownPart(split),
   ].filter(Boolean).join(' · ');
-  const topProjects = leftToBill?.rows?.slice(0, 4) ?? [];
+  const topProjects = leftToBill?.rows?.slice(0, 3) ?? [];
   const leftTitle = t('home.leftToBillByProject', 'Left to bill by project');
   return (
     <Card data-testid="finances" className={cn('flex flex-col', className)}>
-      <CardHead level={2}>{t('home.finances', 'Finances')}</CardHead>
+      <CardHead level={2} className="max-[479px]:flex-wrap max-[479px]:[&>div:last-child]:ml-0 max-[479px]:[&>div:last-child]:basis-full" actions={<span className="flex flex-wrap gap-x-4"><CardLink to="/finance/receivables">{t('home.openReceivables', 'Open receivables')}</CardLink><CardLink to="/finance/payables">{t('home.openPayables', 'Open payables')}</CardLink></span>}>{t('home.finances', 'Finances')}</CardHead>
       <div className="grid border-y border-border min-[480px]:grid-cols-2 min-[480px]:divide-x max-[479px]:divide-y divide-border">
-        <OwedFigure testId="owed-to-us" title={t('home.owedToUs', 'Owed to us')} link={{ to: '/finance/receivables', label: t('home.openReceivables', 'Open receivables') }}
+        <OwedFigure testId="owed-to-us" title={t('home.owedToUs', 'Owed to us')}
           split={receivables} pending={receivablesPending} error={receivablesError} retry={retry} currency={currency} countLine={receivableLine}
           errorTitle={t('home.receivablesError', "Couldn't load client invoices")} />
-        <OwedFigure testId="owed-to-suppliers" title={t('home.owedToSuppliers', 'Owed to suppliers')} link={{ to: '/finance/payables', label: t('home.openPayables', 'Open payables') }}
+        <OwedFigure testId="owed-to-suppliers" title={t('home.owedToSuppliers', 'Owed to suppliers')}
           split={payables} pending={payablesPending} error={payablesError} retry={retry} currency={currency} countLine={payableLine}
           errorTitle={t('home.payablesError', "Couldn't load supplier invoices")} />
       </div>

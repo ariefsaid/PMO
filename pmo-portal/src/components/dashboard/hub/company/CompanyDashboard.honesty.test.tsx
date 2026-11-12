@@ -306,19 +306,21 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     expect(owed).toHaveTextContent('Not yet due $300K');
     expect(owed).toHaveTextContent('Overdue $100K');
     // 2026-06-29 to the org day 2026-10-27 is 120 days.
-    expect(owed).toHaveTextContent('3 invoices · oldest 120 days overdue · 1 balance unknown, not in the total');
+    expect(owed).toHaveTextContent('3 invoices · oldest 120 days overdue');
+    expect(within(owed).getAllByText('1 balance unknown, not in the total')).toHaveLength(1);
     const notDue = within(owed).getByTestId('owed-to-us-not-due');
     const late = within(owed).getByTestId('owed-to-us-overdue');
     expect(notDue.style.flexGrow).toBe('0.75');
     expect(late.style.flexGrow).toBe('0.25');
-    expect(within(owed).getByRole('link', { name: /Open receivables/ })).toHaveAttribute('href', '/finance/receivables');
+    expect(within(screen.getByTestId('finances')).getByRole('link', { name: /Open receivables/ })).toHaveAttribute('href', '/finance/receivables');
   });
 
   it('AC-1461: Owed to suppliers carries its payables link, and an empty side reads as a known zero', () => {
     renderExec();
     const suppliers = screen.getByTestId('owed-to-suppliers');
-    expect(within(suppliers).getByRole('link', { name: /Open payables/ })).toHaveAttribute('href', '/finance/payables');
+    expect(within(screen.getByTestId('finances')).getByRole('link', { name: /Open payables/ })).toHaveAttribute('href', '/finance/payables');
     expect(suppliers).toHaveTextContent('$0');
+    expect(suppliers).not.toHaveTextContent('Not yet due');
     expect(suppliers).toHaveTextContent('No supplier invoice to pay');
   });
 

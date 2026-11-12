@@ -69,7 +69,7 @@ export const ProjectHealthCard: React.FC<{
                     const name = projectDisplayName(row);
                     return (
                       <li key={row.id}>
-                        <Link to={`/projects/${row.id}`} title={name !== row.name ? row.name : undefined} className="grid gap-y-1 py-3 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                        <Link to={`/projects/${row.id}`} title={name !== row.name ? row.name : undefined} className="grid gap-y-1 py-4 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                           <span className="flex min-w-0 items-center justify-between gap-3">
                             <span className="min-w-0 truncate text-control font-medium">{name}</span>
                             <StatusPill wrap={false} className="shrink-0" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{statusLabel('project', row.status, ts)}</StatusPill>
@@ -78,9 +78,13 @@ export const ProjectHealthCard: React.FC<{
                             {wrong.length === 0
                               ? <span className="text-muted-foreground">{t('home.nothingOverdue', 'Nothing overdue')}</span>
                               : wrong.map((fact, index) => (
+                                // The dot travels with the phrase after it, so a wrapped line never ends on a separator.
                                 <React.Fragment key={fact.key}>
-                                  {index > 0 && <span aria-hidden className="text-muted-foreground"> · </span>}
-                                  <span className={fact.red ? 'text-destructive-text' : 'text-foreground'}>{fact.text}</span>
+                                  {index > 0 && ' '}
+                                  <span className="whitespace-nowrap">
+                                    {index > 0 && <span aria-hidden className="text-muted-foreground">·&nbsp;</span>}
+                                    <span className={fact.red ? 'text-destructive-text' : 'text-foreground'}>{fact.text}</span>
+                                  </span>
                                 </React.Fragment>
                               ))}
                           </span>
