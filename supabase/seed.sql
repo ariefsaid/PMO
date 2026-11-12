@@ -560,7 +560,7 @@ on conflict do nothing;
 -- Monthly local-only demonstration facts; the newest invoice is unpaid, the next is partly paid and not due, and one older invoice is overdue.
 with months as (
   select k, (public.org_current_month(o.default_timezone, now()) - make_interval(months => k))::date + 10 as issued,
-         (120000 + 10000*k)::numeric as total
+         (330000 + 10000*k)::numeric as total
   from public.organizations o cross join generate_series(1,12) k
   where o.id = '00000000-0000-0000-0000-000000000001'
 )
@@ -573,15 +573,15 @@ from months on conflict (id) do nothing;
 
 with months as (
   select k, (public.org_current_month(o.default_timezone, now()) - make_interval(months => k))::date + 10 as issued,
-         (120000 + 10000*k)::numeric as total
+         (330000 + 10000*k)::numeric as total
   from public.organizations o cross join generate_series(1,12) k
   where o.id = '00000000-0000-0000-0000-000000000001'
 ), receipts as (
-  select k, k as invoice_k, issued + 12 as paid_date,
+  select k, k as invoice_k, (issued + interval '1 month')::date + 12 as paid_date,
          case when k = 2 then total / 4 when k = 3 then total * 3 / 4 else total end as paid
   from months where k >= 2
   union all
-  select 1, 2, issued + 12, (120000 + 10000*2)::numeric / 4 from months where k = 1
+  select 1, 2, current_date, (330000 + 10000*2)::numeric / 4 from months where k = 1
 )
 insert into incoming_payments (id, org_id, customer_id, sales_invoice_id, ip_number, date, amount, received_amount, withheld_amount, currency, status, erp_docstatus, pmo_native)
 select ('b5120000-0000-0000-0000-' || lpad(k::text,12,'0'))::uuid, '00000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002',
