@@ -225,6 +225,9 @@
     "retry": "Retry",
     "previous": "Previous",
     "next": "Next",
+    "pager": {
+      "range": "{{from}}–{{to}} of {{total}}"
+    },
     "overwrite": "Replace the rate for {{date}}?",
     "overwriteValues": "{{old}} → {{new}} IDR per USD",
     "invalidDate": "Enter a valid publication date.",

@@ -68,8 +68,8 @@ beforeEach(() => {
   h.orgDay.mockReturnValue({ day: '2026-10-31', isPending: false, isError: false, retry: vi.fn() });
   h.list.mockImplementation(async (before) =>
     before
-      ? { rows: rows.slice(50), nextCursor: null }
-      : { rows: rows.slice(0, 50), nextCursor: rows[49].rate_date },
+      ? { rows: rows.slice(50), nextCursor: null, total: 51 }
+      : { rows: rows.slice(0, 50), nextCursor: rows[49].rate_date, total: 51 },
   );
   h.context.mockResolvedValue({ currency: 'IDR', timezone: 'Asia/Jakarta' });
   // `existing`/`upsert` carry `mockResolvedValueOnce` queues: reset them per test, or an unconsumed
@@ -99,6 +99,21 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Previous' }));
     await waitFor(() => expect(screen.getByRole('table')).toBeInTheDocument());
     expect(h.list).toHaveBeenCalledWith(undefined);
+  });
+
+  it('C18 states its position in the history, not only a cursor behind Previous and Next', async () => {
+    renderPage();
+    await screen.findByRole('table');
+    expect(screen.getByTestId('fx-rates-range')).toHaveTextContent('1–50 of 51');
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(screen.getByTestId('fx-rates-range')).toHaveTextContent('51–51 of 51'));
+  });
+
+  it('without a resolved total it states no position rather than a fabricated one', async () => {
+    h.list.mockResolvedValueOnce({ rows: rows.slice(0, 5), nextCursor: null, total: null });
+    renderPage();
+    await screen.findByRole('table');
+    expect(screen.queryByTestId('fx-rates-range')).not.toBeInTheDocument();
   });
 
   it('AC-FX-007 connects Upload to preview and saves once with committed counts', async () => {
@@ -194,7 +209,7 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
 
   it('keeps one primary Upload action when Finance sees an empty list', async () => {
     h.role = 'Finance';
-    h.list.mockResolvedValueOnce({ rows: [], nextCursor: null });
+    h.list.mockResolvedValueOnce({ rows: [], nextCursor: null, total: 0 });
     renderPage();
 
     expect(await screen.findByText('No JISDOR rates yet')).toBeInTheDocument();
@@ -211,7 +226,7 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
     );
     renderPage();
     expect(screen.getByTestId('fx-rates-loading')).toHaveAttribute('aria-busy', 'true');
-    resolve?.({ rows: [], nextCursor: null });
+    resolve?.({ rows: [], nextCursor: null, total: 0 });
     expect(await screen.findByText('No JISDOR rates yet')).toBeInTheDocument();
 
     cleanup();
@@ -227,7 +242,7 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
 describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup path', () => {
   it('offers the reviewed setup path: consequence copy, reference-vs-accounting scope, and one Upload action that opens the dialog', async () => {
     h.role = 'Finance';
-    h.list.mockResolvedValue({ rows: [], nextCursor: null });
+    h.list.mockResolvedValue({ rows: [], nextCursor: null, total: 0 });
     renderPage();
 
     expect(await screen.findByText('No JISDOR rates yet')).toBeInTheDocument();
@@ -250,7 +265,7 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
 
   it('without upload permission the path names who can act and renders no dead control', async () => {
     h.role = 'PM';
-    h.list.mockResolvedValue({ rows: [], nextCursor: null });
+    h.list.mockResolvedValue({ rows: [], nextCursor: null, total: 0 });
     renderPage();
 
     expect(await screen.findByText('No JISDOR rates yet')).toBeInTheDocument();
@@ -278,7 +293,7 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
 
   it('page history names missing calendar dates in the displayed range', async () => {
     const sparseRows = [fxRow(0), fxRow(2), fxRow(4)];
-    h.list.mockResolvedValue({ rows: sparseRows, nextCursor: null });
+    h.list.mockResolvedValue({ rows: sparseRows, nextCursor: null, total: sparseRows.length });
     renderPage();
     const summary = await screen.findByTestId('fx-page-summary');
     expect(summary).toHaveTextContent('3 with rates');

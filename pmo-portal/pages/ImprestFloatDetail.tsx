@@ -90,6 +90,8 @@ const ImprestFloatDetail: React.FC = () => {
     const rep = repId ? repRows.find((r) => r.id === repId) : undefined;
     return !rep ? 'waiting' : rep.status === 'Paid' ? 'paid' : 'requested';
   };
+  // C16: the receipt's status names the replenishment request it sits in, so the number is not table-only.
+  const requestNumberOf = (repId: string | null): string | null => (repId ? repRows.find((r) => r.id === repId)?.number ?? null : null);
   const openFunding = repRows.some((r) => r.kind === 'funding' && (r.status === 'Requested' || r.status === 'Approved'));
   // Receipts already swept into an open replenishment request are still "waiting" in the position until it is Paid, but cannot
   // be requested again; unknown (reps not loaded) hides the button, the RPC refuses a duplicate either way.
@@ -235,7 +237,10 @@ const ImprestFloatDetail: React.FC = () => {
                   {c.kind === 'claim' && c.status === 'Paid' && (settlement(c.imprest_replenishment_id) === 'paid'
                     ? <span className="text-muted-foreground">{t('imprest:receipts.replenished', 'Replenished')}</span>
                     : settlement(c.imprest_replenishment_id) === 'requested'
-                      ? <span>{t('imprest:receipts.inRequest', 'In a replenishment request')}</span>
+                      ? <span className="inline-flex flex-wrap items-baseline gap-x-1">
+                        <span>{t('imprest:receipts.inRequest', 'In a replenishment request')}</span>
+                        {requestNumberOf(c.imprest_replenishment_id) && <span className="text-muted-foreground">{requestNumberOf(c.imprest_replenishment_id)}</span>}
+                      </span>
                       : <span>{t('imprest:receipts.waiting', 'Waiting')}</span>)}
                 </li>
               ))}
