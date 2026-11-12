@@ -1,4 +1,4 @@
--- 0857: canonical set-based project budget consumption and risk read.
+-- 0859: canonical set-based project budget consumption and risk read.
 -- New read-only RPC. It composes the existing PMO/ERP actual readers and Active-version budget lines;
 -- category-level Actual coverage remains a separate figure. Invoker execution preserves each source's RLS.
 -- Reverse: supabase/migrations/rollback/0859_project_budget_positions_down.sql.

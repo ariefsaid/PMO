@@ -32,7 +32,7 @@ export interface ProjectMoneyRead {
   hasActiveBudget: boolean;
 }
 
-/** Set-based project budget reading from project_budget_positions (0857). */
+/** Set-based project budget reading from project_budget_positions (0859). */
 export interface CanonicalBudgetReading {
   projectId: string;
   ledgerBasis: 'erp' | 'pmo';
