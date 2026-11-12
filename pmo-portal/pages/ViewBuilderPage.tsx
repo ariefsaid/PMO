@@ -39,6 +39,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';
 import { ValidationError } from '@/src/lib/viewspec/types';
+import type { ValidationErrorCode } from '@/src/lib/viewspec/types';
 import { MAX_PANELS_PER_VIEW } from '@/src/lib/viewspec/types';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { PanelSpec, CompositionSpec } from '@/src/lib/viewspec/types';
@@ -241,6 +242,34 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
 
   const spec: CompositionSpec = { version: 1, panels };
 
+  /** What the author can DO about a refused save, in their language, from the validation code. */
+  const validationRemedy = (code: ValidationErrorCode): string => {
+    switch (code) {
+      case 'UNKNOWN_ENTITY':
+        return t('viewBuilder:validation.unknownEntity', 'A panel asks for a data source the app does not have. Open that panel and choose an existing data source.');
+      case 'UNKNOWN_COLUMN':
+        return t('viewBuilder:validation.unknownColumn', 'A panel uses a column the app does not have. Open that panel and choose an existing column.');
+      case 'UNKNOWN_OP':
+        return t('viewBuilder:validation.unknownOp', 'A filter compares in a way the app does not support. Open that filter and choose another comparison.');
+      case 'NON_NUMERIC_AGGREGATE':
+        return t('viewBuilder:validation.nonNumericAggregate', 'A total is asked for on a column that is not a number. Choose a numeric column for the total.');
+      case 'INVALID_LIMIT':
+        return t('viewBuilder:validation.invalidLimit', 'The row limit is not a valid number. Set a row limit and save again.');
+      case 'UNKNOWN_TOKEN':
+        return t('viewBuilder:validation.unknownToken', 'A filter value uses a token the app does not know. Remove it, or use $current_team or $current_project.');
+      case 'MISSING_REQUIRED_FILTER':
+        return t('viewBuilder:validation.missingRequiredFilter', 'This view needs a filter. Add one and save again.');
+      case 'UNRESOLVABLE_TOKEN':
+        return t('viewBuilder:validation.unresolvableToken', 'A filter uses a token that cannot be filled in here. Replace it with a value.');
+      case 'NOT_GROUPABLE_COLUMN':
+        return t('viewBuilder:validation.notGroupableColumn', 'This view groups by a column that cannot be grouped. Choose another column.');
+      case 'UNKNOWN_PRIMITIVE':
+        return t('viewBuilder:validation.unknownPrimitive', 'A panel type is not available in the app. Remove that panel or choose another type.');
+      case 'UNSUPPORTED_VERSION':
+        return t('viewBuilder:validation.unsupportedVersion', 'This view was built by another version of the builder. Rebuild it and save again.');
+    }
+  };
+
   const handleSave = async () => {
     if (!currentUser || (mode === 'edit' && !canEditView)) return;
     setSaveError(null);
@@ -250,10 +279,13 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
       const ctx = { userId: currentUser.id, orgId: currentUser.org_id };
       compileCompositionSpec(spec, ctx);
     } catch (err) {
+      // C4 (GLM view-builder-new #7): the save error used to be `${code}: ${detail}` — 'UNKNOWN_COLUMN:
+      // status' — which is implementation terms, in English, where the author needs a remedy. The code
+      // chooses a sentence from the catalogue; `detail` (a column or table name) stays out of it.
       if (err instanceof ValidationError) {
-        setSaveError(`${err.code}${err.detail ? ': ' + err.detail : ''}`);
+        setSaveError(validationRemedy(err.code));
       } else {
-        setSaveError('Validation failed. Please review your panels.');
+        setSaveError(t('viewBuilder:validation.generic', 'The view is not valid yet. Review the panels and save again.'));
       }
       return;
     }

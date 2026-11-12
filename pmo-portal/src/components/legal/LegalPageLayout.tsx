@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { HELP_URL } from '@/src/lib/legalConfig';
 
@@ -28,15 +29,20 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
   variant,
   children,
 }) => {
+  // C4: the shared legal chrome is translated too (legal catalogue), so the page does not go
+  // half-English the moment a reader switches language.
+  const { t } = useTranslation('legal');
   // Auth-aware back link (FR-LEG-005, AC-LEG-030). session===null → unauthed
   // primary audience → /login (RequireAuth bounces / → /login); session present → /.
   // AuthProvider mounts at the App root above the router, so this resolves on both.
   const { session } = useAuth();
   const back = session
-    ? { label: 'Back to app', to: '/' }
-    : { label: 'Back to sign in', to: '/login' };
+    ? { label: t('layout.backToApp', 'Back to app'), to: '/' }
+    : { label: t('layout.backToSignIn', 'Back to sign in'), to: '/login' };
   const crossLink =
-    variant === 'terms' ? { label: 'Privacy', to: '/privacy' } : { label: 'Terms', to: '/terms' };
+    variant === 'terms'
+      ? { label: t('layout.privacy', 'Privacy'), to: '/privacy' }
+      : { label: t('layout.terms', 'Terms'), to: '/terms' };
 
   return (
     <div className="min-h-[100dvh] bg-secondary/35">
@@ -45,7 +51,7 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
         href="#main"
         className="sr-only z-[1000] rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground focus:not-sr-only focus:absolute focus:left-3 focus:top-3"
       >
-        Skip to main content
+        {t('layout.skip', 'Skip to main content')}
       </a>
 
       <main
@@ -54,7 +60,7 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
         className="mx-auto max-w-3xl px-5 pb-16 pt-10 outline-none max-[921px]:px-4 max-[921px]:pt-6"
       >
         <p className="text-[11px] font-semibold text-muted-foreground">
-          Legal
+          {t('layout.overline', 'Legal')}
         </p>
 
         {/* Page title — page-title token (24/700/-0.02em); the single h1 (AC-LEG-004/027). */}
@@ -80,10 +86,10 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
                 href={HELP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Contact support via WhatsApp"
+                aria-label={t('layout.helpAria', 'Contact support via WhatsApp')}
                 className="font-medium text-primary-text hover:underline"
               >
-                Help
+                {t('layout.help', 'Help')}
               </a>
             </>
           )}

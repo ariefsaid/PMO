@@ -455,5 +455,15 @@
   },
   "exchangeRates": {
     "displayOnly": "Hanya setara tampilan"
+  },
+  "projectNumberPattern": {
+    "error": {
+      "empty": "Pola tidak boleh kosong. Isi pola nomor proyek.",
+      "closingBrace": "Ada kurung tutup tanpa kurung buka pasangannya.",
+      "unclosedToken": "Ada token yang belum ditutup kurung kurawalnya.",
+      "unknownToken": "Token {{token}} tidak dikenal aplikasi ini. Gunakan CLIENT, YY, atau SEQ4.",
+      "duplicateToken": "Pakai {{token}} tepat satu kali.",
+      "missingToken": "Sertakan {{token}} tepat satu kali."
+    }
   }
 }

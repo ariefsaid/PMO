@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import legalEn from '../public/locales/en/legal.json';
+import legalId from '../public/locales/id/legal.json';
 
 // HOSTING_LOCATION mocked to 'Singapore' so AC-LEG-015 reads naturally.
 const mockConfig = vi.hoisted(() => ({
@@ -194,5 +198,34 @@ describe('Privacy page', () => {
     expect(text).toContain('In our demonstration organisation (sample data) only');
     expect(text).not.toContain('public product-demonstration site only'); // capture is by organisation, not by site
     expect(text).toContain('never applies to a live client account');
+  });
+});
+
+describe('C4: the privacy policy reads in Indonesian', () => {
+  async function renderIndonesian() {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: false,
+      defaultNS: 'legal',
+      resources: { en: { legal: legalEn }, id: { legal: legalId } },
+    });
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter>
+          <Privacy />
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+  }
+
+  it('title, sections and the hosting location are Indonesian', async () => {
+    await renderIndonesian();
+    expect(screen.getByRole('heading', { level: 1, name: 'Kebijakan Privasi' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Keterbukaan Pemrosesan AI' })).toBeInTheDocument();
+    const location = screen.getByRole('heading', { level: 2, name: 'Lokasi Data' }).closest('section');
+    expect(location?.textContent ?? '').toContain('Singapore');
+    expect(screen.getByRole('link', { name: 'Ketentuan' })).toHaveAttribute('href', '/terms');
+    expect(screen.queryByText(/Privacy Policy/)).toBeNull();
   });
 });

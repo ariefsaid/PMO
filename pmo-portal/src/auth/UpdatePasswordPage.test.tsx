@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import authEn from '../../public/locales/en/auth.json';
+import authId from '../../public/locales/id/auth.json';
 
 type Analytics = typeof import('@/src/lib/analytics');
 
@@ -197,5 +201,55 @@ describe('UpdatePasswordPage', () => {
     expect(window.location.pathname).toBe('/update-password');
     expect(window.location.search).toBe('');
     expect(window.location.hash).toBe('');
+  });
+});
+
+describe('C4: the password-setting flow reads in Indonesian', () => {
+  async function renderLocalized() {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: false,
+      defaultNS: 'auth',
+      resources: { en: { auth: authEn }, id: { auth: authId } },
+    });
+    window.history.replaceState({}, '', '/update-password?type=recovery&token=abc');
+    auth.getSession.mockResolvedValueOnce({
+      data: { session: { user: { id: 'u1', user_metadata: {} } } },
+    });
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <AuthProvider>
+          <MemoryRouter>
+            <UpdatePasswordPage />
+          </MemoryRouter>
+        </AuthProvider>
+      </I18nextProvider>,
+    );
+  }
+
+  it('the form, its labels and its mismatch message come from the auth catalogue', async () => {
+    const user = userEvent.setup();
+    await renderLocalized();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Atur kata sandi baru' })).toBeInTheDocument();
+    const password = screen.getByLabelText('Kata sandi baru');
+    const confirm = screen.getByLabelText('Ulangi kata sandi');
+    expect(screen.getByRole('button', { name: 'Simpan kata sandi baru' })).toBeInTheDocument();
+    await user.type(password, 'BrandNewPass1!');
+    await user.type(confirm, 'DifferentPass1!');
+    await user.click(screen.getByRole('button', { name: 'Simpan kata sandi baru' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Kedua kata sandi tidak sama.');
+  });
+
+  it('a weak-password service message is re-worded, not printed verbatim', async () => {
+    const user = userEvent.setup();
+    auth.updateUser.mockResolvedValueOnce({ error: { message: 'Password should be at least 10 characters.' } });
+    await renderLocalized();
+    await user.type(await screen.findByLabelText('Kata sandi baru'), 'short1');
+    await user.type(screen.getByLabelText('Ulangi kata sandi'), 'short1');
+    await user.click(screen.getByRole('button', { name: 'Simpan kata sandi baru' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Pilih kata sandi yang lebih kuat.');
+    expect(alert.textContent ?? '').not.toMatch(/at least 10 characters/);
   });
 });

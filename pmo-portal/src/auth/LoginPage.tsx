@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from './useAuth';
+import { useServiceMessageText } from './useServiceMessageText';
 import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
 import { SuccessNotice, ErrorBanner, AuthInput } from './authFormPrimitives';
@@ -26,12 +28,14 @@ import { returnPathFrom } from './returnTo';
 // in the local seed and the cloud demo. See docs/environments.md.
 const DEMO_PASSWORD = 'Passw0rd!dev';
 
+// Translation keys, not labels: the panel appears in a demo build a prospective client sees, so its
+// words go through the catalogues like any other visible text. The key is also what analytics records.
 const DEMO_PERSONAS = [
-  { label: 'Executive',       email: 'exec@acme.test' },
-  { label: 'Project Manager', email: 'pm@acme.test' },
-  { label: 'Finance',         email: 'finance@acme.test' },
-  { label: 'Engineer',        email: 'engineer@acme.test' },
-  { label: 'Admin',           email: 'admin@acme.test' },
+  { labelKey: 'login.demo.executive',       label: 'Executive',       email: 'exec@acme.test' },
+  { labelKey: 'login.demo.projectManager',  label: 'Project manager', email: 'pm@acme.test' },
+  { labelKey: 'login.demo.finance',         label: 'Finance',         email: 'finance@acme.test' },
+  { labelKey: 'login.demo.engineer',        label: 'Engineer',        email: 'engineer@acme.test' },
+  { labelKey: 'login.demo.admin',           label: 'Admin',           email: 'admin@acme.test' },
 ] as const;
 
 const authReasonCode = (message: string): 'invalid_credentials' | 'auth_error' => {
@@ -62,6 +66,10 @@ const MicrosoftLogo: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 const LoginPage: React.FC = () => {
+  // C4: every visible string on this page comes from the `auth` catalogue. The service's own message
+  // is classified and re-worded (`useServiceMessageText`), never printed verbatim.
+  const { t } = useTranslation('auth');
+  const serviceText = useServiceMessageText();
   // Show the demo-login panel in local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
   const showDemoLogin =
     import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
@@ -140,7 +148,7 @@ const LoginPage: React.FC = () => {
       setError(error);
       return;
     }
-    setNotice('Confirmation sent. Check your email.'); // FR-AUTHF-042 — role=status (SuccessNotice)
+    setNotice(t('login.confirmationSent', 'Confirmation sent. Check your email.')); // FR-AUTHF-042 — role=status (SuccessNotice)
   };
 
   const onMagicLink = async () => {
@@ -155,7 +163,7 @@ const LoginPage: React.FC = () => {
       return;
     }
     trackAuthLoginSucceeded('magic_link');
-    setNotice('Check your email for a sign-in link.');
+    setNotice(t('login.magicLinkSent', 'Check your email for a sign-in link.'));
   };
 
   const onMicrosoft = async () => {
@@ -193,10 +201,10 @@ const LoginPage: React.FC = () => {
             </span>
           </div>
           <h1 className="text-[24px] font-bold leading-[1.15] tracking-[-0.02em] text-foreground">
-            Sign in to your account
+            {t('login.title', 'Sign in to your account')}
           </h1>
           <p className="mt-1.5 text-[13px] text-muted-foreground">
-            Welcome back. Use your work account or email to continue.
+            {t('login.subtitle', 'Welcome back. Use your work account or email to continue.')}
           </p>
         </div>
 
@@ -204,7 +212,7 @@ const LoginPage: React.FC = () => {
         <Card>
           <CardPad className="space-y-4">
             {/* Error banner (network / credential failure) */}
-            {error && <ErrorBanner message={error} />}
+            {error && <ErrorBanner message={serviceText(error)} />}
 
             {/* Magic-link sent / resend-confirmation-sent confirmation */}
             {notice && <SuccessNotice>{notice}</SuccessNotice>}
@@ -214,11 +222,11 @@ const LoginPage: React.FC = () => {
             {confirmRequired ? (
               <div className="space-y-4">
                 <p className="text-[13.5px] text-foreground">
-                  Confirm your email to finish signing in. We can resend the confirmation link.
+                  {t('login.confirmRequired', 'Confirm your email to finish signing in. We can resend the confirmation link.')}
                 </p>
                 {rateLimited && (
                   <p className="text-[12.5px] text-muted-foreground">
-                    Too many requests — please try again in a minute.
+                    {t('login.rateLimited', 'Too many requests. Try again in a minute.')}
                   </p>
                 )}
                 <Button
@@ -229,10 +237,10 @@ const LoginPage: React.FC = () => {
                   className="w-full"
                   onClick={onResend}
                 >
-                  Resend confirmation
+                  {t('login.resend', 'Resend confirmation')}
                 </Button>
                 <Button type="button" variant="ghost" className="w-full" onClick={onBackToSignIn}>
-                  Back to sign in
+                  {t('login.backToSignIn', 'Back to sign in')}
                 </Button>
               </div>
             ) : (
@@ -249,14 +257,14 @@ const LoginPage: React.FC = () => {
               className="w-full justify-center gap-2.5"
             >
               <MicrosoftLogo className="size-[18px] shrink-0" />
-              Continue with Microsoft
+              {t('login.microsoft', 'Continue with Microsoft')}
             </Button>
 
             {/* Divider — names the alternative rather than a bare "or" */}
             <div className="flex items-center gap-3">
               <span className="h-px flex-1 bg-border" aria-hidden="true" />
               <span className="text-[11px] font-semibold text-muted-foreground">
-                or continue with email
+                {t('login.orEmail', 'or continue with email')}
               </span>
               <span className="h-px flex-1 bg-border" aria-hidden="true" />
             </div>
@@ -264,7 +272,7 @@ const LoginPage: React.FC = () => {
             <form onSubmit={onSignIn} className="space-y-4" noValidate>
               <AuthInput
                 id="email"
-                label="Email"
+                label={t('login.email', 'Email')}
                 type="email"
                 autoComplete="email"
                 required
@@ -276,7 +284,7 @@ const LoginPage: React.FC = () => {
               <div className="space-y-1.5">
                 <AuthInput
                   id="password"
-                  label="Password"
+                  label={t('login.password', 'Password')}
                   type="password"
                   autoComplete="current-password"
                   value={password}
@@ -288,7 +296,7 @@ const LoginPage: React.FC = () => {
                     to="/reset-password"
                     className="text-[12px] font-semibold text-primary-text hover:underline"
                   >
-                    Forgot password?
+                    {t('login.forgot', 'Forgot password?')}
                   </Link>
                 </div>
               </div>
@@ -301,21 +309,21 @@ const LoginPage: React.FC = () => {
                 disabled={busy}
                 className="w-full"
               >
-                Sign in
+                {t('login.signIn', 'Sign in')}
               </Button>
             </form>
 
             {/* TERTIARY — passwordless magic link. A quiet text button under the form, not a
                 third full-width bar competing with the two real actions above. */}
             <p className="text-center text-[12.5px] text-muted-foreground">
-              No password?{' '}
+              {t('login.noPassword', 'No password?')}{' '}
               <button
                 type="button"
                 onClick={onMagicLink}
                 disabled={busy || !email}
                 className="font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
               >
-                Email me a magic link
+                {t('login.magicLink', 'Email me a magic link')}
               </button>
             </p>
 
@@ -324,17 +332,17 @@ const LoginPage: React.FC = () => {
             {showDemoLogin && (
               <div className="space-y-2 rounded-md border border-border bg-secondary/40 px-3 py-2.5">
                 <p className="text-center text-[11px] font-semibold text-muted-foreground">
-                  Demo login
+                  {t('login.demo.label', 'Demo login')}
                 </p>
                 <p className="text-center font-mono text-[11px] text-muted-foreground">
-                  password: {DEMO_PASSWORD}
+                  {t('login.demo.password', 'password: {{password}}', { password: DEMO_PASSWORD })}
                 </p>
                 <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
-                  {DEMO_PERSONAS.map(({ label, email }) => (
+                  {DEMO_PERSONAS.map(({ labelKey, label, email }) => (
                     <button
                       key={email}
                       type="button"
-                      aria-label={`${label} — ${email}`}
+                      aria-label={t('login.demo.persona', '{{label}}, {{email}}', { label: t(labelKey, label), email })}
                       onClick={() => {
                         trackDemoPersonaSelected(label);
                         setEmail(email);
@@ -344,7 +352,7 @@ const LoginPage: React.FC = () => {
                       disabled={busy}
                       className="min-h-8 py-2 text-[11.5px] font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
                     >
-                      {label}
+                      {t(labelKey, label)}
                     </button>
                   ))}
                 </div>
@@ -360,11 +368,11 @@ const LoginPage: React.FC = () => {
             is unset so no broken link renders (FR-LEG-010). */}
         <footer className="mt-5 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[12px] text-muted-foreground">
           <Link to="/terms" className="font-medium text-primary-text hover:underline">
-            Terms
+            {t('login.footer.terms', 'Terms')}
           </Link>
           <span aria-hidden>·</span>
           <Link to="/privacy" className="font-medium text-primary-text hover:underline">
-            Privacy
+            {t('login.footer.privacy', 'Privacy')}
           </Link>
           {HELP_URL && (
             <>
@@ -373,10 +381,10 @@ const LoginPage: React.FC = () => {
                 href={HELP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Contact support via WhatsApp"
+                aria-label={t('login.footer.helpAria', 'Contact support via WhatsApp')}
                 className="font-medium text-primary-text hover:underline"
               >
-                Help
+                {t('login.footer.help', 'Help')}
               </a>
             </>
           )}

@@ -12,6 +12,10 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { axe } from 'jest-axe';
 import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import viewBuilderEn from '../../../public/locales/en/viewBuilder.json';
+import viewBuilderId from '../../../public/locales/id/viewBuilder.json';
 import type { UserViewRow } from '@/src/lib/db/userViews';
 import type { PanelSpec } from '@/src/lib/viewspec/types';
 
@@ -443,7 +447,7 @@ describe('ViewBuilderPage — compile-before-save', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 
-  it('AC-VB-007: ValidationError from compile blocks mutate call; error code displayed', async () => {
+  it('AC-VB-007 + C4: ValidationError from compile blocks mutate call; the author reads a remedy, not the code', async () => {
     mockCompile.mockImplementation(() => {
       throw new ValidationError('UNKNOWN_ENTITY', 'companies');
     });
@@ -454,7 +458,10 @@ describe('ViewBuilderPage — compile-before-save', () => {
     const saveBtn = screen.getByRole('button', { name: /save view/i });
     await userEvent.click(saveBtn);
     expect(mockCreate).not.toHaveBeenCalled();
-    expect(screen.getByText(/UNKNOWN_ENTITY/i)).toBeInTheDocument();
+    // C4 (GLM view-builder-new #7): the failure used to render `${code}: ${detail}` — implementation
+    // terms in English. The catalogue sentence says what to do next.
+    expect(screen.getByText(/data source the app does not have/i)).toBeInTheDocument();
+    expect(screen.queryByText(/UNKNOWN_ENTITY/i)).toBeNull();
   });
 
   it('AC-VB-008: create mode calls create with {name,description,spec,scope} — no org_id/user_id', async () => {
@@ -737,5 +744,37 @@ describe('ViewBuilderPage — AI Composer wiring', () => {
     await waitFor(() => {
       expect(screen.queryByText(/ai-composed draft/i)).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('C4: a refused save speaks Indonesian', () => {
+  it('the validation remedy comes from the viewBuilder catalogue', async () => {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: false,
+      defaultNS: 'viewBuilder',
+      ns: ['viewBuilder'],
+      resources: {
+        en: { viewBuilder: viewBuilderEn },
+        id: { viewBuilder: viewBuilderId },
+      },
+    });
+    mockCompile.mockImplementation(() => {
+      throw new ValidationError('UNKNOWN_COLUMN', 'status');
+    });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={[{ pathname: '/views/new', state: { composedSpec: { version: 1, panels: [PANEL_A] } } }]}>
+          <Routes>
+            <Route path="/views/new" element={<ViewBuilderPage mode="create" />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+    await userEvent.type(screen.getByRole('textbox', { name: /view name/i }), 'My View');
+    await userEvent.click(screen.getByRole('button', { name: /save view/i }));
+    expect(screen.getByText(/Ada panel yang memakai kolom yang tidak ada di aplikasi/)).toBeInTheDocument();
+    expect(screen.queryByText(/UNKNOWN_COLUMN/)).toBeNull();
   });
 });

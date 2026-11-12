@@ -1,0 +1,104 @@
+{
+  "layout": {
+    "skip": "Lompat ke konten utama",
+    "overline": "Legal",
+    "backToApp": "Kembali ke aplikasi",
+    "backToSignIn": "Kembali ke halaman masuk",
+    "terms": "Ketentuan",
+    "privacy": "Privasi",
+    "help": "Bantuan",
+    "helpAria": "Hubungi dukungan lewat WhatsApp"
+  },
+  "terms": {
+    "title": "Ketentuan Layanan",
+    "acceptance": {
+      "title": "Penerimaan Ketentuan",
+      "body": "Dengan mengakses atau menggunakan {{entity}} ({{domain}}), Anda setuju untuk terikat pada Ketentuan Layanan ini. Jika Anda tidak setuju, jangan mengakses atau menggunakan layanan."
+    },
+    "services": {
+      "title": "Layanan",
+      "body": "{{entity}} menyediakan platform manajemen kontrak dan proyek untuk organisasi berbasis proyek. Penggunaan layanan Anda diatur oleh perjanjian langganan induk (MSA) antara Anda dan {{entity}}, yang merupakan kontrak komersial yang mengikat. Ketentuan ini mengatur penggunaan platform itu sendiri.",
+      "contact": "Untuk pertanyaan tentang langganan Anda, hubungi <1>{{email}}</1>."
+    },
+    "responsibilities": {
+      "title": "Tanggung Jawab Pengguna",
+      "body": "Anda bertanggung jawab atas ketepatan data yang Anda masukkan, atas keamanan kredensial Anda, dan atas penggunaan layanan sesuai hukum yang berlaku dan Ketentuan ini."
+    },
+    "ownership": {
+      "title": "Kepemilikan Data",
+      "body": "Anda (klien) memiliki semua data yang Anda kirimkan ke layanan. Anda memberikan {{entity}} hanya lisensi yang diperlukan untuk mengoperasikan dan menyediakan layanan kepada Anda. {{entity}} tidak mengklaim kepemilikan atas data Anda."
+    },
+    "confidentiality": {
+      "title": "Kerahasiaan",
+      "body": "Masing-masing pihak setuju menjaga kerahasiaan informasi rahasia pihak lain dan menggunakannya semata-mata untuk melaksanakan Ketentuan ini dan MSA."
+    },
+    "liability": {
+      "title": "Batasan Tanggung Jawab",
+      "body": "Sejauh diizinkan oleh hukum, tanggung jawab {{entity}} berdasarkan Ketentuan ini dibatasi pada biaya yang telah dibayar untuk layanan dalam dua belas (12) bulan sebelum klaim. Tidak ada pihak yang bertanggung jawab atas kerugian tidak langsung atau kerugian sebagai akibat."
+    },
+    "term": {
+      "title": "Jangka Waktu dan Pengakhiran",
+      "initialLabel": "Jangka waktu awal",
+      "initialBody": "jangka waktu langganan yang ditetapkan dalam MSA.",
+      "renewLabel": "Perpanjangan otomatis",
+      "renewBody": "jangka waktu diperpanjang otomatis untuk periode berikutnya, kecuali salah satu pihak memberi tahu bahwa tidak memperpanjang.",
+      "convenienceLabel": "Pengakhiran atas kehendak sendiri",
+      "convenienceBody": "salah satu pihak dapat mengakhiri sesuai periode pemberitahuan yang ditetapkan dalam MSA.",
+      "causeLabel": "Pengakhiran karena pelanggaran",
+      "causeBody": "salah satu pihak dapat mengakhiri seketika atas pelanggaran material oleh pihak lain, dengan memperhatikan masa perbaikan dalam MSA."
+    },
+    "governing": {
+      "title": "Hukum yang Berlaku",
+      "body": "Hukum yang berlaku dan ketentuan penyelesaian sengketa akan dikonfirmasi."
+    }
+  },
+  "privacy": {
+    "title": "Kebijakan Privasi",
+    "collect": {
+      "title": "Data yang Kami Kumpulkan",
+      "body": "{{entity}} ({{domain}}) mengumpulkan data yang Anda masukkan untuk menjalankan layanan: informasi akun dan profil, serta catatan bisnis (proyek, perusahaan, kontak, data keuangan dan operasional) yang Anda pilih untuk disimpan."
+    },
+    "ownership": {
+      "title": "Kepemilikan Data",
+      "body": "Anda (klien) memiliki data Anda. {{entity}} hanya menerima lisensi yang diperlukan untuk mengoperasikan dan menyediakan layanan kepada Anda, dan tidak mengklaim kepemilikan atas data Anda."
+    },
+    "use": {
+      "title": "Cara Kami Menggunakan Data Anda",
+      "body": "Kami menggunakan data Anda untuk menyediakan, memelihara, dan meningkatkan layanan, untuk berkomunikasi dengan Anda tentang akun Anda, dan untuk menyediakan fitur yang Anda aktifkan. Kami tidak menjual data Anda."
+    },
+    "ai": {
+      "title": "Keterbukaan Pemrosesan AI",
+      "body": "Saat Anda memakai Asisten, pertanyaan Anda beserta konteks data yang benar-benar diperlukan dikirim ke penyedia model bahasa besar pihak ketiga melalui OpenRouter untuk menghasilkan jawaban. Data klien Anda tidak dipakai untuk melatih model. Staf {{entity}} tidak membaca isi percakapan Asisten; hanya angka agregat yang diproses untuk dukungan dan keandalan."
+    },
+    "analytics": {
+      "title": "Analitik dan Cookie",
+      "usage": "Kami mengumpulkan analitik penggunaan produk untuk memahami bagian mana yang dipakai dan di mana orang berhenti. Pemrosesan ini dilakukan atas nama kami oleh PostHog. Kami mencatat navigasi halaman dan fitur, koordinat klik atau peta panas (bukan isinya), pengukuran performa halaman, dan diagnostik galat. Peristiwa analitik yang kami susun tidak pernah membawa isi catatan Anda: tanpa nama, tanpa nilai keuangan, tanpa teks bebas, tanpa kata pencarian. Daftar larangan tetap menyaring kunci tersebut sebelum apa pun meninggalkan peramban Anda, dan pengenalnya adalah ID akun internal, bukan alamat email Anda.",
+      "demo": "Di situs peragaan produk publik kami, yang memakai data contoh dan bukan catatan klien sungguhan, kami juga merekam ulang sesi di layar, termasuk teks halaman yang tampil, agar calon klien dapat melihat produk bekerja. Ini tidak pernah berlaku untuk akun aktif Anda.",
+      "telemetry": "Terpisah dari analitik peramban, server kami mengirim telemetri operasional tentang cara layanan berjalan: kode galat, hasil proses terjadwal, hasil pengiriman ke sistem akuntansi yang terhubung, dan jumlah pemakaian Asisten (model, token, biaya, waktu, serta lolos atau tidaknya pemanggilan alat dan pemeriksaan mutu otomatis). Isinya tidak memuat isi catatan, pertanyaan, jawaban, atau nama, dan tidak terhubung ke nama atau email Anda. Telemetri ini tidak terpengaruh oleh pilihan keluar analitik di bawah. Saat analitik aktif untuk Anda, jumlah pemakaian Asisten juga ditandai dengan ID akun internal (bukan nama atau email Anda) agar kami dapat melihat pemakaian per orang; mematikan analitik menghapus tanda itu. Pemeriksaan mutu otomatis adalah model AI yang membaca pertanyaan dan jawaban Asisten di dalam layanan kami; hanya hasil lolos atau gagal beserta biayanya yang dicatat.",
+      "assistantReplay": "Hanya di organisasi peragaan kami (data contoh), dan hanya selama analitik aktif untuk Anda, pertanyaan dan jawaban Asisten juga direkam bersama rekaman sesi, untuk meninjau kinerja Asisten pada data contoh. Ini tidak pernah berlaku untuk akun klien sungguhan.",
+      "feedback": "Produk ini memiliki tombol Umpan Balik dan kadang mengajukan satu pertanyaan singkat (paling banyak sekali dalam 30 hari, tidak pernah pada minggu pertama Anda, dan tidak pernah saat Anda sedang mengisi formulir). Jawaban Anda dikirim ke PostHog bersama bagian produk tempat Anda berada. Jawaban teks bebas adalah satu-satunya tempat Anda mengetik sesuatu yang dikirim, jadi mohon jangan menyertakan nama pelanggan dan nilai uang; kami menyaring alamat email dan kunci akses yang jelas secara otomatis. Administrator organisasi Anda dapat mematikan fitur ini, dan pilihan keluar di bawah menghentikannya untuk Anda.",
+      "optOut": "Kami menghormati pengaturan Do Not Track di peramban Anda. Anda juga dapat memilih keluar di sini kapan saja:"
+    },
+    "location": {
+      "title": "Lokasi Data",
+      "body": "Data Anda dihosting pada lingkungan Supabase Cloud Pro tersendiri untuk setiap klien. Lokasi hosting untuk pemasangan ini adalah {{hosting}} (dapat diatur per klien menurut ADR-0047)."
+    },
+    "export": {
+      "title": "Ekspor Data",
+      "body": "Anda dapat mengekspor data Anda kapan saja memakai ekspor CSV/XLSX di dalam produk. Saat layanan berakhir, Anda dapat meminta ekspor penuh data Anda, yang akan kami sediakan dalam 30 hari."
+    },
+    "retention": {
+      "title": "Penyimpanan dan Penghapusan Data",
+      "body": "Setelah layanan berakhir, data klien dihapus dalam 60 sampai 90 hari. Anda dapat meminta penghapusan lebih awal atas data tertentu kapan saja."
+    },
+    "security": {
+      "title": "Kerahasiaan dan Keamanan",
+      "body": "Masing-masing pihak menjaga kerahasiaan informasi nonpublik pihak lain. Kami melindungi data Anda dengan cadangan harian dan pemisahan lingkungan per klien."
+    },
+    "contact": {
+      "title": "Hubungi Kami",
+      "privacyEmail": "Untuk pertanyaan privasi, kirim email ke <1>{{email}}</1>.",
+      "support": "Untuk dukungan, <1>hubungi kami lewat WhatsApp</1>."
+    }
+  }
+}

@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import legalEn from '../public/locales/en/legal.json';
+import legalId from '../public/locales/id/legal.json';
 
 // Fixed config → deterministic assertions (AC-LEG-006/034). Mocked so the page
 // test is independent of env; the real module is proven in legalConfig.test.ts.
@@ -146,5 +150,37 @@ describe('Terms page', () => {
     b.unmount();
     expect(htmlA).toBe(htmlB);
     expect(htmlA).not.toMatch(/last updated|effective (date|today)/i);
+  });
+});
+
+describe('C4: the legal copy reads in Indonesian', () => {
+  async function renderIndonesian() {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: false,
+      defaultNS: 'legal',
+      resources: { en: { legal: legalEn }, id: { legal: legalId } },
+    });
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter>
+          <Terms />
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+  }
+
+  it('title, sections, chrome and the interpolated deployment values are all Indonesian', async () => {
+    await renderIndonesian();
+    expect(screen.getByRole('heading', { level: 1, name: 'Ketentuan Layanan' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Penerimaan Ketentuan' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Hukum yang Berlaku' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Kembali ke halaman masuk' })).toHaveAttribute('href', '/login');
+    expect(screen.getByRole('link', { name: 'Privasi' })).toHaveAttribute('href', '/privacy');
+    // The catalogue sentence still carries the configured entity, domain and contact address.
+    expect(screen.getAllByText(/Acme Legal Test Co/).length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: /legal@acme\.test\.example/i })).toBeInTheDocument();
+    expect(screen.queryByText(/Terms of Service/)).toBeNull();
   });
 });
