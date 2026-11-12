@@ -166,7 +166,7 @@ describe('Receivables page', () => {
     h.invoices = [invoice({ erp_outstanding_amount: null })];
     renderPage();
     expect(screen.queryByText('Due in next 30 days')).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 invoice has no balance reported by the accounting system');
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 balance unknown');
   });
 
   it('shows zero for an empty due window and no payments this month', () => {
@@ -186,10 +186,11 @@ describe('Receivables page', () => {
     renderPage();
     expect(screen.queryByText('Owed to you')).not.toBeInTheDocument();
     expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('3 figures hidden: 1 invoice has no balance reported by the accounting system');
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('3 figures hidden: 1 balance unknown');
     const ageing = screen.getByRole('region', { name: /Client balances by age/ });
     expect(within(ageing).getByTestId('ageing-bucket-IDR-d1_30')).toHaveTextContent('1 balance unknown');
-    expect(ageing).not.toHaveTextContent(/no balance reported by the accounting system/i);
+    // One line, not two: the bucket carries the count, so the chart's own preamble stays off.
+    expect(within(ageing).getAllByText('1 balance unknown')).toHaveLength(1);
     // The overdue filter in the list is the one way in; no second "N overdue" line sits above it.
     expect(screen.queryByTestId('receivables-overdue-row')).toBeNull();
     expect(screen.queryByText(/Show all \d+ overdue/)).toBeNull();
