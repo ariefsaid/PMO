@@ -11,9 +11,8 @@ export async function addBuilderFilter(
   if (opts.text !== undefined) {
     // The value editor opens by itself after the condition; open it by hand only when it did not.
     const box = page.getByRole('dialog').getByRole('textbox');
-    if (!(await box.isVisible({ timeout: 1500 }).catch(() => false))) {
-      await page.getByRole('button', { name: 'Value', exact: true }).click();
-    }
+    const opened = await box.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true, () => false);
+    if (!opened) await page.getByRole('button', { name: 'Value', exact: true }).click();
     await box.fill(opts.text);
     await page.getByRole('button', { name: 'Apply', exact: true }).click();
   }

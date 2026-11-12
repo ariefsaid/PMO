@@ -108,7 +108,8 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
 
   // Submit is a consequential state-lock — if the app confirms, click through it.
   const confirmDialog = page.getByRole('dialog');
-  if (await confirmDialog.isVisible({ timeout: 2_000 }).catch(() => false)) {
+  const confirmVisible = await confirmDialog.waitFor({ state: 'visible', timeout: 2_000 }).then(() => true, () => false);
+  if (confirmVisible) {
     await confirmDialog.getByRole('button', { name: /submit timesheet/i }).click();
     await expect(confirmDialog).not.toBeVisible({ timeout: 15_000 });
   }
