@@ -2215,3 +2215,15 @@ test('AC-CLI-018: a budget version cannot be archived from the CLI, so the app a
     fs.rmSync(configDir, { recursive: true, force: true });
   }
 });
+
+test('AC-ROP-012 capture preview sends a neutral project scope to the capture endpoint', async () => {
+  const configDir = tmpDir();
+  const fake = await fakeSupabase({ handler: ({ url, send }) => { if (url.pathname !== '/functions/v1/purchase-capture') return false; send(200, { complete: true, revision: 'rev-1' }); return true; } });
+  try {
+    seedCredentials(configDir, fake.url);
+    const result = await runCli(['purchases', 'capture', '--project', '11111111-1111-1111-1111-111111111111', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(result.code, 0);
+    const sent = fake.requests.find((request) => request.path === '/functions/v1/purchase-capture');
+    assert.deepEqual(JSON.parse(sent.body), { action: 'preview', scope: { projectId: '11111111-1111-1111-1111-111111111111' } });
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});

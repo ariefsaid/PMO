@@ -55,6 +55,7 @@ import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
+import { captureHistory } from './lib/pmo-capture.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 
@@ -686,8 +687,8 @@ function defaultOpenBrowser(url) {
 
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
-const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent']);
-const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees']);
+const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'revision', 'request']);
+const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees', 'all', 'apply']);
 
 export function parseArgs(argv) {
   const flags = { filter: [], line: [] };
@@ -790,6 +791,8 @@ const USAGE = `usage:
   pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
   pmo stages <project>   (active Admin: read stage history)
   pmo stage-date <project> "<Stage name>" <YYYY-MM-DD>   (active Admin: correct a stage date)
+  pmo purchases capture (--all | --project <id>) (--dry-run | --apply --revision <revision> --request <uuid>)
+  pmo purchases capture-report (--all | --project <id>)
   pmo purchases orphans [--project <id>] [--limit n] [--include-set-aside]
   pmo purchases set-aside <file.json | file.csv | -> [--csv] [--undo] [--dry-run]   (Admin, Finance: rows of
                                                    erp_doctype, erp_name, note; hides overhead documents from orphans)
@@ -1171,6 +1174,18 @@ async function receive(ctx, procurementId, flags) {
 
 async function purchases(ctx, positionals, flags) {
   const [sub, arg] = positionals;
+  if (sub === 'capture' || sub === 'capture-report') {
+    if (Boolean(flags.all) === (flags.project !== undefined)) throw usage('Choose exactly one of --all or --project.');
+    if (flags.project !== undefined && !UUID.test(String(flags.project))) throw usage('--project must be a project id (uuid).');
+    const projectId = flags.project === undefined ? null : String(flags.project);
+    const api = { capture: (body) => authed(ctx, 'POST', '/functions/v1/purchase-capture', { body }) };
+    if (sub === 'capture-report') return api.capture({ action: 'report', scope: { projectId } });
+    if (Boolean(flags['dry-run']) === Boolean(flags.apply)) throw usage('Choose exactly one of --dry-run or --apply.');
+    if (flags.apply && (!flags.revision || !flags.request || !UUID.test(String(flags.request)))) {
+      throw usage('--apply needs the preview --revision and a --request uuid.');
+    }
+    return captureHistory(api, { projectId, dryRun: Boolean(flags['dry-run']), revision: flags.revision, requestId: flags.request });
+  }
   if (sub === 'orphans') {
     const view = flags['include-set-aside'] ? 'erp_purchase_orphans_all' : 'erp_purchase_orphans';
     const q = new URLSearchParams({ select: PURCHASE_READ_VIEWS[view].join(','), order: 'doc_date.desc,id.asc' });
