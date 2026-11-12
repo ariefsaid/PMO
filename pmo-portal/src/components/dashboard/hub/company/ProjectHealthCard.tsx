@@ -23,6 +23,19 @@ const BulletBar: React.FC<{ bullet: Bullet | null }> = ({ bullet }) => (
   </span>
 );
 
+type Fact = { key: string; red: boolean; text: string };
+/** What a home adds to one project's row (the company home: the manager; the PM home: identifiers, margin, open items). */
+export interface HealthExtras {
+  /** After the name, muted ("Dana Lee", or "PRJ-26-0002 · Acme · USD"). */
+  meta?: string;
+  /** Replaces the row's own words for what is wrong. */
+  facts?: Fact[];
+  /** After the contract figure ("Margin to date $12K"). */
+  figures?: string;
+  /** Open items, each its own link under the row (a project's overdue tasks, each purchase to approve). */
+  items?: Array<{ key: string; label: string; href: string; red?: boolean }>;
+}
+
 /**
  * Project health: one row per project, worst first. What is wrong in words (non-zero only; overdue and late in red),
  * then budget against actual spending as a bullet bar with the share delivered marked.
@@ -34,11 +47,18 @@ export const ProjectHealthCard: React.FC<{
   error: boolean;
   retry: () => void;
   className?: string;
-  /** Project manager per project id (from the project list); unknown managers are left out of the row. */
-  owners?: Map<string, string | null>;
+  /** Per-project additions, by project id. */
+  extras?: Map<string, HealthExtras>;
   /** How many projects the "All projects" list holds; the link names it once known. */
   projectCount?: number;
-}> = ({ rows, delivery, pending, error, retry, className, owners, projectCount }) => {
+  title?: string;
+  /** Replaces the header link (e.g. "All 3 projects" scoped to my projects). */
+  allLink?: { to: string; label: string };
+  /** A row with nothing wrong (default "Nothing overdue"). */
+  quietLabel?: string;
+  emptyLabel?: string;
+  testId?: string;
+}> = ({ rows, delivery, pending, error, retry, className, extras, projectCount, title, allLink, quietLabel, emptyLabel, testId = 'project-health' }) => {
   const { t } = useTranslation('dashboard');
   const { t: ts } = useTranslation('status');
   const navigate = useNavigate();
@@ -46,23 +66,25 @@ export const ProjectHealthCard: React.FC<{
   // The count is the list the link opens (every project), not the rows above it.
   const allLabel = projectCount ? t('home.allProjects', 'All {{count}} projects', { count: projectCount }) : t('home.allProjectsBare', 'All projects');
   return (
-    <Card data-testid="project-health" className={cn('flex flex-col', className)}>
-      <CardHead level={2} actions={<CardLink to="/projects">{allLabel}</CardLink>}>{t('home.projectHealth', 'Project health')}</CardHead>
+    <Card data-testid={testId} className={cn('flex flex-col', className)}>
+      <CardHead level={2} actions={<CardLink to={allLink?.to ?? '/projects'}>{allLink?.label ?? allLabel}</CardLink>}>{title ?? t('home.projectHealth', 'Project health')}</CardHead>
       <div className="flex-1 px-[var(--panel-inset)] pb-2">
         {pending ? <ListState variant="loading" rows={4} />
           : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={retry} />
-            : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('home.noActiveProjects', 'No active projects.')}</p>
+            : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{emptyLabel ?? t('home.noActiveProjects', 'No active projects.')}</p>
               : (
                 <ul className="divide-y divide-border">
                   {rows.map((row) => {
+                    const extra = extras?.get(row.id);
                     const tasks = overdueTaskCount(row);
-                    const wrong = [
+                    const wrong = extra?.facts ?? [
                       tasks ? { key: 'tasks', red: true, text: t('home.mobileTasksOverdue', { count: tasks, defaultValue_one: '{{count}} task overdue', defaultValue_other: '{{count}} tasks overdue' }) } : null,
                       row.overdue_milestones > 0 ? { key: 'phases', red: true, text: t('home.mobilePhasesLate', { count: row.overdue_milestones, defaultValue_one: '{{count}} phase late', defaultValue_other: '{{count}} phases late' }) } : null,
                       row.overdue_invoices > 0 ? { key: 'invoices', red: true, text: t('home.mobileInvoicesOverdue', { count: row.overdue_invoices, defaultValue_one: '{{count}} invoice overdue', defaultValue_other: '{{count}} invoices overdue' }) } : null,
                       overBudget(row) ? { key: 'budget', red: true, text: t('home.overBudget', 'Over budget') } : null,
                       row.waiting_approvals > 0 ? { key: 'approvals', red: false, text: t('home.mobileAwaitingApproval', { count: row.waiting_approvals, defaultValue_one: '{{count}} awaiting approval', defaultValue_other: '{{count}} awaiting approval' }) } : null,
-                    ].filter((fact): fact is { key: string; red: boolean; text: string } => fact !== null);
+                    ].filter((fact): fact is Fact => fact !== null);
+                    const items = extra?.items ?? [];
                     const deliveredPct = delivery?.[row.id] ?? null;
                     const bullet = bulletFor(row, deliveredPct);
                     const currency = row.budget_currency ?? row.currency;
@@ -73,22 +95,22 @@ export const ProjectHealthCard: React.FC<{
                         ? `${t('home.noSpendingRecorded', 'No spending recorded')} · ${t('home.budgetOf', '{{amount}} budget', { amount: money(row.budget as number, currency) })}`
                         : t('home.spentOfBudget', '{{spent}} spent of {{budget}} budget', { spent: money(row.spent as number, currency), budget: money(row.budget as number, currency) });
                     const name = projectDisplayName(row);
-                    const manager = owners?.get(row.id) ?? null;
                     const share = contractShare(row);
-                    const contractWords = row.contract_value == null ? null : [
-                      t('home.contractShort', 'Contract {{amount}}', { amount: money(row.contract_value, row.currency) }),
-                      share === null ? null : t('home.contractSharePct', '{{percent}}% of contract', { percent: share }),
+                    const contractWords = [
+                      row.contract_value == null ? null : t('home.contractShort', 'Contract {{amount}}', { amount: money(row.contract_value, row.currency) }),
+                      row.contract_value == null || share === null ? null : t('home.contractSharePct', '{{percent}}% of contract', { percent: share }),
+                      extra?.figures ?? null,
                     ].filter(Boolean).join(' · ');
                     return (
-                      <li key={row.id} className="flex items-start gap-1">
+                      <li key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-1">
                         <Link to={`/projects/${row.id}`} title={name !== row.name ? row.name : undefined} className="grid min-w-0 flex-1 gap-y-1 py-4 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                           <span className="flex min-w-0 items-center justify-between gap-3">
-                            <span className="min-w-0 truncate text-control"><span className="font-medium">{name}</span>{manager && <span className="text-muted-foreground"> · {manager}</span>}</span>
+                            <span className="min-w-0 truncate text-control"><span className="font-medium">{name}</span>{extra?.meta && <span className="text-muted-foreground"> · {extra.meta}</span>}</span>
                             <StatusPill wrap={false} className="shrink-0" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{statusLabel('project', row.status, ts)}</StatusPill>
                           </span>
-                          <span data-testid="health-wrong" className="text-control tabular">
+                          {(wrong.length > 0 || items.length === 0) && <span data-testid="health-wrong" className="text-control tabular">
                             {wrong.length === 0
-                              ? <span className="text-muted-foreground">{t('home.nothingOverdue', 'Nothing overdue')}</span>
+                              ? <span className="text-muted-foreground">{quietLabel ?? t('home.nothingOverdue', 'Nothing overdue')}</span>
                               : wrong.map((fact, index) => (
                                 // The dot travels with the phrase after it, so a wrapped line never ends on a separator.
                                 <React.Fragment key={fact.key}>
@@ -99,7 +121,7 @@ export const ProjectHealthCard: React.FC<{
                                   </span>
                                 </React.Fragment>
                               ))}
-                          </span>
+                          </span>}
                           <span className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3 text-control tabular">
                             <span className={cn(bullet?.spent == null ? 'text-muted-foreground' : 'text-foreground')}>{budgetWords}{bullet ? delivered : ''}</span>
                             {contractWords && <span className="text-muted-foreground">{contractWords}</span>}
@@ -113,6 +135,13 @@ export const ProjectHealthCard: React.FC<{
                             { label: t('dashboard:hub.company.openProcurements', 'Open procurements'), onClick: () => navigate(`/procurement?project=${encodeURIComponent(row.id)}`) },
                           ]} />
                         </span>
+                        {items.length > 0 && (
+                          <ul data-testid="health-items" className="col-span-2 -mt-2 flex flex-wrap gap-x-4 pb-3 text-control">
+                            {items.map((item) => (
+                              <li key={item.key}><Link to={item.href} className={cn('inline-flex items-center underline decoration-border underline-offset-4 hover:decoration-foreground pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring', item.red ? 'text-destructive-text' : 'text-foreground')}>{item.label}</Link></li>
+                            ))}
+                          </ul>
+                        )}
                       </li>
                     );
                   })}
