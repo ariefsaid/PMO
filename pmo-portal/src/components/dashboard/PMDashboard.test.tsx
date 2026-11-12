@@ -14,6 +14,8 @@ const state = vi.hoisted(() => ({
   delivery: { data: {} as Record<string, number>, isPending: false, isError: false, refetch: vi.fn() },
   timesheets: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   procurements: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
+  projectTasks: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
+  orgDay: { day: '2026-11-08' as string | null, isPending: false, isError: false, retry: vi.fn() },
   myTasks: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   needs: {
     items: [] as unknown[],
@@ -41,8 +43,12 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => state.procurements,
 }));
+vi.mock('@/src/hooks/usePMOverdueTasks', () => ({
+  usePMOverdueTasks: () => state.projectTasks,
+}));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => state.myTasks }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-11-08' }));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => state.orgDay }));
 vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
   useNeedsYou: () => state.needs,
 }));
@@ -159,6 +165,10 @@ beforeEach(() => {
   state.procurements.data = [];
   state.procurements.isPending = false;
   state.procurements.isError = false;
+  state.projectTasks.data = [];
+  state.projectTasks.isPending = false;
+  state.projectTasks.isError = false;
+  state.orgDay = { day: '2026-11-08', isPending: false, isError: false, retry: vi.fn() };
   state.myTasks.data = [];
   state.myTasks.isPending = false;
   state.myTasks.isError = false;
@@ -189,6 +199,57 @@ const projectsRegion = () => screen.getByTestId('pm-projects');
 const rowFor = (name: string) => within(projectsRegion()).getByRole('link', { name: new RegExp(name) });
 
 describe('Project Manager home (one question: what needs me, which of my projects is in trouble?)', () => {
+  it('renders my project rows when procurement data fails', () => {
+    state.procurements.isError = true;
+    state.needs.isError = true;
+    renderDashboard();
+
+    expect(rowFor('Project One')).toBeInTheDocument();
+    expect(within(projectsRegion()).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+  });
+
+  it('shows loaded team hours while unrelated needs data is pending', () => {
+    state.needs.isPending = true;
+    renderDashboard();
+
+    const tile = screen.getByTestId('kpi-team-hours');
+    expect(tile).toHaveTextContent('5.75 h');
+    expect(within(tile).queryByTestId('kpi-skeleton')).not.toBeInTheDocument();
+  });
+
+  it('shows the overdue task tile when its read is ready while unrelated needs data is pending', () => {
+    state.needs.items = [...approvalItems, { id: 'overdue-project-tasks', count: 2, label: 'overdue tasks on your projects', href: '/projects?filter=My+Projects', tone: 'lost' }];
+    state.needs.isPending = true;
+    state.projectTasks.isPending = false;
+    renderDashboard();
+
+    const tile = screen.getByTestId('kpi-tasks-overdue');
+    expect(tile).toHaveTextContent('2');
+    expect(within(tile).queryByTestId('kpi-skeleton')).not.toBeInTheDocument();
+  });
+
+  it('keeps team hours visible while the overdue-task count waits for organization day', () => {
+    state.needs.items = approvalItems;
+    state.needs.isPending = true;
+    state.orgDay = { day: null, isPending: true, isError: false, retry: vi.fn() };
+    renderDashboard();
+
+    expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('5.75 h');
+    expect(within(screen.getByTestId('kpi-tasks-overdue')).getByTestId('kpi-skeleton')).toBeInTheDocument();
+  });
+
+  it('does not show an overdue-task zero after that read fails, while team hours still render', async () => {
+    state.needs.items = approvalItems;
+    state.needs.isError = true;
+    state.projectTasks.isError = true;
+    renderDashboard();
+
+    expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('5.75 h');
+    expect(screen.queryByTestId('kpi-tasks-overdue')).not.toBeInTheDocument();
+    await openHiddenReasons();
+    expect(await screen.findByText('task dates could not be read')).toBeInTheDocument();
+  });
+
   it('adds only my overdue and due-today task counts to Waits on you', () => {
     state.myTasks.data = [
       { id: 'late', status: 'In Progress', end_date: '2026-11-07' },

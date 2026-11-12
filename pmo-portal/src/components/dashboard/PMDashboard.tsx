@@ -9,6 +9,8 @@ import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval';
+import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
+import { usePMOverdueTasks } from '@/src/hooks/usePMOverdueTasks';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { INTERNAL_STATUSES, ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { expenseClaimsAwaitingKey } from '@/src/hooks/approvalsQueryKeys';
@@ -50,6 +52,9 @@ export const PMDashboard: React.FC = () => {
   const orgId = currentUser?.org_id;
   const userId = currentUser?.id;
   const projectsQuery = usePMDashboardProjects();
+  const overdueTaskProjectIds = useMemo(() => (projectsQuery.data ?? []).map((project) => project.id), [projectsQuery.data]);
+  const overdueTasksQuery = usePMOverdueTasks(overdueTaskProjectIds, projectsQuery.data !== undefined);
+  const overdueOrgDay = useFxOrgDay(true);
   const deliveryQuery = useProjectsDelivery((projectsQuery.data ?? []).map((project) => project.id));
   const timesheetsQuery = useTimesheetsAwaitingApproval();
   const procurementsQuery = useProcurements({ status: 'Requested' });
@@ -143,8 +148,8 @@ export const PMDashboard: React.FC = () => {
       href: item.href,
       tone: item.tone === 'lost' ? 'lost' as const : item.tone === 'neutral' ? 'neutral' as const : 'warn' as const,
     }));
-  const projectsError = projectsQuery.isError || procurementsQuery.isError;
-  const projectsPending = projectsQuery.isPending || procurementsQuery.isPending;
+  const projectsError = projectsQuery.isError;
+  const projectsPending = projectsQuery.isPending;
 
   const header = (
     <div>
@@ -227,7 +232,7 @@ export const PMDashboard: React.FC = () => {
               unavailableReason={approvedHours === null || hoursItem === undefined ? t('home.reasonTeamHours', 'team timesheets could not be read') : undefined}
               to={hoursItem?.href}
               linkLabel={t('home.teamHours', 'Team hours to approve')}
-              loading={timesheetsQuery.isPending || needs.isPending}
+              loading={timesheetsQuery.isPending}
             />
             <KPITile
               testId="kpi-tasks-overdue"
@@ -238,7 +243,7 @@ export const PMDashboard: React.FC = () => {
               unavailableReason={overdueItem ? undefined : t('home.reasonTasksOverdue', 'task dates could not be read')}
               to={overdueItem?.href}
               linkLabel={t('home.tasksOverdue', 'Tasks overdue')}
-              loading={needs.isPending}
+              loading={projectsQuery.isPending || (projectsQuery.data !== undefined && (overdueTasksQuery.isPending || overdueOrgDay.isPending))}
             />
           </KPIRow>
           <div className={cn('grid items-start gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2')}>

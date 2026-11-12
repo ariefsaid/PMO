@@ -125,6 +125,7 @@ export const EngineerDashboard: React.FC = () => {
   const taskLoading = tasks.isPending || organizationDay.isPending;
   const taskError = tasks.isError || organizationDay.isError
     || (tasks.data === undefined && !tasks.isPending);
+  const taskReadError = tasks.isError || (tasks.data === undefined && !tasks.isPending);
   const claimsError = claims.isError || !currentUser?.id
     || (claims.data === undefined && !claims.isPending);
   const taskDataError = taskError || (!organizationDay.day && !organizationDay.isPending);
@@ -151,7 +152,7 @@ export const EngineerDashboard: React.FC = () => {
       action={<Button variant="outline" size="sm" onClick={refresh} aria-label={t('hub.engineer.refresh', 'Refresh')}><Icon name="refresh" /><span className="hidden sm:inline">{t('hub.engineer.refresh', 'Refresh')}</span></Button>}
     />
   );
-  const waitsEl = <DashboardWaitsOnYou rows={[]} pending={taskLoading} error={taskDataError || tasks.isError} onRetry={refresh} />;
+  const waitsEl = <DashboardWaitsOnYou rows={[]} pending={tasks.isPending} error={taskReadError} onRetry={refresh} />;
   const recentEl = (
     <EngineerRecentEntriesPanel
       entries={recent}

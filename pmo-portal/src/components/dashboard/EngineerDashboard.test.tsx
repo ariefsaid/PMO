@@ -123,6 +123,45 @@ const timesheetCard = () => screen.getByTestId('engineer-timesheet');
 const tasksCard = () => screen.getByTestId('engineer-tasks');
 
 describe('Engineer home (one question: is my week on track?)', () => {
+  it('shows task rows while the organization day is pending and date-based cards wait for it', () => {
+    state.orgDay = { day: null, isPending: true, isError: false, retry: vi.fn() };
+    renderDashboard();
+
+    expect(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /task overdue/ })).toHaveAttribute('href', '/my-tasks');
+    expect(within(timesheetCard()).getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(within(tasksCard()).getByTestId('liststate-loading')).toBeInTheDocument();
+  });
+
+  it('keeps timesheet figures visible when the task read fails', () => {
+    state.tasks.data = undefined;
+    state.tasks.isError = true;
+    renderDashboard();
+
+    expect(timesheetCard()).toHaveTextContent('15.5 h');
+    expect(within(screen.getByTestId('waits-on-you')).getByText("Couldn't load what waits on you")).toBeInTheDocument();
+    expect(within(tasksCard()).queryByText('Finalize drawings')).not.toBeInTheDocument();
+  });
+
+  it('keeps task figures visible when the timesheet read fails', () => {
+    state.timesheets.data = undefined;
+    state.timesheets.isError = true;
+    renderDashboard();
+
+    expect(within(tasksCard()).getByRole('link', { name: /Finalize drawings/ })).toBeInTheDocument();
+    expect(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /task overdue/ })).toHaveAttribute('href', '/my-tasks');
+    expect(screen.queryByRole('link', { name: /Open timesheet entry for/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps the waits card available when only the organization day read fails', () => {
+    state.orgDay = { day: null, isPending: false, isError: true, retry: vi.fn() };
+    renderDashboard();
+
+    expect(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /task overdue/ })).toHaveAttribute('href', '/my-tasks');
+    expect(within(screen.getByTestId('waits-on-you')).queryByText("Couldn't load what waits on you")).not.toBeInTheDocument();
+    expect(within(timesheetCard()).getByText("Couldn't load your timesheets")).toBeInTheDocument();
+    expect(within(tasksCard()).getByText("Couldn't load your tasks")).toBeInTheDocument();
+  });
+
   it('shows own overdue and due-today counts in the shared Waits on you rows', () => {
     state.tasks.data = [
       { id: 'late', name: 'Late task', status: 'In Progress', end_date: '2026-06-02' },
