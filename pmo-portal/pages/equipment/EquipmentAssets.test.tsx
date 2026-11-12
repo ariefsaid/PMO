@@ -111,9 +111,9 @@ describe('/equipment/assets list (S6.4)', () => {
   });
 
   it('AC-EQU-017 shows loading, error with retry, and the empty list', async () => {
-    h.assetPages = { data: undefined, isPending: true, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
+    h.assetPages = { data: undefined, total: undefined, isPending: true, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
     const a = renderPage(); a.unmount();
-    h.assetPages = { data: undefined, isPending: false, isError: true, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
+    h.assetPages = { data: undefined, total: undefined, isPending: false, isError: true, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
     const b = renderPage();
     await userEvent.setup().click(screen.getByRole('button', { name: /retry|try again/i }));
     expect(h.assetPages.refetch).toHaveBeenCalled();
