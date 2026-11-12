@@ -434,7 +434,7 @@
         "supplierPayables": "Jumlah kasus pengadaan berstatus ditagihkan pemasok yang menunggu pembayaran. Saldo yang tidak diketahui tidak dijumlahkan dan ditampilkan hitungannya di bawah jumlah.",
         "leftToBill": "Nilai kontrak yang ditandatangani dikurangi nilai faktur, dalam mata uang kontrak.",
         "period": "Hasil dalam rentang tanggal yang dipilih.",
-        "invoiced": "Jumlah faktur yang diterbitkan dalam periode terpilih, tidak termasuk pajak. Sumber: management pack per mata uang.",
+        "invoiced": "Nilai pekerjaan yang ditagih berdasarkan tanggal dalam periode terpilih, tidak termasuk pajak. Sumber: management pack per mata uang.",
         "collected": "Jumlah pembayaran masuk yang tercatat selama periode terpilih. Mata uang dengan nilai pembayaran yang tidak diketahui ditampilkan sebagai —. Sumber: catatan pembayaran masuk.",
         "won": "Jumlah dan nilai proyek yang tercatat sebagai menang dalam periode terpilih.",
         "winRate": "Proyek menang dibagi jumlah proyek menang dan kalah dalam periode terpilih. Grafik dapat beralih antara jumlah dan nilai.",
@@ -679,15 +679,15 @@
     "chartTableTotal": "Total"
   },
   "trend": {
-    "label": "Ditagihkan, {{months}} bulan terakhir yang selesai · di luar pajak",
+    "label": "Pekerjaan tertagih, {{months}} bulan penuh terakhir · sebelum pajak",
     "latest": "Bulan terakhir, {{month}}: {{amount}}",
     "since": "dari {{month}}: {{amount}}",
     "rising": "Naik",
     "falling": "Turun",
-    "chartName": "Tren tagihan, {{first}} sampai {{last}}",
+    "chartName": "Tren pekerjaan tertagih, {{first}} sampai {{last}}",
     "steady": "Stabil",
-    "error": "Tren penagihan tidak dapat dimuat",
-    "compactLabel": "Ditagih, {{months}} bulan terakhir"
+    "error": "Tren pekerjaan tertagih tidak dapat dimuat",
+    "compactLabel": "Pekerjaan tertagih · {{months}} bulan penuh terakhir"
   },
   "helpPopover": {
     "label": "Tentang {{subject}}"
@@ -803,6 +803,12 @@
     "reasonNoBudgets": "belum ada proyek dengan anggaran aktif",
     "budgetVsSpent": "Anggaran dan pengeluaran per proyek",
     "pipelineChart": "Pipeline terbobot per tahap",
+    "billedWorkInPeriod": "Pekerjaan tertagih dalam periode",
+    "billedWorkWithCollected": "Pekerjaan tertagih dan diterima · 12 bulan lengkap terakhir",
+    "billedWorkByMonth": "Pekerjaan tertagih · 12 bulan lengkap terakhir",
+    "chartBilledWork": "Pekerjaan tertagih, tanpa pajak",
+    "billedWorkTrendGap": "Data pekerjaan tertagih belum lengkap; jumlah yang diterima tetap ditampilkan.",
+    "collectedBilledWorkTrendGap": "Data penerimaan belum lengkap; nilai pekerjaan tertagih tetap ditampilkan.",
     "invoicedVsCollected": "Ditagihkan dan diterima · 12 bulan lengkap terakhir",
     "invoicedByMonth": "Ditagihkan · 12 bulan",
     "chartInvoiced": "Ditagihkan, tanpa pajak",

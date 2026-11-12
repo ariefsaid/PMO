@@ -6,12 +6,14 @@ import { Card, CardHead, CardPad, DataTable, Drawer, HelpPopover, ListState, Pro
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
+import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { formatNumberMax2, formatNumberWhole, formatTableMoney, formatTileMoney } from '@/src/lib/format';
+import { selectContractInvoiceFigure } from '@/src/lib/projectFinances';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectDrawdown from './ProjectDrawdown';
@@ -78,6 +80,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const billing = useProjectBilling(project.id);
   const orders = useProjectWorkOrders(project.id);
   const canViewMoney = may('view', 'salesInvoice');
+  const projectFinances = useProjectFinances(project.id, { enabled: canViewMoney });
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
   const orderBilling = useWorkOrderBilling(project.id, canViewMoney);
   // #1457: the org's business day (not the viewer's device day) bounds every overdue figure.
@@ -96,12 +99,18 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const notYetOrdered = items.reduce((sum, item) => sum + (facts.get(item.id)?.contractBalance ?? 0) * Number(item.rate), 0);
   const invoiceRows = (invoices.data ?? []) as InvoiceRowWithWorkOrder[];
   const settlement = summarizeInvoiceSettlement(invoiceRows);
+  const contractInvoiceFigure = selectContractInvoiceFigure(projectFinances.data);
   const showSummary = !isCascadePending && !isCascadeError && canViewMoney && (hasReadingLayer || (
     invoices.isPending || invoices.isError || invoiceRows.length > 0 || Number(project.contract_value) > 0
   ));
   const contractValue = hasReadingLayer
     ? contract
     : (billing.data?.contractNet ?? 0);
+  const contractInvoiceBasis = project.tax_treatment === 'inclusive'
+    ? t('projectDetail.cascade.signedContractInclusive', 'Signed contract · including tax')
+    : project.tax_treatment === 'exclusive'
+      ? t('projectDetail.cascade.signedContractExclusive', 'Signed contract · excluding tax')
+      : t('projectDetail.cascade.signedContractBasisUnknown', 'Signed contract · tax basis unknown');
   const invoiceFiguresMissing = canViewMoney && (
     invoices.isPending || invoices.isError || settlement.invoiced === null || (!settlement.balancesKnown && invoiceRows.some((invoice) => invoice.status === 'Paid'))
   );
@@ -257,9 +266,13 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={tileMoney(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
               <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={tileMoney(delivered)} percentage={percent(delivered)} detail={t('projectDetail.cascade.source.delivered', 'Source: quantities accepted on confirmed BASTs × contract rates.')} />
             </>}
-            {canViewMoney && settlement.invoiced !== null && !invoices.isPending && !invoices.isError && <>
-              <MoneyStep label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={tileMoney(settlement.invoiced)} percentage={percent(settlement.invoiced)} detail={t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />
-            </>}
+            {canViewMoney && !projectFinances.isPending && <MoneyStep
+              label={t('projectDetail.cascade.invoiced', 'Invoiced')}
+              value={contractInvoiceFigure.amount === null ? '—' : tileMoney(Number(contractInvoiceFigure.amount))}
+              percentage={contractInvoiceFigure.percentage}
+              caption={contractInvoiceBasis}
+              detail={t('projectDetail.cascade.source.invoiced', 'Source: get_project_finances contract_invoiced, normalized to the recorded signed contract tax basis and currency. The percentage uses the recorded signed contract as its denominator. A currency or tax-basis mismatch makes the amount and percentage unavailable.')}
+            />}
             {canViewMoney && settlement.balancesKnown && !invoices.isPending && !invoices.isError && <>
               <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.paid)} percentage={percent(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />
             </>}
@@ -435,9 +448,9 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   );
 };
 
-const MoneyStep: React.FC<{ label: string; value: string; percentage?: number | null; detail: string }> = ({ label, value, percentage, detail }) => {
+const MoneyStep: React.FC<{ label: string; value: string; percentage?: number | null; caption?: string; detail: string }> = ({ label, value, percentage, caption, detail }) => {
   return (
-    <li aria-label={`${label} ${value}`} className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
+    <li aria-label={`${label} ${value}${percentage == null ? '' : ` ${percentage}%`}${caption ? ` ${caption}` : ''}`} className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
       <div className="block">
         <Tooltip content={detail}>
           <span className="block w-fit cursor-help text-sm text-muted-foreground">{label}</span>
@@ -446,10 +459,12 @@ const MoneyStep: React.FC<{ label: string; value: string; percentage?: number | 
       <div className="mt-1 block">
         <Tooltip content={detail}><span className="block w-fit cursor-help text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</span></Tooltip>
       </div>
-      {percentage != null && <span className="mt-2 block w-full max-w-36">
+      {percentage != null && percentage >= 0 && <span className="mt-2 block w-full max-w-36">
         <ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} />
       </span>}
-      {percentage === null && <span className="mt-2 block text-sm text-muted-foreground">—</span>}
+      {percentage != null && percentage < 0 && <span className="mt-2 block text-sm tabular-nums text-muted-foreground">{percentage}%</span>}
+      {percentage == null && <span className="mt-2 block text-sm text-muted-foreground">—</span>}
+      {caption && <span className="mt-1 block text-xs text-muted-foreground">{caption}</span>}
     </li>
   );
 };

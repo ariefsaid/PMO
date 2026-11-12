@@ -434,7 +434,7 @@
         "supplierPayables": "Sum of procurement cases in the supplier-invoiced state awaiting payment. Unknown balances are omitted and counted below the amount.",
         "leftToBill": "Signed contract value less invoices issued, in each contract currency.",
         "period": "Period result from the selected date range.",
-        "invoiced": "Sum of invoices issued within the selected period, excluding tax. Source: management pack by currency.",
+        "invoiced": "Billed-work value dated within the selected period, excluding tax. Source: management pack by currency.",
         "collected": "Sum of recorded incoming payments received within the selected period. A currency with an unknown receipt amount shows —. Source: incoming payment records.",
         "won": "Count and value of projects recorded as won within the selected period.",
         "winRate": "Won projects divided by won plus lost projects in the selected period. The chart can switch between count and value.",
@@ -679,15 +679,15 @@
     "chartTableTotal": "Total"
   },
   "trend": {
-    "label": "Invoiced, last {{months}} completed months · excl. tax",
+    "label": "Billed work, last {{months}} completed months · excl. tax",
     "latest": "Latest month, {{month}}: {{amount}}",
     "since": "from {{month}}: {{amount}}",
     "rising": "Rising",
     "falling": "Falling",
-    "chartName": "Invoiced trend, {{first}} to {{last}}",
+    "chartName": "Billed work trend, {{first}} to {{last}}",
     "steady": "Steady",
-    "error": "Couldn't load the invoiced trend",
-    "compactLabel": "Invoiced, last {{months}} months"
+    "error": "Couldn't load the billed-work trend",
+    "compactLabel": "Billed work · last {{months}} completed months"
   },
   "helpPopover": {
     "label": "About {{subject}}"
@@ -803,6 +803,12 @@
     "reasonNoBudgets": "no project has an active budget",
     "budgetVsSpent": "Budget and spending by project",
     "pipelineChart": "Weighted pipeline by stage",
+    "billedWorkInPeriod": "Billed work in period",
+    "billedWorkWithCollected": "Billed work and collected · last 12 completed months",
+    "billedWorkByMonth": "Billed work · last 12 completed months",
+    "chartBilledWork": "Billed work, excl. tax",
+    "billedWorkTrendGap": "Billed work is incomplete; collected amounts are shown.",
+    "collectedBilledWorkTrendGap": "Collected is incomplete; billed-work amounts are shown.",
     "invoicedVsCollected": "Invoiced and collected · last 12 completed months",
     "invoicedByMonth": "Invoiced · 12 months",
     "chartInvoiced": "Invoiced, excl. tax",

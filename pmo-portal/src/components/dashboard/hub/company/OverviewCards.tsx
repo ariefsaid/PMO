@@ -144,8 +144,10 @@ export const InvoicedCollectedCard: React.FC<{
   const withCollected = Boolean(collectedByMonth && !collectedUnsynced);
   const hasInvoices = months !== undefined;
   const collectionsPrimary = !hasInvoices && withCollected;
-  const title = withCollected ? t('home.invoicedVsCollected', 'Invoiced and collected · last 12 completed months') : t('home.invoicedByMonth', 'Invoiced · last 12 completed months');
-  const invoicedName = t('home.chartInvoiced', 'Invoiced, excl. tax');
+  const title = withCollected
+    ? t('home.billedWorkWithCollected', 'Billed work and collected · last 12 completed months')
+    : t('home.billedWorkByMonth', 'Billed work · last 12 completed months');
+  const invoicedName = t('home.chartBilledWork', 'Billed work, excl. tax');
   const collectedName = t('home.chartCollected', 'Collected');
   const sourceMonths = months ?? (withCollected ? periodMonths.map((month) => ({ month, amount: 0 })) : []);
   const points = sourceMonths.map((point) => {
@@ -163,10 +165,10 @@ export const InvoicedCollectedCard: React.FC<{
   });
   const activeMonths = points.filter((point) => point.a !== 0 || (point.b !== undefined && point.b !== 0)).length;
   const collectionGap = !withCollected
-    ? t('home.collectedTrendGap', 'Collected is incomplete; invoiced amounts are shown.')
+    ? t('home.collectedBilledWorkTrendGap', 'Collected is incomplete; billed-work amounts are shown.')
     : null;
   const invoiceGap = !hasInvoices && withCollected
-    ? t('home.invoicedTrendGap', 'Invoiced is incomplete; collected amounts are shown.')
+    ? t('home.billedWorkTrendGap', 'Billed work is incomplete; collected amounts are shown.')
     : null;
   const gap = [invoiceGap, collectionGap].filter(Boolean).join(' ');
   return (
