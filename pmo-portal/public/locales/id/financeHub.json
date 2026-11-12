@@ -199,8 +199,12 @@
       "doneNotYetBilledHelp": "Pendapatan yang diperoleh sampai saat ini dikurangi nilai yang telah ditagih.",
       "earnedToDate": "Pendapatan sampai saat ini",
       "earnedToDateHelp": "Pendapatan kumulatif yang diakui sampai bulan acuan; keterangan menunjukkan perubahan bulan ini.",
+      "billedWorkInPeriod": "Ditagih dalam periode",
+      "billedWorkInPeriodHelp": "Nilai faktur bertanggal dalam bulan yang dipilih, sebelum pajak.",
       "invoicedToDate": "Ditagih sampai saat ini",
-      "invoicedToDateHelp": "Nilai faktur bertanggal kumulatif sampai bulan acuan, sebelum pajak. Tabel mencantumkan jumlah faktur per proyek.",
+      "invoicedToDateHelp": "Nilai faktur kumulatif dari seluruh riwayat sampai bulan acuan, sebelum pajak. Tabel mencantumkan jumlah faktur per proyek.",
+      "openingBilledWork": "Saldo awal ditagih",
+      "openingBilledWorkHelp": "Nilai faktur dari seluruh riwayat sebelum bulan pertama yang dipilih, sebelum pajak.",
       "invoiceCount": "{{count}} faktur",
       "invoiceCount_one": "{{count}} faktur",
       "invoiceCount_other": "{{count}} faktur",
@@ -212,11 +216,16 @@
       "reconcile": "Buka faktur"
     },
     "col": {
+      "period": "Periode",
       "progress": "Progres",
       "earned": "Diperoleh",
       "invoices": "Faktur",
       "doneNotYetBilled": "Selesai, belum ditagih",
       "leftToBill": "Sisa yang harus ditagih"
+    },
+    "export": {
+      "selectedPeriodTotal": "Total periode yang dipilih",
+      "opening": "Saldo awal"
     },
     "noProgressNote": "Tanpa penilaian progres, pendapatan yang diakui mengikuti nilai faktur.",
     "leftToBillUnknownNote": "Sisa tagihan tidak mencakup faktur mata uang asing yang belum direkonsiliasi; nilainya belum diketahui.",
