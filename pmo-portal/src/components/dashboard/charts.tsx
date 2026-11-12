@@ -112,17 +112,20 @@ export interface ColumnPoint {
 }
 
 /** A value label above a column: every non-zero column, or only the latest (`lastOnly`). Zero columns carry no label. */
-const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', lastOnly: boolean, side: 'middle' | 'end' | 'start' = 'middle', paired = false) => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
+const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', lastOnly: boolean, side: 'middle' | 'end' | 'start' = 'middle', paired = false, centerOnBar = false) => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
   const { x = 0, y = 0, width = 0, index = 0, value } = props;
   const lastNonZero = data.reduce((last, point, pointIndex) => point[series] != null && point[series] !== 0 ? pointIndex : last, -1);
   if (value == null || value === '' || !data[index]?.[series] || (lastOnly && index !== lastNonZero)) return null;
   const barX = Number(x);
   const barWidth = Number(width);
-  // Paired labels meet at the midpoint between the columns. Each series keeps its own half of the month,
-  // so their values stay readable even when both amounts are non-zero.
+  // The default paired labels meet at the midpoint between columns. Finance labels stay over their own bars
+  // and use separate rows so adjacent values remain legible when the amounts are close.
   const pairedCenter = side === 'end' ? barX + (barWidth * 1.5) + 1 : barX - (barWidth / 2) - 1;
-  const anchorX = paired ? pairedCenter : side === 'end' ? barX + barWidth : side === 'start' ? barX : barX + barWidth / 2;
-  return <text x={anchorX} y={Number(y) - 5} textAnchor={side} style={LABEL_STYLE}>{String(value)}</text>;
+  const anchorX = centerOnBar
+    ? barX + barWidth / 2
+    : paired ? pairedCenter : side === 'end' ? barX + barWidth : side === 'start' ? barX : barX + barWidth / 2;
+  const labelY = Number(y) - (centerOnBar && series === 'b' ? 22 : 5);
+  return <text x={anchorX} y={labelY} textAnchor={centerOnBar ? 'middle' : side} style={LABEL_STYLE}>{String(value)}</text>;
 };
 
 /**
@@ -136,10 +139,12 @@ export const MonthColumns: React.FC<{
   seriesNames?: [string, string?];
   labelAll?: boolean;
   height?: number;
+  /** Center each paired series value over its own bar when both direct labels need to stay visible. */
+  pairedLabelsOnBars?: boolean;
   /** Keep paired value labels legible on narrow screens; the chart can scroll horizontally. */
   minWidth?: number;
   tickInterval?: number;
-}> = ({ points, ariaLabel, seriesNames, labelAll = false, height = 168, minWidth, tickInterval = 0 }) => {
+}> = ({ points, ariaLabel, seriesNames, labelAll = false, height = 168, pairedLabelsOnBars = false, minWidth, tickInterval = 0 }) => {
   const reduced = usePrefersReducedMotion();
   const two = points.some((point) => point.b !== undefined);
   const data = points.map((point) => ({ ...point }));
@@ -160,11 +165,11 @@ export const MonthColumns: React.FC<{
               <YAxis hide domain={[0, 'auto']} />
               <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.labelA : item.payload.labelB) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
               <Bar dataKey="a" fill={toneFill.accent} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
-                <LabelList dataKey="labelA" content={columnLabel(data, 'a', !labelAll, two ? 'end' : 'middle', two)} />
+                <LabelList dataKey="labelA" content={columnLabel(data, 'a', !labelAll, two ? 'end' : 'middle', two, pairedLabelsOnBars && two)} />
               </Bar>
               {two && (
                 <Bar dataKey="b" fill={toneFill.neutral} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
-                  <LabelList dataKey="labelB" content={columnLabel(data, 'b', !labelAll || points.length > 6, 'start', true)} />
+                  <LabelList dataKey="labelB" content={columnLabel(data, 'b', !labelAll || points.length > 6, 'start', true, pairedLabelsOnBars)} />
                 </Bar>
               )}
             </BarChart>
