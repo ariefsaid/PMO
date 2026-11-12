@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, MobileActionBar, Tabs, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
+import { Button, FigureHiddenLine, FigureScope, ListState, MobileActionBar, SelectField, Tabs, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -47,6 +47,18 @@ const Suspended: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 /** Below the first screen: the browser skips layout and paint until the block nears the viewport (find-in-page, anchors and print still reach it). */
 const BELOW_FOLD = '[content-visibility:auto] [contain-intrinsic-size:auto_480px]';
 
+/** A deal's Overview also carries its notes and activity and its documents, so the record fills the screen. */
+const PipelineRecordBlocks: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+  const { t } = useTranslation('project');
+  return (
+    <div className="grid min-w-0 gap-[var(--space-panel-gap)] xl:grid-cols-2">
+      <ProjectActivity projectId={project.id} compact title={t('projectDetail.activity.notesTitle', 'Notes and activity')} />
+      {/* Its own boundary: the rest of the Overview must not wait on the Documents chunk. */}
+      <div className="min-w-0"><React.Suspense fallback={<ListState variant="loading" rows={3} className="min-h-40" />}><DocumentsTab projectId={project.id} projectCode={project.code} /></React.Suspense></div>
+    </div>
+  );
+};
+
 /** The overview, led by the approved role-specific composition: money cockpit for finance roles, task lead for engineers. */
 const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void }> = ({ project, isPipeline, onOpen }) => {
   const lens = useLens();
@@ -73,6 +85,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
             {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
           </div>
           <DeliveryBlock projectId={project.id} isPipeline />
+          <PipelineRecordBlocks project={project} />
         </div>
       );
     }
@@ -82,6 +95,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
         {/* AC-PMP-006: invoices and spending already recorded against a deal stay visible before it is won. */}
         {canSeeMoney && <div className="min-w-0 xl:col-span-2"><ProjectFinancesSection project={project} /></div>}
+        <div className="min-w-0 xl:col-span-2"><PipelineRecordBlocks project={project} /></div>
       </div>
     );
   }
@@ -92,28 +106,34 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           <MyOpenTasks projectId={project.id} />
           {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
         </div>
-        <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
         {/* AC-PERF-003 (plan 1c): the work-order billing block sits below the fold — its three reads
             wait until the block nears the viewport (WhenNearViewport renders children immediately
-            where IntersectionObserver is absent, so unit tests and old browsers are unchanged). */}
-        <WhenNearViewport>
-          <BillingMilestonesBlock projectId={project.id} />
-        </WhenNearViewport>
+            where IntersectionObserver is absent, so unit tests and old browsers are unchanged).
+            A short list takes a third beside the wide timeline, not a full-width card. */}
+        <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
+          <WhenNearViewport>
+            <BillingMilestonesBlock projectId={project.id} />
+          </WhenNearViewport>
+        </div>
       </div>
     ) : (
-      <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
-        {/* Phone reads attention → money → budget; at xl the money block spans both rows of the right column,
-            so the budget fills the space under the (usually short) attention list instead of leaving it empty. */}
-        <div className={`grid min-w-0 items-start gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
-          <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} className="min-w-0 xl:col-start-1 xl:row-start-1" />
-          {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1"><MoneyBlock project={project} /></div>}
-          <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} /></div>
+      <FigureScope><div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+        <FigureHiddenLine compact />
+        {/* Phone reads attention → money → budget. At xl, the attention and money rows align,
+            then Budget spans the canvas so the shorter right column does not end halfway down the page. */}
+        <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
+          <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} fillRow={canSeeMoney} className="min-w-0 xl:col-start-1 xl:row-start-1" />
+          {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-start-1"><MoneyBlock project={project} fillRow /></div>}
+          <div className={`min-w-0 ${canSeeMoney ? 'xl:col-span-2 xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} /></div>
         </div>
-        <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
-        <WhenNearViewport>
-          <BillingMilestonesBlock projectId={project.id} />
-        </WhenNearViewport>
-      </div>
+        <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+          <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
+          <WhenNearViewport>
+            <BillingMilestonesBlock projectId={project.id} />
+          </WhenNearViewport>
+        </div>
+      </div></FigureScope>
     )
   );
 };
@@ -151,7 +171,7 @@ function useAreaLabels(): Record<Area, string> {
     budget: t('projectDetail.tabs.budget', 'Budget'),
     procurement: t('projectDetail.tabs.procurement', 'Procurement'),
     tasks: t('projectDetail.tabs.tasks', 'Tasks'),
-    contract: t('projectDetail.tabs.contract', 'Contract & billing'),
+    contract: t('projectDetail.tabs.contract', 'Contract'),
     materials: t('projectDetail.tabs.materials', 'Materials'),
     documents: t('projectDetail.tabs.documents', 'Documents'),
     activity: t('projectDetail.tabs.activity', 'Activity'),
@@ -174,6 +194,7 @@ function useVisibleAreas(isPipeline: boolean): Area[] {
 const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, header }) => {
   const { t } = useTranslation('project');
   const labels = useAreaLabels();
+  const sectionsLabel = t('projectDetail.tabs.ariaLabel', 'Project sections');
   const areas = useVisibleAreas(isPipeline).filter((a) => a !== 'activity');
   const [loadedCounts, setLoadedCounts] = useState<{ projectId: string; values: ProjectTabCounts }>(() => ({ projectId: project.id, values: {} }));
   const updateCount = useCallback((key: CountedArea, count: number | null) => {
@@ -215,7 +236,19 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   return (
     <>
       {header}
+      <div data-testid="mobile-project-area-select" className="mb-4 md:hidden">
+        <SelectField
+          label={sectionsLabel}
+          hideLabel
+          value={panel}
+          onChange={(next) => setArea(next as Area)}
+          options={areas.map((a) => ({ value: a, label: labels[a] }))}
+          className="touch-target w-full"
+        />
+      </div>
       <div
+        data-testid="project-section-tabs"
+        className="hidden md:block"
         onPointerOver={preloadTabChunk}
         onPointerDown={preloadTabChunk}
         onFocusCapture={preloadTabChunk}
@@ -240,7 +273,7 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
         </Suspended>
       </div>
       {/* Activity is about the project as a whole, so it lives on Overview only (owner, 2026-10-27). */}
-      {panel === 'overview' && <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />}
+      {panel === 'overview' && !isPipeline && <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />}
     </>
   );
 };
@@ -292,7 +325,7 @@ const ProjectActionButton: React.FC<{ mobileBar: boolean; to: string; children: 
     ? (
       <>
         <div aria-hidden="true" className="h-20 md:hidden" />
-        <MobileActionBar className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 md:hidden">{button}</MobileActionBar>
+        <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 md:hidden">{button}</MobileActionBar>
       </>
     )
     : button;

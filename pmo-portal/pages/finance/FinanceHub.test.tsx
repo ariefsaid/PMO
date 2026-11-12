@@ -8,7 +8,19 @@ import type { FinancePosition } from '@/src/lib/finance/financePosition';
 
 const state = vi.hoisted(() => ({
   role: 'Finance',
+  currency: 'IDR',
   position: null as FinancePosition | null,
+  financeSources: {
+    invoicesPending: false,
+    invoicesError: false,
+    paymentsPending: false,
+    paymentsError: false,
+    procurementsPending: false,
+    procurementsError: false,
+    orgDayPending: false,
+    orgDayError: false,
+  },
+  erp: { isPending: false, isError: false },
   figures: {
     data: undefined as unknown,
     isPending: false,
@@ -37,17 +49,29 @@ vi.mock('@/src/hooks/useFinancePosition', () => ({
   useFinancePosition: () => ({
     position: state.position,
     today: '2026-10-27',
-    isPending: false,
-    isError: false,
+    ...state.financeSources,
+    isPending: Object.entries(state.financeSources).some(([key, value]) => key.endsWith('Pending') && value),
+    isError: Object.entries(state.financeSources).some(([key, value]) => key.endsWith('Error') && value),
     retry: vi.fn(),
   }),
 }));
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], ...state.erp }) }));
 vi.mock('@/src/hooks/useFinanceHubFigures', () => ({
   useFinanceHubFigures: () => state.figures,
 }));
+vi.mock('@/src/hooks/useManagementPack', () => ({
+  useManagementPack: () => ({
+    data: { totals: [{ currency: 'IDR', months: ['2026-04-01', '2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01', '2026-09-01'].map((month) => ({ month, invoiced: 100_000 })) }] },
+    isPending: false, isError: false, refetch: vi.fn(),
+  }),
+}));
+vi.mock('@/src/hooks/useRevenue', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/hooks/useRevenue')>()),
+  useMonthlyInvoiceFacts: () => ({ data: [{ invoice_date: '2026-09-01', currency: 'IDR', net: 1000, recovery: 0 }], isPending: false, isError: false, refetch: vi.fn() }),
+  usePaidPaymentFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
-  useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }),
+  useOrgCurrencyState: () => ({ currency: state.currency, isResolved: true, isError: false }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'project-1', name: 'North delivery', short_name: 'North delivery', pm: { full_name: 'Alex Rivera' } }] }) }));
 
@@ -72,9 +96,10 @@ function positionFixture(): FinancePosition {
     unappliedPayments: [],
     unappliedTotals: {},
     payables: [{ procurement: { id: 'procurement-1', vendor_id: 'supplier-1', vendor: { name: 'Supplier A' } } as never, ageDays: 100, amount: 6_240_000_000 }],
-    payablesTotals: { IDR: 6_240_000_000 },
+    payablesTotals: { IDR: 6_240_000_000, USD: 500_000 },
     payablesUnknownCount: 0,
-    receivablesAgeing: { IDR: { notDue: 3_820_000_000, d1_30: 1_220_000_000, d31_60: 1_430_000_000, d61_90: 0, over90: 1_850_000_000 } },
+    receivablesAgeing: { IDR: { notDue: 3_820_000_000, noDueDate: 0, d1_30: 1_220_000_000, d31_60: 1_430_000_000, d61_90: 0, over90: 1_850_000_000 } },
+    receivablesNoDueDateCounts: {},
     payablesAgeing: { IDR: { d0_30: 2_100_000_000, d31_60: 940_000_000, d61_90: 1_200_000_000, over90: 2_000_000_000 } },
   };
 }
@@ -86,7 +111,19 @@ function renderHub(role = 'Finance') {
 }
 
 beforeEach(() => {
+  state.currency = 'IDR';
   state.position = positionFixture();
+  state.financeSources = {
+    invoicesPending: false,
+    invoicesError: false,
+    paymentsPending: false,
+    paymentsError: false,
+    procurementsPending: false,
+    procurementsError: false,
+    orgDayPending: false,
+    orgDayError: false,
+  };
+  state.erp = { isPending: false, isError: false };
   state.figures = {
     data: {
       pack: { asAt: '2026-10-01', unbilled: [{ currency: 'IDR', cents: 1_230_000 }, { currency: 'USD', cents: 500_000 }], contractRows: 2, invoicedBasisRows: 2 },
@@ -104,35 +141,167 @@ afterEach(() => {
 });
 
 describe('Finance hub', () => {
+  it('shows known zero for no receivables and no supplier invoices', () => {
+    state.position = { ...positionFixture(), receivablesCount: 0, receivablesAgeing: {}, payables: [], payablesTotals: {} };
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'Open Receivables' }).parentElement).toHaveTextContent(/IDR\s*0/);
+    expect(screen.getByRole('link', { name: 'Open Payables' }).parentElement).toHaveTextContent(/IDR\s*0/);
+  });
+
+  it('keeps receivable and payable areas visible while an unrelated payment read is pending', () => {
+    state.financeSources.paymentsPending = true;
+    renderHub();
+
+    const receivablesTile = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    const payablesTile = screen.getByRole('link', { name: 'Open Payables' }).parentElement as HTMLElement;
+    expect(within(receivablesTile).getByText('IDR 83.2M')).toBeInTheDocument();
+    expect(within(payablesTile).getByText('IDR 62.4M')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Payables' })).toBeInTheDocument();
+    expect(screen.getByTestId('finance-attention-loading')).toBeInTheDocument();
+  });
+
+  it('shows an invoice-read error only on receivables while payables keep their figures', () => {
+    state.financeSources.invoicesError = true;
+    renderHub();
+
+    const receivablesTile = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    const payablesTile = screen.getByRole('link', { name: 'Open Payables' }).parentElement as HTMLElement;
+    expect(receivablesTile).not.toHaveTextContent('IDR 83.2M');
+    expect(receivablesTile).not.toHaveTextContent('IDR 0');
+    expect(within(payablesTile).getByText('IDR 62.4M')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Receivables' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Payables' })).toBeInTheDocument();
+    expect(screen.getAllByText("Couldn't load balance ageings").length).toBeGreaterThan(0);
+  });
+
+  it('keeps receivables visible when the procurement read fails on the payables side', () => {
+    state.financeSources.procurementsError = true;
+    renderHub();
+
+    const receivablesTile = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    const payablesTile = screen.getByRole('link', { name: 'Open Payables' }).parentElement as HTMLElement;
+    expect(within(receivablesTile).getByText('IDR 83.2M')).toBeInTheDocument();
+    expect(payablesTile).not.toHaveTextContent('IDR 62.4M');
+    expect(payablesTile).not.toHaveTextContent('IDR 0');
+    expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Payables' })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Couldn't load balance ageings").length).toBeGreaterThan(0);
+  });
+
+  it('lets receivables finish while linked supplier invoices are still loading', () => {
+    state.erp.isPending = true;
+    renderHub();
+
+    const receivablesTile = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    expect(within(receivablesTile).getByText('IDR 83.2M')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Payables' })).not.toBeInTheDocument();
+  });
+
+  it('keeps receivables visible and reports the linked supplier invoice error on payables', () => {
+    state.erp.isError = true;
+    renderHub();
+
+    const receivablesTile = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    const payablesTile = screen.getByRole('link', { name: 'Open Payables' }).parentElement as HTMLElement;
+    expect(within(receivablesTile).getByText('IDR 83.2M')).toBeInTheDocument();
+    expect(payablesTile).not.toHaveTextContent('IDR 0');
+    expect(payablesTile).not.toHaveTextContent('IDR 62.4M');
+    expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Ageing' })).toHaveTextContent("Couldn't load balance ageings");
+  });
+
   it('I2 mounts the invoice pair review on the page Finance lands on, handing it the caller org', () => {
     renderHub('Finance');
     expect(screen.getByTestId('invoice-pair-review')).toHaveTextContent('org-1');
   });
 
-  it('shows unknown receivables instead of no balance and explains empty ageing', () => {
-    state.position = { ...positionFixture(), receivablesAgeing: {}, receivablesUnknownCount: 1, overdueUnknownCount: 1, overdue: [] };
+  it('F1: shows only known receivable currencies beside the unknown invoice count', () => {
+    state.currency = 'USD';
+    state.position = {
+      ...positionFixture(),
+      receivablesAgeing: { IDR: { notDue: 40_000_000, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+      receivablesUnknownCount: 1,
+      overdueUnknownCount: 1,
+      overdue: [],
+    };
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
-    const card = screen.getByRole('link', { name: 'Open Receivables' }).closest('article')!;
-    expect(card).toHaveTextContent('1 balance unknown');
-    expect(card).not.toHaveTextContent('No balance');
-    expect(screen.getByRole('region', { name: /Client balances by age/ })).toHaveTextContent(/balance.*unknown/i);
+    const receivables = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    expect(receivables).toHaveTextContent('IDR 400K');
+    expect(receivables).toHaveTextContent('1 balance unknown');
+    expect(receivables).not.toHaveTextContent('$0');
+    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent('1 balance unknown');
   });
 
-  it('AC-1405-HUB-001: shows whole-unit figures and four area cards with their meaning lines', () => {
+  it('CV Phase 2: keeps unknown receivable balances on the tile and ageing, not the Waiting on Finance header', () => {
+    const invoice = { ...positionFixture().overdue[0]!.invoice, id: 'unknown-invoice', erp_outstanding_amount: null } as never;
+    state.position = {
+      ...positionFixture(),
+      receivablesCount: 1,
+      receivablesUnknownCount: 1,
+      receivablesAgeing: { IDR: { notDue: 0, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+      overdue: [{ invoice, daysOverdue: 104, outstanding: null }],
+      overdueTotals: {},
+      overdueUnknownCount: 1,
+    };
+    state.role = 'Executive';
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    expect(screen.getByRole('heading', { name: 'Waiting on Finance' })).toBeInTheDocument();
+    const receivables = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    expect(receivables).toHaveTextContent('1 balance unknown');
+    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent('1 balance unknown');
+
+    const attention = screen.getByRole('region', { name: 'Finance attention' });
+    expect(within(attention).getByRole('heading', { name: /Overdue/ })).not.toHaveTextContent('balance unknown');
+    const row = screen.getByRole('link', { name: /Open Client 1 invoice INV-1/ });
+    expect(row).toBeInTheDocument();
+    expect(row).not.toHaveTextContent(/balance unknown|—|IDR 0/);
+  });
+
+  it('F1: names a wholly unknown balance and keeps a known unbilled zero as zero', () => {
+    state.currency = 'USD';
+    state.position = { ...positionFixture(), receivablesAgeing: {}, receivablesUnknownCount: 1, overdueUnknownCount: 1, overdue: [] };
+    state.figures.data = {
+      pack: { asAt: '2026-10-01', unbilled: [], contractRows: 2, invoicedBasisRows: 2 },
+      statement: { unpublished: true, periodStart: null, netProfit: null, currency: null },
+    };
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    expect(screen.queryByRole('link', { name: 'Open Receivables' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('invoice balances unknown');
+    expect(screen.getByRole('link', { name: 'See invoices' })).toHaveAttribute('href', '/finance/receivables');
+    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent('1 balance unknown');
+    const unbilled = screen.getByRole('link', { name: 'Open Reports' }).parentElement as HTMLElement;
+    expect(unbilled).toHaveTextContent('Done, not yet billed');
+    expect(unbilled).toHaveTextContent('$0');
+  });
+
+  it('AC-1405-HUB-001: shows whole-unit figures and four linked figure tiles with one caption each', () => {
     renderHub();
 
     expect(screen.getByRole('heading', { name: 'Finance', level: 1 })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Overdue · IDR\s45,000,000 from 5 invoices/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Overdue · 5 invoices· IDR\s45,000,000/ })).toBeInTheDocument();
     expect(screen.queryByText(/\.00\b/)).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Receivables/ })).toHaveAttribute('href', '/finance/receivables');
-    expect(screen.getByRole('link', { name: /Payables/ })).toHaveAttribute('href', '/finance/payables');
-    expect(screen.getByRole('link', { name: /Reports/ })).toHaveAttribute('href', '/finance/reports');
-    expect(screen.getByRole('link', { name: /Statements/ })).toHaveAttribute('href', '/finance/statements');
-    expect(screen.getByText(/owed to you/)).toBeInTheDocument();
-    expect(screen.getByText(/to pay 1 supplier/)).toBeInTheDocument();
-    expect(screen.getByText(/earned, not yet invoiced · through Oct/)).toBeInTheDocument();
-    expect(screen.getByText('No progress recorded on 2 projects')).toBeInTheDocument();
-    expect(screen.getByText('+ USD 5K in other currencies')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Receivables' })).toHaveAttribute('href', '/finance/receivables');
+    expect(screen.getByRole('link', { name: 'Open Payables' })).toHaveAttribute('href', '/finance/payables');
+    expect(screen.getByRole('link', { name: 'Open Reports' })).toHaveAttribute('href', '/finance/reports');
+    expect(screen.getAllByText('Receivables').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Payables').length).toBeGreaterThan(0);
+    expect(screen.getByText('through Oct 2026')).toBeInTheDocument();
+    // The supplier figure keeps the home and foreign currencies on separate lines without joining them.
+    const payables = screen.getByRole('link', { name: 'Open Payables' }).parentElement as HTMLElement;
+    expect(within(payables).getByText('Owed to suppliers')).toBeInTheDocument();
+    const otherCurrency = within(payables).getByText('USD 5K');
+    expect(otherCurrency).toHaveClass('block');
+    expect(otherCurrency).not.toHaveTextContent('+');
+    expect(within(payables).getByText('IDR 62,400,000; USD 5,000')).toHaveClass('sr-only');
+    const earned = screen.getByRole('link', { name: 'Open Reports' }).parentElement as HTMLElement;
+    expect(within(earned).getByText('Done, not yet billed')).toBeInTheDocument();
+    const areas = screen.getByRole('region', { name: 'Finance areas' });
+    expect(areas).toHaveClass('min-[900px]:grid-cols-3');
+    expect(areas.children).toHaveLength(3);
   });
 
   it('L6: each overdue and supplier figure is shown once on the hub', () => {
@@ -140,13 +309,13 @@ describe('Finance hub', () => {
     // Overdue is owned by the attention block; payables by the Payables area card.
     expect(screen.getAllByText(/45,000,000/)).toHaveLength(1);
     expect(screen.getAllByText(/62,400,000/)).toHaveLength(1);
-    expect(screen.getByRole('link', { name: 'Open Payables' }).closest('article')).toHaveTextContent('IDR 62.4M');
-    expect(screen.getByText(/1 supplier invoices? waiting to be paid/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Payables' }).parentElement).toHaveTextContent('IDR 62.4M');
+    expect(screen.getByText(/1 unpaid supplier invoices?/)).toBeInTheDocument();
   });
 
-  it('F11: area cards show short amounts with the exact amount kept for hover and screen readers', () => {
+  it('F11: figure tiles show short amounts with the exact amount kept for hover and screen readers', () => {
     renderHub();
-    const receivables = screen.getByRole('link', { name: 'Open Receivables' }).closest('article') as HTMLElement;
+    const receivables = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
     expect(within(receivables).getByText('IDR 83.2M').getAttribute('title')).toMatch(/^IDR\s83,200,000$/);
     expect(within(receivables).getByText('IDR 83,200,000')).toHaveClass('sr-only');
   });
@@ -164,41 +333,58 @@ describe('Finance hub', () => {
   it('AC-1405-HUB-003: keeps area cards, ageing figures and attention content accessible', async () => {
     const { container } = renderHub('Executive');
 
-    expect(screen.getByRole('region', { name: /Client balances by age/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Ageing' })).toBeInTheDocument();
+    const trend = screen.getByTestId('finance-revenue-trend');
+    const ageing = screen.getByRole('region', { name: 'Ageing' });
+    expect(ageing.parentElement).not.toBe(trend.parentElement);
+    expect(trend.compareDocumentPosition(ageing) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Payables' })).toBeInTheDocument();
+    expect(screen.getAllByTestId('ageing-bar-IDR')).toHaveLength(2);
     expect(screen.getByRole('heading', { name: /Waiting on Finance/ })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Finance areas' }).children).toHaveLength(3);
+    const firstRow = screen.getByTestId('finance-hub-first-row');
+    const [left, right] = Array.from(firstRow.children) as HTMLElement[];
+    const attention = screen.getByRole('region', { name: 'Finance attention' });
+    expect(left).toContainElement(attention);
+    expect(right).toContainElement(screen.getByRole('region', { name: 'Finance areas' }));
+    expect(right).toContainElement(trend);
+    expect(right).not.toContainElement(ageing);
+    expect(firstRow.compareDocumentPosition(ageing) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(ageing.parentElement).not.toBe(trend.parentElement);
+    expect(attention).toHaveClass('gap-0');
+    expect(within(trend).getByText('Invoiced, excl. tax')).toBeInTheDocument();
+    expect(within(trend).getByText('Collected')).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
-    expect(within(screen.getByRole('region', { name: /Client balances by age/ })).getByText(/38[,.]?200[,.]?000/)).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Receivables' })).getByText(/38[,.]?200[,.]?000/)).toBeInTheDocument();
   });
 
   it('AC-1405-HUB-005: Executive sees no finance action controls while the read-only waiting list remains visible', () => {
     renderHub('Executive');
 
     expect(screen.getByRole('heading', { name: 'Waiting on Finance' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /New invoice|Review|Mark received|Apply|Open payables/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /New invoice|Review|Record delivery|Apply|Open payables/ })).not.toBeInTheDocument();
   });
 
   it('AC-1405-HUB-006: no statement catalogue states the reason once, shows no placeholder value, and does not spin', () => {
     renderHub();
 
-    const statements = screen.getByRole('link', { name: /Statements/ }).closest('article') as HTMLElement;
-    // C4: "Not available yet" is never shown as a value; the reason is said once and the card links to Statements.
-    expect(statements).not.toHaveTextContent('Not available yet');
-    expect(statements).toHaveTextContent('Net profit is not available for a period yet');
-    expect(within(statements).queryByRole('status')).not.toBeInTheDocument();
+    // C4: "Not available yet" is never a value: the tile is hidden and ONE page line says why, once.
+    expect(screen.queryByRole('link', { name: 'Open Statements' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Not available yet')).not.toBeInTheDocument();
+    const hidden = screen.getByTestId('figures-hidden');
+    expect(hidden).toHaveTextContent('1 figure hidden: accounting disconnected');
+    expect(screen.getAllByText(/accounting disconnected/)).toHaveLength(1);
   });
 
   it('C4: with no statement yet, an Admin gets the link to where statements are set up', () => {
     renderHub('Admin');
-    const statements = screen.getByRole('link', { name: /Statements/ }).closest('article') as HTMLElement;
-    expect(statements).toHaveTextContent('Statements come from the accounting system.');
-    expect(within(statements).getByRole('link', { name: 'Open integrations' })).toHaveAttribute('href', '/administration/integrations');
+    expect(within(screen.getByTestId('figures-hidden')).getByRole('link', { name: 'Set up' })).toHaveAttribute('href', '/administration/integrations');
   });
 
-  it('C4: with no statement yet, Finance is told who sets statements up, with no link it cannot open', () => {
+  it('C4: with no statement yet, Finance gets no link to a setup page it cannot open', () => {
     renderHub('Finance');
-    const statements = screen.getByRole('link', { name: /Statements/ }).closest('article') as HTMLElement;
-    expect(statements).toHaveTextContent('an Admin sets this up in Integrations');
-    expect(within(statements).queryByRole('link', { name: 'Open integrations' })).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('figures-hidden')).queryByRole('link', { name: 'Set up' })).not.toBeInTheDocument();
   });
 
   it('L12(b): the hub ageing counts a supplier invoice with an unknown balance in its age group', () => {
@@ -208,8 +394,70 @@ describe('Finance hub', () => {
     position.payablesUnknownCount = 1;
     state.position = position;
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
-    const ageing = screen.getByRole('region', { name: /Supplier invoices by age/ });
+    const ageing = screen.getByRole('region', { name: 'Payables' });
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('+ 1 balance unknown');
+  });
+
+  it('G1c/F7: places an unknown overdue receivable in its due-date bucket without inventing a value', () => {
+    const position = positionFixture();
+    position.receivablesCount = 2;
+    position.receivablesUnknownCount = 1;
+    position.receivablesAgeing = { IDR: { notDue: 40_000_000, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } };
+    position.overdueUnknownCount = 1;
+    position.overdue = [{
+      invoice: { ...position.overdue[0]!.invoice, id: 'unknown-overdue', erp_outstanding_amount: null } as never,
+      daysOverdue: 120,
+      outstanding: null,
+    }];
+    state.position = position;
+    state.role = 'Executive';
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    const receivables = screen.getByRole('region', { name: 'Receivables' });
+    expect(within(receivables).getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent('IDR 400,000');
+    const over90 = within(receivables).getByTestId('ageing-bucket-IDR-over90');
+    expect(over90).toHaveTextContent('1 balance unknown');
+    expect(over90).not.toHaveTextContent('IDR 0');
+    expect(within(receivables).getAllByText('1 balance unknown')).toHaveLength(1);
+  });
+
+  it('F8: keeps a known balance with no due date in its own counted bucket and preserves the receivable total', () => {
+    const position = positionFixture();
+    position.receivablesCount = 1;
+    position.receivablesAgeing = { IDR: { notDue: 0, noDueDate: 10_000, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } };
+    position.receivablesNoDueDateCounts = { IDR: 1 };
+    position.overdue = [];
+    state.position = position;
+    state.role = 'Executive';
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    const receivables = screen.getByRole('region', { name: 'Receivables' });
+    const noDueDate = within(receivables).getByTestId('ageing-bucket-IDR-noDueDate');
+    expect(noDueDate).toHaveTextContent('No due date');
+    expect(noDueDate).toHaveTextContent('1 invoice');
+    expect(noDueDate).toHaveTextContent('IDR 100');
+    expect(within(receivables).getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent('IDR 0');
+    expect(screen.getByRole('link', { name: 'Open Receivables' }).parentElement).toHaveTextContent('IDR 100');
+  });
+
+  it('F6: each ageing chart uses its own currency total and zero buckets recede visually', () => {
+    const position = positionFixture();
+    position.receivablesAgeing = { IDR: { notDue: 100, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } };
+    position.payablesAgeing = { IDR: { d0_30: 1_000_000, d31_60: 0, d61_90: 0, over90: 0 } };
+    state.position = position;
+    state.role = 'Executive';
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    const receivables = screen.getByRole('region', { name: 'Receivables' });
+    const payables = screen.getByRole('region', { name: 'Payables' });
+    expect(within(receivables).getByTestId('ageing-bar-IDR')).toHaveAttribute('data-scale-max', '100');
+    expect(within(payables).getByTestId('ageing-bar-IDR')).toHaveAttribute('data-scale-max', '1000000');
+    const zeroBucket = within(receivables).getByTestId('ageing-bucket-IDR-d1_30').querySelector('.tabular');
+    const positiveBucket = within(receivables).getByTestId('ageing-bucket-IDR-notDue').querySelector('.tabular');
+    expect(zeroBucket).toHaveClass('text-muted-foreground');
+    expect(zeroBucket).toHaveClass('font-normal');
+    expect(zeroBucket).not.toHaveClass('font-semibold');
+    expect(positiveBucket).not.toHaveClass('text-muted-foreground');
   });
 
   it('AC-1405-HUB-007: figure read errors offer a retry action', () => {

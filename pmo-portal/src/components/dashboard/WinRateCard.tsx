@@ -6,7 +6,9 @@ import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency, formatPercent } from '@/src/lib/format';
 import { toIso } from '@/src/lib/calendar/monthMatrix';
 import { Tooltip } from '@/src/components/ui/Tooltip';
+import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { Icon } from '@/src/components/ui/icons';
+import { cn } from '@/src/components/ui/cn';
 import {
   calculateBidRates,
   type BidCurrencyTotals,
@@ -64,8 +66,10 @@ const WinRateFigure: React.FC<{
   basis: 'count' | 'value';
   outcomeLabel: string;
   isPrimary?: boolean;
+  /** Embedded in a dashboard card: value first, "x of y" under it, a thin bar for the rate. */
+  compact?: boolean;
   t: ReturnType<typeof useTranslation>['t'];
-}> = ({ currency, label, figure, basis, outcomeLabel, isPrimary = false, t }) => {
+}> = ({ currency, label, figure, basis, outcomeLabel, isPrimary = false, compact = false, t }) => {
   const percent = figure.rate === null ? null : formatPercent(figure.rate);
   const displayAmount = (value: number) => basis === 'count' ? String(value) : formatCurrency(value, currency);
   const detail = figure.denominator > 0
@@ -79,10 +83,32 @@ const WinRateFigure: React.FC<{
     ? t('dashboard:winRate.decidedProgress', '{{currency}} win rate on decided bids', { currency })
     : t('dashboard:winRate.allBidsProgress', '{{currency}} conversion of all bids', { currency });
 
+  if (compact) {
+    const ofText = figure.denominator > 0 ? t('dashboard:winRate.ofShort', '{{won}} of {{total}}', { won: displayAmount(figure.numerator), total: displayAmount(figure.denominator) }) : null;
+    return (
+      <div className="min-w-0 space-y-1">
+        <span className="block text-control leading-tight text-muted-foreground">{label}</span>
+        <span data-testid={isPrimary ? 'kpi-win-rate' : undefined} aria-live={isPrimary ? 'polite' : undefined} className="block text-lg font-bold leading-none tabular text-foreground">{percent ?? '—'}</span>
+        {ofText && <span className="block text-control text-muted-foreground tabular">{ofText}</span>}
+        <span
+          role="progressbar"
+          aria-label={ariaLabel}
+          aria-valuenow={figure.rate === null ? undefined : Math.round(figure.rate * 1000) / 10}
+          aria-valuetext={percent ?? t('dashboard:winRate.unavailable', 'No rate available')}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          className="block h-1 overflow-hidden rounded-full bg-secondary"
+        >
+          <span className="block h-full rounded-full bg-primary" style={{ width: `${figure.rate === null ? 0 : figure.rate * 100}%` }} />
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1">
       <div className="flex min-w-0 items-baseline justify-between gap-2">
-        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="text-control text-muted-foreground">{label}</span>
         <span
           data-testid={isPrimary ? 'kpi-win-rate' : undefined}
           aria-live={isPrimary ? 'polite' : undefined}
@@ -103,7 +129,7 @@ const WinRateFigure: React.FC<{
         >
           <span className="block h-full rounded-full bg-primary" style={{ width: `${figure.rate === null ? 0 : figure.rate * 100}%` }} />
         </span>
-        {detail && <span className="min-w-0 break-words text-[11px] text-muted-foreground">{detail}</span>}
+        {detail && <span className="min-w-0 break-words text-control text-muted-foreground">{detail}</span>}
       </div>
     </div>
   );
@@ -116,9 +142,11 @@ export interface WinRateCardProps {
   /** A containing dashboard may own the date range and URL state. */
   range?: WinRateRange;
   hidePeriodControl?: boolean;
+  /** The definition goes into the page's one help control instead of a second "?" on this card. */
+  helpInPage?: boolean;
 }
 
-export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = false, range: externalRange, hidePeriodControl = false }) => {
+export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = false, range: externalRange, hidePeriodControl = false, helpInPage = false }) => {
   const [mode, setMode] = useState<'count' | 'value'>('count');
   const [period, setPeriod] = useState<PeriodKey>('all');
   // Re-derive the window when the local date rolls over in a long-lived session.
@@ -134,6 +162,8 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
   const activeRange = externalRange ?? range;
   const { data: wr, isPending, isError, refetch } = useWinRate(activeRange);
   const { t } = useTranslation();
+  const winRateHelp = t('dashboard:hub.company.help.winRate', 'Shows wins divided by decided bids and wins divided by all bids, including open bids, in the selected period. The basis can switch between count and value.');
+  useFigureReport([], helpInPage ? [{ label: t('dashboard.winRate.title', 'Win rate'), text: winRateHelp }] : []);
   const basisOptions: ViewOption<'count' | 'value'>[] = [
     { value: 'count', label: t('dashboard.winRate.basisCount', 'By count'), testId: 'win-rate-toggle-count' },
     { value: 'value', label: t('dashboard.winRate.basisValue', 'By value'), testId: 'win-rate-toggle-value' },
@@ -148,7 +178,7 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
   // beside the rate — including when they are the ONLY decided deals in the window.
   const declined = wr?.declined_count ?? 0;
   const declinedNote = declined > 0 && (
-    <p data-testid="win-rate-declined" className="mt-2 text-xs text-muted-foreground">
+    <p data-testid="win-rate-declined" className="mt-2 text-control text-muted-foreground">
       {t('dashboard.winRate.declined', '{{n}} declined to bid, not counted in the win rate', { n: declined })}
     </p>
   );
@@ -198,9 +228,11 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
     <section aria-label={t('dashboard.winRate.title', 'Win rate')} className={embedded ? 'grid gap-3' : 'rounded-lg border border-border bg-card p-4'}>
       <div className="mb-3.5 flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-semibold">{t('dashboard.winRate.title', 'Win rate')}</h3>
-        <Tooltip content={t('dashboard:hub.company.help.winRate', 'Shows wins divided by decided bids and wins divided by all bids, including open bids, in the selected period. The basis can switch between count and value.')}>
-          <button type="button" aria-label={t('dashboard:hub.company.aboutWinRate', 'About win rate')} className="touch-target grid size-11 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button>
-        </Tooltip>
+        {!helpInPage && (
+          <Tooltip content={winRateHelp}>
+            <button type="button" aria-label={t('dashboard:hub.company.aboutWinRate', 'About win rate')} className="touch-target grid size-11 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button>
+          </Tooltip>
+        )}
         <span className="flex-1" />
         <ViewToggle<'count' | 'value'> options={basisOptions} value={mode} onChange={setMode} ariaLabel={t('dashboard.winRate.basis', 'Win-rate basis')} semantics="toggle" />
       </div>
@@ -232,7 +264,7 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
             sub={t('dashboard.winRate.emptySub', 'Try a wider time frame to see your win rate.')}
           />
           {declinedNote}
-          <LossBreakdown range={activeRange} />
+          {!embedded && <LossBreakdown range={activeRange} />}
         </>
       ) : (
         <>
@@ -245,9 +277,9 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
                   key={row.currency}
                   data-testid={`win-rate-currency-${row.currency}`}
                   aria-label={t('dashboard:winRate.currencyLabel', '{{currency}} bids', { currency: row.currency })}
-                  className="space-y-2 border-b border-border pb-2 last:border-b-0 last:pb-0"
+                  className={embedded ? 'grid grid-cols-3 gap-3' : 'space-y-2 border-b border-border pb-2 last:border-b-0 last:pb-0'}
                 >
-                  <div className="text-xs font-semibold text-foreground">{row.currency}</div>
+                  <div className={cn('text-control font-semibold text-foreground', embedded && (figures.length > 1 ? 'col-span-3' : 'sr-only'))}>{row.currency}</div>
                   <WinRateFigure
                     currency={row.currency}
                     label={t('dashboard:winRate.decidedLabel', 'Win rate on decided bids')}
@@ -255,6 +287,7 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
                     basis={mode}
                     outcomeLabel={t('dashboard:winRate.decidedOutcomes', 'decided')}
                     isPrimary={index === 0}
+                    compact={embedded}
                     t={t}
                   />
                   <WinRateFigure
@@ -263,10 +296,17 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
                     figure={rates.allBids}
                     basis={mode}
                     outcomeLabel={t('dashboard:winRate.allOutcomes', 'bids')}
+                    compact={embedded}
                     t={t}
                   />
+                  {embedded && index === 0 && (
+                    <div className="min-w-0 space-y-1">
+                      <span className="block text-control leading-tight text-muted-foreground">{t('dashboard:winRate.staleShort', 'Stale ({{days}}+ days)', { days: STALE_BID_THRESHOLD_DAYS })}</span>
+                      <span data-testid="win-rate-stale-count" className="block text-lg font-bold leading-none tabular text-foreground">{staleCount}</span>
+                    </div>
+                  )}
                   {reasons.length > 0 && (
-                    <p data-testid={`win-rate-reason-${row.currency}`} className="text-[11px] text-muted-foreground">
+                    <p data-testid={`win-rate-reason-${row.currency}`} className={cn('text-control text-muted-foreground', embedded && 'col-span-3')}>
                       {reasons.map(unavailableMessage).join(' ')}
                     </p>
                   )}
@@ -274,21 +314,21 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
               );
             })}
           </div>
-          <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-control text-muted-foreground">
             <span data-testid="win-rate-open-count">
               {t('dashboard:winRate.openCount', '{{n}} still open', { n: openCount })}
             </span>
-            <span data-testid="win-rate-stale-count">
+            {!embedded && <span data-testid="win-rate-stale-count">
               {t('dashboard:winRate.staleCount', '{{n}} stale ({{days}}+ days)', { n: staleCount, days: STALE_BID_THRESHOLD_DAYS })}
-            </span>
+            </span>}
           </div>
-          <p data-testid="win-rate-period-rule" className="mt-2 max-w-[60ch] text-xs text-muted-foreground">
+          {!embedded && <p data-testid="win-rate-period-rule" className="mt-2 max-w-[60ch] text-control text-muted-foreground">
             {t(
               'dashboard:winRate.periodRule',
               'Decided bids use their decision date; open bids use their creation date for this period; the stale count is current and age starts at the last stage change, falling back to project creation if none was recorded.',
             )}
-          </p>
-          <div className="mt-2.5 flex gap-4 text-xs text-muted-foreground">
+          </p>}
+          {!embedded && <div className="mt-2.5 flex gap-4 text-control text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden className="size-1.5 rounded-full bg-success" />
               {t('dashboard:winRate.won', 'Won')}
@@ -297,9 +337,9 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
               <span aria-hidden className="size-1.5 rounded-full bg-secondary-foreground/40" />
               {t('dashboard:winRate.notWon', 'Lost or still open')}
             </span>
-          </div>
+          </div>}
           {declinedNote}
-          <LossBreakdown range={activeRange} />
+          {!embedded && <LossBreakdown range={activeRange} />}
         </>
       )}
     </section>

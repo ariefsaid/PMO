@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 
 vi.mock('@/src/components/integrations/M365ConnectionCard', () => ({
@@ -28,22 +29,24 @@ const renderPage = () => render(<IntegrationsPage />);
 afterEach(() => cleanup());
 
 describe('Integrations — the PERSONAL connection route (AC-ADMIA-006)', () => {
-  it('labels the route as personal integrations with a separating description', () => {
+  it('labels the route as personal integrations with a separating description', async () => {
     renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /about my integrations/i }));
     // The page-level h1 identifies the personal surface, not the org surface.
     expect(screen.getByRole('heading', { level: 1, name: 'My integrations' })).toBeInTheDocument();
     // Supporting copy is explicitly personal-account scope.
-    expect(screen.getByText(/personal microsoft 365 account/i)).toBeInTheDocument();
+    expect(screen.getByText(/your own microsoft 365 account/i)).toBeInTheDocument();
     // The M365 card still renders — the route and its callback handling are unchanged.
     expect(screen.getByTestId('personal-m365-card')).toBeInTheDocument();
   });
 
-  it('AC-M365LOC-007: the intro does not promise documents or a calendar in projects (a connection alone proves neither)', () => {
+  it('AC-M365LOC-007: the intro does not promise documents or a calendar in projects (a connection alone proves neither)', async () => {
     renderPage();
-    const intro = screen.getByText(/personal microsoft 365 account/i);
+    await userEvent.click(screen.getByRole('button', { name: /about my integrations/i }));
+    const intro = screen.getByText(/your own microsoft 365 account/i);
     expect(intro.textContent).not.toMatch(/documents|calendar|into projects/i);
     // It says what a connection does grant: access to what the user's own account can reach.
-    expect(intro).toHaveTextContent(/PMO Portal can reach the content your account has access to/i);
+    expect(intro).toHaveTextContent(/PMO Portal can reach the content it has access to/i);
   });
 
   it('does not claim that a personal connection makes the organization integration ready', () => {

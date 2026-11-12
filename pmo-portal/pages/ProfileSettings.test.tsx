@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within, act, fireEvent } from '@testing-library/react';
 import React from 'react'
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { axeViolations } from '@/src/components/__tests__/axe';
@@ -75,7 +76,7 @@ beforeEach(() => {
 });
 
 function renderPage() {
-  return render(<ProfileSettings />);
+  return render(<MemoryRouter initialEntries={['/profile']}><Link to="/next">Continue</Link><Routes><Route path="/profile" element={<ProfileSettings />} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter>);
 }
 
 function languageSelect() {
@@ -90,18 +91,26 @@ describe('ProfileSettings (profile language settings slice)', () => {
     expect(localStorage.getItem('text-size')).toBe('larger');
   });
 
-  it('UIP-012: keeps the resting preferences card flat, bordered, and keyboard-focusable', () => {
+  it('UIP-012: the preferences are keyboard-focusable', () => {
     renderPage();
 
-    const heading = screen.getByRole('heading', { name: /profile & preferences/i });
-    const card = heading.parentElement;
-    expect(card).not.toBeNull();
-    expect(card).toHaveClass('rounded-lg', 'border', 'border-border', 'bg-card', 'p-4', 'sm:p-6');
-    expect(card).not.toHaveClass('shadow-sm');
+    expect(screen.getByRole('heading', { name: /profile & preferences/i })).toBeInTheDocument();
 
     languageSelect().focus();
     expect(document.activeElement).toBe(languageSelect());
     expect(screen.getByRole('button', { name: /^save$/i })).toBeEnabled();
+  });
+
+  it('asks before leaving changed profile preferences and Stay keeps the selection', async () => {
+    currentUserState = { ...currentUserState, locale: 'en' };
+    renderPage();
+    fireEvent.change(languageSelect(), { target: { value: 'id' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Continue' }));
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    fireEvent.click(within(discard).getByRole('button', { name: 'Keep editing' }));
+    expect(languageSelect()).toHaveValue('id');
+    expect(screen.queryByText('Next page')).not.toBeInTheDocument();
+    expect(setLocalePreferences).not.toHaveBeenCalled();
   });
 
   it('exposes exactly the three language options and reflects the current stored choice', () => {
@@ -233,7 +242,7 @@ describe('ProfileSettings personal locale preferences', () => {
     expect(languageSelect()).toHaveValue('inherit');
     expect(screen.getByLabelText(/number format/i)).toHaveValue('inherit');
     expect(screen.getByRole('combobox', { name: /timezone/i })).toHaveTextContent(/organization default/i);
-    expect(screen.getByText(/effective.*english/i)).toBeInTheDocument();
+    expect(within(languageSelect()).getByRole('option', { name: 'Organization default — English' })).toHaveValue('inherit');
     // #684: the ONE labelled preview reflects the pending (here: inherited) choice — English,
     // not the currently effective saved convention ('id-ID' per resolvedLocaleState above).
     expect(screen.getByText('Preview: 1,234,567.89')).toBeInTheDocument();
@@ -250,8 +259,8 @@ describe('ProfileSettings personal locale preferences', () => {
 
     // The preview updates immediately, before Save is pressed…
     expect(screen.getByText('Preview: 1.234.567,89')).toBeInTheDocument();
-    // …while the "effective" (currently saved) convention is unchanged until save + refresh.
-    expect(screen.getByText('Effective number format: 1,234,567.89')).toBeInTheDocument();
+    // …while the saved convention is unchanged until save + refresh.
+    expect(resolvedLocaleState.current.numberLocale).toBe('en-US');
   });
 
   it('AC-PLC-001: names the organization timezone on Organization default, not the user override', async () => {
@@ -292,8 +301,6 @@ describe('ProfileSettings personal locale preferences', () => {
     expect(within(languageSelect()).getByRole('option', { name: 'Organization default — Bahasa Indonesia' })).toBeInTheDocument();
     const numberSelect = screen.getByLabelText(/number format/i) as HTMLSelectElement;
     expect(within(numberSelect).getByRole('option', { name: 'Organization default — 1.234.567,89' })).toBeInTheDocument();
-    // The effective line shows the convention's example, never a bare language tag like "id".
-    expect(screen.getByText('Effective number format: 1.234.567,89')).toBeInTheDocument();
 
     // Choosing English as the language changes what "Organization default" number format would give.
     fireEvent.change(languageSelect(), { target: { value: 'en' } });
@@ -322,6 +329,7 @@ describe('ProfileSettings personal locale preferences', () => {
     fireEvent.change(languageSelect(), { target: { value: 'en' } });
     fireEvent.change(screen.getByLabelText(/number format/i), { target: { value: 'inherit' } });
     fireEvent.click(screen.getByRole('combobox', { name: /timezone/i }));
+    fireEvent.change(await screen.findByRole('combobox', { name: /search timezones/i }), { target: { value: 'Asia/Jakarta' } });
     fireEvent.click(await screen.findByRole('option', { name: 'Asia/Jakarta' }));
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
@@ -330,6 +338,7 @@ describe('ProfileSettings personal locale preferences', () => {
       numberLocale: null,
       timezone: 'Asia/Jakarta',
     }));
+    expect(setLocalePreferences).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
     expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
     await act(async () => resolveRefresh({ error: null }));
@@ -414,9 +423,9 @@ describe('ProfileSettings localized labels (AC-ACCT-006)', () => {
       interpolation: { escapeValue: false },
     });
     render(
-      <I18nextProvider i18n={instance}>
+      <MemoryRouter><I18nextProvider i18n={instance}>
         <ProfileSettings />
-      </I18nextProvider>,
+      </I18nextProvider></MemoryRouter>,
     );
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'Profile & preferences' })).toBeInTheDocument()
@@ -438,9 +447,9 @@ describe('ProfileSettings localized labels (AC-ACCT-006)', () => {
       interpolation: { escapeValue: false },
     });
     render(
-      <I18nextProvider i18n={instance}>
+      <MemoryRouter><I18nextProvider i18n={instance}>
         <ProfileSettings />
-      </I18nextProvider>,
+      </I18nextProvider></MemoryRouter>,
     );
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'Profil & preferensi' })).toBeInTheDocument()

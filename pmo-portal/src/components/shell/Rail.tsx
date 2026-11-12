@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -37,13 +37,15 @@ function toUserRole(role: string | null): UserRole | null {
   return ROLE_MAP[role] ?? null;
 }
 
+type NavigationGroup = 'My work' | 'Delivery' | 'Sales' | 'Finance';
+
 interface NavItem {
   to: string;
   text: string;
   icon: IconName;
   roles: UserRole[];
-  /** Owning rail group. */
-  group: 'Overview' | 'CRM' | 'Delivery' | 'Workforce' | 'Finance';
+  /** Missing for the three unheaded destinations above the grouped sections. */
+  group?: NavigationGroup;
   /**
    * Optional per-org entitlement gate (ops-admin-surface S6, FR-ENT-005). When set, the item
    * renders only if the org's `org_features` row (or the env default when absent) resolves the
@@ -57,73 +59,96 @@ interface NavItem {
   realRoleOnly?: boolean;
 }
 
-// Role arrays preserved VERBATIM from Sidebar.tsx getNavItems (AC-AUTH-003/009/010/011).
-// Exported for the navigation-registry parity guard (⌘K Navigate reads MODULES; this is the
-// rail's own registry — the guard keeps the two from drifting apart). The `ALL_ITEMS` name is
-// load-bearing: scripts/check-module-completeness.mjs parses this block by it.
+// This is the one ordered navigation registry. Role, feature and real-role gates only remove
+// entries from this sequence; the order never changes for the current role. The `ALL_ITEMS` name
+// is load-bearing: scripts/check-module-completeness.mjs parses this block by it.
 // eslint-disable-next-line react-refresh/only-export-components -- registry constant co-located with its rail; HMR-only lint concern
 export const ALL_ITEMS: NavItem[] = [
-  { to: '/', text: 'Dashboard', icon: 'dashboard', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  // FIN-S9: the personal "My integrations" doorway (/integrations) moved into the account menu.
+  { to: '/', text: 'Dashboard', icon: 'dashboard', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/approvals', text: 'Approvals', icon: 'approvals', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/views', text: 'My Views', icon: 'views', group: undefined, feature: 'user_views', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'My work', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'My work', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
+  // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
+  { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // #1515: floats are visible to approval rank (policy imprestFloat.view = master-data roles); Engineers see none.
+  { to: '/imprest', text: 'Site cash', icon: 'site-cash', group: 'My work', feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // #1982: Calendar — what is due across projects. Reads are RLS-scoped, so every role gets it.
+  { to: '/calendar', text: 'Calendar', icon: 'cal', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/projects', text: 'Projects', icon: 'projects', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'CRM', feature: 'sales_pipeline', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Delivery', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/stock', text: 'Stock', icon: 'inbox', group: 'Delivery', feature: 'stock', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1519: every member logs equipment usage; the Assets and approvals views gate by role inside the page.
-  { to: '/equipment', text: 'Equipment', icon: 'clock', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
-  // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
-  { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  // #1515: floats are visible to approval rank (policy imprestFloat.view = master-data roles); Engineers see none.
-  { to: '/imprest', text: 'Site cash', icon: 'expenses', group: 'Workforce', feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  // Ordinary role access is supplemented by record-scoped timesheet eligibility below.
-  { to: '/approvals', text: 'Approvals', icon: 'approvals', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
-  // (rbac-visibility §M.1: Tasks are reached through project detail, not a top-level nav).
-  { to: '/companies', text: 'Companies', icon: 'companies', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  // Contacts (CRM v1): master-data directory of people, mirrors Companies — Exec·PM·Finance·Admin (Engineer = ○).
-  // Without CRM there is no Companies item, so PM and Finance keep a direct path to vendors.
-  { to: '/companies?type=Vendor', text: 'Suppliers', icon: 'companies', group: 'Delivery', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/equipment', text: 'Equipment', icon: 'equipment', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
   // Gated behind the `incidents` feature flag (UI-hide-first); currently hidden (features.ts).
   { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', feature: 'incidents', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  // #526: Meetings — EVERY role may minute a meeting (OD-MTG-1, Engineer included); reads are
-  // RLS-scoped to attendance ∪ author ∪ grant ∪ Admin, so the nav item is safe for all roles.
-  { to: '/meetings', text: 'Meetings', icon: 'cal', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  // UXS-007: PMs get a discoverable assignee-scoped doorway; project Tasks remain for oversight.
-  // Engineer and Admin entries remain available; Executive navigation is intentionally unchanged.
-  // Finance works assigned tasks like an Engineer (owner, 2026-10-23), so it gets the same doorway.
-  // #1982: Calendar — what is due across projects. Reads are RLS-scoped, so every role gets it.
-  { to: '/calendar', text: 'Calendar', icon: 'cal', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'Workforce', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // #526: Meetings — EVERY role may minute a meeting (OD-MTG-1, Engineer included); reads are RLS-scoped.
+  { to: '/meetings', text: 'Meetings', icon: 'meetings', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'Sales', feature: 'sales_pipeline', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/companies', text: 'Companies', icon: 'companies', group: 'Sales', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // Without CRM, PM and Finance keep their existing supplier doorway in this same ordered slot.
+  { to: '/companies?type=Vendor', text: 'Suppliers', icon: 'cart', group: 'Sales', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'Sales', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Finance section — gated by the relevant org entitlements. OD-NAR-2 (owner,
   // 2026-10-07, #784; supersedes DD-NAR-14 for navigation): with NO explicit org_features row the
   // entitlement follows revenue ownership — ON when no ERP owns revenue (PMO-native invoicing is
   // the default), OFF once an ERP owns it; an explicit row still wins, so an Operator can turn it
   // off. Resolution lives in useOrgFeatures (one place). Shown to Finance, Executive and Admin.
   { to: '/finance', text: 'Finance', icon: 'dollar', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
-  { to: '/finance/receivables', text: 'Receivables', icon: 'invoices', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
-  { to: '/finance/payables', text: 'Payables', icon: 'procurement', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/receivables', text: 'Receivables', icon: 'download', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/payables', text: 'Payables', icon: 'payments', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/reports', text: 'Reports', icon: 'reports', group: 'Finance', feature: 'management_pack', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
-  { to: '/finance/statements', text: 'Statements', icon: 'reports', group: 'Finance', feature: 'financial_statements', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/statements', text: 'Statements', icon: 'statements', group: 'Finance', feature: 'financial_statements', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
 ];
 
-const GROUP_ORDER: NavItem['group'][] = ['Overview', 'CRM', 'Delivery', 'Finance', 'Workforce'];
+const GROUP_ORDER: NavigationGroup[] = ['My work', 'Delivery', 'Sales', 'Finance'];
+const NAV_GROUPS_STORAGE_KEY = 'shell.navigation.collapsedGroups';
+const NAV_GROUPS_CHANGED_EVENT = 'navigationgroupschange';
+
+function readCollapsedGroups(): Set<NavigationGroup> {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(NAV_GROUPS_STORAGE_KEY) ?? '[]') as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((value): value is NavigationGroup => GROUP_ORDER.includes(value as NavigationGroup)));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveCollapsedGroups(groups: Set<NavigationGroup>): void {
+  try {
+    window.localStorage.setItem(NAV_GROUPS_STORAGE_KEY, JSON.stringify([...groups]));
+  } catch {
+    // The in-memory state still applies when storage is unavailable.
+  }
+  window.dispatchEvent(new Event(NAV_GROUPS_CHANGED_EVENT));
+}
+
+/** Whether `pathname` is inside the rail item `to` (query ignored; `/` and Finance match exactly). */
+const pathInItem = (pathname: string, to: string): boolean => {
+  const base = to.split('?')[0];
+  if (base === '/' || base.startsWith('/finance')) return pathname === base;
+  return pathname === base || pathname.startsWith(`${base}/`);
+};
 
 /** Maximum number of user-view entries displayed in the rail (OD-7, FR-VR-065). */
 const MAX_NAV_VIEWS = 8;
 
 /** Base classes shared by every nav anchor (primary items + Administration foot). */
 const NAV_LINK_BASE =
-  'touch-target flex h-[var(--control-height)] w-full items-center gap-3 rounded-md px-2.5 text-control font-medium transition-colors [&_svg]:size-5 [&_svg]:shrink-0';
+  'touch-target flex h-[var(--control-height)] w-full items-center gap-3 rounded-md px-2.5 text-control font-medium [&_svg]:size-5 [&_svg]:shrink-0';
 
 /** The two items that get stage-aware active-state overrides on `/projects/:id`. */
 const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);
 
+/**
+ * G2: the Finance destination carries its overdue-invoice count again (a plain number badge,
+ * named "N overdue invoices"). Sourced from the existing lean overdue read — no new query.
+ * Rail unit harnesses can render without an AuthProvider; in the application the provider is
+ * always present. Keep the data query behind that boundary so such shell-only renders stay pure.
+ */
 const FinanceOverdueCount: React.FC = () => {
-  // Rail unit harnesses can render without an AuthProvider; in the application the provider is
-  // always present. Keep the data query behind that boundary so such shell-only renders stay pure.
   const auth = useContext(AuthContext);
   if (!auth) return null;
   return <FinanceOverdueCountValue />;
@@ -132,8 +157,18 @@ const FinanceOverdueCount: React.FC = () => {
 const FinanceOverdueCountValue: React.FC = () => {
   const { t } = useTranslation();
   const { data: count, isPending, isError } = useOverdueInvoiceCount();
-  if (isPending || isError || count === undefined) return null;
-  return <Badge aria-label={t('financeHub:hub.overdueCount', '{{count}} overdue invoices', { count })}>{count}</Badge>;
+  // Unknown is not zero: while the read is pending or failed there is no badge at all, and a
+  // genuine zero prints nothing rather than a "0" that would read like work waiting.
+  if (isPending || isError || count === undefined || count <= 0) return null;
+  return (
+    <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
+      <Badge aria-hidden="true">{count}</Badge>
+      {/* Same shape as the Approvals count: the link reads "Finance, 3 overdue invoices". */}
+      <span className="sr-only">
+        , {t('financeHub:hub.overdueCount', '{{count}} overdue invoices', { count })}
+      </span>
+    </span>
+  );
 };
 
 export interface RailProps {
@@ -210,6 +245,36 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   // Sourced from the settled `useIsOperator()` projection — never the effective/preview role — so
   // a plain Engineer stays hidden while a genuine Operator gains the entry. Fail-closed (false).
   const isOperator = useIsOperator();
+  const railId = useId().replaceAll(':', '');
+  const [collapsedGroups, setCollapsedGroups] = useState(readCollapsedGroups);
+  const scrollRegionRef = useRef<HTMLDivElement>(null);
+  const [hasScrollCue, setHasScrollCue] = useState(false);
+  useLayoutEffect(() => {
+    const active = scrollRegionRef.current?.querySelector<HTMLElement>('a[aria-current="page"]');
+    active?.scrollIntoView?.({ block: 'nearest' });
+  }, [location.pathname, location.search]);
+  useLayoutEffect(() => {
+    const region = scrollRegionRef.current;
+    if (!region) return;
+    const updateCue = () => setHasScrollCue(region.scrollHeight > region.clientHeight + 1);
+    updateCue();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(updateCue);
+    observer.observe(region);
+    return () => observer.disconnect();
+  }, [role, userViews?.length, collapsedGroups, orgFeatures]);
+  useEffect(() => {
+    const onChange = () => setCollapsedGroups(readCollapsedGroups());
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === NAV_GROUPS_STORAGE_KEY) onChange();
+    };
+    window.addEventListener(NAV_GROUPS_CHANGED_EVENT, onChange);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener(NAV_GROUPS_CHANGED_EVENT, onChange);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
 
   if (!role) return null;
 
@@ -217,16 +282,21 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     (i) => (i.realRoleOnly
       ? role !== null && realRoleValue !== null && i.roles.includes(role) && i.roles.includes(realRoleValue)
       : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
-  );
+  ).filter((i) => i.to !== '/views' || userViewsEnabled);
+  const currentGroup = items.find((item) =>
+    item.group && (pathInItem(location.pathname, item.to) || railParentForPath(location.pathname) === item.to),
+  )?.group;
+  const toggleGroup = (group: NavigationGroup) => {
+    if (group === currentGroup) return;
+    const next = new Set(collapsedGroups);
+    if (next.has(group)) next.delete(group);
+    else next.add(group);
+    setCollapsedGroups(next);
+    saveCollapsedGroups(next);
+  };
   // My Views group + the Assistant toggle follow BOTH the entitlement and their deployment kill
   // switch (resolved inside useFeature), not the env flag alone.
-  const showMyViews =
-    userViewsEnabled &&
-    Array.isArray(userViews) &&
-    userViews.length > 0;
-  const myViewsItems = showMyViews
-    ? (userViews ?? []).slice(0, MAX_NAV_VIEWS)
-    : [];
+  const myViewsItems = (userViews ?? []).slice(0, MAX_NAV_VIEWS);
 
   // Display labels for the nav, keyed by the SAME route/group values `ALL_ITEMS` already carries.
   // Written as literal `t(key, default)` calls rather than a field on `ALL_ITEMS` for one reason:
@@ -260,6 +330,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     '/meetings': t('shell.nav.meetings', 'Meetings'),
     '/calendar': t('shell.nav.calendar', 'Calendar'),
     '/my-tasks': t('shell.nav.myTasks', 'My Tasks'),
+    '/views': t('shell.rail.myViews', 'My Views'),
     '/sales-invoices': t('shell.nav.salesInvoices', 'Sales Invoices'),
     '/incoming-payments': t('shell.nav.incomingPayments', 'Incoming Payments'),
     '/revenue-by-project': t('shell.nav.revenueByProject', 'Revenue by Project'),
@@ -277,14 +348,12 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
       ];
     }),
   );
-  const groupLabels: Record<NavItem['group'], string> = {
-    Overview: t('shell.rail.group.overview', 'Overview'),
-    CRM: t('shell.rail.group.crm', 'CRM'),
+  const groupLabels: Record<NavigationGroup, string> = {
+    'My work': t('shell.rail.group.workforce', 'My work'),
     Delivery: t('shell.rail.group.delivery', 'Delivery'),
-    Workforce: t('shell.rail.group.workforce', 'Workforce'),
+    Sales: t('shell.rail.group.crm', 'Sales'),
     Finance: t('shell.rail.group.finance', 'Finance'),
   };
-  const myViewsLabel = t('shell.rail.myViews', 'My Views');
   const renderLabel = (item: NavItem) => {
     const label = navLabels[item.to] ?? item.text;
     if (item.to === '/approvals') {
@@ -411,7 +480,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         >
           P
         </span>
-        <span className="text-[15px] font-bold tracking-[-0.01em]">PMO Portal{/* i18n-exempt: PMO brand name stays verbatim */}</span>
+        <span className="text-group font-bold tracking-[-0.01em]">PMO Portal{/* i18n-exempt: PMO brand name stays verbatim */}</span>
       </div>
 
       <nav
@@ -421,48 +490,62 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         onPointerDown={preloadFromEvent}
         onFocusCapture={preloadFromEvent}
       >
-        {items.some((item) => item.to === '/approvals') && (
-          <div data-rail-pinned-approvals className="shrink-0 border-b border-border p-2.5">
-            {items.filter((item) => item.to === '/approvals').map(renderItem)}
-          </div>
-        )}
-        <div data-rail-scroll-region className="min-h-0 flex-1 overflow-y-auto p-2.5">
-          {GROUP_ORDER.map((group) => {
-            const groupItems = items.filter((i) => i.to !== '/approvals' && i.group === group);
-            if (groupItems.length === 0) return null;
-            return (
-              <React.Fragment key={group}>
-                <div className="px-2 pb-1.5 pt-3.5 text-support font-semibold text-muted-foreground">
-                  {groupLabels[group]}
-                </div>
-                {groupItems.map(renderItem)}
+        <div className="relative min-h-0 flex-1">
+          <div ref={scrollRegionRef} data-rail-scroll-region className="min-h-0 h-full overflow-y-auto p-2.5">
+            {items.filter((item) => !item.group).map((item) => (
+              <React.Fragment key={item.to}>
+                {renderItem(item)}
+                {item.to === '/views' && myViewsItems.length > 0 && (
+                  <div role="group" className="mb-2 border-l border-border pl-8" aria-label={t('shell.rail.myViews', 'My Views')}>
+                    {myViewsItems.map((view) => (
+                      <NavLink
+                        key={view.id}
+                        to={`/views/${view.id}`}
+                        onClick={onNavigate}
+                        className={({ isActive }: { isActive: boolean }) =>
+                          cn(
+                            'touch-target flex min-h-11 w-full items-center rounded-md px-2 text-control',
+                            isActive ? 'bg-nav-selected-surface font-semibold text-nav-active-text' : 'text-foreground hover:bg-surface-hover',
+                          )
+                        }
+                      >
+                        <span className="break-words">{view.name}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
               </React.Fragment>
-            );
-          })}
-          {showMyViews && (
-            <div role="group" aria-label={myViewsLabel}>
-              <div className="px-2 pb-1.5 pt-3.5 text-support font-semibold text-muted-foreground">
-                {myViewsLabel}
-              </div>
-              {myViewsItems.map((view) => (
-                <NavLink
-                  key={view.id}
-                  to={`/views/${view.id}`}
-                  onClick={onNavigate}
-                  className={({ isActive }: { isActive: boolean }) =>
-                    cn(
-                      NAV_LINK_BASE,
-                      isActive
-                        ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
-                        : 'text-foreground hover:bg-surface-hover',
-                    )
-                  }
-                >
-                  <Icon name="views" />
-                  <span className="truncate">{view.name}</span>
-                </NavLink>
-              ))}
-            </div>
+            ))}
+            {GROUP_ORDER.map((group) => {
+              const groupItems = items.filter((i) => i.group === group);
+              if (groupItems.length === 0) return null;
+              const expanded = group === currentGroup || !collapsedGroups.has(group);
+              const groupId = `${railId}-group-${group.toLowerCase().replaceAll(' ', '-')}`;
+              return (
+                <div key={group} role="group" aria-label={groupLabels[group]}>
+                  <button
+                    type="button"
+                    aria-expanded={expanded}
+                    aria-disabled={group === currentGroup || undefined}
+                    aria-controls={groupId}
+                    onClick={() => toggleGroup(group)}
+                    className={cn(
+                      'touch-target flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 text-left text-control font-normal text-muted-foreground hover:bg-surface-hover',
+                      'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:hover:bg-transparent',
+                    )}
+                  >
+                    <Icon name="chev" className={cn('transition-transform', expanded && 'rotate-90')} />
+                    <span>{groupLabels[group]}</span>
+                  </button>
+                  <div id={groupId} hidden={!expanded}>
+                    {groupItems.map(renderItem)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {hasScrollCue && (
+            <div aria-hidden="true" className="pointer-events-none absolute inset-x-2.5 bottom-0 h-6 bg-gradient-to-t from-[hsl(var(--surface-panel))] to-transparent" />
           )}
         </div>
       </nav>

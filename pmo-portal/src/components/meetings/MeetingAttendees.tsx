@@ -102,7 +102,7 @@ const MeetingAttendees: React.FC<MeetingAttendeesProps> = ({ meetingId, canEdit,
                       aria-label={t('meetingDetail.attendees.remove', 'Remove attendee')}
                       onClick={() => void removeAttendee.mutateAsync(attendee.id).catch(onError)}
                     >
-                      {t('meetingDetail.attendees.remove', 'Remove attendee')}
+                      <span aria-hidden="true">✕</span>
                     </Button>
                   )}
                 </li>
@@ -140,7 +140,7 @@ const MeetingAttendees: React.FC<MeetingAttendeesProps> = ({ meetingId, canEdit,
                     }
                     onClick={() => void addGuest()}
                   >
-                    {t('meetingDetail.attendees.addGuest', 'Add guest')}
+                    {t('meetingDetail.attendees.addGuest', 'Add')}
                   </Button>
                 </div>
               </div>

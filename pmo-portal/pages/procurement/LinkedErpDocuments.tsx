@@ -2,7 +2,7 @@ import React, { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, DataTable, ListState, StatusPill, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency, formatDate } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useLinkedErpDocuments, useUnlinkErpDocument } from '@/src/hooks/useErpPurchaseLinks';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
@@ -51,7 +51,7 @@ export const LinkedErpDocuments: React.FC<{ procurementId: string }> = ({ procur
         </span>
       ),
     },
-    { key: 'date', header: t('erpPurchases.column.date', 'Date'), kind: 'date', cell: (d) => formatDate(d.docDate) },
+    { key: 'date', header: t('erpPurchases.column.date', 'Date'), kind: 'date', cell: (d) => formatDay(d.docDate) },
     {
       key: 'amount', header: t('erpPurchases.column.amount', 'Amount'), kind: 'money', align: 'num',
       cell: (d) => (d.grandTotal === null || !d.currency ? '—' : formatCurrency(d.grandTotal, d.currency)),

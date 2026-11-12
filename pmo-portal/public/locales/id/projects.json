@@ -1,9 +1,8 @@
 {
   "coverage": {
-    "readError": "Data pengeluaran proyek tidak dapat dibaca.",
-    "unknown": "Data Aktual tidak diketahui pada {{count}} dari {{total}} proyek.",
-    "partial": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek.",
-    "partialUpdated": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek. Diperbarui {{date}}."
+    "hiddenNotLinked": "pengeluaran belum terhubung",
+    "hiddenReadError": "pengeluaran tidak dapat dibaca",
+    "setUp": "Atur"
   },
   "moneyFiguresUnavailable": "Beberapa nilai keuangan proyek masih dikonfirmasi.",
   "actual": {
@@ -24,7 +23,7 @@
     "limitReachedDetail": "Proyek ini tidak dipulihkan. Arsipkan proyek aktif yang tidak lagi diperlukan, atau minta Operator meningkatkan paket, lalu coba lagi."
   },
   "shortName": {
-    "label": "Nama singkat (opsional)",
+    "label": "Nama singkat",
     "hint": "Tampil di daftar. Nama kontrak tidak berubah.",
     "searchProject": "Proyek · {{name}}",
     "searchPipeline": "Proyek · Pipeline · {{name}}",
@@ -84,5 +83,21 @@
   "receiptWithholding": {
     "article": "Pasal pemotongan klien",
     "articleHelper": "Mengisi otomatis penerimaan baru. Setiap penerimaan dapat mengubahnya."
+  },
+  "columns": {
+    "contractWithBasis": "Kontrak ({{basis}})"
+  },
+  "card": {
+    "actualInline": "{{amount}} aktual"
+  },
+  "contractBasisNote": "Nilai kontrak {{basis}}.",
+  "sharedManagerNote": "Manajer proyek: {{name}}",
+  "projectForm": {
+    "client": {
+      "nounPlural": "perusahaan"
+    },
+    "endCustomer": {
+      "nounPlural": "perusahaan"
+    }
   }
 }

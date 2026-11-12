@@ -310,10 +310,10 @@ const ContactDetail: React.FC = () => {
 /** A labelled read-only field (definition-list row). */
 const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <div className="flex flex-col gap-0.5">
-    <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+    <dt className="text-control font-semibold text-muted-foreground">
       {label}
     </dt>
-    <dd className="text-[13.5px] text-foreground">{value}</dd>
+    <dd className="text-control text-foreground">{value}</dd>
   </div>
 );
 
@@ -389,7 +389,7 @@ const CompanyRefOutsideDirectory: React.FC<{ companyId: string }> = ({ companyId
         {companyDisplayName(data)}
       </Link>
       {data.archived_at != null && (
-        <span className="text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="text-control font-medium text-muted-foreground">
           {t('contactDetail.field.companyArchived', 'Archived')}
         </span>
       )}

@@ -31,6 +31,13 @@ describe('ProjectEquipmentPanel (FR-EQU-071, FR-EQU-051)', () => {
     h.allocations = ok({ rows: [alloc(), alloc({ month: '2026-09-01', amount: 100 })], truncated: false });
   });
 
+  it('marks a sum with unrecorded usage rather than presenting a complete total', () => {
+    h.totals = ok({ rows: [total(), total({ work_units: null, standby_units: null, submitted_count: null })], truncated: false });
+    renderPanel();
+    const row = within(screen.getByTestId('project-equipment-panel')).getByRole('row', { name: /Loader 1/ });
+    expect(row).toHaveTextContent(/not recorded/);
+  });
+
   it('AC-EQU-017 a PM sees both hours and the allocated amount per asset', () => {
     renderPanel();
     const panel = screen.getByTestId('project-equipment-panel');

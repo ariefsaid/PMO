@@ -7,7 +7,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'node:fs';
-import { formatUtcMonthYear } from '../src/lib/format';
+import { formatMonthYearShort } from '../src/lib/format';
 import { signIn, requireServiceRoleKey } from './helpers';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321';
@@ -56,7 +56,8 @@ test('AC-MMP-016: Finance records progress and exports the monthly management pa
     await page.getByLabel('As at').fill(ym);
     await expect(
       page.getByRole('heading', {
-        name: `Projects as at ${formatUtcMonthYear(new Date(`${ym}-01T00:00:00Z`))}`,
+        // ux/1110 copy: the pack's month reads "Nov 2026", never "Nov 26" (which reads as a day).
+        name: `Projects as at ${formatMonthYearShort(`${ym}-01`)}`,
       }),
     ).toBeVisible();
 

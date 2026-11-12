@@ -12,10 +12,12 @@
  * copied verbatim from ImportWizard.
  */
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
+import { Dialog } from '@base-ui/react/dialog';
 import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
-import { Button, Icon, StatusPill } from '@/src/components/ui';
+import { Button, Icon, StatusPill, UnsavedChangesDialog } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
+import { overlayBackdropClassName, overlayBackdropStyle } from '@/src/components/ui/OverlaySurface';
 import type { RefLookup } from '@/src/lib/import';
 import type { CycleRow, ValidatedGroup, ValidatedRow } from '@/src/lib/import/procurementCycle/types';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -28,6 +30,9 @@ import {
   type CycleMapping,
   type CycleProgress,
 } from './useProcurementCycleImport';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
+
+type PendingImportExit = { kind: 'close' | 'leave'; run: () => void };
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -66,169 +71,160 @@ export function ProcurementCycleImportWizard({
   onClose,
 }: ProcurementCycleImportWizardProps) {
   const wiz = useProcurementCycleImport(projectLookup, vendorLookup, requestedById);
-  const titleId = useId();
   const subId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLElement | null>(null);
+  const [pendingExit, setPendingExit] = useState<PendingImportExit | null>(null);
+  const dirty = (wiz.step === 'mapping' || wiz.step === 'preview') && wiz.parsed != null;
 
+  const closeWizard = useCallback(() => onClose((wiz.result?.created ?? 0) > 0), [wiz.result, onClose]);
   const requestClose = useCallback(() => {
     if (wiz.step === 'committing') return;
-    const didImport = (wiz.result?.created ?? 0) > 0;
-    onClose(didImport);
-  }, [wiz.step, wiz.result, onClose]);
+    if (dirty) {
+      setPendingExit({ kind: 'close', run: closeWizard });
+      return;
+    }
+    closeWizard();
+  }, [wiz.step, dirty, closeWizard]);
 
-  // ESC to close (blocked while committing).
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        requestClose();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [requestClose]);
+  useUnsavedChangesGuard({
+    dirty,
+    guardHistory: true,
+    onBlocked: (leave) => setPendingExit({ kind: 'leave', run: leave }),
+  });
 
-  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Kept ALONGSIDE the library's
+  // `modal="trap-focus"`: that mode traps Tab and Esc but does NOT inert the app shell behind
+  // the dialog, so a pointer/screen-reader user could still reach it without this.
   useEffect(() => {
     return acquireBackgroundInert();
   }, []);
 
-  // Focus-in on open; restore trigger on unmount.
-  useEffect(() => {
-    triggerRef.current = document.activeElement as HTMLElement | null;
+  // Initial focus: the step's first real CONTROL (the upload drop zone / a mapping select).
+  // Form controls are preferred over buttons so focus lands on the work, not the header's
+  // Close X (which is first in DOM order). Base UI restores focus to the opener on close.
+  const initialFocus = useCallback(() => {
     const root = dialogRef.current;
-    const firstField = root?.querySelector<HTMLElement>(
-      'input:not([disabled]), select:not([disabled]), button:not([disabled])',
-    );
-    (firstField ?? root)?.focus();
-    return () => {
-      triggerRef.current?.focus();
-      triggerRef.current = null;
-    };
-  }, []);
-
-  // Focus trap.
-  const onTrapKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key !== 'Tab') return;
-    const root = dialogRef.current;
-    if (!root) return;
-    const f = root.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    if (f.length === 0) return;
-    const first = f[0];
-    const last = f[f.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
+    const firstField =
+      root?.querySelector<HTMLElement>('input:not([disabled]), select:not([disabled]), textarea:not([disabled])') ??
+      root?.querySelector<HTMLElement>('button:not([disabled])');
+    return firstField ?? root ?? true;
   }, []);
 
   // How many valid records across all valid groups (for the Import button label).
   const validRecordCount = wiz.counts.validRecords;
 
-  return createPortal(
-    <div className="fixed inset-0 z-[800] flex items-center justify-center p-4">
-      <div
-        data-testid="cycle-import-scrim"
-        aria-hidden
-        onClick={requestClose}
-        className="confirm-scrim-anim absolute inset-0 bg-foreground/40"
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={subId}
-        tabIndex={-1}
-        onKeyDown={onTrapKeyDown}
-        className={cn(
-          'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] max-w-[640px] flex-col rounded-lg border border-border bg-popover',
-          'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
-          'origin-center motion-reduce:animate-none',
-        )}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-2 border-b border-border px-[var(--space-content-inset)] py-4">
-          <div className="min-w-0 flex-1">
-            <h2
-              id={titleId}
-              className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground"
-            >
-              {STEP_TITLE[wiz.step]}
-            </h2>
-            <p id={subId} className="mt-px text-[12.5px] text-muted-foreground">
-              {STEP_SUBTITLE[wiz.step]}
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            iconOnly
-            aria-label="Close"
-            onClick={requestClose}
-            disabled={wiz.step === 'committing'}
+  return (
+    <>
+    <Dialog.Root
+      open
+      modal="trap-focus"
+      onOpenChange={(next, details) => {
+        if (next) return;
+        // The parent owns mount: Esc / scrim only ASK to close (blocked while committing).
+        details.cancel();
+        requestClose();
+      }}
+    >
+      <Dialog.Portal>
+        <div className="fixed inset-0 z-[800] flex items-center justify-center p-4">
+          <Dialog.Backdrop data-testid="cycle-import-scrim" className={overlayBackdropClassName} style={overlayBackdropStyle} />
+          <Dialog.Popup
+            ref={dialogRef}
+            initialFocus={initialFocus}
+            aria-modal="true"
+            aria-describedby={subId}
+            className={cn(
+              'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] max-w-[640px] flex-col rounded-lg border border-border bg-popover',
+              'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
+              'origin-center motion-reduce:animate-none',
+            )}
           >
-            <Icon name="x" />
-          </Button>
-        </div>
-
-        {/* Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--space-content-inset)] py-4">
-          {wiz.step === 'upload' && <CycleUploadStep wiz={wiz} />}
-          {wiz.step === 'mapping' && <CycleMappingStep wiz={wiz} />}
-          {wiz.step === 'preview' && <CyclePreviewStep wiz={wiz} />}
-          {wiz.step === 'committing' && <CycleCommittingStep progress={wiz.progress} />}
-          {wiz.step === 'result' && <CycleResultStep wiz={wiz} />}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center gap-2 border-t border-border px-[var(--space-content-inset)] py-3">
-          {(wiz.step === 'mapping' || wiz.step === 'preview') && (
-            <Button variant="ghost" size="sm" onClick={wiz.back}>
-              Back
-            </Button>
-          )}
-          <div className="ml-auto flex items-center gap-2">
-            {wiz.step === 'upload' && (
-              <Button variant="ghost" size="sm" onClick={requestClose}>
-                Cancel
-              </Button>
-            )}
-            {wiz.step === 'mapping' && (
+            {/* Header */}
+            <div className="flex items-center gap-2 border-b border-border px-[var(--space-content-inset)] py-4">
+              <div className="min-w-0 flex-1">
+                <Dialog.Title
+                  className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground"
+                >
+                  {STEP_TITLE[wiz.step]}
+                </Dialog.Title>
+                <Dialog.Description render={<p />} id={subId} className="mt-px text-control text-muted-foreground">
+                  {STEP_SUBTITLE[wiz.step]}
+                </Dialog.Description>
+              </div>
               <Button
-                variant="primary"
-                size="sm"
-                onClick={wiz.goPreview}
-                disabled={!wiz.allRequiredMapped}
+                variant="ghost"
+                iconOnly
+                aria-label="Close"
+                onClick={requestClose}
+                disabled={wiz.step === 'committing'}
               >
-                Next
+                <Icon name="x" />
               </Button>
-            )}
-            {wiz.step === 'preview' && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => void wiz.commit()}
-                disabled={validRecordCount === 0 || !wiz.conflictReport}
-              >
-                Import {validRecordCount} record{validRecordCount !== 1 ? 's' : ''}
-              </Button>
-            )}
-            {wiz.step === 'result' && (
-              <Button variant="primary" size="sm" onClick={requestClose}>
-                Done
-              </Button>
-            )}
-          </div>
+            </div>
+
+            {/* Body */}
+            <div className="min-h-0 flex-1 overflow-y-auto px-[var(--space-content-inset)] py-4">
+              {wiz.step === 'upload' && <CycleUploadStep wiz={wiz} />}
+              {wiz.step === 'mapping' && <CycleMappingStep wiz={wiz} />}
+              {wiz.step === 'preview' && <CyclePreviewStep wiz={wiz} />}
+              {wiz.step === 'committing' && <CycleCommittingStep progress={wiz.progress} />}
+              {wiz.step === 'result' && <CycleResultStep wiz={wiz} />}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center gap-2 border-t border-border px-[var(--space-content-inset)] py-3">
+              {(wiz.step === 'mapping' || wiz.step === 'preview') && (
+                <Button variant="ghost" size="sm" onClick={wiz.back}>
+                  Back
+                </Button>
+              )}
+              <div className="ml-auto flex items-center gap-2">
+                {wiz.step === 'upload' && (
+                  <Button variant="ghost" size="sm" onClick={requestClose}>
+                    Cancel
+                  </Button>
+                )}
+                {wiz.step === 'mapping' && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={wiz.goPreview}
+                    disabled={!wiz.allRequiredMapped}
+                  >
+                    Next
+                  </Button>
+                )}
+                {wiz.step === 'preview' && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => void wiz.commit()}
+                    disabled={validRecordCount === 0 || !wiz.conflictReport}
+                  >
+                    Import {validRecordCount} record{validRecordCount !== 1 ? 's' : ''}
+                  </Button>
+                )}
+                {wiz.step === 'result' && (
+                  <Button variant="primary" size="sm" onClick={requestClose}>
+                    Done
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Dialog.Popup>
         </div>
-      </div>
-    </div>,
-    document.body,
+      </Dialog.Portal>
+    </Dialog.Root>
+    <UnsavedChangesDialog
+      open={pendingExit !== null}
+      onDiscard={() => {
+        const exit = pendingExit;
+        setPendingExit(null);
+        exit?.run();
+      }}
+      onKeepEditing={() => setPendingExit(null)}
+    />
+    </>
   );
 }
 
@@ -245,8 +241,8 @@ function CycleUploadStep({ wiz }: { wiz: Wiz }) {
         className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card px-4 py-8 text-center"
       >
         <Icon name="upload" className="size-6 text-muted-foreground" />
-        <span className="text-[13.5px] font-semibold text-foreground">Choose an .xlsx file</span>
-        <span className="text-[12px] text-muted-foreground">
+        <span className="text-control font-semibold text-foreground">Choose an .xlsx file</span>
+        <span className="text-control text-muted-foreground">
           The first row must be column headers. Up to {MAX_IMPORT_ROWS} rows.
         </span>
         <input
@@ -264,7 +260,7 @@ function CycleUploadStep({ wiz }: { wiz: Wiz }) {
       </label>
       {wiz.parsing && <p role="status">Reading file…</p>}
       {wiz.parseError && (
-        <p role="alert" className="flex items-start gap-1.5 text-[12.5px] text-destructive">
+        <p role="alert" className="flex items-start gap-1.5 text-control text-destructive">
           <Icon name="alert" className="mt-px size-4 shrink-0" />
           {wiz.parseError}
         </p>
@@ -293,7 +289,7 @@ function CycleMappingStep({ wiz }: { wiz: Wiz }) {
         />
       ))}
       {!wiz.allRequiredMapped && (
-        <p role="alert" className="text-[12.5px] text-destructive">
+        <p role="alert" className="text-control text-destructive">
           Map the required fields (case_ref, type) to continue.
         </p>
       )}
@@ -317,7 +313,7 @@ function CycleMappingRow({
   const id = useId();
   return (
     <div className="grid grid-cols-[1fr_1fr] items-center gap-3">
-      <label htmlFor={id} className="text-[13px] font-medium text-foreground">
+      <label htmlFor={id} className="text-control font-medium text-foreground">
         {label}
         {required && <span className="ml-0.5 text-destructive">*</span>}
       </label>
@@ -325,7 +321,7 @@ function CycleMappingRow({
         id={id}
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-        className="h-8 w-full rounded-md border border-border bg-card px-2 text-[13px] text-foreground"
+        className="h-8 w-full rounded-md border border-border bg-card px-2 text-control text-foreground"
       >
         <option value="">— Not mapped —</option>
         {headers.map((h, i) => (
@@ -354,7 +350,7 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
     <div className="flex flex-col gap-3">
       {/* Summary line + expand/collapse all */}
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[13px] text-foreground" data-testid="cycle-import-summary">
+        <p className="text-control text-foreground" data-testid="cycle-import-summary">
           <b className="font-semibold tabular-nums">{counts.totalCases} cases</b>,{' '}
           <b className="font-semibold tabular-nums">{counts.validRecords} records valid</b>,{' '}
           <span className="tabular-nums">{counts.skippedRecords} skipped</span>
@@ -363,7 +359,7 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
           <button
             type="button"
             onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(validatedGroups.map(vg => vg.group.caseRef)))}
-            className="shrink-0 text-[12px] text-primary-text hover:underline"
+            className="shrink-0 text-control text-primary-text hover:underline"
           >
             {allCollapsed ? 'Expand all' : 'Collapse all'}
           </button>
@@ -371,15 +367,15 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
       </div>
 
       {wiz.parseError && (
-        <div role="alert" className="text-[13px] text-destructive-text">
+        <div role="alert" className="text-control text-destructive-text">
           <p>{wiz.parseError}</p>
           <button type="button" onClick={() => void wiz.goPreview()} className="underline">Retry preview</button>
         </div>
       )}
-      {!wiz.conflictReport && !wiz.parseError && <p role="status" className="text-[13px] text-muted-foreground">Checking import identities…</p>}
-      {wiz.conflictReport && <p className="text-[13px] text-muted-foreground">{wiz.conflictReport.wouldCreate} to create, {wiz.conflictReport.wouldSkip} to skip, {wiz.conflictReport.wouldCollide} conflicts</p>}
+      {!wiz.conflictReport && !wiz.parseError && <p role="status" className="text-control text-muted-foreground">Checking import identities…</p>}
+      {wiz.conflictReport && <p className="text-control text-muted-foreground">{wiz.conflictReport.wouldCreate} to create, {wiz.conflictReport.wouldSkip} to skip, {wiz.conflictReport.wouldCollide} conflicts</p>}
       {wiz.conflictReport?.conflicts?.length ? (
-        <div className="text-[13px] text-destructive-text">
+        <div className="text-control text-destructive-text">
           <p>Reconcile these conflicts before importing the affected records:</p>
           <ul>
             {wiz.conflictReport.conflicts.map((conflict, index) => (
@@ -400,7 +396,7 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
       </div>
 
       {counts.totalCases === 0 && (
-        <p className="text-[13px] text-muted-foreground">No cases found in the sheet.</p>
+        <p className="text-control text-muted-foreground">No cases found in the sheet.</p>
       )}
     </div>
   );
@@ -435,19 +431,19 @@ function CaseCard({ vg, expanded, onToggle }: { vg: ValidatedGroup; expanded: bo
           })}
         />
         <span className="min-w-0 flex-1">
-          <span className="font-mono text-[13px] font-semibold text-foreground">{caseRef}</span>
+          <span className="font-mono text-control font-semibold text-foreground">{caseRef}</span>
           {caseTitle !== caseRef && (
-            <span className="ml-2 truncate text-[13px] text-muted-foreground">{caseTitle}</span>
+            <span className="ml-2 truncate text-control text-muted-foreground">{caseTitle}</span>
           )}
           {/* D12: surface group errors on header so they're visible even when collapsed */}
           {!expanded && groupErrors.length > 0 && (
-            <span className="ml-2 text-[12px] text-destructive">
+            <span className="ml-2 text-control text-destructive">
               {groupErrors[0]}
               {groupErrors.length > 1 && ` (+${groupErrors.length - 1} more)`}
             </span>
           )}
         </span>
-        <span className="tabular-nums text-[12px] text-muted-foreground">
+        <span className="tabular-nums text-control text-muted-foreground">
           {validRowCount}/{rows.length} records
         </span>
         {valid ? (
@@ -461,7 +457,7 @@ function CaseCard({ vg, expanded, onToggle }: { vg: ValidatedGroup; expanded: bo
       {groupErrors.length > 0 && (
         <div className="border-t border-border px-3 pb-2 pt-1.5">
           {groupErrors.map((e, i) => (
-            <p key={i} className="flex items-start gap-1 text-[12.5px] text-destructive">
+            <p key={i} className="flex items-start gap-1 text-control text-destructive">
               <Icon name="alert" className="mt-px size-3.5 shrink-0" />
               {e}
             </p>
@@ -483,6 +479,7 @@ function CaseCard({ vg, expanded, onToggle }: { vg: ValidatedGroup; expanded: bo
 
 /** A single record row within a case card — shows what's being imported (type, ref, amount, date). */
 function RecordRow({ row, source, currency }: { row: ValidatedRow; source: CycleRow | undefined; currency: string }) {
+  const { t } = useTranslation('import');
   // ValidatedRow carries rowNumber + valid + errors; the human-meaningful fields (what TYPE of
   // record, its ref/amount/date) live on the joined source CycleRow so the user can review what
   // they're about to import — not just a bare row number.
@@ -502,11 +499,11 @@ function RecordRow({ row, source, currency }: { row: ValidatedRow; source: Cycle
         'opacity-60': !row.valid,
       })}
     >
-      <span className="w-5 shrink-0 text-[12px] text-muted-foreground">{row.rowNumber}</span>
+      <span className="w-5 shrink-0 text-control text-muted-foreground">{row.rowNumber}</span>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-control">
           {type && <span className="font-semibold text-foreground">{type}</span>}
-          {ref && <span className="font-mono text-[13px] text-muted-foreground">{ref}</span>}
+          {ref && <span className="font-mono text-control text-muted-foreground">{ref}</span>}
           {status && <span className="text-muted-foreground">{status}</span>}
           {amount && (
             <span className="tabular-nums text-muted-foreground">
@@ -518,7 +515,7 @@ function RecordRow({ row, source, currency }: { row: ValidatedRow; source: Cycle
         {row.errors.length > 0 && (
           <ul className="mt-0.5 space-y-0.5">
             {row.errors.map((e, i) => (
-              <li key={i} className="text-[11px] text-destructive">
+              <li key={i} className="text-control text-destructive">
                 {e}
               </li>
             ))}
@@ -526,9 +523,11 @@ function RecordRow({ row, source, currency }: { row: ValidatedRow; source: Cycle
         )}
       </div>
       {row.valid ? (
-        <StatusPill variant="won">Valid</StatusPill>
+        // The same words and keys as the sibling ImportWizard preview table (import:preview.*) —
+        // never hard-coded: the key already exists in both locales (id: "Valid" / "Dilewati").
+        <StatusPill variant="won">{t('preview.valid', 'Valid')}</StatusPill>
       ) : (
-        <StatusPill variant="lost">Skipped</StatusPill>
+        <StatusPill variant="lost">{t('preview.skipped', 'Skipped')}</StatusPill>
       )}
     </div>
   );
@@ -545,14 +544,14 @@ function CycleCommittingStep({ progress }: { progress: CycleProgress | null }) {
     >
       <Icon name="refresh" className="size-5 animate-spin text-muted-foreground" />
       {progress && progress.total > 0 ? (
-        <p className="text-[13px] text-foreground">
+        <p className="text-control text-foreground">
           Creating case{' '}
           <span className="tabular-nums">{progress.done}</span>
           {' '}of{' '}
           <span className="tabular-nums">{progress.total}</span>…
         </p>
       ) : (
-        <p className="text-[13px] text-foreground">Creating procurement cases and records…</p>
+        <p className="text-control text-foreground">Creating procurement cases and records…</p>
       )}
     </div>
   );
@@ -595,19 +594,19 @@ function CycleResultStep({ wiz }: { wiz: Wiz }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[13px] text-foreground" data-testid="cycle-result-summary">
+      <p className="text-control text-foreground" data-testid="cycle-result-summary">
         <b className="font-semibold tabular-nums">{r.created} created</b>
         {r.failed > 0 && <>, <span className="tabular-nums">{r.failed} failed</span></>}.
       </p>
 
       {r.created > 0 && (
-        <p className="text-[12.5px] text-muted-foreground">
+        <p className="text-control text-muted-foreground">
           Documents can be attached to each case from its procurement detail page.
         </p>
       )}
 
       {failedRecords.length > 0 && (
-        <ul className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3 text-[12.5px]">
+        <ul className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3 text-control">
           {failedRecords.map((f, i) => (
             <li key={i} className="flex items-start gap-1.5">
               <Icon name="alert" className="mt-px size-3.5 shrink-0 text-destructive" />

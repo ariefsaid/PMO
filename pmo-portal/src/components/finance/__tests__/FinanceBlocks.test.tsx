@@ -37,22 +37,39 @@ describe('Finance blocks', () => {
       <AgeingStrip
         kind="receivables"
         values={{
-          IDR: { notDue: 20_000, d1_30: 20_000, d31_60: 20_000, d61_90: 20_000, over90: 20_000 },
-          USD: { notDue: 100, d1_30: 100, d31_60: 100, d61_90: 100, over90: 100 },
+          IDR: { notDue: 20_000, noDueDate: 0, d1_30: 20_000, d31_60: 20_000, d61_90: 20_000, over90: 20_000 },
+          USD: { notDue: 100, noDueDate: 0, d1_30: 100, d31_60: 100, d61_90: 100, over90: 100 },
         }}
       />,
     );
-    expect(screen.getByText('Client balances by age · tax included')).toBeInTheDocument();
+    expect(screen.getByText('Client balances by age')).toBeInTheDocument();
     expect(screen.getByText('IDR')).toBeInTheDocument();
     expect(screen.getByText('USD')).toBeInTheDocument();
     expect(screen.getAllByText(/IDR\s?200/)).toHaveLength(5);
-    expect(screen.getAllByRole('button', { name: 'How this age balance is calculated' })).toHaveLength(1);
+    // The age basis lives in the page's one help control: no per-strip "?".
+    expect(screen.queryByRole('button', { name: 'How this age balance is calculated' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /bucket.*calculated/i })).not.toBeInTheDocument();
     const bar = screen.getByTestId('ageing-bar-IDR');
-    expect(bar).toHaveClass('h-[10px]', 'rounded-full');
-    expect(bar.querySelectorAll('[data-bucket]')).toHaveLength(5);
-    expect(bar.querySelector('[data-bucket="notDue"]')).toHaveStyle({ width: '20%' });
-    expect(bar.querySelector('[data-bucket="over90"]')).toHaveClass('bg-destructive');
+    expect(bar).toHaveClass('h-9', 'rounded-md');
+    const chartLabel = bar.getAttribute('aria-label')?.replace(/\u00a0/g, ' ');
+    expect(chartLabel).toContain('Not yet due IDR 200');
+    expect(chartLabel).toContain('Over 90 days IDR 200');
+  });
+
+  it('F8: displays the receivables no-due-date amount and invoice count in its own bucket', () => {
+    render(
+      <AgeingStrip
+        kind="receivables"
+        values={{ IDR: { notDue: 0, noDueDate: 10_000, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } }}
+        noDueDateCounts={{ IDR: 1 }}
+      />,
+    );
+
+    const noDueDate = screen.getByTestId('ageing-bucket-IDR-noDueDate');
+    expect(noDueDate).toHaveTextContent('No due date');
+    expect(noDueDate).toHaveTextContent('1 invoice');
+    expect(noDueDate.querySelector('.tabular')).toHaveTextContent(/IDR\s?100\b/);
+    expect(screen.getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent(/IDR\s?0\b/);
   });
 
   it('opens an overdue invoice from the finance receivables list with its amount, due date and project', () => {
@@ -90,11 +107,17 @@ describe('Finance blocks', () => {
     );
 
     expect(screen.getByRole('link', { name: /Northstar Client.*INV-104/ })).toHaveAttribute('href', '/finance/receivables?open=invoice-1');
-    expect(screen.getByText('North delivery')).toBeInTheDocument();
-    expect(screen.getByText(/Due/)).toBeInTheDocument();
-    expect(screen.getByText('Partly paid · 104 days late')).toBeInTheDocument();
+    // Client · number on the first line; project · due date on the second; no initials avatar.
+    expect(screen.getByText(/North delivery · Due /)).toBeInTheDocument();
+    const row = screen.getByRole('link', { name: /Northstar Client.*INV-104/ });
+    const late = screen.getByText('Partly paid · 104 days overdue');
+    expect(late).toHaveClass('text-destructive-text');
+    expect(late.parentElement).toBe(row);
+    const amount = screen.getByText('IDR 625,000');
+    expect(amount).toHaveClass('text-metric', 'font-semibold', 'tabular');
+    expect(row).toHaveClass('grid-cols-[minmax(0,1fr)_auto]');
     expect(screen.getByText(/of IDR/)).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Alex Rivera' })).toHaveTextContent('AR');
+    expect(screen.queryByRole('img', { name: 'Alex Rivera' })).toBeNull();
   });
 
   it('gives Finance compact actions for each waiting count and keeps executives read-only', async () => {
@@ -117,14 +140,14 @@ describe('Finance blocks', () => {
     expect(screen.getByText('1 draft to approve')).toBeInTheDocument();
     await user.click(screen.getAllByRole('button', { name: 'Review' })[0]!);
     expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?todo=approve');
-    await user.click(screen.getByRole('button', { name: 'Mark received' }));
+    await user.click(screen.getByRole('button', { name: 'Record delivery' }));
     expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?todo=send');
     await user.click(screen.getByRole('button', { name: 'Apply' }));
     expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?view=payments&todo=unapplied');
     expect(screen.getByRole('link', { name: 'Open payables' })).toHaveAttribute('href', '/finance/payables');
 
     rerender(<MemoryRouter><FinanceAttention {...props} canAct={false} /></MemoryRouter>);
-    expect(screen.queryByRole('button', { name: /Review|Mark received|Apply/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Review|Record delivery|Apply/ })).not.toBeInTheDocument();
   });
 
   it('L12(b): an invoice with an unknown balance is counted in its age group, never shown as 0 there', () => {
@@ -152,6 +175,16 @@ describe('Finance blocks', () => {
     expect(screen.getByRole('heading', { name: /1 balance unknown/ })).toBeInTheDocument();
     const row = screen.getByRole('link', { name: /Cascade Foods/ });
     expect(row).not.toHaveTextContent(/Balance unknown|—|\$0\b/);
+  });
+
+  it('F6 omits unknown supplier age but retains known zero days', () => {
+    const row = { procurement: { id: 'proc-1' } as never, ageDays: null, amount: null };
+    const props = { scope: 'all' as const, isPending: false, isError: false, onRetry: () => {}, withLayout: (path: string) => path, orgCurrency: 'IDR', canAct: true };
+    const view = render(<MemoryRouter><FinanceAttention {...props} position={{ ...emptyPosition, payables: [row], payablesUnknownCount: 1 }} /></MemoryRouter>);
+    expect(screen.getByText('Balance unknown')).toBeInTheDocument();
+    expect(screen.queryByText(/oldest 0 days/i)).not.toBeInTheDocument();
+    view.rerender(<MemoryRouter><FinanceAttention {...props} position={{ ...emptyPosition, payables: [{ ...row, ageDays: 0, amount: 0 }], payablesTotals: { IDR: 0 } }} /></MemoryRouter>);
+    expect(screen.getByText('Oldest 0 days')).toBeInTheDocument();
   });
 
   it('SEC-RS-2: a waiting supplier invoice with an unknown balance reads as unknown, not as a blank amount', () => {

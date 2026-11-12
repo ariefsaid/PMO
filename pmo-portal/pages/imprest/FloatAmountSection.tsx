@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, StatusPill, TextArea, TextField, useToast, type Column } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, StatusPill, TextArea, TextField, UnsavedChangesDialog, useToast, type Column } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -8,9 +8,8 @@ import { useDecideFloatChange, useImprestFloatChanges, useProposeFloatAmount } f
 import { availableFloatChangeActions } from '@/src/lib/imprest/imprestRules';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ImprestFloatChangeListRow } from '@/src/lib/db/imprest';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
-import { imprestStatusLabel } from './imprestLabels';
+import { formatCurrency, formatCurrencyCents, formatDay, parseMoneyInputAtScale } from '@/src/lib/format';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 /** The float's amount and its change proposals (FR-IMP-002): a new float starts at zero until a second person approves the
  *  proposed amount. The proposer and the custodian never decide; the RPC refuses anyone the senior route excludes. */
@@ -23,25 +22,37 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
   const decide = useDecideFloatChange();
   const propose = useProposeFloatAmount();
   const [dialog, setDialog] = useState<'approve' | 'reject' | 'propose' | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [amount, setAmount] = useState('');
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const money = (v: number | string) => formatCurrency(Number(v), currency);
+  // The approve/reject confirm names the exact amount being decided — minor units (owner ruling D4).
+  const moneyCents = (v: number | string) => formatCurrencyCents(Number(v), currency);
   const rows = changes.data?.rows ?? [];
   const open = rows.find((c) => c.status === 'Proposed');
   const actions = open ? availableFloatChangeActions({ userId, realRole, custodianId, change: open }) : [];
   const history = rows.filter((c) => c.status !== 'Proposed');
   const columns: Column<ImprestFloatChangeListRow>[] = [
-    { key: 'date', header: t('imprest:amount.history.date', 'Date'), rowHeader: true, cell: (r) => <span className="whitespace-nowrap">{r.proposed_at.slice(0, 10)}</span> },
+    { key: 'date', header: t('imprest:amount.history.date', 'Date'), rowHeader: true, cell: (r) => <span className="whitespace-nowrap">{formatDay(r.proposed_at)}</span> },
     { key: 'amount', header: t('imprest:amount.history.amount', 'Amount'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.proposed_amount)}</span> },
-    { key: 'status', header: t('imprest:amount.history.status', 'Status'), cell: (r) => <StatusPill variant={workflowVariant(r.status)}>{imprestStatusLabel(r.status, t)}</StatusPill> },
+    { key: 'status', header: t('imprest:amount.history.status', 'Status'), cell: (r) => <StatusPill record="imprest" state={r.status} /> },
     { key: 'who', header: t('imprest:amount.history.who', 'Proposed by'), cell: (r) => <span>{r.proposer?.full_name ?? '—'}{r.decider ? <span className="text-muted-foreground">{t('imprest:amount.history.decidedBy', ' · decided by {{name}}', { name: r.decider.full_name })}</span> : null}</span> },
     { key: 'note', header: t('imprest:amount.history.note', 'Note'), cell: (r) => r.notes ? <span className="block max-w-xs truncate text-muted-foreground" title={r.notes}>{r.notes}</span> : null },
   ];
   const parsed = parseMoneyInputAtScale(amount, 2);
-  const close = () => { setDialog(null); setNotes(''); setAmount(''); };
+  const dirty = Boolean(amount || notes);
+  const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
+  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
+  const close = () => { setDialog(null); setDecisionError(null); setNotes(''); setAmount(''); };
   const run = async (work: () => Promise<unknown>, success: string) => {
+    setDecisionError(null);
     try { await work(); toast(success, undefined, 'success'); close(); }
-    catch (err) { const { headline, detail } = classifyMutationError(err); toast(headline, detail, 'warning'); }
+    catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      setDecisionError(detail ? `${headline}. ${detail}` : headline);
+      toast(headline, detail, 'warning');
+    }
   };
 
   return (
@@ -57,9 +68,9 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
             <p>{t('imprest:amount.current', 'Current float: {{amount}}', { amount: money(floatAmount) })}</p>
             {open && (
               <div role="note" className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <span>{t('imprest:amount.open', 'Proposed {{amount}} on {{date}}: awaiting a senior approver.', { amount: money(open.proposed_amount), date: open.proposed_at.slice(0, 10) })}</span>
-                {actions.includes('approveFloatChange') && <Button variant="primary" size="sm" onClick={() => setDialog('approve')}>{t('imprest:actions.approve', 'Approve')}</Button>}
-                {actions.includes('rejectFloatChange') && <Button variant="outline" size="sm" onClick={() => setDialog('reject')}>{t('imprest:actions.reject', 'Reject')}</Button>}
+                <span>{t('imprest:amount.open', 'Proposed {{amount}} on {{date}}: awaiting a senior approver.', { amount: money(open.proposed_amount), date: formatDay(open.proposed_at) })}</span>
+                {actions.includes('rejectFloatChange') && <Button variant="outline" size="sm" onClick={() => { setDecisionError(null); setDialog('reject'); }}>{t('imprest:actions.reject', 'Reject')}</Button>}
+                {actions.includes('approveFloatChange') && <Button variant="primary" size="sm" onClick={() => { setDecisionError(null); setDialog('approve'); }}>{t('imprest:actions.approve', 'Approve')}</Button>}
               </div>
             )}
             {!open && (
@@ -78,13 +89,14 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
         tone={dialog === 'reject' ? 'destructive' : 'default'}
         title={dialog === 'reject' ? t('imprest:amount.rejectTitle', 'Reject the proposed float amount?') : t('imprest:amount.approveTitle', 'Approve the proposed float amount?')}
         description={<div className="space-y-3">
-          <p>{open ? money(open.proposed_amount) : ''}</p>
+          <p>{open ? moneyCents(open.proposed_amount) : ''}</p>
           {dialog === 'reject' && <TextArea label={t('imprest:confirm.notes', 'Note (optional)')} value={notes} onChange={setNotes} />}
         </div>}
         confirmLabel={dialog === 'reject' ? t('imprest:actions.reject', 'Reject') : t('imprest:actions.approve', 'Approve')}
         loading={decide.isPending}
+        error={decisionError}
         onConfirm={() => { if (open) void run(() => decide.mutateAsync({ changeId: open.id, approve: dialog === 'approve', ...(notes.trim() ? { notes: notes.trim() } : {}) }), t('imprest:toast.updated', 'Updated')); }}
-        onCancel={close}
+        onCancel={() => guardLeave(close)}
       />
       <ConfirmDialog
         open={dialog === 'propose'}
@@ -93,8 +105,14 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
         confirmLabel={t('imprest:amount.proposeConfirm', 'Propose amount')}
         confirmDisabled={parsed === null || !(parsed > 0)}
         loading={propose.isPending}
+        error={decisionError}
         onConfirm={() => void run(() => propose.mutateAsync({ floatId, amount: parsed as number }), t('imprest:amount.proposed', 'Amount proposed'))}
-        onCancel={close}
+        onCancel={() => guardLeave(close)}
+      />
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
       />
     </Card>
   );

@@ -1,12 +1,15 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { useComments, useCommentMutations } from '@/src/hooks/useComments';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import type { CommentEntityType } from '@/src/lib/db/comments';
-import { formatDate, formatRelativeTime } from '@/src/lib/format';
+import { formatClockTime, formatDay } from '@/src/lib/format';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { Button } from '@/src/components/ui/Button';
 import { ConfirmDialog } from '@/src/components/ui/ConfirmDialog';
+import { UnsavedChangesDialog } from '@/src/components/ui/UnsavedChangesDialog';
 import { SectionHeader } from '@/src/components/ui/SectionHeader';
 import { TextArea } from '@/src/components/ui/FormFields';
 
@@ -80,6 +83,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
   const [body, setBody] = useState('');
   const [mentions, setMentions] = useState<MentionSlot[]>([]);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
 
   const query = activeMention(body);
   const suggestions = useMemo(() => {
@@ -109,6 +113,13 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
 
   const tooLong = body.length > MAX_LEN;
   const canPost = body.trim().length > 0 && !tooLong && !post.isPending;
+  const dirty = body.length > 0 || mentions.length > 0;
+
+  useUnsavedChangesGuard({
+    dirty,
+    guardHistory: true,
+    onBlocked: (leave) => setPendingLeave(() => leave),
+  });
 
   const submit = async () => {
     // Recipients derive from surviving mention spans, never substring matching.
@@ -137,15 +148,13 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
             const name = c.author?.full_name ?? t('comments.unknownAuthor', 'Former member');
             return (
               <li key={c.id} className="flex gap-3" data-testid="comment-item">
-                <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
-                  {name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
-                </span>
+                <Avatar name={name} size="lg" decorative />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2">
                     <span className="text-sm font-semibold text-foreground">{name}</span>
-                    <time dateTime={c.created_at} className="text-xs text-muted-foreground">{formatDate(c.created_at)} · {formatRelativeTime(c.created_at)}</time>
+                    <time dateTime={c.created_at} className="text-control text-muted-foreground">{formatDay(c.created_at)}, {formatClockTime(new Date(c.created_at))}</time>
                     {c.author_id === currentUser?.id && (
-                      <button type="button" onClick={() => setConfirmId(c.id)} className="touch-target ml-auto inline-flex items-center text-xs text-muted-foreground hover:text-destructive-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <button type="button" onClick={() => setConfirmId(c.id)} className="touch-target ml-auto inline-flex items-center text-control text-muted-foreground hover:text-destructive-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         {t('comments.delete', 'Delete')}
                       </button>
                     )}
@@ -205,6 +214,15 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
           if (confirmId) remove.mutate(confirmId, { onSettled: () => setConfirmId(null) });
         }}
         onCancel={() => setConfirmId(null)}
+      />
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => {
+          const leave = pendingLeave;
+          setPendingLeave(null);
+          leave?.();
+        }}
+        onKeepEditing={() => setPendingLeave(null)}
       />
     </section>
   );

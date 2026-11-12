@@ -77,7 +77,9 @@ test('AC-1011: a PM wins a deal — open it from the Pipeline, Mark won, enter c
   // The user sees the win acknowledged (success toast) before moving on — wait for it so the
   // transition has committed + the caches invalidated before we navigate away (natural journey:
   // you read the confirmation, then go look at your projects).
-  await expect(visibleToast(page, /Won, Pending KoM/i)).toBeVisible({
+  // ux/1110 phrases the toast with the stored status ("Moved to Won, Pending KoM"); the display
+  // vocabulary on the list below stays "Won, pending kickoff".
+  await expect(visibleToast(page, /Moved to Won, Pending KoM/i)).toBeVisible({
     timeout: 15_000,
   });
 
@@ -87,11 +89,10 @@ test('AC-1011: a PM wins a deal — open it from the Pipeline, Mark won, enter c
   await expect(page.getByTestId('projects-loading')).not.toBeVisible({ timeout: 15_000 });
   const wonRow = page.getByRole('row').filter({ hasText: DEAL_NAME });
   await expect(wonRow).toBeVisible({ timeout: 15_000 });
-  await expect(wonRow.getByText('Won, Pending KoM')).toBeVisible({ timeout: 15_000 });
+  await expect(wonRow.getByText('Won, pending kickoff')).toBeVisible({ timeout: 15_000 });
   // PL-A: the list no longer repeats references per row; the contract ref lives on the record.
   await expect(wonRow.getByText('More project references')).toHaveCount(0);
   await wonRow.getByRole('button', { name: DEAL_NAME }).click();
-  await page.getByLabel('More actions').click();
   await page.getByRole('button', { name: 'Project details', exact: true }).click();
   await expect(page.getByText('CPO-E2E-1').first()).toBeVisible({ timeout: 10_000 });
 });

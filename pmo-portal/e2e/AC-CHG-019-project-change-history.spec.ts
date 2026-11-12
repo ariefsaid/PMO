@@ -57,8 +57,8 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   });
 
   await page.goto(projectUrl);
-  await page.getByRole('button', { name: /^Activity · \d+ comments$/ }).click();
-  const activity = page.getByRole('dialog', { name: 'Activity' });
+  // #2057: a deal's Overview carries its notes and activity inline (no drawer doorway).
+  const activity = page.getByRole('region', { name: 'Notes and activity' });
   await expect(activity).toBeVisible({ timeout: 15_000 });
   await activity.getByRole('tab', { name: 'Changes', exact: true }).click();
   await expect(activity.getByRole('tab', { name: 'Changes', selected: true })).toBeVisible({ timeout: 15_000 });
@@ -66,20 +66,20 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   await expect(events.first()).toBeVisible({ timeout: 15_000 });
 
   // Newest first: save 2 on top — who, when, the date move as formatted dates.
+  // ux/1110 prints a day as "31 Dec" and adds the year only when it is not the current one
+  // (src/lib/format.ts formatDay), so the year is optional in these two matchers.
   await events.first().getByRole('button', { name: 'View details' }).click();
-  await expect(events.first().getByText(/31\D*2026 → \D*15\D*2027/)).toBeVisible();
+  await expect(events.first().getByText(/31\D*Dec(?:\D*2026)? → \D*15\D*Jan\D*2027/)).toBeVisible();
   await expect(events.first()).toContainText('Diego Salvatierra');
   await expect(events.first()).toContainText(/minute|second|now/i);
-  await expect(events.first()).toContainText(/End date: \D*31\D*2026 → \D*15\D*2027/);
+  await expect(events.first()).toContainText(/End date: \D*31\D*Dec(?:\D*2026)? → \D*15\D*Jan\D*2027/);
   // Save 1 below it: the client by name, and the first date move.
   await events.nth(1).getByRole('button', { name: 'View details' }).click();
   await expect(events.nth(1).getByText(new RegExp(`${CLIENT_A}[^→]* → ${CLIENT_B}`))).toBeVisible();
-  await expect(events.nth(1).getByText(/30\D*2026 → \D*31\D*2026/)).toBeVisible();
+  await expect(events.nth(1).getByText(/30\D*Nov(?:\D*2026)? → \D*31\D*Dec(?:\D*2026)?/)).toBeVisible();
   await expect(events.nth(1)).toContainText(new RegExp(`Client: ${CLIENT_A}[^→]* → ${CLIENT_B}`));
-  await expect(events.nth(1)).toContainText(/End date: \D*30\D*2026 → \D*31\D*2026/);
+  await expect(events.nth(1)).toContainText(/End date: \D*30\D*Nov(?:\D*2026)? → \D*31\D*Dec(?:\D*2026)?/);
   await expect(events.nth(1)).toContainText('Diego Salvatierra');
-
-  await activity.getByRole('button', { name: 'Close', exact: true }).click();
 
   // Mobile: no horizontal overflow (fonts settled before measuring).
   await page.setViewportSize({ width: 390, height: 800 });
@@ -95,8 +95,8 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   await login(page, 'exec@acme.test');
   await page.goto('/sales');
   await openPipelineCard(page, name);
-  await page.locator('summary[aria-label="More actions"]').click();
-  await page.getByRole('button', { name: /Archive/i }).click();
+  await page.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('menuitem', { name: /Archive/i }).click();
   const archiveDialog = page.getByRole('alertdialog');
   await expect(archiveDialog).toBeVisible({ timeout: 8_000 });
   await archiveDialog.getByRole('button', { name: /archive project/i }).click();

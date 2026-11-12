@@ -1,7 +1,7 @@
 import React from 'react';
 
 /** Selected Lucide SVG geometry, vendored from lucide-static@0.468.0; source mapping: scripts/ui-icon-manifest.json. */
-export const ICON_NAMES = ["grid","pipe","cart","folder","clock","doc","x","plus","help","up","down","check","lock","alert","inbox","refresh","back","chev","cal","dollar","table","cols","cards","export","search","bell","admin","pencil","trash","upload","file","download","eye","eye-off","message","sun","moon","plug","info","dashboard","pipeline","projects","procurement","invoices","payments","reports","expenses","approvals","tasks","companies","contacts","views","menu","circle-check","user","clipboard-check","chart-column","funnel","cloud-upload","sort"] as const;
+export const ICON_NAMES = ["grid","pipe","cart","folder","clock","doc","x","plus","help","up","down","check","lock","alert","inbox","refresh","back","chev","cal","dollar","table","cols","cards","export","search","bell","admin","pencil","trash","upload","file","download","eye","eye-off","message","sun","moon","plug","info","dashboard","pipeline","projects","procurement","invoices","payments","reports","expenses","approvals","tasks","companies","contacts","views","menu","circle-check","user","clipboard-check","chart-column","funnel","cloud-upload","sort","equipment","meetings","site-cash","statements"] as const;
 export type IconName = (typeof ICON_NAMES)[number];
 
 export const ICON_PATHS: Record<IconName, React.ReactNode> = {
@@ -82,12 +82,6 @@ export const ICON_PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="m7 7 10 10" />
       <path d="M17 7v10H7" />
-    </>
-  ),
-  "sort": (
-    <>
-      <path d="m7 9 5-5 5 5" />
-      <path d="m7 15 5 5 5-5" />
     </>
   ),
   "check": (
@@ -439,6 +433,41 @@ export const ICON_PATHS: Record<IconName, React.ReactNode> = {
       <path d="M12 13v8" />
       <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
       <path d="m8 17 4-4 4 4" />
+    </>
+  ),
+  "sort": (
+    <>
+      <path d="m7 15 5 5 5-5" />
+      <path d="m7 9 5-5 5 5" />
+    </>
+  ),
+  "equipment": (
+    <>
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+    </>
+  ),
+  "meetings": (
+    <>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </>
+  ),
+  "site-cash": (
+    <>
+      <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
+      <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
+    </>
+  ),
+  "statements": (
+    <>
+      <line x1="3" x2="21" y1="22" y2="22" />
+      <line x1="6" x2="6" y1="18" y2="11" />
+      <line x1="10" x2="10" y1="18" y2="11" />
+      <line x1="14" x2="14" y1="18" y2="11" />
+      <line x1="18" x2="18" y1="18" y2="11" />
+      <polygon points="12 2 20 7 4 7" />
     </>
   ),
 };

@@ -5,7 +5,7 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useLinkErpDocuments } from '@/src/hooks/useErpPurchaseLinks';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
-import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+import { useProcurementStatusName } from '@/src/components/procurement/useProcurementStatusName';
 import { formatCurrency } from '@/src/lib/format';
 import { erpLinkReasonText, erpPreTaxAmount } from './erpLinkReasons';
 
@@ -47,7 +47,7 @@ export const LinkErpDocumentsDialog: React.FC<LinkErpDocumentsDialogProps> = ({ 
   const [target, setTarget] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
 
-  const stageLabel = useProcurementStatusLabel();
+  const stageLabel = useProcurementStatusName();
   const docSupplier = shared(docs.map((d) => d.supplier));
   const docCurrency = shared(docs.map((d) => d.currency));
 
@@ -130,20 +130,21 @@ export const LinkErpDocumentsDialog: React.FC<LinkErpDocumentsDialogProps> = ({ 
     <EntityFormModal
       open
       title={title}
-      subtitle={t('erpLinks.dialogSub', 'The purchase’s status follows the documents linked to it. Nothing is sent to ERPNext.')}
       submitLabel={t('erpLinks.link', 'Link')}
       cancelLabel={t('erpLinks.cancel', 'Cancel')}
       onSubmit={(e) => void submit(e)}
       onClose={onClose}
       loading={link.isPending}
+      // F2-11: a chosen purchase must survive Escape/Cancel/backdrop — confirm the discard first.
+      dirty={!!target}
       submitDisabled={!target}
       disabledReason={t('erpLinks.choosePurchaseFirst', 'Choose a purchase first.')}
       submitError={submitError}
     >
-      <p className="mb-3 text-[13px] text-foreground tabular">{summary}</p>
-      {purchasesPending && <p className="mb-2 text-[12.5px] text-muted-foreground">{t('erpLinks.loadingPurchases', 'Loading purchases…')}</p>}
+      <p className="mb-3 text-sm text-foreground tabular">{summary}</p>
+      {purchasesPending && <p className="mb-2 text-sm text-muted-foreground">{t('erpLinks.loadingPurchases', 'Loading purchases…')}</p>}
       {purchasesError && (
-        <div role="alert" className="mb-2 flex items-center gap-2 text-[12.5px] text-destructive">
+        <div role="alert" className="mb-2 flex items-center gap-2 text-sm text-destructive">
           <span>{t('erpLinks.purchasesLoadFailed', 'Could not load purchases.')}</span>
           <button type="button" className="underline" onClick={() => void refetchPurchases()}>{t('erpLinks.retry', 'Retry')}</button>
         </div>
@@ -159,12 +160,13 @@ export const LinkErpDocumentsDialog: React.FC<LinkErpDocumentsDialogProps> = ({ 
         required
       />
       {awaiting > 0 && (
-        <p className="mt-2 text-[12.5px] text-muted-foreground">
+        <p className="mt-2 text-sm text-muted-foreground">
           {projectId
             ? t('erpLinks.awaitingApprovalProject', '{{count}} purchases on this project are waiting for approval. They can take documents once approved.', { count: awaiting })
             : t('erpLinks.awaitingApproval', '{{count}} purchases are waiting for approval. They can take documents once approved.', { count: awaiting })}
         </p>
       )}
+      <p className="mt-3 text-sm text-muted-foreground">{t('erpLinks.dialogSub', 'The purchase’s status follows the documents linked to it. Nothing is sent to ERPNext.')}</p>
     </EntityFormModal>
   );
 };

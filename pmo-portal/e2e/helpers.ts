@@ -20,9 +20,11 @@ export function ownedContextOptions(testInfo: Pick<TestInfo, 'project'>, overrid
   return { ...contextOptions, ...overrides };
 }
 
-/** Locate the rendered toast copy (not its separate, screen-reader-only live announcement). */
+/** Locate the rendered toast copy (not its separate, screen-reader-only live announcement).
+ *  `.last()` targets the newest matching toast: the library stacks repeats instead of
+ *  coalescing them, and assertions follow the toast the last action fired. */
 export function visibleToast(page: Page, text: string | RegExp): Locator {
-  return page.locator('[data-toast="visible"]').filter({ hasText: text });
+  return page.locator('[data-sonner-toast]').filter({ hasText: text }).last();
 }
 
 /** Keep project-create journeys independent of the seeded ERP host; native project persistence remains real. */
@@ -161,10 +163,15 @@ export async function signIn(page: Page, email: string, password = SEED_PASSWORD
   // Re-navigate to '/' rather than reload(): reload() reloads the CURRENT url, which — if the
   // app's async unauth-redirect already bounced us to /login — would reload /login (no
   // already-authed guard there) and hang the assertion. An explicit goto('/') boots the app
-  // authenticated (session now in localStorage) and lands deterministically on '/'.
+  // authenticated (session now in localStorage) and lands deterministically on the dashboard.
   await page.goto('/');
 
   await expect(page).toHaveURL(/\/$/);
+}
+
+/** Open an app path; the dashboard at `/` is the home at every viewport size. */
+export async function openAppPath(page: Page, path: string) {
+  await page.goto(path);
 }
 
 /**

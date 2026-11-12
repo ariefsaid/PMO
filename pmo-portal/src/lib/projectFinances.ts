@@ -1,6 +1,8 @@
 import { parseExactCents, formatExactCents } from './exactDecimal';
 import type { BillingKind } from './billingKind';
 import { formatExactMoney } from './format';
+import { getNumberLocale } from './locale/activeLocale';
+import type { ProjectMoneyRead } from './db/projectMoney';
 
 export type ExactMoney = string;
 
@@ -269,6 +271,65 @@ export function isActualComplete(input: {
   return categories.length > 0
     && categories.every((category) => category.mapped && category.amount !== null)
     && !input.excludesRestrictedRows;
+}
+
+/**
+ * ONE Actual figure for one project in a COLLECTION read — the Projects table and the Cards view
+ * both render this, so the two views cannot disagree (#2060).
+ *
+ * ⚑ The completeness verdict is the collection read's own `actuals.complete` (0493/0700: whether
+ * every category the project's ACTIVE BUDGET carries has a mapped ledger amount). It is NOT
+ * re-derived here from `actuals.categories`: that list enumerates the whole `budget_category` enum
+ * (project_mapped_actuals unnests it), so it always carries categories this org never mapped
+ * ('Overheads', 'Travel & accommodation', …). Judging coverage by that list made every project look
+ * partial, which is what blanked the table's Actual column while the cards showed the figure.
+ *
+ * A withheld figure is never a blank cell: `state` tells the surface whether to explain it as
+ * partial or unknown, and both render the em dash.
+ */
+export type CollectionActualPosition = {
+  /** The whole-unit display figure (FR-L10N-020), or null when none can be trusted. */
+  text: string | null;
+  amount: ExactMoney | null;
+  currency: string;
+  /**
+   * available · partial (a budgeted category's amount is unmapped/unreadable) · unknown (no
+   * trustworthy total: none recorded, another currency, restricted rows) · unavailable (the
+   * collection read is pending, failed, or absent — nothing to say about this row yet).
+   */
+  state: 'available' | 'partial' | 'unknown' | 'unavailable';
+  /** Withheld because ledger rows were excluded by the restriction rule. */
+  restricted: boolean;
+};
+
+export function deriveCollectionActual(input: {
+  projectCurrency: string;
+  money: ProjectMoneyRead | undefined;
+  moneyPending?: boolean;
+  moneyError?: boolean;
+}): CollectionActualPosition {
+  const { money, projectCurrency } = input;
+  if (input.moneyPending || input.moneyError || !money) {
+    return { text: null, amount: null, currency: projectCurrency, state: 'unavailable', restricted: false };
+  }
+  const basis = money.ledgerBasis ?? 'erp';
+  const currency = money.actuals.currency || projectCurrency;
+  const restricted = money.actuals.excludesRestrictedRows === true;
+  // PMO spend is stated in the project's own currency; a cached figure in another one is not this project's Actual.
+  const readSucceeded = basis !== 'pmo' || money.actuals.currency === projectCurrency;
+  const complete = isActualComplete({
+    basis,
+    readSucceeded,
+    complete: money.actuals.complete,
+    categories: money.actuals.categories,
+    excludesRestrictedRows: money.actuals.excludesRestrictedRows,
+  });
+  const amount = complete ? money.actuals.total : null;
+  const text = amount === null ? null : formatExactMoney(amount, currency, getNumberLocale(), { wholeUnits: true });
+  if (text !== null) return { text, amount, currency, state: 'available', restricted: false };
+  const partial = basis === 'erp'
+    && money.actuals.categories.some((category) => !category.mapped || category.amount == null);
+  return { text: null, amount: null, currency, state: partial ? 'partial' : 'unknown', restricted };
 }
 
 export function deriveContractRemainingFromPosition(

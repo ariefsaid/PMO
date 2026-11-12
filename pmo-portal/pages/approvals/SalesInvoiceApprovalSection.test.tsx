@@ -178,9 +178,24 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     await expand(user);
     const panel = document.getElementById(within(region()).getByRole('button', { name: 'Show invoice details for Acme Energy' }).getAttribute('aria-controls')!)!;
     const p = within(panel);
-    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000\.00/);
-    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000\.00/);
-    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000\.00/);
+    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000/);
+    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000/);
+    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000/);
+  });
+  it('D4: shows minor units on an invoice preview when its currency uses them', () => {
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter>
+          <SalesInvoiceApprovalPreview inv={draft({
+            amount: 12.5, currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0,
+            native_lines: [{ item_code: 'SVC', description: 'Site survey', qty: 1, rate: 12.5, amount: 12.5 }],
+          })} />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+    const lines = screen.getByRole('list', { name: 'Line items' });
+    expect(lines).toHaveTextContent('1 × $12.50 = $12.50');
+    expect(screen.getByText('Total due').closest('div')).toHaveTextContent('$12.50');
   });
   it.each([
     { treatment: 'exclusive' as const, amount: 1_000_000, basis: 'excl. PPN' },
@@ -212,9 +227,9 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     expect(invoiceDisclosure).toHaveAttribute('aria-expanded', 'true');
     const panel = document.getElementById(invoiceDisclosure.getAttribute('aria-controls')!)!;
     const p = within(panel);
-    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000\.00/);
-    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000\.00/);
-    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000\.00/);
+    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000/);
+    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000/);
+    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000/);
     await user.click(p.getByRole('button', { name: 'Approve' }));
     await user.click(screen.getByRole('button', { name: 'Approve invoice' }));
     expect(h.submit).toHaveBeenCalledWith({ siId: 'si-n1', intent: { id: 'i-1', idempotencyKey: 'k-1' } });
@@ -240,11 +255,11 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     expect(panel).toHaveTextContent('Fina Author');
     const lines = p.getByRole('list', { name: 'Line items' });
     expect(within(lines).getAllByRole('listitem')).toHaveLength(2);
-    expect(lines).toHaveTextContent(/Site survey.*SVC.*2 × .*400,000\.00.*800,000\.00/);
-    expect(lines).toHaveTextContent(/TRV.*1 × .*200,000\.00/);
-    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000\.00/);
-    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000\.00/);
-    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000\.00/);
+    expect(lines).toHaveTextContent(/Site survey.*SVC.*2 × .*400,000.*800,000/);
+    expect(lines).toHaveTextContent(/TRV.*1 × .*200,000/);
+    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000/);
+    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000/);
+    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000/);
     expect(p.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
   });
   it('AC-NAR-002 (M-8) the heading is an /approvals section heading with the count', () => {

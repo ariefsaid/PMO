@@ -173,12 +173,14 @@ describe('ProjectNew — one-step create page (#806)', () => {
     await userEvent.type(screen.getByLabelText(/project name/i), 'Half typed');
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
     expect(returnToList).not.toHaveBeenCalled();
-    const dialog = await screen.findByRole('dialog');
+    // Shared UnsavedChangesDialog (F3a, 444d4ce88): destructive tone → alertdialog; keeping the
+    // edits is the default, leaving is the explicit discard.
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
     expect(dialog).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /^Stay$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Keep editing$/i }));
     expect(returnToList).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
-    await userEvent.click(await screen.findByRole('button', { name: /^Leave$/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Discard$/i }));
     expect(returnToList).toHaveBeenCalledTimes(1);
     expect(createMutation).not.toHaveBeenCalled();
   });

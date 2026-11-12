@@ -235,17 +235,23 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(screen.queryByText('Progress curve')).toBeNull();
   });
 
+  it('2057: a deal Overview carries its notes and activity and its documents, so the record fills the screen', async () => {
+    await renderAt('/projects/opp1');
+    const panel = screen.getByRole('tabpanel');
+    expect(await within(panel).findByRole('region', { name: 'Notes and activity' }, { timeout: 15000 })).toBeInTheDocument();
+    expect(await within(panel).findByText('Document register', undefined, { timeout: 15000 })).toBeInTheDocument();
+    // The footer doorway would repeat the same activity on a deal.
+    expect(screen.queryByRole('region', { name: 'Project activity' })).toBeNull();
+  });
+
   it('SUB-I: pre-win classification opens from the header Project details action — no standalone Classification block', async () => {
     await renderAt('/projects/opp1');
     expect(screen.queryByText('Classification')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText('More actions'));
-    const menu = screen.getByLabelText('More actions').closest('details');
-    expect(menu).not.toBeNull();
-    await userEvent.click(within(menu!).getByRole('button', { name: 'Project details' }));
-    const rail = within(menu!).getByTestId('project-detail-rail');
+    await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
+    const rail = await screen.findByTestId('project-detail-rail');
     expect(within(rail).getByText('Engineering')).toBeInTheDocument();
     // a deal has no delivery status action: lifecycle changes belong to the pipeline lens
-    expect(within(menu!).queryByRole('button', { name: /change status/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /change status/i })).not.toBeInTheDocument();
   });
 
   it('AC-IFW-RECORD-01: pre-win record renders the Advance / Mark won / Mark lost sales levers', async () => {

@@ -9,12 +9,10 @@
     }
   },
   "uxs07": {
-    "organizationScope": "Organization integrations are shared by your organization. Manage personal connections in ",
     "personalConnections": "My integrations",
-    "scopeTail": ". Personal connections do not activate organization integrations.",
     "connectionOptions": "Connection options",
     "reviewRecords": "Review connected records",
-    "liveRecordCheck": "Not yet verified: review a connected record to confirm the data is usable.",
+    "liveRecordCheck": "Not verified yet. Review a connected record.",
     "pendingZero": "No updates waiting to send",
     "pendingOne": "{{count}} update waiting to send",
     "pendingMany": "{{count}} updates waiting to send",
@@ -38,15 +36,15 @@
     "ownershipUnavailable": "Automatic updates unavailable",
     "ownershipUnavailableHelp": "PMO could not check which information updates automatically. Try again.",
     "ownershipEmpty": "No information is set to update automatically",
-    "ownershipEmptyHelp": "Choose which information should stay current from each connected service.",
     "ownershipDomains": "{{service}} updates {{count}} information areas here.",
-    "setupUnavailableHelp": "Readiness is unknown. Retry, or ask your PMO administrator to review ERP setup.",
+    "setupUnavailableHelp": "Readiness is unknown.",
     "lastKnownTitle": "Showing the last saved setup check",
-    "lastKnownBody": "The current check failed. These results may be out of date; retry or ask your PMO administrator to review setup.",
+    "lastKnownBody": "The current check failed; results may be out of date.",
     "retryCheck": "Check setup again",
     "operatorHandoff": "Open accounting setup",
     "noDomains": "No connected information is currently updating from ERPNext",
-    "m365ApprovalDescription": "Your organization may need to approve the PMO Portal app before team members connect Microsoft 365. Start this only if Microsoft asks for organization approval; an existing approval does not need to be repeated."
+    "m365ApprovalDescription": "Only if Microsoft asks for organization approval.",
+    "organizationScope": "Personal connections: "
   },
   "uxs14": {
     "moreActions": "More actions",
@@ -55,18 +53,17 @@
     "contractReference": "Customer contract reference"
   },
   "uxs10": {
-    "mapPrinciple": "One direct-cost account receives each category budget. Additional project-tagged accounts can count toward actuals only.",
     "rowOptions": "Account options",
-    "countOnlyAccounts": "{{count}} additional account(s) count toward actuals only",
+    "countOnlyAccounts": "{{count}} more, actuals only",
     "proposalsLabel": "Suggested posting accounts",
     "proposalsTitle": "Review suggested posting accounts",
-    "proposalsHelp": "Suggestions use enabled ledger accounts grouped under direct costs. Existing choices are kept; unclear categories need your decision.",
+    "proposalsHelp": "Suggestions use direct-cost ledger accounts; existing choices are kept.",
     "reviewProposals_one": "Review {{count}} proposal",
     "reviewProposals_other": "Review {{count}} proposals",
     "catalogueLoading": "Loading the account chart…",
-    "catalogueError": "The account chart is unavailable. No suggestions were applied.",
-    "catalogueFallback": "The saved account chart is empty; these choices come from the current ERP chart.",
-    "noProposal": "No clear direct-cost match is available. Resolve the account with your operator; an overhead account will not be substituted.",
+    "catalogueError": "The account chart is unavailable.",
+    "catalogueFallback": "The saved account chart is empty; choices come from the current ERP chart.",
+    "noProposal": "No clear direct-cost match. Resolve it with your operator.",
     "proposalPartial": "Some proposals were not saved ({{categories}}). Existing choices remain unchanged; review those categories and try again.",
     "proposalSaved": "Posting map confirmed",
     "proposalSavedDetail_one": "{{count}} category choice was saved.",
@@ -76,33 +73,33 @@
     "confirmAction": "Confirm proposals",
     "accountSearch": "Search account name or number",
     "accountNoun": "account",
-    "noPostingAccounts": "No unused direct-cost ledger accounts are available. Ask your operator to add a suitable account; overhead is not a substitute.",
-    "countOnlyHelp": "This account counts toward actuals for the category; budgets are never posted to it."
+    "noPostingAccounts": "No unused direct-cost ledger accounts are available.",
+    "countOnlyHelp": "Counts toward actuals; budgets are never posted here."
   },
   "uxs11": {
     "accountNoun": "account",
-    "accountPlaceholder": "Choose an account",
+    "accountPlaceholder": "Choose…",
     "accountSearch": "Search account name or number",
-    "bindingRequired": "An active ERPNext organization connection is needed to load these choices. Ask your accounting administrator to review the connection.",
+    "bindingRequired": "An active ERPNext connection is needed to load these choices.",
     "bindingLoadError": "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.",
     "catalogueLoadError": "Couldn't load chart accounts",
     "checkingBinding": "Checking ERPNext setup…",
     "downPaymentHeading": "Down payments",
-    "downPaymentIntro": "Choose the existing ERPNext item used to bill a customer advance and recover it from billing claims.",
+    "downPaymentIntro": "The ERPNext item that bills a customer advance and recovers it from billing claims.",
     "downPaymentItemLabel": "Down payment item",
     "downPaymentItemPlaceholder": "Choose an ERPNext item",
     "downPaymentItemUnavailable": "Saved item is not in the current item list; it remains saved until replaced.",
     "downPaymentLoadError": "Couldn't load the down payment item",
-    "downPaymentItemsError": "Couldn't load ERPNext items. Retry from the item list or ask your accounting administrator to review the item list.",
-    "downPaymentNoItems": "No ERPNext sales items were returned. Ask your accounting administrator to review the enabled item list; no substitute was selected.",
+    "downPaymentItemsError": "Couldn't load ERPNext items. Retry.",
+    "downPaymentNoItems": "No ERPNext sales items were returned.",
     "downPaymentRemoteChanged": "The saved item changed. Your edit is kept; reload the saved value to discard it.",
     "downPaymentSaved": "Down payment item saved",
-    "downPaymentUnverified": "Use an item configured to post customer advances to a liability account. Ask your accounting administrator to check the item's account before saving.",
+    "downPaymentUnverified": "Its account must post customer advances to a liability.",
     "inputVatLabel": "Input VAT account",
     "itemNoun": "item",
     "itemSearch": "Search ERPNext items",
     "loadingAccounts": "Loading chart accounts…",
-    "noAssetAccounts": "No enabled Asset accounts are available. Ask your accounting administrator to add a suitable account to the ERP chart.",
+    "noAssetAccounts": "No enabled Asset accounts in the ERP chart.",
     "notConfigured": "Not configured",
     "onlyAdmin": "Only an Admin can change this.",
     "pph23Label": "PPh 23 payable account",
@@ -114,20 +111,20 @@
     "saveWithholding": "Save account",
     "savedChoiceUnavailable": "Saved value is not in the current chart; it remains saved until replaced.",
     "vendorTaxHeading": "Supplier bill tax accounts",
-    "vendorTaxIntro": "Choose company-chart accounts for input VAT and tax withheld from supplier bills. Input VAT candidates use Asset accounts; PPh payable candidates use Liability accounts.",
+    "vendorTaxIntro": "Accounts for input VAT (Asset) and tax withheld from supplier bills (Liability).",
     "vendorTaxLoadError": "Couldn't load the tax accounts",
     "vendorTaxRemoteChanged": "The saved accounts changed. Your edits are kept; reload the saved values to discard them.",
     "vendorTaxSaved": "Supplier tax accounts saved",
     "withholdingHeading": "Receipt withholding",
-    "withholdingIntro": "Choose the Asset account used for income tax withheld by clients. An Admin must configure it before a receipt with withholding can be recorded.",
+    "withholdingIntro": "Asset account for income tax withheld by clients. Set it before recording a receipt with withholding.",
     "withholdingLoadError": "Couldn't load the tax-prepaid account",
-    "withholdingPlaceholder": "Choose an Asset account",
+    "withholdingPlaceholder": "Choose…",
     "withholdingRemoteChanged": "The saved account changed. Your edit is kept; reload the saved value to discard it.",
     "withholdingSaved": "Receipt withholding account saved"
   },
   "uxs08": {
     "reviewTitle": "Business setup review",
-    "reviewDescription": "Review how your organization keeps business information current. Completed links stay in place; only work needing attention needs a decision.",
+    "reviewDescription": "Completed links stay in place; only items needing attention need a decision.",
     "dataHeading": "Keep business information up to date",
     "domainsLabel": "Information updated from ERPNext",
     "domainsAction": "Choose information to keep updated",
@@ -140,7 +137,7 @@
     "employeeLabel": "Team members who record time",
     "employeeMissing": "People who record time still needing an ERP employee link: {{count}}",
     "projectLabel": "Project connections",
-    "setupComplete": "Setup is complete. Confirmed connections are retained; this review will return when something needs attention.",
+    "setupComplete": "Setup is complete.",
     "defaultsDialog": "Work and billing settings",
     "domainDialog": "Information to keep updated",
     "domainSubmit": "Save information choices",
@@ -219,13 +216,12 @@
     "date": "Publication date",
     "rate": "IDR per USD",
     "source": "Source",
-    "description": "USD → IDR · JISDOR · display equivalents only",
     "denied": "Exchange rates are available to Finance and Admin.",
     "saved": "Rates saved: {{new}} new, {{changed}} changed, {{unchanged}} unchanged.",
     "orgCurrencyError": "Could not resolve the organization currency.",
     "loadError": "Could not load exchange rates",
     "empty": "No JISDOR rates yet",
-    "emptyBody": "Upload BI's JISDOR history to show rupiah equivalents.",
+    "emptyBody": "Upload JISDOR history to show rupiah equivalents.",
     "retry": "Retry",
     "previous": "Previous",
     "next": "Next",
@@ -262,8 +258,7 @@
     "noRateForDate": "No JISDOR rate for {{date}}."
   },
   "toast": {
-    "dismiss": "Dismiss notification",
-    "more": "+{{count}} more"
+    "dismiss": "Dismiss notification"
   },
   "efaktur": {
     "title": "Record e-Faktur details",
@@ -412,7 +407,7 @@
   },
   "admin": {
     "expenseMap": {
-      "notReady": "Connect ERPNext before mapping expense accounts. Expense posting is not active.",
+      "notReady": "Connect ERPNext before mapping expense accounts.",
       "error": {
         "title": "Couldn't load the expense account map"
       },
@@ -424,7 +419,7 @@
         "description": "Postings that need this account will stop until it is mapped again.",
         "title": "Clear {{key}}?"
       },
-      "description": "The ERPNext accounts approved expense claims and cash advances post to. A posting that needs an unmapped account stops and is reported.",
+      "description": "ERPNext accounts that approved claims and advances post to. A posting with an unmapped account stops and is reported.",
       "form": {
         "account": "ERP account",
         "legend": "Account",
@@ -447,7 +442,7 @@
       "toast": {
         "saved": "Expense account saved"
       },
-      "unmapped": "Not mapped: expense posting stops",
+      "unmapped": "Not mapped",
       "unmappedIdle": "Not mapped"
     },
     "access": {
@@ -462,7 +457,6 @@
       "accounting": "Accounting setup",
       "ariaLabel": "Administration sections",
       "credits": "Credits",
-      "description": "Organization setup and governance.",
       "features": "Features",
       "exchangeRates": "Exchange rates",
       "integrations": "Organization integrations",
@@ -474,13 +468,12 @@
     },
     "taxDefault": {
       "adminOnly": "Only an Admin can change this.",
-      "description": "The basis a new contract value, work order or invoice starts on. Anyone recording one can change it on the form.",
-      "doesNotRestate": "Changing this does not restate any existing figure. Every record keeps the tax treatment it was recorded with.",
+      "description": "New contracts, work orders and invoices start on this basis. Existing records keep theirs.",
       "label": "Default tax treatment",
       "title": "Default tax treatment",
       "toast": {
         "saved": "Default tax treatment updated",
-        "savedDetail": "New contracts, work orders and invoices will start on this basis. Existing records are unchanged."
+        "savedDetail": "New contracts, work orders and invoices start on this basis. Existing records keep theirs."
       },
       "value": {
         "exclusive": "Exclusive: tax is on top of the amount",
@@ -501,7 +494,7 @@
     },
     "users": {
       "blocked": "Administration is an Admin-only area. You don’t have access to user management.",
-      "execReadOnly": "You can view the user directory, but only an Admin can add, edit, or disable users.",
+      "execReadOnly": "View only. An Admin adds, edits or disables users.",
       "allUsers": "All users",
       "search": {
         "placeholder": "Search by name or email…",
@@ -566,12 +559,9 @@
         "description": "They will no longer be able to sign in. You can re-enable them at any time.",
         "confirm": "Disable"
       },
-      "page": {
-        "description": "Manage users’ role, status, and reporting line. Administration is Admin-only; role changes are high-impact and recorded."
-      },
+      "page": {},
       "inviteForm": {
-        "subtitleOperator": "Invite someone by email. They'll set their own password and role takes effect immediately.",
-        "subtitle": "Invite someone to your workspace by email. They'll set their own password.",
+        "subtitleOperator": "Takes effect immediately.",
         "legend": "Invite details",
         "email": "Email",
         "roleHelper": "Determines what this person can see and do once they sign in.",
@@ -579,14 +569,12 @@
         "emailInvalid": "Enter a valid email address."
       },
       "roleForm": {
-        "title": "Edit role",
-        "subtitle": "Set the workspace role for {{name}}",
+        "title": "Edit role: {{name}}",
         "submit": "Save role",
         "helper": "Determines what this user can see and do. Changes take effect immediately and are confirmed first."
       },
       "managerForm": {
-        "title": "Change manager",
-        "subtitle": "Set the line manager for {{name}}",
+        "title": "Change manager: {{name}}",
         "submit": "Save manager",
         "legend": "Reporting line",
         "label": "Manager",
@@ -609,10 +597,9 @@
         "grantedDetail": "The org balance has been updated."
       },
       "form": {
-        "subtitle": "Add credits to the org pool. Takes effect immediately.",
         "legend": "Grant details",
         "amount": "Amount",
-        "amountHelper": "Must be greater than zero.",
+        "amountHelper": "Added to the org pool at once.",
         "note": "Note",
         "noteHelper": "Optional context recorded against the grant."
       },
@@ -622,16 +609,15 @@
     "budgetMap": {
       "sectionLabel": "Budget category to ERP account map",
       "title": "Budget account map",
-      "description": "Every budget category must map to an ERP account before its amount can be pushed. An unmapped category blocks the push for the WHOLE budget, not just that line.",
+      "description": "Each budget category needs one ERP account to receive its budget; other accounts count toward actuals only. An unmapped category blocks the whole push.",
       "columns": {
         "category": "Category",
         "erpAccount": "ERP account",
         "actions": "Actions"
       },
-      "unmapped": "Not mapped: blocks every push",
+      "unmapped": "Not mapped",
       "map": "Map {{category}}",
-      "multiNote": "A category may list several accounts. Its actuals add up across all of them; its budget is pushed only to the account marked Budget push.",
-      "noPush": "No push account: blocks every push",
+      "noPush": "No push account",
       "pushBadge": "Budget push",
       "addAccount": "Add account to {{category}}",
       "editAccount": "Edit {{account}}",
@@ -666,20 +652,17 @@
       },
       "form": {
         "editTitle": "Edit {{category}} mapping",
-        "editSubtitle": "Change the ERP account this category pushes to",
-        "createSubtitle": "Choose the ERP account this category pushes to",
         "save": "Save mapping",
         "legend": "Account",
         "placeholder": "e.g. 5100 - Direct Costs",
         "required": "An ERP account is required.",
-        "conflict": "{{account}} is already mapped to {{category}}.",
-        "readOnlySubtitle": "Its actuals count toward this category; its budget is not pushed here"
+        "conflict": "{{account}} is already mapped to {{category}}."
       }
     },
     "projectNumberPattern": {
       "title": "Project number pattern",
-      "description": "Format PMO-assigned project numbers. The built-in pattern is PRJ-{YY}-{SEQ4}; a custom pattern must use {CLIENT}, {YY}, and {SEQ4} exactly once each.",
-      "immutable": "This affects future proposals only; existing project numbers do not change.",
+      "description": "Format of PMO-assigned project numbers. A custom pattern uses {CLIENT}, {YY} and {SEQ4} once each; the default is PRJ-{YY}-{SEQ4}.",
+      "immutable": "Applies to future proposals only.",
       "loadError": {
         "title": "Couldn't load the project number pattern"
       },
@@ -695,7 +678,7 @@
     },
     "spendApprovers": {
       "title": "Spend approvers",
-      "description": "Who approves procurement. Spend charged to a project and within its budget line goes to that project's approver; overhead, and spend that would exceed the budget line, goes to the overhead approvers. Any one listed approver can approve. With nobody listed, the standard role rules apply.",
+      "description": "Spend within a project's budget goes to its approvers; all other spend goes to the overhead approvers.",
       "orgSet": {
         "title": "Overhead and over-budget approvers"
       },
@@ -705,7 +688,7 @@
       "addOrg": "Add overhead approver",
       "addProject": "Add project approver",
       "remove": "Remove {{name}}",
-      "empty": "Nobody listed. The standard role rules apply.",
+      "empty": "Nobody listed.",
       "adminOnly": "Only an Admin can change this.",
       "loadError": {
         "title": "Couldn't load spend approvers"
@@ -722,7 +705,6 @@
       "form": {
         "orgTitle": "Add an overhead approver",
         "projectTitle": "Add a project approver",
-        "subtitle": "Any one listed approver can approve a procurement case.",
         "legend": "Approver",
         "person": "Person",
         "personPlaceholder": "Select a person…",
@@ -789,7 +771,7 @@
     "caughtUp": {
       "and": "and",
       "noKinds": "approvals",
-      "sub": "Nothing is waiting on your approval in PMO right now. New {{kinds}} entered in PMO will appear here. Documents entered directly in ERPNext are approved in ERPNext.",
+      "sub": "No {{kinds}} waiting in PMO. ERPNext documents are approved in ERPNext.",
       "title": "You’re all caught up"
     },
     "employeeLinks": {
@@ -815,19 +797,16 @@
     "entryOther": "entries",
     "group": {
       "procurement": {
-        "emptySub": "Procurement cases that need your approval will appear here.",
         "emptyTitle": "No procurement cases awaiting your decision",
         "title": "Procurement cases"
       },
       "timesheets": {
-        "emptySub": "Submitted timesheets from your reports will appear here for review.",
         "emptyTitle": "No timesheets awaiting your decision",
         "title": "Timesheets"
       }
     },
     "noProjectLinked": "No project linked",
     "previewEmpty": {
-      "sub": "When a pending procurement case is available, its preview and actions appear here.",
       "title": "Select an approval item"
     },
     "previewError": {
@@ -845,7 +824,6 @@
       "loadErrorSub": "Try again to refresh this queue."
     },
     "queueHeading": "Approvals queue",
-    "queueHint": "Select an item to preview its details and decision controls.",
     "queueRegionLabel": "Approvals queue",
     "reopen": {
       "action": "Re-open for correction",
@@ -872,11 +850,8 @@
       "expense": "Expense claims",
       "invoice": "Customer invoices"
     },
-    "timesheets": {
-      "policyHelp": "Policy: a different person approves each timesheet."
-    },
+    "timesheets": {},
     "scopeToggleLabel": "Approvals scope",
-    "subtitle": "Needs my approval. Everything waiting on your decision: procurement, timesheets, expense claims and customer invoices.",
     "title": "Approvals",
     "unknownOwner": "Unknown",
     "unknownRequester": "Unknown requester",
@@ -884,18 +859,19 @@
   },
   "combobox": {
     "search": {
-      "label": "Search {{noun}}s",
-      "placeholder": "Search {{noun}}s…"
+      "label": "Search {{nounPlural}}",
+      "placeholder": "Search {{nounPlural}}…"
     },
-    "loading": "Loading {{noun}}s…",
+    "loading": "Loading {{nounPlural}}…",
     "error": {
-      "title": "Couldn't load {{noun}}s.",
+      "title": "Couldn't load {{nounPlural}}.",
       "retry": "Retry"
     },
-    "listLabel": "{{noun}}s",
+    "listLabel": "{{nounPlural}}",
+    "moreHidden": "Type to narrow ({{count}} more)",
     "empty": {
-      "withQuery": "No {{noun}} matches \"{{query}}\".",
-      "bare": "No {{noun}} matches."
+      "withQuery": "No {{noun}} matches \"{{query}}\". Try a different search.",
+      "bare": "Nothing is available to select yet. Check this field’s prerequisites or ask an administrator to add an option."
     },
     "clear": "Clear {{noun}}"
   },
@@ -926,14 +902,12 @@
       "archiveInstead": "Archive instead",
       "dismiss": "Dismiss"
     },
-    "description": "Clients and suppliers used across projects and procurement. Master data shared by the whole organisation.",
     "filters": {
       "all": "All",
       "ariaLabel": "Filter by type"
     },
     "form": {
       "editSubmit": "Save company",
-      "editSubtitle": "Update this company record",
       "editTitle": "Edit company",
       "errors": {
         "nameRequired": "Company name is required."
@@ -943,7 +917,6 @@
         "placeholder": "e.g. Cascade Port Authority"
       },
       "newSubmit": "Create company",
-      "newSubtitle": "Add a client or supplier to the directory",
       "newTitle": "New company",
       "sections": {
         "identity": "Identity"
@@ -969,14 +942,12 @@
       "placeholder": "Search companies…"
     },
     "states": {
-      "emptySub": "Add your first client or supplier to start linking projects and procurement cases to a directory.",
       "emptyTitle": "No companies yet",
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load companies"
     },
     "table": {
       "clearFilters": "Clear filters",
-      "emptySub": "Try a different type or clear the search.",
       "emptyTitle": "No companies match your filters"
     },
     "title": "Companies",
@@ -1033,9 +1004,7 @@
       "meeting": "Meeting",
       "note": "Note"
     },
-    "addContact": {
-      "subtitle": "Add a person at this company"
-    },
+    "addContact": {},
     "archive": "Archive",
     "archiveConfirm": {
       "confirmLabel": "Archive company",
@@ -1062,9 +1031,7 @@
       "title": "Couldn't load company"
     },
     "field": {
-      "name": "Name",
       "primaryContact": "Primary contact",
-      "type": "Type",
       "clientNumberSegment": "Client number segment"
     },
     "notFound": {
@@ -1214,8 +1181,6 @@
       "deleteDescription": "This permanently removes the contact and all of their logged activity. This cannot be undone. Archive instead to keep the history.",
       "deleteTitle": "Delete contact?"
     },
-    "description": "People at the companies you work with. Master data shared by the whole organisation. Log calls and emails against each contact. Minuted meetings live in the",
-    "descriptionMeetingsLink": "Meetings module",
     "filters": {
       "allCompanies": "All companies",
       "companyLabel": "Filter by company",
@@ -1229,7 +1194,6 @@
         "loadFailed": "Companies could not be loaded."
       },
       "editSubmit": "Save contact",
-      "editSubtitle": "Update this contact record",
       "editTitle": "Edit contact",
       "email": {
         "label": "Email"
@@ -1247,7 +1211,6 @@
         "placeholder": "e.g. Procurement Lead"
       },
       "newSubmit": "Create contact",
-      "newSubtitle": "Add a person at one of your companies",
       "newTitle": "New contact",
       "notes": {
         "label": "Notes",
@@ -1351,7 +1314,6 @@
     "uxs36CustomerFilterClear": "Clear customer filter",
     "uxs36CollectionsHeading": "Customer collections",
     "uxs36CollectionsUnavailableTitle": "Customer aging position unavailable",
-    "uxs36CollectionsUnavailableDescription": "No matching ERP customer aging position is available. This does not indicate a zero balance.",
     "uxs36CollectionsAmbiguous": "This ERP customer is mapped to multiple companies. The aging amount is not assigned to this company.",
     "uxs36CollectionsReadError": "Customer collections could not be loaded.",
     "uxs36OpenInvoices": "Open invoices",
@@ -1378,8 +1340,7 @@
         "many": "{{count}} items waiting",
         "linkUnavailable": "{{label}}: unavailable",
         "linkOne": "{{label}}: {{count}} item awaiting",
-        "linkMany": "{{label}}: {{count}} items awaiting",
-        "review": "Review"
+        "linkMany": "{{label}}: {{count}} items awaiting"
       },
       "helpLabel": "Help: {{label}}"
     },
@@ -1497,14 +1458,12 @@
       "previewApplied": "Advance applied",
       "previewCash": "Cash to pay",
       "referenceLabel": "Payment reference (optional)",
-      "rejectTitle": "Reject {{number}}?",
       "returnAmountHelper": "Up to {{amount}} is outstanding.",
       "returnAmountLabel": "Amount returned",
       "returnConfirm": "Record return",
       "returnReferenceLabel": "Reference (optional)",
       "returnTitle": "Record cash returned"
     },
-    "description": "Expense claims and cash advances. You see your own; approvers see the whole team.",
     "detail": {
       "advanceApplied": "Advance applied",
       "amount": "Amount",
@@ -1518,10 +1477,8 @@
       "notFoundTitle": "Not found",
       "outstanding": "Outstanding",
       "reference": "Payment reference",
-      "rejectionNote": "Rejected: {{note}}",
       "summary": "Summary"
     },
-    "draftNumber": "Draft",
     "filters": {
       "allCategories": "All categories",
       "allKinds": "Claims and advances",
@@ -1536,7 +1493,6 @@
         "label": "Settle against advance",
         "none": "No advance"
       },
-      "advanceSubtitle": "Cash you take before the work. Claims you file afterwards settle it.",
       "advanceTitle": "Request a cash advance",
       "amount": {
         "label": "Amount"
@@ -1546,7 +1502,6 @@
         "label": "Budget category",
         "none": "No category"
       },
-      "claimSubtitle": "Add lines and receipts on the next screen.",
       "claimTitle": "New expense claim",
       "editTitle": "Edit details",
       "errors": {
@@ -1628,16 +1583,7 @@
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load expenses"
     },
-    "status": {
-      "approved": "Approved",
-      "cancelled": "Cancelled",
-      "draft": "Draft",
-      "paid": "Paid",
-      "rejected": "Rejected",
-      "submitted": "Submitted"
-    },
     "table": {
-      "emptySub": "File a claim after the work, or request an advance before it.",
       "emptyTitle": "No expenses here yet",
       "rowLabel": "Open {{title}}"
     },
@@ -1647,7 +1593,6 @@
       "cancelled": "Cancelled",
       "created": "Created",
       "paid": "Marked paid",
-      "rejected": "Rejected",
       "reopened": "Back to Draft",
       "returned": "Return recorded",
       "submitted": "Submitted for approval"
@@ -1669,10 +1614,9 @@
       "externalGate": "Tasks are managed by the connected task system, so action items cannot be created from these minutes.",
       "modalSection": "Follow-up task",
       "modalSubmit": "Create task",
-      "modalSubtitle": "This creates a real task. Its name is visible to everyone who can see tasks. Edit it before publishing.",
       "modalTitle": "New action item",
       "personNoun": "person",
-      "nameHelper": "Prefilled from the minute line. Left empty, the task is created with the placeholder name.",
+      "nameHelper": "Visible to everyone who can see tasks. Prefilled from the minute line.",
       "nameLabel": "Task name",
       "placeholderName": "Untitled action",
       "projectFixed": "(fixed to this meeting’s project)",
@@ -1688,7 +1632,7 @@
     },
     "archive": "Archive",
     "attendees": {
-      "addGuest": "Add guest",
+      "addGuest": "Add",
       "addMember": "Add attendee",
       "addMemberPlaceholder": "Pick an organisation member…",
       "contactTag": "Contact",
@@ -1805,7 +1749,6 @@
       "deleteTitle": "Delete meeting?",
       "deleteTitleNamed": "Delete {{title}}?"
     },
-    "description": "Minuted meetings with attendees and action items. You see the meetings you attended, wrote, or were invited to read.",
     "filters": {
       "allProjects": "All projects",
       "projectLabel": "Filter by project",
@@ -1834,14 +1777,12 @@
       "placeholder": "Search notes and titles…"
     },
     "states": {
-      "emptySub": "Minute your first meeting to capture notes, attendees and action items in one place.",
       "emptyTitle": "No meetings yet",
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load meetings"
     },
     "table": {
       "clearFilters": "Clear filters",
-      "emptySub": "Try a different project or clear the search.",
       "emptyTitle": "No meetings match",
       "rowLabel": "Open {{title}}"
     },
@@ -1875,8 +1816,7 @@
     "noSearchResults": "No tasks match your search",
     "noTasksInView": "No tasks in this view",
     "start": "Start {{date}}",
-    "subtitle": "Your assigned tasks across all projects.",
-    "title": "My Tasks"
+    "title": "Tasks"
   },
   "procurement": {
     "columns": {
@@ -2243,7 +2183,6 @@
         "none": "No issued or approved document with a file on this project.",
         "revision": "rev {{revision}}",
         "save": "Attach",
-        "subtitle": "Choose an issued or approved document from this project's register, such as the progress report or the client's acceptance.",
         "title": "Attach billing evidence"
       },
       "summary": {
@@ -2263,7 +2202,7 @@
     "documents": {
       "action": {
         "approve": "Approve",
-        "close": "Close",
+        "close": "Close document",
         "delete": "Delete",
         "edit": "Edit",
         "issue": "Issue",
@@ -2305,7 +2244,6 @@
         "codeHelper": "Optional document number or drawing code.",
         "codePlaceholder": "e.g. DWG-001",
         "docDate": "Document date",
-        "editSubtitle": "Update this register entry",
         "editTitle": "Edit document",
         "errors": {
           "categoryRequired": "Category is required.",
@@ -2446,9 +2384,7 @@
       "editContractValue": "Edit contract value",
       "po": "PO {{ref}}",
       "poWithDate": "PO {{ref}} ({{date}})",
-      "readOnly": "Read-only",
       "sodEditableNote": "Changing the value on a won project is a segregation-of-duties action and is recorded.",
-      "sodLockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.",
       "taxAmount": "Tax amount",
       "taxTreatment": "Tax treatment",
       "tile": {
@@ -2469,12 +2405,13 @@
       "vatCommandLocked": "Locked while an invoice command is in flight. Wait for it to settle; held commands need review.",
       "vatCancelledHint": "All project invoices are cancelled and no invoice command is in flight. You can change PPN for the next invoice; cancelled invoices keep their original tax.",
       "vatEmptyHint": "Editable until an invoice is raised. New invoices follow this setting.",
-      "vatStaleSave": "PPN was not changed. The project's invoice state changed; refresh and try again when all invoices are cancelled and commands have settled."
+      "vatStaleSave": "PPN was not changed. The project's invoice state changed; refresh and try again when all invoices are cancelled and commands have settled.",
+      "readOnly": "Read-only",
+      "sodLockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded."
     },
     "milestoneForm": {
       "create": "Create phase",
       "detailsLegend": "Details",
-      "editSubtitle": "Update this phase",
       "editTitle": "Edit phase",
       "errors": {
         "nameRequired": "Phase name is required",
@@ -2485,7 +2422,6 @@
       "inputPctPlaceholder": "Leave blank to use linked-task progress",
       "name": "Phase name",
       "namePlaceholder": "e.g. Engineering design",
-      "newSubtitle": "Add a delivery phase to this project",
       "newTitle": "New phase",
       "save": "Save phase",
       "sortOrder": "Position",
@@ -2519,8 +2455,8 @@
       "heading": "Delivery phases",
       "moreActionsFor": "More actions for",
       "currentPhase": "Current: {{name}}",
-      "overdue": "Overdue",
-      "overduePhase": "Overdue: {{name}}",
+      "overdue": "Late",
+      "overduePhase": "Late: {{name}}",
       "planPhases": "Plan delivery phases",
       "prewinPlaceholder": "Delivery planning starts once this is won",
       "progressRangeError": "Progress must be between 0 and 100",
@@ -2675,7 +2611,6 @@
         "descriptionPlaceholder": "Add scope, notes, or acceptance criteria…",
         "detailsLegend": "Details",
         "dueDate": "Due date",
-        "editSubtitle": "Update this task",
         "editTitle": "Edit task",
         "errors": {
           "nameRequired": "Task name is required."
@@ -2684,7 +2619,6 @@
         "milestone": "Phase",
         "name": "Task name",
         "namePlaceholder": "e.g. Survey the site",
-        "newSubtitle": "Add a task to this project",
         "noDependencies": "No dependencies. Add a task that must finish first.",
         "noParent": "No parent (top-level)",
         "parentTask": "Parent task",
@@ -2910,16 +2844,11 @@
   },
   "projectForm": {
     "value": {
-      "helper": "Estimate, pre-win. Editable by Admin, Executive, and PM.",
       "formatError": "Use \"{{group}}\" to group thousands and \"{{decimal}}\" for decimals (for example {{example}})."
     },
     "title": {
       "create": "New project",
       "edit": "Edit project"
-    },
-    "subtitle": {
-      "create": "Create a project",
-      "edit": "Update the project header details"
     },
     "submit": {
       "create": "Create project",
@@ -2947,8 +2876,7 @@
       "noun": "manager"
     },
     "stage": {
-      "label": "Origination stage",
-      "helper": "On-hand is reached only by winning a project in the pipeline, never created directly."
+      "label": "Origination stage"
     },
     "estimatedValue": "Estimated value",
     "expectedStart": "Expected start",
@@ -2994,7 +2922,6 @@
       "archiveDescription": "It will be hidden from the default project list. Existing references stay intact. You can restore it later.",
       "archiveTitle": "Archive project?"
     },
-    "description": "Pre-win projects live in the Pipeline.",
     "empty": {
       "clearFilters": "Clear filters",
       "noMatchSub": "Try a different status, customer, PM, or search term.",
@@ -3131,8 +3058,8 @@
     "scope": "Scope",
     "statement": "Statement",
     "trialBalance": "Trial balance",
-    "unavailable": "Statements are not available yet",
-    "unavailableDescription": "Saved statements will appear here when available.",
+    "unavailable": "No statements yet",
+    "unavailableDescription": "Statements come from the accounting system.",
     "updated": "Updated",
     "choosePeriod": "Choose a period",
     "chooseScope": "Choose a scope"
@@ -3214,15 +3141,11 @@
       "table": "Table"
     },
     "viewToggleLabel": "Pipeline view",
-    "weightedForecast": "Weighted pipeline forecast",
     "board": {
       "ariaLabel": "Sales pipeline board"
     },
     "stage": {
       "leads": "Leads",
-      "preQual": "Pre-Qual",
-      "quotation": "Quotation",
-      "tender": "Tender",
       "negotiation": "Negotiation",
       "lost": "Lost"
     },
@@ -3243,7 +3166,6 @@
       "helpWhatsApp": "Contact support via WhatsApp",
       "legalAndSupport": "Legal & support",
       "openCommandPalette": "Open command palette",
-      "openNavigation": "Open navigation menu",
       "privacy": "Privacy",
       "returnToAdmin": "Return to Admin",
       "searchPlaceholder": "Search or jump to…",
@@ -3308,6 +3230,7 @@
         "referenceLabel": "Reference: {{reference}}",
         "salesInvoice": "Sales invoice"
       },
+      "askAiRow": "Ask AI: \"{{query}}\"",
       "askAiSub": "Open the assistant with this draft",
       "dialogLabel": "Command palette",
       "inputLabel": "Search projects, records, or run a command",
@@ -3325,17 +3248,18 @@
       "recordIncident": "Incident",
       "noResults": "No results for “{{query}}”",
       "moreResults": "+{{count}} more: refine your search",
+      "resultCount_one": "{{count}} result",
+      "resultCount_other": "{{count}} results",
       "resultsLabel": "Command results",
       "retry": "Retry"
     },
     "rail": {
       "assistant": "Assistant",
       "group": {
-        "crm": "CRM",
+        "crm": "Sales",
         "delivery": "Delivery",
         "finance": "Finance",
-        "overview": "Overview",
-        "workforce": "Workforce"
+        "workforce": "My work"
       },
       "myViews": "My Views",
       "primaryNavigation": "Primary navigation",
@@ -3395,11 +3319,9 @@
       "title": "Delete this project row?"
     },
     "empty": {
-      "sub": "Add a project to start logging hours, or use the week controls to find another week.",
       "title": "No hours logged this week"
     },
     "emptyEdit": {
-      "sub": "Use “Add a project” above to start logging hours.",
       "title": "No hours logged this week"
     },
     "enterHoursToSubmit": "Enter hours to submit",
@@ -3429,25 +3351,16 @@
     },
     "previousWeek": "Previous week",
     "returned": {
-      "revise": "Revise this week",
-      "sub": "Your line manager sent it back. Review the flagged days, correct them, and resubmit.",
-      "title": "This week was returned for changes"
+      "revise": "Revise this week"
     },
     "save": "Save",
-    "status": {
-      "draftNotSubmitted": "Draft: not submitted",
-      "Draft": "Draft",
-      "Submitted": "Submitted",
-      "Approved": "Approved",
-      "Rejected": "Returned for changes"
-    },
+    "status": {},
     "submit": "Submit timesheet",
     "submitConfirm": {
       "confirmLabel": "Submit timesheet",
       "description": "This sends the whole week to your line manager. You can't edit it again until it's returned.",
       "title": "Submit this week for approval?"
     },
-    "subtitle": "Week of {{range}}. Enter hours per project per day, then submit the whole week for your line manager to approve.",
     "title": "Timesheets",
     "toast": {
       "deleteFailed": "Delete failed",
@@ -3465,8 +3378,7 @@
         "headline": "Timesheet submitted"
       }
     },
-    "unknownProject": "Unknown Project",
-    "weekOf": "Week of"
+    "unknownProject": "Unknown Project"
   },
   "integrations": {
     "organization": {
@@ -3480,12 +3392,12 @@
         "disconnectedAt": "Disconnected",
         "connectAction": "Connect {{service}}",
         "disconnectAction": "Disconnect {{service}}",
-        "clickupLocation": "ClickUp is US-hosted SaaS: task-domain data resides with ClickUp",
-        "erpLocation": "Self-hosted ERP: data resides on your ERPNext instance",
+        "clickupLocation": "Data resides with ClickUp (US-hosted).",
+        "erpLocation": "Data resides on your ERPNext instance.",
         "retry": "Retry",
         "bindUnknown": "Connection state unavailable",
         "bindUnavailableTitle": "Couldn't read connection status",
-        "bindUnavailableSub": "Connection state is unknown right now. Try reading it again, or connect if you have not yet.",
+        "bindUnavailableSub": "Connection state is unknown. Retry.",
         "bindRetry": "Retry status",
         "erpActivation": {
           "pending": "Awaiting activation: select a Company to activate",
@@ -3493,7 +3405,6 @@
           "select": "Select Company",
           "selectRequired": "Select a Company to activate.",
           "title": "Select ERPNext Company",
-          "subtitle": "Choose the Company from your ERPNext instance to activate the integration",
           "companyLabel": "Company",
           "companyNoun": "company",
           "placeholder": "Select a Company...",
@@ -3547,7 +3458,6 @@
         },
         "connect": {
           "connectFailed": "Could not connect. Check the details and try again.",
-          "subtitle": "Enter your {{service}} credentials to establish the connection",
           "credentials": "Credentials",
           "tokenLabel": "Personal API token",
           "urlLabel": "Instance URL",
@@ -3561,7 +3471,7 @@
       }
     },
     "personal": {
-      "description": "Connect your personal Microsoft 365 account so PMO Portal can reach the content your account has access to. This is separate from your organization’s Administration integrations.",
+      "description": "Your own Microsoft 365 account, so PMO Portal can reach the content it has access to. Separate from the organization setup under Administration.",
       "title": "My integrations"
     },
     "personalM365": {
@@ -3641,31 +3551,29 @@
     }
   },
   "profileSettings": {
-    "description": "Choose your language, number format, and timezone for this portal.",
     "error": "Could not save your preferences. Please try again.",
     "invalidTimezone": "Choose a valid timezone before saving.",
     "language": {
       "label": "Interface language",
-      "help": "Saved to your profile and applied across devices.",
-      "effective": "Effective language: {{value}}",
       "options": {
         "inherit": "Organization default",
         "inheritWithEffective": "Organization default: {{value}}",
         "id": "Bahasa Indonesia",
         "en": "English"
-      }
+      },
+      "effective": "Effective language: {{value}}"
     },
     "loading": "Loading profile…",
     "number": {
       "label": "Number format",
       "help": "Preview: {{value}}",
-      "effective": "Effective number format: {{value}}",
       "options": {
         "inherit": "Organization default",
         "inheritWithEffective": "Organization default: {{value}}",
         "id": "Indonesian (1.234.567,89)",
         "en": "English (1,234,567.89)"
-      }
+      },
+      "effective": "Effective number format: {{value}}"
     },
     "refreshRetry": "Retry refresh",
     "save": "Save",
@@ -3677,11 +3585,11 @@
       "placeholder": "Select a timezone",
       "search": "Search timezones…",
       "noun": "timezone",
-      "effective": "Effective timezone: {{value}}",
       "options": {
         "inherit": "Organization default",
         "inheritWithEffective": "Organization default: {{timezone}}"
-      }
+      },
+      "effective": "Effective timezone: {{value}}"
     },
     "title": "Profile & preferences"
   },
@@ -3712,7 +3620,7 @@
     "invoiceRecordTitle": "Invoice {{number}}",
     "invoiceRecordNotFound": "Invoice not found",
     "invoiceRecordNotFoundBody": "This invoice is no longer available.",
-    "backToInvoices": "Back to Sales Invoices",
+    "backToInvoices": "Back to Receivables",
     "draftInvoiceForProject": "Draft invoice · {{project}}",
     "draftInvoice": "Draft invoice",
     "project": "Project",
@@ -3736,7 +3644,6 @@
     "recordedBeforeErp": "Recorded in PMO before the ERP was connected",
     "overpaidBy": "Overpaid by {{amount}}",
     "carriedIntoErpOpening": "Carried into the ERP opening balance: {{amount}} on {{date}}",
-    "nativeIncomingPaymentsDescription": "Customer receipts recorded in PMO against approved invoices.",
     "salesInvoiceRequired": "Choose the invoice this receipt settles.",
     "paymentDateLabel": "Payment date",
     "paymentDateNotFuture": "The payment date cannot be in the future.",
@@ -3762,10 +3669,10 @@
       "preparing": "Preparing PDF…",
       "sessionExpired": "Your session expired. Sign in again."
     },
-    "receivedDate": "Received",
-    "recordReceivedDate": "Record received date",
-    "receivedDateHelp": "The date the client received this invoice. The due date follows it.",
-    "receivedDateSaved": "Received date saved",
+    "receivedDate": "Delivered",
+    "recordReceivedDate": "Record delivery date",
+    "receivedDateHelp": "The due date follows this date",
+    "receivedDateSaved": "Delivery date saved",
     "receivedBeforeInvoiceDate": "Cannot be before the invoice date",
     "statusDraft": "Draft",
     "statusActive": "Active",
@@ -3829,11 +3736,10 @@
     "salesInvoices": "Sales Invoices",
     "newInvoice": "New Invoice",
     "filterByStatus": "Filter by status",
-    "clearFilter": "Clear filter",
+    
     "searchInvoices": "Search invoices…",
     "searchSalesInvoices": "Search sales invoices",
-    "noSalesInvoicesYet": "No sales invoices yet",
-    "createYourFirstInvoiceToStartBillingClients": "No client invoices have been recorded yet. Use New Invoice to start billing.",
+    "noSalesInvoicesYet": "No invoices yet",
     "noInvoicesMatchYourFilters": "No invoices match your filters",
     "tryADifferentStatusOrClearTheSearch": "Try a different status or clear the search.",
     "thisCancelsTheInvoiceInERPNextDocstatus12TheInvoiceWillBeMarkedCancelledAndCanNoLongerBeSubmittedOutstandingAmountIsReleased": "This cancels the invoice in ERPNext (docstatus 1→2). The invoice will be marked Cancelled and can no longer be submitted. Outstanding amount is released.",
@@ -3853,12 +3759,10 @@
     "payment": "Payment #",
     "reference": "Reference",
     "incomingPayments": "Incoming Payments",
-    "paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable": "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.",
-    "receivePayment": "Receive Payment",
+    "receivePayment": "Receive payment",
     "searchPayments": "Search payments…",
     "searchIncomingPayments": "Search incoming payments",
-    "noIncomingPaymentsYet": "No incoming payments yet",
-    "recordYourFirstPaymentReceivedFromAClient": "No client receipts have been recorded yet. Use Receive Payment when a client payment arrives.",
+    "noIncomingPaymentsYet": "No payments received yet",
     "noPaymentsMatchYourFilters": "No payments match your filters",
     "cancelPayment": "Cancel payment",
     "salesInvoiceOptional": "Sales Invoice (optional)",
@@ -3970,10 +3874,8 @@
     "notPmoNative": "This invoice belongs to the ERP",
     "erpOwnsRevenue": "The connected ERP now raises and settles invoices",
     "newInvoiceTitle": "New invoice",
-    "newInvoiceSubtitle": "Create a new sales invoice for a client",
     "createInvoice": "Create invoice",
     "removeLine": "Remove line {{line}}",
-    "receivePaymentSubtitle": "Record a new incoming payment from a client",
     "recordPayment": "Record payment",
     "amountOutstanding": "{{amount}} outstanding",
     "pmoNative": "This invoice was raised in PMO. Approve it from Approvals",
@@ -3992,7 +3894,9 @@
     "sodAuthorMissing": "This invoice has no recorded author, so it cannot be approved",
     "nativeDraftsOpen": "Invoices raised in PMO are still in draft",
     "activateEditorBlocked": "You drafted or edited this version, so someone else must activate it.",
-    "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it."
+    "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it.",
+    "recordYourFirstPaymentReceivedFromAClient": "Use Receive payment when a client pays.",
+    "createYourFirstInvoiceToStartBillingClients": "Use New Invoice to start billing."
   },
   "viewBuilder": {
     "privateScope": "Private: only you",
@@ -4001,7 +3905,7 @@
     "viewNotFoundDescription": "This view may have been archived or you don't have access.",
     "goToMyViews": "Go to My Views",
     "newView": "New View",
-    "editView": "Edit: {{name}}",
+    "editView": "{{name}}",
     "aiDraftReview": "AI-composed draft: review before saving",
     "composeWithAi": "Compose view with AI",
     "cancel": "Cancel",
@@ -4016,10 +3920,6 @@
     "addPanel": "+ Add panel",
     "maximumPanelsReached": "Maximum of {{count}} panels reached.",
     "livePreview": "Live preview",
-    "discardChangesTitle": "Discard unsaved changes?",
-    "discardChangesDescription": "Your panel configuration and name will be lost.",
-    "discard": "Discard",
-    "keepEditing": "Keep editing",
     "panelList": "Panel list",
     "movePanelUp": "Move panel {{number}} up",
     "movePanelDown": "Move panel {{number}} down",
@@ -4091,7 +3991,7 @@
     "loadError": "Couldn't load classification options",
     "saved": "Classification options saved",
     "retained": "Existing project classifications stay recorded.",
-    "setupHelp": "Define the service lines and sectors available on project forms. Removing an option keeps it on existing projects.",
+    "setupHelp": "Service lines and sectors on project forms. Removing one keeps it on existing projects.",
     "serviceLines": "Service lines",
     "sectors": "Sectors",
     "onePerLine": "One option per line. Leave empty to offer no options.",
@@ -4119,14 +4019,13 @@
     "errorSub": "The request failed. Check your connection and try again.",
     "invalidRange": "Choose a start month on or before the as-at month, at most 24 months apart.",
     "emptyTitle": "No projects to report",
-    "emptySub": "Won and ongoing projects, and any project invoiced in this period, appear here.",
     "projectsAsAt": "Projects as at {{month}}",
     "monthlyTotals": "Monthly totals",
     "unassigned": "Unassigned",
     "otherCurrency": "Invoiced in {{currency}}, not the contract currency",
     "recordProgress": "Record progress",
     "billedAhead": "billed ahead",
-    "undated": "{{count}} invoices have no date and are not counted",
+    "undated": "{{count}} undated invoices are excluded",
     "total": "Total",
     "basis": {
       "invoiced": "Invoiced",
@@ -4145,8 +4044,6 @@
       "invoiced": "Invoiced",
       "recognisedToDate": "Recognised to date",
       "invoicedToDate": "Invoiced to date",
-      "unbilled": "Unbilled",
-      "backlog": "Backlog",
       "basis": "Basis"
     },
     "progressModal": {
@@ -4160,9 +4057,6 @@
       "save": "Save progress",
       "saved": "Progress saved"
     }
-  },
-  "uxs34": {
-    "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."
   },
   "comments": {
     "title": "Comments",
@@ -4388,6 +4282,12 @@
     "fixFields_one": "Fix {{count}} field before saving",
     "fixFields_other": "Fix {{count}} fields before saving"
   },
+  "unsavedChanges": {
+    "title": "Discard your changes?",
+    "body": "What you typed here will be lost.",
+    "discard": "Discard",
+    "keepEditing": "Keep editing"
+  },
   "projectFinances": {
     "title": "Project finances",
     "invoiced": "Invoiced",
@@ -4445,8 +4345,7 @@
     },
     "save": {
       "dirty": "Unsaved changes",
-      "saved": "All changes saved",
-      "nothing": "Nothing to save yet"
+      "saved": "All changes saved"
     },
     "push": {
       "pending": "Accounting update waiting",
@@ -4458,14 +4357,14 @@
   },
   "uxs12": {
     "expensePosting": {
-      "adminInactive": "ERPNext is connected, but expense posting is not switched on yet. An Admin can switch it on in Integrations under ERPNext setup.",
+      "adminInactive": "Expense posting is off. Switch it on in Integrations, under ERPNext setup.",
       "adminUnknown": "Couldn't check whether expense posting is ready. Try checking again.",
       "retryReadiness": "Check again",
-      "mapIncomplete": "{{count}} of {{total}} accounts are not mapped yet. A posting that needs an unmapped account stops until it is mapped.",
+      "mapIncomplete": "{{count}} of {{total}} accounts are not mapped; a posting that needs one stops.",
       "saveRefused": "Expense posting isn't ready right now, so the account was not saved. Check the ERPNext connection setup in Integrations.",
-      "formNotConnected": "Expense posting to accounting isn't active. You can still save this in PMO, but it won't reach accounting.",
-      "formInactive": "ERPNext is connected, but expense posting isn't switched on. You can still save this in PMO, but it won't reach accounting. An Admin can switch posting on in Integrations.",
-      "formUnknown": "Couldn't check whether expense posting is active. You can still save this in PMO.",
+      "formNotConnected": "Expense posting is off. This saves in PMO only.",
+      "formInactive": "Expense posting is off. This saves in PMO only.",
+      "formUnknown": "Couldn't check expense posting. This saves in PMO only.",
       "cardInactive": "Not posted to accounting: expense posting isn't active for this organization.",
       "cardUnknown": "Couldn't check whether this claim will reach accounting."
     }
@@ -4486,16 +4385,7 @@
       "preview": "Preview:",
       "previewNote": "Illustrative only; the actual number is assigned when a project is created."
     },
-    "accounting": {
-      "sectionsLabel": "Accounting setup sections",
-      "taxDefault": "Default tax treatment",
-      "spendApprovers": "Spend approvers",
-      "withholding": "Receipt withholding",
-      "vendorTax": "Supplier bill tax accounts",
-      "downPayments": "Down payments",
-      "budgetMap": "Budget account map",
-      "expenseMap": "Expense account map"
-    }
+    "accounting": {}
   },
   "uxs03": {
     "spendingContract": "Spending vs contract",
@@ -4526,18 +4416,15 @@
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} or {{fourth}}",
-    "roleRoute": "Standard rules: any of {{roles}} can approve another person's procurement case.",
-    "holders": "Right now: {{names}}.",
     "holdersNone": "Nobody active holds these roles right now.",
     "holdersUnavailable": "Couldn't check who holds these roles right now.",
     "routeUnavailable": "Couldn't verify who can approve right now.",
-    "noEligible": "Nobody listed can approve right now. Only an Admin can decide these procurement cases until someone eligible is added.",
-    "escalate": "Nobody listed can approve right now. These procurement cases go to the overhead approvers.",
-    "projectEmpty": "No project approvers listed. Within budget, the standard rules apply: any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, procurement cases go to the overhead approvers."
+    "noEligible": "Nobody listed can approve right now. Only an Admin can decide.",
+    "escalate": "Nobody listed can approve right now. The overhead approvers decide."
   },
   "uxs38": {
-    "emptyScope": "Reference rates affect displayed rupiah equivalents only. Accounting records are never changed.",
-    "emptyNeedRole": "An Admin or Finance member can upload them from this page.",
+    "emptyScope": "Accounting records never change.",
+    "emptyNeedRole": "Admin or Finance can upload them.",
     "pageSummary": "Dates from {{first}} to {{last}}: {{count}} with rates",
     "pageGaps": "No rate for {{dates}}",
     "moreEarlier": "earlier rates on the next pages",
@@ -4554,13 +4441,10 @@
     "manualHandoffHelp": "Download the PDF and send it to your client yourself.",
     "preparingPdf": "Preparing PDF…",
     "downloadApprovedPdf": "Download approved PDF",
-    "collectionSummary": "Invoice collection details",
     "invoiceDate": "Invoice date",
     "dueDate": "Due date",
     "dateNotRecorded": "Not recorded",
     "dueDateUnavailable": "Due date not available",
-    "status": "Status",
-    "outstandingUnavailable": "Outstanding amount not available",
     "overdue": "Overdue",
     "daysOverdue": "{{count}} days overdue",
     "billEvidence": "Bill evidence",
@@ -4686,7 +4570,6 @@
   "uxs29": {
     "expenseCapture": {
       "firstExpense": "First expense",
-      "claimSubtitle": "Start with a receipt or first expense line. You can add more after saving.",
       "firstExpenseHelp": "Add a receipt, a complete expense line, or both. No receipt upload starts until you save.",
       "expenseTypePlaceholder": "Choose a type",
       "expenseTypeRequired": "Choose an expense type.",
@@ -4714,7 +4597,6 @@
     "unlinkTimeoutDetail": "The request timed out before the server answered.",
     "unlinkFailed": "Could not unlink from ClickUp. The project is still linked. Use Unlink from ClickUp to try again.",
     "reviewTitle": "Review ClickUp link",
-    "reviewSubtitle": "Confirm which existing list belongs to this project.",
     "reviewAction": "Review link",
     "confirmAction": "Confirm ClickUp link",
     "linkDetails": "Link details",
@@ -4744,8 +4626,8 @@
     "accountDraftUnavailable": "This unsaved choice is no longer available in the current chart. Choose another account or clear this field."
   },
   "uxs26": {
-    "invoiceEmptyProjectManager": "No client invoices have been recorded yet. Finance manages invoice creation.",
-    "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments."
+    "invoiceEmptyProjectManager": "Finance manages invoice creation.",
+    "receiptsEmptyProjectManager": "Finance records client payments."
   },
   "m365Documents": {
     "link": "Link from Microsoft 365",
@@ -4803,7 +4685,7 @@
     },
     "linkFolders": {
       "heading": "Link existing folders to records",
-      "description": "Match folders already in the default library to projects and cases that have none. This links folders only; it never creates one."
+      "description": "Links existing folders to projects and cases without one. Creates none."
     },
     "defaultLibrary": {
       "browseFailed": "Microsoft locations could not be loaded. Close this dialog and try again.",
@@ -4812,15 +4694,14 @@
       "clearDescription": "The document picker will start from the location chooser. Existing links are not changed.",
       "clearFailed": "Could not clear the default library.",
       "clearTitle": "Clear the default library?",
-      "connectHint": "Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.",
+      "connectHint": "Needs your Microsoft 365 connection.",
       "connectLink": "Open My integrations",
       "current": "Current default:",
-      "description": "The library the document picker opens in first. It does not give anyone access to its files; Microsoft permissions still apply.",
+      "description": "Opens first in the document picker. Microsoft permissions still apply.",
       "disabledReason": "Choose a site and a library to save.",
       "heading": "Default document library",
       "library": "Library",
       "loading": "Loading…",
-      "modalSub": "Pick a SharePoint site, then one of its document libraries.",
       "modalTitle": "Choose default library",
       "none": "No default library is set.",
       "pickLibrary": "Select a library",

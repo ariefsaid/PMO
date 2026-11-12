@@ -85,9 +85,9 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
-  it('help text is the single Pipeline pointer', () => {
+  it('carries no subtitle sentence under the title', () => {
     renderPage();
-    expect(screen.getByText('Pre-win projects live in the Pipeline.')).toBeInTheDocument();
+    expect(screen.queryByText('Pre-win projects live in the Pipeline.')).not.toBeInTheDocument();
     expect(screen.queryByText(/Track your active and completed projects/)).not.toBeInTheDocument();
   });
 
@@ -118,29 +118,22 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     expect(screen.getByRole('option', { name: 'Customer' })).toBeInTheDocument();
   });
 
-  it('Actual cells are amount only; one table note carries partial coverage and the date', () => {
+  it('Actual cells are amount only; the withheld ones are an em dash and no sentence explains the column', () => {
     renderPage();
     const body = document.querySelector('tbody')!;
     expect(within(body).queryByText(/ERP actual|Committed POs|Updated|Incomplete source coverage/)).not.toBeInTheDocument();
     expect(screen.queryByText('Incomplete source coverage')).not.toBeInTheDocument();
-    const notes = screen.getAllByText(/Actual is partial on/);
-    expect(notes).toHaveLength(1);
-    expect(notes[0]).toHaveTextContent('Actual is partial on 2 of 25 projects. Updated');
-    // Null Actual leaves the amount cell blank; the shared note explains the partial coverage.
+    expect(screen.queryByText(/Actual is partial on/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    // Null Actual is the em dash.
     const table = screen.getByRole('table');
     const partialRow = [...table.querySelectorAll<HTMLTableRowElement>('tbody tr')].find((row) => row.textContent?.includes('Synthetic project 1'))!;
     const actualColumn = [...table.querySelectorAll('thead th')].findIndex((header) => (header as HTMLElement).dataset.colKey === 'actual');
     const actualCell = partialRow.cells.item(actualColumn);
     expect(actualColumn).toBeGreaterThanOrEqual(0);
     expect(actualCell).not.toBeNull();
-    expect(actualCell?.textContent?.trim()).toBe('');
+    expect(actualCell?.textContent?.trim()).toBe('—');
     expect(within(partialRow).queryByText('$0.00')).not.toBeInTheDocument();
-  });
-
-  it('the coverage note omits the Updated sentence when no ERP update time is known', () => {
-    projectMoneyState.data = Object.fromEntries(Object.entries(projectMoneyState.data).map(([id, m]) => [id, { ...(m as object), actuals: { ...(m as { actuals: object }).actuals, asOf: null } }]));
-    renderPage();
-    expect(screen.getByText('Actual is partial on 2 of 25 projects.')).toBeInTheDocument();
   });
 
   it('only a restricted row carries a per-row tag', () => {

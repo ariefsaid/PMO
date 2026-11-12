@@ -2,6 +2,7 @@ import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { useUrlFilters } from '@/src/components/ui';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -19,7 +20,7 @@ import { useOdooLedgerMode } from '@/src/hooks/useOdooLedger';
 import { LedgerModeNotice } from '@/src/components/odoo-ledger/LedgerModeNotice';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead, FinancialStatementScope } from '@/src/lib/financialStatements';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDayYear } from '@/src/lib/format';
 import { repositories } from '@/src/lib/repositories';
 
 const STATEMENTS = ['trial_balance', 'profit_and_loss', 'balance_sheet'] as const;
@@ -46,7 +47,7 @@ function latestSuppliedPair(periods: readonly FinancialStatementPair[], kind: St
 }
 
 function pairLabel(pair: FinancialStatementPair, priorLabel: string): string {
-  return `${formatDateOnly(pair.currentStart)} – ${formatDateOnly(pair.currentEnd)} · ${priorLabel}: ${formatDateOnly(pair.priorStart)} – ${formatDateOnly(pair.priorEnd)}`;
+  return `${formatDayYear(pair.currentStart)} – ${formatDayYear(pair.currentEnd)} · ${priorLabel}: ${formatDayYear(pair.priorStart)} – ${formatDayYear(pair.priorEnd)}`;
 }
 
 function completeDetailRead(value: FinancialStatementRead | undefined): value is FinancialStatementRead & {
@@ -73,10 +74,29 @@ const FinancialStatements: React.FC = () => {
   const catalogueQuery = useFinancialStatementCatalogue({ kind: 'company' }, companyReadAllowed && !odooMode.odoo);
   const catalogue = catalogueQuery.data;
 
-  const [periodKind, setPeriodKind] = useState<StatementPeriodKind>('month');
-  const [periodStart, setPeriodStart] = useState<string | null>(null);
-  const [statement, setStatement] = useState<Statement>('trial_balance');
-  const [selectedScope, setSelectedScope] = useState<string | null>(COMPANY_SCOPE);
+  // R2: period kind/start and statement are URL-owned so Back/refresh (and a shared link)
+  // restore them; defaults stay out of the URL (empty = monthly Trial Balance, latest period).
+  const { values, setFilter, setFilters } = useUrlFilters(['periodKind', 'periodStart', 'statement', 'scope']);
+  const PERIOD_KINDS: readonly StatementPeriodKind[] = ['month', 'quarter', 'fiscal_year'];
+  const periodKind = PERIOD_KINDS.includes(values.periodKind as StatementPeriodKind)
+    ? values.periodKind as StatementPeriodKind
+    : 'month';
+  const statement = (STATEMENTS as readonly string[]).includes(values.statement)
+    ? values.statement as Statement
+    : 'trial_balance';
+  const periodStart = values.periodStart || null;
+  // Scope stays component state because "retired" (a mapped name vanished) is a state the URL
+  // cannot carry: absent means the Company default. It seeds from the URL and follows it when
+  // Back/refresh change it underneath; user- and data-driven changes write state + URL together.
+  const scopeParam = values.scope;
+  const [selectedScope, setSelectedScope] = useState<string | null>(scopeParam || COMPANY_SCOPE);
+  useEffect(() => {
+    setSelectedScope(scopeParam || COMPANY_SCOPE);
+  }, [scopeParam]);
+  const writeScope = (next: string | null) => {
+    setSelectedScope(next);
+    setFilter('scope', next && next !== COMPANY_SCOPE ? next : '');
+  };
 
   const admittedProjectScopes = useMemo(
     () => (catalogue?.state === 'complete' ? catalogue.scopes : []).filter((scope) =>
@@ -242,7 +262,7 @@ const FinancialStatements: React.FC = () => {
 
   if (loading || (session !== null && currentUser === null && profileError === null)) {
     return (
-      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')}>
+      <ListPage title={t('financeHub:hub.statements', 'Statements')}>
         <ListState variant="loading" shape="detail" />
       </ListPage>
     );
@@ -250,7 +270,7 @@ const FinancialStatements: React.FC = () => {
 
   if (!catalogueQuery.eligible) {
     return (
-      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')}>
+      <ListPage title={t('financeHub:hub.statements', 'Statements')}>
         <section className="min-w-0 rounded-lg border border-border bg-card p-4" aria-labelledby="financial-statements-access-title">
           <h2 id="financial-statements-access-title" className="text-base font-semibold text-foreground">
             {t('financialStatements.accessDenied', "You don't have access to financial statements")}
@@ -268,7 +288,7 @@ const FinancialStatements: React.FC = () => {
 
   if (odooMode.odoo) {
     return (
-      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')} className="min-w-0">
+      <ListPage title={t('financeHub:hub.statements', 'Statements')} className="min-w-0">
         <OdooStatementsSection />
       </ListPage>
     );
@@ -290,8 +310,8 @@ const FinancialStatements: React.FC = () => {
     expandAll: tf('statements.expandAll', 'Expand all'),
   };
   const sectionLabels = {
-    unavailable: t('financialStatements.unavailable', 'Statements are not available yet'),
-    unavailableDescription: t('financialStatements.unavailableDescription', 'Saved statements will appear here when available.'),
+    unavailable: t('financialStatements.unavailable', 'No statements yet'),
+    unavailableDescription: t('financialStatements.unavailableDescription', 'Statements come from the accounting system.'),
     noActivity: t('financialStatements.noActivity', 'No activity in this period'),
     noActivityDescription: t('financialStatements.noActivityDescription', 'There was no activity in the selected period.'),
     error: t('financialStatements.error', "Couldn't load financial statements"),
@@ -304,7 +324,7 @@ const FinancialStatements: React.FC = () => {
 
   return (
     <ListPage
-      title={t('shell.nav.financialStatements', 'Financial statements')}
+      title={t('financeHub:hub.statements', 'Statements')}
      
       className="min-w-0"
     >
@@ -326,10 +346,14 @@ const FinancialStatements: React.FC = () => {
                 noPeriods: t('financialStatements.noPeriods', 'No periods available'),
               }}
               onKindChange={(nextKind) => {
-                setPeriodKind(nextKind);
-                setPeriodStart(latestSuppliedPair(catalogue.periods, nextKind)?.currentStart ?? null);
+                // One batched write (react-router 8 does not queue same-tick param writes):
+                // the new period kind plus the period reset to that kind's latest pair.
+                setFilters({
+                  periodKind: nextKind === 'month' ? '' : nextKind,
+                  periodStart: latestSuppliedPair(catalogue.periods, nextKind)?.currentStart ?? '',
+                });
               }}
-              onPeriodChange={setPeriodStart}
+              onPeriodChange={(nextPeriodStart: string) => setFilter('periodStart', nextPeriodStart)}
               disabled={!catalogueQuery.eligible}
             />
             <SelectField
@@ -339,8 +363,13 @@ const FinancialStatements: React.FC = () => {
               onChange={(value) => {
                 if (!(STATEMENTS as readonly string[]).includes(value)) return;
                 const nextStatement = value as Statement;
-                setStatement(nextStatement);
-                if (nextStatement !== 'profit_and_loss') setSelectedScope(COMPANY_SCOPE);
+                // Batched write: project scope only exists on profit-and-loss, so switching away
+                // resets it to the Company default (absent from the URL) in the same update.
+                if (nextStatement !== 'profit_and_loss') {
+                  setFilters({ statement: nextStatement === 'trial_balance' ? '' : nextStatement, scope: '' });
+                } else {
+                  setFilter('statement', nextStatement);
+                }
               }}
               disabled={!catalogueQuery.eligible}
             />
@@ -351,7 +380,7 @@ const FinancialStatements: React.FC = () => {
                 options={scopeOptions}
                 placeholder={t('financialStatements.chooseScope', 'Choose a scope')}
                 onChange={(value) => {
-                  if (value === COMPANY_SCOPE || namedProjectOptions.some((option) => option.value === value)) setSelectedScope(value);
+                  if (value === COMPANY_SCOPE || namedProjectOptions.some((option) => option.value === value)) writeScope(value);
                 }}
                 disabled={!catalogueQuery.eligible}
               />
@@ -364,6 +393,7 @@ const FinancialStatements: React.FC = () => {
         state={sectionState}
         labels={sectionLabels}
         onRetry={sectionRetry}
+        unavailableAction={may('manage', 'integration') ? { label: tf('statements.setUp', 'Set up accounting'), onClick: () => navigate('/administration/integrations') } : undefined}
         refreshNow={{
           label: t('financialStatements.refreshNow', 'Refresh now'),
           pending: refreshNowMutation.isPending,

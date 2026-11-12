@@ -52,7 +52,7 @@ import { I18nextProvider } from 'react-i18next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
-import { formatDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 const { featureState, invoke } = vi.hoisted(() => ({
@@ -647,7 +647,7 @@ describe('AC-M365LOC-001 — English states and actions (fixed copy)', () => {
     invoke.mockResolvedValueOnce({ data: nearMidnight, error: null });
     const { unmount } = await renderCard();
     expect(await screen.findByTestId('m365-connected-msg')).toHaveTextContent(
-      'Connected since Jul 15, 2026. You can disconnect any time.',
+      'Connected since 15 Jul. You can disconnect any time.',
     );
     unmount();
 
@@ -655,7 +655,7 @@ describe('AC-M365LOC-001 — English states and actions (fixed copy)', () => {
     invoke.mockResolvedValueOnce({ data: nearMidnight, error: null });
     await renderCard();
     expect(await screen.findByTestId('m365-connected-msg')).toHaveTextContent(
-      'Connected since Jul 14, 2026. You can disconnect any time.',
+      'Connected since 14 Jul. You can disconnect any time.',
     );
   });
 
@@ -761,7 +761,7 @@ describe('AC-M365LOC-002 — Bahasa states and actions (fixed copy)', () => {
     const msg = await screen.findByTestId('m365-connected-msg');
     expect(msg).toHaveTextContent('Terhubung sejak');
     expect(msg).toHaveTextContent(/kapan saja/i);
-    expect(msg).toHaveTextContent(formatDate('2026-07-15T10:00:00.000Z'));
+    expect(msg).toHaveTextContent(formatDay('2026-07-15T10:00:00.000Z'));
     expect(screen.getByRole('button', { name: 'Putuskan koneksi' })).toBeInTheDocument();
   });
 

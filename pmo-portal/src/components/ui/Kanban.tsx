@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 
@@ -44,6 +44,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   return (
     <div
       data-selected={selected ? 'true' : undefined}
+      data-empty-column={empty ? 'true' : undefined}
       aria-current={selected ? 'true' : undefined}
       data-drop-state={dropState}
       className={cn(
@@ -68,26 +69,26 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             className="size-[9px] shrink-0 rounded-full"
             style={{ background: dotColor }}
           />
-          <span className="text-[13px] font-bold tracking-[-0.01em]">{title}</span>
+          <span className="text-control font-bold tracking-[-0.01em]">{title}</span>
           {prob && (
-            <span className="grid h-[17px] place-items-center rounded-full border border-border bg-background px-1.5 text-[10.5px] font-bold text-muted-foreground">
+            <span className="grid h-5 place-items-center rounded-full border border-border bg-background px-1.5 text-control font-bold text-muted-foreground">
               {prob}
             </span>
           )}
-          <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-2 text-[11.5px] font-bold text-muted-foreground tabular">
+          <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-2 text-support font-bold text-muted-foreground tabular">
             {count}
           </span>
         </div>
         {totals && <div className="mt-2 flex items-baseline gap-2">{totals}</div>}
         {dropState && (
-          <p className="mt-1 text-[11.5px] text-muted-foreground">
+          <p className="mt-1 text-control text-muted-foreground">
             {dropState !== 'blocked' ? t('boardDrag:dropHere', 'Drop to move here') : t('boardDrag:cantMoveHere', "Can't move here")}
           </p>
         )}
       </div>
       <div className="flex min-h-[60px] flex-col gap-2 overflow-y-auto p-2">
         {empty ? (
-          <div className="py-6 text-center text-xs text-muted-foreground">{emptyMessage}</div>
+          <div className="py-6 text-center text-control text-muted-foreground">{emptyMessage}</div>
         ) : (
           children
         )}
@@ -131,13 +132,33 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
   </div>
 );
 
-/** Horizontal-scroll kanban grid wrapper. */
-export const Kanban: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
+/**
+ * Horizontal-scroll kanban grid wrapper. `data-more-right` is set while columns run off the right
+ * edge (the CSS fades the edge only then). `narrowEmpty` shrinks empty columns (still drop targets).
+ */
+export const Kanban: React.FC<React.HTMLAttributes<HTMLDivElement> & { narrowEmpty?: boolean }> = ({
   className,
   children,
+  narrowEmpty,
   ...rest
-}) => (
-  <div className="kanban-scroll" {...rest}>
-    <div className={cn('kanban', className)}>{children}</div>
-  </div>
-);
+}) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [moreRight, setMoreRight] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setMoreRight(el.scrollWidth - el.scrollLeft - el.clientWidth > 1);
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    // ponytail: ResizeObserver covers resize and column changes; absent in old test envs
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    ro?.observe(el);
+    if (el.firstElementChild) ro?.observe(el.firstElementChild);
+    return () => { el.removeEventListener('scroll', update); ro?.disconnect(); };
+  }, []);
+  return (
+    <div ref={ref} className="kanban-scroll" data-more-right={moreRight ? 'true' : undefined} {...rest}>
+      <div className={cn('kanban', className)} data-narrow-empty={narrowEmpty ? 'true' : undefined}>{children}</div>
+    </div>
+  );
+};

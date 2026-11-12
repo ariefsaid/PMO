@@ -131,12 +131,17 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
 }) => {
   const { t } = useTranslation();
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [initialState, setInitialState] = useState<FormState>(emptyForm);
 
   // Reset or pre-populate when the modal opens
   useEffect(() => {
     if (!open) return;
-    setForm(initialPanel ? panelToForm(initialPanel) : emptyForm());
+    const next = initialPanel ? panelToForm(initialPanel) : emptyForm();
+    setForm(next);
+    setInitialState(next);
   }, [open, initialPanel]);
+
+  const dirty = JSON.stringify(form) !== JSON.stringify(initialState);
 
   const entityEntry =
     form.entity !== '' ? ENTITY_WHITELIST[form.entity] : null;
@@ -327,6 +332,7 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
       onSubmit={handleSubmit}
       onClose={onClose}
       submitDisabled={!isFormComplete}
+      dirty={dirty}
       width="lg"
     >
       <FormGrid>

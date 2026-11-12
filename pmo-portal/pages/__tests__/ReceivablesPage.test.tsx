@@ -12,22 +12,38 @@ const h = vi.hoisted(() => ({
   role: 'Finance' as 'Finance' | 'Executive',
   invoices: [] as unknown[],
   payments: [] as unknown[],
+  financePending: false,
+  financeError: false,
+  receivablesPending: false,
+  receivablesError: false,
+  cashPending: false,
+  cashError: false,
+  invoiceError: false,
+  paymentError: false,
   position: {
     receivablesCount: 0, receivablesUnknownCount: 0, overdue: [], overdueTotals: {}, overdueUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [],
     unappliedPayments: [], unappliedTotals: {}, payables: [], payablesTotals: {}, payablesUnknownCount: 0,
-    receivablesAgeing: { IDR: { notDue: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+    receivablesAgeing: { IDR: { notDue: 0, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+    receivablesNoDueDateCounts: {},
     payablesAgeing: {},
   } as FinancePosition,
 }));
 
 vi.mock('@/src/hooks/useFinancePosition', () => ({
-  useFinancePosition: () => ({ position: h.position, today: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
+  useFinancePosition: () => ({ position: h.position, today: '2026-10-27', isPending: h.financePending, isError: h.financeError, retry: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
-  useSalesInvoices: () => ({ data: h.invoices, isPending: false }),
-  useIncomingPayments: () => ({ data: h.payments, isPending: false }),
+  useSalesInvoices: () => ({ data: h.invoices, isPending: h.receivablesPending, isError: h.invoiceError, refetch: vi.fn() }),
+  useIncomingPayments: () => ({ data: h.payments, isPending: h.cashPending, isError: h.paymentError, refetch: vi.fn() }),
 }));
+vi.mock('@/src/lib/finance/financePosition', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/finance/financePosition')>();
+  return { ...actual, buildFinancePosition: () => h.position };
+});
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
   useOrgCurrency: () => 'IDR',
   useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }),
@@ -77,6 +93,14 @@ function renderPage(initialEntry = '/finance/receivables') {
 
 beforeEach(async () => {
   h.role = 'Finance';
+  h.financePending = false;
+  h.financeError = false;
+  h.receivablesPending = false;
+  h.receivablesError = false;
+  h.cashPending = false;
+  h.cashError = false;
+  h.invoiceError = false;
+  h.paymentError = false;
   h.invoices = [invoice(), invoice({ id: 'invoice-2', si_number: 'SI-2', invoice_date: '2026-10-01', erp_payment_terms_days: 14 })];
   h.payments = [
     payment(),
@@ -90,41 +114,167 @@ beforeEach(async () => {
     overdueTotals: { IDR: 1000 }, overdueUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [], unappliedPayments: [], unappliedTotals: {},
     payables: [], payablesTotals: {}, payablesUnknownCount: 0,
-    receivablesAgeing: { IDR: { notDue: 8000, d1_30: 1000, d31_60: 0, d61_90: 0, over90: 1000 } },
+    receivablesAgeing: { IDR: { notDue: 8000, noDueDate: 0, d1_30: 1000, d31_60: 0, d61_90: 0, over90: 1000 } },
+    receivablesNoDueDateCounts: {},
     payablesAgeing: {},
   };
   await financeTestI18n.changeLanguage('en');
 });
 
+// A figure tile: its label sits in the head row, the tile root is the head's parent.
+const tile = (label: string) => screen.getByText(label).parentElement!.parentElement as HTMLElement;
+
 describe('Receivables page', () => {
-  it('reports unknown owed and overdue balances and explains empty ageing', () => {
+  it('B6: keeps invoice figures visible while the payment read is pending', () => {
+    h.financePending = true;
+    h.cashPending = true;
+
+    renderPage();
+
+    expect(tile('Owed to you')).toHaveTextContent(/IDR\s*100/);
+    expect(within(tile('Received this month')).getByTestId('kpi-skeleton')).toBeInTheDocument();
+  });
+
+  it('B6: keeps cash visible while the invoice read is pending', () => {
+    h.financePending = true;
+    h.receivablesPending = true;
+
+    renderPage();
+
+    expect(tile('Received this month')).toHaveTextContent(/IDR\s*100/);
+    expect(within(tile('Owed to you')).getByTestId('kpi-skeleton')).toBeInTheDocument();
+  });
+
+  it('B6: payment failures leave invoice figures visible and do not show a zero cash figure', () => {
+    h.financeError = true;
+    h.paymentError = true;
+    h.cashError = true;
+    h.payments = [];
+
+    renderPage();
+
+    expect(tile('Owed to you')).toHaveTextContent(/IDR\s*100/);
+    expect(within(tile('Received this month')).queryAllByText(/IDR\s*0\b/)).toHaveLength(0);
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load finance activity");
+  });
+
+  it('B6: invoice failures leave cash visible and do not show a stale owed figure', () => {
+    h.financeError = true;
+    h.invoiceError = true;
+    h.receivablesError = true;
+
+    renderPage();
+
+    expect(within(tile('Owed to you')).queryAllByText(/IDR\s*100\b/)).toHaveLength(0);
+    expect(tile('Received this month')).toHaveTextContent(/IDR\s*100/);
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load finance activity");
+  });
+
+  it('R2-P1b #4 explains that an unknown invoice balance was not reported', () => {
+    h.invoices = [invoice({ erp_outstanding_amount: null })];
+    h.position = {
+      ...h.position,
+      receivablesAgeing: {},
+      receivablesUnknownCount: 1,
+      overdueTotals: {},
+      overdueUnknownCount: 1,
+      overdue: [{ invoice: invoice({ erp_outstanding_amount: null }), daysOverdue: 119, outstanding: null }],
+    };
+
+    renderPage();
+
+    const ageing = screen.getByRole('region', { name: /Client balances by age/ });
+    const over90 = within(ageing).getByTestId('ageing-bucket-IDR-over90');
+    expect(over90).toHaveTextContent('1 balance unknown');
+    expect(over90).not.toHaveTextContent(/IDR\s?0\b/);
+    expect(ageing).not.toHaveTextContent('No balances');
+  });
+
+  it('F7: an overdue receivable with an unknown balance is counted in its age bucket, never shown as zero', () => {
+    const unknownInvoice = invoice({ id: 'unknown-overdue', erp_outstanding_amount: null });
+    h.invoices = [unknownInvoice];
+    h.position = {
+      ...h.position,
+      receivablesCount: 1,
+      receivablesUnknownCount: 1,
+      overdueUnknownCount: 1,
+      overdue: [{ invoice: unknownInvoice, daysOverdue: 119, outstanding: null }],
+      receivablesAgeing: { IDR: { notDue: 0, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+    };
+
+    renderPage();
+
+    const ageing = screen.getByRole('region', { name: /Client balances by age/ });
+    const over90 = within(ageing).getByTestId('ageing-bucket-IDR-over90');
+    expect(over90).toHaveTextContent('1 balance unknown');
+    expect(over90).not.toHaveTextContent(/IDR\s?0\b/);
+  });
+
+  it('F8: a known receivable without a due date has its own counted bucket and stays in owed total', () => {
+    h.invoices = [invoice({ id: 'no-due-date', invoice_date: null, erp_payment_terms_days: null, erp_outstanding_amount: 100 })];
+    h.position = {
+      ...h.position,
+      receivablesCount: 1,
+      receivablesAgeing: { IDR: { notDue: 0, noDueDate: 10_000, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+      receivablesNoDueDateCounts: { IDR: 1 },
+    };
+
+    renderPage();
+
+    const ageing = screen.getByRole('region', { name: /Client balances by age/ });
+    const noDueDate = within(ageing).getByTestId('ageing-bucket-IDR-noDueDate');
+    expect(noDueDate).toHaveTextContent('No due date');
+    expect(noDueDate).toHaveTextContent('1 invoice');
+    expect(noDueDate.querySelector('.tabular')).toHaveTextContent(/IDR\s?100\b/);
+    expect(within(ageing).getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent(/IDR\s?0\b/);
+    expect(tile('Owed to you')).toHaveTextContent(/IDR\s?100/);
+  });
+
+  it('F4 identifies unknown due-soon balances without inventing zero', () => {
+    h.invoices = [invoice({ erp_outstanding_amount: null })];
+    renderPage();
+    expect(screen.queryByText('Due in next 30 days')).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 balance unknown');
+  });
+
+  it('shows zero for an empty due window and no payments this month', () => {
+    h.invoices = [];
+    h.payments = [];
+    h.position = { ...h.position, receivablesCount: 0, receivablesAgeing: {}, overdue: [], overdueTotals: {} };
+    renderPage();
+    for (const label of ['Owed to you', 'Overdue', 'Due in next 30 days', 'Received this month']) {
+      expect(tile(label)).toHaveTextContent(/IDR\s*0/);
+    }
+  });
+
+  it('hides unknown owed and overdue figures, with the overdue count in its age bucket', () => {
     h.invoices = [invoice({ erp_outstanding_amount: null })];
     h.position = { ...h.position, receivablesAgeing: {}, receivablesUnknownCount: 1, overdueTotals: {}, overdueUnknownCount: 1,
       overdue: [{ invoice: invoice({ erp_outstanding_amount: null }), daysOverdue: 5, outstanding: null }] };
     renderPage();
-    expect(screen.getByRole('region', { name: 'Owed to you' })).toHaveTextContent('1 balance unknown');
-    expect(screen.getByRole('region', { name: 'Overdue' })).toHaveTextContent('1 balance unknown');
-    expect(screen.getByRole('region', { name: /Client balances by age/ })).toHaveTextContent(/balance.*unknown/i);
+    expect(screen.queryByText('Owed to you')).not.toBeInTheDocument();
+    expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('3 figures hidden: 1 balance unknown');
+    const ageing = screen.getByRole('region', { name: /Client balances by age/ });
+    expect(within(ageing).getByTestId('ageing-bucket-IDR-d1_30')).toHaveTextContent('1 balance unknown');
+    // One line, not two: the bucket carries the count, so the chart's own preamble stays off.
+    expect(within(ageing).getAllByText('1 balance unknown')).toHaveLength(1);
+    // The overdue filter in the list is the one way in; no second "N overdue" line sits above it.
+    expect(screen.queryByTestId('receivables-overdue-row')).toBeNull();
+    expect(screen.queryByText(/Show all \d+ overdue/)).toBeNull();
   });
 
-  it('uses the shared ageing and overdue totals, with invoice and client counts', () => {
+  it('uses the shared ageing and overdue totals; counts stay out of the money tiles', () => {
     renderPage();
-    const owed = screen.getByRole('region', { name: 'Owed to you' });
-    expect(within(owed).getByText(/100/)).toBeInTheDocument();
-    expect(within(owed).getByText('2 invoices · 1 client')).toBeInTheDocument();
-    const overdue = screen.getByRole('region', { name: 'Overdue' });
-    expect(within(overdue).getByText(/^IDR/)).toBeInTheDocument();
-    expect(within(overdue).getByText(/10% of owed/)).toBeInTheDocument();
+    expect(tile('Owed to you')).toHaveTextContent(/IDR\s*100/);
+    expect(tile('Owed to you')).toHaveTextContent('tax included');
+    expect(tile('Owed to you')).not.toHaveTextContent(/invoices?\b/);
+    expect(tile('Overdue')).toHaveTextContent(/^Overdue.*IDR/);
+    expect(tile('Overdue')).toHaveTextContent('10% of owed');
+    expect(screen.queryByTestId('receivables-overdue-row')).toBeNull();
   });
 
-  it('formats single invoice and client with grammatical singular in en', () => {
-    h.invoices = [invoice()];
-    renderPage();
-    const owed = screen.getByRole('region', { name: 'Owed to you' });
-    expect(within(owed).getByText('1 invoice · 1 client')).toBeInTheDocument();
-  });
-
-  it('shows whole-unit money for upcoming invoices and keeps other currencies on a muted second line', () => {
+  it('shows whole-unit money for upcoming invoices and puts another currency on its own second line', () => {
     h.invoices = [
       invoice({ erp_outstanding_amount: 1250, amount: 1250 }),
       invoice({ id: 'invoice-usd', si_number: 'SI-USD', currency: 'USD', erp_outstanding_amount: 75, amount: 75 }),
@@ -132,8 +282,8 @@ describe('Receivables page', () => {
     h.position = {
       ...h.position,
       receivablesAgeing: {
-        IDR: { notDue: 90000, d1_30: 10000, d31_60: 0, d61_90: 0, over90: 0 },
-        USD: { notDue: 7500, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 },
+        IDR: { notDue: 90000, noDueDate: 0, d1_30: 10000, d31_60: 0, d61_90: 0, over90: 0 },
+        USD: { notDue: 7500, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 },
       },
       overdueTotals: { IDR: 10000, USD: 5000 },
       overdue: [{ invoice: invoice({ id: 'late-idr' }), daysOverdue: 12, outstanding: 10000 }],
@@ -141,49 +291,58 @@ describe('Receivables page', () => {
 
     renderPage();
 
-    const owed = screen.getByRole('region', { name: 'Owed to you' });
-    expect(owed.querySelector('[data-figure-value]')).toHaveTextContent(/IDR\s*1,000/);
-    expect(owed.querySelector('[data-figure-value]')).not.toHaveTextContent(/USD|\$|\.00/);
-    expect(within(owed).getByText(/USD.*75|\$75/)).toBeInTheDocument();
+    expect(tile('Owed to you')).toHaveTextContent(/IDR\s*1,000/);
+    const owedOtherCurrency = within(tile('Owed to you')).getByText(/^USD/);
+    expect(owedOtherCurrency).toHaveClass('block');
+    expect(owedOtherCurrency).not.toHaveTextContent('+');
+    expect(tile('Due in next 30 days')).toHaveTextContent(/IDR\s*1,250/);
+    expect(tile('Due in next 30 days')).toHaveTextContent(/next due/);
+    const dueOtherCurrency = within(tile('Due in next 30 days')).getByText(/^USD/);
+    expect(dueOtherCurrency).toHaveClass('block');
+    expect(dueOtherCurrency).not.toHaveTextContent('+');
+    expect(tile('Overdue')).toHaveTextContent('10% of owed');
+  });
 
-    const dueSoon = screen.getByRole('region', { name: 'Due in next 30 days' });
-    expect(dueSoon.querySelector('[data-figure-value]')).toHaveTextContent(/IDR\s*1,250/);
-    expect(dueSoon.querySelector('[data-figure-value]')).not.toHaveTextContent(/^2$/);
-    expect(within(dueSoon).getByText(/2 invoices · next due/)).toBeInTheDocument();
-    expect(within(dueSoon).getByText(/USD.*75|\$75/)).toBeInTheDocument();
-
-    const overdue = screen.getByRole('region', { name: 'Overdue' });
-    expect(within(overdue).getByText(/10% of owed · 1 invoice · oldest 12 days/)).toBeInTheDocument();
-    expect(within(overdue).queryByText(/5%.*USD/)).not.toBeInTheDocument();
+  it('F5 withholds unknown receipt amounts and comparisons while preserving known zero', () => {
+    h.payments = [payment(), payment({ id: 'previous', date: '2026-09-05', received_amount: null })];
+    const view = renderPage();
+    expect(tile('Received this month')).toHaveTextContent(/IDR\s*100/);
+    expect(tile('Received this month')).not.toHaveTextContent(/vs last month/);
+    view.unmount();
+    h.payments = [payment({ received_amount: null })];
+    renderPage();
+    expect(screen.queryByText('Received this month')).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/receipt.*unknown/i);
   });
 
   it('compares actual received cash month over month and excludes cancelled or scheduled rows', () => {
     renderPage();
-    const cash = screen.getByRole('region', { name: 'Received this month' });
-    expect(within(cash).getByText(/100/)).toBeInTheDocument();
-    const delta = within(cash).getByText(/60/);
-    expect(delta).toHaveClass('text-[hsl(var(--success-text))]');
-    expect(within(cash).queryByText(/999/)).not.toBeInTheDocument();
+    const cash = tile('Received this month');
+    expect(cash).toHaveTextContent(/IDR\s*100/);
+    expect(cash).toHaveTextContent(/\+IDR\s*60 vs last month/);
+    expect(cash).not.toHaveTextContent(/999/);
   });
 
-  it('O8: an unchanged month is not coloured as good news', () => {
+  it('O8: an unchanged month carries no sign', () => {
     h.payments = [payment(), payment({ id: 'payment-previous', date: '2026-09-05', amount: 100, received_amount: 100, withheld_amount: 0 })];
     renderPage();
-    const cash = screen.getByRole('region', { name: 'Received this month' });
-    const delta = within(cash).getByText(/vs last month/);
+    const delta = within(tile('Received this month')).getByText(/vs last month/);
     expect(delta).not.toHaveTextContent('+');
-    expect(delta).not.toHaveClass('text-[hsl(var(--success-text))]');
-    expect(delta).toHaveClass('text-muted-foreground');
+    expect(delta).not.toHaveTextContent('−');
   });
 
-  it('F11: receivables figures are one joined strip with short amounts and the exact amount kept', () => {
-    h.position = { ...h.position, receivablesAgeing: { IDR: { notDue: 6_240_000_000, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } } };
+  it('F11: figure tiles show short amounts with the exact amount kept for screen readers', () => {
+    h.position = { ...h.position, receivablesAgeing: { IDR: { notDue: 6_240_000_000, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } } };
     renderPage();
     const strip = screen.getByRole('region', { name: 'Receivables figures' });
-    const owed = within(strip).getByRole('region', { name: 'Owed to you' });
-    const short = within(owed).getByText('IDR 62.4M');
+    const short = within(strip).getByText('IDR 62.4M');
     expect(short.getAttribute('title')).toMatch(/^IDR\s62,400,000$/);
-    expect(within(owed).getByText(/^IDR\s62,400,000$/)).toHaveClass('sr-only');
+    expect(within(strip).getByText(/^IDR\s62,400,000$/)).toHaveClass('sr-only');
+  });
+
+  it('offers Receive payment from both the invoices and the payments view', () => {
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Receive payment' })).toBeInTheDocument();
   });
 
   it('keeps the invoices and payments view in the URL', async () => {
@@ -194,16 +353,22 @@ describe('Receivables page', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?todo=unapplied');
   });
 
-  it('B4: one filled New invoice per width — the header one is hidden below sm, the phone bar is hidden from sm up', async () => {
+  it('B4: keeps New invoice and Receive payment in the same header on both tabs', async () => {
     const user = userEvent.setup();
-    renderPage();
-    const buttons = screen.getAllByRole('button', { name: /New invoice/i });
-    expect(buttons).toHaveLength(2);
-    // jsdom has no media queries: the wrapper classes are the contract (Button's own inline-flex would beat `hidden`).
-    expect(screen.getByTestId('receivables-header-new-invoice')).toHaveClass('hidden', 'sm:block');
-    expect(buttons[1]!.parentElement).toHaveClass('sm:hidden');
-    await user.click(buttons[0]!);
+    const invoices = renderPage();
+    const newInvoice = screen.getByRole('button', { name: /New invoice/i });
+    const receivePayment = screen.getByRole('button', { name: 'Receive payment' });
+    const headerActions = screen.getByTestId('receivables-header-new-invoice').parentElement!;
+    expect(headerActions).toContainElement(newInvoice);
+    expect(headerActions).toContainElement(receivePayment);
+    await user.click(newInvoice);
     expect(screen.getByTestId('location')).toHaveTextContent('create=1');
+
+    invoices.unmount();
+    renderPage('/finance/receivables?view=payments');
+    const paymentHeaderActions = screen.getByTestId('receivables-header-new-invoice').parentElement!;
+    expect(paymentHeaderActions).toContainElement(screen.getByRole('button', { name: /New invoice/i }));
+    expect(paymentHeaderActions).toContainElement(screen.getByRole('button', { name: 'Receive payment' }));
   });
 
   it('hides New invoice for an Executive', () => {

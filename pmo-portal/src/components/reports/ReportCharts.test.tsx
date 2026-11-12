@@ -1,0 +1,73 @@
+import React from 'react';
+import { describe, it, expect } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
+import { EarnedAgainstContract, EarnedInvoicedTrend } from './ReportCharts';
+
+describe('report charts', () => {
+  it('draws one bar per project, largest contract first, with both figures written on the row', () => {
+    render(<EarnedAgainstContract rows={[
+      { key: 'a', name: 'Small', currency: 'USD', contract: 100_000_00, earned: 50_000_00 },
+      { key: 'b', name: 'Large', currency: 'USD', contract: 400_000_00, earned: 100_000_00 },
+    ]} />);
+    const items = within(screen.getByTestId('pack-earned-bars')).getAllByRole('listitem');
+    expect(items.map((li) => li.textContent)).toEqual([expect.stringMatching(/^Large.*\$100K \/ \$400K/), expect.stringMatching(/^Small.*\$50K \/ \$100K/)]);
+    expect(screen.getByRole('img', { name: 'Large: earned $100K of $400K' })).toBeInTheDocument();
+  });
+
+  it('uses the contract as a light track and has no second contract-coloured overlay', () => {
+    render(<EarnedAgainstContract rows={[
+      { key: 'a', name: 'No earned value', currency: 'USD', contract: 100_000, earned: 0 },
+      { key: 'b', name: 'Some earned value', currency: 'USD', contract: 50_000, earned: 25_000 },
+    ]} />);
+    const bars = screen.getAllByRole('img');
+    expect(bars).toHaveLength(2);
+    for (const bar of bars) expect(bar.children).toHaveLength(1);
+    expect(bars[0]?.firstElementChild).toHaveStyle({ width: '0%' });
+  });
+
+  it('does not draw a one-project comparison', () => {
+    const { container } = render(<EarnedAgainstContract rows={[{ key: 'a', name: 'Only', currency: 'USD', contract: 100, earned: 0 }]} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('draws the earned and invoiced trend from three months, and says both end figures', () => {
+    const months = ['2026-01-01', '2026-02-01', '2026-03-01'].map((month, i) => ({ month, earnedToDate: (i + 1) * 100_00, invoicedToDate: i * 50_00 }));
+    render(<EarnedInvoicedTrend currency="USD" months={months} />);
+    expect(screen.getByTestId('pack-trend')).toHaveTextContent(/Earned\s*\$300/);
+    expect(screen.getByTestId('pack-trend')).toHaveTextContent(/Invoiced\s*\$100/);
+    expect(screen.getByRole('img')).toBeInTheDocument();
+  });
+
+  it('labels each trend line series with its matching name', () => {
+    const months = ['2026-01-01', '2026-02-01', '2026-03-01'].map((month, i) => ({ month, earnedToDate: (i + 1) * 100_00, invoicedToDate: i * 50_00 }));
+    render(<EarnedInvoicedTrend currency="USD" months={months} />);
+    const series = within(screen.getByRole('group', { name: 'Trend series' }));
+    expect(series.getByText('Earned')).toBeVisible();
+    expect(series.getByText('Invoiced')).toBeVisible();
+  });
+
+  it('names the earned and contract series beside the project bars', () => {
+    render(<EarnedAgainstContract rows={[
+      { key: 'a', name: 'Small', currency: 'USD', contract: 100_000, earned: 50_000 },
+      { key: 'b', name: 'Large', currency: 'USD', contract: 400_000, earned: 100_000 },
+    ]} />);
+    const series = within(screen.getByRole('group', { name: 'Earned against contract' }));
+    expect(series.getByText('Earned')).toBeVisible();
+    expect(series.getByText('Contract')).toBeVisible();
+  });
+
+  it('scales each earned bar against that project’s own contract', () => {
+    render(<EarnedAgainstContract rows={[
+      { key: 'small', name: 'Small', currency: 'USD', contract: 100, earned: 100 },
+      { key: 'large', name: 'Large', currency: 'USD', contract: 1_000, earned: 500 },
+    ]} />);
+    const bars = screen.getAllByRole('img');
+    expect(bars[0]?.firstElementChild).toHaveStyle({ width: '50%' });
+    expect(bars[1]?.firstElementChild).toHaveStyle({ width: '100%' });
+  });
+
+  it('keeps two months as figures, no line', () => {
+    const { container } = render(<EarnedInvoicedTrend currency="USD" months={[{ month: '2026-01-01', earnedToDate: 1, invoicedToDate: 1 }, { month: '2026-02-01', earnedToDate: 2, invoicedToDate: 1 }]} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});

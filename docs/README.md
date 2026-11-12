@@ -30,7 +30,7 @@ Read the source-of-truth docs first; treat `plans/` and `design-mockups/` as a h
 | **`runbooks/`** | Operational runbooks: `pmo-cli.md` (the client CLI and `pmo load`), `incident-response.md`, `restore-drill.md`, `entra-option-b-setup.md`, `agent-cost-measurement.md`, `integration-trap-state-recovery.md`. |
 | **`microsoft-365-integration.md`** · **`posthog-dashboards.md`** | M365 integration reference · the PostHog dashboard set. |
 | **`agents/`** | Config the vendored skills read (issue tracker, triage labels, domain, skills map). |
-| **`design-workflow.md`** | The UI/UX cycle (Foundation → per-UI-issue loop) + the standing **4-lens** rendered design-review battery (A visual / B flow / C structure / **D intent**) + the design-agent→skill-command map. |
+| **`design-workflow.md`** | Foundation and the screen-composition skill pointer; the review-mode fallback battery is in `archive/design-workflow-lens-battery.md`. |
 | **`jtbd.md`** | **Lens D oracle** — the role × job-story map that `design-reviewer` grades every FE screen against. Living: each new feature adds its job story here during intake (before spec). Charter: `docs/reviews/2026-06-14-intent-lens-gap.md`. |
 | **`design/`** | `crud-components.md` (CRUD component architecture) + `rbac-visibility.md` (role×affordance gating map) — the spec the shipped CRUD/RBAC follows. Also: `delivery-feature-audit.md` (delivery UI findings, all resolved) + `delivery-redesign-plan.md` (the approved redesign task-plan; durable design record for PR #79). |
 | *(repo root)* **`DESIGN.md`** | The live design-system source of truth (tokens/components) — reverse-engineered from the app; supersedes the exploration mockups. |

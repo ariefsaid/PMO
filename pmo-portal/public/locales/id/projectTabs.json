@@ -112,11 +112,6 @@
         "selfConfirmHint": "Anda yang menyiapkan ini. Pengguna Admin atau Finance lain harus mengonfirmasinya, kecuali Anda satu-satunya anggota aktif.",
         "soleOperator": "Dikonfirmasi oleh satu-satunya anggota aktif",
         "stage": "Tahap",
-        "status": {
-          "confirmed": "Terkonfirmasi",
-          "draft": "Draft",
-          "withdrawn": "Ditarik"
-        },
         "toast": {
           "closed": "BAST final terkonfirmasi: ditutup pada {{amount}}",
           "confirmed": "BAST terkonfirmasi",
@@ -145,6 +140,12 @@
         },
         "contractQty": "Kontrak {{qty}} {{unit}}",
         "done": "Selesai",
+        "discard": {
+          "title": "Buang perubahan baris yang belum disimpan?",
+          "description": "Kuantitas alokasi yang belum disimpan akan hilang.",
+          "confirm": "Buang",
+          "cancel": "Lanjut mengedit"
+        },
         "edit": "Ubah baris",
         "errors": {
           "belowAccepted": "BAST yang sudah dikonfirmasi telah menerima {{qty}} {{unit}}. Alokasi tidak boleh lebih rendah.",

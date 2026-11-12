@@ -115,8 +115,8 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
     const figures = screen.getByRole('region', { name: 'Budget figures' });
     // 1,200 + 300 of the figures the table shows; Left = 6,000 budget - 1,500 spent - 0 committed.
-    expect(within(table).getByText('1,500')).toBeInTheDocument();
-    expect(within(table).getByText('4,500')).toBeInTheDocument();
+    expect(within(table).getByText('IDR 1,500')).toBeInTheDocument();
+    expect(within(table).getByText('IDR 4,500')).toBeInTheDocument();
     expect(figures.textContent).toMatch(/Spent.*IDR\s*1,500/);
     expect(figures.textContent).toMatch(/Left.*IDR\s*4,500/);
     expect(figures.textContent).not.toMatch(/Spending is unknown|Left is unknown|Comparison unavailable/);
@@ -126,7 +126,7 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     // Travel has no Odoo account: Spent (and the Left built on it) state the exclusion.
-    expect(within(figures).getAllByText('Spent excludes categories with no Odoo account (1)')).toHaveLength(2);
+    expect(within(figures).getAllByText('Excludes 1 unmapped categories')).toHaveLength(2);
   });
 
   it('every category known: no exclusion note', async () => {
@@ -140,7 +140,9 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     state.rows = ROWS.map((r) => ({ ...r, actual: null }));
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(figures.textContent).toMatch(/Spending is unknown or unavailable/);
+    // Spent is withheld, never a zero: the page's one hidden-figures line says why.
+    expect(figures.textContent).not.toMatch(/Spent/);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/figures hidden: spending is not linked/i);
   });
 });
 
@@ -163,16 +165,18 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     expect(within(table).getByText('IDR 1,200')).toBeInTheDocument();
   });
 
-  it('the notice names each currency separately: budget USD, spending IDR, commitments USD', async () => {
+  it('the shared hidden-figure line names each currency separately once', async () => {
     renderPage(projectIn('USD'));
-    const notice = await screen.findByText(/Comparisons are unavailable across currencies/);
-    expect(notice.textContent).toBe('Budget: USD. Spending: IDR. Commitments: USD. Comparisons are unavailable across currencies.');
+    const hidden = await screen.findByTestId('figures-hidden');
+    const reason = 'Budget: USD. Spending: IDR. Commitments: USD. Comparisons are unavailable across currencies.';
+    expect(hidden).toHaveTextContent(reason);
+    expect(screen.queryByText(reason, { exact: true })).not.toBeInTheDocument();
   });
 
   it('never subtracts across currencies: Left gives no number and says the currencies differ', async () => {
     renderPage(projectIn('USD'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(figures.textContent).toMatch(/Comparison unavailable because budget and spending use different currencies/);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/Comparisons are unavailable across currencies/i);
     expect(figures.textContent).not.toMatch(/4,500/);
     expect(screen.queryByText('Over budget')).not.toBeInTheDocument();
     expect(screen.queryByText('On track')).not.toBeInTheDocument();
@@ -185,8 +189,8 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
   it('one unknown category still makes Spent and Left unknown, in the project currency', async () => {
     renderPage();
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(figures.textContent).toMatch(/Spending is unknown or unavailable/);
-    expect(figures.textContent).toMatch(/Left is unknown/);
+    expect(figures.textContent).not.toMatch(/Spent|Left/);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/2 figures hidden/i);
     expect(figures.textContent).toMatch(/\$/);
     expect(figures.textContent).not.toMatch(/IDR|Spent excludes/);
     expect(screen.queryByText('Amounts in IDR')).not.toBeInTheDocument();
@@ -197,7 +201,7 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
     renderPage();
     const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
     const figures = screen.getByRole('region', { name: 'Budget figures' });
-    expect(within(table).getByText('1,600')).toBeInTheDocument();
+    expect(within(table).getByText('$1,600')).toBeInTheDocument();
     expect(figures.textContent).toMatch(/Spent.*\$1,600/);
     expect(figures.textContent).toMatch(/Left.*\$4,400/);
   });

@@ -1,7 +1,7 @@
 # ADR-0030 — QA portfolio (Discover→Graduate→Cover) + build-vs-buy vendoring policy
 
 - **Status:** Accepted (owner-approved 2026-06-16)
-- **Supersedes:** the standing "4-lens design review ×2" battery (`docs/design-workflow.md` §1a/§2.3) as the *primary* UX-quality mechanism. The 4 lenses are not deleted — they are reorganised (see Decision).
+- **Supersedes:** the standing "4-lens design review ×2" battery (`docs/archive/design-workflow-lens-battery.md` §1a/§2.3) as the *primary* UX-quality mechanism. The 4 lenses are not deleted — they are reorganised (see Decision).
 - **Related:** ADR-0010 (test pyramid), ADR-0016/0017 (policy/repository seam), `docs/jtbd.md` (the action-completeness oracle), `docs/director-playbook.md`, `docs/product-expectations.md`.
 
 ## Context
@@ -40,7 +40,7 @@ Anything with a right answer is a test, not an opinion — chart-position/golden
 
 ### D. What is retired / kept / added
 
-- **Demoted from default — NOT deleted (kept fully runnable as the reversible fallback; see "Reversibility" below):** the narrative 4-lens **×2** battery and the **full-lens audit of the static mockup** stop being the *default* path. Their unknown-unknown value is preserved in the **Discover** layer (same skills, same agents). The `design-reviewer` agent, the 4-lens skills, and `design-workflow.md` §1a/§2.3 stay intact in-repo so the old battery can be re-enabled with a single switch. Within the new default: Lens A → visual-regression + token-lint; Lens B/C/D → enumerated sweep + vision discovery; taste → owner-at-boundaries.
+- **Demoted from default — NOT deleted (kept fully runnable as the reversible fallback; see "Reversibility" below):** the narrative 4-lens **×2** battery and the **full-lens audit of the static mockup** stop being the *default* path. Their unknown-unknown value is preserved in the **Discover** layer (same skills, same agents). The `design-reviewer` agent, the 4-lens skills, and `docs/archive/design-workflow-lens-battery.md` §1a/§2.3 stay intact in-repo so the old battery can be re-enabled with a single switch. Within the new default: Lens A → visual-regression + token-lint; Lens B/C/D → enumerated sweep + vision discovery; taste → owner-at-boundaries.
 - **Kept, right-sized:** the **3 code reviewers** (spec/quality/security — orthogonal, cheap; depth right-sized per CLAUDE.md model-tiering), the **intake grill**, and the mockup **only as a ~30-second owner "right shape?" sketch-glance** (directional alignment), never an agent battery.
 - **Added:** the deterministic gate-tests (C), the enumerated `routes×oracles` sweep (B), the retention KB / graduation step (A), and a **vision rendered-acceptance** pass with a fixed per-screen question bank.
 
@@ -67,7 +67,7 @@ For any **non-trivial generic widget**, default to vendoring a mature, widely-us
 This is a process bet; it must be cheap to undo. Reversibility is a first-class requirement.
 
 - **Nothing is deleted.** The `design-reviewer` agent (+ `.codex` surface), the 4-lens skills
-  (`design-review`/`impeccable`/`taste`), and `design-workflow.md` §1a/§2.3 (the mockup-round + rendered-round
+  (`design-review`/`impeccable`/`taste`), and `docs/archive/design-workflow-lens-battery.md` §1a/§2.3 (the mockup-round + rendered-round
   4-lens battery) remain in the repo, unchanged, for the entire trial. The new portfolio runs *alongside* them.
 - **One-switch revert — a "review mode" selector** (`portfolio` | `4-lens` | `3-lens`), recorded at the top of
   `docs/qa-portfolio.md` and honoured by the Director's per-issue loop. Reverting = flip the mode back to

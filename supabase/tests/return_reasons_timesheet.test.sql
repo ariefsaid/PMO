@@ -62,7 +62,7 @@ select lives_ok(
   'AC-900: Submitted → Approved is legal (FR-TS-001)');
 
 select lives_ok(
-  $$ select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected') $$,
+  $$ select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected','Please revise') $$,
   'AC-900: Submitted → Rejected is legal (FR-TS-001)');
 
 -- Slice A (FR-TSC-001): Approved is no longer terminal — the un-pushed sheet re-opens.
@@ -99,7 +99,7 @@ select is(
   5::bigint,
   'AC-900: every accepted legal pair landed in its target status (FR-TS-001)');
 
-select is((select rejection_reason from timesheets where id = '17110000-0000-0000-0000-000000000012'), null::text, 'AC-RSN-007: omitted reason remains null');
+select is((select rejection_reason from timesheets where id = '17110000-0000-0000-0000-000000000012'), 'Please revise', 'AC-RSN-007: reason is retained');
 select is((select rejected_by from timesheets where id = '17110000-0000-0000-0000-000000000012'), '17110000-0000-0000-0000-0000000000a2'::uuid, 'AC-RSN-007: actor is recorded');
 select isnt((select rejected_at from timesheets where id = '17110000-0000-0000-0000-000000000012'), null::timestamptz, 'AC-RSN-007: decision time is recorded');
 set local role authenticated;
@@ -135,26 +135,29 @@ select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-
 select transition_timesheet('17110000-0000-0000-0000-000000000012','Draft');
 select transition_timesheet('17110000-0000-0000-0000-000000000012','Submitted');
 select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a2', 'role','authenticated')::text, true);
-select lives_ok($$select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected','   ')$$, 'AC-RSN-007 spaces-only notes accepted');
-select is((select rejection_reason from timesheets where id='17110000-0000-0000-0000-000000000012'), null::text, 'AC-RSN-007 spaces-only notes stored null');
+select throws_ok($$select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected','   ')$$, '22023', 'A rejection reason is required', 'AC-RSN-001 spaces-only notes refused');
+select ok((select status='Submitted' and rejection_reason is null and rejected_by is null and rejected_at is null from timesheets where id='17110000-0000-0000-0000-000000000012'), 'AC-RSN-001 refused decision leaves record unchanged');
+select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected', repeat('x',1000));
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a1', 'role','authenticated')::text, true);
 select transition_timesheet('17110000-0000-0000-0000-000000000012','Draft');
 select transition_timesheet('17110000-0000-0000-0000-000000000012','Submitted');
 select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a2', 'role','authenticated')::text, true);
-select lives_ok($$select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected', E' \t\n ')$$, 'AC-RSN-007 whitespace-only notes accepted');
-select is((select rejection_reason from timesheets where id='17110000-0000-0000-0000-000000000012'), E'\t\n', 'AC-RSN-007 tabs and newlines retain existing behavior');
+select throws_ok($$select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected', E' \t\n ')$$, '22023', 'A rejection reason is required', 'AC-RSN-001 whitespace-only notes refused');
+select ok((select status='Submitted' and rejection_reason is null and rejected_by is null and rejected_at is null from timesheets where id='17110000-0000-0000-0000-000000000012'), 'AC-RSN-001 refused decision leaves record unchanged');
+select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected', repeat('x',1000));
 select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a1', 'role','authenticated')::text, true);
 select transition_timesheet('17110000-0000-0000-0000-000000000012','Draft');
 select transition_timesheet('17110000-0000-0000-0000-000000000012','Submitted');
 select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a2', 'role','authenticated')::text, true);
-select lives_ok($$select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected', ' ' || repeat('x',5000) || ' ')$$, 'AC-RSN-007 long notes accepted');
-select is((select rejection_reason from timesheets where id='17110000-0000-0000-0000-000000000012'), repeat('x',5000), 'AC-RSN-007 long notes trimmed and stored');
+select throws_ok($$select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected', ' ' || repeat('x',5000) || ' ')$$, '22023', 'A rejection reason is required', 'AC-RSN-001 long notes refused');
+select ok((select status='Submitted' and rejection_reason is null and rejected_by is null and rejected_at is null from timesheets where id='17110000-0000-0000-0000-000000000012'), 'AC-RSN-001 refused decision leaves record unchanged');
+select transition_timesheet('17110000-0000-0000-0000-000000000012','Rejected', repeat('x',1000));
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a1', 'role','authenticated')::text, true);
-select ok(coalesce((select rejection_reason=repeat('x',5000) and rejected_by is not null and rejected_at is not null from timesheets where id='17110000-0000-0000-0000-000000000012'),false), 'AC-RSN-003 submitter reads reason actor time');
+select ok(coalesce((select rejection_reason=repeat('x',1000) and rejected_by is not null and rejected_at is not null from timesheets where id='17110000-0000-0000-0000-000000000012'),false), 'AC-RSN-003 submitter reads reason actor time');
 select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000a3', 'role','authenticated')::text, true);
 select is((select count(*) from timesheets where id='17110000-0000-0000-0000-000000000012'), 0::bigint, 'AC-RSN-003 unrelated member cannot read');
 select set_config('request.jwt.claims', json_build_object('sub', '17110000-0000-0000-0000-0000000000b1', 'role','authenticated')::text, true);

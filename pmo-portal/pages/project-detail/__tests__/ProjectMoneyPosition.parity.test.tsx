@@ -88,7 +88,7 @@ const renderOverviewMoney = () => {
     </QueryClientProvider>,
   );
 };
-const costBlock = () => screen.getByRole('region', { name: /Budget vs actual/ });
+const costBlock = () => screen.getByRole('region', { name: /^Budget$/ });
 const definitionValueText = (scope: HTMLElement, label: string) => {
   const term = within(scope).getByText(label, { exact: true });
   return term.parentElement?.querySelector(':scope > dd')?.textContent ?? null;
@@ -125,9 +125,18 @@ describe('project money position consumer parity (AC-PMP-003)', () => {
     expect(definitionValueText(section, 'Contract remaining after cost')).toBe(expectedRemaining);
     expect(definitionValueText(within(section).getByTestId('project-finances-USD'), 'Settled')).toBe(expectedSettled);
     // Project-currency receipt cash stays a known 0 in the strip; foreign receipt cash remains separate from settlement.
-    const stripCash = screen.getAllByText('Cash received', { exact: true }).find((label) => !section.contains(label));
-    expect(stripCash?.parentElement?.querySelector(':scope > dd')?.textContent).toBe(expectedProjectCash);
+    expect(screen.getByTestId('money-lead-cash')).toHaveTextContent(new RegExp(`${expectedProjectCash}$`));
     expect(definitionValueText(section, 'Cash received')).toBe(expectedForeignCash);
+  });
+
+  it('draws only invoiced and paid bars; contract remains a plain figure', async () => {
+    renderOverviewMoney();
+    const money = await screen.findByRole('region', { name: /Money position/ });
+    expect(await within(money).findByTestId('contract-value-amount')).toHaveTextContent('$100');
+    expect(within(money).getAllByRole('progressbar')).toHaveLength(2);
+    expect(within(money).queryByRole('progressbar', { name: /Contract is/ })).not.toBeInTheDocument();
+    expect(within(money).getByRole('progressbar', { name: /Invoiced is/ })).toBeInTheDocument();
+    expect(within(money).getByRole('progressbar', { name: /Paid is/ })).toBeInTheDocument();
   });
 
   it('AC-PMP-003 a mapped category with no ERP amount is never reported as complete spending', async () => {
@@ -135,7 +144,7 @@ describe('project money position consumer parity (AC-PMP-003)', () => {
     h.versions = { data: [activeVersion([['Labor', 40]])], isPending: false, isError: false };
     renderOverviewMoney();
     expect(await within(costBlock()).findByText(/Spending isn't linked yet/)).toBeInTheDocument();
-    expect(within(costBlock()).getByText('Budget 40')).toBeInTheDocument();
+    expect(within(costBlock()).getByText('Budget $40')).toBeInTheDocument();
     expect(within(costBlock()).queryByText(/within budget|% used/i)).not.toBeInTheDocument();
     await userEvent.click(await screen.findByRole('button', { name: 'Details' }));
     const section = await screen.findByTestId('project-finances');
@@ -146,7 +155,7 @@ describe('project money position consumer parity (AC-PMP-003)', () => {
     h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: '10.10' }], '10.10', 'EUR') }));
     h.versions = { data: [activeVersion([['Labor', 40]])], isPending: false, isError: false };
     renderOverviewMoney();
-    expect(await within(costBlock()).findByText('Budget 40')).toBeInTheDocument();
+    expect(await within(costBlock()).findByText('Budget $40')).toBeInTheDocument();
     expect(within(costBlock()).queryByText(/% used|within budget|over budget/i)).not.toBeInTheDocument();
   });
 });
@@ -209,9 +218,9 @@ describe('Budget vs actual block carries the snapshot behaviours', () => {
     h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: '320.00' }], '320.00') }));
     h.versions = { data: [activeVersion([['Labor', 150]])], isPending: false, isError: false };
     renderOverviewMoney();
-    const headline = await within(costBlock()).findByText('170 over budget');
+    const headline = await within(costBlock()).findByText('$170 over budget');
     expect(headline.closest('p')).toHaveClass('text-destructive-text');
-    expect(within(costBlock()).getByText(/Spent 320 of 150/)).toBeInTheDocument();
+    expect(within(costBlock()).getByText(/Spent \$320 of \$150/)).toBeInTheDocument();
   });
 
   it('UX-027: under-budget money reads as remaining, never as a negative overrun', async () => {
@@ -241,8 +250,8 @@ describe('Budget vs actual block carries the snapshot behaviours', () => {
     h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: '10.00' }, { category: 'Materials', mapped: true, amount: '0.10' }]) }));
     h.versions = { data: [activeVersion([['Labor', 100_000], ['Materials', 50_000]])], isPending: false, isError: false };
     renderOverviewMoney();
-    expect(await within(costBlock()).findByText('10 of 100,000')).toBeInTheDocument();
-    expect(within(costBlock()).getByText('0 of 50,000')).toBeInTheDocument();
+    expect(await within(costBlock()).findByText('$10 of $100,000')).toBeInTheDocument();
+    expect(within(costBlock()).getByText('$0 of $50,000')).toBeInTheDocument();
     expect(costBlock().textContent).not.toMatch(/\b\d+h\b/);
   });
 

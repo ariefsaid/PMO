@@ -290,13 +290,11 @@ describe('Approvals page states', () => {
     expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
   });
 
-  // Deliberate UX change for S-18/RF-042: the inbox-wide subtitle still names supported types,
-  // while the clear-queue claim lists only scopes available to this viewer.
+  // The clear-queue claim lists only scopes available to this viewer.
   it('AC-NAR-002 (C-1): caught-up scope omits customer invoices this viewer cannot approve', () => {
     queryState.data = [];
     procState.data = [];
     renderPage();
-    expect(screen.getByRole('heading', { level: 1, name: 'Approvals' }).nextElementSibling).toHaveTextContent(/customer invoices/i);
     expect(screen.getByTestId('approvals-caught-up')).not.toHaveTextContent(/customer invoices/i);
   });
 
@@ -329,8 +327,8 @@ describe('Approvals page data', () => {
     renderPage();
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     expect(within(preview).getByText('Dave Engineer')).toBeInTheDocument();
-    // Week of 2026-06-01 → "Week of Jun 1" (formatted, TZ-safe).
-    expect(within(preview).getByText(/Jun 1/)).toBeInTheDocument();
+    // Week of 2026-06-01 → "Week of 1 Jun" (formatted, TZ-safe).
+    expect(within(preview).getByText(/1 Jun/)).toBeInTheDocument();
   });
 
   it('renders summed hours per sheet', () => {
@@ -371,8 +369,8 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     queryState.data = desktopSheets;
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
-    expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of Jun 8/i })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of 1 Jun/i })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of 8 Jun/i })).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: /Approval preview/i })).getByText('Dave Engineer')).toBeInTheDocument();
   });
 
@@ -381,8 +379,8 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     approveMutation.mutateAsync = vi.fn(() => Promise.resolve());
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
-    await userEvent.click(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i }));
-    await userEvent.click(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of Jun 8/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of 1 Jun/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of 8 Jun/i }));
     await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Approve 2/i }));
     await waitFor(() => expect(approveMutation.mutateAsync).toHaveBeenCalledTimes(2));
@@ -432,7 +430,7 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
       renderPage();
       await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
       expect(screen.getByText(/1 of 2 timesheets in this queue can be approved together/i)).toBeInTheDocument();
-      expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i })).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of 1 Jun/i })).toBeInTheDocument();
       expect(screen.queryByRole('checkbox', { name: /Erin Analyst/i })).not.toBeInTheDocument();
     });
   });
@@ -569,8 +567,19 @@ describe('S-18 UX-060: phone width renders the unified queue + preview grammar',
     queryState.data = desktopSheets;
     renderPage('timesheets', false);
     await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
-    expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of 1 Jun/i })).toBeInTheDocument();
     expect(screen.getByText(/all 3 timesheets in this queue can be approved together/i)).toBeInTheDocument();
+  });
+});
+
+describe('screen rules: approvals waiting hierarchy', () => {
+  it('puts the queue count on the waiting surface as a key figure', () => {
+    queryState.data = submittedSheets;
+    renderPage('timesheets');
+
+    const waiting = screen.getByTestId('approvals-waiting-summary');
+    expect(waiting).toHaveClass('bg-waiting-surface');
+    expect(within(waiting).getByTestId('approvals-waiting-count')).toHaveClass('text-metric');
   });
 });
 
@@ -612,9 +621,6 @@ describe('Approvals page actions', () => {
     queryState.isPending = false;
     queryState.isError = false;
     queryState.data = submittedSheets;
-    approveMutation.mutate = vi.fn(
-      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
-    );
     renderPage();
 
     const preview = screen.getByRole('region', { name: /Approval preview/i });
@@ -626,37 +632,36 @@ describe('Approvals page actions', () => {
 
     await userEvent.click(approveBtn);
     // Owner rule: nothing approves on the first click.
-    expect(approveMutation.mutate).not.toHaveBeenCalled();
+    expect(approveMutation.mutateAsync).not.toHaveBeenCalled();
     const dialog = screen.getByRole('dialog');
     expect(dialog).toBeInTheDocument();
 
+    // C2d: the decision commit is awaited (`mutateAsync`) so the dialog stays open until the
+    // write settles; the recorded decision payload is unchanged.
     await userEvent.click(within(dialog).getByRole('button', { name: /^Approve$/i }));
-    expect(approveMutation.mutate).toHaveBeenCalledWith(
-      { id: 'ts-1' },
-      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
-    );
+    expect(approveMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(approveMutation.mutateAsync).toHaveBeenCalledWith({ id: 'ts-1' });
     expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
   });
 
-  it('T3: Return opens a DESTRUCTIVE modal and the reject mutation fires only on Confirm', async () => {
+  it('T3: Return requires a reason and the reject mutation fires only on Confirm', async () => {
     queryState.isPending = false;
     queryState.isError = false;
     queryState.data = submittedSheets;
-    rejectMutation.mutate = vi.fn(
-      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
-    );
     renderPage();
 
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     await userEvent.click(within(preview).getByRole('button', { name: /return/i }));
-    expect(rejectMutation.mutate).not.toHaveBeenCalled();
-    const dialog = screen.getByRole('alertdialog');
-    expect(dialog).toBeInTheDocument();
-
-    await userEvent.click(within(dialog).getByRole('button', { name: /Return timesheet/i }));
-    expect(rejectMutation.mutate).toHaveBeenCalledWith(
-      { id: 'ts-1' },
-      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    expect(rejectMutation.mutateAsync).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: /^Return$/i });
+    expect(confirm).toBeDisabled();
+    await userEvent.type(within(dialog).getByRole('textbox', { name: /reason for returning/i }), 'Please correct the hours');
+    await userEvent.click(confirm);
+    // C2d: the decision commit is awaited (`mutateAsync`); the reason still rides in `notes`.
+    expect(rejectMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(rejectMutation.mutateAsync).toHaveBeenCalledWith(
+      { id: 'ts-1', notes: 'Please correct the hours' },
     );
   });
 });

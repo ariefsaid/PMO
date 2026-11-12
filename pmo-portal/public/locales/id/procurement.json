@@ -99,7 +99,7 @@
   },
   "gates": {
     "heading": "Aturan pembelian",
-    "intro": "Semua mati: pembelian dapat dimulai dari langkah mana pun. Aktifkan aturan hanya bila akuntansi Anda membutuhkannya.",
+    "intro": "Semua mati: pembelian dapat dimulai di langkah mana pun.",
     "loadError": "Aturan pembelian tidak dapat dimuat",
     "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
     "request_before_order": "Wajib permintaan sebelum pesanan",
@@ -107,11 +107,7 @@
     "receipt_before_invoice": "Wajib penerimaan barang sebelum faktur",
     "approval_before_payment": "Wajib persetujuan sebelum pembayaran",
     "saving": "Menyimpan…",
-    "saved": "Tersimpan",
-    "request_before_orderHelp": "Jika aktif, pesanan memerlukan permintaan pembelian lebih dulu.",
-    "approval_before_orderHelp": "Jika aktif, pesanan memerlukan permintaan yang disetujui lebih dulu.",
-    "receipt_before_invoiceHelp": "Jika aktif, faktur pemasok memerlukan penerimaan barang lebih dulu.",
-    "approval_before_paymentHelp": "Jika aktif, pembayaran memerlukan jumlah yang disetujui lebih dulu."
+    "saved": "Tersimpan"
   },
   "documents": {
     "attachTo": "Lampirkan ke",
@@ -208,6 +204,7 @@
         "category": "Kategori",
         "stage": "Tahap",
         "nextStep": "Langkah berikutnya",
+        "status": "Status",
         "accessibleName": "Pengadaan proyek"
       },
       "noSupplier": "Tidak ada pemasok",
@@ -251,12 +248,11 @@
         "approveManyDescription": "Persetujuan mengizinkan setiap pesanan berjalan.",
         "cancelManyTitle": "Batalkan pengadaan ini?",
         "cancelTitle": "Batalkan pengadaan ini?",
-        "returnManyTitle": "Kembalikan pengadaan ini?",
-        "returnTitle": "Kembalikan pengadaan ini?",
         "cancelDescription": "Pengadaan ini akan ditandai sebagai dibatalkan.",
-        "returnDescription": "Pengadaan ini akan dikembalikan kepada pengajunya.",
-        "returnComment": "Komentar pengembalian",
-        "returnCommentHelp": "Jelaskan apa yang perlu diubah pengaju."
+        "returnSubject": "pengadaan",
+        "returnSubjectMany_one": "{{count}} pengadaan",
+        "returnSubjectMany_other": "{{count}} pengadaan",
+        "returnSubjectMany": "{{count}} pengadaan"
       },
       "stage": {
         "cancelled": "Dibatalkan",
@@ -312,7 +308,13 @@
     "empty": {
       "title": "Belum ada pengadaan.",
       "scopeNote": "Pembelian yang hanya tercatat di sistem akuntansi tidak tercantum di sini."
-    }
+    },
+    "inStage": "Di tahap",
+    "inStageDays_one": "{{count}} hari",
+    "inStageDays_other": "{{count}} hari",
+    "filters": "Filter",
+    "inStageDaysLong_one": "{{count}} hari di tahap ini",
+    "inStageDaysLong_other": "{{count}} hari di tahap ini"
   },
   "common": {
     "loading": "Memuat…",
@@ -328,35 +330,36 @@
   },
   "approvalRow": {
     "approve": "Setujui",
-    "rejectShort": "Tolak",
     "unknownRequester": "Pemohon tidak diketahui",
     "loadErrorSub": "Dampak anggaran dan rincian barang gagal dimuat.",
     "lineItems": "Rincian barang",
-    "requestedBy": "Diminta oleh",
-    "project": "Proyek",
-    "requested": "Diminta",
-    "totalValue": "Nilai total",
-    "noProject": "Tidak ada proyek terkait",
     "approveTitle": "Setujui {{title}}?",
-    "rejectTitle": "Tolak {{title}}?",
     "approvedDetail": "{{title}} telah disetujui",
-    "rejectedDetail": "{{title}} telah ditolak",
     "open": "Buka pengadaan",
-    "details": "Rincian pengadaan",
     "loadError": "Rincian pengadaan gagal dimuat",
     "approved": "Pengadaan disetujui",
-    "rejected": "Pengadaan ditolak",
-    "reject": "Tolak pengadaan",
     "approveDescription": "Setujui {{title}} ({{amount}})? Pengadaan ini akan dilanjutkan ke tahap pemesanan.",
-    "rejectDescription": "Tolak {{title}}? Pemohon akan diberi tahu dan dapat memperbaiki lalu mengajukan ulang.",
     "rejectionComment": "Komentar penolakan",
-    "rejectionCommentHelp": "Tambahkan komentar untuk pemohon sebelum menolak pengadaan ini."
+    "rejectionCommentHelp": "Tambahkan komentar untuk pemohon sebelum menolak pengadaan ini.",
+    "rejectSubject": "permintaan pembelian",
+    "returnShort": "Kembalikan",
+    "returned": "Pengadaan dikembalikan",
+    "returnedDetail": "{{title}} telah dikembalikan"
   },
   "decisionSupport": {
-    "thisProcurement": "Pengadaan ini",
+    "thisProcurement": "Total pengadaan",
     "notCompared": "Mata uang berbeda: tidak dibandingkan dengan anggaran",
     "afterThisProcurement": "Setelah pengadaan ini",
-    "overBudgetLead": "Pengadaan ini melebihi anggaran yang tersedia sebesar"
+    "overBudgetLead": "Pengadaan ini melebihi anggaran yang tersedia sebesar",
+    "barLabel": "Anggaran terpakai setelah pengadaan ini: {{pct}}% dari {{budget}}",
+    "barCaption": "Anggaran terpakai dengan pembelian ini: {{pct}}%",
+    "uncommitted": "Belum dikomitmenkan",
+    "actualsNotCounted": "Belanja aktual tidak dihitung",
+    "headroom": "Sisa ruang {{pct}}%",
+    "amountUnavailable": "Perbandingan anggaran tidak tersedia untuk jumlah ini.",
+    "currencyUnavailable": "Perbandingan anggaran tidak tersedia untuk mata uang ini.",
+    "heading": "Dampak anggaran",
+    "openProject": "Buka proyek"
   },
   "headerEdit": {
     "heading": "Edit rincian pengadaan",
@@ -368,6 +371,7 @@
     "loadErrorTitle": "Gagal memuat detail pengadaan"
   },
   "procurementDetail": {
+    "decisionBar": "Keputusan pengadaan",
     "readyHint": {
       "draftOther": "Siap mengajukan pengadaan ini untuk disetujui.",
       "requested": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengajuannya sendiri. Pemisahan tugas memerlukan peninjau lain.",
@@ -384,7 +388,7 @@
     },
     "editor": {
       "title": "Atur baris BoQ",
-      "subtitle": "Baris kontrak yang dicakup PO ini, dengan harga BoQ. Menyimpan mengganti draf; menerbitkan membekukannya.",
+      "subtitle": "Menyimpan mengganti draf; menerbitkan membekukannya.",
       "save": "Simpan baris",
       "legend": "Kuantitas per baris",
       "noBoq": "Proyek ini belum punya item BoQ.",
@@ -393,7 +397,7 @@
     },
     "attribute": {
       "title": "Atribusikan baris ke tagihan {{number}}",
-      "subtitle": "Tagihan {{amount}} ini dicatat tanpa kuantitas baris. Nyatakan cakupannya, dengan harga PO.",
+      "subtitle": "Tagihan {{amount}} ini dicatat tanpa kuantitas baris.",
       "save": "Atribusikan baris",
       "legend": "Kuantitas ditagih per baris",
       "helper": "PO {{po}}, terverifikasi {{verified}}, harga {{rate}}"
@@ -446,7 +450,7 @@
         "noDocument": "Belum ada",
         "titleEdit": "Ubah penerimaan",
         "titleNew": "Catat penerimaan",
-        "subtitle": "Pekerjaan yang diverifikasi di lapangan, sebagai kuantitas kumulatif sampai saat ini. Orang lain mengonfirmasinya dengan dokumen bertanda tangan; ini tidak membuat tagihan.",
+        "subtitle": "Orang lain mengonfirmasinya dengan dokumen bertanda tangan; ini tidak membuat tagihan.",
         "save": "Simpan penerimaan",
         "prepare": "Siapkan penerimaan",
         "details": "Penerimaan",
@@ -521,7 +525,13 @@
       "decidedBy": "Diputuskan oleh {{names}}",
       "projectApprovers": "pemberi persetujuan proyek",
       "done": "Selesai",
-      "status": { "Requested": "Diajukan", "Approved": "Disetujui", "Revised": "Direvisi", "Rejected": "Ditolak", "Disputed": "Disengketakan" },
+      "status": {
+        "Requested": "Diajukan",
+        "Approved": "Disetujui",
+        "Revised": "Direvisi",
+        "Rejected": "Ditolak",
+        "Disputed": "Disengketakan"
+      },
       "postWork": "Setelah kerja",
       "preWork": "Sebelum kerja",
       "approve": "Setujui",
@@ -701,5 +711,10 @@
       "retry": "Coba lagi",
       "clearAll": "Kosongkan jumlah dan terima semua yang masih terbuka"
     }
+  },
+  "approvalQueue": {
+    "headingAll": "Pembelian dan timesheet",
+    "waitingDays_one": "Menunggu {{count}} hari",
+    "waitingDays_other": "Menunggu {{count}} hari"
   }
 }

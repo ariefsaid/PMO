@@ -1,8 +1,8 @@
 {
+  "submitWeek": "Submit week",
   "approvalQueue": {
     "unknownProject": "Unknown Project",
     "approved": "Timesheet approved",
-    "returned": "Timesheet returned",
     "approvedDetail": "{{name}}'s week approved",
     "returnedDetail": "Sent back to {{name}} for changes",
     "approve": "Approve",
@@ -27,6 +27,12 @@
     "title": "Discard unsaved changes?",
     "description": "Your unsaved hours for this week will be discarded.",
     "confirm": "Discard changes"
+  },
+  "discardHours": {
+    "title": "Discard unsaved hours?",
+    "description": "Leave this page and discard the hours you have not saved?",
+    "leave": "Leave",
+    "stay": "Stay"
   },
   "reconcile": {
     "message": "Refresh this week before continuing.",

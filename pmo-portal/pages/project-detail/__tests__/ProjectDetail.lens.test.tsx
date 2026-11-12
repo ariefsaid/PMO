@@ -46,6 +46,7 @@ const pipelineState = {
   isError: false,
 };
 const tasksState = { data: [] as Array<Record<string, unknown>> };
+const milestonesState = { data: [] as Array<Record<string, unknown>>, isPending: false, isError: false, refetch: vi.fn() };
 
 // #566: the Overview tab renders <ProjectDrawdown>, whose data states are covered separately.
 // Keep it in its loading state here so it contributes no text of its own to lens assertions.
@@ -60,6 +61,7 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
 vi.mock('../ProjectProfitLossSection', () => ({ default: ({ projectId }: { projectId: string }) => <div data-testid="project-profit-loss">Project totals {projectId}</div> }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
+  useProjectWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
@@ -143,7 +145,7 @@ vi.mock('@/src/hooks/useDocuments', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useMilestones', () => ({
-  useMilestones: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useMilestones: () => milestonesState,
   useMilestoneMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -212,15 +214,30 @@ beforeEach(() => {
   projectsState.isPending = false;
   pipelineState.data = { stages: [], projects: [] };
   tasksState.data = [];
+  milestonesState.data = [];
+  milestonesState.isPending = false;
+  milestonesState.isError = false;
 });
 
 describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
+  it('keeps the non-billable meaning with the project progress figure', async () => {
+    projectsState.data = [onHandRow];
+    milestonesState.data = [{ id: 'phase-1', weight: 1, effective_pct: 50 }];
+    const user = userEvent.setup();
+    const view = await renderAt('/projects/p1');
+
+    await user.hover(screen.getByRole('progressbar', { name: 'Project progress 50%' }));
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Phase progress is not billable quantity.');
+    view.unmount();
+  });
+
   it.each(['Admin', 'Executive', 'Finance', 'Project Manager'])('%s sees the financial Overview blocks and contract value', async (role) => {
     roleBox.value = role;
     projectsState.data = [onHandRow];
     const view = await renderAt('/projects/p1');
     expect(screen.getByRole('heading', { name: 'Money position' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Budget vs actual' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Budget' })).toBeInTheDocument();
     // L6: the contract value is shown once on the screen — in Money position, not again in the header facts.
     expect(within(screen.getByRole('region', { name: /Money position/ })).getByText(formatCurrency(5_000_000, 'USD'))).toBeInTheDocument();
     expect(within(screen.getByLabelText('Project facts')).queryByText(/5,000,000/)).not.toBeInTheDocument();
@@ -241,21 +258,19 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     }
     expect(screen.getByRole('heading', { name: 'Phase timeline' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Money position' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Budget vs actual' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Budget' })).not.toBeInTheDocument();
     expect(screen.queryByText(/5,000,000/)).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Budget' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Contract & billing' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText('More actions'));
-    const menu = screen.getByLabelText('More actions').closest('details');
-    expect(within(menu!).getByRole('button', { name: 'Project details' })).toBeInTheDocument();
-    expect(within(menu!).getByTestId('project-erp-link')).toBeInTheDocument();
-    expect(within(menu!).queryByRole('button', { name: 'Change status' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Contract' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
+    expect(await screen.findByTestId('project-detail-rail')).toBeInTheDocument();
+    expect(screen.getByTestId('project-erp-link')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Change status' })).not.toBeInTheDocument();
     // AC-IXD-PROJ-W5-C3-09: an Engineer is never offered the contract-value editor or its read-only lock.
-    expect(within(menu!).queryByRole('button', { name: /contract value/i })).not.toBeInTheDocument();
-    expect(within(menu!).queryByTestId('contract-value-read-explanation')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /contract value/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /contract value/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('contract-value-read-explanation')).not.toBeInTheDocument();
     expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
-    await userEvent.click(within(menu!).getByRole('button', { name: 'Project details' }));
-    expect(within(menu!).getByTestId('project-detail-rail')).toBeInTheDocument();
     engineer.unmount();
   });
 
@@ -292,7 +307,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
   it('AC-009 support: other tabs and an unavailable project do not mount project totals', async () => {
     projectsState.data = [onHandRow];
     const tasks = await renderAt('/projects/p1/tasks');
-    expect(screen.getByRole('tab', { name: 'Tasks', selected: true })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Tasks 0', selected: true })).toBeInTheDocument();
     expect(screen.queryByTestId('project-profit-loss')).not.toBeInTheDocument();
     tasks.unmount();
     projectsState.data = [];
@@ -311,8 +326,8 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Budget' })).toBeInTheDocument();
     expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText('More actions'));
-    await userEvent.click(screen.getByRole('button', { name: 'Change contract value' }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Change contract value' }));
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
     expect(screen.getByLabelText('Contract value')).toBeInTheDocument();
     // the pipeline lens is NOT mounted

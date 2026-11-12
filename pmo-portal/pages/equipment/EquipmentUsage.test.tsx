@@ -8,7 +8,7 @@ import 'jest-axe/extend-expect';
 import type { Role } from '@/src/auth/AuthContext';
 import { ImpersonationProvider, useEffectiveRole } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
-import { formatWeekdayMonthDay } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 
 type Entry = {
   id: string; asset_id: string; project_id: string; work_date: string; quantity: number; unit: 'hours' | 'days'; kind: 'work' | 'standby';
@@ -41,7 +41,7 @@ vi.mock('@/src/hooks/useEquipment', async () => {
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectPickerOptions: () => ({ data: [{ id: 'pj1', name: 'EQU P1', short_name: null, project_manager_id: 'u-pm' }, { id: 'pj2', name: 'EQU P2', short_name: null, project_manager_id: 'u-other' }] }),
 }));
-vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [{ id: 'u-eng', full_name: 'Eli Engineer' }, { id: 'u-pm', full_name: 'Pia Manager' }] }) }));
+vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [{ id: 'u-eng', full_name: 'Engineer' }, { id: 'u-pm', full_name: 'Reviewer' }] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org1' } }) }));
 
 import EquipmentUsagePage from './EquipmentUsage';
@@ -50,7 +50,7 @@ const entry = (over: Partial<Entry>): Entry => ({
   id: 'e1', asset_id: 'a1', project_id: 'pj1', work_date: '2026-09-08', quantity: 4, unit: 'hours', kind: 'work', status: 'Draft',
   author_id: 'u-eng', fuel_litres: null, trips: null, note: null, archived_at: null, decision_notes: null, ...over,
 });
-const day = (iso: string) => { const [y, m, d] = iso.split('-').map(Number); return formatWeekdayMonthDay(new Date(y, m - 1, d)); };
+const day = (iso: string) => formatDay(iso);
 const cell = (iso: string, project = 'EQU P1') => screen.getByRole('textbox', { name: `Loader 1 · ${project} · ${day(iso)}, hours` });
 
 const renderPage = (role: Role = 'Engineer') =>
@@ -82,6 +82,30 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     h.archive = vi.fn().mockResolvedValue(undefined);
   });
   afterEach(() => { vi.useRealTimers(); });
+
+  it('AC-RSN-005 shows the returned equipment entry reason and person', () => {
+    h.entries = [{ ...entry({ status: 'Rejected', decision_notes: 'Correct the asset' }), rejected_by: 'u-pm', rejected_at: '2026-09-09T10:00:00Z', rejecter: { full_name: 'Reviewer' } }];
+    renderPage();
+    expect(screen.getByText(/Correct the asset/)).toBeInTheDocument();
+    expect(screen.getByText(/Reviewer/)).toBeInTheDocument();
+  });
+
+  it('AC-RSN-005 keeps a legacy return reason visible during correction alongside other entries', () => {
+    h.entries = [
+      { ...entry({ id: 'legacy', status: 'Draft', decision_notes: 'Correct legacy usage' }), rejected_by: null, rejected_at: null, rejecter: null },
+      { ...entry({ id: 'new', status: 'Rejected', work_date: '2026-09-09', decision_notes: 'Correct this usage' }), rejected_by: 'u-pm', rejected_at: '2026-09-09T10:00:00Z', rejecter: { full_name: 'Reviewer' } },
+    ];
+    const { unmount } = renderPage();
+    expect(screen.getByText('Correct legacy usage')).toBeInTheDocument();
+    expect(screen.queryByText('Person unavailable')).not.toBeInTheDocument();
+    expect(screen.getByText('Correct this usage')).toBeInTheDocument();
+    expect(screen.getByText(/Reviewer/)).toHaveTextContent('2026');
+    unmount();
+    h.entries = [{ ...entry({ status: 'Rejected', decision_notes: null }), rejected_by: null, rejected_at: null, rejecter: null }];
+    renderPage();
+    expect(screen.getByText('Reason unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('Person unavailable')).not.toBeInTheDocument();
+  });
 
   it('AC-EQU-017 a user logs 6 h on a project for an asset and day, submits, and the row shows Submitted', async () => {
     const user = userEvent.setup();
@@ -167,19 +191,36 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(screen.queryByRole('button', { name: /^Approve/ })).toBeNull();
   });
 
-  it('AC-EQU-017 reject needs a reason and sends it', async () => {
+  it('AC-EQU-017 return needs a reason and sends it (stored as Rejected)', async () => {
     h.userId = 'u-pm';
     h.entries = [entry({ id: 'e5', status: 'Submitted', author_id: 'u-eng' })];
     const user = userEvent.setup();
     renderPage('Project Manager');
     await user.click(screen.getByRole('tab', { name: 'Approvals' }));
-    await user.click(screen.getByRole('button', { name: /^Reject/ }));
-    const dialog = await screen.findByRole('alertdialog');
-    const confirm = within(dialog).getByRole('button', { name: 'Reject entry' });
+    await user.click(screen.getByRole('button', { name: /^Return/ }));
+    const dialog = await screen.findByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: 'Return' });
     expect(confirm).toBeDisabled();
     await user.type(within(dialog).getByRole('textbox'), 'Wrong day');
     await user.click(confirm);
     await waitFor(() => expect(h.transition).toHaveBeenCalledWith({ id: 'e5', to: 'Rejected', notes: 'Wrong day' }));
+  });
+
+  it('AC-EQU-017 a failed approve keeps the confirmation open with its classified error', async () => {
+    h.userId = 'u-pm';
+    h.entries = [entry({ id: 'e5', status: 'Submitted', author_id: 'u-eng' })];
+    h.transition.mockRejectedValueOnce(Object.assign(new Error('permission denied for table equipment_usage'), { code: '42501' }));
+    const user = userEvent.setup();
+    renderPage('Project Manager');
+    await user.click(screen.getByRole('tab', { name: 'Approvals' }));
+    await user.click(screen.getByRole('button', { name: /Approve Loader 1/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Approve usage entry?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
+
+    const openDialog = await screen.findByRole('dialog', { name: 'Approve usage entry?' });
+    expect(within(openDialog).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
+    expect(within(openDialog).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(h.transition).toHaveBeenCalledWith({ id: 'e5', to: 'Approved' });
   });
 
   it('AC-EQU-017 an Admin viewing as an Engineer gets a read-only grid: every cell disabled, no Add row, no Submit week', async () => {

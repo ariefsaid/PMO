@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor, act } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -80,6 +81,12 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import Meetings from './Meetings';
 import MeetingCreate from './MeetingCreate';
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
 
 const seed = [
   {
@@ -319,12 +326,12 @@ describe('AC-PLC-005: meeting occurrence follows the profile timezone', () => {
     listState.data = [{ ...seed[0], occurred_at: '2026-06-14T23:30:00Z' }];
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
     const { unmount } = renderPage();
-    expect(screen.getByText(/Jun 14, 2026, 11:30\sPM/)).toBeInTheDocument();
+    expect(screen.getByText(/14 Jun, 11:30\sPM/)).toBeInTheDocument();
     unmount();
 
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
     renderPage();
-    expect(screen.getByText(/Jun 15, 2026, 06:30\sAM/)).toBeInTheDocument();
+    expect(screen.getByText(/15 Jun, 06:30\sAM/)).toBeInTheDocument();
   });
 });
 
@@ -452,6 +459,25 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
     expect(screen.getByLabelText(/Search meetings/i)).toBeInTheDocument();
   });
 
+  it('FilterBar: project filter and search round-trip through the URL', async () => {
+    renderPage('Admin', '/meetings');
+    const select = screen.getByLabelText(/Filter by project/i);
+    await userEvent.selectOptions(select, '33333333-3333-4333-8333-333333333333');
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').dataset.search).toContain(
+        'project=33333333-3333-4333-8333-333333333333',
+      ),
+    );
+    await userEvent.type(screen.getByLabelText(/Search meetings/i), 'kickoff');
+    await waitFor(() => {
+      const search = screen.getByTestId('location-probe').dataset.search;
+      expect(search).toContain('project=33333333-3333-4333-8333-333333333333');
+      expect(search).toContain('q=kickoff');
+    });
+    await userEvent.click(screen.getByRole('button', { name: /Clear all/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
+  });
+
   it('AC-LRC-001: an unavailable ?project= stays the active, clearable choice (control agrees with the URL)', async () => {
     const GONE = '99999999-9999-4999-8999-999999999999';
     renderPage('Admin', `/meetings?project=${GONE}`);
@@ -463,7 +489,7 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
 
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
-    expect(screen.getByLabelText(/Filter by project/i)).toHaveValue('All');
+    expect(screen.getByLabelText(/Filter by project/i)).toHaveValue('');
     expect(screen.queryByRole('option', { name: 'Unavailable project' })).not.toBeInTheDocument();
   });
 

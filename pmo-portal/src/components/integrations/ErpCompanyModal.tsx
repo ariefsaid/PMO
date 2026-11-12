@@ -49,7 +49,6 @@ export const ErpCompanyModal: React.FC<ErpCompanyModalProps> = ({
     <EntityFormModal
       open
       title={t('integrations.organization.readiness.erpActivation.title', 'Select ERPNext Company')}
-      subtitle={t('integrations.organization.readiness.erpActivation.subtitle', 'Choose the Company from your ERPNext instance to activate the integration')}
       submitLabel={t('integrations.organization.readiness.erpActivation.activate', 'Activate')}
       onSubmit={handleSubmit}
       onClose={onClose}

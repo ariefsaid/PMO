@@ -1,8 +1,8 @@
 /**
  * Ported from the pre-restructure PMDashboard.test.tsx "N15: combined approvals tile = approvable PRs (1)
  * + timesheets (2) = 3, links to /approvals" (baseline fa511c382). The recomposed PM hub splits the
- * same queue into two doorways — procurement approvals and team timesheets — so the oracle is the same
- * counts (1 approvable request, 2 timesheets, 3 in total) and the same destinations. The REAL
+ * same queue into an all-approvals doorway and a team-timesheets doorway, with 3 total approvals
+ * (1 request and 2 timesheets) and 2 timesheets. The REAL
  * useNeedsYou runs here; only the network seams are stubbed, so the count is the hook's own arithmetic.
  */
 import React from 'react';
@@ -107,14 +107,14 @@ describe('PMDashboard approvals queue (ported N15)', () => {
     renderDashboard();
 
     // The real hook resolves its queries asynchronously; allow for a loaded shared machine.
-    const requests = await screen.findByRole('link', { name: /^1 approval waiting for you$/i }, { timeout: 5000 });
+    const requests = await screen.findByRole('link', { name: /^3\s*approvals waiting for you$/i }, { timeout: 5000 });
     expect(requests).toHaveAttribute('href', '/approvals');
-    const timesheets = screen.getByRole('link', { name: /^2 team timesheets to approve$/i });
+    const timesheets = screen.getByRole('link', { name: /^2\s*team timesheets to approve/i });
     expect(timesheets).toHaveAttribute('href', '/approvals?scope=timesheets');
 
     // The PM's own request is never counted as waiting for them; nothing is double-counted.
-    expect(screen.queryByRole('link', { name: /^2 approvals waiting for you$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^3 approvals waiting for you$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^2\s*approvals waiting for you$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^4\s*approvals waiting for you$/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/Procurement approvals — coming soon/i)).not.toBeInTheDocument();
   });
 
@@ -123,13 +123,13 @@ describe('PMDashboard approvals queue (ported N15)', () => {
     h.timesheetsAwaiting = [];
     renderDashboard();
 
-    expect(await screen.findByRole('link', { name: 'Project One' }, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /Project One/ }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^\d+ approvals? waiting for you$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^\d+ team timesheets? to approve$/i })).not.toBeInTheDocument();
   });
 
   it('CLS: holds the approvals line open while the queue loads, so the cards below do not jump', () => {
     renderDashboard();
-    expect(screen.getByTestId('approvals-reserve').className).toMatch(/min-h-11/);
+    expect(screen.getAllByTestId('liststate-loading')[0].className).toMatch(/\bh-11\b/);
   });
 });

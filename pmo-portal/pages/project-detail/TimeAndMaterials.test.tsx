@@ -53,6 +53,7 @@ vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docu
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.erpConnected, loadOptions: h.loadItems }) }));
 
 import TimeAndMaterials from './TimeAndMaterials';
+import { formatDay } from '@/src/lib/format';
 
 const rate = {
   id: 'rate-row-1', project_id: 'p1', line_key: 'labour-1', kind: 'labour', label: 'Site engineer', unit: 'hour',
@@ -296,7 +297,7 @@ describe('TimeAndMaterials', () => {
     const { user } = renderPanel();
     await user.click(screen.getByRole('button', { name: /Open claim/ }));
     const sources = screen.getByRole('region', { name: /Approved source entries/ });
-    const displayedHours = within(sources).getAllByText(/Nov \d+, 2026 · \d+ hours?/)
+    const displayedHours = within(sources).getAllByText(/\d+ Nov( 2026)? · \d+ hours?/)
       .reduce((sum, element) => sum + Number(element.textContent?.match(/· (\d+)/)?.[1] ?? 0), 0);
 
     expect(displayedHours).toBe(33);
@@ -332,7 +333,8 @@ describe('TimeAndMaterials', () => {
     await user.click(screen.getByRole('button', { name: /Open claim/ }));
 
     const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
-    expect(screen.queryByRole('button', { name: 'Dismiss notification' })).not.toBeInTheDocument();
+    // Opening the claim clears the toasts; the elements leave on the library's removal clock.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Dismiss notification' })).not.toBeInTheDocument());
     expect(within(drawer).getAllByRole('button', { name: 'Close' })).toHaveLength(1);
     await user.click(within(drawer).getByRole('button', { name: 'Close' }));
     expect(screen.queryByRole('dialog', { name: /Time-and-materials claim/ })).not.toBeInTheDocument();
@@ -476,8 +478,8 @@ describe('TimeAndMaterials', () => {
     expect(drawer).toHaveTextContent('8 hours');
     expect(within(drawer).getByRole('heading', { name: 'Engineer One' })).toBeInTheDocument();
     expect(within(drawer).getByRole('heading', { name: 'Engineer Two' })).toBeInTheDocument();
-    expect(within(drawer).getByText(/Nov 3, 2026/)).toBeInTheDocument();
-    expect(within(drawer).getAllByText(/Nov 4, 2026/)).toHaveLength(2);
+    expect(within(drawer).getByText(new RegExp(formatDay('2026-11-03')))).toBeInTheDocument();
+    expect(within(drawer).getAllByText(new RegExp(formatDay('2026-11-04')))).toHaveLength(2);
     expect(within(drawer).getByText('Subtotal · 6 hours')).toBeInTheDocument();
     expect(within(drawer).getByText('Subtotal · 2 hours')).toBeInTheDocument();
     expect(within(drawer).getAllByText('Site engineer')).toHaveLength(4);
@@ -492,7 +494,7 @@ describe('TimeAndMaterials', () => {
     await user.click(remove);
     const confirmation = screen.getByRole('alertdialog', { name: /Remove approved hours/ });
     expect(h.mutations.deselect).not.toHaveBeenCalled();
-    expect(confirmation).toHaveTextContent('Nov 3, 2026');
+    expect(confirmation).toHaveTextContent(formatDay('2026-11-03'));
     await user.click(within(confirmation).getByRole('button', { name: /^Remove$/ }));
     await waitFor(() => expect(h.mutations.deselect).toHaveBeenCalledWith({ claimId: 'claim-1', claimSourceId: 'source-row-1' }));
   });
@@ -562,7 +564,7 @@ describe('TimeAndMaterials', () => {
     expect(within(drawer).getAllByText('Released when the claim was withdrawn')).toHaveLength(1);
     expect(within(drawer).queryByText('Not selected')).not.toBeInTheDocument();
     expect(within(drawer).queryByText('Subtotal · 0 hours')).not.toBeInTheDocument();
-    expect(within(drawer).getByText('Nov 3, 2026 · 5 hours')).toBeInTheDocument();
+    expect(within(drawer).getByText(`${formatDay('2026-11-03')} · 5 hours`)).toBeInTheDocument();
   });
 
   it('hides source removal after sign-off and while viewing through impersonation', async () => {

@@ -1,3 +1,4 @@
+import { FilterBar, type FilterBarFilter } from '@/src/components/ui/FilterBar';
 import { ProjectFilterBuilder } from './ProjectFilterBuilder';
 import type { TFunction } from 'i18next';
 import { SearchMini, ViewToggle, MobileToolbarDisclosure, type Column } from '@/src/components/ui';
@@ -52,8 +53,12 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
 
   const mobileToolbar = (
     <div data-testid="projects-mobile-toolbar" className="flex w-full min-w-0 flex-col gap-2.5">
+      <p data-testid="projects-mobile-count" className="hidden text-control text-muted-foreground md:block">
+        {t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count: filtered.length, total: model.all.length })}
+      </p>
+
       {/* status — bounded horizontal scroller (must stay reachable at 390px) */}
-      <div data-testid="status-filter-scroll" className="order-2 min-w-0 max-w-full overflow-x-auto scroll-fade-x">
+      <div data-testid="status-filter-scroll" className="order-2 min-w-0 max-w-full overflow-x-auto scroll-fade-x [&_button]:whitespace-nowrap">
         <ViewToggle<StatusFilter>
           options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
           value={filter}
@@ -112,35 +117,59 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
     </div>
   );
 
+  const statusFilterConfig: FilterBarFilter[] = [
+    {
+      key: 'status',
+      label: t('projects.filters.ariaLabel', 'Status filter'),
+      kind: 'segment',
+      semantics: 'tabs',
+      options: [
+        { value: 'My Projects', label: filterLabels['My Projects'] },
+        { value: 'Ongoing', label: filterLabels['Ongoing'] },
+        { value: 'Completed', label: filterLabels['Completed'] },
+        { value: 'at-risk', label: filterLabels['at-risk'] },
+      ],
+    },
+  ];
+
+  const handleFilterChange = (key: string, value: string) => {
+    if (key === 'status') {
+      const nextFilter = (value === '' ? 'All' : value) as StatusFilter;
+      setWorkingSet((ws) => ({ ...ws, filter: nextFilter }));
+      trackFilterApplied('status', FILTERS.length, 'projects');
+    } else if (key === 'q') {
+      setSearch(value);
+    }
+  };
+
   return {
     mobileToolbar,
     filters: (
-        /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
-           reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
-           affordance (the project tab strip pattern). */
-        <div data-testid="status-filter-scroll" className="min-w-0 max-w-full overflow-x-auto scroll-fade-x">
-          <ViewToggle<StatusFilter>
-            options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
-            value={filter}
-            onChange={(v) => {
-              setWorkingSet((ws) => ({ ...ws, filter: v }));
-              trackFilterApplied('status', FILTERS.length, 'projects');
-            }}
-            ariaLabel={t('projects.filters.ariaLabel', 'Status filter')}
-          />
-        </div>
-    ),
-    search: (
-        <SearchMini
-          placeholder={t('projects.search.placeholder', 'Search projects…')}
-          aria-label={t('projects.search.ariaLabel', 'Search projects')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          searchSurface="projects-list"
-          module="projects"
-          resultCount={filtered.length}
-          containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0"
-        />
+      <FilterBar
+        searchKey="q"
+        searchLabel={t('projects.search.ariaLabel', 'Search projects')}
+        searchPlaceholder={t('projects.search.placeholder', 'Search projects…')}
+        filters={statusFilterConfig}
+        values={{
+          q: search,
+          status: filter === 'All' ? '' : filter,
+        }}
+        onChange={handleFilterChange}
+        onClear={model.clearFilters}
+        shown={filtered.length}
+        total={model.all.length}
+        // AC-PRJUX-002: the builder below owns the ONE list-wide Clear all (chips, status, search).
+        // This bar cannot see the builder's chips, so its own copy would render disabled beside it.
+        showClear={false}
+        // search_used (2026-07-13 wiring plan): the desktop search lives in this bar, so the
+        // surface must be named here or the event stops firing on a wide screen.
+        searchSurface="projects-list"
+        module="projects"
+        labels={{
+          all: filterLabels['All'],
+          clear: t('projects.mobile.clearAll', 'Clear all'),
+        }}
+      />
     ),
     // One filter builder: customer, end customer, PM, status, dates, contract value, classification.
     // An Engineer is not offered the manager-browse fields (ProjectFilterBuilder, N19).

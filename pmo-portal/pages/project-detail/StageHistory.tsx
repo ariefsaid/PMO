@@ -5,7 +5,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useProjectStageEntries, useStageEntryMutations } from '@/src/hooks/useProjectStageEntries';
 import { PIPELINE_STATUSES, type ProjectStatus } from '@/src/lib/db/projectTransitions';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { STAGE_KEY_DATE_LABEL, formatIsoDayMonth } from '@/components/salesPipeline';
 import StageDateDialog from './StageDateDialog';
 
@@ -48,8 +48,8 @@ export default function StageHistory({ projectId, hideHeading = false }: StageHi
                 {e.redated_at && <StatusPill variant="neutral">{t('projectDetail.stageHistory.redated', 'Date changed')}</StatusPill>}
                 {e.source === 'added' && <StatusPill variant="neutral">{t('projectDetail.stageHistory.added', 'Added later')}</StatusPill>}
               </p>
-              <p className="text-xs text-muted-foreground">
-                {e.recorder?.full_name ?? t('projectDetail.stageHistory.system', 'System')} · {formatInstantDate(e.recorded_at)}
+              <p className="text-sm text-muted-foreground">
+                {e.recorder?.full_name ?? t('projectDetail.stageHistory.system', 'System')} · {formatDay(e.recorded_at)}
               </p>
             </div>
             {canEdit && (

@@ -58,7 +58,7 @@ test('AC-PLC-007: a phone user saves language, number format and timezone and se
   await languageSelect(page).selectOption('id');
   await numberSelect(page).selectOption('en-US');
   await timezoneCombobox(page).click();
-  await page.getByRole('searchbox', { name: /search timezones/i }).fill('New_York');
+  await page.getByRole('combobox', { name: /search timezones/i }).fill('New_York');
   await page.getByRole('listbox').getByRole('option', { name: TIMEZONE, exact: true }).click();
   await expect(timezoneCombobox(page)).toContainText(TIMEZONE);
 

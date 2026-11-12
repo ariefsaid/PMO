@@ -33,7 +33,6 @@ describe('AC-S29-001 receipt or first expense starts a new claim', () => {
   it('puts an optional receipt and the first line before secondary claim details', () => {
     renderForm();
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByText('Start with a receipt or first expense line. You can add more after saving.')).toBeInTheDocument();
     const sections = within(dialog).getAllByRole('group');
     expect(sections[0]).toHaveAccessibleName('First expense');
     expect(within(sections[0]).getByLabelText('Date')).toBeInTheDocument();
@@ -42,7 +41,7 @@ describe('AC-S29-001 receipt or first expense starts a new claim', () => {
     expect(within(sections[0]).getByLabelText('Amount')).toBeInTheDocument();
     expect(within(sections[0]).getByLabelText('Choose a receipt file')).toHaveAttribute('type', 'file');
     expect(sections[1]).toHaveAccessibleName('Details');
-    expect(within(dialog).getByRole('status')).toHaveTextContent("You can still save this in PMO");
+    expect(within(dialog).getByRole('status')).toHaveTextContent("This saves in PMO only");
   });
 
   it('uses a filename or first-line description as an editable title and waits for Save before capture', async () => {

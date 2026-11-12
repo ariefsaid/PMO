@@ -143,15 +143,15 @@ export function ProjectFilterBuilder({ model, t, canViewMoney }: {
       {/* AC-PRJUX-002: one Clear all for the whole list (chips, status, search), back to the role default. */}
       {hasNonDefaultFilter && (
         <button type="button" onClick={clearFilters}
-          className="mt-1 text-[12.5px] font-semibold text-primary-text underline-offset-2 hover:underline">
+          className="mt-1 text-sm font-semibold text-primary-text underline-offset-2 hover:underline">
           {t('projects.mobile.clearAll', 'Clear all')}
         </button>
       )}
       {failed.length > 0 && (
         <div className="mt-1 flex items-center gap-2">
-          <p role="alert" className="text-[12px] text-destructive">{t('projects.mobile.error', "Couldn't load options")}</p>
+          <p role="alert" className="text-sm text-destructive">{t('projects.mobile.error', "Couldn't load options")}</p>
           <button type="button" onClick={() => failed.forEach((r) => void r.refetch())}
-            className="text-[12px] font-semibold text-primary underline-offset-2 hover:underline">
+            className="text-sm font-semibold text-primary underline-offset-2 hover:underline">
             {t('projects.mobile.retry', 'Retry')}
           </button>
         </div>

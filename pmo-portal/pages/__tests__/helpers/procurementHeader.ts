@@ -7,16 +7,17 @@ import userEvent from '@testing-library/user-event';
 
 export const headerActions = () => within(screen.getByTestId('record-header-actions'));
 
-/** Opens the header's "More procurement actions" menu and returns the header-scoped queries. */
+/** Opens the header's "More procurement actions" menu and returns queries spanning the header and portaled menu. */
 export async function openMoreActions() {
   const header = headerActions();
   await userEvent.click(header.getByRole('button', { name: /more procurement actions/i }));
-  return header;
+  await screen.findByRole('menu', { name: /more procurement actions/i });
+  return within(document.body);
 }
 
 /** Opens "Record another document" in the header and picks a document kind (e.g. 'Receipt', 'Supplier invoice'). */
 export async function recordFromMenu(name: string) {
   const header = headerActions();
   await userEvent.click(header.getByRole('button', { name: 'Record another document' }));
-  await userEvent.click(header.getByRole('menuitem', { name }));
+  await userEvent.click(await screen.findByRole('menuitem', { name }));
 }

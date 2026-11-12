@@ -16,7 +16,7 @@ describe('MenuButton', () => {
     expect(trigger).toHaveTextContent('Link…');
     expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
     await userEvent.click(trigger);
-    await userEvent.click(screen.getByRole('menuitem', { name: 'New purchase needs a single project' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'New purchase needs a single project' }));
     expect(blocked).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('menuitem', { name: 'Link to purchase' }));
     expect(link).toHaveBeenCalledTimes(1);

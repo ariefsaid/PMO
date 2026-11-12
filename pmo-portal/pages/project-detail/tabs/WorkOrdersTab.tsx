@@ -498,7 +498,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   return (
     <div className="space-y-[var(--space-panel-gap)]">
       {canViewBilling && dpNotice !== null && (
-        <div role="status" data-testid="wo-dp-held-notice" className="border-b border-border pb-3 text-[13px] text-muted-foreground">
+        <div role="status" data-testid="wo-dp-held-notice" className="border-b border-border pb-3 text-sm text-muted-foreground">
           {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
             '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly. Closing does not clear it.',
             { amount: formatCurrency(dpNotice, currency), interpolation: { escapeValue: false } })}
@@ -526,7 +526,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             </h2>
             {/* C6: currency named once for the orders below; every figure in them is a bare number. */}
             {/* AC-BWO-004: billing figures are net of tax — the basis is said once, here. */}
-            {canViewBilling && <span className="text-xs text-muted-foreground">{currency} · <TaxBasisLabel treatment="exclusive" showDetails={false} className="whitespace-nowrap text-xs" testId="wo-billing-basis" /></span>}
+            {canViewBilling && <span className="text-sm text-muted-foreground">{currency} · <TaxBasisLabel treatment="exclusive" showDetails={false} className="whitespace-nowrap text-sm" testId="wo-billing-basis" /></span>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {deliveryCandidates.length > 0 && (
@@ -537,7 +537,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </Button>
             )}
             {may('create', 'workOrder') && (
-              <Button variant="outline" size="sm" onClick={() => setFormFor(null)}>
+              <Button id="add-customer-order" variant="outline" size="sm" onClick={() => setFormFor(null)}>
                 {t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order')}
               </Button>
             )}
@@ -547,7 +547,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </div>
 
         <div className="flex flex-wrap items-end gap-2 px-[var(--panel-inset)] pt-4">
-          <label className="flex min-w-[190px] flex-1 flex-col gap-1 text-xs text-muted-foreground sm:flex-none">
+          <label className="flex min-w-[190px] flex-1 flex-col gap-1 text-sm text-muted-foreground sm:flex-none">
             {t('projectDetail.workOrders.filter.orders', 'Order')}
             <select aria-label={t('projectDetail.workOrders.filter.orders', 'Order')} value={orderFilter} onChange={(event) => setOrderFilter(event.target.value)}
               className="min-h-10 min-w-0 rounded-sm border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
@@ -555,7 +555,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               {rows.map((row) => <option key={row.id} value={row.id}>{row.wo_number ?? row.title}</option>)}
             </select>
           </label>
-          <label className="flex min-w-[160px] flex-col gap-1 text-xs text-muted-foreground">
+          <label className="flex min-w-[160px] flex-col gap-1 text-sm text-muted-foreground">
             {t('projectDetail.workOrders.filter.status', 'Status')}
             <select aria-label={t('projectDetail.workOrders.filter.status', 'Status')} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as WorkOrderStatus | 'all')}
               className="min-h-10 min-w-0 rounded-sm border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
@@ -613,7 +613,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
             {visibleDraftOrders.length > 0 && (
               <section aria-labelledby="pd-draft-orders" className="mb-6 mt-4 px-[var(--panel-inset)]">
-                <h3 id="pd-draft-orders" className="mb-2 text-xs font-medium text-muted-foreground">
+                <h3 id="pd-draft-orders" className="mb-2 text-sm font-medium text-muted-foreground">
                   {t('projectDetail.workOrders.drafts', 'Draft orders')}
                 </h3>
                 <WorkOrdersDraftOrders

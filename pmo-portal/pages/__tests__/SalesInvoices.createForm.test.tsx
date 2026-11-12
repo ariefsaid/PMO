@@ -369,7 +369,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
     await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
-    await user.type(screen.getByRole('searchbox', { name: /ERP items/i }), 'Test service');
+    await user.type(await screen.findByRole('combobox', { name: /ERP items/i }), 'Test service');
     await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
     await user.type(screen.getByLabelText('Description'), 'Monthly support');
     await user.clear(screen.getByLabelText(/Rate/));
@@ -552,7 +552,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     await pick(user, 'Customer', 'Acme Energy');
     await pick(user, 'Project', 'Alpha Platform');
     await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
-    await user.type(screen.getByRole('searchbox', { name: /ERP items/i }), 'Test service');
+    await user.type(await screen.findByRole('combobox', { name: /ERP items/i }), 'Test service');
     await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
     await user.type(screen.getByLabelText('Description'), 'Inspection of test unit');
     await user.clear(screen.getByLabelText(/Rate/));
@@ -572,7 +572,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     expect(screen.getByLabelText('Deskripsi')).toHaveAttribute('placeholder', 'Jelaskan pekerjaan atau barang…');
     expect(screen.getByText('Pilih atau cari item…')).toBeInTheDocument();
     await user.click(screen.getByRole('combobox', { name: 'Item ERP' }));
-    expect(screen.getByPlaceholderText('Cari kode atau nama item…')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Cari kode atau nama item…')).toBeInTheDocument();
   });
 
   it('AC-ITM-004 standalone invoices retain the free-text item code field', async () => {
@@ -800,7 +800,7 @@ it('AC-014 connected (ERP) creation carries the kind with a project and none wit
   await pick(user, 'Customer', 'Acme Energy');
   const fillLine = async () => {
     await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
-    await user.type(screen.getByRole('searchbox', { name: /ERP items/i }), 'Test service');
+    await user.type(await screen.findByRole('combobox', { name: /ERP items/i }), 'Test service');
     await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
     await user.clear(screen.getByLabelText(/Rate/));
     await user.type(screen.getByLabelText(/Rate/), '100');
@@ -820,7 +820,7 @@ it('AC-014 connected (ERP) creation with a project sends the chosen kind', async
   await pick(user, 'Customer', 'Acme Energy');
   await pick(user, 'Project', 'Alpha Platform');
   await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
-  await user.type(screen.getByRole('searchbox', { name: /ERP items/i }), 'Test service');
+  await user.type(await screen.findByRole('combobox', { name: /ERP items/i }), 'Test service');
   await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
   await user.clear(screen.getByLabelText(/Rate/));
   await user.type(screen.getByLabelText(/Rate/), '100');

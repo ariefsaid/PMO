@@ -1,6 +1,6 @@
-import { formatDate } from '@/src/lib/format';
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { formatDay } from '@/src/lib/format';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -39,6 +39,7 @@ beforeEach(() => {
   master.listWarehouses.mockResolvedValue([{ id: 'w1', code: 'SITE-A', name: 'Site A', archived_at: null }]);
   reports.ledgerPage.mockResolvedValue({ rows: [entry(2)], nextBeforeSeq: null });
 });
+afterEach(() => vi.unstubAllGlobals());
 
 describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
   it('AC-STK-001 shows the actor, project, work item and running balance of an issue', async () => {
@@ -49,11 +50,39 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(screen.getByText('70')).toBeInTheDocument();
   });
 
+  it('FR-STK-041 keeps long movement identity and quantity readable in the phone card', async () => {
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(3, {
+      documentNumber: 'ISS-2026-VERY-LONG-REFERENCE',
+      itemCode: 'CEMENTAL-MIX-50-KILOGRAM-BAG',
+      warehouseCode: 'WAREHOUSE-SITE-A-REAR-STORE',
+      qtyDelta: '500',
+      unitCode: 'metric tons',
+    })], nextBeforeSeq: null });
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false,
+      media,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+    renderPage();
+
+    const cards = await screen.findByTestId('dt-card-branch');
+    expect(within(cards).getByText('ISS-2026-VERY-LONG-REFERENCE')).toBeVisible();
+    expect(within(cards).getByTestId('stock-ledger-warehouse-code')).toHaveClass('break-all');
+    const change = within(cards).getByTestId('stock-ledger-change');
+    expect(change).toHaveClass('min-w-0', 'break-words');
+    expect(change).toHaveTextContent('+500 metric tons');
+  });
+
   it('FR-STK-041 a back-dated movement shows its occurred date apart from the post time', async () => {
     renderPage();
     await screen.findByText('Eka Engineer');
     expect(screen.getByRole('columnheader', { name: 'Date' })).toBeInTheDocument();
-    expect(screen.getByText(formatDate('2026-10-28'))).toBeInTheDocument();
+    expect(screen.getByText(formatDay('2026-10-28'))).toBeInTheDocument();
   });
 
   it('AC-STK-032 loading, empty, error with retry', async () => {

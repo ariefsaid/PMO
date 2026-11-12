@@ -79,11 +79,12 @@ vi.mock('@/src/hooks/useOverdueInvoiceCount', () => ({ useOverdueInvoiceCount: (
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 
 import { Rail } from './Rail';
+import { RailDrawerContext } from './railDrawerContext';
 
 function renderRail() {
   return render(
     <MemoryRouter initialEntries={['/']}>
-      <Rail />
+      <RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider>
     </MemoryRouter>
   );
 }
@@ -111,10 +112,11 @@ describe('Rail — My Views group (AC-VR-014, AC-VR-015, AC-VR-017)', () => {
     featureEnabled.userViews = true;
   });
 
-  it('AC-VR-015: does NOT render "My Views" group when feature=true but views array is empty', () => {
+  it('AC-VR-015: keeps the My Views destination when the enabled view list is empty', () => {
     userViewsData.splice(0, userViewsData.length);
     featureEnabled.userViews = true;
     renderRail();
+    expect(screen.getByRole('link', { name: 'My Views' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: /my views/i })).not.toBeInTheDocument();
   });
 
@@ -127,8 +129,9 @@ describe('Rail — My Views group (AC-VR-014, AC-VR-015, AC-VR-017)', () => {
     // Existing static nav items remain (just check a few)
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument();
-    // "My Views" group is additional, not replacing "Overview"/"CRM"/"Delivery"/"Workforce"
+    // My Views is a top-level destination; saved views nest beneath it without replacing core routes.
     expect(screen.getByRole('group', { name: /my views/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'My Views' })).toBeInTheDocument();
   });
 
   it('AC-VR-014: caps rail entries at MAX_NAV_VIEWS (8)', () => {
@@ -148,7 +151,7 @@ describe('#1834 nav-link preload (onPreloadHref)', () => {
     const onPreloadHref = vi.fn();
     render(
       <MemoryRouter initialEntries={['/']}>
-        <Rail onPreloadHref={onPreloadHref} />
+        <RailDrawerContext.Provider value><Rail onPreloadHref={onPreloadHref} /></RailDrawerContext.Provider>
       </MemoryRouter>,
     );
     const link = screen.getByRole('link', { name: 'Procurement' });
@@ -162,7 +165,7 @@ describe('#1834 nav-link preload (onPreloadHref)', () => {
     const onPreloadHref = vi.fn();
     render(
       <MemoryRouter initialEntries={['/']}>
-        <Rail onPreloadHref={onPreloadHref} />
+        <RailDrawerContext.Provider value><Rail onPreloadHref={onPreloadHref} /></RailDrawerContext.Provider>
       </MemoryRouter>,
     );
     fireEvent.pointerOver(screen.getByText('Delivery'));
@@ -176,7 +179,7 @@ describe('timesheet approval navigation', () => {
     roleState.role = 'Engineer';
     eligibility.corrections = [{ id: 'eligible' }];
     const auth = {} as AuthContextValue;
-    const tree = () => <AuthContext.Provider value={auth}><MemoryRouter><Rail /></MemoryRouter></AuthContext.Provider>;
+    const tree = () => <AuthContext.Provider value={auth}><MemoryRouter><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter></AuthContext.Provider>;
     render(tree());
     expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('href', '/approvals');
     act(() => eligibility.update({ corrections: [] }));
@@ -190,7 +193,7 @@ it('keeps the approvals recovery route available when eligibility cannot be load
   roleState.role = 'Engineer';
   eligibility.pendingError = true;
   const auth = { currentUser: { id: 'me', org_id: 'org-1' }, role: 'Engineer' } as AuthContextValue;
-  render(<AuthContext.Provider value={auth}><MemoryRouter><Rail /></MemoryRouter></AuthContext.Provider>);
+  render(<AuthContext.Provider value={auth}><MemoryRouter><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter></AuthContext.Provider>);
   expect(screen.getByRole('link', { name: /approvals/i })).toHaveAttribute('href', '/approvals');
   eligibility.pendingError = false;
   roleState.role = 'Admin';

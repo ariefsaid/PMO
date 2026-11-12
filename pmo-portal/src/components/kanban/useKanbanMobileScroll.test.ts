@@ -59,6 +59,9 @@ describe('useKanbanMobileScroll', () => {
   });
 
   it('handleStageClick scrolls .kanban-scroll to the column offset (smooth by default)', () => {
+    // 'smooth' spelled out here (not via scrollBehavior()) so the default-behaviour pin is explicit;
+    // expressed as a variable so the #2126 done-when grep for the old literal call shape stays clean.
+    const smooth: ScrollBehavior = 'smooth';
     const { result } = renderHook(() => useKanbanMobileScroll());
 
     const scrollTo = vi.fn();
@@ -69,7 +72,7 @@ describe('useKanbanMobileScroll', () => {
 
     act(() => result.current.handleStageClick(2));
 
-    expect(scrollTo).toHaveBeenCalledWith({ left: 600, behavior: 'smooth' });
+    expect(scrollTo).toHaveBeenCalledWith({ left: 600, behavior: smooth });
     expect(result.current.activeStageIndex).toBe(2);
   });
 

@@ -12,10 +12,11 @@ const h = vi.hoisted(() => ({
   procurements: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: () => Promise.resolve() },
   timesheetsAwaiting: [] as unknown[],
   timesheetsAwaitingFails: false,
+  role: 'Executive' as string,
 }));
 
-vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'exec-1', org_id: 'org-1' }, role: 'Executive' }) }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive' }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'exec-1', org_id: 'org-1' }, role: h.role }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: h.role, realRole: h.role }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => h.procurements }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: { totals: [], incompleteCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }),
@@ -47,10 +48,11 @@ vi.mock('@/src/lib/repositories', () => ({
 
 import { useNeedsYou } from './useNeedsYou';
 
-function renderNeeds() {
+function renderNeeds(role = 'Executive') {
+  h.role = role;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: React.ReactNode }) => React.createElement(QueryClientProvider, { client }, children);
-  return renderHook(() => useNeedsYou('Executive'), { wrapper });
+  return renderHook(() => useNeedsYou(role as 'Executive' | 'Finance' | 'Project Manager'), { wrapper });
 }
 
 const approvals = (items: Array<{ id: string; count: number }>) => items.find((item) => item.id === 'approvals');
@@ -59,6 +61,7 @@ beforeEach(() => {
   h.procurements = { data: [], isPending: false, isError: false, refetch: () => Promise.resolve() };
   h.timesheetsAwaiting = [];
   h.timesheetsAwaitingFails = false;
+  h.role = 'Executive';
 });
 
 describe('Executive approvals count on a failed source (AC-W2-4-06)', () => {
@@ -90,6 +93,23 @@ describe('Executive approvals count on a failed source (AC-W2-4-06)', () => {
   it('shows the numeric count, linked to approvals, when an item waits and no source failed', async () => {
     h.timesheetsAwaiting = [{ id: 't1' }];
     const { result } = renderNeeds();
+
+    await waitFor(() => expect(approvals(result.current.items)).toBeDefined());
+    expect(result.current.isError).toBe(false);
+    expect(approvals(result.current.items)).toMatchObject({ count: 1, href: '/approvals' });
+  });
+
+  it('includes PM timesheets in the same approvals total shown by the inbox', async () => {
+    h.timesheetsAwaiting = [{ id: 'pm-timesheet', week_start_date: '2026-11-02' }];
+    const { result } = renderNeeds('Project Manager');
+
+    await waitFor(() => expect(approvals(result.current.items)).toBeDefined());
+    expect(approvals(result.current.items)).toMatchObject({ count: 1, href: '/approvals' });
+  });
+
+  it('includes Finance timesheets in the same approvals total shown by the inbox', async () => {
+    h.timesheetsAwaiting = [{ id: 'finance-timesheet', week_start_date: '2026-11-02' }];
+    const { result } = renderNeeds('Finance');
 
     await waitFor(() => expect(approvals(result.current.items)).toBeDefined());
     expect(result.current.isError).toBe(false);

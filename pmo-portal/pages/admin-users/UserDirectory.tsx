@@ -13,8 +13,10 @@ import {
 import { useTranslation } from 'react-i18next';
 import { roleVariant } from '@/src/lib/status/statusVariants';
 import { formatNumberWhole } from '@/src/lib/format';
+import { scrollBehavior } from '@/src/lib/motion';
 import type { UserDirectoryRow } from '@/src/lib/db/adminUsers';
-import { Avatar } from './userPresentation';
+import { Avatar } from '@/src/components/ui/Avatar';
+import { initialsOf } from './avatar';
 import { useRoleLabels } from './roleLabels';
 
 /**
@@ -122,7 +124,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
     if (!container) return;
     const target = container.querySelector<HTMLElement>(`[id="${rowDomId(focus.userId)}"]`);
     if (!target) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
     target.style.outline = '2px solid hsl(var(--primary))';
     target.style.outlineOffset = '-2px';
     target.style.borderRadius = '4px';
@@ -140,12 +142,12 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
       header: t('admin.users.columns.user', 'User'),
       cell: (u) => (
         <div className="flex min-w-0 items-center gap-2.5">
-          <Avatar user={u} />
+          <Avatar name={u.full_name} size="md" decorative initials={initialsOf(u.full_name)} />
           <div className="flex min-w-0 flex-col leading-tight">
             <span className="truncate font-semibold" title={u.full_name}>
               {u.full_name}
             </span>
-            <span className="truncate text-[12px] text-muted-foreground" title={u.email}>
+            <span className="truncate text-control text-muted-foreground" title={u.email}>
               {u.email}
             </span>
           </div>
@@ -155,21 +157,23 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
     {
       key: 'role',
       header: t('admin.users.columns.role', 'Role'),
-      cell: (u) => <StatusPill variant={roleVariant(u.role)}>{roleNames.label(u.role)}</StatusPill>,
+      cell: (u) => (
+        <span>
+          <StatusPill variant={roleVariant(u.role)}>{roleNames.label(u.role)}</StatusPill>
+          {isSoleAdmin(u) && <span className="ml-2 text-muted-foreground">{t('administration:onlyActiveAdmin', 'The only active Admin cannot be disabled')}</span>}
+        </span>
+      ),
     },
-    {
+    // Everyone active is the normal case: the column appears only once someone is disabled.
+    ...(rows.some((u) => u.status === 'disabled') ? [{
       key: 'status',
       header: t('admin.users.columns.status', 'Status'),
-      cell: (u) =>
-        u.status === 'disabled' ? (
-          <StatusPill variant="warn">{t('admin.users.status.disabled', 'Disabled')}</StatusPill>
-        ) : (
-          <span>
-            <StatusPill variant="neutral">{t('admin.users.status.active', 'Active')}</StatusPill>
-            {isSoleAdmin(u) && <span className="ml-2 text-muted-foreground">{t('administration:onlyActiveAdmin', 'The only active Admin cannot be disabled')}</span>}
-          </span>
-        ),
-    },
+      cell: (u: UserDirectoryRow) => (
+        <StatusPill record="user" state={u.status === 'disabled' ? 'Disabled' : 'Active'}>
+          {u.status === 'disabled' ? t('admin.users.status.disabled', 'Disabled') : t('admin.users.status.active', 'Active')}
+        </StatusPill>
+      ),
+    }] : []),
     {
       key: 'manager',
       header: t('admin.users.columns.manager', 'Manager'),
@@ -181,12 +185,12 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
       cell: (u) => {
         const manager = u.manager_id ? byId.get(u.manager_id) : undefined;
         const name = manager?.full_name ?? u.manager?.full_name ?? null;
-        if (!name || !u.manager_id) return <span className="text-muted-foreground">{t('admin.users.noManager', 'No manager')}</span>;
+        if (!name || !u.manager_id) return <span className="text-muted-foreground" aria-label={t('admin.users.noManager', 'No manager')}>—</span>;
         return (
           <button
             type="button"
             onClick={() => onJumpToUser(u.manager_id as string, name)}
-            className="truncate text-left text-[13px] underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            className="truncate text-left text-control underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
           >
             {name}
           </button>
@@ -224,16 +228,16 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
       {/* Toolbar */}
       {state !== 'loading' && (
         <Toolbar standalone>
-          <span className="text-[13px] font-semibold">{t('admin.users.allUsers', 'All users')}</span>
+          <span className="text-control font-semibold">{t('admin.users.allUsers', 'All users')}</span>
           {state === undefined && (
-            <span className="text-[12.5px] text-muted-foreground tabular" data-testid="admin-users-total">{formatNumberWhole(total)}</span>
+            <span className="text-control text-muted-foreground tabular" data-testid="admin-users-total">{formatNumberWhole(total)}</span>
           )}
           <SearchMini
             placeholder={t('admin.users.search.placeholder', 'Search by name or email…')}
             aria-label={t('admin.users.search.label', 'Search users')}
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto sm:w-80"
           />
         </Toolbar>
       )}
@@ -267,7 +271,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
       {state === undefined && (
         <>
           {focus && (
-            <div role="status" data-testid="admin-users-focus" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-[13px]">
+            <div role="status" data-testid="admin-users-focus" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-control">
               <span>
                 {focus.state === 'locating'
                   ? t('administration:admin.users.focus.locating', 'Finding {{name}}…', { name: focus.name })
@@ -275,7 +279,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
                     ? t('administration:admin.users.focus.error', "Couldn't find where {{name}} is in the directory.", { name: focus.name })
                     : focus.state === 'unavailable'
                       ? t('administration:admin.users.focus.unavailable', '{{name}} is no longer in your directory.', { name: focus.name })
-                      : t('administration:admin.users.focus.showing', 'Showing {{name}} — the person you followed from your page.', { name: focus.name })}
+                      : t('administration:admin.users.focus.showing', 'Showing {{name}}', { name: focus.name })}
               </span>
               <span className="flex gap-2">
                 {focus.state === 'error' && (
@@ -298,7 +302,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
             tableId="adminusers-table" />
           </div>
           {total > 0 && (
-            <nav aria-label={t('administration:admin.users.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
+            <nav aria-label={t('administration:admin.users.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-control tabular-nums">
               <span data-testid="admin-users-range" aria-live="polite" aria-atomic="true">
                 {t('administration:admin.users.pager.range', '{{from}}–{{to}} of {{total}}', {
                   from: formatNumberWhole((page - 1) * pageSize + 1),

@@ -220,7 +220,7 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
     await expect(raiseInvoice).toBeVisible();
     await raiseInvoice.click();
     await expect(page).toHaveURL((url) => url.pathname === `/projects/${projectId}/contract` && url.search === '');
-    await expect(page.getByRole('tab', { name: localized('Contract & billing', 'Kontrak & penagihan'), selected: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: localized('Contract', 'Kontrak'), selected: true })).toBeVisible();
 
     const contractInvoice = page.getByRole('link', { name: localized('Contract invoice', 'Faktur kontrak'), exact: true });
     await expect(contractInvoice).toHaveAttribute('href', `/finance/receivables?create=1&project=${encodeURIComponent(projectId)}`);
@@ -266,7 +266,7 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
     }
     await page.getByRole('button', { name: localized('Raise invoice', 'Terbitkan faktur'), exact: true }).click();
     await expect(page).toHaveURL((url) => url.pathname === `/projects/${projectId}/contract` && url.search === '');
-    await expect(page.getByRole('tab', { name: localized('Contract & billing', 'Kontrak & penagihan'), selected: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: localized('Contract', 'Kontrak'), selected: true })).toBeVisible();
 
     const orderRow = page.locator('article').filter({ hasText: workOrderNumber });
     await expect(orderRow).toBeVisible();

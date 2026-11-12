@@ -34,19 +34,21 @@ export const MobileActionStrip: React.FC<MobileActionStripProps> = ({
   return (
     <MobileActionBar
       data-testid="timesheets-mobile-action-strip"
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background px-3 pt-2 md:hidden"
+      className="fixed inset-x-0 z-20 border-t border-border bg-background px-3 pt-2 md:hidden"
       style={{
+        // #2061: sit above the phone bottom bar (the token is 0px above the phone breakpoint).
+        bottom: 'var(--phone-nav-height)',
         paddingBottom: `calc(env(safe-area-inset-bottom) + ${hasEnvironmentBadge ? '2.75rem' : '0.5rem'})`,
       }}
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-2">
-        <p className="text-center text-[13px] font-semibold tabular text-foreground">
+        <p className="text-center text-control font-semibold tabular text-foreground">
           {t('timesheets.hoursThisWeek', '{{hours}} hours this week', {
             hours: formatNumberExact(total),
           })}
         </p>
         {showSubmitHint && (
-          <p className="text-center text-[12px] text-muted-foreground">
+          <p className="text-center text-control text-muted-foreground">
             {t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}
           </p>
         )}

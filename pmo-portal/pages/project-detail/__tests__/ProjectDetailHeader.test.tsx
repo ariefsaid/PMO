@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor, act } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { Link, MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
@@ -11,6 +12,13 @@ import ProjectDetailHeader from '../ProjectDetailHeader';
 import { currencySymbol } from '@/src/lib/format';
 import { BahasaProvider } from '@/test/bahasa';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { formatDay } from '@/src/lib/format';
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
 
 vi.mock('@/src/components/fx/FxEquivalent', () => ({
   default: () => (
@@ -35,6 +43,8 @@ const { roleBox, desktopBox, projectMutations } = vi.hoisted(() => ({
     setContractValue: { mutateAsync: vi.fn(), isPending: false },
   },
 }));
+const orgTodayBox = vi.hoisted(() => ({ value: '2026-11-11' }));
+vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => orgTodayBox.value }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktopBox.value }));
 // B-0.2: useProjectBudget is now called from ProjectDetailHeader to get the DERIVED
 // budget (Σ Active-version line-items). Default: 4_200_000 (real budget, not the
@@ -98,6 +108,8 @@ const onHand = {
 
 const preWin = { ...onHand, status: 'Leads', customer_contract_ref: null } as ProjectWithRefs;
 
+const RouteProbe = () => <output data-testid="route-path">{useLocation().pathname}</output>;
+
 const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand, committedSpend = 2_100_000, commitmentSource: 'pmo' | 'not-tracked' | 'unavailable' = 'not-tracked', ledgerBasis: 'pmo' | 'erp' | 'unavailable' = 'erp') => {
   roleBox.value = role;
   return render(
@@ -110,6 +122,7 @@ const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHan
 };
 
 beforeEach(() => {
+  orgTodayBox.value = '2026-11-11';
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   roleBox.value = 'Project Manager';
   financeBox.data = { actuals: { currency: 'USD', total: '1800000.00', excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' }] } };
@@ -131,6 +144,18 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('ProjectDetailHeader — content', () => {
+  it('R2-P1b #14 flags an unfinished project past its end date in organization days', () => {
+    const pastEnd = { ...onHand, end_date: '2026-06-30' } as ProjectWithRefs;
+    const first = renderHeader('Project Manager', pastEnd);
+
+    expect(screen.getByText('Past end date · 134 d')).toBeInTheDocument();
+    expect(screen.getByText('Ongoing')).toBeInTheDocument();
+    first.unmount();
+
+    renderHeader('Project Manager', { ...pastEnd, status: 'Close Out' } as ProjectWithRefs);
+    expect(screen.queryByText(/Past end date/)).not.toBeInTheDocument();
+  });
+
   it('#1339: the status pill names the project status in the viewer\'s language', () => {
     render(
       <BahasaProvider>
@@ -142,8 +167,8 @@ describe('ProjectDetailHeader — content', () => {
       </BahasaProvider>,
     );
     const header = screen.getByTestId('record-header');
-    expect(within(header).getByText('Proyek berjalan')).toBeInTheDocument();
-    expect(within(header).queryByText('Ongoing Project')).not.toBeInTheDocument();
+    expect(within(header).getByText('Berjalan')).toBeInTheDocument();
+    expect(within(header).queryByText('Ongoing')).not.toBeInTheDocument();
   });
 
   it('gives the full-width project title priority on mobile and keeps status below metadata', () => {
@@ -157,12 +182,12 @@ describe('ProjectDetailHeader — content', () => {
     );
     const header = screen.getByTestId('record-header');
     const title = within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' });
-    const status = within(header).getByText('Ongoing Project');
+    const status = within(header).getByText('Ongoing');
     expect(title.parentElement?.className).toContain('grid');
     expect(title.className).toContain('col-span-2');
     expect(title.parentElement).toContainElement(status);
     expect(header.querySelector('.row-start-2')).toBeInTheDocument();
-    expect(status.parentElement?.className).toContain('row-start-3');
+    expect(status.closest('.row-start-3')).not.toBeNull();
     expect(title.parentElement?.className).toContain('sm:flex');
   });
 
@@ -183,7 +208,7 @@ describe('ProjectDetailHeader — content', () => {
     if (role === 'Finance') {
       expect(within(contractTile).getByRole('button', { name: /Edit contract value/i })).toBeInTheDocument();
     } else {
-      expect(within(contractTile).getByText('Read-only')).toBeInTheDocument();
+      expect(within(contractTile).queryByText('Read-only')).not.toBeInTheDocument();
     }
   });
 
@@ -205,17 +230,11 @@ describe('ProjectDetailHeader — content', () => {
     expect(disclosure).toHaveTextContent('Spend43%');
   });
 
-  it('UIP-006: the PM lock chip is in the contract value row and discloses its reason in a full-width lane', async () => {
+  it('UIP-006: the PM sees the contract value without a lock label; edit remains unavailable', () => {
     renderHeader('Project Manager');
-    const lock = screen.getByRole('button', { name: /Read-only/i });
     const contractTile = screen.getAllByTestId('stat-tile')[0];
-    expect(contractTile.children[1]).toContainElement(lock);
-    expect(lock).toHaveAttribute('aria-expanded', 'false');
-    await userEvent.click(lock);
-    expect(lock).toHaveAttribute('aria-expanded', 'true');
-    const reason = screen.getByTestId('contract-value-lock-reason');
-    expect(reason).toHaveTextContent('Once a project is won, the contract value is locked for your role.');
-    expect(reason.parentElement).toHaveAttribute('data-testid', 'contract-value-lock-lane');
+    expect(within(contractTile).getByTestId('contract-value-amount')).toHaveTextContent('$5,000,000');
+    expect(within(contractTile).queryByText(/read-only/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
   });
 
@@ -232,9 +251,9 @@ describe('ProjectDetailHeader — content', () => {
   it('UX-007/RF-057: leads with customer and order context; codes live in the rail, not a second header disclosure (PD-A)', async () => {
     renderHeader();
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
+    expect(screen.getByText('Ongoing')).toBeInTheDocument();
     expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
-    expect(screen.getByText('PO CPO-2026-001 (Jan 10, 2026)')).toBeInTheDocument();
+    expect(screen.getByText(`PO CPO-2026-001 (${formatDay('2026-01-10')})`)).toBeInTheDocument();
     expect(screen.queryByText('More project details')).not.toBeInTheDocument();
     expect(screen.queryByText(/PMO-26-7711/)).not.toBeInTheDocument();
   });
@@ -250,33 +269,43 @@ describe('ProjectDetailHeader — content', () => {
     );
     const header = screen.getByTestId('record-header');
     expect(within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    expect(within(header).getByText('Ongoing Project')).toBeInTheDocument();
+    expect(within(header).getByText('Ongoing')).toBeInTheDocument();
     expect(within(header).getByText('Innovate Corp')).toBeInTheDocument();
     expect(within(header).queryByText('PM Alice Manager')).not.toBeInTheDocument();
     expect(within(header).queryByText('Jan 1, 2026 – Dec 18, 2026')).not.toBeInTheDocument();
     expect(within(header).queryByText('PO CPO-2026-001')).not.toBeInTheDocument();
   });
 
-  it('moves Edit into the compact More menu on phone while keeping the desktop action', async () => {
-    desktopBox.value = false;
+  it('2057: Edit is the primary action; when the state has its own verb that is primary and Edit stays one click away', async () => {
     const onEditProject = vi.fn();
-    render(
+    const { unmount } = render(
       <MemoryRouter>
         <ToastProvider>
           <ProjectDetailHeader project={onHand} compact onEditProject={onEditProject} commitmentSource="not-tracked" ledgerBasis="erp" />
         </ToastProvider>
       </MemoryRouter>,
     );
-    const header = screen.getByTestId('record-header');
-    const desktopEdit = within(header).getAllByRole('button', { name: /^Edit$/i }).find((button) => button.parentElement?.classList.contains('hidden'))!;
-    expect(desktopEdit.parentElement).toHaveClass('hidden', 'md:inline-flex');
-    const menu = within(header).getByLabelText('More actions').closest('details');
-    expect(menu).not.toBeNull();
-    await userEvent.click(within(menu!).getByLabelText('More actions'));
-    const phoneEdit = within(menu!).getByRole('button', { name: /^Edit$/i });
-    expect(phoneEdit).toHaveClass('md:hidden');
-    await userEvent.click(phoneEdit);
+    const edit = within(screen.getByTestId('record-header')).getByRole('button', { name: /^Edit$/i });
+    expect(edit).toHaveClass('bg-primary');
+    await userEvent.click(edit);
     expect(onEditProject).toHaveBeenCalledOnce();
+    unmount();
+
+    const onEditAgain = vi.fn();
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectDetailHeader project={onHand} compact onEditProject={onEditAgain} primaryAction={<button type="button">Raise invoice</button>} commitmentSource="not-tracked" ledgerBasis="erp" />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    const header = within(screen.getByTestId('record-header'));
+    expect(header.getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
+    // One filled button: the state verb. Edit moves into the ⋯ menu.
+    expect(header.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
+    await userEvent.click(header.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit' }));
+    expect(onEditAgain).toHaveBeenCalledOnce();
   });
 
   it('keeps the JISDOR caption on one compact line after the original amount', () => {
@@ -357,7 +386,7 @@ describe('ProjectDetailHeader — content', () => {
     expect(header).toBeInTheDocument();
     // identity + status live in the one shared header
     expect(within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    expect(within(header).getByText('Ongoing Project')).toBeInTheDocument();
+    expect(within(header).getByText('Ongoing')).toBeInTheDocument();
     // the standardized top-right action zone holds the record actions (Edit, etc.)
     expect(within(header).getByTestId('record-header-actions')).toBeInTheDocument();
   });
@@ -380,19 +409,22 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
     expect(screen.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-005: Executive sees Archive (archive = Admin·Exec)', () => {
+  it('AC-PRJ-005: Executive sees Archive (archive = Admin·Exec)', async () => {
     renderHeader('Executive');
-    expect(screen.getByRole('button', { name: /Archive/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menuitem', { name: /Archive/i })).toBeInTheDocument();
   });
 
   it('AC-PRJ-005: PM does NOT see Archive (archive = Admin·Exec)', () => {
     renderHeader('Project Manager');
     expect(screen.queryByRole('button', { name: /Archive/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Archive/i })).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-007: Admin sees the hard-Delete action', () => {
+  it('AC-PRJ-007: Admin sees the hard-Delete action', async () => {
     renderHeader('Admin');
-    expect(screen.getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menuitem', { name: /^Delete$/i })).toBeInTheDocument();
   });
 
   it.each(['Executive', 'Project Manager', 'Finance', 'Engineer'])(
@@ -405,7 +437,8 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
   it('AC-PRJ-007: Delete routes through a destructive confirm and calls the delete mutation (nothing on a single click)', async () => {
     renderHeader('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Delete$/i }));
     // Nothing is deleted on the trigger click — only after the confirm.
     expect(projectMutations.remove.mutateAsync).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('alertdialog');
@@ -416,7 +449,8 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
   it('AC-PRJ-007: a referenced-project delete (23503) surfaces a classified warning toast, suggesting Archive', async () => {
     projectMutations.remove.mutateAsync.mockRejectedValue(new AppError('referenced', '23503'));
     renderHeader('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Delete$/i }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /delete project/i }));
     const toast = await findToastAnnouncement('alert', /Still in use|Archive/i);
@@ -439,7 +473,8 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
   it('AC-PRJ-005: Archive routes through a destructive confirm and calls the archive mutation', async () => {
     renderHeader('Executive');
-    await userEvent.click(screen.getByRole('button', { name: /Archive/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Archive/i }));
     // The mutation is NOT called until the confirm is pressed (nothing writes on a single click).
     expect(projectMutations.archive.mutateAsync).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('alertdialog');
@@ -473,9 +508,58 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     expect(screen.queryByText('On-hand margin')).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-006: on a WON/on-hand project, a PM sees the value as READ-ONLY (locked), no edit control', () => {
+  it('CMP-010: route leave warns on changed contract value and tax basis, and Stay keeps both drafts', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    roleBox.value = 'Finance';
+    render(
+      <MemoryRouter initialEntries={['/projects/p1']}>
+        <RouteProbe />
+        <Link to="/next">Next page</Link>
+        <ToastProvider>
+          <ProjectDetailHeader project={onHand} commitmentSource="not-tracked" ledgerBasis="erp" />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    const value = screen.getByRole('textbox', { name: /Contract value/i });
+    await userEvent.clear(value);
+    await userEvent.type(value, '5140000');
+    await userEvent.selectOptions(screen.getByLabelText(/tax treatment/i), 'exclusive');
+    await userEvent.type(screen.getByLabelText(/tax amount/i), '565400');
+
+    const unload = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+    await userEvent.click(screen.getByRole('link', { name: 'Next page' }));
+    const leavePrompt = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(leavePrompt).getByRole('button', { name: 'Keep editing' }));
+
+    expect(screen.getByTestId('route-path')).toHaveTextContent('/projects/p1');
+    expect(screen.getByRole('textbox', { name: /Contract value/i })).toHaveValue('5,140,000');
+    expect(screen.getByLabelText(/tax treatment/i)).toHaveValue('exclusive');
+    expect(screen.getByLabelText(/tax amount/i)).toHaveValue('565,400');
+    expect(projectMutations.setContractValue.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('CMP-011: Cancel confirms before discarding a changed contract value and Keep editing preserves it', async () => {
+    const user = userEvent.setup();
+    renderHeader('Finance');
+    await user.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    const value = screen.getByRole('textbox', { name: /Contract value/i });
+    await user.clear(value);
+    await user.type(value, '5140000');
+    await user.click(screen.getByRole('button', { name: /^Cancel$/i }));
+
+    const discardPrompt = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(within(discardPrompt).getByRole('button', { name: /keep editing/i }));
+    expect(screen.getByRole('textbox', { name: /Contract value/i })).toHaveValue('5,140,000');
+    expect(projectMutations.setContractValue.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('AC-PRJ-006: on a WON/on-hand project, a PM sees the contract value without an edit control', () => {
     renderHeader('Project Manager', onHand);
-    expect(screen.getByText(/Read-only/i)).toBeInTheDocument();
+    expect(screen.getByTestId('contract-value-amount')).toHaveTextContent('$5,000,000');
+    expect(screen.queryByText(/Read-only/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
   });
 
@@ -882,7 +966,7 @@ describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', (
   it('AC-PPNC-013 a live invoice disables the VAT flag with a clear reason', async () => {
     vatBox.data = { eligible: false, reason: 'vat-live-invoice', hasInvoices: true };
     await openEditor('Finance');
-    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toBeDisabled();
     expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/invoice that is not cancelled/i);
   });
 
@@ -906,7 +990,7 @@ describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', (
   it('AC-PPNC-013 loading and unavailable reader states fail closed while preserving the stored flag', async () => {
     vatBox.isPending = true;
     await openEditor('Finance');
-    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toBeDisabled();
     expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/checking whether PPN can be changed/i);
   });
 });
@@ -916,14 +1000,11 @@ describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
   const tileLabels = () => screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
   const tileFor = (label: string) => screen.getAllByTestId('stat-tile').find((tile) => tile.firstElementChild?.textContent === label)!;
 
-  it('AC-1402-M2: a PM can open the contract-value read-only explanation from the compact header menu', async () => {
+  it('AC-1402-M2: the compact project details menu does not repeat the contract-value edit rule', async () => {
     render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} compact /></ToastProvider></MemoryRouter>);
-    const menu = screen.getByLabelText('More actions').closest('details');
-    expect(menu).not.toBeNull();
-    await userEvent.click(within(menu!).getByLabelText('More actions'));
-    const explanation = within(menu!).getByTestId('contract-value-read-explanation');
-    await userEvent.click(within(explanation).getByText('Contract value · read-only'));
-    expect(within(explanation).getByText(/locked for project managers after the project is won/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
+    expect(screen.queryByTestId('contract-value-read-explanation')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Contract value · read-only/i)).not.toBeInTheDocument();
   });
 
   it('AC-RD-HDR-001: PMO purchase orders get a tile only when PMO owns purchasing', () => {
@@ -991,6 +1072,6 @@ describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
     expect(screen.queryByText(/PMO Project Number/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Client Project Code/)).not.toBeInTheDocument();
     expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
-    expect(screen.getByText('PO CPO-2026-001 (Jan 10, 2026)')).toBeInTheDocument();
+    expect(screen.getByText(`PO CPO-2026-001 (${formatDay('2026-01-10')})`)).toBeInTheDocument();
   });
 });

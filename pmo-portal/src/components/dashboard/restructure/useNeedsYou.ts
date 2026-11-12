@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { createElement, Fragment, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
@@ -16,13 +16,15 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { awaitingApprovalKey, expenseClaimsAwaitingKey } from '@/src/hooks/approvalsQueryKeys';
 import { usePMDashboardProjects } from '@/src/hooks/useDashboard';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
+import type { ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
+import { useApprovalPopulation } from '@/src/hooks/useApprovalPopulation';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects } from '@/src/lib/db/dashboard';
 import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
-import { moneyFigure } from '@/src/lib/dashboardMoney';
+import { formatTileMoney } from '@/src/lib/format';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { orderByCurrency } from './currencyOrder';
+import { tileMoneyLines } from './currencyOrder';
 import { atRiskCount, projectRiskBasisKnown } from '../hub/pm/metrics';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
 import { repositories } from '@/src/lib/repositories';
@@ -30,6 +32,7 @@ import type { OverdueInvoiceFact } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { supplierUnpaid, withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
+import { selectOverdueTaskCount } from './overdueTasks';
 
 export type NeedsTone = 'warn' | 'neutral' | 'lost';
 
@@ -39,6 +42,8 @@ export interface NeedsItem {
   countLabel?: string;
   label: string;
   amount?: ReactNode;
+  /** One short fact after the label ("oldest 118 days overdue"). */
+  detail?: string;
   href: string;
   tone: NeedsTone;
 }
@@ -86,11 +91,11 @@ type Translate = (key: string, defaultValue: string, options?: Record<string, un
 const counted = (t: Translate, key: string, singular: string, plural: string, count: number) =>
   t(key, count === 1 ? singular : plural, { count });
 
-/** One joined amounts figure per known currency, in the shared dashboard currency order (issue 1973):
- *  the facts read orders rows by id, so first-encountered order is load-dependent — sort it. */
-const amountsText = (totals: CurrencyTotal[], t: Translate, orgCurrency: string): string | undefined => {
+/** One amount line per known currency: the organisation's first, another currency on its own second line (never "A · B"). */
+const amountsText = (totals: CurrencyTotal[], _t: Translate, orgCurrency: string): ReactNode | undefined => {
   if (totals.length === 0) return undefined;
-  return orderByCurrency(totals, orgCurrency).map(({ currency, amount }) => moneyFigure(amount, currency, t('needs.amountUnavailable', 'Amount unavailable'), { code: true }).value).join(' · ');
+  const lines = tileMoneyLines(totals, orgCurrency, formatTileMoney);
+  return lines.length === 1 ? lines[0] : createElement(Fragment, null, ...lines.map((line) => createElement('span', { key: line, className: 'block' }, line)));
 };
 
 /** Pure role adapter for the shared needs list; every zero count is intentionally omitted. */
@@ -111,7 +116,7 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     });
     if (facts.riskUncheckedProjects !== undefined) add({
       id: 'risk-unchecked', count: facts.riskUncheckedProjects,
-      label: counted(t, 'needs.riskUnchecked', "project without an active budget; risk can't be checked yet", "projects without an active budget; risk can't be checked yet", facts.riskUncheckedProjects),
+      label: counted(t, 'needs.riskUnchecked', "project can't be checked against its budget", "projects can't be checked against their budget", facts.riskUncheckedProjects),
       href: '/projects', tone: 'neutral',
     });
     if (facts.procurementsAwaitingApproval !== undefined) add({
@@ -125,15 +130,17 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     const overdue = facts.overdueInvoices;
     if (overdue) {
       const base = counted(t, 'needs.overdueInvoice', 'client invoice overdue', 'client invoices overdue', overdue.count);
-      const unknown = overdue.unknownBalances > 0
-        ? ` · ${t('needs.unknownBalanceDays', '{{count}} balance unknown; {{days}} days overdue', { count: overdue.unknownBalances, days: overdue.oldestDays ?? '—' })}`
-        : '';
-      add({ id: 'overdue-invoices', count: overdue.count, label: base + unknown, amount: amountsText(overdue.knownTotals, t, orgCurrency), href: '/finance/receivables?overdue=true', tone: 'lost' });
+      const detail = [
+        overdue.oldestDays !== null ? t('needs.oldestOverdue', 'Oldest {{days}}d', { days: overdue.oldestDays }) : null,
+        overdue.unknownBalances > 0 ? t('needs.balancesNotSynced', '{{count}} unsynced balance', { count: overdue.unknownBalances }) : null,
+      ].filter(Boolean).join(' · ');
+      add({ id: 'overdue-invoices', count: overdue.count, label: base, detail: detail || undefined, amount: overdue.unknownBalances > 0 ? undefined : amountsText(overdue.knownTotals, t, orgCurrency), href: '/finance/receivables?overdue=true', tone: 'lost' });
     }
     if (facts.supplierInvoices) add({
       id: 'supplier-invoices', count: facts.supplierInvoices.count,
-      label: [counted(t, 'needs.supplierInvoice', 'supplier invoice to pay', 'supplier invoices to pay', facts.supplierInvoices.count), facts.supplierInvoices.unknownBalances > 0 ? t('needs.unknownBalanceCount', 'Unknown balances: {{count}}', { count: facts.supplierInvoices.unknownBalances }) : null].filter(Boolean).join(' · '),
-      amount: amountsText(facts.supplierInvoices.knownTotals, t, orgCurrency), href: '/procurement?status=Vendor+Invoiced', tone: 'warn',
+      label: counted(t, 'needs.supplierInvoice', 'Payables', 'Payables', facts.supplierInvoices.count),
+      detail: facts.supplierInvoices.unknownBalances > 0 ? t('needs.amountsMissing', '{{count}} amount missing', { count: facts.supplierInvoices.unknownBalances }) : undefined,
+      amount: facts.supplierInvoices.unknownBalances > 0 ? undefined : amountsText(facts.supplierInvoices.knownTotals, t, orgCurrency), href: '/procurement?status=Vendor+Invoiced', tone: 'warn',
     });
     if (facts.readyToBill !== undefined) add({
       id: 'ready-to-bill', count: facts.readyToBill,
@@ -250,6 +257,13 @@ export interface NeedsYouResult {
   items: NeedsItem[];
   /** Role queues reused by layout C to place each exception beside its owning area. */
   areaItems: NeedsItem[];
+  /** The approvals themselves (oldest first); undefined while unknown. */
+  approvals: ApprovalPopulationEntry[] | undefined;
+  /** Overdue client invoices for company roles; undefined while unknown or for other roles. */
+  overdueInvoices: OverdueInvoiceNeeds | undefined;
+  /** The approval sources alone (A14): the approval rows draw as soon as these land, whatever else is still loading. */
+  approvalsPending: boolean;
+  approvalsError: boolean;
   isPending: boolean;
   isError: boolean;
   refetch: () => void;
@@ -274,8 +288,10 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const orgId = currentUser?.org_id;
   const userId = currentUser?.id;
   const companyRole = isCompanyRole(role);
-  const approvalRole = can('transition', 'approval', { realRole });
   const procurementApprovalRole = can('transition', 'procurement', { realRole });
+  // The inbox exposes caller-filtered assigned timesheets to any authenticated real role.
+  const readAwaitingTimesheets = Boolean(orgId && userId && realRole);
+  const expenseApprovalRole = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(realRole ?? '');
   const needsProcurements = procurementApprovalRole && role !== 'Engineer';
   const organizationDay = useFxOrgDay(true);
 
@@ -315,7 +331,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const timesheetsAwaitingQuery = useQuery({
     queryKey: awaitingApprovalKey(orgId, userId, realRole),
     queryFn: () => listTimesheetsAwaitingApproval(userId!, realRole!),
-    enabled: Boolean(orgId && userId && approvalRole),
+    enabled: readAwaitingTimesheets,
   });
   const expenseApprovalsQuery = useQuery({
     queryKey: expenseClaimsAwaitingKey(orgId),
@@ -325,7 +341,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
       const byId = new Map(routes.map((route) => [route.claimId, route]));
       return rows.map((claim) => ({ claim, route: byId.get(claim.id) ?? null }));
     },
-    enabled: Boolean(orgId && procurementApprovalRole),
+    enabled: Boolean(orgId && expenseApprovalRole),
   });
   const invoiceApprovals = useInvoicesAwaitingViewer();
 
@@ -337,23 +353,24 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     () => claimsAwaitingViewer(expenseApprovalsQuery.data ?? [], userId, realRole),
     [expenseApprovalsQuery.data, realRole, userId],
   );
+  const approvalEntries = useMemo<ApprovalPopulationEntry[]>(() => [
+    ...(procurementApprovalRole ? procApprovals.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, createdAt: row.created_at, row })) : []),
+    ...(readAwaitingTimesheets ? (timesheetsAwaitingQuery.data ?? []).map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, createdAt: row.week_start_date, row })) : []),
+    ...(expenseApprovalRole ? expenseApprovals.map((entry) => ({ key: `expense:${entry.claim.id}`, kind: 'expense' as const, createdAt: entry.claim.created_at, row: entry })) : []),
+    ...((role === 'Admin' || role === 'Finance') ? invoiceApprovals.rows.map((row) => ({ key: `invoice:${row.id}`, kind: 'invoice' as const, createdAt: row.created_at, row })) : []),
+  ], [expenseApprovalRole, expenseApprovals, invoiceApprovals.rows, procurementApprovalRole, procApprovals, readAwaitingTimesheets, role, timesheetsAwaitingQuery.data]);
+  const approvalPopulation = useApprovalPopulation(approvalEntries);
   const approvalSourcesPending =
     (needsProcurements && procurementsQuery.isPending) ||
-    (procurementApprovalRole && expenseApprovalsQuery.isPending) ||
-    (approvalRole && timesheetsAwaitingQuery.isPending) ||
+    (expenseApprovalRole && expenseApprovalsQuery.isPending) ||
+    (readAwaitingTimesheets && timesheetsAwaitingQuery.isPending) ||
     (invoiceApprovals.isPending && (role === 'Admin' || role === 'Finance'));
   const approvalSourcesError =
     (needsProcurements && procurementsQuery.isError) ||
-    (procurementApprovalRole && expenseApprovalsQuery.isError) ||
-    (approvalRole && timesheetsAwaitingQuery.isError) ||
+    (expenseApprovalRole && expenseApprovalsQuery.isError) ||
+    (readAwaitingTimesheets && timesheetsAwaitingQuery.isError) ||
     (invoiceApprovals.isError && (role === 'Admin' || role === 'Finance'));
-  const approvalsCount = approvalSourcesPending || approvalSourcesError ? undefined :
-    (procurementApprovalRole ? procApprovals.length + expenseApprovals.length : 0) +
-    (approvalRole ? timesheetsAwaitingQuery.data?.length ?? 0 : 0) +
-    ((role === 'Admin' || role === 'Finance') ? invoiceApprovals.rows.length : 0);
-  const approvalsWithoutTimesheets = approvalSourcesPending || approvalSourcesError ? undefined :
-    (procurementApprovalRole ? procApprovals.length + expenseApprovals.length : 0) +
-    ((role === 'Admin' || role === 'Finance') ? invoiceApprovals.rows.length : 0);
+  const approvalsCount = approvalSourcesPending || approvalSourcesError ? undefined : approvalPopulation.length;
 
   const invoiceNeeds = useMemo(
     () => selectOverdueInvoices(salesInvoiceQuery.data, organizationDay.day),
@@ -370,9 +387,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const pmUnknownRiskCount = pmAtRisk === null
     ? pmDeliveryProjects.filter((project) => !projectRiskBasisKnown(project)).length
     : undefined;
-  const pmOverdueTaskCount = useMemo(() => (projectTasks.data ?? []).filter((task) =>
-    activeTask(task.status) && task.end_date !== null && organizationDay.day !== null && task.end_date < organizationDay.day,
-  ).length, [organizationDay.day, projectTasks.data]);
+  const pmOverdueTaskCount = useMemo(() => selectOverdueTaskCount(projectTasks.data ?? [], organizationDay.day), [organizationDay.day, projectTasks.data]);
 
   const currentWeek = organizationDay.day ? currentWeekStart(organizationDay.day) : null;
   const currentTimesheet = (timesheetsQuery.data ?? []).find((sheet) => sheet.week_start_date === currentWeek) ?? null;
@@ -388,7 +403,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     row.claimant_id === userId && row.status === 'Rejected',
   ), [expenseClaimsQuery.data?.rows, userId]);
   const facts: NeedsYouFacts = {
-    approvals: role === 'Project Manager' ? approvalsWithoutTimesheets : approvalsCount,
+    approvals: approvalsCount,
     atRiskProjects: companyRole ? dashboardQuery.data?.projects_at_risk : undefined,
     riskUncheckedProjects: companyRole ? dashboardQuery.data?.risk_unchecked_projects : undefined,
     procurementsAwaitingApproval: procurementApprovalRole ? procApprovals.length : undefined,
@@ -399,7 +414,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     projectsOverBudget: role === 'Project Manager' && pmProjectsQuery.data ? pmAtRisk?.count ?? 0 : undefined,
     projectsOverBudgetPartial: role === 'Project Manager' ? pmAtRisk?.partial : undefined,
     projectsOverBudgetUnknown: role === 'Project Manager' && pmProjectsQuery.data ? pmUnknownRiskCount : undefined,
-    overdueProjectTasks: role === 'Project Manager' && !projectTasks.isPending && !projectTasks.isError ? pmOverdueTaskCount : undefined,
+    overdueProjectTasks: role === 'Project Manager' && organizationDay.day !== null && !projectTasks.isPending && !projectTasks.isError ? pmOverdueTaskCount ?? undefined : undefined,
     timesheetsToApprove: role === 'Project Manager' && !timesheetsAwaitingQuery.isPending && !timesheetsAwaitingQuery.isError ? timesheetsAwaitingQuery.data?.length ?? 0 : undefined,
     timesheetStatus: currentTimesheet?.status ?? (currentWeek && !timesheetsQuery.isPending && !timesheetsQuery.isError ? 'Draft' : null),
     engineerTasks: role === 'Engineer' && !myTasksQuery.isPending && !myTasksQuery.isError && currentWeek ? engineerTasksCount : undefined,
@@ -431,7 +446,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const areaItems = [...items, ...companyAreaItems.filter((item) => !items.some((existing) => existing.id === item.id))];
   const pmOverdueTasksByProject = Object.fromEntries((pmProjectsQuery.data ?? []).map((project) => [
     project.id,
-    (projectTasks.data ?? []).filter((task) => task.project_id === project.id && activeTask(task.status) && task.end_date !== null && organizationDay.day !== null && task.end_date < organizationDay.day).length,
+    selectOverdueTaskCount(projectTasks.data ?? [], organizationDay.day, project.id) ?? 0,
   ]));
   const refetch = () => {
     void dashboardQuery.refetch();
@@ -453,6 +468,10 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   return {
     items,
     areaItems,
+    approvals: approvalsCount === undefined ? undefined : approvalPopulation,
+    overdueInvoices: companyRole ? invoiceNeeds : undefined,
+    approvalsPending: approvalSourcesPending,
+    approvalsError: approvalSourcesError,
     isPending: needsPending,
     isError: needsError,
     refetch,

@@ -20,6 +20,7 @@ import {
   type GanttColumn,
 } from "@/src/components/reui/gantt/gantt"
 import { GanttBar } from "@/src/components/reui/gantt/gantt-bar"
+import { scrollBehavior } from "@/src/lib/motion"
 import {
   cancelActiveGanttGestures,
   markGestureEnd,
@@ -4334,7 +4335,7 @@ function GanttOffscreenChips({
     viewport.scrollTo({
       // chip targets are distances from the inline start; RTL signs them
       left: getComputedStyle(viewport).direction === "rtl" ? -target : target,
-      behavior: "smooth",
+      behavior: scrollBehavior(),
     })
     // hand keyboard focus to the bar the chip promised (the chip unmounts)
     const bar = viewport.querySelector<HTMLElement>(

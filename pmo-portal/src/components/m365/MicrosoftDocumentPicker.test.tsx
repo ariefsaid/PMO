@@ -147,6 +147,39 @@ describe('MicrosoftDocumentPicker selection and commit', () => {
   });
 });
 
+describe('MicrosoftDocumentPicker dismiss confirm (F2-11)', () => {
+  it('Escape with a selection asks first; Keep editing keeps it, Discard closes; browsing alone never asks', async () => {
+    const user = userEvent.setup();
+    renderPicker();
+    await openLibrary(user);
+    await user.click(screen.getByRole('button', { name: 'Link this file Report.pdf' }));
+    expect(screen.getByText('Selected file: Report.pdf')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    // The picker asks before throwing the selection away.
+    expect(spy.close).not.toHaveBeenCalled();
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(/Discard/i);
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(spy.close).not.toHaveBeenCalled();
+    // The selection is still there.
+    expect(screen.getByText('Selected file: Report.pdf')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Link from Microsoft 365' })).toBeEnabled();
+    // A second dismiss offers the confirm again, and Discard closes.
+    await user.keyboard('{Escape}');
+    await user.click(await screen.findByRole('button', { name: 'Discard' }));
+    expect(spy.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('Escape with nothing selected — folder browsing only — closes at once', async () => {
+    const user = userEvent.setup();
+    renderPicker();
+    await openLibrary(user);
+    expect(screen.queryByText(/Selected /i)).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(spy.close).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+});
+
 describe('MicrosoftDocumentPicker locations', () => {
   it('AC-M365DOC-054 chooser: SharePoint sites then a library, with libraries as locations not linkable items', async () => {
     const user = userEvent.setup();

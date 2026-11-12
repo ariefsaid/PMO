@@ -1,12 +1,8 @@
 {
+  "description": {"engineer": "Pengadaan yang Anda ajukan", "projectManager": "Pengadaan untuk proyek yang Anda kelola"},
   "title": {
     "default": "Pengadaan",
     "engineer": "Pengadaan Anda"
-  },
-  "description": {
-    "default": "Pengadaan di organisasi Anda, dari permintaan hingga pembayaran.",
-    "engineer": "Lacak pengadaan yang Anda ajukan, dari permintaan hingga pembayaran.",
-    "projectManager": "Pengadaan untuk proyek yang Anda kelola, dari permintaan hingga pembayaran."
   },
   "newProcurement": "Pengadaan baru",
   "more": "Lainnya",
@@ -147,8 +143,7 @@
     "title": "Belum ada pengadaan",
     "engineer": {
       "title": "Anda belum mengajukan pengadaan"
-    },
-    "sub": "Pengadaan baru akan muncul di sini setelah diajukan."
+    }
   },
   "noMatch": {
     "title": "Tidak ada pengadaan yang cocok dengan filter ini",
@@ -168,12 +163,31 @@
     "label": "Daftar pengadaan"
   },
   "kpi": {
-    "oldestInvoiceBasis_one": "Tanggal faktur pemasok terlama (atau tanggal pembuatan catatan) · {{count}} hari lalu",
-    "oldestInvoiceBasis_other": "Tanggal faktur pemasok terlama (atau tanggal pembuatan catatan) · {{count}} hari lalu"
+    "unpaid": "Tagihan pemasok belum dibayar",
+    "ordered": "Dipesan, belum ditagih",
+    "notRecorded": "jumlah belum dicatat",
+    "partial_one": "{{count}} belum dicatat",
+    "partial_other": "{{count}} belum dicatat",
+    "invoiceAge_one": "Usia tagihan {{count}} hari",
+    "invoiceAge_other": "Usia tagihan {{count}} hari"
   },
   "references": {
     "loading": "Memuat referensi…",
     "error": "Referensi tidak dapat diperbarui.",
     "retry": "Coba lagi referensi"
+  },
+  "help": {
+    "value": {
+      "term": "Nilai",
+      "text": "Jumlah terbaru yang tercatat: dibayar, atau tagihan pemasok, atau pesanan pembelian, atau permintaan. Dipisah per mata uang."
+    },
+    "stage": {
+      "term": "Di tahap",
+      "text": "Hari sejak pengadaan masuk tahap saat ini."
+    },
+    "invoiceAge": {
+      "term": "Usia tagihan",
+      "text": "Hari sejak tagihan pemasok tertua yang belum dibayar bertanggal, atau dicatat bila tanpa tanggal."
+    }
   }
 }

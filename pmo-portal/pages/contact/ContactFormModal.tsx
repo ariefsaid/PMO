@@ -76,7 +76,6 @@ export interface ContactFormModalProps {
   /** Display name for the locked company's select option. */
   lockedCompanyLabel?: string;
   /** Create-mode subtitle override (the company-record surface says "at this company"). */
-  createSubtitle?: string;
   onClose: () => void;
   /** The create-mode callback (required when `contact` is null). */
   onCreate?: (input: ContactInput) => Promise<void>;
@@ -93,7 +92,6 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
   onRetryCompanies,
   lockedCompanyId,
   lockedCompanyLabel,
-  createSubtitle,
   onClose,
   onCreate,
   onUpdate,
@@ -180,11 +178,6 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
           ? t('contacts.form.editTitle', 'Edit contact')
           : t('contacts.form.newTitle', 'New contact')
       }
-      subtitle={
-        isEdit
-          ? t('contacts.form.editSubtitle', 'Update this contact record')
-          : createSubtitle ?? t('contacts.form.newSubtitle', 'Add a person at one of your companies')
-      }
       submitLabel={
         isEdit
           ? t('contacts.form.editSubmit', 'Save contact')
@@ -252,7 +245,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
               />
               {companyOptionsState === 'error' && onRetryCompanies && (
                 <div className="mt-1.5 flex items-center gap-2">
-                  <p className="text-[12px] text-muted-foreground">{t('contacts.form.company.loadFailed', 'Companies could not be loaded.')}</p>
+                  <p className="text-control text-muted-foreground">{t('contacts.form.company.loadFailed', 'Companies could not be loaded.')}</p>
                   <Button variant="outline" size="sm" onClick={onRetryCompanies}>
                     {t('crm:retry', 'Retry')}
                   </Button>

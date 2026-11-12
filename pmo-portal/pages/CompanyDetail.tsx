@@ -33,6 +33,7 @@ import { ContactFormModal } from './contact/ContactFormModal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
+import { typeLabels } from './company/companyTypeLabels';
 
 /**
  * CompanyDetail — the routable `/companies/:id` master-data record page (CW-4b).
@@ -200,7 +201,6 @@ const CompanyDetail: React.FC = () => {
     }
   };
 
-  const hasActions = canEdit || canArchive;
 
   return (
     <div>
@@ -212,26 +212,18 @@ const CompanyDetail: React.FC = () => {
 
       {/* The ONE RecordHeader anatomy — icon + name + categorical company-type pill (CW-2
           registry) + the role-allowed action zone (Edit + Archive). */}
+      {/* The pill reads the one shared type-label map (the directory's filter, form and pills read
+          it too) — never the raw stored enum. */}
       <RecordHeader
         name={companyDisplayName(company)}
         icon={(companyDisplayName(company).trim().charAt(0) || '•').toUpperCase()}
-        status={<StatusPill variant={companyTypeVariant(company.type)}>{company.type}</StatusPill>}
-        actions={
-          hasActions ? (
-            <>
-              {canEdit && (
-                <Button variant="outline" size="sm" data-testid="company-edit" onClick={() => setEditOpen(true)}>
-                  {t('companyDetail.edit', 'Edit')}
-                </Button>
-              )}
-              {canArchive && (
-                <Button variant="ghost" size="sm" data-testid="company-archive" onClick={() => setArchiveOpen(true)}>
-                  {t('companyDetail.archive', 'Archive')}
-                </Button>
-              )}
-            </>
-          ) : undefined
-        }
+        status={<StatusPill variant={companyTypeVariant(company.type)}>{typeLabels(t)[company.type]}</StatusPill>}
+        primaryAction={canEdit ? (
+          <Button variant="primary" size="sm" data-testid="company-edit" onClick={() => setEditOpen(true)}>
+            {t('companyDetail.edit', 'Edit')}
+          </Button>
+        ) : undefined}
+        menuItems={canArchive ? [{ key: 'archive', testId: 'company-archive', label: t('companyDetail.archive', 'Archive'), onSelect: () => setArchiveOpen(true) }] : undefined}
       />
 
       {!ownershipReady && <p className="mb-3 text-sm text-muted-foreground">{ownership.mode === 'error' ? t('crm:ownershipError', 'Ownership could not be loaded. Try again.') : t('crm:ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('crm:retry', 'Retry')}</Button>}</p>}
@@ -240,9 +232,7 @@ const CompanyDetail: React.FC = () => {
         <CardHead>{t('companyDetail.sectionTitle', 'Company detail')}</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            <Field label={t('companyDetail.field.name', 'Name')} value={company.name} />
-            <Field label={t('companies.form.shortName.label', 'Short name')} value={company.short_name || '—'} />
-            <Field label={t('companyDetail.field.type', 'Type')} value={company.type} />
+            {company.short_name && <Field label={t('companies.form.shortName.label', 'Short name')} value={company.short_name} />}
             {company.client_number_segment && (
               <Field
                 label={t('companyDetail.field.clientNumberSegment', 'Client number segment')}
@@ -313,7 +303,6 @@ const CompanyDetail: React.FC = () => {
           companyOptions={[{ value: company.id, label: companyDisplayName(company) }]}
           lockedCompanyId={company.id}
           lockedCompanyLabel={companyDisplayName(company)}
-          createSubtitle={t('companyDetail.addContact.subtitle', 'Add a person at this company')}
           onClose={() => setAddContactOpen(false)}
           onCreate={async (input) => {
             await createContact.mutateAsync(input);
@@ -372,10 +361,10 @@ const CompanyDetail: React.FC = () => {
 /** A labelled read-only field (definition-list row) — body field primitive for the record page. */
 const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <div className="flex flex-col gap-0.5">
-    <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+    <dt className="text-control font-semibold text-muted-foreground">
       {label}
     </dt>
-    <dd className="text-[13.5px] text-foreground">{value}</dd>
+    <dd className="text-control text-foreground">{value}</dd>
   </div>
 );
 

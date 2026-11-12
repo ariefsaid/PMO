@@ -81,7 +81,7 @@ describe('DocumentsTab — Microsoft reference rendering', () => {
     expect(screen.getByRole('button', { name: 'View Foundation GA' })).toBeInTheDocument();
     expect(screen.getAllByText('Draft').length).toBeGreaterThan(0);
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    const preview = screen.getByRole('complementary');
+    const preview = screen.getByRole('dialog');
     expect(within(preview).getByText('SharePoint file')).toBeInTheDocument();
     expect(within(preview).getByRole('button', { name: /Open in SharePoint: Foundation GA/ })).toBeEnabled();
     expect(screen.queryByRole('button', { name: /upload/i })).not.toBeInTheDocument();
@@ -91,7 +91,7 @@ describe('DocumentsTab — Microsoft reference rendering', () => {
     h.docs.data = [makeLinkedDoc()];
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Open in SharePoint: Foundation GA/ }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Open in SharePoint: Foundation GA/ }));
     expect(window.open).toHaveBeenCalledWith(REFERENCE.web_url, '_blank', 'noopener,noreferrer');
     expect(h.connectionReads).not.toHaveBeenCalled();
     for (const spy of Object.values(h.graph)) expect(spy).not.toHaveBeenCalled();
@@ -106,7 +106,7 @@ describe('DocumentsTab — Microsoft reference rendering', () => {
     })];
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Open latest in SharePoint/ })).toBeEnabled();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Open latest in SharePoint/ })).toBeEnabled();
     expect(h.connectionReads).not.toHaveBeenCalled();
   });
 
@@ -114,7 +114,7 @@ describe('DocumentsTab — Microsoft reference rendering', () => {
     h.docs.data = [makeLinkedDoc()];
     const view = renderTab();
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    const drawer = screen.getByRole('complementary');
+    const drawer = screen.getByRole('dialog');
     expect(within(drawer).getByText('SharePoint file')).toBeInTheDocument();
     // The register refetches with the file renamed in PMO: the open drawer follows it (no stale copy).
     h.docs.data = [makeLinkedDoc({ title: 'Foundation GA (renamed)' })];
@@ -127,7 +127,7 @@ describe('DocumentsTab — Microsoft reference rendering', () => {
         </ImpersonationProvider>
       </MemoryRouter></QueryClientProvider>,
     );
-    expect(within(screen.getByRole('complementary')).getByText('Foundation GA (renamed)')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Foundation GA (renamed)');
   });
 
   it('AC-M365DOC-030: list loading/error stay tied to the document query only', () => {

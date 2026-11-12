@@ -1,9 +1,9 @@
+import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import {
-  Button, Combobox, ConfirmDialog, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, Tabs, TextField, useToast,
-  type Column, type StatusVariant,
+  Button, Combobox, ConfirmDialog, DataTable, Icon, ListPage, ListState, ReasonDialog, SelectField, StatusPill, Tabs, TextField, tabId, tabPanelId, useToast, useUrlFilters,
+  type Column,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -13,9 +13,9 @@ import {
 } from '@/src/hooks/useEquipment';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
-import { LIST_LIMIT, type EquipmentAssetRow, type EquipmentUsageRow, type UsageInput } from '@/src/lib/db/equipment';
+import { LIST_LIMIT, type EquipmentAssetRow, type EquipmentUsageWithRejecter as EquipmentUsageRow, type UsageInput } from '@/src/lib/db/equipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatNumberMax2, formatWeekdayDay, formatWeekdayMonthDay } from '@/src/lib/format';
+import { formatDay, formatNumberMax2, formatWeekdayDay } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { addDays, fromIso, mondayOf, toIso, weekDays } from './equipmentWeek';
 
@@ -24,15 +24,11 @@ type Kind = 'work' | 'standby';
 /** One grid line: an (asset, project, kind) pair, or a fuel/trips line opened under it. */
 interface GridRow { key: string; assetId: string; projectId: string; kind: Kind; field: Field }
 type Tab = 'log' | 'approvals';
-type Status = 'Draft' | 'Submitted' | 'Approved' | 'Rejected';
 type Pending = { id: string; label: string } | null;
 
-const STATUS_VARIANT: Record<Status, StatusVariant> = {
-  Draft: 'draft', Submitted: 'warn', Approved: 'won', Rejected: 'lost',
-};
 const cellKey = (assetId: string, projectId: string, kind: string, date: string) => `${assetId}|${projectId}|${kind}|${date}`;
 const rowKey = (assetId: string, projectId: string, kind: string) => `${assetId}|${projectId}|${kind}`;
-const dayLabel = (iso: string) => formatWeekdayMonthDay(fromIso(iso));
+const dayLabel = (iso: string) => formatDay(fromIso(iso));
 /** Column heading: weekday and day number only, so seven days fit beside the totals. The cell's accessible name keeps the full date. */
 const dayHead = (iso: string) => formatWeekdayDay(fromIso(iso));
 const isEditable = (e: EquipmentUsageRow | undefined) => !e || e.status === 'Draft' || e.status === 'Rejected';
@@ -61,19 +57,25 @@ const EquipmentUsagePage: React.FC = () => {
   const canLog = may('create', 'equipmentUsage', writeCtx);
   const userId = useAuth().currentUser?.id ?? null;
   const today = toIso(new Date());
-  // `?week=YYYY-MM-DD` deep-links a week (any day in it); otherwise the grid opens on this week.
-  const [params] = useSearchParams();
-  const [weekStart, setWeekStart] = useState(() => mondayOf(/^\d{4}-\d{2}-\d{2}$/.test(params.get('week') ?? '') ? params.get('week')! : today));
-  const [tab, setTab] = useState<Tab>('log');
-  const [assetFilter, setAssetFilter] = useState<string | null>(null);
+  // R2: week/tab/asset are URL-owned (`?week=YYYY-MM-DD`, the same deep-link contract) so
+  // Back/refresh return to them; defaults (this week, My usage, all assets) stay out of the URL.
+  const { values, setFilter } = useUrlFilters(['week', 'tab', 'asset']);
+  const thisWeek = mondayOf(today);
+  const weekStart = /^\d{4}-\d{2}-\d{2}$/.test(values.week) ? mondayOf(values.week) : thisWeek;
+  const setWeekStart = (iso: string) => setFilter('week', iso === thisWeek ? '' : iso);
+  const tab: Tab = values.tab === 'approvals' ? 'approvals' : 'log';
+  const setTab = (next: Tab) => setFilter('tab', next === 'log' ? '' : next);
+  const assetFilter = values.asset || null;
+  const setAssetFilter = (next: string | null) => setFilter('asset', next ?? '');
   const [added, setAdded] = useState<Array<{ assetId: string; projectId: string; kind: Kind }>>([]);
   const [opened, setOpened] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
   const [draftRow, setDraftRow] = useState<{ assetId: string | null; projectId: string | null; kind: Kind }>({ assetId: null, projectId: null, kind: 'work' });
   const [warnings, setWarnings] = useState<Record<string, number>>({});
   const [problem, setProblem] = useState<string | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
+  const [approving, setApproving] = useState<Pending>(null);
   const [rejecting, setRejecting] = useState<Pending>(null);
-  const [reason, setReason] = useState('');
 
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
   const weekEnd = days[6];
@@ -116,10 +118,11 @@ const EquipmentUsagePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the name lookups derive from assets/projects, already deps
   }, [mine, added, opened, assetFilter, assets, projects]);
 
-  const fail = (err: unknown) => {
+  const classifiedFailure = (err: unknown) => {
     const c = classifyMutationError(err);
-    setProblem(`${c.headline}. ${c.detail}`);
+    return c.detail ? `${c.headline}. ${c.detail}` : c.headline;
   };
+  const fail = (err: unknown) => setProblem(classifiedFailure(err));
 
   const commit = async (row: GridRow, date: string, text: string) => {
     const entry = byCell.get(cellKey(row.assetId, row.projectId, row.kind, date));
@@ -170,8 +173,8 @@ const EquipmentUsagePage: React.FC = () => {
   const columns: Column<GridRow>[] = [
     { key: 'asset', header: t('equipment:usage.columns.equipment', 'Equipment'), kind: 'primary', rowHeader: true, stickyLeft: true, size: 170, minSize: 140,
       cell: (r) => r.field === 'quantity'
-        ? <span className="font-medium">{assetName(r.assetId)}{r.kind === 'standby' && <span className="ml-1 text-xs font-normal text-muted-foreground">{t('equipment:usage.standby', 'standby')}</span>}</span>
-        : <span className="pl-3 text-xs text-muted-foreground">{r.field === 'fuel_litres' ? t('equipment:usage.fuel', 'Fuel (litres)') : t('equipment:usage.trips', 'Trips')}</span> },
+        ? <span className="font-medium">{assetName(r.assetId)}{r.kind === 'standby' && <span className="ml-1 text-sm font-normal text-muted-foreground">{t('equipment:usage.standby', 'standby')}</span>}</span>
+        : <span className="pl-3 text-sm text-muted-foreground">{r.field === 'fuel_litres' ? t('equipment:usage.fuel', 'Fuel (litres)') : t('equipment:usage.trips', 'Trips')}</span> },
     { key: 'project', header: t('equipment:usage.columns.project', 'Project'), size: 150, minSize: 110, cell: (r) => r.field === 'quantity' ? projectName(r.projectId) : null },
     ...days.map<Column<GridRow>>((d) => ({
       key: d, header: <span className={d === today ? 'font-semibold text-foreground' : undefined}>{dayHead(d)}</span>, align: 'num', colClassName: 'px-1', size: 76, minSize: 68,
@@ -191,12 +194,12 @@ const EquipmentUsagePage: React.FC = () => {
         const unit = rowEntries[0]?.unit ?? assetById.get(r.assetId)?.default_unit ?? 'hours';
         return <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(rowEntries.reduce((s, e) => s + Number(e.quantity), 0))} {unit}</span>;
       } },
-    { key: 'status', header: t('equipment:usage.columns.status', 'Status'), size: 96,
+    { key: 'status', header: t('equipment:usage.columns.status', 'Status'), size: 112,
       cell: (r) => {
         if (r.field !== 'quantity') return null;
         const states = [...new Set(mine.filter((e) => rowKey(e.asset_id, e.project_id, e.kind) === r.key).map((e) => e.status))];
         if (states.length === 0) return <span className="text-muted-foreground">—</span>;
-        return <span className="flex flex-wrap gap-1">{states.map((s) => <StatusPill key={s} variant={STATUS_VARIANT[s as Status]}>{statusLabel(t, s as Status)}</StatusPill>)}</span>;
+        return <span className="flex flex-wrap gap-1">{states.map((s) => <StatusPill key={s} record="equipmentUsage" state={s} wrap={false} />)}</span>;
       } },
     { key: 'more', size: 48, header: <span className="sr-only">{t('equipment:usage.columns.fuelTrips', 'Fuel · trips')}</span>,
       cell: (r) => r.field !== 'quantity' ? null : (
@@ -228,7 +231,14 @@ const EquipmentUsagePage: React.FC = () => {
   });
   const decide = async (id: string, to: 'Approved' | 'Rejected', notes?: string) => {
     setProblem(null);
-    try { await transition.mutateAsync(notes ? { id, to, notes } : { id, to }); } catch (err) { fail(err); }
+    setDecisionError(null);
+    try {
+      await transition.mutateAsync(notes ? { id, to, notes } : { id, to });
+      return true;
+    } catch (err) {
+      setDecisionError(classifiedFailure(err));
+      return false;
+    }
   };
   const approveAssetWeek = async (assetId: string) => {
     setProblem(null);
@@ -250,13 +260,13 @@ const EquipmentUsagePage: React.FC = () => {
       cell: (e) => <span className="tabular-nums">{e.fuel_litres == null ? '—' : formatNumberMax2(Number(e.fuel_litres))} · {e.trips ?? '—'}</span> },
     { key: 'act', header: t('equipment:usage.columns.decision', 'Decision'),
       cell: (e) => {
-        if (e.author_id === userId) return <span className="text-xs text-muted-foreground">{t('equipment:usage.ownEntry', 'Your own entry')}</span>;
-        if (!mayDecide(e)) return <span className="text-xs text-muted-foreground">{t('equipment:usage.notYours', 'Another manager approves this')}</span>;
+        if (e.author_id === userId) return <span className="text-sm text-muted-foreground">{t('equipment:usage.ownEntry', 'Your own entry')}</span>;
+        if (!mayDecide(e)) return <span className="text-sm text-muted-foreground">{t('equipment:usage.notYours', 'Another manager approves this')}</span>;
         const who = `${assetName(e.asset_id)} · ${projectName(e.project_id)} · ${dayLabel(e.work_date)}`;
         return (
           <span className="flex gap-1">
-            <Button variant="outline" size="sm" aria-label={t('equipment:usage.approveEntry', 'Approve {{what}}', { what: who })} onClick={() => void decide(e.id, 'Approved')}>{t('equipment:usage.approve', 'Approve')}</Button>
-            <Button variant="ghost" size="sm" aria-label={t('equipment:usage.rejectEntry', 'Reject {{what}}', { what: who })} onClick={() => { setReason(''); setRejecting({ id: e.id, label: who }); }}>{t('equipment:usage.reject', 'Reject')}</Button>
+            <Button variant="outline" size="sm" aria-label={t('equipment:usage.rejectEntry', 'Return {{what}}', { what: who })} onClick={() => { setDecisionError(null); setRejecting({ id: e.id, label: who }); }}>{t('equipment:usage.reject', 'Return')}</Button>
+            <Button variant="primary" size="sm" aria-label={t('equipment:usage.approveEntry', 'Approve {{what}}', { what: who })} onClick={() => { setDecisionError(null); setApproving({ id: e.id, label: who }); }}>{t('equipment:usage.approve', 'Approve')}</Button>
           </span>
         );
       } },
@@ -282,13 +292,13 @@ const EquipmentUsagePage: React.FC = () => {
   return (
     <ListPage
       title={t('equipment:usage.title', 'Equipment')}
-      description={t('equipment:usage.description', 'Log the hours or days each machine worked on a project, submit the week, and approve what others logged.')}
-      primaryAction={tab === 'log' ? <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
-        <Button variant="primary" disabled={!submittable || transition.isPending} onClick={() => void submitWeek()}>{t('equipment:usage.submitWeek', 'Submit week')}</Button>
+      primaryAction={tab === 'log' && submittable ? <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
+        <Button variant="primary" disabled={transition.isPending} onClick={() => void submitWeek()}>{t('equipment:usage.submitWeek', 'Submit week')}</Button>
       </CanWrite> : undefined}
       filters={header}
     >
       {canApproveTab && <Tabs items={tabs} value={tab} onChange={setTab} ariaLabel={t('equipment:usage.tabsLabel', 'Equipment usage views')} idBase="equipment-usage" className="mb-3" />}
+      <div {...(canApproveTab ? { id: tabPanelId('equipment-usage', tab), role: 'tabpanel', 'aria-labelledby': tabId('equipment-usage', tab) } : {})}>
       {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
       {Object.entries(warnings).map(([date, hours]) => (
         <p key={date} role="status" className="mb-2 flex items-center gap-2 text-sm text-warning-foreground">
@@ -324,6 +334,10 @@ const EquipmentUsagePage: React.FC = () => {
                 </div>}
             </div>
           </CanWrite>
+          {mine.filter((e) => e.status === 'Rejected' || (e.status === 'Draft' && !!(e.rejected_at || e.rejected_by || e.decision_notes?.trim()))).map((e) => <div key={e.id} className="mb-3">
+            <strong>{assetName(e.asset_id)} · {projectName(e.project_id)} · {dayLabel(e.work_date)}</strong>
+            <ReturnedBanner record="equipmentUsage" reason={e.decision_notes} person={e.rejecter?.full_name} at={e.rejected_at} />
+          </div>)}
           <DataTable<GridRow> embedded rows={gridRows} columns={columns} rowKey={(r) => r.key} tableId="equipment-usage-grid"
             accessibleName={t('equipment:usage.gridLabel', 'Equipment usage this week')}
             state={gridRows.length === 0 ? 'empty' : undefined}
@@ -345,25 +359,25 @@ const EquipmentUsagePage: React.FC = () => {
                 accessibleName={t('equipment:usage.approvalsLabel', 'Submitted usage for {{asset}}', { asset: assetName(assetId) })} />
             </section>))
       )}
-      <ConfirmDialog open={rejecting !== null} tone="destructive" title={t('equipment:usage.rejectTitle', 'Reject this entry?')}
-        description={<div className="space-y-2">
-          <p>{rejecting?.label}</p>
-          <TextField label={t('equipment:usage.rejectReason', 'Reason')} required value={reason} onChange={setReason} />
-        </div>}
-        confirmLabel={t('equipment:usage.rejectConfirm', 'Reject entry')} confirmDisabled={reason.trim() === ''}
-        onCancel={() => setRejecting(null)}
-        onConfirm={() => { const r = rejecting; setRejecting(null); if (r) void decide(r.id, 'Rejected', reason.trim()); }} />
+      </div>
+      <ConfirmDialog
+        open={approving !== null}
+        title={t('equipment:usage.confirmApproveTitle', 'Approve usage entry?')}
+        description={approving?.label ?? t('equipment:usage.confirmApproveBody', 'This will approve the logged equipment usage entry.')}
+        confirmLabel={t('equipment:usage.approve', 'Approve')}
+        loading={transition.isPending}
+        error={decisionError}
+        onCancel={() => { setApproving(null); setDecisionError(null); }}
+        onConfirm={async () => {
+          const a = approving;
+          if (a && await decide(a.id, 'Approved')) setApproving(null);
+        }}
+      />
+      <ReasonDialog maxLength={500} open={rejecting !== null} kind="return" subject={t('equipment:usage.entrySubject', 'usage entry')} context={rejecting?.label}
+        loading={transition.isPending} error={decisionError} onCancel={() => { setRejecting(null); setDecisionError(null); }}
+        onConfirm={async (notes) => { const r = rejecting; if (r && await decide(r.id, 'Rejected', notes)) setRejecting(null); }} />
     </ListPage>
   );
 };
-
-function statusLabel(t: (k: string, d: string) => string, s: Status): string {
-  switch (s) {
-    case 'Draft': return t('equipment:status.draft', 'Draft');
-    case 'Submitted': return t('equipment:status.submitted', 'Submitted');
-    case 'Approved': return t('equipment:status.approved', 'Approved');
-    case 'Rejected': return t('equipment:status.rejected', 'Rejected');
-  }
-}
 
 export default EquipmentUsagePage;

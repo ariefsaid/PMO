@@ -4,7 +4,7 @@
  * and mutation callbacks and hands them in through {@link TaskColumnDeps}; the columns render
  * whatever the current role allows (ADR-0016: FE is the clarity projection, RLS is the authority).
  */
-import { initials } from '@/src/lib/initials';
+import { Avatar } from '@/src/components/ui/Avatar';
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -12,7 +12,7 @@ import { Tooltip, type Column } from '@/src/components/ui';
 import type { PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import type { TaskWithRefs, TaskStatus } from '@/src/lib/db/tasks';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { daysLate } from './taskViewModel';
 import { TaskStatusCell } from './TaskStatusCell';
 
@@ -58,7 +58,7 @@ function buildTaskColumns(
         </span>;
       },
       secondaryCell: (task) => task.priority ? (
-        <span className="text-xs font-normal text-muted-foreground" title={t('projectDetail.tasks.prioritySource', 'Source: task priority field')}>{task.priority}</span>
+        <span className="text-sm font-normal text-muted-foreground" title={t('projectDetail.tasks.prioritySource', 'Source: task priority field')}>{task.priority}</span>
       ) : null,
     },
     {
@@ -66,9 +66,8 @@ function buildTaskColumns(
       header: t('projectDetail.tasks.column.assignee', 'Assignee'),
       cell: (task) => {
         if (!task.assignee) return <span className="text-muted-foreground">{t('projectDetail.tasks.unassigned', 'Unassigned')}</span>;
-        const avatarInitials = initials(task.assignee.full_name, { fallback: '' });
         return <span className="inline-flex min-w-0 items-center gap-2" title={task.assignee.full_name}>
-          <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{avatarInitials}</span>
+          <Avatar name={task.assignee.full_name} decorative fallback="" />
           <span className="truncate text-muted-foreground">{task.assignee.full_name}</span>
         </span>;
       },
@@ -84,9 +83,9 @@ function buildTaskColumns(
         'Due date from the task record. Late days compare the due date with today in the organization timezone.',
       )}>
         <span tabIndex={0} className={`block whitespace-normal break-words tabular ${task.status !== 'Done' && task.end_date < today ? 'text-destructive-text' : 'text-muted-foreground'}`}>
-          {formatDateOnly(task.end_date)}
+          {formatDay(task.end_date)}
           {task.status !== 'Done' && task.end_date < today && (
-            <span> · {daysLate(task.end_date, today)} {daysLate(task.end_date, today) === 1 ? t('projectDetail.tasks.dayLate', 'day late') : t('projectDetail.tasks.daysLate', 'days late')}</span>
+            <span> · {daysLate(task.end_date, today)} {daysLate(task.end_date, today) === 1 ? t('projectDetail.tasks.dayLate', 'day overdue') : t('projectDetail.tasks.daysLate', 'days overdue')}</span>
           )}
         </span>
       </Tooltip> : <span className="text-muted-foreground">—</span>,

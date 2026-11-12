@@ -27,7 +27,7 @@ export function PushAttentionSection() {
         className="mb-4"
         aria-label={t('approvals.pushAttention.title', 'ERP pushes needing attention')}
       >
-        <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        <h2 className="mb-2 text-control font-semibold text-muted-foreground">
           {t('approvals.pushAttention.title', 'ERP pushes needing attention')}
         </h2>
         <ListState
@@ -51,7 +51,7 @@ export function PushAttentionSection() {
       className="mb-4"
       aria-label={t('approvals.pushAttention.title', 'ERP pushes needing attention')}
     >
-      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+      <h2 className="mb-2 text-control font-semibold text-muted-foreground">
         {t('approvals.pushAttention.title', 'ERP pushes needing attention')}
       </h2>
       <div className="space-y-1.5">
@@ -67,7 +67,7 @@ export function PushAttentionSection() {
             >
               <div className="min-w-0">
                 <div className="text-sm font-medium">{row.owner_name}</div>
-                <div className="mt-0.5 text-[12px] text-muted-foreground">
+                <div className="mt-0.5 text-control text-muted-foreground">
                   {weekLabel(row.week_start_date, t)}
                 </div>
               </div>

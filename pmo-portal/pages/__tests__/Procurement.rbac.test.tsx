@@ -96,9 +96,8 @@ beforeEach(() => {
 describe('Procurement — Engineer own-scoped view (A-3)', () => {
   it('AC-W2-RBAC-006: an Engineer reads as "your procurement records" (own-scoped) and can create one', () => {
     renderAs('Engineer');
-    // Own-scoped copy: the page describes the Engineer's OWN procurements, not the org index.
-    expect(screen.getByRole('heading', { level: 1, name: 'Your procurements' })).toBeInTheDocument();
-    expect(screen.getByText(/procurements you raised/i)).toBeInTheDocument();
+    // Coherent place-name: page heading is "Procurement" matching rail and breadcrumb.
+    expect(screen.getByRole('heading', { level: 1, name: 'Procurement' })).toBeInTheDocument();
     // Raising a procurement stays available (any member may raise).
     expect(screen.getAllByRole('button', { name: /New procurement/i }).length).toBeGreaterThan(0);
   });
@@ -113,9 +112,7 @@ describe('Procurement — Engineer own-scoped view (A-3)', () => {
 
   it('AC-W2-RBAC-006: a PM sees every requester\'s rows for their projects (NOT the "your procurements" scoping)', async () => {
     renderAs('Project Manager');
-    // The manager description stays distinct from the own-scoped requester copy.
     expect(screen.getByRole('heading', { level: 1, name: 'Procurement' })).toBeInTheDocument();
-    expect(screen.getByText(/Procurements for projects you manage/i)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /New procurement/i }).length).toBeGreaterThan(0);
     // No own-scoping framing for a manager.
     expect(screen.queryByRole('heading', { name: 'Your procurements' })).not.toBeInTheDocument();

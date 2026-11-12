@@ -362,11 +362,11 @@ describe('AC-PLC-005: account activity dates follow the profile timezone', () =>
     contactActivitiesState.data = [{ ...activity, occurred_at: '2026-06-14T23:30:00Z' }];
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
     const { unmount } = renderPage('Admin');
-    expect(within(screen.getByTestId('account-activity-timeline')).getByText(/Jun 14, 2026/)).toBeInTheDocument();
+    expect(within(screen.getByTestId('account-activity-timeline')).getByText(/14 Jun/)).toBeInTheDocument();
     unmount();
 
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
     renderPage('Admin');
-    expect(within(screen.getByTestId('account-activity-timeline')).getByText(/Jun 15, 2026/)).toBeInTheDocument();
+    expect(within(screen.getByTestId('account-activity-timeline')).getByText(/15 Jun/)).toBeInTheDocument();
   });
 });

@@ -2,9 +2,9 @@
 
 - **Date:** 2026-06-12
 - **Auditor:** design-architect (Director-dispatched)
-- **Scope:** the WHOLE delivery-milestones feature (spec `docs/specs/delivery-milestones.spec.md`, 21 FRs / 22 ACs; plan `docs/plans/2026-06-11-delivery-milestones.md`; decisions OD-DEL-1..8). Built + merged in PR #74 **without** the binding pre-build design gate (CLAUDE.md §1a / `docs/design-workflow.md` §1a) or the post-build `/design-review`. This audit is the retroactive 3-lens pass.
+- **Scope:** the WHOLE delivery-milestones feature (spec `docs/specs/delivery-milestones.spec.md`, 21 FRs / 22 ACs; plan `docs/plans/2026-06-11-delivery-milestones.md`; decisions OD-DEL-1..8). Built + merged in PR #74 **without** the binding pre-build design gate (CLAUDE.md §1a / `docs/archive/design-workflow-lens-battery.md` §1a) or the post-build `/design-review`. This audit is the retroactive 3-lens pass.
 - **Authority:** `DESIGN.md` is the token / identity authority. No new brand, palette, or font is proposed. One token-naming question is flagged for owner sign-off (F-DEL-A12).
-- **Lenses (per `docs/design-workflow.md` §2.3):** (1) Visual / DESIGN.md fidelity; (2) IxD / task-flow (Nielsen + cognitive-load); (3) IA / structure-navigation (one canonical view per entity, ADR-0021).
+- **Lenses (per `docs/archive/design-workflow-lens-battery.md` §2.3):** (1) Visual / DESIGN.md fidelity; (2) IxD / task-flow (Nielsen + cognitive-load); (3) IA / structure-navigation (one canonical view per entity, ADR-0021).
 
 > **Render-verification status (read this first).** This session had **no browser/render access** (no `chromium-cli`, no loaded browser MCP, Bash tool not exposed). Every finding below is grounded in the **source as merged** — exact classNames, the data-flow, and the spec — which is sufficient to catch token/IA/IxD defects with high confidence (these are structural, not pixel-subjective). **Findings tagged `[RENDER-CONFIRM]` need a one-pass live screenshot check** by the design-reviewer (login `pm@acme.test` / `engineer@acme.test` at https://pmo-bfb.pages.dev, desktop 1440 + mobile 375) before they are closed. They are correctness-confident from code but their *severity* (e.g. exact whitespace, measured contrast) wants a render. The redesign mockup (`delivery-redesign.html`) is itself the visual target and can be diffed against the live app once rendered.
 

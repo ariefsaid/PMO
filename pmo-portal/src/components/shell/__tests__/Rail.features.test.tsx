@@ -51,11 +51,12 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 import { Rail } from '../Rail';
 import { FEATURE_ENV_DEFAULT } from '@/src/lib/features';
+import { RailDrawerContext } from '../railDrawerContext';
 
 const renderRail = () =>
   render(
     <MemoryRouter>
-      <Rail />
+      <RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider>
     </MemoryRouter>,
   );
 

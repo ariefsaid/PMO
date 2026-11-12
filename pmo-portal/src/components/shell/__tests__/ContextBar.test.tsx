@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: {} }) }));
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -15,6 +15,7 @@ let canImpersonate = true;
 const viewAs = vi.fn();
 const signOut = vi.fn();
 const onOpenPalette = vi.fn();
+const onOpenMore = vi.fn();
 let displayName = 'Ada Lovelace';
 
 vi.mock('@/src/auth/impersonation', () => ({
@@ -49,7 +50,7 @@ const breadcrumb = [{ label: 'Dashboard' }];
 const renderBar = () =>
   render(
     <MemoryRouter>
-      <ContextBar breadcrumb={breadcrumb} onOpenPalette={onOpenPalette} onToggleRail={vi.fn()} />
+      <ContextBar breadcrumb={breadcrumb} onOpenPalette={onOpenPalette} onOpenMore={onOpenMore} />
     </MemoryRouter>
   );
 
@@ -58,6 +59,7 @@ beforeEach(() => {
   viewAs.mockClear();
   signOut.mockClear();
   onOpenPalette.mockClear();
+  onOpenMore.mockClear();
   // Theme truth resets between tests (the DOM class is the source of truth).
   document.documentElement.classList.remove('dark');
   localStorage.removeItem('theme');
@@ -76,9 +78,16 @@ describe('ContextBar', () => {
     renderBar();
     const trigger = screen.getByRole('button', { name: /command palette/i });
     expect(trigger.className.split(/\s+/)).toContain('px-3');
+    expect(trigger.className.split(/\s+/)).toContain('min-h-11');
+    expect(trigger.className.split(/\s+/)).toContain('max-[921px]:min-w-11');
     expect(trigger).toHaveAttribute('aria-keyshortcuts');
     await userEvent.click(trigger);
     expect(onOpenPalette).toHaveBeenCalled();
+  });
+
+  it('keeps header Search out of the phone layout where the bottom bar owns Search', () => {
+    renderBar();
+    expect(screen.getByRole('button', { name: /command palette/i }).className).toContain('max-[639px]:hidden');
   });
 
   it('AC-WFN-001: the notification bell shows even while `agentAssistant` is off', () => {
@@ -88,11 +97,11 @@ describe('ContextBar', () => {
     expect(screen.getByRole('button', { name: /notifications, 0 unread/i })).toBeInTheDocument();
   });
 
-  it('UIP-002: the navigation menu trigger uses the menu glyph and keeps its accessible name', () => {
+  it('UIP-002: the compact-tablet More control shares the phone drawer trigger contract', () => {
     renderBar();
-    const trigger = screen.getByRole('button', { name: /open navigation/i });
-    expect(trigger).toBeInTheDocument();
-    expect(trigger.querySelector('svg')).toHaveAttribute('data-icon', 'menu');
+    expect(screen.queryByRole('button', { name: /open navigation/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^more$/i })).toHaveAttribute('data-drawer-toggle');
+    expect(screen.getByRole('button', { name: /^more$/i }).className).toContain('tablet-nav-more');
   });
 });
 
@@ -107,6 +116,50 @@ describe('ContextBar — unified account menu', () => {
     expect(screen.getByRole('menuitemradio', { name: /^larger$/i })).toHaveAttribute('aria-checked', 'true');
     expect(document.documentElement.dataset.textSize).toBe('larger');
     expect(localStorage.getItem('text-size')).toBe('larger');
+  });
+  it('AC-ACCT-005 keeps the larger-text account menu within the 390px viewport', async () => {
+    const innerWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    const innerHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 360 });
+    try {
+      renderBar();
+      await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+      await userEvent.click(screen.getByRole('menuitemradio', { name: /^larger$/i }));
+
+      expect(screen.getByRole('menu')).toHaveStyle({
+        maxWidth: '292.8px',
+        maxHeight: 'min(var(--available-height), 268.8px)',
+      });
+    } finally {
+      if (innerWidth) Object.defineProperty(window, 'innerWidth', innerWidth);
+      if (innerHeight) Object.defineProperty(window, 'innerHeight', innerHeight);
+    }
+  });
+  it('AC-ACCT-005 corrects the account menu position when page zoom outgrows its portal geometry', async () => {
+    const innerWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    const innerHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 360 });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute('role') === 'menu' && document.documentElement.dataset.textSize === 'larger') {
+        return { x: 96.25, y: 87.5, left: 96.25, top: 87.5, right: 456.25, bottom: 423.5, width: 360, height: 336, toJSON: () => ({}) } as DOMRect;
+      }
+      return originalRect.call(this);
+    });
+    try {
+      renderBar();
+      await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+      await userEvent.click(screen.getByRole('menuitemradio', { name: /^larger$/i }));
+
+      const menu = screen.getByRole('menu');
+      await waitFor(() => expect(menu.parentElement).toHaveStyle({ translate: '-62.6px -60.4px' }));
+    } finally {
+      vi.restoreAllMocks();
+      if (innerWidth) Object.defineProperty(window, 'innerWidth', innerWidth);
+      if (innerHeight) Object.defineProperty(window, 'innerHeight', innerHeight);
+    }
   });
   it('keeps legal and support links out of the account menu', async () => {
     renderBar();
@@ -140,6 +193,15 @@ describe('ContextBar — unified account menu', () => {
     expect(dark).toHaveAttribute('aria-checked', 'false');
     // Sign out is a separated command.
     expect(screen.getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument();
+  });
+
+  it('AC-ACCT-001: choosing a profile link closes the menu and releases its inert backdrop', async () => {
+    renderBar();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /profile & preferences/i }));
+
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    expect(document.querySelector('[data-base-ui-inert]')).not.toBeInTheDocument();
   });
 
   it('AC-ACCT-002: choosing Light→Dark applies + persists, and the selected state flips', async () => {
@@ -180,6 +242,7 @@ describe('ContextBar — unified account menu', () => {
     expect(screen.getByText('View as role')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('menuitemradio', { name: 'Engineer' }));
     expect(viewAs).toHaveBeenCalledWith('Engineer');
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
   });
 
   it('AC-ACCT-004: role preview keeps the real identity visible and can return to Admin', async () => {
@@ -201,26 +264,32 @@ describe('ContextBar — unified account menu', () => {
     canImpersonate = false;
     effectiveRole = 'Finance';
     renderBar();
-    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    // Keyboard open: the library lands focus on the first item (a pointer open leaves it on the popup).
+    screen.getByRole('button', { name: /account menu/i }).focus();
+    await userEvent.keyboard('{Enter}');
 
-    const profile = screen.getByRole('menuitem', { name: /profile & preferences/i });
+    const profile = await screen.findByRole('menuitem', { name: /profile & preferences/i });
     const light = screen.getByRole('menuitemradio', { name: /^light$/i });
     const signOutItem = screen.getByRole('menuitem', { name: /sign out/i });
-    expect(profile).toHaveFocus();
+    await waitFor(() => expect(profile).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.keyboard('{ArrowDown}');
-    expect(light).toHaveFocus();
+    await waitFor(() => expect(light).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.keyboard('{ArrowUp}');
-    expect(profile).toHaveFocus();
+    await waitFor(() => expect(profile).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.keyboard('{End}');
-    expect(signOutItem).toHaveFocus();
+    await waitFor(() => expect(signOutItem).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.keyboard('{Home}');
-    expect(profile).toHaveFocus();
+    await waitFor(() => expect(profile).toHaveFocus()); // Base UI moves focus on the next frame
     await userEvent.tab();
-    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /open navigation/i })).toHaveFocus();
-    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: /^more$/i })).toHaveFocus());
+    screen.getByRole('button', { name: /account menu/i }).focus();
+    await userEvent.keyboard('{Enter}');
+    await screen.findByRole('menu');
     await userEvent.tab({ shift: true });
-    expect(screen.getByRole('button', { name: /command palette/i })).toHaveFocus();
+    // Shift+Tab leaves the menu without a trap: it closes and the library returns focus to its trigger.
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: /account menu/i })).toHaveFocus());
   });
 
   it('AC-ACCT-004: an ordinary Admin (or non-admin) sees NO View as role section or choices', async () => {
@@ -255,7 +324,10 @@ describe('ContextBar — unified account menu', () => {
     renderBar();
     const trigger = screen.getByRole('button', { name: /account menu/i });
     expect(trigger).toHaveClass('max-w-[220px]');
-    expect(screen.getByText(displayName)).toHaveClass('truncate');
+    const name = screen.getByText(displayName);
+    expect(name).toHaveClass('break-words');
+    expect(name).not.toHaveClass('truncate');
+    expect(name).toHaveTextContent(displayName);
   });
 
   it('AC-ACCT-003: Escape closes the menu and restores focus to the trigger', async () => {
@@ -327,7 +399,6 @@ describe('ContextBar — catalogue-backed account-menu labels (AC-ACCT-006)', ()
           <ContextBar
             breadcrumb={breadcrumb}
             onOpenPalette={onOpenPalette}
-            onToggleRail={vi.fn()}
           />
         </MemoryRouter>
       </I18nextProvider>,

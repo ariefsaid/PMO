@@ -1,189 +1,170 @@
 ---
 name: restructure
-description: Restructure one screen with the owner — what it shows, how it's organised, how people move through it, and how it looks within PMO's tokens — aiming at an information-rich, enterprise-grade ERP surface.
-disable-model-invocation: true
+description: Use when composing or recomposing a PMO app screen, restructuring its information and actions, or responding to an owner's complaint about hierarchy, density or layout.
 ---
 
 # Restructure
 
-One screen at a time, with the owner as the judge and the design skills as the craft.
-**Restructure** means the screen's structure and its visual design are redone *within PMO's
-tokens*: same colours, type, radii and controls, but the composition — cards, figure rows,
-progress bars, steppers, timelines, charts, tinted status — is designed fresh with impeccable
-(craft) and taste. Use the word *restructure* in every prompt to a skill: impeccable reads
-*redesign* as "replace the visual world" and answers with new palettes; this is a surface
-**inside the established world** (`new-work.md` §3).
+Compose the whole screen around the person's job, inside PMO's tokens, with the owner as judge.
+A calm screen is information-rich: reduce reading and competing marks while preserving useful facts and actions.
+Use “restructure” in design briefs so craft skills work inside the established visual world.
 
-**The aim** is `DESIGN.md`'s ERP-UX Aspiration: cohesive, enterprise-grade, information-rich,
-strong visual hierarchy. Density means *information and actionability per screen*, not
-compression. Minimal means no noise, never bare: a plain table with no features is a failure.
+## Authority and scope
 
-## Scope
+- Keep `DESIGN.md` tokens and shared controls; compose blocks, grouping, order and weight afresh because a reshuffle does not decide hierarchy.
+- Apply `docs/ux/screen-rules.md` to screens; external examples supply craft and evidence, never a replacement identity.
+- Freeze the feature floor before any edit; simplification cannot silently remove a figure, capability or safeguard.
+- Treat new data, calculations, routes and shared-component changes as explicit scope decisions; a screenshot cannot authorize business logic.
+- Follow the signed brief, current executor routing and release ceiling in `CLAUDE.md`; this skill grants no push, merge or deployment permission.
 
-- **Fixed:** `DESIGN.md` tokens (colour, type, radii, motion) and the basic controls.
-- **Open — this is the work:** which blocks exist, what each says, their order, grouping and
-  visual weight, the figures and their meaning, where actions live, how you move between areas,
-  what a role sees. Moving the old blocks into a new frame is a **reshuffle**, not a restructure.
-- **Floor:** everything the page can do today (The Feature-Floor Rule in `DESIGN.md`). Moving a
-  feature behind a link or into a drawer is fine; dropping one needs the owner's word in the grill.
+## Records and resumption
 
-## The map
-
-The whole-app order lives on the parent issue (#806) as a `wayfinder` map: one child issue per
-screen, in the order the owner sets. A run takes the next open child, or the one the owner names.
-A screen without a child issue gets one before step 1 (title `restructure(<screen>)`, label
-`ux-owner`, linked under #806).
-
-## Records
-
-- **The issue** holds the **whole grill** — every question, the recommended answer and the
-  owner's answer, one comment per round — then the approved brief, the owner's pick, and a
-  closing comment. A later session reads the issue and never asks the owner the same question
-  twice. The repo is public: roles and jobs only — no client names, people, or real figures.
-- **`docs/private/restructure/<screen>/`** (local-only) holds the screenshots, the gate tables
-  and the owner's own screenshots.
-- **Lessons** (below) gets one line per point the owner caught that the gate missed.
-- No other docs: no rulings, standards or specs come out of a run.
+- Use the named screen's child issue under #806; create a missing child before intake so each screen has a durable record.
+- Keep every grill round, recommendation, owner answer, approved brief, direction, pick and closing comment on the issue so a successor does not ask twice.
+- Keep screenshots, reference evidence, Preserve and gate tables in `docs/private/restructure/<screen>/`; public issues contain roles and jobs only.
+- Keep reference images, product names, URLs and comparisons private; tracked records say “competitor review” where needed because the repository is public.
+- Before compaction or handoff, record mode, issue, owner words, frozen floor, source commits, current render, gates, unresolved items and next executable step in the private record.
+- Resume by reading that record and the issue's full comments, then the actual code and render; a prior “passed” claim cannot prove a later commit.
+- Add one line to Lessons for an owner catch the method missed; a run produces records, not a competing spec or standards document.
 
 ## Start from what exists
 
-Run in a fresh session, in a new worktree off `origin/dev` (copy `pmo-portal/.env.local` in).
-Read, in this order: the screen's issue (all comments — earlier grill answers are binding),
-`PRODUCT.md`, `DESIGN.md` (the ERP-UX Aspiration and Feature-Floor Rule first),
-`docs/ux/UX-STANDARD.md`, `docs/private/restructure/_reference/earlier-work.md` (your area),
-the earlier portal's design spec `/Users/ariefsaid/Coding/RIS-portal-2/ref/design.md` (§0, §1,
-§4.7, and your surface in §5), and the route code. Then write the **feature floor**: every
-figure, filter, action, drawer and history the current page offers, plus what the earlier work
-marks "take". Earlier PMO rulings, specs and mockups stay closed.
+Use an isolated Orca worktree at the Director's named base (default `origin/dev`); preserve existing work on takeover.
+Read the issue and all comments, `PRODUCT.md`, `DESIGN.md`, `docs/ux/screen-rules.md`, `docs/ux/UX-STANDARD.md`, and the route code.
+Read the area's earlier-work and owner-design-comments files under `docs/private/restructure/_reference/` when present; request missing evidence rather than inventing its contents.
+Run `bash scripts/prior-art.sh <screen-term>` before proposing work; reopen an earlier spec only when a binding decision or dependency points to it.
+Render the current busiest useful state and walk its controls; code and screenshots together establish what must survive.
 
-## Steps
+## Two entry modes
 
-### 1. Grill the business
+| Entry | Required input | Completion criterion |
+|---|---|---|
+| **With the owner** | Business grill below | Owner approves the brief before composition |
+| **Director-run** | Existing owner direction or complaint, quoted verbatim in the brief | Director records scope and assumptions; the owner's words remain binding |
 
-Use the `grilling` skill, about the business, never about design: the owner is not a designer.
-Rounds of 5–7 numbered questions, each with **your recommended answer first** so the owner
-confirms or corrects. Before recommending anything that needs data, check the code that the data
-exists. Cover: who opens the screen and in what situation; what each role needs in the first
-five seconds; how people arrive (routine review, a link to one thing, a periodic run); how often
-each area is used, per role; the phone job; what can leave the screen; the one main action per
-state and role; what each role must not see; which seed records the screenshots use; and the
-feature floor, item by item: keep, move, or drop.
-A screen with tabs or areas: grill every one of them in this step, not after the pick.
+Director-run skips the grill; it does not infer consent to drop a feature or bypass the owner's final rendered judgement.
+An ambiguity about business meaning, a drop or conflicting owner directions goes to the Director/owner before dependent edits.
 
-Post each round's questions and the owner's answers on the issue as you go.
+## Run in this order
 
-**Done when** the owner approves a brief of ≤ 25 lines (who and why · what leads per role ·
-areas in order · feature floor decisions · main action by state · screenshot set), posted on the
-issue.
+### 1. Job and job walk
 
-### 2. Bake-off: three options on one clickable page
+Write one line: who arrives, what they need to do, and the observable finish; quote the owner's words beside it.
+Walk from arrival to finish, recording pass/fail and visible evidence for each check:
 
-Show the three options as a **bake-off: one HTML page** (HTML, CSS and a little JS) with the
-`orca-native-chat:orca-chat-visuals` skill, so the owner flips between them in place — never
-words alone, never images stacked down or side by side. The page has:
+1. The first step leads the eye and its primary control is reachable; competing chrome must not conceal the job.
+2. Each decision has its evidence beside it; a person should not decide blind.
+3. Every fact and action the job needs exists; a clean frame cannot compensate for missing work.
+4. Labels, repeated values and totals agree; the screen must tell the truth.
+5. Each reachable state permits progress or explains the remedy; a failed request must not become a dead end.
+6. Text, contrast, keyboard and touch minimums hold; the intended person must be able to use it.
 
-- a switcher for the option (segmented buttons or a dropdown), plus one for role and one for
-  desktop / phone width;
-- each option **designed with impeccable (craft) and taste** in PMO's own look: copy the token
-  variables from `pmo-portal/index.css` and use only those, inside a mock of the app frame
-  (sidebar, header) at real width, with real block names and figures shaped like the seed
-  records in the brief. Every option carries the full feature floor and the aspiration's
-  affordances (tooltips, row drawer, `⋯` menu, figures with meaning, inline metadata);
-- beside it, 3–5 lines on the option: navigation model (tabs · one page with a jump menu · hub
-  with drill-down pages), how the work divides, what leads per role, where the main action
-  lives — and your one-line recommendation.
+For each failure, name who does what and gets which wrong outcome; a preference is recorded as judgement.
+**Done:** job, owner words, state/role inventory and six-check walk are in the brief.
 
-The options differ in structure; one is the familiar category standard. One design pass, no
-review rounds: send it within about 45 minutes, so a bad design shows up straight away. The owner
-picks or combines in one reply. Save the page as `docs/private/restructure/<screen>/options.html`
-and record the pick on the issue. Only the pick gets built in the app.
+#### With the owner: grill the business
 
-### 3. Build the chosen option
+Use `grilling`: rounds of 5–7 numbered questions, recommended answer first, about work rather than visual design.
+Before recommending a figure or action, check that the data and permission exist in shipped code.
+Cover role and situation, first five seconds, arrival path, frequency per area/role, phone job, what can move, primary action per state, restricted information, screenshot records and each floor decision.
+Grill every tab and area now so composition does not reopen business scope after the pick.
+Post each round's recommendations and answers on the issue as it finishes.
+**Done:** owner approves a brief of ≤25 lines covering who/why, lead per role, areas, floor decisions, primary actions and screenshot set; link the detailed floor separately.
 
-Build the chosen structure as the real page, matching the bake-off the owner picked. Builders
-load impeccable (craft) and taste and work from the picked `options.html`. Split the build by tab
-or area into parallel builders with disjoint files, never one after another. Delete tests that
-pin the old look; keep and update behaviour, role, money and a11y tests; add translations. Then
-run **the check** (below) once and show the owner.
+### 2. Feature floor = frozen Preserve list
 
-### 4. Owner clicks through, then ship and clean up
+Write the list item by item **before changing anything**; include figures and their meaning, charts, filters, search, actions, menus, drawers, history, scope/consequence/optional cues, exports and analytics behaviour.
+Record `item | current home + evidence | keep / move / drop | after home + link | owner's exact words for a drop | proof`.
+Keep the domain, token system, real data, permissions and outside-of-screen boundary at the top; these prevent reference-driven drift.
+A moved item needs a working, discoverable link to its named home; if none exists, retain it lower on the screen.
+A drop needs the owner's explicit words naming that item; a word budget or “simplify” is not permission.
+**Done:** every existing item has a disposition; the before captures, source commit and floor are frozen together.
 
-Give the local URL. Nothing merges until the owner has clicked through and said yes. Then:
+### 3. References and moves
 
-1. Local gate, PR to `dev` that closes the issue, CI green, merge.
-2. Closing comment on the issue; append to **Lessons**.
-3. Cleanup, each step verified: stop the dev server you started (its exact PID); delete any
-   rows you added to the local database for screenshots; copy the final shots and gate tables
-   into `docs/private/restructure/<screen>/`, then delete every working image (`/tmp` shot
-   folders, captures inside the worktree). Leave the images in the Orca chat folder: the chat
-   still shows them, and Orca removes them with the chat. Then the post-merge cleanup in `CLAUDE.md` (worktree,
-   local and remote branch).
+Read [references/references-and-moves.md](references/references-and-moves.md) whole before choosing a direction.
+Use the **SCREEN shelf**, `docs/private/references/<screen-kind>/`, for what an analogous business screen shows; collect three references first when the kind has fewer than three verified images.
+Use the **CRAFT shelf**, stageshow's runnable examples, for how a part is built; it cannot answer what a dashboard, approval queue or invoice screen should contain.
+Look at real images and renders, group structural directions, take ONE direction whole, and grade each claim: two products = precedent; one = example; none = “my opinion”.
+Write at most five moves, each with the screens showing its exact decision; a longer fix list on one screen returns to whole-screen composition.
+**Done:** chosen direction, rejected direction's reason, evidence grades and move table are saved; no claim relies on memory.
 
-**Done when** the issue is closed, the PR merged, and no server, seed row, working image,
-worktree or branch from this run remains.
+### 4. Compose the whole screen once
 
-## The check
+Read [references/compose.md](references/compose.md) and taste's `references/app-screens.md` whole now; its app run supplies composition, while PMO supplies tokens and business meaning.
+Write the one question, one data finding, dominant answer, all first-screen blocks, one grid with arithmetic, and the data-truth contract before building.
+Build the coherent composition in real code through an Orca `ui-implementer`; card-by-card patches cannot substitute for a whole-screen decision.
+When directions must be explored, build real isolated branches with the same floor and data, then let the owner pick one; use captured app renders for comparison.
+**Done:** the whole running screen answers the brief, every move is visible and every floor item has its after home.
 
-One pass, no review-and-fix rounds before the owner sees it:
+### 5. Craft pass
 
-1. Render the brief's screenshot set (busiest record, top role and most restricted role, 1440
-   and 390) and every other state once (empty, loading, error, each tab, drawer, role, dark).
-2. Run impeccable's detector (advisory findings on) and axe; fix what they flag. Then check every
-   screen by eye against `docs/private/restructure/_reference/owner-design-comments.md`, the owner's
-   past rulings: a pattern the owner rejected once is a defect, even when the detector is silent.
-3. Tick the feature floor and the aspiration's affordances (a)–(f) against the render; fix gaps.
-4. Send the owner the URL and the screenshot set, with one line on what was checked.
+Read [references/craft.md](references/craft.md) whole; inspect grouping, aligned columns, insets, optical balance and type steps because parts must read as one design.
+Run the relevant CRAFT example and inspect its computed styles before borrowing a relation; adapt it through existing PMO primitives.
+**Done:** each visible craft fault has a measured correction or a defended relation, including the bottom and corners.
 
-The owner may ask for a review by impeccable critique, taste or ui-ux-pro-max on a specific
-point; run only that one, as an Orca worker, and fix what the owner agrees with.
+### 6. States and phone are compositions
 
-## Block craft
+Compose 390 separately around the phone job: task/list and evidence first, summary figures below or disclosed, every action reachable.
+Render 1440, 768 and 390; both themes and languages; top and restricted roles; busiest, new/empty, known-zero, unknown/partial, loading, error, permission and long-content states.
+Walk every tab, drawer, form, menu, retry and return path; keep typed work and focus because stills do not prove interaction.
+**Done:** a private route × role × state × width × theme × language matrix links each tested cell to a capture or journey result; untested cells are named, never marked passed.
 
-Each block answers one question for its reader, and carries what's needed to act on it:
+### 7. Gates and losses
 
-- The answer comes first and largest; its meaning sits beside it (variance, reason, trend, owner).
-- Every figure on the page comes from one shared calculation, so the attention list, the money
-  block and the main action always agree. Units, currency and tax basis stated in the heading.
-- Whole currency units. Missing data is said once, with the link that fixes it. A figure claims
-  only what the data proves (an overdue invoice with an unknown balance shows days overdue).
-- Use the full vocabulary where it helps: cards that group a job, figure rows, threshold-coloured
-  progress bars, stage steppers, timelines, small charts, tinted status pills, avatar chips.
-- One filled primary action, chosen by the record's state and the viewer's role. Rare actions in
-  row `⋯` menus or the record's menu, not deleted.
-- A role sees only the areas it can use.
-- On phone, every tab and action stays reachable: nothing clipped or covered by the action bar.
+Read [references/gates.md](references/gates.md) whole and run its proof set; each gate names the failure it prevents and the limits of its measurement.
+Builders run targeted checks; the Director runs the full unit-containing `npm run verify:locked` once on the integration branch at batch end to catch losses outside touched files.
+Classify every red as stale look-pin, real loss to restore or evidenced flaky failure; restore behaviour before repairing an oracle and finish with no unresolved reds.
+**Done:** floor reconciliation, honest-data proofs, local gates, inspector output and the batch losses check identify the tested commit and have no unexplained failure.
+
+### 8. Director rendered judgement, then owner
+
+Read [references/judging.md](references/judging.md) whole; the Director answers its critique questions against actual-size renders and thumbnails, not just before-shots or gate totals.
+Use one Director review and one fix round; if the whole shape still fails, stop patching and return the composition decision to the Director.
+At batch end, a blind fresh-eyes review is scored privately against a hidden list; authors' familiarity is not acceptance evidence.
+Show the owner the before/after image, screenshot set and local URL with a short report claiming only visible changes; the owner judges and clicks through.
+**Done:** the owner explicitly accepts the rendered result and the recorded floor; passing scripts alone never earns visual sign-off.
+
+## Who does what
+
+| Work | Executor |
+|---|---|
+| Whole-screen composition and rendered judgement | Design-grade model: Opus `ui-implementer` / `design-reviewer` |
+| Reference collection for a screen kind, before composition (open public product pages, save screenshots and index) | Cheap model; the composer chooses the direction |
+| Measured audits, class sweeps, test repair, copy and i18n | Cheapest model that can run the script and preserve its oracle |
+| Money, dates and permissions | Terra or above; use the applicable subsystem and review gates |
+
+A defect class found by eye gets an app-wide cheap read-only audit that day, then scoped repairs: fix the class, not the instance.
+The Director supplies the full brief and role contract to every fresh Orca worker; a measured audit cannot substitute for design judgement.
+
+## Ship and clean up
+
+Follow current `CLAUDE.md` branch, batching and CI gates after owner acceptance; this skill does not override them.
+Close the issue with evidence, the owner's pick and any explicit deferral; append Lessons before context is lost.
+Archive final captures and gate tables privately, stop only your exact dev-server PID, delete only the local seed rows you logged, then remove working images and branches/worktree through the normal cleanup.
+Keep Orca chat images because the conversation still renders them; verify cleanup rather than asserting it.
+**Done:** accepted work has landed within the authorized ceiling and no run-owned server, seed row or disposable workspace remains.
 
 ## Gotchas
 
-- The app scrolls inside an inner pane, so a full-page screenshot stops at the fold: size the
-  viewport to the content height before capturing.
-- A dev server started in the background dies at the tool's time limit: start it with the
-  maximum timeout, and check it's alive before each round of shots.
-- Render every role before sending: a missing translation hook crashed only the restricted
-  role's view.
-- Seed rows added for screenshots (comments, records) live in the shared local database: note
-  each one as you add it, and delete them all in cleanup.
+- The app scrolls in an inner pane; capture both the first viewport and the complete pane so a “full-page” shot does not hide lower content.
+- Use an owned foreground server session and verify its URL before captures; a terminated server cannot prove the current code.
+- Render restricted roles as well as the top role; a shared screen can fail only on one branch.
+- Log screenshot seed rows before creating them; the local database is shared and cleanup must be exact.
 
 ## Lessons
 
-- Keeping "components" fixed got read as keeping the page's blocks; the options came back as a
-  reshuffle. Scope above now separates basic controls from page blocks.
-- Skill passes were skipped or run once on an older render; the owner caught slop (side-stripe
-  cards, three equal hero figures).
-- Reviewers checked "activity hidden until clicked" literally and passed a bordered button beside
-  the tabs that invited the click. They now get the brief's intent.
-- Project-wide activity was placed on every tab; it belongs on the overview only.
-- Running all four reviewers on every small edit wasted tokens and time.
-- One question at a time in the grill was too slow for the owner; batched rounds work.
-- The owner combined two options (tabs for one-roof navigation + the hub's quiet activity);
-  offer combinations when two options each win on a different axis.
-- Building and gating three in-app options per screen took too long for the owner; options are
-  now picked from a one-page HTML bake-off in PMO's tokens, and only the chosen one is built.
-- Project detail took 2.5 hours: tabs were grilled after the pick and built one after another,
-  then four reviewers checked every state. Grill all tabs first; build them in parallel.
-- 2026-10-27: the stacked limits — "look stays", a quiet monochrome north star, ban lists in
-  briefs, simplify passes and four reviewers' fix rounds — produced a plain table with fewer
-  features than the page it replaced, after 3–4 hours. The skills now design the look within the
-  tokens, the feature floor protects what exists, and the owner sees one pass, not review rounds.
-- The grill lived only in the chat; a later session would have re-asked it. Every round now goes
-  on the issue.
+- Fix tokens and basic controls, not the old page blocks; keeping “components” fixed once produced only a reshuffle.
+- Craft passes must judge the current render; an older pass cannot clear later side stripes or equal-weight figures.
+- Review intent as well as literal visibility; a prominent invitation to open hidden activity still interrupts the job.
+- Project-wide activity belongs on the overview, not repeated on every tab.
+- Right-size reviews; repeating a full reviewer battery for every small edit consumes time without deciding composition.
+- Batched grill questions work; one question per turn made business intake too slow.
+- Earlier runs combined options; the current run takes one direction whole and records a new owner direction explicitly.
+- Earlier static bake-offs replaced expensive in-app variants; the current run uses real branches when exploration is needed.
+- Grill every tab before the pick; staged discovery and serial rebuilding previously delayed the screen.
+- Stacked quieting rules once produced a plain table with fewer features; information and actionability are the floor.
+- Persist the whole grill on the issue; a chat-only answer disappears for the next Director.
+- A shrinking word count is useful only with a reconciled Preserve list; preserve meaning before trimming copy.
+- Compose the whole screen before polishing its cards; a better card can still leave an accidental dashboard.
+- Batch losses need the integration suite and blind review; touched tests and familiarity cover different things.

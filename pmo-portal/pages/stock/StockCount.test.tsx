@@ -50,6 +50,7 @@ const renderAt = (path: string, role: Role = 'Engineer', viewingAs: Role = role)
           <Routes>
             <Route path="/stock/new/:kind" element={<StockCount />} />
             <Route path="/stock/documents/:documentId/edit" element={<StockCount />} />
+            <Route path="/stock/documents" element={<p>stock documents</p>} />
             <Route path="/stock/documents/:documentId" element={<p>document page</p>} />
           </Routes>
         </MemoryRouter>
@@ -60,7 +61,7 @@ const renderAt = (path: string, role: Role = 'Engineer', viewingAs: Role = role)
 
 async function pickItem(search: string, option: RegExp, n = '') {
   await userEvent.click(screen.getByRole('combobox', { name: new RegExp(`^Item${n}`) }));
-  await userEvent.type(screen.getByRole('searchbox'), search);
+  await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), search);
   await userEvent.click(await screen.findByRole('option', { name: option }));
 }
 
@@ -88,6 +89,24 @@ describe('StockCount', () => {
     expect(await screen.findByTestId('system-1')).toHaveTextContent('100');
     expect(screen.getByTestId('variance-1')).toHaveTextContent('-8');
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('asks before Cancel discards typed count quantities and Stay keeps the count', async () => {
+    renderAt('/stock/new/count');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');
+    await pickItem('cab', /CAB - Cable 4mm/);
+    await userEvent.type(screen.getByLabelText(/^Counted/), '92');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText(/^Counted/)).toHaveValue('92');
+    expect(screen.queryByText('stock documents')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+    expect(await screen.findByText('stock documents')).toBeInTheDocument();
+    expect(documents.create).not.toHaveBeenCalled();
   });
 
   it('FR-STK-025 "Fill from stock on hand" lists every item the warehouse holds', async () => {

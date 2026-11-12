@@ -1,17 +1,15 @@
 // @e2e-isolation: read-only — dashboard signal→lever journeys; nav/assert only over seeded data, no DB writes.
 import { test, expect } from '@playwright/test';
-import { signIn, waitForFonts } from './helpers';
+import { openAppPath, signIn, waitForFonts } from './helpers';
 
 /**
  * UXS-013 — a named risk/budget signal carries its own lever (rendered acceptance).
  *
- * Slice 7 oracles (2026-10-10 UX Discover synthesis §4):
- * - Rich phone risk journey: at 390×844 the Executive's "Projects at risk" block shows the seeded
- *   at-risk count with a risk-SPECIFIC doorway (`/projects?filter=at-risk`), not the all-projects
- *   link, and acting on it reaches the flagged record's filtered list (UXD-A-001).
- * - Finance one-step budget drill: the Budget review table's project cell is a semantic link into
- *   the canonical project Budget tab (`/projects/:id/budget`) — one activation from signal to lever
- *   (UXD-A-006). Amounts/ranking are untouched (fence): this spec only follows the existing link.
+ * Oracles (2026-10-10 UX Discover synthesis §4, re-expressed on the rebuilt homes):
+ * - Rich phone risk journey: at 390×844 the Executive's "Project health" block names the seeded
+ *   flagged project and its row opens that project (UXD-A-001).
+ * - Finance one-step budget drill: activating a Budget review row opens the canonical project Budget tab
+ *   (`/projects/:id/budget`) — one activation from signal to lever (UXD-A-006). Amounts/ranking are untouched (fence): this spec only follows the existing link.
  *
  * Seed: SP-2402 "Cascade Foods 6.0 MW Ground-Mount PV" is the deliberate ERP-ledger at-risk fixture
  * (complete mapped Actual over its 6,900,000 Active budget), so it appears in the dashboard signal,
@@ -41,19 +39,21 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await pinEnglishLocale(page);
     await signIn(page, 'exec@acme.test');
-    await page.goto('/');
+    // The dashboard is the home at phone and desktop widths; the goal under test stays the same.
+    await openAppPath(page, '/');
+    await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
     await waitForFonts(page);
 
-    // The risk block carries a risk-specific doorway (zero risks render no false action).
-    // #1403 copy: retain both the at-risk numerator and active-delivery denominator in the signal.
-    const riskLink = page.getByRole('link', { name: /\d+ of \d+ active delivery projects at risk/i });
-    await expect(riskLink).toBeVisible();
-    await expect(riskLink).toHaveAttribute('href', '/projects?filter=at-risk');
+    // The "Project health" block names the flagged project, and the row itself is the lever.
+    const offTrack = page.getByTestId('project-health');
+    const flagged = offTrack.getByRole('link', { name: new RegExp(SP2402_NAME) });
+    await expect(flagged).toBeVisible();
+    await expect(flagged).toHaveAttribute('href', `/projects/${SP2402_ID}`);
 
-    // Acting on the signal lands on the risk-filtered list, where the flagged record is reachable.
-    await riskLink.click();
-    await expect(page).toHaveURL(/\/projects\?filter=at-risk/);
-    await expect(page.getByText(SP2402_NAME).first()).toBeVisible();
+    // Acting on the signal lands on the flagged record.
+    await flagged.click();
+    await expect(page).toHaveURL(new RegExp(`/projects/${SP2402_ID}$`));
+    await expect(page.getByRole('heading', { name: SP2402_NAME }).first()).toBeVisible();
   });
 
   test('Finance opens the flagged project Budget tab from the budget exception in one step', async ({
@@ -66,10 +66,9 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
 
     // The budget exception names the project, and the name itself is the lever.
     const budgetRow = page.getByRole('row').filter({ hasText: SP2402_NAME });
-    const budgetLink = budgetRow.getByRole('link', { name: 'Review budget', exact: true });
-    await expect(budgetLink).toBeVisible({ timeout: 20_000 });
+    await expect(budgetRow).toBeVisible({ timeout: 20_000 });
 
-    await budgetLink.click();
+    await budgetRow.getByRole('rowheader').click();
     await expect(page).toHaveURL(new RegExp(`/projects/${SP2402_ID}/budget$`));
     // The canonical Budget tab actually rendered with its active version.
     const budgetVersions = page.getByRole('region', { name: 'Budget versions' });

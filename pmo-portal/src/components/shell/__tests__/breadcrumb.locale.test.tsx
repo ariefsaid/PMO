@@ -90,6 +90,7 @@ describe('FR-L10N — Bahasa Administration breadcrumbs agree with the shell', (
 
   it('AC-1405-L10N-001: each Finance area renders its Bahasa shell label', () => {
     const cases = [
+      ['/finance', 'Keuangan'],
       ['/finance/receivables', 'Piutang'],
       ['/finance/payables', 'Utang'],
       ['/finance/reports', 'Laporan'],

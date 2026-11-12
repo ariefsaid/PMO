@@ -23,6 +23,7 @@ async function openMenu(realRole: Role) {
     </MemoryRouter>,
   );
   await user.click(screen.getByRole('button', { name: /account menu/i }));
+  await screen.findByRole('menu');
   return user;
 }
 
@@ -33,6 +34,7 @@ describe('AccountMenu view-as-role gating through the real impersonation provide
     await user.keyboard('{Escape}');
     // The same shared menu reopens (the phone layout reuses this one menu) with no section.
     await user.click(screen.getByRole('button', { name: /account menu/i }));
+    await screen.findByRole('menu');
     expect(screen.getByRole('menu')).not.toHaveTextContent('View as role');
   });
 

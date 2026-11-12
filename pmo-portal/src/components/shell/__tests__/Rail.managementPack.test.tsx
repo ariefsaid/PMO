@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 import { Rail } from '../Rail';
+import { RailDrawerContext } from '../railDrawerContext';
 
 let effectiveRole = 'Finance';
 let revenue = true;
@@ -16,7 +17,7 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({ data: { revenue, management_pack: managementPack }, isPending: false, isError: false }),
 }));
 
-const renderRail = () => render(<MemoryRouter><Rail /></MemoryRouter>);
+const renderRail = () => render(<MemoryRouter><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter>);
 
 describe('Finance area in the rail', () => {
   it('Finance sees the Finance destination with Revenue enabled', () => {

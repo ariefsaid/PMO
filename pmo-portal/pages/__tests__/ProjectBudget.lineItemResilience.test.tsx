@@ -211,7 +211,7 @@ describe('AC-B-0-7: Save button disabled while mutation isPending', () => {
 });
 
 describe('draft buffers', () => {
-  it('retains simultaneous add and edit values when the editor is closed and reopened', async () => {
+  it('retains simultaneous add and edit values when the user keeps editing', async () => {
     const user = userEvent.setup();
     versionState.includeArchived = true;
     renderPage();
@@ -230,7 +230,8 @@ describe('draft buffers', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Version' }), 'bv1');
     await openDraftEditor(user);
     await user.click(screen.getByRole('button', { name: 'Close' }));
-    await openDraftEditor(user);
+    expect(screen.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Edited draft');
     expect(screen.getByRole('textbox', { name: 'Line item description' })).toHaveValue('New draft');
     expect(screen.getByRole('textbox', { name: 'Amount' })).toHaveValue('1,234.56');
@@ -290,6 +291,7 @@ it('discards only the row explicitly cancelled while keeping the add draft', asy
   await user.click(screen.getByRole('button', { name: /\+ Add line item/i }));
   await user.type(screen.getByRole('textbox', { name: 'Line item description' }), 'Keep me');
   await user.click(screen.getAllByRole('button', { name: 'Cancel' })[0]);
+  await user.click(screen.getByRole('button', { name: 'Discard' }));
   await user.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
   expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Initial');
   expect(screen.getByRole('textbox', { name: 'Line item description' })).toHaveValue('Keep me');
@@ -311,6 +313,7 @@ it('clears an explicitly cancelled new line when adding again', async () => {
   await user.click(screen.getByRole('button', { name: /\+ Add line item/i }));
   await user.type(screen.getByRole('textbox', { name: 'Line item description' }), 'Discarded');
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  await user.click(screen.getByRole('button', { name: 'Discard' }));
   await user.click(screen.getByRole('button', { name: /\+ Add line item/i }));
   expect(screen.getByRole('textbox', { name: 'Line item description' })).toHaveValue('');
 });
@@ -354,12 +357,15 @@ it('blocks activation while add and multiple row drafts remain, then permits it 
   expect(screen.queryByText(/Ready to activate\. ERPNext/i)).not.toBeInTheDocument();
   expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Second unsaved');
   await user.click(screen.getAllByRole('button', { name: 'Cancel' })[0]);
+  await user.click(screen.getByRole('button', { name: 'Discard' }));
   await user.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
   expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('First unsaved');
   expect(screen.getByRole('textbox', { name: 'Line item description' })).toHaveValue('New unsaved');
   await user.click(screen.getAllByRole('button', { name: 'Cancel' })[0]);
+  await user.click(screen.getByRole('button', { name: 'Discard' }));
   expect(screen.getByRole('button', { name: /Activate v1/i })).toBeDisabled();
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  await user.click(screen.getByRole('button', { name: 'Discard' }));
   expect(screen.getByText(/Ready to activate\. ERPNext/i)).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: /Activate v1/i }));
   await user.click(screen.getByRole('button', { name: 'Activate version' }));
@@ -397,10 +403,13 @@ it.each(['create', 'update'] as const)('locks only the %s fields until the submi
   expect(submitted).toHaveValue(kind === 'create' ? 'Added' : 'Edited');
   const other = screen.getByRole('textbox', { name: kind === 'create' ? 'Description' : 'Line item description' });
   await user.type(other, ' retained');
-  await user.click(screen.getByRole('button', { name: 'Close' }));
   await user.selectOptions(screen.getByRole('combobox', { name: 'Version' }), 'bv2');
   await user.selectOptions(screen.getByRole('combobox', { name: 'Version' }), 'bv1');
   await openDraftEditor(user);
+  await user.click(screen.getByRole('button', { name: 'Close' }));
+  expect(screen.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Keep editing' }));
+  expect(other).toHaveValue(kind === 'create' ? 'Edited retained' : 'Added retained');
   await act(async () => { resolve(kind === 'create' ? { id: 'li-new' } : undefined); await deferred; });
   expect(screen.getByRole('textbox', { name: kind === 'create' ? 'Description' : 'Line item description' })).toHaveValue(kind === 'create' ? 'Edited retained' : 'Added retained');
 });

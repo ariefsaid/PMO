@@ -4,11 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { Checkbox } from '../Checkbox';
 
 describe('Checkbox (custom 16px, role=checkbox)', () => {
-  it('exposes role=checkbox + aria-checked + tabindex + accessible name', () => {
+  it('exposes role=checkbox + aria-checked + accessible name, reachable by Tab', async () => {
     render(<Checkbox checked={false} onChange={() => {}} label="Select row" />);
     const box = screen.getByRole('checkbox', { name: 'Select row' });
     expect(box).toHaveAttribute('aria-checked', 'false');
-    expect(box).toHaveAttribute('tabindex', '0');
+    await userEvent.tab();
+    expect(box).toHaveFocus();
   });
 
   it('click toggles on', async () => {
@@ -36,11 +37,11 @@ describe('Checkbox (custom 16px, role=checkbox)', () => {
     expect(screen.getByRole('checkbox')).toHaveAttribute('aria-checked', 'mixed');
   });
 
-  it('disabled does not toggle + is not a tab stop', async () => {
+  it('disabled does not toggle and is disabled', async () => {
     const onChange = vi.fn();
     render(<Checkbox checked={false} onChange={onChange} label="x" disabled />);
     const box = screen.getByRole('checkbox');
-    expect(box).toHaveAttribute('tabindex', '-1');
+    expect(box).toBeDisabled();
     await userEvent.click(box);
     expect(onChange).not.toHaveBeenCalled();
   });

@@ -33,7 +33,7 @@ test('AC-STK-031: an Engineer keeping only the site is refused at central; the c
   await page.goto('/stock/new/receive');
   await page.getByLabel(/^Warehouse/).selectOption({ label: label(central) });
   await page.getByRole('combobox', { name: /^Item/ }).click();
-  await page.getByRole('searchbox').fill(item.code);
+  await page.getByRole('combobox', { name: /^(search|cari) /i }).fill(item.code);
   await page.getByRole('option', { name: new RegExp(item.code) }).click();
   await page.getByLabel(/^Quantity/).fill('50');
   await page.getByLabel(/^Unit cost/).fill('25');
@@ -44,7 +44,7 @@ test('AC-STK-031: an Engineer keeping only the site is refused at central; the c
   await page.getByLabel('From warehouse').selectOption({ label: label(central) });
   await page.getByLabel('To warehouse').selectOption({ label: label(site) });
   await page.getByRole('combobox', { name: /^Item/ }).click();
-  await page.getByRole('searchbox').fill(item.code);
+  await page.getByRole('combobox', { name: /^(search|cari) /i }).fill(item.code);
   await page.getByRole('option', { name: new RegExp(item.code) }).click();
   await page.getByLabel(/^Quantity/).fill('20');
   await page.getByRole('button', { name: 'Post transfer' }).click();
@@ -57,7 +57,7 @@ test('AC-STK-031: an Engineer keeping only the site is refused at central; the c
   await page.getByLabel(/^Project/).selectOption({ label: SEED_PROJECT_NAME });
   await page.getByLabel(/^Work item/).selectOption({ label: `${work.item_code} - ${work.description}` });
   await page.getByRole('combobox', { name: /^Item/ }).click();
-  await page.getByRole('searchbox').fill(item.code);
+  await page.getByRole('combobox', { name: /^(search|cari) /i }).fill(item.code);
   await page.getByRole('option', { name: new RegExp(item.code) }).click();
   await page.getByLabel(/^Quantity/).fill('8');
   await page.getByRole('button', { name: 'Post issue' }).click();

@@ -7,7 +7,7 @@ import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { currencySymbol, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { invoiceNumber } from '@/src/lib/revenue/nativeInvoice';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
@@ -16,6 +16,7 @@ import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { OdooJournalSelect } from '@/src/components/procurement/OdooDirectoryPickers';
+import { nativeReceiptInvoiceCandidates } from './applicableInvoices';
 
 /** Form values for the payment modal. */
 interface FormValues {
@@ -100,24 +101,33 @@ const validate = (
  * hasn't reported one yet, so the invoice stays selectable rather than silently disappearing.
  * Scoped to `customerId` when one is chosen — a receipt must never settle another client's invoice.
  */
+function openCustomerOpenInvoices(
+  invoices: SalesInvoiceRow[],
+  customerId: string | null | undefined,
+): SalesInvoiceRow[] {
+  return invoices
+    .filter((inv) => inv.status === 'Submitted' || inv.status === 'Unpaid')
+    .filter((inv) => inv.erp_outstanding_amount == null || inv.erp_outstanding_amount > 0)
+    .filter((inv) => !customerId || inv.customer_id === customerId);
+}
+
 function openInvoiceOptions(
   invoices: SalesInvoiceRow[],
   customerId: string | null | undefined,
   native: boolean,
   t: (key: string, fallback: string, options?: Record<string, unknown>) => string,
 ): ComboboxOption[] {
-  return invoices
-    // I-5: a PMO receipt settles only a PMO invoice; an ERP payment never settles a PMO invoice frozen at connect.
-    .filter((inv) => Boolean(inv.pmo_native) === native)
-    .filter((inv) => inv.status === 'Submitted' || inv.status === 'Unpaid')
-    .filter((inv) => inv.erp_outstanding_amount == null || inv.erp_outstanding_amount > 0)
-    .filter((inv) => !customerId || inv.customer_id === customerId)
+  const candidates = native
+    ? nativeReceiptInvoiceCandidates(invoices, { customerId })
+    : openCustomerOpenInvoices(invoices, customerId).filter((inv) => !inv.pmo_native);
+  return candidates
     .map((inv) => ({
       value: inv.id,
       label: invoiceNumber(inv) ?? inv.id,
+      searchTerms: inv.customer_name ? [inv.customer_name] : undefined,
       sub:
         inv.erp_outstanding_amount != null
-          ? t('financeCopy.amountOutstanding', '{{amount}} outstanding', { amount: formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) })
+          ? t('financeCopy.amountOutstanding', '{{amount}} outstanding', { amount: formatCurrency(inv.erp_outstanding_amount, inv.currency, { precision: 'minor' }) })
           : undefined,
     }));
 }
@@ -169,7 +179,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   // this identity (the committed Payment Entry is reconciled, NOT posted twice), while a success
   // closes the modal → the next "Receive Payment" mints a fresh one.
   const intent = useCommandIntent();
-  const { data: invoices } = useSalesInvoices();
+  const { data: invoices, isPending: invoicesPending, isError: invoicesError, refetch: refetchInvoices } = useSalesInvoices();
   const invoiceDateOf = (id: string | null) => (id ? invoices?.find((inv) => inv.id === id)?.invoice_date ?? null : null);
   const initialInvoice = initialInvoiceId ? invoices?.find((invoice) => invoice.id === initialInvoiceId) : undefined;
   const form = useEntityForm<FormValues>({
@@ -203,6 +213,34 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   const { data: customerOptions } = useClientCompanyOptions();
   const loadCustomers = useCallback(async (): Promise<ComboboxOption[]> => customerOptions ?? [], [customerOptions]);
   const selectedCustomerId = form.values.customerId;
+  const selectedCustomerOpenInvoices = openCustomerOpenInvoices(invoices ?? [], selectedCustomerId);
+  const selectedCustomerNativeInvoiceCandidates = nativeReceiptInvoiceCandidates(invoices ?? [], { customerId: selectedCustomerId });
+  const hasEligibleInvoices = native
+    ? selectedCustomerNativeInvoiceCandidates.length > 0
+    : selectedCustomerOpenInvoices.some((invoice) => !invoice.pmo_native);
+  const otherLedgerOpenInvoiceCount = native
+    ? selectedCustomerOpenInvoices.filter((invoice) => !invoice.pmo_native).length
+    : selectedCustomerNativeInvoiceCandidates.length;
+  const invoiceQueryLoading = invoicesPending || (!invoicesError && invoices == null);
+  const invoiceEmptyMessage = (): React.ReactNode | undefined => {
+    if (selectedCustomerId && !hasEligibleInvoices) {
+      if (otherLedgerOpenInvoiceCount === 1) {
+        return <span role="status">{native
+          ? t('financeCopy.excludedAccountingInvoiceSingular', '1 open invoice is recorded in the accounting system. A receipt against it cannot be recorded here yet.')
+          : t('financeCopy.excludedPmoInvoiceSingular', '1 open invoice is recorded in PMO. A receipt against it cannot be recorded here yet.')}</span>;
+      }
+      if (otherLedgerOpenInvoiceCount > 1) {
+        return <span role="status">{native
+          ? t('financeCopy.excludedAccountingInvoicesPlural', '{{count}} open invoices are recorded in the accounting system. Receipts against them cannot be recorded here yet.', { count: otherLedgerOpenInvoiceCount })
+          : t('financeCopy.excludedPmoInvoicesPlural', '{{count}} open invoices are recorded in PMO. Receipts against them cannot be recorded here yet.', { count: otherLedgerOpenInvoiceCount })}</span>;
+      }
+      return <span role="status">{native
+        ? t('financeCopy.noEligibleNativeInvoiceForCustomer', 'No approved invoice with a reported balance is available for this customer. Create or approve an invoice, or refresh its balance, then try again.')
+        : t('financeCopy.noOpenInvoicesForCustomer', 'No open invoices for this customer.')}</span>;
+    }
+    // Keep the Combobox's standard query-specific "No invoice matches" copy when eligible invoices exist.
+    return undefined;
+  };
   const loadOpenInvoices = useCallback(
     async (): Promise<ComboboxOption[]> => openInvoiceOptions(invoices ?? [], selectedCustomerId, native, t),
     [invoices, selectedCustomerId, native, t],
@@ -323,8 +361,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   return (
     <EntityFormModal
       open
-      title={t('financeCopy.receivePayment', 'Receive Payment')}
-      subtitle={t('financeCopy.receivePaymentSubtitle', 'Record a new incoming payment from a client')}
+      title={t('financeCopy.receivePayment', 'Receive payment')}
       submitLabel={t('financeCopy.recordPayment', 'Record payment')}
       cancelLabel={t('financeCopy.cancel', 'Cancel')}
       onSubmit={handleSubmit}
@@ -337,7 +374,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
     >
       {!native && pendingPush.status !== 'idle' && (
         <div className="mb-3.5 flex justify-end">
-          <span className="text-xs text-muted-foreground">{t(odoo ? 'financeCopy.pushingToOdoo' : 'financeCopy.pushingToERPNext', odoo ? 'Sending to Odoo…' : 'Pushing to ERPNext…')}</span>
+          <span className="text-control text-muted-foreground">{t(odoo ? 'financeCopy.pushingToOdoo' : 'financeCopy.pushingToERPNext', odoo ? 'Sending to Odoo…' : 'Pushing to ERPNext…')}</span>
         </div>
       )}
       {odoo && unreachable && <p role="status" className="mb-3 text-sm text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p>}
@@ -377,6 +414,9 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
             error={salesInvoiceField.error}
             placeholder={t('financeCopy.linkToSalesInvoice', "Link to sales invoice…")}
             loadOptions={loadOpenInvoices}
+            statusOverride={invoiceQueryLoading ? 'loading' : invoicesError ? 'error' : undefined}
+            onRetry={() => { void refetchInvoices(); }}
+            emptyMessage={invoiceEmptyMessage}
             noun="invoice"
           />
           {native && !salesInvoiceField.value && (
@@ -401,7 +441,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
             error={paidAmountField.error}
             helper={chosenInvoice?.erp_outstanding_amount != null
               ? t('financeCopy.nativeReceiptAmountHelper', 'Starts at the {{amount}} outstanding. Enter less for a part payment, or more if the client paid more; the excess shows as overpaid.', {
-                amount: formatCurrencyCents(chosenInvoice.erp_outstanding_amount, chosenInvoice.currency),
+                amount: formatCurrency(chosenInvoice.erp_outstanding_amount, chosenInvoice.currency, { precision: 'minor' }),
               })
               : undefined}
             localeAware
@@ -420,7 +460,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
               {t('uxs27.taxWithheldDisclosure', 'Tax withheld')}
             </Button>
             {showWithholdingSummary && (
-              <div className="mt-2 min-w-0 space-y-1 text-[13px] text-muted-foreground">
+              <div className="mt-2 min-w-0 space-y-1 text-control text-muted-foreground">
                 <p className="break-words">
                   {t('uxs27.withheldSummary', 'Tax withheld: {{amount}}', {
                     amount: `${moneyPrefix}${withheldAmountField.value}`,

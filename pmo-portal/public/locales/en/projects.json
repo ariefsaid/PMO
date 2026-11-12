@@ -1,9 +1,8 @@
 {
   "coverage": {
-    "readError": "Project spending could not be read.",
-    "unknown": "Actual is unknown on {{count}} of {{total}} projects.",
-    "partial": "Actual is partial on {{partial}} of {{total}} projects.",
-    "partialUpdated": "Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}."
+    "hiddenNotLinked": "spending is not linked",
+    "hiddenReadError": "spending could not be read",
+    "setUp": "Set up"
   },
   "moneyFiguresUnavailable": "Some project financial figures are still being confirmed.",
   "actual": {
@@ -24,7 +23,7 @@
     "limitReachedDetail": "This project was not restored. Archive an active project you no longer need, or ask your Operator to upgrade the plan, then try again."
   },
   "shortName": {
-    "label": "Short name (optional)",
+    "label": "Short name",
     "hint": "Shown in lists. Contract name is unchanged.",
     "searchProject": "Project · {{name}}",
     "searchPipeline": "Project · Pipeline · {{name}}",
@@ -84,5 +83,21 @@
   "receiptWithholding": {
     "article": "Client withholding article",
     "articleHelper": "Pre-fills new receipts. Each receipt can change it."
+  },
+  "columns": {
+    "contractWithBasis": "Contract ({{basis}})"
+  },
+  "card": {
+    "actualInline": "{{amount}} actual"
+  },
+  "contractBasisNote": "Contract amounts are {{basis}}.",
+  "sharedManagerNote": "Project manager: {{name}}",
+  "projectForm": {
+    "client": {
+      "nounPlural": "companies"
+    },
+    "endCustomer": {
+      "nounPlural": "companies"
+    }
   }
 }

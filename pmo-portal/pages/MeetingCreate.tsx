@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
-  Button, Card, CardHead, CardPad, Combobox, ConfirmDialog, FormGrid,
+  Button, Card, CardHead, CardPad, Combobox, UnsavedChangesDialog, FormGrid,
   ListState, RecordHeader, SelectField, TextField, useToast,
   type ComboboxOption,
 } from '@/src/components/ui';
@@ -34,7 +34,6 @@ const makeValidate = (t: TFunction) => (values: Values): Partial<Record<keyof Va
 const MeetingCreate: React.FC = () => {
   const { t } = useTranslation();
   const { t: tCreate } = useTranslation('meetingCreate');
-  const { t: tMeetings } = useTranslation('meetings');
   const may = usePermission();
   const { currentUser } = useAuth();
   const { toast } = useToast();
@@ -151,13 +150,13 @@ const MeetingCreate: React.FC = () => {
       </ul>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1"><Combobox label={t('meetingDetail.attendees.addMember', 'Add attendee')} value={null} onChange={(_value, option) => setMembers((existing) => [...existing, option])} loadOptions={loadMembers} placeholder={t('meetingDetail.attendees.addMemberPlaceholder', 'Pick an organisation member…')} noun={t('meetingDetail.attendees.memberNoun', 'member')} /></div>
-        <div className="flex min-w-0 flex-1 items-end gap-2"><div className="min-w-0 flex-1"><TextField id="meeting-create-guest" label={t('meetingDetail.attendees.guestLabel', 'External guest')} value={guestName} onChange={setGuestName} /></div><Button type="button" variant="outline" disabled={!guestName.trim()} onClick={() => { setGuests((existing) => [...existing, guestName.trim()]); setGuestName(''); }}>{t('meetingDetail.attendees.addGuest', 'Add guest')}</Button></div>
+        <div className="flex min-w-0 flex-1 items-end gap-2"><div className="min-w-0 flex-1"><TextField id="meeting-create-guest" label={t('meetingDetail.attendees.guestLabel', 'External guest')} value={guestName} onChange={setGuestName} /></div><Button type="button" variant="outline" disabled={!guestName.trim()} onClick={() => { setGuests((existing) => [...existing, guestName.trim()]); setGuestName(''); }}>{t('meetingDetail.attendees.addGuest', 'Add')}</Button></div>
       </div>
       </fieldset>
     </CardPad></Card>
     {saveError && <p role="alert" className="mb-4 text-sm text-destructive-text">{tCreate('partialSaveFailed', 'Meeting saved, but some details were not saved. Save again to retry.')}</p>}
     <div className="flex justify-end pb-6"><Button type="submit" variant="primary" disabled={form.isSubmitting || create.isPending}>{tCreate('save', 'Save meeting')}</Button></div>
-    <ConfirmDialog open={pendingLeave !== null} tone="default" title={tMeetings('confirm.unsavedChanges.title', 'Unsaved meeting changes')} description={tMeetings('confirm.unsavedChanges.description', 'Your meeting header or minutes have unsaved changes. Leave this page and discard them?')} confirmLabel={tMeetings('confirm.unsavedChanges.leave', 'Leave')} cancelLabel={tMeetings('confirm.unsavedChanges.stay', 'Stay')} onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }} onCancel={() => setPendingLeave(null)} />
+    <UnsavedChangesDialog open={pendingLeave !== null} onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }} onKeepEditing={() => setPendingLeave(null)} />
   </form>;
 };
 

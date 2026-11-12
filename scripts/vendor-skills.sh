@@ -79,9 +79,44 @@ if [ -f "$DEST/impeccable/scripts/context.mjs" ]; then
 fi
 
 echo "==> taste (Leonxlnx/taste-skill) — anti-slop craft discipline"
-git clone --depth 1 https://github.com/Leonxlnx/taste-skill.git "$TMP/taste"
+# The app run and inspector live on v2.2-scenes, not upstream's default branch.
+TASTE_REV="e96625ecb815b93bf596b968ddb1162c9275d98e"
+git clone --depth 1 --filter=blob:none --sparse --branch v2.2-scenes https://github.com/Leonxlnx/taste-skill.git "$TMP/taste"
+git -C "$TMP/taste" fetch --depth 1 origin "$TASTE_REV"
+git -C "$TMP/taste" checkout --detach "$TASTE_REV"
+git -C "$TMP/taste" sparse-checkout set skills/taste-skill
 rm -rf "${DEST:?}/taste"
 cp -R "$TMP/taste/skills/taste-skill" "$DEST/taste"
+for canary in references/app-screens.md scripts/inspect.mjs; do
+  if [ ! -s "$DEST/taste/$canary" ]; then echo "ERROR: pinned taste is missing $canary; vendoring stopped." >&2; exit 1; fi
+done
+for notice in LICENSE LICENSE.md NOTICE NOTICE.md; do
+  if [ -f "$TMP/taste/$notice" ]; then cp "$TMP/taste/$notice" "$DEST/taste/$notice"; fi
+done
+printf '%s\n' "$TASTE_REV" > "$DEST/taste/.upstream-revision"
+mkdir -p "$ROOT/.claude/skill-original"
+rm -rf "${ROOT:?}/.claude/skill-original/taste"
+cp -R "$DEST/taste" "$ROOT/.claude/skill-original/taste"
+
+echo "==> stageshow (benjitaylor/skills, MIT) — craft references + marketing product shots"
+STAGESHOW_REV="299140fafd08df55a9c234e610c3f64af3f45531"
+git clone --depth 1 --filter=blob:none --sparse https://github.com/benjitaylor/skills.git "$TMP/stageshow"
+git -C "$TMP/stageshow" fetch --depth 1 origin "$STAGESHOW_REV"
+git -C "$TMP/stageshow" checkout --detach "$STAGESHOW_REV"
+git -C "$TMP/stageshow" sparse-checkout set stageshow
+rm -rf "${DEST:?}/stageshow"
+cp -R "$TMP/stageshow/stageshow" "$DEST/stageshow"
+for canary in references/craft.md scripts/layout.mjs; do
+  if [ ! -s "$DEST/stageshow/$canary" ]; then echo "ERROR: pinned stageshow is missing $canary; vendoring stopped." >&2; exit 1; fi
+done
+# Preserve upstream notices in the generated distribution; brand SVGs stay untracked with it.
+for notice in LICENSE LICENSE.md NOTICE NOTICE.md; do
+  if [ -f "$TMP/stageshow/$notice" ]; then cp "$TMP/stageshow/$notice" "$DEST/stageshow/$notice"; fi
+done
+printf '%s\n' "$STAGESHOW_REV" > "$DEST/stageshow/.upstream-revision"
+mkdir -p "$ROOT/.claude/skill-original"
+rm -rf "${ROOT:?}/.claude/skill-original/stageshow"
+cp -R "$DEST/stageshow" "$ROOT/.claude/skill-original/stageshow"
 
 echo "==> ui-ux-pro-max (nextlevelbuilder) — CORE skills only (skip Gemini generative sub-skills)"
 git clone --depth 1 https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git "$TMP/uupm"
@@ -146,7 +181,7 @@ if [ -d "$OVERRIDES" ]; then
 fi
 
 echo
-echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner agent-browser skill-creator impeccable taste ui-ux-pro-max design-system ui-styling sssf + mattpocock full eng+prod set"
+echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner agent-browser skill-creator impeccable taste stageshow ui-ux-pro-max design-system ui-styling sssf + mattpocock full eng+prod set"
 echo "Project overrides applied from .claude/skill-overrides/ ($(ls "$OVERRIDES" 2>/dev/null | tr '\n' ' '))"
 echo "==> mirror generated skill surfaces (.agents/skills, and .pi/skills if project .pi exists)"
 node "$ROOT/scripts/sync-agent-surfaces.mjs" --write --skills-only

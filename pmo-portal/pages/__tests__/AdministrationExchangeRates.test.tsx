@@ -72,10 +72,20 @@ beforeEach(() => {
       : { rows: rows.slice(0, 50), nextCursor: rows[49].rate_date },
   );
   h.context.mockResolvedValue({ currency: 'IDR', timezone: 'Asia/Jakarta' });
+  // `existing`/`upsert` carry `mockResolvedValueOnce` queues: reset them per test, or an unconsumed
+  // one-shot from an earlier case answers this case's write and the failure surfaces two tests away.
+  h.upsert.mockReset();
   h.upsert.mockResolvedValue({ new: 1, changed: 0, unchanged: 0 });
+  h.existing.mockReset();
   h.existing.mockResolvedValue([]);
+  // Dates render through the shared `formatDay` rule (docs/ux/screen-rules.md: "10 Nov" within the
+  // current year), so the expectations below are only stable with the clock pinned into that year.
+  vi.setSystemTime(new Date('2026-10-31T09:00:00Z'));
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe('AC-FX-008 Administration exchange-rate list', () => {
   it('shows 50 newest rows, keys the next page by the last shown date, and returns via Previous', async () => {
@@ -119,7 +129,7 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
     });
     fireEvent.change(screen.getByLabelText(/IDR per USD/, { selector: 'input, select, textarea' }), { target: { value: '17000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save rate' }));
-    expect(await screen.findByText(/Replace the rate for Oct 12, 2026/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Replace the rate for 12 Oct/i)).toBeInTheDocument();
     expect(screen.getByText(/16,019 → 17,000 IDR per USD/)).toBeInTheDocument();
     expect(h.existing).toHaveBeenCalledWith(['2026-10-12']);
     expect(h.upsert).not.toHaveBeenCalled();
@@ -139,7 +149,7 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
     });
     fireEvent.change(screen.getByLabelText(/IDR per USD/, { selector: 'input, select, textarea' }), { target: { value: '17000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save rate' }));
-    await screen.findByText(/Replace the rate for Oct 12, 2026/i);
+    await screen.findByText(/Replace the rate for 12 Oct/i);
     fireEvent.click(screen.getByRole('button', { name: 'Save rates' }));
     await waitFor(() => expect(h.upsert).toHaveBeenCalledTimes(1));
     expect(h.upsert).toHaveBeenCalledWith([{ rate_date: '2026-10-12', rate: 17000 }]);
@@ -222,12 +232,14 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
 
     expect(await screen.findByText('No JISDOR rates yet')).toBeInTheDocument();
     // The missing rates have a named consequence (RF-054): rupiah equivalents stay unavailable.
+    // (The a6 admin sweep trimmed the wording — "BI's" dropped, a6 merge ca5a88884 — the sentence
+    // and its consequence stand.)
     expect(
-      screen.getByText(/Upload BI's JISDOR history to show rupiah equivalents/),
+      screen.getByText(/Upload JISDOR history to show rupiah equivalents/),
     ).toBeInTheDocument();
     // Reference equivalents are not accounting figures — the page says so before any upload.
     expect(
-      screen.getByText(/accounting records are never changed/i),
+      screen.getByText(/accounting records never change/i),
     ).toBeInTheDocument();
     // Exactly one primary setup action (the empty state carries it; the header stands down).
     const uploadButtons = screen.getAllByRole('button', { name: 'Upload rates' });
@@ -243,7 +255,7 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
 
     expect(await screen.findByText('No JISDOR rates yet')).toBeInTheDocument();
     expect(
-      screen.getByText(/An Admin or Finance member can upload them from this page/i),
+      screen.getByText(/Admin or Finance can upload them/i),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Upload rates' })).not.toBeInTheDocument();
   });
@@ -252,12 +264,15 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     renderPage();
     await screen.findByRole('table');
     const summary = screen.getByTestId('fx-page-summary');
-    expect(summary).toHaveTextContent('Dates from Sep 12, 2026 to Oct 31, 2026: 50 with rates');
+    expect(summary).toHaveTextContent('Dates from 12 Sep to 31 Oct: 50 with rates');
     expect(summary).toHaveTextContent('earlier rates on the next pages');
+    // T1: a loaded page states what the rates are FOR — display equivalents only; they never change
+    // an accounting record (before this, only the empty state said so).
+    expect(summary).toHaveTextContent('Display equivalents only');
 
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     const lastPage = await screen.findByTestId('fx-page-summary');
-    expect(lastPage).toHaveTextContent('Dates from Sep 11, 2026 to Sep 11, 2026: 1 with rates');
+    expect(lastPage).toHaveTextContent('Dates from 11 Sep to 11 Sep: 1 with rates');
     expect(lastPage).not.toHaveTextContent('earlier rates on the next pages');
   });
 
@@ -267,7 +282,7 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     renderPage();
     const summary = await screen.findByTestId('fx-page-summary');
     expect(summary).toHaveTextContent('3 with rates');
-    expect(summary).toHaveTextContent(/No rate for Oct 28, 2026, Oct 30, 2026/);
+    expect(summary).toHaveTextContent(/No rate for 28 Oct, 30 Oct/);
   });
 
   it('upload preview states the reviewed file’s coverage window before confirmation', async () => {
@@ -282,8 +297,8 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     fireEvent.change(input, { target: { files: [file] } });
     expect(await screen.findByText('3 new')).toBeInTheDocument();
     const summary = screen.getByLabelText('Import preview summary');
-    expect(summary).toHaveTextContent('Dates from Oct 5, 2026 to Oct 9, 2026: 3 with rates');
-    expect(summary).toHaveTextContent('No rate for Oct 6, 2026, Oct 8, 2026');
+    expect(summary).toHaveTextContent('Dates from 5 Oct to 9 Oct: 3 with rates');
+    expect(summary).toHaveTextContent('No rate for 6 Oct, 8 Oct');
   });
 
   it('shows the publication date when a valid file contains one accepted rate', async () => {
@@ -297,7 +312,7 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
 
     expect(await screen.findByText('1 new')).toBeInTheDocument();
     const summary = screen.getByLabelText('Import preview summary');
-    expect(summary).toHaveTextContent('Dates from Oct 12, 2026 to Oct 12, 2026: 1 with rates');
+    expect(summary).toHaveTextContent('Dates from 12 Oct to 12 Oct: 1 with rates');
     expect(summary).not.toHaveTextContent('No rate for');
   });
 });

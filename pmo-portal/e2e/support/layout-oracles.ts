@@ -327,7 +327,7 @@ export async function assertDashboardPaintAndDesktopAccount(page: Page) {
     }
     await page.keyboard.press('Shift+Tab');
     await expect(menu).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /notifications/i })).toBeFocused();
+    await expect(page.getByRole('button', { name: /account menu/i })).toBeFocused();
     await page.getByRole('button', { name: /account menu/i }).click();
     await page.keyboard.press('Tab');
     await expect(menu).toHaveCount(0);
@@ -456,10 +456,15 @@ export async function assertProjectsTableLayout(page: Page) {
     await expect(pmAvatar).toHaveAccessibleName(/\s/);
     await expect(pmAvatar).toHaveAttribute('title', accessiblePmName!);
 
-    for (const header of ['Project', 'PM', 'Status', 'Contract', 'Actual']) {
+    for (const header of ['Project', 'PM', 'Status', 'Actual']) {
       await expect(table.getByRole('columnheader', { name: header, exact: true }),
         `core Projects column "${header}" should be visible at 1440px`).toBeVisible();
     }
+    // The money column carries its tax basis in the header whenever the visible rows share one
+    // ("Contract (excl. PPN)" — pages/projects/projectTableColumns.tsx), so its name is a prefix
+    // match; every other core header above stays an exact match.
+    await expect(table.getByRole('columnheader', { name: /^Contract/ }),
+      'core Projects column "Contract" should be visible at 1440px').toBeVisible();
     await expect(page.getByRole('button', { name: /optional columns/i })).toHaveCount(0);
     for (const header of ['Progress', 'Budget used']) {
       await expect(table.getByRole('columnheader', { name: header, exact: true }),
@@ -748,8 +753,8 @@ export async function assertFunnelAmountsContained(page: Page) {
   expect(pageScrollWidth).toBeLessThanOrEqual(FUNNEL_VIEWPORT_WIDTH + 2);
 }
 
-/** AC-SFA-006: every stage progress bar keeps an 8px gap below its weighted line and all bar tops
- *  align across the row (1px rendering tolerance). */
+/** AC-SFA-006: each populated stage bar keeps an 8px gap below its weighted line and all drawn bar
+ *  tops align across the row (1px rendering tolerance). Stages with no deals intentionally draw no bar. */
 export async function assertFunnelBarGapAndAlignment(page: Page) {
   await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
   await waitForFonts(page);
@@ -769,7 +774,7 @@ export async function assertFunnelBarGapAndAlignment(page: Page) {
     return results;
   });
 
-  expect(bars, 'expected a weighted line + progress bar on every one of the 5 stages').toHaveLength(5);
+  expect(bars, 'expected a weighted line + progress bar for at least one populated stage').not.toHaveLength(0);
 
   for (const { i, weightedBottom, barTop } of bars) {
     expect(
@@ -957,8 +962,8 @@ export async function setDarkTheme(page: Page, dark: boolean) {
   expect(await page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(dark);
 }
 
-/** AC-1201: the persistent rail shows at desktop with nav links and no hamburger; collapsed at
- *  mobile where the hamburger opens a drawer copy of the rail. Installs the English-profile read
+/** AC-1201: the persistent rail shows at desktop; mobile puts Home/Approvals/Search/More in the
+ *  fixed phone bar, and More opens a drawer copy of the rail. Installs the English-profile read
  *  rewrite BEFORE sign-in so the DOM landmark labels never depend on a persisted seed locale. */
 export async function assertResponsiveRailAndDrawer(page: Page, email = 'exec@acme.test') {
   // The DOM landmark labels below are English; avoid dependence on a persisted seed locale
@@ -968,29 +973,21 @@ export async function assertResponsiveRailAndDrawer(page: Page, email = 'exec@ac
   await signIn(page, email);
   await page.goto('/');
 
-  // --- Desktop: persistent grid-area rail is visible, no hamburger. ---
+  // --- Desktop: persistent grid-area rail is visible, no phone navigation trigger. ---
   const persistent = page.locator('.rail-persistent');
   await expect(persistent).toBeVisible();
   const desktopNavCount = await persistent.locator('nav a').count();
   expect(desktopNavCount).toBeGreaterThan(0);
   await expect(page.locator('.mobile-rail-toggle')).toBeHidden();
 
-  // --- Mobile: persistent rail collapses, hamburger appears. ---
+  // --- Mobile: persistent rail collapses, the phone bar carries navigation. ---
   await page.setViewportSize({ width: 560, height: 800 });
   await expect(persistent).toBeHidden();
-  const hamburger = page.locator('.mobile-rail-toggle');
-  await expect(hamburger).toBeVisible();
-
-  // Opening the hamburger reveals a drawer copy of the rail WITH nav links.
-  await hamburger.click();
-  const drawerNav = page.locator('nav[aria-label="Primary navigation"]').nth(1);
-  await expect(drawerNav.getByRole('link', { name: /Approvals/ })).toBeVisible();
-  const drawerNavCount = await page.evaluate(() => {
-    const navs = Array.from(document.querySelectorAll('nav[aria-label="Primary navigation"]'));
-    const drawer = navs.find((n) => !n.closest('.rail-persistent'));
-    return drawer ? drawer.querySelectorAll('a').length : 0;
-  });
-  expect(drawerNavCount).toBeGreaterThan(0);
+  await expect(page.locator('.mobile-rail-toggle')).toHaveCount(0);
+  const phoneNav = page.getByRole('navigation', { name: 'Phone navigation' });
+  await expect(phoneNav).toBeVisible();
+  await expect(phoneNav.getByRole('link', { name: /Approvals/ })).toBeVisible();
+  await expect(phoneNav.getByRole('button', { name: 'More' })).toBeVisible();
 }
 
 /** UX-001: every persistent-rail nav link — Approvals included — stays inside the rail box and the
@@ -1047,10 +1044,20 @@ export async function driveAdministrationSections(
   sections: ReadonlyArray<(typeof ADMINISTRATION_OPERATOR_SECTIONS)[number]> = ADMINISTRATION_ORGANIZATION_SECTIONS,
 ) {
   const sectionNav = page.getByRole('navigation', { name: 'Administration sections' });
+  // ux/1110 recomposed the section nav: below the sm breakpoint the nav renders ONE <select> with
+  // an <option> per section instead of the link strip (pages/Administration.tsx, useIsNarrow).
+  // Same journey — reach each section, panel visible, no overflow — via the control that exists.
+  const narrow = vw < 600;
   for (const s of sections) {
-    const link = sectionNav.getByRole('link', { name: s.name });
-    await expect(link).toBeVisible();
-    await link.click();
+    if (narrow) {
+      const select = sectionNav.getByRole('combobox');
+      await expect(select).toBeVisible();
+      await select.selectOption({ label: s.name });
+    } else {
+      const link = sectionNav.getByRole('link', { name: s.name });
+      await expect(link).toBeVisible();
+      await link.click();
+    }
     await expect(page).toHaveURL(new RegExp(`${s.url}$`));
     await expect(page.getByTestId(s.testid)).toBeVisible();
 
@@ -1059,8 +1066,9 @@ export async function driveAdministrationSections(
     await expect(heading).toBeVisible();
     await expect(panelHeading).toBeVisible();
     await waitForFonts(page);
-    if (vw < 600) {
-      for (const el of [heading, sectionNav.getByRole('link', { name: s.name }), panelHeading]) {
+    if (narrow) {
+      const control = narrow ? sectionNav.getByRole('combobox') : sectionNav.getByRole('link', { name: s.name });
+      for (const el of [heading, control, panelHeading]) {
         const box = await el.boundingBox();
         expect(box, `${s.name} control should have a layout box at ${vw}px`).not.toBeNull();
         expect(
@@ -1068,11 +1076,11 @@ export async function driveAdministrationSections(
           `${s.name} control must sit within the first scroll region at ${vw}px — its top (${Math.round(box!.y)}px) is below the ${height}px viewport.`,
         ).toBeLessThan(height);
       }
-      const linkBox = await link.boundingBox();
-      expect(linkBox, `${s.name} link should have a layout box at ${vw}px`).not.toBeNull();
+      const controlBox = await control.boundingBox();
+      expect(controlBox, `${s.name} nav control should have a layout box at ${vw}px`).not.toBeNull();
       expect(
-        linkBox!.height,
-        `${s.name} link must offer a 44px-tall phone touch target, without overlap from adjacent links`,
+        controlBox!.height,
+        `${s.name} nav control must offer a 44px-tall phone touch target`,
       ).toBeGreaterThanOrEqual(44);
     }
 
@@ -1276,9 +1284,6 @@ export async function assertCompactProjectHeader(page: Page) {
   await expect(moneyPosition.getByTestId('contract-value-amount')).toBeVisible();
   // Net fewer always-visible elements: the header's own disclosure is gone, the rail owns the codes.
   await expect(page.getByText('More project details', { exact: true })).toHaveCount(0);
-  const moreActions = page.locator('summary[aria-label="More actions"]');
-  await expect(moreActions).toHaveCount(1);
-  await moreActions.click();
   const projectDetails = page.getByRole('button', { name: 'Project details', exact: true });
   await expect(projectDetails).toHaveCount(1);
   await projectDetails.click();

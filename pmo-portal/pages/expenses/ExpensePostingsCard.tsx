@@ -3,13 +3,14 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadiness';
-import { Card, CardHead, CardPad, ListState, StatusPill, type StatusVariant } from '@/src/components/ui';
+import { Card, CardHead, CardPad, ListState, StatusPill } from '@/src/components/ui';
+import { statusVariantOf } from '@/src/lib/status/statusMap';
 import { repositories } from '@/src/lib/repositories';
 import type { ExpensePostingKind, ExpensePostingRow, ExpensePushState } from '@/src/lib/repositories/expensePostings';
 
-const STATE_VARIANT: Readonly<Record<ExpensePushState, StatusVariant>> = {
-  pending: 'progress', failed: 'warn', held: 'overdue', pushed: 'won',
-};
+// Tone comes from the ONE status registry (F1a: push held = amber, failed = red, pushed = green on
+// EVERY push surface — timesheet badge, expense postings and budget notice previously disagreed).
+const stateVariant = (pushState: string) => statusVariantOf('push', pushState);
 
 /**
  * The recorded reason is a machine code (`<code>` or `<code>: <detail>`, from the sweep's gate, resolver or outbox).
@@ -96,7 +97,7 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
     // nothing is posted. Display only — nothing is queued or retried from here.
     if (readiness === 'checking' || readiness === 'ready') return null;
     return (
-      <p role="status" className="mb-4 text-[13px] text-muted-foreground">
+      <p role="status" className="mb-4 text-control text-muted-foreground">
         {readiness === 'unavailable'
           ? t('uxs12.expensePosting.cardUnknown', "Couldn't check whether this claim will reach accounting.")
           : t('uxs12.expensePosting.cardInactive', "Not posted to accounting: expense posting isn't active for this organization.")}
@@ -113,17 +114,17 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
       <CardHead level={2} id="expense-postings-heading">{t('expenses.postings.title', 'Ledger postings')}</CardHead>
       <CardPad>
         {recordedBefore && (
-          <p data-testid="expense-recorded-before-connection" className="mb-2 text-[12.5px] text-muted-foreground">
+          <p data-testid="expense-recorded-before-connection" className="mb-2 text-control text-muted-foreground">
             {t('expenseClaims:postings.recordedBeforeConnection', 'Recorded before the ERP connection')}
           </p>
         )}
         <ul className="flex flex-col gap-2">
           {data.map((row) => (
-            <li key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px]">
+            <li key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-control">
               <span className="font-medium">{postingLabel[row.posting]}</span>
               {row.erpCancelledAt
-                ? <StatusPill variant="superseded">{t('expenses.postings.state.cancelledInErp', 'Cancelled in ERPNext')}</StatusPill>
-                : <StatusPill variant={STATE_VARIANT[row.pushState]}>{stateLabel[row.pushState]}</StatusPill>}
+                ? <StatusPill variant={stateVariant('cancelled-in-erp')}>{t('expenses.postings.state.cancelledInErp', 'Cancelled in ERPNext')}</StatusPill>
+                : <StatusPill variant={stateVariant(row.pushState)}>{stateLabel[row.pushState]}</StatusPill>}
               {row.erpName && <span className="break-all text-muted-foreground">{row.erpName}</span>}
               {row.pushError && row.pushState !== 'pushed'
                 && <span className="break-words text-muted-foreground">{postingReason(t, row.pushError)}</span>}

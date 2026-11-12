@@ -212,7 +212,7 @@ describe('ProjectDetailHeader — compact identity', () => {
   it('AC-IXD-PROJ-W5-C3-06: Engineer still sees the project name and status', () => {
     renderHeader('Engineer');
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
+    expect(screen.getByText('Ongoing')).toBeInTheDocument();
   });
 });
 
@@ -273,6 +273,7 @@ describe('AC-IXD-PROJ-W5-C3 N10: post-transition wayfinding', () => {
     renderLens();
     await userEvent.click(screen.getByRole('button', { name: /Mark lost/i }));
     const dialog = await screen.findByRole('alertdialog');
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: /reason/i }), 'price');
     await userEvent.click(within(dialog).getByRole('button', { name: /Mark lost/i }));
     await waitFor(() => {
       expect(screen.getByRole('link', { name: /back to sales pipeline/i })).toBeInTheDocument();

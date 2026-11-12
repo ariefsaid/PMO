@@ -44,7 +44,8 @@ async function createMeeting(page: Page, title: string): Promise<string> {
   await expect(page).toHaveURL(/\/meetings\/new$/);
   await page.getByLabel(/^Title\s*\*?$/i).fill(title);
   await page.getByLabel(/^Project$/i).selectOption({ label: PROJECT_NAME });
-  await page.getByRole('button', { name: /save meeting/i }).click();
+  // ux/1110 renamed the create-page submit from "Save meeting" to "Save" (public/locales/en/meetingCreate.json).
+  await page.getByRole('button', { name: /^save$/i }).click();
   await expect(page).toHaveURL(/\/meetings\/[0-9a-f-]+$/i, { timeout: 15_000 });
   return page.url().split('/meetings/')[1];
 }
@@ -54,6 +55,7 @@ async function deleteMeeting(page: Page, id: string) {
   // Wait for the record itself: a bare "no skeleton yet" check passes before the page has even
   // started loading, which is how this cleanup silently skipped every delete before.
   await expect(page.getByTestId('record-header')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'More actions' }).click();
   const deleteBtn = page.getByTestId('meeting-delete');
   await expect(deleteBtn).toBeVisible();
   await deleteBtn.click();

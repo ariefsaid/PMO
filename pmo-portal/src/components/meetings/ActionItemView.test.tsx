@@ -35,7 +35,7 @@ describe('ActionItemView — the live row, never a copy (DD-MTG-2)', () => {
     getTask.mockResolvedValue(task);
     wrap(<ActionItemView taskId="t1" />);
     expect(await screen.findByText('Confirm crane schedule')).toBeInTheDocument();
-    expect(screen.getByText('In Progress')).toBeInTheDocument();
+    expect(screen.getByText('In progress')).toBeInTheDocument();
     expect(screen.getByText('Owner: Putri Peer')).toBeInTheDocument();
     expect(screen.getByText(/Due date:/)).toBeInTheDocument();
     expect(getTask).toHaveBeenCalledWith('t1');

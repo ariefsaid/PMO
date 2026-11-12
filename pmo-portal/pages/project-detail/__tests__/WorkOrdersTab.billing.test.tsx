@@ -75,6 +75,7 @@ vi.mock('../InvoiceWorkOrderModal', () => ({
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { formatDay } from '@/src/lib/format';
 
 const wo = (over: Partial<WorkOrderRow> = {}): WorkOrderRow => ({
   id: 'wo-1', org_id: 'org-1', project_id: 'p1', wo_number: 'WO-1', client_po_number: 'PO-77', title: 'Phase 1 fabrication',
@@ -166,7 +167,9 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(screen.queryByTestId('wo-billing-total-still')).not.toBeInTheDocument();
     expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('90,000');
     await userEvent.hover(stillToInvoice);
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Drafts and unraised claims count as not yet invoiced.');
+    // #2123: hover intent is a deliberate 400ms step (600ms without a provider in tests), so the
+    // journey waits for the tooltip; the goal assertion is unchanged.
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Drafts and unraised claims count as not yet invoiced.');
   });
 
   it('AC-CQ-020 Finance can read a closed work order’s closing value on its row', () => {
@@ -405,7 +408,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(within(section).getByRole('table', { name: 'Invoices without a customer order' })).toBeInTheDocument();
     const openButtons = within(section).getAllByRole('button', { name: 'Open invoice INV-ORPHAN' });
     expect(openButtons.length).toBeGreaterThan(0);
-    expect(within(section).getAllByText('Oct 4, 2026').length).toBeGreaterThan(0);
+    expect(within(section).getAllByText(formatDay('2026-10-04')).length).toBeGreaterThan(0);
     expect(within(section).getAllByText('12,346').length).toBeGreaterThan(0);
     expect(within(section).getAllByText('10,000').length).toBeGreaterThan(0);
     expect(within(section).getAllByText('2,346').length).toBeGreaterThan(0);
@@ -461,8 +464,13 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     const section = screen.getByRole('region', { name: 'Invoices without a customer order' });
     expect(within(section).getByText('Paid and unpaid amounts will appear once the accounting system reports an invoice balance.')).toBeInTheDocument();
     expect(within(section).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
-    // F10: the shared DataTable; an unknown paid/unpaid cell stays empty, never a 0.
-    const row = within(within(section).getByRole('table', { name: 'Invoices without a customer order' })).getByRole('row', { name: /INV-ORPHAN/ });
+    // An unknown balance is not a column of dashes: the Paid and Unpaid columns drop out, the note above
+    // says why, and the row never shows a 0.
+    const table = within(section).getByRole('table', { name: 'Invoices without a customer order' });
+    const row = within(table).getByRole('row', { name: /INV-ORPHAN/ });
+    const headers = [...table.querySelectorAll('thead th')].map((header) => header.textContent ?? '');
+    expect(headers.some((header) => header.startsWith('Paid'))).toBe(false);
+    expect(headers.some((header) => header.startsWith('Unpaid'))).toBe(false);
     expect(row).not.toHaveTextContent(/\b0\b/);
     expect(row).toHaveTextContent('12,000');
   });

@@ -6,10 +6,13 @@
  */
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui/Toast';
+import { pinHomeLayout } from '@/test/homeLayout';
+
+pinHomeLayout('focused');
 
 const populated = {
   active_projects: 2,
@@ -71,7 +74,9 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useHasAnyIncomingPayment: () => ({ data: false, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
-  useManagementPack: () => ({ data: { totals: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+  // cad044df6: the on-hand "Left to bill" figure reads the pack's latest month and its contract rows,
+  // so the stub must be a whole pack (as CompanyDashboard.honesty.test.tsx already stubs it).
+  useManagementPack: () => ({ data: { months: [], rows: [], totals: [] }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: h.dash, isPending: false, isError: false, refetch: vi.fn() }),
@@ -89,6 +94,7 @@ vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useArAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {}, isPending: false, isError: false, refetch: vi.fn() }), useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectIdentity: () => ({ data: [] }), useProjects: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 
 import ExecutiveDashboard from '../ExecutiveDashboard';
@@ -129,32 +135,28 @@ describe('company figures — ported money oracles', () => {
     // 94.9% is (contract − spend) / contract — the old false-profit figure; the remainder is $7.6M.
     expect(margin).not.toHaveTextContent('94.9%');
     expect(margin).not.toHaveTextContent('$7.6M');
-    expect(tile('Contract on hand')).toHaveTextContent('Left after spending: $7.6M');
   });
 
   it('AC-1114: the weighted pipeline shows short $800K with the exact $800,000 kept', () => {
     renderPage();
-    const pipeline = tile('Pipeline (weighted)');
+    const pipeline = screen.getByText('Weighted pipeline').parentElement as HTMLElement;
     expect(pipeline).toHaveTextContent('$800K');
     expect(pipeline.querySelector('[title="$800,000"]')).not.toBeNull();
   });
 
   it('AC-IXD-DASH-002: forecast margin is the one weighted-pipeline percentage, with no on-hand/weighted lens toggle', () => {
     renderPage();
-    expect(within(figures()).getAllByText(/Forecast margin/)).toHaveLength(1);
-    expect(tile('Pipeline (weighted)')).toHaveTextContent('Forecast margin: 20.0%');
+    expect(screen.getAllByText(/Forecast margin/)).toHaveLength(1);
+    expect(screen.getByText('Weighted pipeline').parentElement).toHaveTextContent('Forecast margin: 20.0%');
     expect(screen.queryByRole('tab', { name: /Weighted/i })).toBeNull();
     expect(screen.queryByRole('tab', { name: /On-hand/i })).toBeNull();
   });
 
-  it('SL-B / AC-RD-UNAVAIL-001: an uncomputable forecast margin and weighted value show no margin and an explained figure, never prose', () => {
+  it('SL-B / AC-RD-UNAVAIL-001: an uncomputable forecast margin and weighted value show no margin and no figure, never prose', () => {
     h.dash = { ...populated, pipeline_projected_margin: null, pipeline_weighted_value: null, pipeline_total_value: 0, pipeline_total_value_by_currency: [] };
     renderPage();
     expect(screen.queryByText(/Forecast margin/)).not.toBeInTheDocument();
-    const pipeline = tile('Pipeline (weighted)');
-    const unavailable = within(pipeline).getByRole('status');
-    expect(unavailable).toHaveTextContent('The accounting source did not provide a comparable amount.');
-    expect(unavailable).not.toHaveTextContent(/\$|\d/);
+    expect(screen.queryByText('Weighted pipeline')).not.toBeInTheDocument();
   });
 
   it('AC-RD-MONEY-003: in an IDR org a USD on-hand row names its currency by code, never a bare "$"', () => {
@@ -175,9 +177,10 @@ describe('company figures — ported money oracles', () => {
 });
 
 describe('company win rate — ported AC-1115 / FR-SPD-013', () => {
-  it('AC-1115: the win-rate card toggles count ↔ value and the page period re-queries it with a new range', () => {
+  it('AC-1115: the win-rate card toggles count ↔ value and the page period re-queries it with a new range', async () => {
     renderPage();
-    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
+    fireEvent.click(screen.getByText('Analysis'));
+    expect(await screen.findByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
     expect(within(screen.getByTestId('win-rate-currency-USD')).getByRole('progressbar', { name: /USD win rate on decided bids/i }))
       .toHaveAttribute('aria-valuetext', '92.5%');
@@ -186,6 +189,6 @@ describe('company win rate — ported AC-1115 / FR-SPD-013', () => {
 
     const initialKey = h.winRateKeys.at(-1);
     fireEvent.change(screen.getByRole('combobox', { name: 'Period' }), { target: { value: 'month' } });
-    expect(h.winRateKeys.at(-1)).not.toBe(initialKey);
+    await waitFor(() => expect(h.winRateKeys.at(-1)).not.toBe(initialKey));
   });
 });

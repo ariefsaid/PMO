@@ -239,7 +239,7 @@ insert into _s select 'day', save_equipment_usage('{"asset_id":"15190000-0000-00
   "work_date":"2026-10-15","quantity":1,"unit":"days"}');
 select transition_equipment_usage((select (v->>'id')::uuid from _s where k = 'day'), 'Submitted');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a3');   -- PM1 manages P1
-select transition_equipment_usage((select (v->>'id')::uuid from _s where k = 'day'), 'Rejected');
+select transition_equipment_usage((select (v->>'id')::uuid from _s where k = 'day'), 'Rejected', 'Please correct usage');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a2');   -- Finance: a Rejected row does not block the unit
 select lives_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d7","basis":"hire_rate",
   "work_rate":100,"rate_unit":"hours","effective_from":"2026-10-01"}') $$, 'AC-EQU-015 an hours rate is saved while the only day entry is Rejected');

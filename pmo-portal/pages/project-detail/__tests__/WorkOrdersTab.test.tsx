@@ -95,6 +95,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
+import { formatDay } from '@/src/lib/format';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -256,9 +257,9 @@ describe('the rows', () => {
     listState.data = [row({ order_date: '2026-08-01' })];
     const user = userEvent.setup();
     renderTab();
-    expect(screen.getByText(/Order date.*Aug 1, 2026/)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`Order date.*${formatDay('2026-08-01')}`))).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'View details for Phase 1 fabrication' }));
-    expect(within(screen.getByRole('dialog')).getByText('Aug 1, 2026')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText(formatDay('2026-08-01'))).toBeInTheDocument();
   });
 
   it('retains an allocation draft while a required source fails and recovers', async () => {
@@ -268,7 +269,7 @@ describe('the rows', () => {
     const tree = () => <MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
     const view = render(tree());
     await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Allocate contract lines' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Allocate contract lines' }));
     await user.type(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/), '3.5');
     lineState.isPending = true;
     view.rerender(tree());
@@ -298,7 +299,7 @@ describe('the rows', () => {
     const tree = () => <MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
     const view = render(tree());
     await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Allocate contract lines' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Allocate contract lines' }));
     await user.click(within(screen.getByRole('dialog', { name: /Contract lines/ })).getByRole('button', { name: 'Remove SURVEY' }));
     lineState.isError = true;
     view.rerender(tree());
@@ -317,7 +318,7 @@ describe('the rows', () => {
       const user = userEvent.setup();
       const view = renderTab(role);
       await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
-      await user.click(screen.getByRole('menuitem', { name: 'Allocate contract lines' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Allocate contract lines' }));
       expect(screen.getByRole('dialog', { name: 'Contract lines: Phase 1 fabrication' })).toBeInTheDocument();
       view.unmount();
     }
@@ -471,8 +472,8 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     listState.data = [row({ status: 'Issued', wo_number: 'WO-0001' })];
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: 'Actions for WO-0001' }));
-    expect(screen.getByRole('menuitem', { name: 'Close order' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Cancel order' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Close order' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Cancel order' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit order' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Set value' })).not.toBeInTheDocument();
     // The frozen body offers neither edit nor value change from the action menu either.
@@ -490,7 +491,7 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     for (const id of ['wo-1', 'wo-2']) {
       const order = within(screen.getByTestId(`customer-order-${id}`));
       await user.click(order.getByRole('button', { name: /Actions for/ }));
-      const menu = screen.getByRole('menu');
+      const menu = await screen.findByRole('menu');
       expect(within(menu).getByRole('menuitem', { name: 'View customer PO' })).toBeInTheDocument();
       for (const label of ['Close order', 'Cancel order', 'Edit order', 'Set value']) {
         expect(within(menu).queryByRole('menuitem', { name: label })).not.toBeInTheDocument();

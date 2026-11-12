@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Button,
   cn,
-  SelectField,
+  FilterBar,
   ViewToggle,
 } from '@/src/components/ui';
 import { salesInvoiceStatusLabel, type StatusFilter } from './salesInvoiceListModel';
@@ -17,6 +17,11 @@ const SalesInvoicesFilters: React.FC<{
   statusFilters: readonly StatusFilter[];
   statusFilter: StatusFilter;
   onStatusChange: (value: StatusFilter) => void;
+  search: string;
+  onSearchChange: (value: string) => void;
+  onClearFilters: () => void;
+  shownCount: number;
+  totalCount: number;
   requestedCustomerId: string | null;
   selectedCustomerLabel: string | null;
   customerOptionsPending: boolean;
@@ -35,6 +40,11 @@ const SalesInvoicesFilters: React.FC<{
   statusFilters,
   statusFilter,
   onStatusChange,
+  search,
+  onSearchChange,
+  onClearFilters,
+  shownCount,
+  totalCount,
   requestedCustomerId,
   selectedCustomerLabel,
   customerOptionsPending,
@@ -57,25 +67,45 @@ const SalesInvoicesFilters: React.FC<{
       className={embedded
         // P5: on a phone the filters wrap onto a second line instead of running past the screen edge.
         ? isDesktop
-          ? 'flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
-          : 'flex min-w-0 max-w-full flex-wrap items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
-        : 'min-w-0 max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'}
+          ? 'flex min-w-0 shrink-0 flex-col gap-2 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
+          : 'flex min-w-0 max-w-full flex-col gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
+        : 'min-w-0 max-w-full flex flex-col gap-2 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'}
     >
-      {isDesktop ? <ViewToggle<StatusFilter>
-        options={statusFilters.map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) }))}
-        value={statusFilter}
-        onChange={onStatusChange}
-        ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
-      /> : <SelectField
-        label={t('financeCopy.filterByStatus', "Filter by status")}
-        hideLabel
-        value={statusFilter}
-        options={statusFilters.map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) }))}
-        onChange={(v) => onStatusChange(v as StatusFilter)}
-        fullWidth
-        wrapperClassName="w-full"
-        className="h-11 w-full text-[16px]"
-      />}
+      <FilterBar
+        searchKey="q"
+        searchLabel={t('financeCopy.searchSalesInvoices', "Search sales invoices")}
+        searchPlaceholder={t('financeCopy.searchInvoices', "Search invoices…")}
+        searchSurface="sales-invoices-list"
+        module="salesInvoices"
+        filters={[
+          {
+            key: 'status',
+            label: t('financeCopy.filterByStatus', "Filter by status"),
+            kind: 'segment',
+            semantics: 'tabs',
+            options: statusFilters.filter((f) => f !== 'All').map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) })),
+          },
+        ]}
+        values={{
+          q: search,
+          status: statusFilter === 'All' ? '' : statusFilter,
+        }}
+        onChange={(key, value) => {
+          if (key === 'status') {
+            onStatusChange((value || 'All') as StatusFilter);
+          } else if (key === 'q') {
+            onSearchChange(value);
+          }
+        }}
+        onClear={onClearFilters}
+        shown={shownCount}
+        total={totalCount}
+        labels={{
+          all: t('financeCopy.statusAll', 'All'),
+          clear: t('finance:financeCopy.clearAll', 'Clear all'),
+          filters: t('finance:receivables.filters', 'Filters'),
+        }}
+      />
       <div data-testid="invoice-filter-group" className={embedded ? (isDesktop ? 'flex shrink-0 items-center gap-2' : 'flex min-w-0 max-w-full flex-wrap items-center gap-2') : 'mt-2 flex flex-wrap items-end gap-2'}>
         {requestedCustomerId && (
           <div data-testid="customer-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
@@ -116,14 +146,14 @@ const SalesInvoicesFilters: React.FC<{
           disabled={!organizationToday && !overdueActive}
           onClick={onToggleOverdue}
           className={cn(
-            'h-8',
+            'h-8 max-sm:h-11',
             overdueActive
               ? 'border-primary/40 bg-primary/10 font-semibold text-primary'
               : 'text-muted-foreground hover:text-foreground',
           )}
         >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
         {embedded && <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">{t('finance:receivables.groupBy', 'Group by')}</span>
+          <span className="text-control font-medium text-muted-foreground">{t('finance:receivables.groupBy', 'Group by')}</span>
           <ViewToggle<InvoiceGroupMode>
             options={[
               { value: 'none', label: t('finance:receivables.groupNone', 'None') },

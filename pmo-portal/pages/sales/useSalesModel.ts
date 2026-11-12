@@ -74,9 +74,8 @@ export function useSalesModel() {
     return col ? stageLabel(col) : projectStatusLabel(status);
   };
   const { tableColumns, exportColumns } = useMemo(
-    () => buildPipelineColumns({ t, stageName }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- stageName closes over the two label hooks
-    [t, stageLabel, projectStatusLabel],
+    () => buildPipelineColumns({ t }),
+    [t],
   );
 
   const [classificationResetToken, setClassificationResetToken] = useState(0);

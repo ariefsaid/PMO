@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ConfirmDialog } from '../ConfirmDialog';
@@ -68,6 +68,14 @@ describe('AC-CONFIRM-001: render gating', () => {
   it('AC-CONFIRM-001: renders a custom cancelLabel', () => {
     render(<ConfirmDialog {...baseProps} cancelLabel="Keep open" />);
     expect(screen.getByRole('button', { name: 'Keep open' })).toBeInTheDocument();
+  });
+
+  it('renders a shared form error inside the dialog when a write fails', () => {
+    render(<ConfirmDialog {...baseProps} error="You don't have permission to do that." />);
+    const dialog = screen.getByRole('dialog');
+    const error = within(dialog).getByRole('alert');
+    expect(error).toHaveTextContent("You don't have permission to do that.");
+    expect(error.querySelector('svg')).toBeTruthy();
   });
 
   it('AC-CONFIRM-001: renders nothing when !open', () => {
@@ -156,8 +164,7 @@ describe('AC-CONFIRM-005: a11y wiring + focus management', () => {
   it('AC-CONFIRM-005: on open, focus lands on Cancel (safe default, not the destructive confirm)', async () => {
     render(<ConfirmDialog {...baseProps} tone="destructive" />);
     // focus moves on the next frame; assert it settled on Cancel
-    await screen.findByRole('alertdialog');
-    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus());
   });
 
   it('SH-3: restores focus to a still-connected trigger after conditional unmount', async () => {
@@ -197,44 +204,43 @@ describe('AC-CONFIRM-005: a11y wiring + focus management', () => {
     expect(trigger).toHaveFocus();
 
     const { rerender } = render(<ConfirmDialog {...baseProps} tone="destructive" />);
-    // focus moved into the dialog
-    expect(trigger).not.toHaveFocus();
+    // The library moves focus into the dialog after it mounts.
+    await waitFor(() => expect(trigger).not.toHaveFocus());
     rerender(<ConfirmDialog {...baseProps} tone="destructive" open={false} />);
     expect(trigger).toHaveFocus();
     trigger.remove();
   });
 });
 
-describe('AC-CONFIRM-005: focus trap (onTrapKeyDown)', () => {
-  it('AC-CONFIRM-005: Tab from the Confirm button wraps focus back to Cancel', () => {
+describe('AC-CONFIRM-005: focus trap', () => {
+  it('AC-CONFIRM-005: Tab from the Confirm button wraps focus back to Cancel', async () => {
     render(<ConfirmDialog {...baseProps} />);
-    const dialog = screen.getByRole('dialog');
     const cancel = screen.getByRole('button', { name: 'Cancel' });
     const confirm = screen.getByRole('button', { name: 'Mark lost' });
-    // Confirm is the LAST focusable; Tab from it wraps to the first (Cancel).
+    // Wait for initial focus before exercising the library's wrap.
+    await waitFor(() => expect(cancel).toHaveFocus());
     confirm.focus();
     expect(confirm).toHaveFocus();
-    fireEvent.keyDown(dialog, { key: 'Tab' });
-    expect(cancel).toHaveFocus();
+    await userEvent.tab();
+    await waitFor(() => expect(cancel).toHaveFocus());
   });
 
   it('AC-CONFIRM-005: Shift+Tab from Cancel reaches a decision field before the action row', async () => {
     render(<ConfirmDialog {...baseProps} description={<textarea aria-label="Reason" />} />);
     const cancel = screen.getByRole('button', { name: 'Cancel' });
     const reason = screen.getByRole('textbox', { name: 'Reason' });
-    cancel.focus();
+    await waitFor(() => expect(cancel).toHaveFocus());
     await userEvent.tab({ shift: true });
     expect(reason).toHaveFocus();
   });
 
-  it('AC-CONFIRM-005: Shift+Tab from Cancel wraps focus to Confirm when no decision fields exist', () => {
+  it('AC-CONFIRM-005: Shift+Tab from Cancel wraps focus to Confirm when no decision fields exist', async () => {
     render(<ConfirmDialog {...baseProps} />);
-    const dialog = screen.getByRole('dialog');
     const cancel = screen.getByRole('button', { name: 'Cancel' });
     const confirm = screen.getByRole('button', { name: 'Mark lost' });
     cancel.focus();
-    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
-    expect(confirm).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    await waitFor(() => expect(confirm).toHaveFocus());
   });
 });
 
@@ -369,7 +375,7 @@ describe('AC-CONFIRM-010: mobile — bottom-sheet layout (<768px)', () => {
     mockMatchMedia(false);
     render(<ConfirmDialog {...baseProps} tone="destructive" />);
     await screen.findByRole('alertdialog');
-    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus());
   });
 });
 

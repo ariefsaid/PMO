@@ -5,7 +5,6 @@ import {
   ConfirmDialog,
   DataTable,
   ListState,
-  SectionHeader,
   useToast,
   type Column,
   type SubmitError,
@@ -15,7 +14,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useFxRates, useFxRateMutations } from '@/src/hooks/useFxRates';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDateOnly, formatNumberExact } from '@/src/lib/format';
+import { formatDay, formatNumberExact } from '@/src/lib/format';
 import { missingFxRateDates } from '@/src/lib/import/fxRatePreview';
 import { repositories } from '@/src/lib/repositories';
 import type { FxCommitCounts, FxRateInput, FxRateRow } from '@/src/lib/repositories/types';
@@ -145,7 +144,7 @@ const AdministrationExchangeRates: React.FC = () => {
     {
       key: 'rate_date',
       header: t('fx.date', 'Publication date'),
-      cell: (row) => formatDateOnly(row.rate_date),
+      cell: (row) => formatDay(row.rate_date),
       exportValue: (row) => row.rate_date,
     },
     {
@@ -165,34 +164,27 @@ const AdministrationExchangeRates: React.FC = () => {
 
   return (
     <section aria-labelledby="fx-rates-heading" className="min-w-0">
-      <SectionHeader
-        title={<span id="fx-rates-heading">{t('admin.nav.exchangeRates', 'Exchange rates')}</span>}
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            {canUpload && !listEmpty && (
-              <Button disabled={busy} onClick={openUpload}>
-                {t('fx.upload', 'Upload rates')}
-              </Button>
-            )}
-            {canCreate && (
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={() => {
-                  if (!may('create', 'fxRate', { record: { viewOnly } })) return;
-                  setManualError(null);
-                  setFormTarget({});
-                }}
-              >
-                {t('fx.newRate', 'New rate')}
-              </Button>
-            )}
-          </div>
-        }
-      />
-      <p className="mb-4 text-sm text-muted-foreground">
-        {t('fx.description', 'USD → IDR · JISDOR · display equivalents only')}
-      </p>
+      <div className="mb-[var(--space-group)] flex flex-wrap items-center justify-end gap-2">
+        <h2 id="fx-rates-heading" className="sr-only">{t('admin.nav.exchangeRates', 'Exchange rates')}</h2>
+        {canUpload && !listEmpty && (
+          <Button disabled={busy} onClick={openUpload}>
+            {t('fx.upload', 'Upload rates')}
+          </Button>
+        )}
+        {canCreate && (
+          <Button
+            variant="outline"
+            disabled={busy}
+            onClick={() => {
+              if (!may('create', 'fxRate', { record: { viewOnly } })) return;
+              setManualError(null);
+              setFormTarget({});
+            }}
+          >
+            {t('fx.newRate', 'New rate')}
+          </Button>
+        )}
+      </div>
 
       {orgDay.isPending ? (
         <ListState variant="loading" rows={1} testId="fx-org-day-loading" />
@@ -221,16 +213,16 @@ const AdministrationExchangeRates: React.FC = () => {
           title={t('fx.empty', 'No JISDOR rates yet')}
           sub={
             canUpload
-              ? `${t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")} ${t(
+              ? `${t('fx.emptyBody', 'Upload JISDOR history to show rupiah equivalents.')} ${t(
                   'uxs38.emptyScope',
-                  'Reference rates affect displayed rupiah equivalents only. Accounting records are never changed.',
+                  'Accounting records never change.',
                 )}`
-              : `${t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")} ${t(
+              : `${t('fx.emptyBody', 'Upload JISDOR history to show rupiah equivalents.')} ${t(
                   'uxs38.emptyScope',
-                  'Reference rates affect displayed rupiah equivalents only. Accounting records are never changed.',
+                  'Accounting records never change.',
                 )} ${t(
                   'uxs38.emptyNeedRole',
-                  'An Admin or Finance member can upload them from this page.',
+                  'Admin or Finance can upload them.',
                 )}`
           }
           stateId="fx-rates-empty"
@@ -246,14 +238,14 @@ const AdministrationExchangeRates: React.FC = () => {
         <>
           <p data-testid="fx-page-summary" className="mb-2 text-sm text-muted-foreground">
             {t('uxs38.pageSummary', 'Dates from {{first}} to {{last}}: {{count}} with rates', {
-              first: formatDateOnly(rates.data.rows[rates.data.rows.length - 1].rate_date),
-              last: formatDateOnly(rates.data.rows[0].rate_date),
+              first: formatDay(rates.data.rows[rates.data.rows.length - 1].rate_date),
+              last: formatDay(rates.data.rows[0].rate_date),
               count: new Set(rates.data.rows.map((row) => row.rate_date)).size,
             })}
             {(() => {
               const gaps = missingFxRateDates(rates.data.rows.map((row) => row.rate_date));
               return gaps.length > 0 ? (
-                <> · {t('uxs38.pageGaps', 'No rate for {{dates}}', { dates: gaps.map(formatDateOnly).join(', ') })}</>
+                <> · {t('uxs38.pageGaps', 'No rate for {{dates}}', { dates: gaps.map((d) => formatDay(d)).join(', ') })}</>
               ) : null;
             })()}
             {rates.data.nextCursor && (
@@ -262,6 +254,11 @@ const AdministrationExchangeRates: React.FC = () => {
                 {t('uxs38.moreEarlier', 'earlier rates on the next pages')}
               </>
             )}
+            {/* T1: the page states what these rates are FOR wherever the history is loaded — they
+                feed display equivalents and never write an accounting record. (The empty state
+                said it; a loaded page did not.) */}
+            {' · '}
+            {t('administration:exchangeRates.displayOnly', 'Display equivalents only')}
           </p>
           <DataTable<FxRateRow>
             rows={rates.data.rows}
@@ -327,11 +324,11 @@ const AdministrationExchangeRates: React.FC = () => {
       <ConfirmDialog
         open={pendingManual !== null}
         title={t('fx.overwrite', 'Replace the rate for {{date}}?', {
-          date: pendingManual ? formatDateOnly(pendingManual.rate_date) : '',
+          date: pendingManual ? formatDay(pendingManual.rate_date) : '',
         })}
         description={
           <div className="space-y-1">
-            <p>{pendingManual ? formatDateOnly(pendingManual.rate_date) : ''}</p>
+            <p>{pendingManual ? formatDay(pendingManual.rate_date) : ''}</p>
             <p>
               {t('fx.overwriteValues', '{{old}} → {{new}} IDR per USD', {
                 old: formatNumberExact(overwriteRate ?? 0),

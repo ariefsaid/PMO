@@ -32,7 +32,7 @@ export function OdooConnectionBanner({ connection, binding, now = new Date() }: 
   return (
     <div role="status" data-testid="odoo-connection-banner" data-state={state} className={`mb-3.5 flex items-start gap-2.5 rounded-lg border px-3.5 py-3 ${tone}`}>
       <Icon name={c.tone === 'info' ? 'info' : 'alert'} className="mt-px size-[17px] shrink-0 text-muted-foreground" aria-hidden="true" />
-      <div className="min-w-0 flex-1 text-[13px]">
+      <div className="min-w-0 flex-1 text-control">
         <div className="font-semibold text-foreground">{c.title}{asOf && state !== 'disconnected' && state !== 'not-activated' ? ` (${asOf})` : ''}</div>
         <div className="mt-px text-muted-foreground">{c.next}</div>
       </div>

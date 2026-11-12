@@ -4,10 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyCents, formatMoneyInputValue } from '@/src/lib/format';
+import { formatCurrency, formatMoneyInputValue } from '@/src/lib/format';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 // The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
-const money = (v: number, c: string) => formatCurrencyCents(v, c).replace(/\u00a0/g, ' ');
+const money = (v: number, c: string) => formatCurrency(v, c, { precision: 'minor' }).replace(/\u00a0/g, ' ');
 
 const h = vi.hoisted(() => ({
   claim: null as unknown,
@@ -83,6 +83,8 @@ beforeEach(() => {
   h.floatState = 'ready';
   h.m.update.mutateAsync.mockReset();
   h.m.update.mutateAsync.mockResolvedValue(undefined);
+  h.m.transition.mutateAsync.mockReset();
+  h.m.transition.mutateAsync.mockResolvedValue(undefined);
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
 });
 afterEach(() => resetActiveLocale());
@@ -99,12 +101,52 @@ const renderAtWithI18n = () =>
   );
 
 describe('ExpenseClaimDetail', () => {
-  it('AC-MONEY-DISPLAY: rounds the read-only claim amount to whole currency units', () => {
-    h.claim = { ...base, amount: 300.49, currency: 'USD' };
+  it('AC-RSN-005 shows rejection details on a returned claim', () => {
+    h.claim = { ...base, status: 'Rejected', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Reviewer' } };
+    as('eng', 'Engineer'); renderAt();
+    expect(screen.getByText(/Add receipt/)).toBeInTheDocument();
+    expect(screen.getByText(/Reviewer/)).toBeInTheDocument();
+    expect(screen.getByTestId('expense-status')).toHaveTextContent('Returned');
+    const banner = screen.getByText(/Returned by Reviewer/).closest('[role="status"]') as HTMLElement;
+    expect(banner).toHaveTextContent('Returned by Reviewer');
+    expect(within(banner as HTMLElement).getByRole('button', { name: 'Edit and resubmit' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Edit and resubmit' })).toHaveLength(1);
+  });
+  it('AC-RSN-005 shows unavailable details for an older rejected claim', () => {
+    h.claim = { ...base, status: 'Rejected', rejection_notes: null, rejected_at: null, rejecter: null };
+    as('eng', 'Engineer'); renderAt();
+    expect(screen.getByText(/Reason unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText('Person unavailable')).not.toBeInTheDocument();
+  });
+
+  it('reopens a returned claim from its banner action', async () => {
+    h.claim = { ...base, status: 'Rejected', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Reviewer' } };
+    as('eng', 'Engineer');
+    const user = userEvent.setup();
+    renderAt();
+
+    await user.click(screen.getByRole('button', { name: 'Edit and resubmit' }));
+    await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Draft' }));
+  });
+
+  it('AC-RSN-005 retains the decision during correction and clears it after resubmission', () => {
+    h.claim = { ...base, status: 'Draft', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Reviewer' } };
+    as('eng', 'Engineer');
+    const { unmount } = renderAt();
+    expect(screen.getByText(/Add receipt/)).toBeInTheDocument();
+    expect(screen.getByText(/Reviewer/)).toHaveTextContent('2026');
+    unmount();
+    h.claim = { ...base, status: 'Submitted', rejection_notes: null, rejected_at: null, rejecter: null };
+    renderAt();
+    expect(screen.queryByText(/Add receipt/)).toBeNull();
+    expect(screen.queryByText(/Reviewer/)).toBeNull();
+  });
+
+  it('D4: shows minor units on the expense transaction record', () => {
+    h.claim = { ...base, amount: 12.5, currency: 'USD' };
     as('eng', 'Engineer');
     renderAt();
-    expect(screen.getByTestId('expense-amount')).toHaveTextContent('$300');
-    expect(screen.getByTestId('expense-amount')).not.toHaveTextContent('$300.49');
+    expect(screen.getByTestId('expense-amount')).toHaveTextContent('$12.50');
   });
 
   it('AC-002 #1325: the header project link shows the short name and titles the contractual one', () => {
@@ -242,10 +284,10 @@ describe('ExpenseClaimDetail', () => {
     renderAt();
     await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
     const dialog = screen.getByRole('alertdialog');
-    expect(dialog).toHaveTextContent('Reject EXP-2610060001?');
+    expect(dialog).toHaveTextContent('Reject EXP-2610060001');
     expect(dialog).toHaveTextContent('Site visit');
     expect(dialog).toHaveTextContent(money(300, 'IDR'));
-    expect(dialog).toHaveTextContent('Note to the claimant (optional)');
+    expect(dialog).toHaveTextContent('Reason for rejecting');
     expect(h.m.transition.mutateAsync).not.toHaveBeenCalled();
   });
 
@@ -314,7 +356,8 @@ describe('ExpenseClaimDetail', () => {
     as('eng', 'Engineer');
     renderAt();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Edit details' }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit details' }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('Edit details');
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
@@ -352,7 +395,8 @@ describe('ExpenseClaimDetail', () => {
       .mockResolvedValueOnce(undefined);
     renderAtWithI18n();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Edit details' }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit details' }));
     const dialog = screen.getByRole('dialog');
     const textboxes = within(dialog).getAllByRole('textbox');
     const amount = textboxes[1];
@@ -427,7 +471,7 @@ describe('AC-UXS-011 Bahasa confirmations restate identity and amount', () => {
     h.claim = submitted; h.route = route;
     view = renderAtId();
     await userEvent.click(screen.getByRole('button', { name: 'Tolak' }));
-    expect(screen.getByRole('alertdialog')).toHaveTextContent('Tolak EXP-2610060001?');
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Tolak EXP-2610060001');
     view.unmount();
 
     h.claim = { ...base, status: 'Approved', approved_by_id: 'pm' }; h.route = null;

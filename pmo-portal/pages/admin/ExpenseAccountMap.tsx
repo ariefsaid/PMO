@@ -53,6 +53,8 @@ const ExpenseAccountMap: React.FC = () => {
     queryFn: () => repositories.expensePostings.listAccountMap(),
   });
   const byKey = useMemo(() => new Map((data ?? []).map((r) => [r.accountKey, r.erpAccount])), [data]);
+  // Posting off and nothing mapped: "Not mapped" is said once above the list, not on every row.
+  const allIdle = !isReady && byKey.size === 0;
   const unmappedCount = useMemo(
     () => EXPENSE_ACCOUNT_KEYS.filter((key) => !byKey.get(key)).length,
     [byKey],
@@ -131,24 +133,18 @@ const ExpenseAccountMap: React.FC = () => {
 
   return (
     <section id="expense-account-map" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.expenseMap.title', 'Expense account map')}>
-      <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('admin.expenseMap.title', 'Expense account map')}</h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
-        {t(
-          'admin.expenseMap.description',
-          'The ERPNext accounts approved expense claims and cash advances post to. A posting that needs an unmapped account stops and is reported.',
-        )}
-      </p>
+      <h2 className="text-group font-semibold tracking-[-0.01em]">{t('admin.expenseMap.title', 'Expense account map')}</h2>
       {/* S-12 (UX-080/RF-053): one gate banner per readiness state, each naming its own missing step.
           The map stays readable in every state; only mapping actions wait for readiness. */}
       {readiness.state === 'notConnected' && (
         <GateNotice variant="blocked" className="mt-3">
-          <p>{t('admin.expenseMap.notReady', 'Connect ERPNext before mapping expense accounts. Expense posting is not active.')}</p>
+          <p>{t('admin.expenseMap.notReady', 'Connect ERPNext before mapping expense accounts.')}</p>
           <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
         </GateNotice>
       )}
       {readiness.state === 'inactive' && (
         <GateNotice variant="blocked" className="mt-3">
-          <p>{t('uxs12.expensePosting.adminInactive', 'ERPNext is connected, but expense posting is not switched on yet. An Admin can switch it on in Integrations under ERPNext setup.')}</p>
+          <p>{t('uxs12.expensePosting.adminInactive', 'Expense posting is off. Switch it on in Integrations, under ERPNext setup.')}</p>
           <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
         </GateNotice>
       )}
@@ -159,12 +155,13 @@ const ExpenseAccountMap: React.FC = () => {
         </GateNotice>
       )}
       {isReady && unmappedCount > 0 && (
-        <p role="status" className="mt-3 text-[13px] text-muted-foreground">
-          {t('uxs12.expensePosting.mapIncomplete', '{{count}} of {{total}} accounts are not mapped yet. A posting that needs an unmapped account stops until it is mapped.', { count: unmappedCount, total: EXPENSE_ACCOUNT_KEYS.length })}
+        <p role="status" className="mt-3 text-control text-muted-foreground">
+          {t('uxs12.expensePosting.mapIncomplete', '{{count}} of {{total}} accounts are not mapped; a posting that needs one stops.', { count: unmappedCount, total: EXPENSE_ACCOUNT_KEYS.length })}
         </p>
       )}
       {/* AC-MOBILE-OVERFLOW-001 — each row wraps (`flex-wrap`, `break-words`), so a long account name never pushes
           past 390px. */}
+      {allIdle && <p className="mt-3.5 text-control text-muted-foreground">{t('admin.expenseMap.unmappedIdle', 'Not mapped')}</p>}
       <ul className="mt-3.5 flex flex-col">
         {EXPENSE_ACCOUNT_KEYS.map((key) => {
           const account = byKey.get(key);
@@ -172,7 +169,7 @@ const ExpenseAccountMap: React.FC = () => {
             <li
               key={key}
               data-testid="expense-account-row"
-              className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 text-[13.5px]"
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 text-control"
             >
               <span className="font-medium">{label(key)}</span>
               <span className="flex min-w-0 flex-wrap items-center gap-2">
@@ -181,8 +178,8 @@ const ExpenseAccountMap: React.FC = () => {
                   // Until the `expenses` domain can be employed (#901, like ErpSetupChecklist), nothing posts, so an
                   // unmapped key stops nothing: say so plainly instead of warning.
                   : isReady
-                    ? <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped: expense posting stops')}</StatusPill>
-                    : <span className="text-muted-foreground">{t('admin.expenseMap.unmappedIdle', 'Not mapped')}</span>}
+                    ? <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped')}</StatusPill>
+                    : allIdle ? null : <span className="text-muted-foreground">{t('admin.expenseMap.unmappedIdle', 'Not mapped')}</span>}
                 {canManage && (
                   <>
                     {(isReady || account) && <Button variant="ghost" size="sm" disabled={!isReady} onClick={() => { setSaveError(null); setEditing(key); }}>
@@ -250,7 +247,6 @@ const AccountForm: React.FC<AccountFormProps> = ({ title, initial, submitError, 
     <EntityFormModal
       open
       title={title}
-      subtitle={t('admin.expenseMap.form.subtitle', 'ERPNext checks the account before it is saved')}
       submitLabel={t('admin.expenseMap.form.save', 'Save account')}
       onSubmit={(e: React.FormEvent) => {
         e.preventDefault();
@@ -274,6 +270,7 @@ const AccountForm: React.FC<AccountFormProps> = ({ title, initial, submitError, 
             onBlur={field.onBlur}
             error={field.error}
             placeholder={t('admin.expenseMap.form.placeholder', 'e.g. Employee Payable - ABC')}
+            helper={t('admin.expenseMap.form.subtitle', 'ERPNext checks the account before it is saved')}
             fullWidth
           />
         </FormGrid>

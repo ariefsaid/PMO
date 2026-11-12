@@ -168,7 +168,7 @@ describe('AC-GANTT-010: the timeline is a labelled figure and bars label status 
     ];
     render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
     // Status text must appear in the rendered output
-    expect(screen.getByText('In Progress')).toBeInTheDocument();
+    expect(screen.getByText('In progress')).toBeInTheDocument();
   });
 
   it('bars show task names as text', () => {
@@ -264,7 +264,7 @@ describe('AC-GANTT-018: the left table shows each task name, status, and date ra
 
     const row = container.querySelector('[data-slot="gantt-row-group"][data-gantt-row-id="a"]') as HTMLElement;
     expect(within(row).getByText('Foundation')).toBeInTheDocument();
-    expect(within(row).getByText('In Progress')).toBeInTheDocument();
+    expect(within(row).getByText('In progress')).toBeInTheDocument();
     expect(within(row).getByText(/Jan\s+\d+\s*–\s*Jan\s+\d+/i)).toBeInTheDocument();
     expect(within(row).queryByText(/2026-01-01/)).toBeNull();
   });

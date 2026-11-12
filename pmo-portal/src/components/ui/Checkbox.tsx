@@ -1,4 +1,5 @@
 import React from 'react';
+import { Checkbox as BaseCheckbox } from '@base-ui/react/checkbox';
 import { cn } from './cn';
 import { Icon } from './icons';
 
@@ -29,10 +30,9 @@ export interface CheckboxProps {
 }
 
 /**
- * The documented DESIGN.md custom checkbox (§Checkbox): 16px, 1.5px `input` border,
- * 4px radius; checked → `primary` fill + white check. Exposed with `role="checkbox"`
- * + `aria-checked` + `tabindex="0"`; Space/Enter toggles (a11y §Semantics/Keyboard).
- * The global `:focus-visible` ring applies — no per-component focus style.
+ * The documented DESIGN.md custom checkbox (§Checkbox) on Base UI Checkbox: 16px, 1.5px `input` border,
+ * 4px radius; checked/mixed → `primary` fill + white check or dash. Base UI supplies `role="checkbox"`,
+ * `aria-checked` (incl. `mixed`) and Space toggling; the global `:focus-visible` ring applies.
  */
 export const Checkbox: React.FC<CheckboxProps> = ({
   checked,
@@ -42,44 +42,31 @@ export const Checkbox: React.FC<CheckboxProps> = ({
   describedBy,
   disabled = false,
   className,
-}) => {
-  const ariaChecked: boolean | 'mixed' = checked;
-  const isOn = checked === true;
-  const isMixed = checked === 'mixed';
-
-  const toggle = () => {
-    if (disabled) return;
-    // mixed/true → off, false → on (the conventional partial→all-off behavior).
-    onChange(!(checked === true));
-  };
-
-  return (
-    <span
-      role="checkbox"
-      aria-checked={ariaChecked}
-      aria-label={labelledBy ? undefined : label}
-      aria-labelledby={labelledBy}
-      aria-describedby={describedBy}
-      aria-disabled={disabled || undefined}
-      tabIndex={disabled ? -1 : 0}
-      onClick={toggle}
-      onKeyDown={(e) => {
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault();
-          toggle();
-        }
-      }}
-      className={cn(
-        'touch-target inline-grid size-4 shrink-0 cursor-pointer place-items-center rounded-sm border-[1.5px] transition-colors [&_svg]:size-3',
-        isOn || isMixed
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-input bg-background',
-        disabled && 'cursor-not-allowed opacity-45',
-        className,
-      )}
-    >
-      {isOn && <Icon name="check" aria-hidden />}
-      {isMixed && <span aria-hidden className="h-[2px] w-2 rounded-full bg-primary-foreground" />}
-    </span>
-  );
-};
+}) => (
+  <BaseCheckbox.Root
+    checked={checked === true}
+    indeterminate={checked === 'mixed'}
+    // mixed/false → on, true → off (the conventional partial→all behavior).
+    onCheckedChange={(next) => onChange(next)}
+    nativeButton
+    render={<button type="button" />}
+    disabled={disabled}
+    aria-disabled={disabled || undefined}
+    aria-label={labelledBy ? undefined : label}
+    aria-labelledby={labelledBy}
+    aria-describedby={describedBy}
+    className={cn(
+      'touch-target inline-grid size-4 shrink-0 cursor-pointer place-items-center rounded-sm border-[1.5px] border-input bg-background p-0 transition-colors [&_svg]:size-3',
+      'data-[checked]:border-primary data-[checked]:bg-primary data-[checked]:text-primary-foreground',
+      'data-[indeterminate]:border-primary data-[indeterminate]:bg-primary data-[indeterminate]:text-primary-foreground',
+      'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-45',
+      className,
+    )}
+  >
+    <BaseCheckbox.Indicator className="grid place-items-center" keepMounted={false}>
+      {checked === 'mixed'
+        ? <span aria-hidden className="h-[2px] w-2 rounded-full bg-primary-foreground" />
+        : <Icon name="check" aria-hidden />}
+    </BaseCheckbox.Indicator>
+  </BaseCheckbox.Root>
+);

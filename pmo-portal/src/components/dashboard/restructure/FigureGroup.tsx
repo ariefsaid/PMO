@@ -19,6 +19,10 @@ export interface DashboardFigure {
   unavailableReason?: string;
   title?: string;
   help?: string;
+  /** Per-currency amounts behind the figure (major units); null = not known, `[]` = known to be none. Tiles format these, never `value`. */
+  amounts?: Array<{ currency: string; amount: number }> | null;
+  /** A count the figure carries beside its money ("Won": 3 deals). */
+  count?: number;
 }
 
 export interface FigureGroupProps {
@@ -31,6 +35,8 @@ export interface FigureGroupProps {
   className?: string;
   /** Let the containing area panel own the heading and basis line. */
   hideHeading?: boolean;
+  /** Fixed two-up grid for narrow cards (default packs as many 10.5rem columns as fit). */
+  twoUp?: boolean;
 }
 
 export const FigureGroup: React.FC<FigureGroupProps> = ({
@@ -42,6 +48,7 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
   onRetry,
   className = '',
   hideHeading = false,
+  twoUp = false,
 }) => {
   const { t } = useTranslation('dashboard');
   if (isPending) return <ListState variant="loading" shape="cards" rows={Math.max(figures.length, 2)} testId="figure-group-loading" className={className} />;
@@ -59,9 +66,9 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
     <section aria-label={basis ? `${heading} · ${basis}` : heading} className={className}>
       {!hideHeading && <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <h2 className="text-[18px] font-semibold leading-[1.3]">{heading}</h2>
-        {basis && <span className="text-[12px] text-muted-foreground">{basis}</span>}
+        {basis && <span className="text-control text-muted-foreground">{basis}</span>}
       </div>}
-      <div className={figures.length === 1 ? 'grid grid-cols-1 gap-x-4' : 'grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-x-4'}>
+      <div className={figures.length === 1 ? 'grid grid-cols-1 gap-x-4' : twoUp ? 'grid grid-cols-2 gap-x-4' : 'grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-x-4'}>
         {figures.map((figure) => {
           const value = figure.value === null ? (
             <span title={figure.unavailableReason ?? t('figures.unknownReason', 'The source could not provide this figure.')}>—
@@ -74,7 +81,7 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
           );
           const content = (
             <>
-              <span className="flex min-h-11 items-center gap-1 text-[12px] text-muted-foreground">
+              <span className="flex min-h-11 items-center gap-1 text-control text-muted-foreground">
                 {figure.label}
                 {figure.help && (
                   <Tooltip content={figure.help}>
@@ -85,7 +92,7 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
                 )}
               </span>
               <span className="mt-1 block text-[23px] font-bold leading-tight tabular">{value}</span>
-              {figure.subline && <span className="mt-1 block text-[12px] text-muted-foreground">{figure.subline}</span>}
+              {figure.subline && <span className="mt-1 block text-control text-muted-foreground">{figure.subline}</span>}
             </>
           );
 

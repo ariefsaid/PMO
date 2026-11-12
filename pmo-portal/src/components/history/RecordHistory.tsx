@@ -5,9 +5,7 @@ import type { TFunction } from 'i18next';
 import { ListState, Button } from '@/src/components/ui';
 import { useRecordHistory } from '@/src/hooks/useRecordHistory';
 import type { HistoryEvent, FieldChange, HistoryNameKind } from '@/src/lib/repositories/types';
-import {
-  formatCurrency, formatDateOnly, formatDateTime, formatMonthYear, formatNumber, formatRelativeTime,
-} from '@/src/lib/format';
+import { formatCurrency, formatDay, formatDateTime, formatMonthYear, formatNumber, formatRelativeTime } from '@/src/lib/format';
 import { fieldLabels, filterLabels, filteredEmptyLabels, kindLabels, projectCodeLabel } from './historyLabels';
 import {
   KIND_FILTERS, RECORD_NAME_SOURCE, REF_SOURCE, fieldKind, humanizeColumn,
@@ -58,7 +56,7 @@ function formatValue(
       return Number.isFinite(n) ? formatNumber(n) : String(value);
     }
     case 'date':
-      return formatDateOnly(String(value));
+      return formatDay(String(value));
     case 'timestamp':
       return formatInstant(String(value));
     case 'bool':
@@ -99,7 +97,7 @@ const RecordName: React.FC<{ ev: HistoryEvent; refs: RefMaps; kinds: Record<stri
   const name = source ? refs[source].get(ev.entityId) : undefined;
   const kind = kinds[ev.entityType] ?? humanizeColumn(ev.entityType);
   return (
-    <span className="min-w-0 break-words text-xs text-muted-foreground">
+    <span className="min-w-0 break-words text-sm text-muted-foreground">
       {kind} ·{' '}
       {name && ev.entityType === 'procurement' ? (
         <Link to={`/procurement/${ev.entityId}`} className="text-foreground underline-offset-2 hover:underline">
@@ -134,7 +132,7 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
       </p>
       <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm">
         <span className="break-words text-muted-foreground">{actor}</span>
-        <time dateTime={ev.createdAt} title={absolute} className="text-xs text-muted-foreground">
+        <time dateTime={ev.createdAt} title={absolute} className="text-sm text-muted-foreground">
           {formatRelativeTime(ev.createdAt)}
         </time>
         {showRecord && <RecordName ev={ev} refs={refs} kinds={kinds} />}
@@ -146,7 +144,7 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
             aria-expanded={detailsOpen}
             aria-controls={detailsId}
             onClick={() => setDetailsOpen((open) => !open)}
-            className="mt-1 inline-flex h-8 items-center rounded-sm px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="mt-1 inline-flex h-8 items-center rounded-sm px-1 text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             {t('uxs23.history.viewDetails', 'View details')}
           </button>
@@ -273,7 +271,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
               aria-pressed={kind === k.key}
               onClick={() => setKind(k.key)}
               className={
-                'inline-flex h-7 items-center rounded-full border px-2.5 text-xs font-medium transition-colors ' +
+                'inline-flex h-7 items-center rounded-full border px-2.5 text-sm font-medium transition-colors ' +
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ' +
                 (kind === k.key
                   ? 'border-primary/30 bg-primary/10 text-nav-active-text'
@@ -310,7 +308,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
       ) : (
         <>
           {nameLookupFailed && (
-            <p role="alert" className="mb-2 text-[12.5px] text-muted-foreground">
+            <p role="alert" className="mb-2 text-sm text-muted-foreground">
               {t('project:history.referenceNamesError', 'Some record names could not be loaded.')}
             </p>
           )}

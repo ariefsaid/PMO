@@ -72,7 +72,7 @@ test('AC-NPA-001 a payment on account is applied across two invoices, both read 
 
   // The customer pays 1,000 with no invoice named.
   await page.goto('/finance/receivables?view=payments');
-  await page.getByRole('button', { name: localized('Receive Payment', 'Terima Pembayaran') }).click();
+  await page.getByRole('button', { name: localized('Receive payment', 'Terima pembayaran') }).click();
   const form = page.getByRole('dialog');
   await pickComboboxOption(form, page, /^(?:Customer|Pelanggan)/, new RegExp(`${tag} Client`));
   await form.getByLabel(localized('Amount settled', 'Jumlah yang dilunasi')).fill('1000');

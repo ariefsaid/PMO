@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { ImportWizard } from '../ImportWizard';
 import type { ImportDescriptor } from '@/src/lib/import';
 
@@ -38,7 +39,12 @@ beforeEach(() => {
 describe('ImportWizard preview overflow (W2-11)', () => {
   it('AC-W2-11-01: preview table wrapper has overflow-x-auto (not overflow-hidden)', async () => {
     const user = userEvent.setup();
-    render(<ImportWizard descriptor={descriptor} onClose={vi.fn()} />);
+    // R2-f3b guards the typed workbook with router hooks, so mount it as the app does.
+    render(
+      <MemoryRouter initialEntries={['/companies']}>
+        <ImportWizard descriptor={descriptor} onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
 
     // Upload a file to advance through mapping → preview step
     const fileInput = screen.getByLabelText(/choose an \.xlsx file/i);

@@ -55,12 +55,13 @@ let testRole: string = 'Project Manager';
 // (plain role) unless a specific test overrides it. Avoids a QueryClient in the harness.
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 import { Rail } from '../Rail';
+import { RailDrawerContext } from '../railDrawerContext';
 
 const renderRailAs = (role: string) => {
   testRole = role;
   return render(
     <MemoryRouter>
-      <Rail />
+      <RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider>
     </MemoryRouter>,
   );
 };

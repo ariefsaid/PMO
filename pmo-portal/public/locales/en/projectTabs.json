@@ -112,11 +112,6 @@
         "selfConfirmHint": "You prepared this. Another Admin or Finance user must confirm it, unless you are the only active member.",
         "soleOperator": "Confirmed by the only active member",
         "stage": "Stage",
-        "status": {
-          "confirmed": "Confirmed",
-          "draft": "Draft",
-          "withdrawn": "Withdrawn"
-        },
         "toast": {
           "closed": "Final BAST confirmed: closed at {{amount}}",
           "confirmed": "BAST confirmed",
@@ -145,6 +140,12 @@
         },
         "contractQty": "Contract {{qty}} {{unit}}",
         "done": "Done",
+        "discard": {
+          "title": "Discard unsaved line changes?",
+          "description": "Allocation quantities that have not been saved will be lost.",
+          "confirm": "Discard",
+          "cancel": "Keep editing"
+        },
         "edit": "Edit lines",
         "errors": {
           "belowAccepted": "A confirmed BAST already accepted {{qty}} {{unit}}. The allocation cannot go below it.",

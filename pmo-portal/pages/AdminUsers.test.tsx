@@ -206,7 +206,7 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
     // Exec can still SEE the directory
     expect(screen.getByText('renata@meridian.example')).toBeInTheDocument();
     // a read-only explanation, not a wall of disabled controls
-    expect(screen.getByText(/only an Admin can/i)).toBeInTheDocument();
+    expect(screen.getByText(/an Admin adds, edits or disables users/i)).toBeInTheDocument();
   });
 
   it('AC-AU-002: a non-admin, non-exec role (Engineer) reaching the route sees an Admin-only gate, not the directory', () => {

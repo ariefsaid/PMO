@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, Icon, ListPage, ListState, SelectField, StatusPill, TextField,
+  Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, Icon, ListPage, ListState, SelectField, TextField,
   useEntityForm, useToast, type Column, type SubmitError,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
@@ -41,7 +41,6 @@ const NewAssetModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   };
   return (
     <EntityFormModal open title={t('equipment:assets.newTitle', 'New equipment asset')}
-      subtitle={t('equipment:assets.newSubtitle', 'A short reference so usage can be logged. The ERP stays the asset register.')}
       submitLabel={t('equipment:assets.create', 'Create asset')} onSubmit={submit} onClose={onClose}
       loading={form.isSubmitting} dirty={form.isDirty} submitDisabled={!form.isComplete} submitError={submitError}>
       <FormGrid>
@@ -95,14 +94,13 @@ const EquipmentAssetsPage: React.FC = () => {
     { key: 'name', header: t('equipment:assets.name', 'Name'), cell: (a) => <span className="font-medium">{a.name}</span> },
     { key: 'unit', header: t('equipment:assets.unit', 'Default unit'), cell: (a) => unitLabel(t, a.default_unit) },
     { key: 'ref', header: t('equipment:assets.externalRef', 'ERP reference'),
-      cell: (a) => a.external_ref ? <StatusPill variant="neutral">{a.external_ref}</StatusPill> : <span className="text-muted-foreground">—</span> },
+      cell: (a) => a.external_ref ? <span className="font-mono">{a.external_ref}</span> : null },
   ];
 
   return (
     <ListPage
-      title={t('equipment:assets.title', 'Equipment assets')}
+      title={t('equipment:assets.title', 'Assets')}
       count={data ? rows.length : undefined}
-      description={t('equipment:assets.description', 'The machines usage is logged against. Open one to see how it is costed and what each project carries.')}
       primaryAction={<CanWrite entity="equipmentAsset" action="create" ctx={writeCtx}>
         <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:assets.new', 'New asset')}</Button>
       </CanWrite>}

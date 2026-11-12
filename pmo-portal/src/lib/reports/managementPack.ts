@@ -54,7 +54,7 @@ export interface PackRow {
 
 export interface PackTotalsMonth {
   month: string;
-  planned: Cents;
+  planned: Cents | null;
   recognised: Cents;
   invoiced: Cents;
   invoiceCount: number;
@@ -78,6 +78,32 @@ export interface ManagementPack {
   rows: PackRow[];
   totals: PackCurrencyTotals[];
   undatedInvoiceCount: number;
+}
+
+/** Contract value less invoiced value for signed contract rows, in the row currency. */
+export function leftToBillAt(rows: readonly PackRow[], currency: string, month: string): number | null {
+  const contracts = rows.filter((row) => row.kind === 'contract' && row.currency === currency);
+  if (contracts.length === 0) return 0;
+  let total = 0;
+  for (const row of contracts) {
+    const snapshot = row.months.find((entry) => entry.month === month);
+    if (row.contractNet === null || !snapshot || snapshot.backlog === null) return null;
+    total += row.contractNet - snapshot.invoicedToDate;
+  }
+  return total;
+}
+
+/** Latest-period Left to bill totals in currency units for dashboard formatters, retaining unknowns as null. */
+export function selectLeftToBillTotals(pack: ManagementPack | undefined, emptyCurrency?: string): Array<{ currency: string; amount: number | null }> | undefined {
+  if (!pack) return undefined;
+  const month = pack.months[pack.months.length - 1];
+  if (!month) return [];
+  const currencies = [...new Set(pack.rows.filter((row) => row.kind === 'contract').map((row) => row.currency))];
+  if (currencies.length === 0 && emptyCurrency) currencies.push(emptyCurrency);
+  return currencies.map((currency) => {
+    const cents = leftToBillAt(pack.rows, currency, month);
+    return { currency, amount: cents === null ? null : cents / 100 };
+  });
 }
 
 export const toCents = (amount: number): Cents => Math.round(amount * 100);
@@ -198,11 +224,12 @@ function totalsByCurrency(rows: PackRow[], months: string[], invoiceCurrencies: 
   const byCurrency = new Map<string, PackTotalsMonth[]>();
   for (const row of includedRows) {
     const series = byCurrency.get(row.currency) ?? months.map((month) => ({
-      month, planned: 0, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0 as Cents | null,
+      month, planned: 0 as Cents | null, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0 as Cents | null,
     }));
     row.months.forEach((m, i) => {
       const t = series[i];
-      t.planned += m.planned ?? 0;
+      if (row.kind === 'contract' && m.planned === null) t.planned = null;
+      else if (t.planned !== null) t.planned += m.planned ?? 0;
       t.recognised += m.recognised;
       t.invoiced += m.invoiced;
       t.invoiceCount += m.invoiceCount;

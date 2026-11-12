@@ -53,7 +53,7 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
         tabIndex={-1}
         className="mx-auto max-w-3xl px-5 pb-16 pt-10 outline-none max-[921px]:px-4 max-[921px]:pt-6"
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        <p className="text-[11px] font-semibold text-muted-foreground">
           Legal
         </p>
 

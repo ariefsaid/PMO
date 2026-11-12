@@ -446,6 +446,21 @@ export async function listIncomingPayments(
   return withReceiptPushCommands(data.map(toIncomingPaymentRow));
 }
 
+/** Billed work in the requested six-month window, under the caller's RLS. */
+export type MonthlyInvoiceFact = { id: string; invoice_date: string; currency: string | null; net: number | null; recovery: number | null };
+export async function listMonthlyInvoiceFacts(from: string, toExclusive: string): Promise<MonthlyInvoiceFact[]> {
+  return fetchAllRowsByKeyset<MonthlyInvoiceFact>((afterId, limit) => {
+    let query = supabase.from('sales_invoice_work_billed')
+      .select('id,invoice_date,currency,net,recovery')
+      .in('status', ['Submitted', 'Unpaid', 'Paid'])
+      .eq('is_down_payment', false)
+      .gte('invoice_date', from).lt('invoice_date', toExclusive)
+      .order('id', { ascending: true });
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query.limit(limit) as unknown as PromiseLike<PageResult<MonthlyInvoiceFact>>;
+  });
+}
+
 /** What the dashboard's collected figure reads from a received payment. */
 export type PaidPaymentFact = Pick<IncomingPaymentRow, 'status' | 'date' | 'amount' | 'currency'>;
 

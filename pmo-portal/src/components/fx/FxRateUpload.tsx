@@ -15,7 +15,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { buildFxPreview, type FxPreview } from '@/src/lib/import/fxRatePreview';
 import { parseFxFile, type FxParsed } from '@/src/lib/import/fxRateParser';
 import { ImportParseError } from '@/src/lib/import/types';
-import { formatDateOnly, formatNumberExact } from '@/src/lib/format';
+import { formatDay, formatNumberExact } from '@/src/lib/format';
 
 interface UploadError {
   kind: 'parse' | 'existing';
@@ -92,7 +92,8 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
     {
       key: 'rate_date',
       header: t('fx.date', 'Publication date'),
-      cell: (row) => formatDateOnly(row.rate_date),
+      // One day shape per page (docs/ux/screen-rules.md): the list and its preview both read "12 Oct".
+      cell: (row) => formatDay(row.rate_date),
       exportValue: (row) => row.rate_date,
     },
     {
@@ -204,7 +205,6 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
         <EntityFormModal
           open
           title={t('fx.upload', 'Upload rates')}
-          subtitle={t('fx.description', 'USD → IDR · JISDOR · display equivalents only')}
           submitLabel={t('common.continue', 'Continue')}
           cancelLabel={t('common.cancel', 'Cancel')}
           onSubmit={handleSubmit}
@@ -224,10 +224,11 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
             <div className="flex flex-col gap-1.5">
               <label
                 htmlFor="fx-rate-file"
-                className="text-[12px] font-semibold leading-[1.3] text-foreground"
+                className="text-control font-semibold leading-[1.3] text-foreground"
               >
                 {t('fx.chooseFile', 'Choose BI Excel or date,rate CSV')}
               </label>
+              <p className="text-control text-muted-foreground">{t('fx.description', 'USD → IDR · JISDOR · display equivalents only')}</p>
               <input
                 ref={fileInputRef}
                 id="fx-rate-file"
@@ -294,8 +295,8 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                   {preview.coverage.firstDate && preview.coverage.lastDate && (
                     <span className="text-muted-foreground">
                       {t('uxs38.previewCoverage', 'Dates from {{first}} to {{last}}: {{count}} with rates', {
-                        first: formatDateOnly(preview.coverage.firstDate),
-                        last: formatDateOnly(preview.coverage.lastDate),
+                        first: formatDay(preview.coverage.firstDate),
+                        last: formatDay(preview.coverage.lastDate),
                         count: preview.rows.length,
                       })}
                       {preview.coverage.gapSummary && (
@@ -306,7 +307,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                       )}
                       {preview.coverage.missingDates.length > 0 && (
                         <> · {t('uxs38.previewGaps', 'No rate for {{dates}}', {
-                          dates: preview.coverage.missingDates.map(formatDateOnly).join(', '),
+                          dates: preview.coverage.missingDates.map((date) => formatDay(date)).join(', '),
                         })}</>
                       )}
                     </span>

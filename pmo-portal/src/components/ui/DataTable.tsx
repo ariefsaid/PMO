@@ -15,6 +15,7 @@ import {
 } from './useTableColumnSizing';
 import { DataTableDesktop } from './DataTableDesktop';
 import { DataTableMobile } from './DataTableMobile';
+import { dropBlankColumns } from './dataTableColumns';
 import type { GroupedRowEntry } from './DataTableShared';
 
 export { RowMenu, MenuButton, type RowMenuItem };
@@ -59,6 +60,13 @@ export interface Column<Row> {
   stickyLeft?: boolean;
   /** Carried on the column list for the export seam only; never rendered (header, cell or card line). */
   exportOnly?: boolean;
+  /**
+   * A column whose cell is blank (nothing, or the "—" empty marker) on every loaded row is not rendered.
+   * Set this to keep it anyway, e.g. a column the user expects to find even when empty. Never applied while
+   * loading, empty or failed (no rows yet), nor to the first column, a `stickyLeft`/`rowHeader` column, one with a
+   * `caveat` (the caveat explains its blanks), or one that a `totals` row fills.
+   */
+  keepWhenBlank?: boolean;
   /** Preferred width in CSS pixels for resizable desktop tables. */
   size?: number;
   /** Minimum width when resizing is enabled. */
@@ -78,6 +86,8 @@ export interface DataTableSelection<Row> {
   onChange: (ids: Set<string>) => void;
   /** Accessible name for each checkbox; falls back to the primary title. */
   rowLabel?: (row: Row) => string;
+  /** Phone cards: show "Select all rows" only once a row is ticked, so the first card is not pushed down by a control. */
+  selectAllAfterFirst?: boolean;
 }
 
 export interface DataTableProps<Row> {
@@ -129,6 +139,8 @@ export interface DataTableProps<Row> {
    * beside the record panel), where its columns cannot fit and would otherwise scroll sideways inside a clipped box.
    */
   cardBelow?: number;
+  /** Reduce vertical cell padding in the desktop table; the card branch keeps its own spacing. */
+  compactRows?: boolean;
   /** Stable identity for saved column widths. */
   tableId?: string;
   /** Optional grouping key; each distinct group is introduced by an aligned in-table row. */
@@ -210,6 +222,7 @@ export function DataTable<Row>({
   className,
   embedded = false,
   cardBelow,
+  compactRows = false,
   accessibleName,
   mobileCardTitle,
   mobileCardDetails,
@@ -224,7 +237,10 @@ export function DataTable<Row>({
   onOverflowChange,
 }: DataTableProps<Row>) {
   const { t } = useTranslation('projects');
-  const columns = useMemo(() => allColumns.filter((column) => !column.exportOnly), [allColumns]);
+  const columns = useMemo(
+    () => dropBlankColumns(allColumns.filter((column) => !column.exportOnly), rows, totals, !state),
+    [allColumns, rows, totals, state],
+  );
   const userId = useContext(AuthContext)?.currentUser?.id;
   const { columnSizing, onColumnSizingChange } = useTableColumnSizing(
     tableId,
@@ -369,7 +385,11 @@ export function DataTable<Row>({
   ) : null;
 
   return (
-    <div ref={rootRef} className={cn(!embedded && 'overflow-hidden rounded-b-lg border border-border bg-card', className)}>
+    <div ref={rootRef} className={cn(
+      !embedded && 'rounded-b-lg border border-border bg-card',
+      !embedded && 'overflow-hidden',
+      className,
+    )}>
       {isDesktop ? (
         <DataTableDesktop
           columns={columns}
@@ -398,6 +418,7 @@ export function DataTable<Row>({
           totals={totals}
           onSort={onSort}
           columnSizing={columnSizing}
+          compactRows={compactRows}
           onOverflowChange={onOverflowChange}
         />
       ) : (
@@ -427,7 +448,7 @@ export function DataTable<Row>({
           mobileCardDetails={mobileCardDetails}
         />
       )}
-      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-[var(--table-cell-inset)] py-2 text-support text-muted-foreground">
+      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-[var(--table-cell-inset)] py-2 text-control text-muted-foreground">
         {caveats.map((caveat, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="text-warning-foreground">*</span> {caveat.reason}{caveat.remedy && <> {caveat.remedy}</>}</React.Fragment>)}
       </p>}
     </div>

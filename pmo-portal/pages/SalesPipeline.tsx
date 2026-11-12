@@ -1,14 +1,44 @@
 import React, { useState } from 'react';
-import { AccessDenied, ListPage, ListState } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
+import { AccessDenied, FigureHiddenLine, FigureScope, ListPage, ListState, useFigureReport, type HiddenFigure } from '@/src/components/ui';
+import { FigureContent } from '@/src/components/ui/FigureContent';
+import { formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { PipelineFunnel } from './sales-pipeline/PipelineFunnel';
 import {
-  DealPreview, DealResults, Figure, NewProjectButton, PhoneControls, PhoneFigures, SalesClassification, SalesExport,
+  DealPreview, DealResults, NeedsAttentionCard, NewProjectButton, PhoneControls, PhoneFigures, SalesClassification, SalesExport,
   SalesScope, SalesSearch, SalesViewToggle,
 } from './sales/SalesParts';
 import { useSalesModel } from './sales/useSalesModel';
-import { attentionDeals, dash, openValueTotal } from './sales/salesLogic';
+import { openValueTotal } from './sales/salesLogic';
+
+const PipelineFigures: React.FC<{ total: number | null; weighted: number; currency: string; openCount: number; mixed: string; t: ReturnType<typeof useSalesModel>['t'] }> = ({ total, weighted, currency, openCount, mixed, t }) => {
+  const hidden: HiddenFigure[] = total === null ? [
+    { label: t('sales:options.weightedForecast', 'Weighted forecast'), reason: mixed },
+    { label: t('sales:options.openValue', 'Open value'), reason: mixed },
+  ] : [];
+  const scoped = useFigureReport(hidden);
+  if (total === null && scoped) return null;
+  const value = total === null ? mixed : '';
+  return (
+    <dl className="grid min-w-0 grid-cols-2 gap-x-3">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+        <dt className="text-control font-medium text-muted-foreground">{t('sales:options.weightedForecast', 'Weighted forecast')}</dt>
+        <dd className="text-group font-semibold tabular">{total === null ? value : (
+          // T5: short on the tile, exact on hover and for screen readers (the home "Contract on
+          // hand" contract, AC-701) — one figure mechanism, not a second money formatter.
+          <span data-testid="pipeline-weighted-total">
+            <FigureContent value={formatTileMoney(weighted, currency)} exactValue={formatTableMoney(weighted, currency) ?? undefined} />
+          </span>
+        )}</dd>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+        <dt className="text-control font-medium text-muted-foreground">{t('sales:options.openValue', 'Open value')}</dt>
+        <dd className="text-group font-semibold tabular">{total === null ? value : formatTileMoney(total, currency)}</dd>
+        {total !== null && <dd className="text-control text-muted-foreground">{t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}</dd>}
+      </div>
+    </dl>
+  );
+};
 
 /** The CRM pipeline: figures on top, the funnel as stage filter, a board or table, and a quick-view drawer. */
 const SalesPipeline: React.FC = () => {
@@ -26,29 +56,28 @@ const SalesPipeline: React.FC = () => {
   }
   const total = openValueTotal(m);
   const cur = m.funnel.effectiveCurrency;
-  const attention = attentionDeals(m).length;
   const ready = m.state === undefined;
+  const mixed = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
+  const figures = <PipelineFigures total={total} weighted={m.funnel.totalWeighted} currency={cur} openCount={m.openProjects.length} mixed={mixed} t={t} />;
   return (
+    <FigureScope>
     <ListPage
       title={t('shell.nav.sales', 'Sales Pipeline')}
+      help={t('sales:options.weightedNote', 'Value × chance of winning')}
       primaryAction={<NewProjectButton m={m} />}
       banner={m.state === 'loading' && m.isDesktop ? (
         <div className="panel-card mb-4 p-[var(--panel-inset)]"><ListState variant="loading" rows={2} /></div>
       ) : ready && m.isDesktop ? (
         <>
-          <section aria-label={t('sales:options.figuresLabel', 'Pipeline figures')} className="panel-card mb-4 grid grid-cols-4 gap-6 p-[var(--panel-inset)]">
-            <Figure lead label={t('sales:options.weightedForecast', 'Weighted forecast')} value={total === null ? dash : formatCurrency(m.funnel.totalWeighted, cur)}
-              note={t('sales:options.weightedNote', 'Value × chance it proceeds × chance we win')} testId="sales-a-weighted" />
-            <Figure label={t('sales:options.openValue', 'Open value')} value={total === null ? dash : formatCurrency(total, cur)}
-              note={t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length })} />
-            <Figure label={t('sales:options.needsYou', 'Needs attention')} value={attention}
-              note={t('sales:options.needsYouNote', 'Untouched 30+ days or 90+ days in one stage')} onClick={() => m.setScope('Needs attention')} />
-            <Figure label={t('sales:options.outcomes', 'Won · Lost')} value={`${m.won.length} · ${m.lost.length}`}
-              note={t('sales:options.outcomesNote', 'Decided projects on this board')} onClick={() => m.setScope('Won')} />
-          </section>
-          <PipelineFunnel projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} onSelectStage={(s) => m.selectStage(s)} />
+          <FigureHiddenLine className="mb-3 text-control text-muted-foreground" />
+          <div className="mb-2 grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+            <div className="min-w-0">
+              <PipelineFunnel header={figures} projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} onSelectStage={(s) => m.selectStage(s)} />
+            </div>
+            <NeedsAttentionCard m={m} onOpen={setPreview} />
+          </div>
         </>
-      ) : <PhoneFigures m={m} />}
+      ) : null}
       mobileToolbar={m.state !== 'loading' && <PhoneControls m={m} />}
       filters={m.state !== 'loading' && m.view === 'table' && <SalesScope m={m} />}
       secondaryFilter={m.state !== 'loading' && <SalesClassification m={m} />}
@@ -57,8 +86,20 @@ const SalesPipeline: React.FC = () => {
       view={m.state !== 'loading' && <SalesViewToggle m={m} />}
     >
       <DealResults m={m} onOpen={m.isDesktop ? setPreview : m.onOpen} />
+      {!m.isDesktop && ready && (
+        <details data-testid="sales-phone-summary-details" className="mt-4 rounded-lg border border-border bg-card px-4 py-3">
+          <summary className="cursor-pointer text-control font-semibold">
+            {t('sales:options.figuresLabel', 'Pipeline figures')}
+          </summary>
+          <div className="mt-3 space-y-3">
+            <PhoneFigures m={m} />
+            <NeedsAttentionCard m={m} onOpen={setPreview} compact />
+          </div>
+        </details>
+      )}
       <DealPreview m={m} deal={preview} onClose={() => setPreview(null)} />
     </ListPage>
+    </FigureScope>
   );
 };
 

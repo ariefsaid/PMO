@@ -83,7 +83,6 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
       open
       width="lg"
       title={t('projectDetail.billing.assessment.title', 'Record progress')}
-      subtitle={t('projectDetail.billing.assessment.subtitle', 'Quantities done to date for the month. This is the operational assessment. It never creates an invoice.')}
       submitLabel={t('projectDetail.billing.assessment.save', 'Save progress')}
       onSubmit={handleSubmit}
       submitError={saveError}
@@ -109,6 +108,7 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
             value={note} onChange={setNote} maxLength={500} rows={2} fullWidth />
         </FormGrid>
       </FormSection>
+      <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.assessment.subtitle', 'Quantities done to date for the month. This is the operational assessment. It never creates an invoice.')}</p>
     </EntityFormModal>
   );
 };

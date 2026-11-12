@@ -63,4 +63,34 @@ describe('AttachJournalLineDialog', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('currency differs');
     expect(screen.getByRole('button', { name: 'Attach' })).toBeDisabled();
   });
+
+  describe('F2-11: dismiss must not silently drop the chosen purchase', () => {
+    it('Escape with a purchase chosen asks first; Keep editing keeps the choice, Discard closes', async () => {
+      const onClose = vi.fn();
+      h.mutate.mockResolvedValue({ dry_run: true, results: [{ row: 1, outcome: 'attach', reason: null }] });
+      render(<AttachJournalLineDialog line={line} onClose={onClose} />);
+      await choose('Lab works');
+      await screen.findByText(/Ready to attach/);
+      await userEvent.keyboard('{Escape}');
+      // The dialog asks before throwing the choice away.
+      expect(onClose).not.toHaveBeenCalled();
+      expect(await screen.findByRole('alertdialog')).toHaveTextContent(/Discard/i);
+      await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+      expect(onClose).not.toHaveBeenCalled();
+      // The chosen purchase is still chosen: Attach stays enabled.
+      expect(screen.getByRole('button', { name: 'Attach' })).toBeEnabled();
+      // A second dismiss offers the confirm again, and Discard closes.
+      await userEvent.keyboard('{Escape}');
+      await userEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('Escape with nothing chosen closes at once — no confirm', async () => {
+      const onClose = vi.fn();
+      render(<AttachJournalLineDialog line={line} onClose={onClose} />);
+      await userEvent.keyboard('{Escape}');
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+  });
 });

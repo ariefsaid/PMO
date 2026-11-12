@@ -26,6 +26,21 @@ beforeEach(() => {
   vi.stubGlobal('matchMedia', vi.fn((media: string) => ({ matches: true, media, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
 });
 
+it('keeps the pipeline summary and attention before the sales board with their key actions present', () => {
+  page();
+
+  const summary = screen.getByRole('region', { name: 'Pipeline summary' });
+  const attention = screen.getByRole('region', { name: 'Needs attention' });
+  const firstDeal = screen.getByText(state.data.projects[0].name);
+
+  expect(screen.getByText('Weighted forecast')).toBeInTheDocument();
+  expect(screen.getByText('Open value')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Won 0 all time' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Lost 0 all time' })).toBeInTheDocument();
+  expect(summary.compareDocumentPosition(attention) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(attention.compareDocumentPosition(firstDeal) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
 it.each(['kanban', 'table'])('UIP-004 Pipeline %s starts with Classification collapsed, narrows the real rows and clears without changing search/view', async (view) => {
   page(`/sales?view=${view}&q=Harbor`);
   const user = userEvent.setup();
@@ -64,7 +79,12 @@ it.each(['kanban', 'table'])('UIP-004 phone %s keeps a single search/core scope,
   expect(screen.queryByRole('tablist', { name: 'Pipeline view' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
   expect(screen.getAllByRole('tablist', { name: 'Project scope' })).toHaveLength(1);
-  expect(screen.getByTestId('sales-phone-stage-list')).toBeInTheDocument();
+  const stageList = screen.getByTestId('sales-phone-stage-list');
+  expect(stageList).toBeInTheDocument();
+  expect(stageList.firstElementChild).toBeInTheDocument();
+  const summary = screen.getByTestId('sales-phone-summary-details');
+  expect(summary).not.toHaveAttribute('open');
+  expect(stageList.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   await user.click(screen.getByRole('button', { name: /^Classification$/ }));
   expect(screen.getByRole('region', { name: /^Classification$/ })).toBeVisible();
   await user.selectOptions(screen.getByLabelText('Filter by sector'), 'Energy');

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DataTable, ListState, PageHeader, StatusPill, useToast, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, ListState, RecordHeader, StatusPill, useToast, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { usePermission } from '@/src/auth/usePermission';
@@ -11,8 +11,7 @@ import { useProjectConsumption, useStockDocument, useStockDocumentCosts, useStoc
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue, stockValuePreview, subtractDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import { formatInstantDate } from '@/src/lib/format';
-import { statusVariant } from '@/src/components/stock/stockStatus';
+import { formatDay } from '@/src/lib/format';
 import type { StockDocumentLine } from '@/src/lib/db/stockDocuments';
 import type { StockLedgerRow } from '@/src/lib/db/stockReports';
 
@@ -83,7 +82,7 @@ const StockDocumentDetail: React.FC = () => {
     { key: 'no', header: '#', cell: (l) => <span className="tabular-nums">{l.line_no}</span>, exportValue: (l) => l.line_no },
     {
       key: 'item', header: t('detail.columns.item'), rowHeader: true,
-      cell: (l) => (<div className="min-w-0"><span className="block truncate font-mono text-sm font-semibold">{l.item?.code}</span><span className="block truncate text-xs text-muted-foreground">{l.item?.name}</span></div>),
+      cell: (l) => (<div className="min-w-0"><span className="block truncate font-mono text-sm font-semibold">{l.item?.code}</span><span className="block truncate text-sm text-muted-foreground">{l.item?.name}</span></div>),
       exportValue: (l) => l.item?.code ?? '',
     },
     {
@@ -110,7 +109,7 @@ const StockDocumentDetail: React.FC = () => {
     }] : []),
     ...(liveDraft && seeCost && d?.kind === 'adjustment' ? [{
       key: 'cost', header: t('count.detail.unitCost'), align: 'num' as const,
-      cell: (l: StockDocumentLine) => { const c = l.direction === 'in' ? costOf(l.id) : undefined; return c ? <span className="tabular-nums">{formatStockValue(c, currency, loc)}</span> : <span className="text-xs text-muted-foreground">{t('count.detail.atAverage')}</span>; },
+      cell: (l: StockDocumentLine) => { const c = l.direction === 'in' ? costOf(l.id) : undefined; return c ? <span className="tabular-nums">{formatStockValue(c, currency, loc)}</span> : <span className="text-sm text-muted-foreground">{t('count.detail.atAverage')}</span>; },
       exportValue: (l: StockDocumentLine) => costOf(l.id) ?? '',
     }] : []),
     ...(liveDraft && seeCost ? [{
@@ -148,28 +147,27 @@ const StockDocumentDetail: React.FC = () => {
       )}
       {d && (
         <div className="space-y-4">
-          <PageHeader
+          <RecordHeader
             name={<span className="font-mono">{d.number}</span>}
-            meta={`${t(`kinds.${d.kind}`)} · ${d.occurred_on}`}
-            status={<StatusPill variant={statusVariant(d.status)}>{t(`documents.status.${d.status}`)}</StatusPill>}
-            statusInline
-            actions={(canPost || canCancel || canEdit) && (
-              <div className="flex gap-2">
-                {canEdit && <Button variant="outline" size="sm" onClick={() => navigate(`/stock/documents/${d.id}/edit`)}>{t('count.editDraft')}</Button>}
-                {canPost && <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => void run(() => m.post.mutateAsync({ id: d.id, revision: d.revision }), 'detail.posted')}>{t('detail.post')}</Button>}
-                {canCancel && <Button variant="outline" size="sm" onClick={() => setConfirmCancel(true)}>{t('detail.cancelDraft')}</Button>}
-              </div>
-            )}
+            meta={`${t(`kinds.${d.kind}`)} · ${formatDay(d.occurred_on)}`}
+            status={<StatusPill record="stockDocument" state={d.status} />}
+            primaryAction={canPost
+              ? <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => void run(() => m.post.mutateAsync({ id: d.id, revision: d.revision }), 'detail.posted')}>{t('detail.post')}</Button>
+              : canEdit ? <Button variant="primary" size="sm" onClick={() => navigate(`/stock/documents/${d.id}/edit`)}>{t('count.editDraft')}</Button> : undefined}
+            menuItems={[
+              ...(canPost && canEdit ? [{ key: 'edit', label: t('count.editDraft'), onSelect: () => navigate(`/stock/documents/${d.id}/edit`) }] : []),
+              ...(canCancel ? [{ key: 'cancel', label: t('detail.cancelDraft'), danger: true, onSelect: () => setConfirmCancel(true) }] : []),
+            ]}
           />
           {d.kind === 'issue' && d.status === 'Posted' && d.project_id && <OverAllowanceNotice projectId={d.project_id} on={d.occurred_on} lines={d.lines} />}
           {writeOff && d.status === 'Draft' && isAuthor && <p className="text-sm text-muted-foreground">{t('count.anotherPerson')}</p>}
           <dl className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-card p-4 text-sm md:grid-cols-4">
-            <div><dt className="text-xs text-muted-foreground">{t('detail.fields.warehouse')}</dt><dd>{d.warehouse?.code}{d.to_warehouse ? ` → ${d.to_warehouse.code}` : ''}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('detail.fields.project')}</dt><dd>{d.project ? <Link className="hover:underline" to={`/projects/${d.project_id}`}>{d.project.name}</Link> : '–'}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('detail.fields.author')}</dt><dd>{d.author?.full_name ?? ''}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('detail.fields.created')}</dt><dd className="tabular-nums">{formatInstantDate(d.created_at)}</dd></div>
-            {d.reason && <div className="col-span-full"><dt className="text-xs text-muted-foreground">{t('detail.fields.reason')}</dt><dd>{d.reason}</dd></div>}
-            {d.note && <div className="col-span-full"><dt className="text-xs text-muted-foreground">{t('detail.fields.note')}</dt><dd>{d.note}</dd></div>}
+            <div><dt className="text-sm text-muted-foreground">{t('detail.fields.warehouse')}</dt><dd>{d.warehouse?.code}{d.to_warehouse ? ` → ${d.to_warehouse.code}` : ''}</dd></div>
+            {d.project && <div><dt className="text-sm text-muted-foreground">{t('detail.fields.project')}</dt><dd><Link className="hover:underline" to={`/projects/${d.project_id}`}>{d.project.name}</Link></dd></div>}
+            <div><dt className="text-sm text-muted-foreground">{t('detail.fields.author')}</dt><dd>{d.author?.full_name ?? ''}</dd></div>
+            <div><dt className="text-sm text-muted-foreground">{t('detail.fields.created')}</dt><dd className="tabular-nums">{formatDay(d.created_at)}</dd></div>
+            {d.reason && <div className="col-span-full"><dt className="text-sm text-muted-foreground">{t('detail.fields.reason')}</dt><dd>{d.reason}</dd></div>}
+            {d.note && <div className="col-span-full"><dt className="text-sm text-muted-foreground">{t('detail.fields.note')}</dt><dd>{d.note}</dd></div>}
           </dl>
           <section aria-labelledby="lines-h">
             <h2 id="lines-h" className="mb-2 text-group font-semibold">{t('detail.lines')}</h2>
@@ -181,7 +179,7 @@ const StockDocumentDetail: React.FC = () => {
             {entries.isPending && <ListState variant="loading" rows={2} />}
             {!entries.isPending && !entries.isError && entryRows.length === 0 && <p className="text-sm text-muted-foreground">{t('detail.noEntries')}</p>}
             {entryRows.length > 0 && <DataTable<StockLedgerRow> rows={entryRows} columns={entryCols} rowKey={(r) => String(r.seq)} tableId="stock-document-entries" accessibleName={t('detail.entries')} embedded />}
-            {d.status === 'Posted' && <p className="mt-2 text-xs"><Link className="underline" to={`/stock/ledger?document=${d.id}`}>{t('detail.openInLedger')}</Link></p>}
+            {d.status === 'Posted' && <p className="mt-2 text-sm"><Link className="underline" to={`/stock/ledger?document=${d.id}`}>{t('detail.openInLedger')}</Link></p>}
           </section>
         </div>
       )}
