@@ -18,7 +18,7 @@ slice one rung up the intelligence ranking after two failed attempts.
 |---|---|---|
 | GPT Luna / Terra / Sol | `orca orchestration worker-start --agent codex --model gpt-6-luna` (or `gpt-6.1-terra`, `gpt-6.1-sol`) `--effort …` | Luna xhigh · Terra medium · Sol medium |
 | Claude | `--agent claude --model claude-sonnet-5-5` (or `claude-opus-5-5`) `--effort …` | Sonnet medium/high · Opus medium |
-| Gemini (Flash, Argon) | `--agent antigravity` — takes its model from its own config | Argon high; Argon quota is small |
+| Gemini (Flash, Argon) | `--agent antigravity` — takes its model from its own config; a `--model` id needs the effort suffix (`gemini-3.8-flash-medium`; the bare id is rejected; `agy models` lists them) | Argon high; Argon quota is small |
 | GLM-5.3-flash | `--agent pi` (pi's global default is Z.AI `glm-5.3-flash` since 2026-11-04, so nested lane orchestrators can start it); **not** `--agent zcode` | high |
 
 **GLM through pi on the Z.AI coding plan** (the working path):
