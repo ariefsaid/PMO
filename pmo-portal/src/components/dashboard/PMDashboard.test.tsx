@@ -438,6 +438,22 @@ describe('Project Manager home — one screen agrees with itself', () => {
   });
 });
 
+describe('Project Manager home — margin follows the company figure', () => {
+  it('with some projects incomplete, the band shows the known margin on billed work and counts the incomplete ones as hidden', async () => {
+    state.projects.data = [
+      makeProject({ id: 'p1', name: 'Project One', status: 'Ongoing Project', realized_margin: 500_000, realized_margin_pct: 0.06 }),
+      makeProject({ id: 'p2', name: 'Project Two', status: 'Ongoing Project', realized_margin: 2_960_000, realized_margin_pct: 0.62 }),
+      makeProject({ id: 'p3', name: 'Project Three', status: 'Ongoing Project', realized_margin: -260_000, realized_margin_pct: null }),
+      makeProject({ id: 'p4', name: 'Project Four', status: 'Ongoing Project', spent: null, actual_complete: false, realized_margin: null, realized_margin_pct: null }),
+    ];
+    renderDashboard();
+    // 500,000 + 2,960,000: the same known subtotal the company figure shows for these projects.
+    expect(screen.getByTestId('kpi-margin-to-date')).toHaveTextContent('Known margin on billed work$3.46M');
+    await openHiddenReasons();
+    expect(await screen.findByText(/1 project with incomplete spending or billing/)).toBeInTheDocument();
+  });
+});
+
 describe('Project Manager home — the floor restored (overnight recompose)', () => {
   it('each project row carries its number, client and currency, its contract, share of contract spent and margin to date', () => {
     renderDashboard();
