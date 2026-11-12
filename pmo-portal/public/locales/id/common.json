@@ -3736,7 +3736,9 @@
     "salesInvoices": "Faktur Penjualan",
     "newInvoice": "Faktur Baru",
     "filterByStatus": "Filter berdasarkan status",
-    "clearFilter": "Hapus filter",
+    "clearAll": "Hapus semua",
+    "clearAttribution": "Hapus atribusi",
+    
     "searchInvoices": "Cari faktur…",
     "searchSalesInvoices": "Cari faktur penjualan",
     "noSalesInvoicesYet": "Belum ada faktur",
@@ -4428,6 +4430,7 @@
     "pageSummary": "Tanggal dari {{first}} hingga {{last}}: {{count}} memiliki kurs",
     "pageGaps": "Tidak ada kurs untuk {{dates}}",
     "moreEarlier": "kurs lebih lama di halaman berikutnya",
+    "pageDisplayOnly": "Hanya setara tampilan",
     "previewCoverage": "Tanggal dari {{first}} hingga {{last}}: {{count}} memiliki kurs",
     "previewGaps": "Tidak ada kurs untuk {{dates}}",
     "previewGapSummary_one": "{{dates}} tanggal tanpa kurs dalam {{count}} rentang",

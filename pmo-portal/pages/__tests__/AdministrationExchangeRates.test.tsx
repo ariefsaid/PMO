@@ -266,6 +266,9 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     const summary = screen.getByTestId('fx-page-summary');
     expect(summary).toHaveTextContent('Dates from 12 Sep to 31 Oct: 50 with rates');
     expect(summary).toHaveTextContent('earlier rates on the next pages');
+    // T1: a loaded page states what the rates are FOR — display equivalents only; they never change
+    // an accounting record (before this, only the empty state said so).
+    expect(summary).toHaveTextContent('Display equivalents only');
 
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     const lastPage = await screen.findByTestId('fx-page-summary');
