@@ -350,7 +350,8 @@
       "procurementApprovalHelp": "Buka pengadaan ini untuk meninjau permintaan persetujuannya.",
       "atRiskAtLeast": "Setidaknya {{count}}",
       "riskPartial": "Pada 90% atau lebih dari anggaran; proyek lain memiliki data anggaran atau pengeluaran yang belum lengkap",
-      "spendingIncompleteNote": "Sebagian proyek memiliki pengeluaran yang belum lengkap, sehingga margin, sisa kontrak, dan kontrak terpakai hanya ditampilkan jika diketahui."
+      "spendingIncompleteNote": "Sebagian proyek memiliki pengeluaran yang belum lengkap, sehingga margin, sisa kontrak, dan kontrak terpakai hanya ditampilkan jika diketahui.",
+      "reasonMoneyIncomplete": "ada proyek dengan data belanja atau kontrak yang belum lengkap"
     },
     "company": {
       "topAttentionProjects": "5 proyek yang paling perlu perhatian",

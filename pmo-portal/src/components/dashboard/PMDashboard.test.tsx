@@ -438,6 +438,17 @@ describe('Project Manager home — the floor restored (overnight recompose)', ()
     expect(screen.getByTestId('kpi-contract-left')).toHaveTextContent('Left after spending$345K');
   });
 
+  it('an unknown left-after-spending or margin is counted in the hidden figures with its reason, never dropped silently', async () => {
+    state.projects.data = [
+      makeProject({ id: 'p1', name: 'Project One', status: 'Ongoing Project', contract_remaining: null, realized_margin: null }),
+    ];
+    renderDashboard();
+    expect(screen.queryByTestId('kpi-contract-left')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-margin-to-date')).not.toBeInTheDocument();
+    await openHiddenReasons();
+    expect(await screen.findByText(/a project has incomplete spending or contract data/)).toBeInTheDocument();
+  });
+
   it('contract left after spending in two currencies puts the second currency on its own line', () => {
     state.projects.data = [
       makeProject({ id: 'p1', name: 'Project One', status: 'Ongoing Project', contract_remaining: 5_000 }),

@@ -350,7 +350,8 @@
       "procurementApprovalHelp": "Open this procurement to review its approval request.",
       "atRiskAtLeast": "At least {{count}}",
       "riskPartial": "At 90% or more of budget; other projects have incomplete budget or spending data",
-      "spendingIncompleteNote": "Some projects have incomplete spending, so margin, contract left and contract spent are shown only where they are known."
+      "spendingIncompleteNote": "Some projects have incomplete spending, so margin, contract left and contract spent are shown only where they are known.",
+      "reasonMoneyIncomplete": "a project has incomplete spending or contract data"
     },
     "company": {
       "topAttentionProjects": "The 5 projects that most need attention",
