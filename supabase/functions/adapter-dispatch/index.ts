@@ -552,8 +552,13 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       const { data, error } = await serviceClient.rpc('linked_step_state', {
         p_org_id: orgId, p_procurement_id: record.procurementId, p_step: record.erp_doc_kind,
       });
-      if (error || !['already_in_erp', 'new_step', 'not_applicable'].includes(data)) {
+      const unlinkedPrefix = 'already_in_erp_unlinked:';
+      const unlinkedName = typeof data === 'string' && data.startsWith(unlinkedPrefix) ? data.slice(unlinkedPrefix.length) : '';
+      if (error || (!unlinkedName && !['already_in_erp', 'new_step', 'not_applicable'].includes(data))) {
         return new Response(JSON.stringify({ error: 'commit-rejected', message: 'Could not check the linked purchase step.' }), { status: 422, headers });
+      }
+      if (unlinkedName) {
+        return new Response(JSON.stringify({ error: 'step_already_recorded', message: `ERP ${unlinkedName} already records this; link it instead of sending a new one.` }), { status: 409, headers });
       }
       if (data === 'already_in_erp') {
         return new Response(JSON.stringify({ error: 'step_already_recorded', message: 'This document is already linked from the ERP.' }), { status: 409, headers });

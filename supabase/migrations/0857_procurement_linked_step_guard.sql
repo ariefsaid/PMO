@@ -1,7 +1,7 @@
 -- The linked document state is shared by the outbox and the dispatch boundary.
 create function public.linked_step_state(p_org_id uuid, p_procurement_id uuid, p_step text)
 returns text language plpgsql security definer set search_path = public, pg_catalog as $$
-declare v_doctype text;
+declare v_doctype text; v_name text;
 begin
   if not exists (select 1 from public.procurements where id = p_procurement_id and org_id = p_org_id) then
     raise exception 'purchase not found' using errcode = '42501';
@@ -13,6 +13,16 @@ begin
       where l.org_id = p_org_id and l.procurement_id = p_procurement_id and d.erp_doctype = v_doctype) then
     return 'already_in_erp';
   end if;
+  select d.erp_name into v_name from public.erp_purchase_documents d
+    where d.org_id = p_org_id and d.erp_doctype = v_doctype and d.erp_docstatus = 1 and not d.is_return
+      and exists (select 1 from public.procurement_erp_links l join public.erp_purchase_documents po
+        on po.id = l.erp_purchase_document_id and po.org_id = l.org_id
+        where l.org_id = p_org_id and l.procurement_id = p_procurement_id
+          and po.erp_doctype = 'Purchase Order' and po.erp_name = any(d.purchase_orders))
+      and not exists (select 1 from public.procurement_erp_links l where l.org_id = p_org_id and l.erp_purchase_document_id = d.id)
+      and not public.erp_document_recorded_by_pmo(p_org_id, d.erp_doctype, d.erp_name)
+    order by d.erp_name limit 1;
+  if v_name is not null then return 'already_in_erp_unlinked:' || v_name; end if;
   if exists (select 1 from public.procurement_erp_links l where l.org_id = p_org_id and l.procurement_id = p_procurement_id) then
     return 'new_step';
   end if;
@@ -23,13 +33,17 @@ grant execute on function public.linked_step_state(uuid,uuid,text) to service_ro
 
 create function public.guard_linked_procurement_step() returns trigger
 language plpgsql security definer set search_path = public, pg_catalog as $$
-declare v_case uuid;
+declare v_case uuid; v_state text;
 begin
   if new.domain = 'procurement' and new.operation = 'create'
      and new.payload->>'erp_doc_kind' in ('goods-receipt','purchase-invoice') then
     v_case := public.procurement_case_uuid(new.payload->>'procurementId');
     perform 1 from public.procurements where id = v_case and org_id = new.org_id for update;
-    if public.linked_step_state(new.org_id, v_case, new.payload->>'erp_doc_kind') = 'already_in_erp' then
+    v_state := public.linked_step_state(new.org_id, v_case, new.payload->>'erp_doc_kind');
+    if v_state like 'already_in_erp_unlinked:%' then
+      raise exception 'ERP % already records this; link it instead of sending a new one.', substr(v_state, 25) using errcode = 'P0001';
+    end if;
+    if v_state = 'already_in_erp' then
       raise exception 'step_already_recorded' using errcode = 'P0001';
     end if;
   end if;
@@ -47,6 +61,7 @@ declare
   v_step public.procurement_status;
   v_proc public.procurements;
   v_refusal text;
+  v_linked_state text;
 begin
   v_step := case p_erp_doc_kind
     when 'purchase-order'   then 'Ordered'::public.procurement_status
@@ -61,9 +76,13 @@ begin
      where id = p_procurement_id and org_id = p_org_id for update;
   end if;
   if v_proc.id is null then return 'purchase_not_found'; end if;
-  if p_erp_doc_kind in ('goods-receipt','purchase-invoice')
-     and public.linked_step_state(p_org_id, p_procurement_id, p_erp_doc_kind) = 'already_in_erp' then
-    return 'step_already_recorded';
+  if p_erp_doc_kind in ('goods-receipt','purchase-invoice') then
+    v_linked_state := public.linked_step_state(p_org_id, p_procurement_id, p_erp_doc_kind);
+    if v_linked_state like 'already_in_erp_unlinked:%' then
+      return 'ERP ' || substr(v_linked_state, 25) || ' already records this; link it instead of sending a new one.';
+    elsif v_linked_state = 'already_in_erp' then
+      return 'step_already_recorded';
+    end if;
   end if;
   if p_erp_doc_kind = 'purchase-invoice' and v_proc.is_subcontract                                       -- 0475
      and exists (select 1 from public.purchase_order_revisions r where r.procurement_id = v_proc.id) then -- 0475

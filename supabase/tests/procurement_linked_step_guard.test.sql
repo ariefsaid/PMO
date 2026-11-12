@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(12);
+select plan(24);
 
 insert into organizations (id, name, default_currency) values
   ('91120000-0000-0000-0000-000000000001', 'W9 ERP Link Verify', 'IDR');
@@ -64,5 +64,29 @@ select org_id, '91120000-0000-0000-0000-00000000c004', id, '91120000-0000-0000-0
 select throws_ok($$ select claim_outbox_for_commit((select id from external_command_outbox where idempotency_key='linked-r3')) $$,
   'P0001', 'procurement-create-refused: step_already_recorded', 'a queued receipt is refused if its step becomes linked before claim');
 select is((select state from external_command_outbox where idempotency_key='linked-r3'),'pending','the refused queued receipt is not claimed');
+
+insert into external_command_outbox (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id) values ('91120000-0000-0000-0000-000000000001','procurement','queued-unlinked','queued-unlinked','erpnext','create','pending','{"erp_doc_kind":"purchase-invoice","procurementId":"91120000-0000-0000-0000-00000000c004"}','91120000-0000-0000-0000-00000000f001');
+select upsert_erp_purchase_documents('91120000-0000-0000-0000-000000000001', $$[
+  {"erp_doctype":"Purchase Receipt","erp_name":"W13-R","currency":"IDR","grand_total":100,"net_total":100,"erp_docstatus":1,"erp_modified":"2026-11-12T00:00:00Z","purchase_orders":["W9-PO-EXISTING"]},
+  {"erp_doctype":"Purchase Invoice","erp_name":"W13-I","currency":"IDR","grand_total":100,"net_total":100,"erp_docstatus":1,"erp_modified":"2026-11-12T00:00:00Z","purchase_orders":["W9-PO-EXISTING"]}
+]$$::jsonb);
+delete from procurement_erp_links where procurement_id='91120000-0000-0000-0000-00000000c004' and erp_purchase_document_id=(select id from erp_purchase_documents where erp_name='W9-RCP-LATER');
+select throws_ok($$ insert into external_command_outbox (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id) values ('91120000-0000-0000-0000-000000000001','procurement','W13-R','W13-R','erpnext','create','pending','{"erp_doc_kind":"goods-receipt","procurementId":"91120000-0000-0000-0000-00000000c004"}','91120000-0000-0000-0000-00000000f001') $$, 'P0001', 'ERP W13-R already records this; link it instead of sending a new one.', 'goods-receipt existing ERP document is refused');
+select is((select count(*)::int from external_command_outbox where idempotency_key='W13-R'),0,'goods-receipt refusal creates no outbox row');
+select throws_ok($$ insert into external_command_outbox (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id) values ('91120000-0000-0000-0000-000000000001','procurement','W13-I','W13-I','erpnext','create','pending','{"erp_doc_kind":"purchase-invoice","procurementId":"91120000-0000-0000-0000-00000000c004"}','91120000-0000-0000-0000-00000000f001') $$, 'P0001', 'ERP W13-I already records this; link it instead of sending a new one.', 'purchase-invoice existing ERP document is refused');
+select is((select count(*)::int from external_command_outbox where idempotency_key='W13-I'),0,'purchase-invoice refusal creates no outbox row');
+select throws_ok($$ select claim_outbox_for_commit((select id from external_command_outbox where idempotency_key='queued-unlinked')) $$, 'P0001', 'procurement-create-refused: ERP W13-I already records this; link it instead of sending a new one.', 'queued invoice is refused with ERP document name');
+select is((select state from external_command_outbox where idempotency_key='queued-unlinked'),'pending','refused queued invoice is not claimed');
+update erp_purchase_documents set purchase_orders=array['OTHER'] where erp_name='W13-R';
+select is(public.linked_step_state('91120000-0000-0000-0000-000000000001','91120000-0000-0000-0000-00000000c004','goods-receipt'),'new_step','goods-receipt on another order is allowed');
+update erp_purchase_documents set purchase_orders=array['W9-PO-EXISTING'], erp_docstatus=2 where erp_name='W13-R';
+select is(public.linked_step_state('91120000-0000-0000-0000-000000000001','91120000-0000-0000-0000-00000000c004','goods-receipt'),'new_step','cancelled goods-receipt is allowed');
+update erp_purchase_documents set purchase_orders=array['OTHER'] where erp_name='W13-I';
+select is(public.linked_step_state('91120000-0000-0000-0000-000000000001','91120000-0000-0000-0000-00000000c004','purchase-invoice'),'new_step','purchase-invoice on another order is allowed');
+update erp_purchase_documents set purchase_orders=array['W9-PO-EXISTING'], erp_docstatus=2 where erp_name='W13-I';
+select is(public.linked_step_state('91120000-0000-0000-0000-000000000001','91120000-0000-0000-0000-00000000c004','purchase-invoice'),'new_step','cancelled purchase-invoice is allowed');
+update erp_purchase_documents set erp_docstatus=1, is_return=true where erp_name in ('W13-R','W13-I');
+select is(public.linked_step_state('91120000-0000-0000-0000-000000000001','91120000-0000-0000-0000-00000000c004','goods-receipt'),'new_step','returned receipt is allowed');
+select is(public.linked_step_state('91120000-0000-0000-0000-000000000001','91120000-0000-0000-0000-00000000c004','purchase-invoice'),'new_step','returned invoice is allowed');
 select * from finish();
 rollback;

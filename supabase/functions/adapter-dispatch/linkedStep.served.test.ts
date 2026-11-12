@@ -74,6 +74,14 @@ describe('linked purchase steps through the served handler', () => {
       assert(nothingWritten(r.calls));
     });
   }
+  for (const kind of ['goods-receipt', 'purchase-invoice'] as const) {
+    it(`refuses an existing ERP ${kind} with its name`, async () => {
+      const r = await dispatch(kind, () => jsonResponse('already_in_erp_unlinked:ERP-123'));
+      assertEquals(r.response.status, 409, JSON.stringify(r.body));
+      assertEquals(r.body.message, 'ERP ERP-123 already records this; link it instead of sending a new one.');
+      assert(nothingWritten(r.calls));
+    });
+  }
   it('fails closed when the linked step cannot be determined', async () => {
     const r = await dispatch('goods-receipt', () => jsonResponse(null));
     assertEquals(r.response.status, 422, JSON.stringify(r.body));
