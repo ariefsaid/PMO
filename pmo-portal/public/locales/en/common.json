@@ -2893,7 +2893,6 @@
     },
     "projectNumber": {
       "label": "PMO Project Number",
-      "helper": "PMO assigns this identifier. You can edit it before creating the project.",
       "duplicate": "That PMO Project Number is already in use. Choose another number.",
       "segmentRequired": "The selected company needs a Client number segment before a PMO Project Number can be proposed.",
       "proposalError": "A PMO Project Number could not be proposed. Select the client again to retry.",

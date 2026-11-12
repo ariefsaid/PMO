@@ -563,7 +563,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 helper={numberProposal.status === 'error'
                   ? undefined
                   : numberProposal.status === 'success'
-                    ? t('projectForm.projectNumber.helper', 'PMO assigns this identifier. You can edit it before creating the project.')
+                    ? t('projects:projectForm.projectNumber.assignedAndEditable', 'Assigned once you choose a client. You can change it before creating.')
                     : t('projects:projectForm.projectNumber.assignedOnChooseClient', 'Assigned automatically once you choose a client.')}
                 mono
               />

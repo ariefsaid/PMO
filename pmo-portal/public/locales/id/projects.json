@@ -100,7 +100,8 @@
       "helper": "Kode opsional yang digunakan organisasi Anda untuk proyek klien ini."
     },
     "projectNumber": {
-      "assignedOnChooseClient": "Terisi otomatis setelah Anda memilih klien."
+      "assignedOnChooseClient": "Terisi otomatis setelah Anda memilih klien.",
+      "assignedAndEditable": "Terisi otomatis setelah Anda memilih klien. Anda dapat mengubahnya sebelum membuat proyek."
     },
     "endCustomer": {
       "nounPlural": "perusahaan"

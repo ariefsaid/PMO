@@ -38,7 +38,7 @@ function useDealFigures(d: DealActions): Fig[] {
         <label className="sr-only" htmlFor={`opt-${kind}-${p.id}`}>{label}</label>
         <input id={`opt-${kind}-${p.id}`} type="number" min={0} max={100} step={1} value={input} onChange={(e) => set(e.target.value)} disabled={d.saving !== null}
           className="h-9 w-20 rounded-[var(--radius-control)] border border-input bg-background px-2 text-sm tabular focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50" />
-        <Button type="submit" variant="primary" size="sm" disabled={d.saving !== null}>
+        <Button type="submit" variant="outline" size="sm" disabled={d.saving !== null}>
           {d.saving === kind ? t('projectDetail.pipeline.statLoading', 'Loading…') : t('projectDetail.pipeline.saveProbability', 'Save')}
         </Button>
         {err && <span role="alert" className="w-full text-control text-destructive-text">{err}</span>}
