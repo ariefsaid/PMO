@@ -13,7 +13,7 @@ import { useCreateProcurementWithItems } from '@/src/hooks/useProcurementCrud';
 import type { AtomicProcurementInput, ProcurementItemRow } from '@/src/lib/db/procurementCrud';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
-import { LineItemsSection } from './procurement/LineItemsSection';
+import { LineItemsSection, type LineItemsSectionHandle } from './procurement/LineItemsSection';
 import { BUDGET_CATEGORY_OPTIONS, BUDGET_CATEGORY_HELPER } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
@@ -127,6 +127,10 @@ export default function ProcurementCreate() {
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [attempt, setAttempt] = useState<{ input: AtomicProcurementInput; have: ProcurementHave } | null>(null);
+  const lineItemsRef = useRef<LineItemsSectionHandle | null>(null);
+  // N01: the add-row is a pending line draft owned by LineItemsSection; typed work there is
+  // unsaved work for the guard until the user commits it or leaves deliberately.
+  const [pendingLineDraft, setPendingLineDraft] = useState(false);
 
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
   const saveNeedsAttention = saving || attempt !== null;
@@ -138,7 +142,7 @@ export default function ProcurementCreate() {
     : undefined;
   const leaveLabel = saveNeedsAttention ? t('unsaved.leave', 'Leave') : undefined;
   const stayLabel = saveNeedsAttention ? t('unsaved.stay', 'Stay') : undefined;
-  const dirty = saving || attempt !== null || (
+  const dirty = saving || attempt !== null || pendingLineDraft || (
     title !== '' || supplierId !== null || budgetCategory !== '' || lines.length > 0 || selectedProject !== projectId
   );
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
@@ -188,17 +192,16 @@ export default function ProcurementCreate() {
     return standardChoices;
   }, [canCaptureDocuments, realRole, t]);
 
-  const addLine = async (line: { name: string; quantity: number; rate: number }) => {
-    const amount = itemsNetTotal([{ quantity: line.quantity, rate: line.rate }]);
-    setLines((current) => [
-      ...current,
-      {
-        ...line,
-        id: crypto.randomUUID(),
-        amount,
-        description: null,
-      },
-    ]);
+  const makeDraftLine = (line: { name: string; quantity: number; rate: number; description?: string }): DraftLine => ({
+    ...line,
+    id: crypto.randomUUID(),
+    amount: itemsNetTotal([{ quantity: line.quantity, rate: line.rate }]),
+    description: line.description ?? null,
+  });
+  const addLine = async (line: { name: string; quantity: number; rate: number; description?: string }) => {
+    const row = makeDraftLine(line);
+    setLines((current) => [...current, row]);
+    return row;
   };
   const updateLine = async (id: string, patch: { name: string; quantity?: number; rate?: number; description?: string }) => {
     setLines((current) => current.map((line) => {
@@ -228,13 +231,32 @@ export default function ProcurementCreate() {
     savingRef.current = true;
     setSaving(true);
 
+    // N01: a typed add-row is work, never silent scratch. A complete valid row is committed
+    // into the save; an invalid one refuses the save with the row retained and its field
+    // explanation shown beside the fields. The commit is synchronous so the save reaches its
+    // mutation in the same tick the user pressed Save.
+    let pendingRow: DraftLine | null = null;
+    if (have === 'need') {
+      const commit = lineItemsRef.current?.commitPendingRow();
+      if (commit?.status === 'invalid') {
+        savingRef.current = false;
+        setSaving(false);
+        return;
+      }
+      if (commit?.status === 'committed') {
+        const row = makeDraftLine(commit.input);
+        setLines((current) => [...current, row]);
+        pendingRow = row;
+      }
+    }
+
     const input: AtomicProcurementInput = attempt?.input ?? {
       id: crypto.randomUUID(),
       header: {
         title: title.trim(), projectId: selectedProject, vendorId: supplierId,
         ...(have === 'need' && budgetCategory ? { budgetCategory: budgetCategory as BudgetCategory } : {}),
       },
-      lines: have === 'need' ? lines.map(({ id, name, quantity, rate, description }) => ({ id, name, quantity, rate, description })) : [],
+      lines: have === 'need' ? (pendingRow ? [...lines, pendingRow] : lines).map(({ id, name, quantity, rate, description }) => ({ id, name, quantity, rate, description })) : [],
     };
     const attemptHave = attempt?.have ?? have;
     setAttempt({ input, have: attemptHave });
@@ -335,6 +357,7 @@ export default function ProcurementCreate() {
               <Combobox
                 label={t('project', 'Project')}
                 noun="project"
+                formControl
                 emptyMessage={(query) => query ? undefined : t('references.noProjects', 'No projects available. You can continue without a project or ask an administrator to add one.')}
                 placeholder={t('selectProject', 'Select a project…')}
                 value={selectedProject}
@@ -346,6 +369,7 @@ export default function ProcurementCreate() {
               <Combobox
                 label={t('supplier', 'Supplier')}
                 noun="supplier"
+                formControl
                 emptyMessage={(query) => query ? undefined : t('references.noSuppliers', 'No suppliers available. A supplier is optional; ask an administrator to add one if needed.')}
                 placeholder={t('selectSupplier', 'Optional: select a supplier…')}
                 value={supplierId}
@@ -373,6 +397,7 @@ export default function ProcurementCreate() {
         {needForm && (
           <fieldset disabled={saving || Boolean(attempt)} className="contents">
             <LineItemsSection
+              ref={lineItemsRef}
               items={lines as unknown as ProcurementItemRow[]}
               editable
               busy={saving || Boolean(attempt)}
@@ -380,6 +405,7 @@ export default function ProcurementCreate() {
               onUpdate={updateLine}
               onDelete={removeLine}
               onError={(error) => { const classified = classifyMutationError(error); toast(classified.headline, classified.detail, 'warning'); }}
+              onPendingDraftChange={setPendingLineDraft}
               currency={orgCurrency}
             />
           </fieldset>

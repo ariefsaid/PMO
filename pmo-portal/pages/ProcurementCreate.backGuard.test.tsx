@@ -116,6 +116,24 @@ describe('#1525 browser Back holds an unsaved purchase draft', () => {
     expect(screen.getByTestId('procurement-list')).toBeVisible();
     expect(unsavedDialog()).not.toBeInTheDocument();
   });
+
+  it('N01: a typed add-row alone is unsaved work — Back asks before discarding it', async () => {
+    const router = renderApp();
+    await act(async () => { await router.navigate('/procurement/new?have=need'); });
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Typed but never added' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '12' } });
+
+    // Back while ONLY the add-row holds typed work: the app stays put and asks.
+    await act(async () => { window.history.back(); });
+    await waitFor(() => expect(unsavedDialog()).toBeInTheDocument());
+    expect(window.location.pathname).toBe('/procurement/new');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    await waitFor(() => expect(unsavedDialog()).not.toBeInTheDocument());
+    expect(screen.getByLabelText('New item description')).toHaveValue('Typed but never added');
+    expect(mocks.createAtomic).not.toHaveBeenCalled();
+  });
 });
 
 afterEach(() => {

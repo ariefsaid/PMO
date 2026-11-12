@@ -218,6 +218,38 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true });
   });
 
+  it('N01: Save draft auto-commits a completely typed add-row instead of silently dropping it', async () => {
+    renderCreate('/procurement/new');
+    fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Typed row kept' } });
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
+    // The user never presses "Add line item" — the typed row is work, not discardable scratch.
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    expect(mocks.createAtomic).toHaveBeenCalledWith(expect.objectContaining({
+      lines: [expect.objectContaining({ name: 'Paper', quantity: 2, rate: 10 })],
+    }));
+  });
+
+  it('N01: an invalid typed add-row refuses the save, retains the row and explains the field', async () => {
+    renderCreate('/procurement/new');
+    fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Bad row' } });
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(await screen.findByText('Quantity must be greater than 0 with no more than 2 decimal places.')).toBeVisible();
+    expect(mocks.createAtomic).not.toHaveBeenCalled();
+    expect(mocks.navigate).not.toHaveBeenCalled();
+    // The typed row survives the refusal so the user can fix it instead of retyping.
+    expect(screen.getByLabelText('New item description')).toHaveValue('Paper');
+    expect(screen.getByLabelText('New item quantity')).toHaveValue('0');
+    expect(screen.getByLabelText('New item unit price')).toHaveValue('10');
+  });
+
   it('choosing an order saves the header and opens purchase-order capture', async () => {
     renderCreate('/procurement/new');
     fireEvent.click(screen.getByRole('button', { name: /An order/i }));
