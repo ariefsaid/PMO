@@ -646,5 +646,8 @@ drop function if exists public.guard_erp_purchase_capture_org();
 drop function if exists public.assert_record_only_rollback_safe();
 drop table if exists public.erp_purchase_captures;
 drop table if exists public.record_only_journal_requests;
+update public.record_history_config
+   set captured = captured - array['record_only','record_only_stage','record_only_date','record_only_reference']
+ where table_name = 'procurements';
 alter table public.procurements drop column record_only, drop column if exists record_only_stage, drop column if exists record_only_date, drop column if exists record_only_reference;
 

@@ -6,6 +6,11 @@ alter table public.procurements
   add column record_only_date date,
   add column record_only_reference text;
 
+-- Capture the historical purchase attributes in the change-history registry.
+update public.record_history_config
+   set captured = captured || '{"record_only":"bool","record_only_stage":"enum","record_only_date":"date","record_only_reference":"text"}'::jsonb
+ where table_name = 'procurements';
+
 -- Request identity and source history remain after the purchase is undone.
 create table public.erp_purchase_captures (
   procurement_id uuid primary key references public.procurements(id) on delete restrict,

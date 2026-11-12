@@ -1,6 +1,7 @@
 -- Record-only purchases: journal creation is atomic and never changes project actuals.
 begin;
-select plan(101);
+select plan(102);
+select is((select jsonb_build_object('record_only',captured->'record_only','record_only_stage',captured->'record_only_stage','record_only_date',captured->'record_only_date','record_only_reference',captured->'record_only_reference') from public.record_history_config where table_name='procurements'), '{"record_only":"bool","record_only_stage":"enum","record_only_date":"date","record_only_reference":"text"}'::jsonb, 'AC-CHG-011 record-only purchase attributes are captured with their types');
 insert into organizations (id, name, default_currency) values
   ('21950000-0000-0000-0000-00000000000a','JEC A','IDR'), ('21950000-0000-0000-0000-00000000000b','JEC B','IDR');
 insert into auth.users (id, email) values
