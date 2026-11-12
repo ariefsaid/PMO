@@ -150,7 +150,31 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
   it('AC-SP-204: a deal with no customer renders an em-dash, never blank', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     const card = screen.getByText('Tender Deal Bravo').closest('[role="button"]')!;
-    expect(within(card as HTMLElement).getByText('—')).toBeInTheDocument();
+    const customerPlaceholder = within(card as HTMLElement).getAllByText('—')[0];
+    const value = within(card as HTMLElement).getByText(formatCurrency(projects[1].contract_value, projects[1].currency));
+    expect(customerPlaceholder).toBeVisible();
+    expect(customerPlaceholder.compareDocumentPosition(value) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('keeps stage context and the assigned project manager ahead of the deal value', () => {
+    const assigned = {
+      ...projects[0],
+      id: 'pm-stage-context',
+      pm_name: 'Assigned PM',
+      stage_started_at: '2026-10-12T00:00:00+00:00',
+    };
+    render(<SalesKanbanBoard projects={[assigned]} onOpen={vi.fn()} />);
+
+    const card = within(screen.getByText(assigned.name).closest('[data-testid="project-card"]') as HTMLElement);
+    const stage = card.getByTestId('stage-line-pm-stage-context');
+    const manager = card.getByText('Assigned PM');
+    const value = card.getByText(formatCurrency(assigned.contract_value, assigned.currency));
+
+    expect(stage).toBeInTheDocument();
+    expect(manager).toBeInTheDocument();
+    expect(value).toBeInTheDocument();
+    expect(stage.compareDocumentPosition(manager) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(manager.compareDocumentPosition(value) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('AC-SP-204: clicking a card calls onOpen with the row', () => {

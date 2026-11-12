@@ -120,14 +120,14 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
     ) : (
       <FigureScope><div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
         <FigureHiddenLine compact />
-        {/* Phone reads attention → money → budget; at xl the money block spans both rows of the right column,
-            so the budget fills the space under the (usually short) attention list instead of leaving it empty. */}
-        <div className={`grid min-w-0 items-start gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
-          <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} className="min-w-0 xl:col-start-1 xl:row-start-1" />
-          {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1"><MoneyBlock project={project} /></div>}
-          <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} /></div>
+        {/* Phone reads attention → money → budget. At xl, the attention and money rows align,
+            then Budget spans the canvas so the shorter right column does not end halfway down the page. */}
+        <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
+          <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} fillRow={canSeeMoney} className="min-w-0 xl:col-start-1 xl:row-start-1" />
+          {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-start-1"><MoneyBlock project={project} fillRow /></div>}
+          <div className={`min-w-0 ${canSeeMoney ? 'xl:col-span-2 xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} /></div>
         </div>
-        <div className="grid min-w-0 items-start gap-[var(--space-panel-gap)] xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
           <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
           <WhenNearViewport>
             <BillingMilestonesBlock projectId={project.id} />

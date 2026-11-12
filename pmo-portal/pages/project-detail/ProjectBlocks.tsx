@@ -37,11 +37,11 @@ export const BlockAction: React.FC<{ onClick?: () => void; to?: string; children
 };
 
 /** Block chrome: heading, its unit/basis once, an optional action on the same baseline. */
-export const Block: React.FC<{ id: string; title: string; unit?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }> = ({ id, title, unit, action, children }) => (
-  <section aria-labelledby={id} className="min-w-0">
-    <Card>
+export const Block: React.FC<{ id: string; title: string; unit?: React.ReactNode; action?: React.ReactNode; fillRow?: boolean; children: React.ReactNode }> = ({ id, title, unit, action, fillRow = false, children }) => (
+  <section aria-labelledby={id} className={cn('min-w-0', fillRow && 'h-full')}>
+    <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
       <CardHead id={id} subline={unit} actions={action} className="pb-2">{title}</CardHead>
-      <CardPad className="pt-2">{children}</CardPad>
+      <CardPad className={cn('pt-2', fillRow && 'flex flex-1 flex-col')}>{children}</CardPad>
     </Card>
   </section>
 );
@@ -66,7 +66,7 @@ const MoneyHiddenFigures: React.FC<{ figures: HiddenFigure[] }> = ({ figures }) 
 
 /* ── Money: how much of the contract have we billed and collected? ─────────────────────────── */
 
-const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> = ({ project, fillRow = false }) => {
   const { t } = useTranslation('project');
   const whole = moneyIn(project.currency);
   const [financeDetailsOpen, setFinanceDetailsOpen] = useState(false);
@@ -83,9 +83,9 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
     </>
   );
   const title = t('projectDetail.money.positionTitle', 'Money position');
-  if (q.isPending || boq.isPending || billing.isPending) return <Block id="pd-money" title={title} unit={unit}><ListState variant="loading" rows={4} /></Block>;
+  if (q.isPending || boq.isPending || billing.isPending) return <Block id="pd-money" title={title} unit={unit} fillRow={fillRow}><ListState variant="loading" rows={4} /></Block>;
   if (q.isError || !q.data || boq.isError || billing.isError || !billing.data) {
-    return <Block id="pd-money" title={title}><ListState variant="error" title={t('projectDetail.money.error', "Couldn't load the money position")} onRetry={() => { void q.refetch(); void boq.refetch(); void billing.refetch(); }} /></Block>;
+    return <Block id="pd-money" title={title} fillRow={fillRow}><ListState variant="error" title={t('projectDetail.money.error', "Couldn't load the money position")} onRetry={() => { void q.refetch(); void boq.refetch(); void billing.refetch(); }} /></Block>;
   }
 
   const data = q.data;
@@ -178,7 +178,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
   const paidShare = share(paid);
 
   return (
-    <Block id="pd-money" title={title} unit={unit}>
+    <Block id="pd-money" title={title} unit={unit} fillRow={fillRow}>
       <MoneyHiddenFigures figures={hidden} />
       {/* L5: the block's one answer leads, biggest — how much of the contract is billed, then collected. */}
       {invoicedShare !== null && (
@@ -190,7 +190,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs }> = ({ project }) => 
           {cashReceived !== null && <span data-testid="money-lead-cash" className="text-lg font-semibold tabular-nums text-foreground">{t('projectDetail.money.cashLead', 'Received {{amount}}', { amount: whole(cashReceived) })}</span>}
         </p>
       )}
-      <dl className="grid min-w-0 gap-y-2" aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
+      <dl className={cn('grid min-w-0 gap-y-2', fillRow && 'flex-1')} style={fillRow ? { gridTemplateRows: `repeat(${steps.length}, minmax(min-content, 1fr))` } : undefined} aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
         {steps.map((step) => {
           const percent = share(step.value);
           return (

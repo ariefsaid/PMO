@@ -60,9 +60,10 @@ const DealStageLine: React.FC<{ project: PipelineProject }> = ({ project }) => {
     ? (project.decided_at ? formatCalendarDayInTimeZone(new Date(project.decided_at), getActiveLocale().timezone) : undefined)
     : project.stage_started_at?.slice(0, 10); // the pipeline RPC emits entered_on at UTC midnight
   if (!enteredOn) return null;
+  const label = stageLine(project.status, enteredOn, today, (k, d) => t(k, d));
   return (
-    <p data-testid={`stage-line-${project.id}`} className="text-control text-muted-foreground tabular">
-      {stageLine(project.status, enteredOn, today, (k, d) => t(k, d))}
+    <p data-testid={`stage-line-${project.id}`} title={label} className="min-w-0 text-control text-muted-foreground tabular">
+      {label}
     </p>
   );
 };
@@ -99,6 +100,9 @@ const DealCard: React.FC<{
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
   // The column already names a single-status stage; only Won/Lost (several statuses) need the chip.
   const columnRepeatsStatus = (SALES_COLUMNS.find((c) => c.statuses.includes(project.status))?.statuses.length ?? 0) <= 1;
+  const terminalStatus = columnRepeatsStatus ? null : (
+    <StatusPill record="project" state={project.status} wrap />
+  );
   return (
     <ProjectCardShell
       variant="kanban"
@@ -109,17 +113,9 @@ const DealCard: React.FC<{
       client={project.client_name}
       pmoProjectNumber={null}
       code={null}
-      status={columnRepeatsStatus ? null : (
-        <StatusPill record="project" state={project.status} wrap />
-      )}
+      status={null}
       // The head (first child) keeps clear of the card menu's trigger.
       className="[&>div:first-child]:pr-7"
-      foot={project.pm_name ? (
-        <span className="flex min-w-0 items-center gap-2 text-control text-muted-foreground">
-          <Avatar name={project.pm_name} size="xs" decorative fallback="" />
-          <span className="truncate">{project.pm_name}</span>
-        </span>
-      ) : undefined}
       body={
         // #696: the money row WRAPS. A column is ~258px wide, and in Bahasa (longer grouped
         // amounts + the PPN label) amount, basis and the probability pill do not
@@ -127,7 +123,18 @@ const DealCard: React.FC<{
         // its own sideways scrollbar. `min-w-0` lets each group shrink to the card, `shrink-0` keeps
         // the pill whole when it drops to its own line.
         <div className="min-w-0 space-y-1">
-          <DealStamp project={project} />
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div className="min-w-0 flex-1"><DealStamp project={project} /></div>
+            {terminalStatus}
+          </div>
+          <div className="flex min-h-5 min-w-0 items-center gap-2 text-control text-muted-foreground">
+            {project.pm_name ? (
+              <span title={project.pm_name} className="flex min-w-0 items-center gap-2">
+                <Avatar name={project.pm_name} size="xs" decorative fallback="" />
+                <span className="truncate">{project.pm_name}</span>
+              </span>
+            ) : <span>—</span>}
+          </div>
           <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
               <span className="text-[15px] font-bold tabular">

@@ -12,24 +12,26 @@ export const ProjectAttention: React.FC<{
   isPending?: boolean;
   error?: { what: string; retry: () => unknown };
   className?: string;
-}> = ({ items, excludeKeys, isPending, error, className }) => {
+  /** Let the visible rows share a desktop grid row with the money position. */
+  fillRow?: boolean;
+}> = ({ items, excludeKeys, isPending, error, className, fillRow = false }) => {
   const { t } = useTranslation('project');
   if (isPending) {
     return (
-      <section aria-labelledby="pd-attention" className={className}>
-        <Card>
+      <section aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
+        <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
           <CardHead id="pd-attention">{t('projectDetail.attention.title', 'Needs attention')}</CardHead>
-          <CardPad><ListState variant="loading" shape="cards" rows={2} /></CardPad>
+          <CardPad className={fillRow ? 'flex flex-1 flex-col' : undefined}><ListState variant="loading" shape="cards" rows={2} /></CardPad>
         </Card>
       </section>
     );
   }
   if (error) {
     return (
-      <section aria-labelledby="pd-attention" className={className}>
-        <Card>
+      <section aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
+        <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
           <CardHead id="pd-attention">{t('projectDetail.attention.title', 'Needs attention')}</CardHead>
-          <CardPad>
+          <CardPad className={fillRow ? 'flex flex-1 flex-col' : undefined}>
             <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
               <span>{t('projectDetail.attention.checkFailed', "Couldn't check {{what}}", { what: error.what })}</span>
               <Button variant="ghost" size="sm" onClick={() => void error.retry()}>{t('common.retry', 'Retry')}</Button>
@@ -43,10 +45,10 @@ export const ProjectAttention: React.FC<{
   if (excludeKeys && visibleItems.length === 0) return null;
   if (visibleItems.length === 0) {
     return (
-      <section aria-labelledby="pd-attention" className={className}>
-        <Card>
+      <section aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
+        <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
           <CardHead id="pd-attention">{t('projectDetail.attention.title', 'Needs attention')}</CardHead>
-          <CardPad>
+          <CardPad className={fillRow ? 'flex flex-1 flex-col' : undefined}>
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Icon name="check" className="size-4 text-success-text" />
               {t('projectDetail.attention.onTrack', 'Nothing needs you on this project right now.')}
@@ -58,19 +60,19 @@ export const ProjectAttention: React.FC<{
   }
   // Flat rows: the status word sits in `what`; its size carries the status colour (UX SD1). No stripes, no pills.
   return (
-    <section aria-labelledby="pd-attention" className={className}>
-      <Card>
+    <section aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
+      <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
         <CardHead id="pd-attention" actions={<Tooltip content={t('projectDetail.attention.countTooltip', 'Count of current project items that need follow-up.')}>
           <span tabIndex={0} className="font-normal text-muted-foreground">{visibleItems.length}</span>
         </Tooltip>}>
           {t('projectDetail.attention.title', 'Needs attention')}
         </CardHead>
-        <CardPad>
-          <ul className="divide-y divide-border/70">
+        <CardPad className={fillRow ? 'flex flex-1 flex-col' : undefined}>
+          <ul className={cn('divide-y divide-border/70', fillRow && 'flex flex-1 flex-col')}>
         {visibleItems.map((item) => (
-          <li key={item.key}>
+          <li key={item.key} className={fillRow ? 'flex flex-1' : undefined}>
             <Tooltip content={item.explanation ?? t('projectDetail.attention.rowTooltip', 'Status is based on project records and their current workflow state.')} block>
-              <Link to={item.to} className="touch-target flex items-baseline gap-x-4 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Link to={item.to} className={cn('touch-target flex items-baseline gap-x-4 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', fillRow && 'flex-1 items-center')}>
                 <span className="min-w-0 flex-1">
                   <span className="text-sm font-semibold text-foreground">{item.what}</span>
                   {item.size && <>{' '}<span className={cn('block text-sm font-medium tabular-nums sm:ml-3 sm:inline', item.tone === 'danger' ? 'text-destructive-text' : 'text-warning-foreground')}>{item.size}</span></>}
