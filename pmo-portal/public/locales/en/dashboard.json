@@ -695,6 +695,9 @@
     "label": "About {{subject}}"
   },
   "home": {
+    "budgetAtNinety": "Budget at 90% or more",
+    "approvePurchase": "Approve {{name}}",
+    "marginShort": "Margin to date {{amount}}",
     "findingAllOnTrack": "All {{count}} active projects on track",
     "contractSharePct": "{{percent}}% of contract",
     "pipelineGross": "Gross {{amount}}",

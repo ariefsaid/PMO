@@ -695,6 +695,9 @@
     "label": "Tentang {{subject}}"
   },
   "home": {
+    "budgetAtNinety": "Anggaran 90% atau lebih",
+    "approvePurchase": "Setujui {{name}}",
+    "marginShort": "Margin hingga kini {{amount}}",
     "findingAllOnTrack": "Semua {{count}} proyek aktif sesuai rencana",
     "contractSharePct": "{{percent}}% dari kontrak",
     "pipelineGross": "Bruto {{amount}}",

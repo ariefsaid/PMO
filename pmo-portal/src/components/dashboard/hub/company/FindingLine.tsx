@@ -19,7 +19,9 @@ export const FindingLine: React.FC<{
   approvals?: number;
   /** Organisation currency: the overdue amount names it first. */
   currency?: string;
-}> = ({ offTrack, overdue, approvals, currency = 'USD' }) => {
+  /** Where the operations clause leads (default every project; the PM home: my projects). */
+  opsHref?: string;
+}> = ({ offTrack, overdue, approvals, currency = 'USD', opsHref = '/projects' }) => {
   const { t } = useTranslation('dashboard');
   const clauses: Array<{ key: string; to: string; text: React.ReactNode }> = [];
   if (offTrack) {
@@ -30,7 +32,7 @@ export const FindingLine: React.FC<{
       : offTrack.total !== undefined && !offTrack.atLeast
         ? t('home.findingOffTrackOf', { count: offTrack.count, total: offTrack.total, defaultValue_one: '{{count}} of {{total}} active projects off track', defaultValue_other: '{{count}} of {{total}} active projects off track' })
         : t('home.findingOffTrackAtLeast', { count: offTrack.count, defaultValue_one: 'At least {{count}} project off track', defaultValue_other: 'At least {{count}} projects off track' });
-    clauses.push({ key: 'ops', to: '/projects', text });
+    clauses.push({ key: 'ops', to: opsHref, text });
   }
   if (overdue) {
     const text = overdue.count === 0

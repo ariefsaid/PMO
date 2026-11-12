@@ -286,31 +286,32 @@ describe('Project Manager home (one question: what needs me, which of my project
     expect(tile).toHaveTextContent('3 projects');
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=delivery&pm=pm-1');
 
-    expect(waitsRegion().compareDocumentPosition(projectsRegion()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(projectsRegion().compareDocumentPosition(tile) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The company-home composition: figures band, then my projects' health beside what waits on me.
+    expect(tile.compareDocumentPosition(projectsRegion()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(projectsRegion()).getByRole('link', { name: 'All 3 projects' })).toHaveAttribute('href', '/projects?filter=delivery&pm=pm-1');
   });
 
   it('AC-AT-RISK-INACTIVE: lists only delivery projects (Close Out included, pre-win and lost excluded), worst first, each routed to its project', () => {
     renderDashboard();
     const links = within(projectsRegion()).getAllByRole('link').map((link) => link.getAttribute('href'));
-    expect(links.filter((href) => href?.startsWith('/projects/'))).toEqual(['/projects/p1', '/projects/p2', '/projects/p3']);
+    expect(links.filter((href) => /^\/projects\/[^/?]+$/.test(href ?? ''))).toEqual(['/projects/p1', '/projects/p2', '/projects/p3']);
     expect(within(projectsRegion()).queryByText('Lost Project')).not.toBeInTheDocument();
     expect(within(projectsRegion()).queryByText('Pipeline Project')).not.toBeInTheDocument();
   });
 
-  it('says why a project needs me: overdue tasks, purchases to approve, budget at 90%+; delivery and budget used are numbers; at-risk status is red', () => {
-    state.procurements.data = [{ id: 'pr1', project_id: 'p1', status: 'Requested', requested_by_id: 'other' }];
+  it('says why a project needs me, with each open item one click away: its overdue tasks, each purchase to approve, budget at 90%+', () => {
+    state.procurements.data = [{ id: 'pr1', project_id: 'p1', status: 'Requested', requested_by_id: 'other', title: 'Cable drums', vendor: { name: 'Volt Supply' } }];
     renderDashboard();
     const one = rowFor('Project One');
-    expect(one).toHaveTextContent('2 overdue tasks · 1 purchase to approve · budget at 90% or more');
-    expect(one).toHaveTextContent('45%');
-    expect(one).toHaveTextContent('95%');
+    expect(one).toHaveTextContent('Budget at 90% or more');
+    // $95K spent of a $100K budget, 45% delivered: budget against actual, with delivery marked.
+    expect(one).toHaveTextContent('$95K spent of $100K budget · 45% delivered');
     expect(one).toHaveTextContent('Ongoing');
-    const two = rowFor('Project Two');
-    expect(two).toHaveTextContent('70%');
-    expect(two).toHaveTextContent('25%');
-    expect(two).toHaveTextContent('On hold');
+    const items = within(projectsRegion()).getAllByTestId('health-items')[0];
+    expect(within(items).getByRole('link', { name: '2 tasks overdue' })).toHaveAttribute('href', '/projects/p1/tasks');
+    expect(within(items).getByRole('link', { name: 'Approve Cable drums · Volt Supply' })).toHaveAttribute('href', '/procurement?open=pr1');
+    expect(rowFor('Project Two')).toHaveTextContent('70% delivered');
+    expect(rowFor('Project Two')).toHaveTextContent('On hold');
     expect(rowFor('Project Three')).toHaveTextContent('Close-out');
   });
 
@@ -400,6 +401,75 @@ describe('Project Manager home (one question: what needs me, which of my project
     expect(rowFor('Project Two')).toHaveAttribute('href', '/projects/p2');
     expect(rowFor('Project Two')).toHaveTextContent('70%');
     expect(rowFor('Project Two')).not.toHaveTextContent('On Hold');
+  });
+});
+
+describe('Project Manager home — the floor restored (overnight recompose)', () => {
+  it('each project row carries its number, client and currency, its contract, share of contract spent and margin to date', () => {
+    renderDashboard();
+    const one = rowFor('Project One');
+    expect(one).toHaveTextContent('PRJ-26-0001 · Acme Works · USD');
+    expect(one).toHaveTextContent('Contract $100K · 95% of contract · Margin to date $12.5K');
+  });
+
+  it('a project with nothing open says so', () => {
+    renderDashboard();
+    expect(rowFor('Project Three')).toHaveTextContent('Nothing needs you here.');
+  });
+
+  it('the finding line names how many of my projects are off track, linked to my projects, and what waits on me', () => {
+    renderDashboard();
+    const finding = screen.getByTestId('home-finding');
+    expect(within(finding).getByRole('link', { name: '1 of 3 active projects off track' })).toHaveAttribute('href', '/projects?filter=delivery&pm=pm-1');
+  });
+
+  it('At risk: the count of my projects at 90% or more of budget, its definition, and its drill', () => {
+    renderDashboard();
+    const tile = screen.getByTestId('kpi-at-risk');
+    expect(tile).toHaveTextContent('1');
+    expect(tile).toHaveTextContent('Projects at 90% or more of budget');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=at-risk&pm=pm-1');
+  });
+
+  it('Margin to date sums my projects per currency; contract value says what is left after spending', () => {
+    renderDashboard();
+    // 12,500 + 40,000 + 30,000 margin; 5,000 + 200,000 + 140,000 contract remaining.
+    expect(screen.getByTestId('kpi-margin-to-date')).toHaveTextContent('$82.5K');
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$345K left after spending');
+  });
+
+  it('Waits on you carries projects over 90% of budget and projects whose budget cannot be checked', () => {
+    state.needs.items = [...approvalItems,
+      { id: 'projects-over-budget', count: 1, label: 'project over 90% of budget', href: '/projects?filter=at-risk&pm=pm-1', tone: 'warn' },
+      { id: 'projects-risk-unchecked', count: 2, label: 'projects without a checkable budget', href: '/projects?filter=My+Projects', tone: 'neutral' }];
+    renderDashboard();
+    expect(within(waitsRegion()).getByRole('link', { name: /project over 90% of budget/ })).toHaveAttribute('href', '/projects?filter=at-risk&pm=pm-1');
+    expect(within(waitsRegion()).getByRole('link', { name: /projects without a checkable budget/ })).toHaveAttribute('href', '/projects?filter=My+Projects');
+  });
+
+  it('a known zero reads 0: no overdue task and no team hours are figures, not unreadable data', () => {
+    state.needs.items = [];
+    state.needs.pmOverdueTasksByProject = {};
+    state.timesheets.data = [];
+    renderDashboard();
+    expect(screen.getByTestId('kpi-tasks-overdue')).toHaveTextContent('0');
+    expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('0 h');
+  });
+
+  it('the page help says spending is incomplete for some projects, so the money shows only where known', async () => {
+    state.projects.data = [projects[0], { ...projects[1], spent: null, actual_complete: false }];
+    renderDashboard();
+    fireEvent.click(screen.getByRole('button', { name: /^About / }));
+    expect(await screen.findByText(/Some projects have incomplete spending/)).toBeInTheDocument();
+  });
+
+  it('one failed read never blanks the page: projects failing leaves waits, team hours and the retry in place', () => {
+    state.projects.isError = true;
+    state.projects.data = undefined;
+    renderDashboard();
+    expect(within(waitsRegion()).getByRole('link', { name: /approvals waiting for you/ })).toBeInTheDocument();
+    expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('5.75 h');
+    expect(within(projectsRegion()).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 });
 
