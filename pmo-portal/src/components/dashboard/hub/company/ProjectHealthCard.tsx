@@ -114,10 +114,10 @@ export const ProjectHealthCard: React.FC<{
                               ? <span className="text-muted-foreground">{quietLabel ?? t('home.nothingOverdue', 'Nothing overdue')}</span>
                               : wrong.map((fact) => <span key={fact.key} className={cn('whitespace-nowrap', fact.red ? 'text-destructive-text' : 'text-foreground')}>{fact.text}</span>)}
                           </span>}
-                          {/* One shape in every row: spend left, contract right where the card is wide enough for any row, else both on their own line. */}
-                          <span data-testid="health-money" className="mt-1 grid gap-x-3 text-control tabular @[36rem]:grid-cols-[minmax(0,1fr)_auto]">
+                          {/* One shape in every row: spend left, contract right where the card is 48rem or wider (room for the longest row), else both on their own line. */}
+                          <span data-testid="health-money" className="mt-1 grid gap-x-3 text-control tabular @[48rem]:grid-cols-[auto_auto] @[48rem]:justify-between @[48rem]:whitespace-nowrap">
                             <span data-testid="health-spend" className={cn(bullet?.spent == null ? 'text-muted-foreground' : 'text-foreground')}>{budgetWords}{bullet ? delivered : ''}</span>
-                            {contractWords && <span data-testid="health-contract" className="text-muted-foreground @[36rem]:text-right">{contractWords}</span>}
+                            {contractWords && <span data-testid="health-contract" className="text-muted-foreground @[48rem]:text-right">{contractWords}</span>}
                           </span>
                           <BulletBar bullet={bullet} />
                         </Link>
