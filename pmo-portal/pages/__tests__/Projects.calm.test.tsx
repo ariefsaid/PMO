@@ -53,14 +53,21 @@ const row = (i: number): ProjectWithRefs => ({
 const money = (i: number) => {
   const partial = i === 1 || i === 2; // two rows with an unmapped category
   const restricted = i === 3;
+  const amount = partial || restricted ? null : `${1_000_000 + i}.00`;
   return {
     ledgerBasis: 'erp',
     actuals: {
-      currency: 'USD', total: partial ? null : `${1_000_000 + i}.00`, asOf: '2026-10-01T00:00:00Z',
+      currency: 'USD', total: amount, asOf: '2026-10-01T00:00:00Z',
       excludesRestrictedRows: restricted,
       categories: [{ category: 'Labor', mapped: !partial, amount: partial ? null : `${1_000_000 + i}.00` }],
     },
     activeBudgetAmount: '4000000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+    budgetPosition: {
+      projectId: `p${i}`, ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '4000000.00',
+      spent: amount, openCommitment: null, consumption: amount, complete: amount !== null, usedRatio: amount === null ? null : '0.25',
+      usedPercent: amount === null ? null : '25', consumptionVariance: amount === null ? null : '-3000000.00',
+      riskEligible: amount !== null, atRisk: amount === null ? null : false,
+    },
   };
 };
 

@@ -16,7 +16,12 @@ const state = vi.hoisted(() => ({
     isError: false,
     refetch: vi.fn(),
   },
-  position: { actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0 },
+  position: {
+    actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0,
+    ledgerBasis: 'erp' as 'erp' | 'pmo' | null, spent: null as number | null, openCommitment: null as string | null,
+    consumption: null as string | null, consumptionVariance: null as string | null, budgetComparisonKnown: false,
+    usedPercent: null as number | null, atRisk: false,
+  },
   procurements: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   pushRows: [] as unknown[],
   archiveTargets: { data: [] as unknown[], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) },
@@ -163,7 +168,11 @@ beforeEach(() => {
     isError: false,
     refetch: vi.fn(),
   };
-  state.position = { actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 };
+  state.position = {
+    actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0,
+    ledgerBasis: 'erp', spent: null, openCommitment: null, consumption: null, consumptionVariance: null,
+    budgetComparisonKnown: false, usedPercent: null, atRisk: false,
+  };
   state.procurements = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   state.pushRows = [];
   state.archiveTargets = { data: [], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) };
@@ -182,7 +191,7 @@ describe('ProjectBudget Option A', () => {
 
     renderPage();
 
-    expect(screen.getAllByText('Left after spend').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Left after spending').length).toBeGreaterThan(0);
   });
 
   it('renders the approved summary, category columns, versions card, draft waiting banner, and bulk actions', async () => {
@@ -203,12 +212,12 @@ describe('ProjectBudget Option A', () => {
     expect(screen.getByRole('tab', { name: 'Forecast' })).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Budget vs actual by category' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Committed' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: '% used' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '% used before tax' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Budget versions' })).toHaveTextContent('Approved plan');
     expect(screen.getAllByText('Budget').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Spent').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Committed').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Left after spend').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Left after spending').length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select Labor' }));
     expect(screen.getByRole('toolbar', { name: 'Selected categories' })).toHaveTextContent('1 selected');
@@ -445,6 +454,7 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
   it('keeps the active budget currency when a different draft is selected', async () => {
     state.versions.data = [{ ...active([line('li-1', 'Labor', 'Design', 4_500_000)]), currency: 'EUR' }, draft({ currency: 'GBP' })];
     state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
+    state.position.spent = 35;
     state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 15, total_value: 15, currency: 'USD' }];
     renderPage();
     const tiles = screen.getByRole('region', { name: 'Budget figures' });
@@ -562,6 +572,7 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
 
   it('C4: an Uncategorized row with commitments and no budget says Not budgeted, never Unavailable; unknown authors are left out', () => {
     state.versions.data = [{ ...active(), created_by: 'someone-gone' } as unknown as BudgetVersionWithItems];
+    state.position.ledgerBasis = 'pmo';
     state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
     state.procurements.data = [{ status: 'Ordered', budget_category: null, approved_total_value: 40, total_value: 40, currency: 'USD' }];
     renderPage();

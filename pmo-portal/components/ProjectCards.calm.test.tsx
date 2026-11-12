@@ -41,11 +41,15 @@ const money = (over: Partial<ProjectMoneyRead> = {}): ProjectMoneyRead => ({
   ledgerBasis: 'erp',
   actuals: { currency: 'USD', total: '125000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] },
   activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
-  budgetPosition: {
+  budgetPosition: over.budgetPosition ?? (over.hasActiveBudget === false ? {
+    projectId: 'p1', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: null, activeBudgetAmount: null,
+    spent: null, openCommitment: null, consumption: null, complete: false, usedRatio: null,
+    usedPercent: null, consumptionVariance: null, riskEligible: false, atRisk: null,
+  } : {
     projectId: 'p1', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '500000.00',
     spent: '125000.00', openCommitment: null, consumption: '125000.00', complete: true, usedRatio: '0.25',
     usedPercent: '25', consumptionVariance: '-375000.00', riskEligible: true, atRisk: false,
-  },
+  }),
   ...over,
 }) as ProjectMoneyRead;
 

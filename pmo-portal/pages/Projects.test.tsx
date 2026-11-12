@@ -20,6 +20,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { addBuilderFilter, removeBuilderFilter } from './__tests__/projectFilterBuilder.helpers';
 import Projects from './Projects';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import type { CanonicalBudgetReading, ProjectMoneyRead } from '@/src/lib/db/projectMoney';
 import { formatExactMoney } from '@/src/lib/format';
 import { getNumberLocale, resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { BahasaProvider } from '@/test/bahasa';
@@ -66,13 +67,20 @@ const { roleBox, projectMutations, deliverySummaryState, projectMoneyState } = v
     isError: false,
   },
   projectMoneyState: {
-    data: {} as Record<string, { ledgerBasis?: 'erp' | 'pmo'; actuals: { currency: string; total: string | null; asOf: string | null; excludesRestrictedRows: boolean; complete?: boolean; categories: { category: string; mapped: boolean; amount: string | null }[] }; activeBudgetAmount: string | null; activeBudgetCurrency: string | null; hasActiveBudget: boolean }> | undefined,
+    data: {} as Record<string, ProjectMoneyRead> | undefined,
     isPending: false,
     fetchStatus: 'fetching' as 'fetching' | 'idle',
     isError: false,
     refetch: vi.fn(),
   },
 }));
+
+const canonicalPosition = (overrides: Partial<CanonicalBudgetReading> = {}): CanonicalBudgetReading => ({
+  projectId: 'p1', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '500000.00',
+  spent: '125000.00', openCommitment: null, consumption: '125000.00', complete: true,
+  usedRatio: '0.25', usedPercent: '25', consumptionVariance: '-375000.00', riskEligible: true, atRisk: false,
+  ...overrides,
+});
 // FR-L10N-020: this component reads useOrgCurrency for its ACROSS-record aggregates. Pinned here
 // rather than left to a real query. ⚑ At LINE-START on purpose — inserted inside a neighbouring
 // vi.mock call it parses as a syntax error and hides every real error beneath it.
@@ -454,6 +462,7 @@ describe('Projects table — compact layout (#1)', () => {
             categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }],
           },
           activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+          budgetPosition: canonicalPosition(),
         },
       };
       projectMoneyState.isPending = false;
@@ -673,7 +682,8 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     projectsState.isError = false;
     projectMoneyState.data = {
       p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '125000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
-        categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+        categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+        budgetPosition: canonicalPosition() },
     };
     projectMoneyState.isPending = false;
     projectMoneyState.isError = false;
@@ -696,7 +706,8 @@ describe('Projects table — Actual uses the canonical collection money read (AC
 
   it('keeps cached PMO figures unknown in cards and table after the project currency changes', async () => {
     projectMoneyState.data = { p1: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '950', asOf: null,
-      excludesRestrictedRows: false, complete: true, categories: [] }, activeBudgetAmount: '1000', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
+      excludesRestrictedRows: false, complete: true, categories: [] }, activeBudgetAmount: '1000', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+      budgetPosition: canonicalPosition({ ledgerBasis: 'pmo', activeBudgetAmount: '1000', spent: '950', consumption: '950', usedRatio: '0.95', usedPercent: '95', consumptionVariance: '-50', atRisk: true }) } };
     renderPage('Project Manager', '/projects?view=cards');
     expect(screen.getByTestId('project-card-actual')).toHaveTextContent('$950');
     expect(screen.getByLabelText('95% of Active budget before tax')).toBeInTheDocument();
@@ -884,7 +895,8 @@ describe('Projects table — Actual uses the canonical collection money read (AC
   it('AC-S02-012: known zero Actual is distinct from unavailable and uses the Active-budget denominator', () => {
     projectMoneyState.data = {
       p1: { actuals: { currency: 'USD', total: '0.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
-        categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+        categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+        budgetPosition: canonicalPosition({ spent: '0.00', consumption: '0.00', usedRatio: '0', usedPercent: '0', consumptionVariance: '-500000.00' }) },
     };
     renderPage();
     const body = document.querySelector('tbody')!;
@@ -948,7 +960,8 @@ describe('Projects table — Actual uses the canonical collection money read (AC
   it('AC-S02-013: only mapped Actual at or above 90% of a same-currency Active budget is at risk', () => {
     projectMoneyState.data = {
       p1: { actuals: { currency: 'USD', total: '450000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
-        categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+        categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+        budgetPosition: canonicalPosition({ spent: '450000.00', consumption: '450000.00', usedRatio: '0.9', usedPercent: '90', consumptionVariance: '-50000.00', atRisk: true }) },
     };
     renderPage();
     const utilization = screen.getByLabelText(/90% of Active budget before tax/);
