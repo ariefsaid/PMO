@@ -11,15 +11,7 @@ import { formatTileMoney } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { AttentionProject } from '@/src/lib/db/dashboard';
 import { CardLink } from './OverviewCards';
-import { bulletFor, overBudget, overdueTaskCount, type Bullet, type BulletTone } from './homeHealth';
-
-/**
- * Share of the contract spent, printed only when the comparison is sound: spending complete and in the contract's
- * currency, contract above zero (dev's "Spending vs contract" rule). Null otherwise.
- */
-export const contractShare = (row: AttentionProject): number | null =>
-  row.contract_value != null && row.contract_value > 0 && row.spent != null && row.actual_complete && row.actual_currency === row.currency
-    ? Math.round(row.spent / row.contract_value * 100) : null;
+import { bulletFor, contractShare, overBudget, overdueTaskCount, type Bullet, type BulletTone } from './homeHealth';
 
 const FILL: Record<BulletTone, string> = { data: 'bg-primary', ahead: 'bg-warning', over: 'bg-destructive' };
 

@@ -45,3 +45,11 @@ export function bulletFor(project: Pick<AttentionProject, 'budget' | 'spent' | '
   const tone: BulletTone = spent === null ? 'data' : spent > 1 ? 'over' : delivered !== null && spent > delivered ? 'ahead' : 'data';
   return { spent, delivered, tone };
 }
+
+/**
+ * Share of the contract spent, printed only when the comparison is sound: spending complete and in the contract's
+ * currency, contract above zero (dev's "Spending vs contract" rule). Null otherwise.
+ */
+export const contractShare = (row: AttentionProject): number | null =>
+  row.contract_value != null && row.contract_value > 0 && row.spent != null && row.actual_complete && row.actual_currency === row.currency
+    ? Math.round(row.spent / row.contract_value * 100) : null;

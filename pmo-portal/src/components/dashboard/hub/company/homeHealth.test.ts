@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AttentionProject } from '@/src/lib/db/dashboard';
-import { bulletFor, healthOrder } from './homeHealth';
+import { bulletFor, contractShare, healthOrder } from './homeHealth';
 
 const row = (id: string, over: Partial<AttentionProject> = {}): AttentionProject => ({
   id, name: id, client_name: null, contract_value: 1000, currency: 'USD', budget: 100, spent: 10, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD', status: 'Ongoing Project',
@@ -52,5 +52,16 @@ describe('budget-vs-actual bullet', () => {
   });
   it('clamps the delivered tick to the track', () => {
     expect(bulletFor(row('a'), 140)?.delivered).toBe(1);
+  });
+});
+
+describe('contractShare (HOME4: share of contract spent)', () => {
+  it('is spent over contract, rounded, only when the comparison is sound', () => {
+    expect(contractShare(row('a', { spent: 600, contract_value: 2000 }))).toBe(30);
+    expect(contractShare(row('b', { spent: 1, contract_value: 3 }))).toBe(33);
+    expect(contractShare(row('c', { actual_complete: false }))).toBeNull();
+    expect(contractShare(row('d', { actual_currency: 'EUR' }))).toBeNull();
+    expect(contractShare(row('e', { contract_value: 0 }))).toBeNull();
+    expect(contractShare(row('f', { spent: null }))).toBeNull();
   });
 });

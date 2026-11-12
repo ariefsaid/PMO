@@ -257,13 +257,13 @@ export const StackedBar: React.FC<{ parts: Part[]; ariaLabel: string }> = ({ par
   const segmentClass = 'flex min-w-6 items-center justify-center gap-1.5 overflow-hidden whitespace-nowrap px-1 text-control font-semibold tabular';
   return (
     <div>
-      {/* With links the bar is a list of drills (each named "label value"); without, one image named with every part. */}
-      <div ref={ref} role={linked ? 'list' : 'img'} aria-label={linked ? ariaLabel : `${ariaLabel}. ${shown.map((part) => `${part.label} ${part.value}`).join(', ')}`} className="flex h-11 gap-0.5 overflow-hidden rounded-md">
+      {/* With links the bar is a group of drills (each named "label value"); without, one image named with every part. */}
+      <div ref={ref} role={linked ? 'group' : 'img'} aria-label={linked ? ariaLabel : `${ariaLabel}. ${shown.map((part) => `${part.label} ${part.value}`).join(', ')}`} className="flex h-11 gap-0.5 overflow-hidden rounded-md">
         {shown.map((part, index) => {
           const style = { flex: `${part.value} 1 0`, background: step(index).fill, color: step(index).ink };
           const body = <>{fits(part) && <span aria-hidden>{part.label}</span>}<span aria-hidden={Boolean(part.href)}>{part.value}</span></>;
           return part.href
-            ? <Link key={part.key} role="listitem" to={part.href} aria-label={`${part.label} ${part.value}`} title={`${part.label} ${part.value}`} style={style} className={`${segmentClass} hover:opacity-90 ${focus}`}>{body}</Link>
+            ? <Link key={part.key} to={part.href} aria-label={`${part.label} ${part.value}`} title={`${part.label} ${part.value}`} style={style} className={`${segmentClass} hover:opacity-90 ${focus}`}>{body}</Link>
             : <div key={part.key} title={`${part.label} ${part.value}`} style={style} className={segmentClass}>{body}</div>;
         })}
       </div>

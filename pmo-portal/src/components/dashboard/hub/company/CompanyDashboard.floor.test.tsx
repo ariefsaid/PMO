@@ -145,10 +145,14 @@ describe('HOME4 floor: the finding line and the page help', () => {
     renderHome();
     const help = openPageHelp();
     expect(help).toHaveTextContent('Actuals available for 1 of 2 active delivery projects.');
-    expect(help).toHaveTextContent('1 project listed has incomplete spending');
+    expect(help).toHaveTextContent('1 project has incomplete spending');
     expect(help).toHaveTextContent('recorded spending divided by contract value');
     expect(help).toHaveTextContent('Purchases made directly in the accounting system are not counted');
     expect(help).toHaveTextContent('Remaining amount and count from open work orders');
+    expect(help).toHaveTextContent('Won and lost projects are excluded');
+    expect(help).toHaveTextContent('Count and value of projects recorded as won');
+    expect(help).toHaveTextContent('A project budget is over its recorded spend comparison');
+    expect(help).toHaveTextContent('whose recorded due date has passed');
   });
 });
 
@@ -219,11 +223,11 @@ describe('HOME4 floor: figures, sales and purchasing', () => {
   });
 
   it('the pipeline shows its gross beside the weighted total, and each stage its gross value', () => {
-    h.pipeline = { stages: [{ status: 'Lead', count: 2, total_value: 3_000_000, weighted_value: 600_000, win_probability: 0.2 }], projects: [] };
+    h.pipeline = { stages: [{ status: 'Leads', count: 2, total_value: 3_000_000, weighted_value: 600_000, win_probability: 0.2 }], projects: [] };
     renderHome();
     const sales = screen.getByTestId('sales-overview');
     expect(sales).toHaveTextContent('Gross $2M');
-    expect(within(sales).getByRole('link', { name: /Lead · 2: \$600K weighted of \$3M gross/ })).toHaveAttribute('href', '/sales?status=Lead');
+    expect(within(sales).getByRole('link', { name: /Leads · 2: \$600K weighted of \$3M gross/ })).toHaveAttribute('href', '/sales?status=Leads');
   });
 
   it('each purchasing stage is a drill to its procurements, named with its count', () => {
@@ -245,7 +249,7 @@ describe('HOME4 floor: the finance tables', () => {
     // No supplier invoice document is recorded on either, so neither unpaid amount is known.
     h.procurements = [procurement('a'), procurement('b')];
     renderHome('Finance');
-    const table = screen.getByRole('table', { name: /Ready to pay/ });
+    const table = within(screen.getByTestId('ready-to-pay')).getByRole('table');
     expect(within(table).getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
     expect(within(table).getAllByText('Supplier invoiced').length).toBeGreaterThan(0);
     expect(within(table).getAllByText('River project').length).toBeGreaterThan(0);
@@ -259,5 +263,8 @@ describe('HOME4 floor: the finance tables', () => {
     expect(within(card).getByRole('columnheader', { name: 'Project status' })).toBeInTheDocument();
     expect(card).toHaveTextContent('Top 5 active budgets by variance · 1 has incomplete spending');
     expect(within(card).getByRole('link', { name: 'View all' })).toHaveAttribute('href', '/projects');
+    const help = openPageHelp();
+    expect(help).toHaveTextContent('Variance is spending minus budget');
+    expect(help).toHaveTextContent('so due state is unknown');
   });
 });
