@@ -587,7 +587,7 @@
       "phasesDone": "{{done}} of {{total}} phases complete",
       "currentTooltip": "The first phase in plan order that is not complete. Source: the project phase plan and linked task progress.",
       "allPhasesDone": "All phases complete",
-      "phaseOverdue": "Overdue {{count}}d · target {{date}}",
+      "phaseOverdue": "Late {{count}}d · target {{date}}",
       "phaseTarget": "Target {{date}}",
       "phaseProgressTooltip": "Manual phase progress when set; otherwise done phase tasks divided by the phase task count. Source: the project phase plan.",
       "phaseProgressAria": "{{name}} {{pct}}% complete"
@@ -885,7 +885,7 @@
       "idSource": "Source: task record ID",
       "prioritySource": "Source: task priority field",
       "commentsOpenHint": "Open the task to read or add comments",
-      "dueTooltip": "Due date from the task record. Late days compare the due date with today in the organization timezone.",
+      "dueTooltip": "Due date from the task record. Overdue days compare the due date with today in the organization timezone.",
       "dayLate": "day late",
       "daysLate": "days late",
       "column": {

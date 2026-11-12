@@ -147,6 +147,32 @@ describe('Finance hub', () => {
     expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent('1 balance unknown');
   });
 
+  it('CV Phase 2: keeps unknown receivable balances on the tile and ageing, not the Waiting on Finance header', () => {
+    const invoice = { ...positionFixture().overdue[0]!.invoice, id: 'unknown-invoice', erp_outstanding_amount: null } as never;
+    state.position = {
+      ...positionFixture(),
+      receivablesCount: 1,
+      receivablesUnknownCount: 1,
+      receivablesAgeing: { IDR: { notDue: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+      overdue: [{ invoice, daysOverdue: 104, outstanding: null }],
+      overdueTotals: {},
+      overdueUnknownCount: 1,
+    };
+    state.role = 'Executive';
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    expect(screen.getByRole('heading', { name: 'Waiting on Finance' })).toBeInTheDocument();
+    const receivables = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    expect(receivables).toHaveTextContent('1 balance unknown');
+    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/1 invoice has no balance reported by the accounting system/i);
+
+    const attention = screen.getByRole('region', { name: 'Finance attention' });
+    expect(within(attention).getByRole('heading', { name: /Overdue/ })).not.toHaveTextContent('balance unknown');
+    const row = screen.getByRole('link', { name: /Open Client 1 invoice INV-1/ });
+    expect(row).toBeInTheDocument();
+    expect(row).not.toHaveTextContent(/balance unknown|—|IDR 0/);
+  });
+
   it('F1: names a wholly unknown balance and keeps a known unbilled zero as zero', () => {
     state.currency = 'USD';
     state.position = { ...positionFixture(), receivablesAgeing: {}, receivablesUnknownCount: 1, overdueUnknownCount: 1, overdue: [] };

@@ -41,8 +41,10 @@ beforeEach(() => {
   tasksState.isError = false;
 });
 
-describe('screen rules: My Tasks hierarchy and late emphasis', () => {
-  it('uses a waiting surface with a key figure and one emphasized late row', () => {
+describe('screen rules: My Tasks hierarchy and overdue emphasis', () => {
+  // Words ruling (docs/ux/screen-rules.md): a task past its due date is "overdue" everywhere;
+  // "late" is reserved for phases. Deliberate change from the merge-249b442ad "N days late" rows.
+  it('uses a waiting surface with a key figure and one emphasized overdue row', () => {
     renderMyTasks();
 
     expect(screen.getByRole('heading', { name: 'Tasks' })).toBeVisible();
@@ -53,10 +55,10 @@ describe('screen rules: My Tasks hierarchy and late emphasis', () => {
     expect(within(waiting).getByTestId('my-tasks-overdue-count')).toHaveClass('bg-status-danger-surface');
     expect(within(waiting).getByTestId('my-tasks-overdue-count')).toHaveTextContent('3');
 
-    const lateRows = screen.getAllByTestId(/^my-task-late-status-/);
-    expect(lateRows).toHaveLength(3);
-    expect(lateRows.filter((row) => row.classList.contains('text-destructive-text'))).toHaveLength(1);
-    expect(screen.getByTestId('my-task-late-status-second')).toHaveTextContent(/days late/);
-    expect(screen.getByTestId('my-task-late-status-second')).not.toHaveTextContent(/overdue/);
+    const overdueRows = screen.getAllByTestId(/^my-task-late-status-/);
+    expect(overdueRows).toHaveLength(3);
+    expect(overdueRows.filter((row) => row.classList.contains('text-destructive-text'))).toHaveLength(1);
+    expect(screen.getByTestId('my-task-late-status-second')).toHaveTextContent(/days overdue/);
+    expect(screen.getByTestId('my-task-late-status-second')).not.toHaveTextContent(/\blate\b/);
   });
 });

@@ -371,6 +371,12 @@ describe('Project Manager home — layouts', () => {
     const label = chart.getAttribute('aria-label') ?? '';
     expect(label.indexOf('Project Two')).toBeLessThan(label.indexOf('Project Three'));
     expect(label).toContain('Project Two: Contract $250,000, Budget $200,000, Spent $50,000');
+
+    const chartTable = screen.getByRole('table', { name: 'Plan vs actual by project' });
+    const columns = within(chartTable).getAllByRole('columnheader');
+    for (const column of columns.slice(1)) expect(column).toHaveClass('text-right');
+    const amountCells = within(chartTable).getAllByRole('cell');
+    expect(amountCells[0]).toHaveClass('text-right', 'tabular-nums');
   });
 
   it('Overview: no overdue tasks reads as a line, not an empty chart', () => {
