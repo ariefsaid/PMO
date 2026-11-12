@@ -35,6 +35,15 @@ describe('AC-MMP-011 management pack export', () => {
   const table = buildManagementPackExport(pack, labels);
   const col = (name: string) => table.header.indexOf(name);
 
+  it('F9 exports an unknown planned total blank and a known zero as zero', () => {
+    const total = table.body.find((row) => row[col('Project')] === 'Total')!;
+    expect(total[col('Planned')]).toBe('');
+    const scheduled = buildManagementPack({ ...facts, projects: [{ ...contractProject, start_date: '2027-01-01', end_date: '2027-12-31' }] });
+    const known = buildManagementPackExport(scheduled, labels);
+    const knownTotal = known.body.find((row) => row[col('Project')] === 'Total')!;
+    expect(knownTotal[col('Planned')]).toBe(0);
+  });
+
   it('AC-003 #1325: workbook project cells use the contractual name, not the alias', () => {
     expect(table.body[0][col('Project')]).toBe('Alpha');
     expect(table.body[0][col('Project')]).not.toBe('North Terminal');

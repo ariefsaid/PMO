@@ -23,7 +23,9 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => ({ data: { projects: [] }, isPending: false, isError: false, refetch: vi.fn() }),
   useWinRate: () => ({ data: { wins_count: 0, losses_count: 0, wins_value: 0, value_by_currency: [] }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useManagementPack', () => ({ useManagementPack: () => ({ data: { totals: [] }, isPending: false, isError: false, refetch: vi.fn() }) }));
+// cad044df6: the on-hand "Left to bill" figure reads the pack's latest month and its contract rows,
+// so the stub must be a whole pack (as CompanyDashboard.honesty.test.tsx already stubs it).
+vi.mock('@/src/hooks/useManagementPack', () => ({ useManagementPack: () => ({ data: { months: [], rows: [], totals: [] }, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useUnbilledWorkOrders: () => ({ data: { totals: [], incompleteCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useOrgCurrencyState: () => ({ isResolved: true }) }));

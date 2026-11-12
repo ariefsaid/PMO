@@ -325,7 +325,10 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     },
     {
       id: 'owed-clients', label: t('home.owedByClients', 'Owed by clients'), value: owed === undefined || owed.unknown > 0 ? null : '',
-      amounts: owed === undefined || owed.unknown > 0 ? null : owed.totals,
+      // The read holds open invoices only, so none open is a KNOWN zero (the shared formatter stopped inventing one):
+      // pass it explicitly, as the Receivables page does for `receivablesCount === 0`, or the tile vanishes and the
+      // page reports it hidden for balances that are in fact all synced.
+      amounts: owed === undefined || owed.unknown > 0 ? null : owed.totals.length ? owed.totals : [{ currency: orgCurrency, amount: 0 }],
       unavailableReason: t('home.reasonClientBalances', 'some client invoice balances are not synced'),
       // The one caption: what part of it is overdue (only when every overdue balance is known).
       subline: overdue && overdue.count > 0 && overdue.unknownBalances === 0 && overdue.knownTotals.length
