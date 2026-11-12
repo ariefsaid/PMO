@@ -83,8 +83,8 @@ export function BudgetReviewCard({ rows, pending, error, retry }: { rows: Budget
 }
 
 /** PMO-computed ageing (the finance hub's source), shown when the accounting system has no ageing synced (L12). */
-function PmoAgeing({ kind, values, unknownCounts }: { kind: 'receivables' | 'payables'; values: React.ComponentProps<typeof AgeingStrip>['values']; unknownCounts?: React.ComponentProps<typeof AgeingStrip>['unknownCounts'] }) {
-  return <AgeingStrip kind={kind} values={values} unknownCounts={unknownCounts} />;
+function PmoAgeing({ kind, values, unknownCounts, noDueDateCounts }: { kind: 'receivables' | 'payables'; values: React.ComponentProps<typeof AgeingStrip>['values']; unknownCounts?: React.ComponentProps<typeof AgeingStrip>['unknownCounts']; noDueDateCounts?: React.ComponentProps<typeof AgeingStrip>['noDueDateCounts'] }) {
+  return <AgeingStrip kind={kind} values={values} unknownCounts={unknownCounts} noDueDateCounts={noDueDateCounts} />;
 }
 
 /** True once the accounting snapshot has loaded with no rows, so the PMO ageing may stand in for it. */
@@ -98,7 +98,7 @@ function ClientAgingBlock() {
   const { customerLinks } = useCompanyCollections(clientCompanyIds);
   const pmo = finance.position.receivablesAgeing;
   if (snapshotEmpty(arAging) && finance.isPending) return <ListState variant="loading" shape="cards" rows={2} />;
-  if (snapshotEmpty(arAging) && !finance.isError && Object.keys(pmo).length > 0) return <PmoAgeing kind="receivables" values={pmo} />;
+  if (snapshotEmpty(arAging) && !finance.isError && Object.keys(pmo).length > 0) return <PmoAgeing kind="receivables" values={pmo} noDueDateCounts={finance.position.receivablesNoDueDateCounts} />;
   return <AccountingSnapshotsSection showActuals={false} showApAging={false} showArAging embedded actuals={[]} apAging={[]} arAging={arAging.data ?? []} arAgingPending={arAging.isPending} arAgingError={arAging.isError} onRetryArAging={() => void arAging.refetch()} customerLinks={customerLinks} />;
 }
 

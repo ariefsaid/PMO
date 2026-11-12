@@ -19,14 +19,17 @@ export interface AgeingStripProps {
   values: AgeingValues;
   /** L12: invoices whose balance is unknown, counted in their age bucket — never added as zero, never dropped. */
   unknownCounts?: Record<string, Partial<Record<BucketKey, number>>>;
+  /** Known receivables with no derivable due date, counted separately from balances. */
+  noDueDateCounts?: Record<string, number>;
   unknownTotal?: number;
 }
 
-const RECEIVABLE_BUCKETS = ['notDue', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
+const RECEIVABLE_BUCKETS = ['notDue', 'noDueDate', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
 const PAYABLE_BUCKETS = ['d0_30', 'd31_60', 'd61_90', 'over90'] as const;
 
 const BUCKET_COLORS: Record<BucketKey, string> = {
   notDue: chartTheme.series.neutral,
+  noDueDate: chartTheme.series.neutral,
   d0_30: chartTheme.series.neutral,
   d1_30: chartTheme.series.primary,
   d31_60: 'hsl(var(--primary) / 0.72)',
@@ -34,12 +37,13 @@ const BUCKET_COLORS: Record<BucketKey, string> = {
   over90: chartTheme.series.destructive,
 };
 
-export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, unknownTotal = 0 }) => {
+export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, noDueDateCounts = {}, unknownTotal = 0 }) => {
   const { t } = useTranslation();
   const { currency: orgCurrency, isResolved } = useOrgCurrencyState();
   const bucketKeys: readonly BucketKey[] = kind === 'receivables' ? RECEIVABLE_BUCKETS : PAYABLE_BUCKETS;
   const labels: Record<BucketKey, string> = {
     notDue: t('finance:area.notDue', 'Not yet due'),
+    noDueDate: t('finance:area.noDueDate', 'No due date'),
     d0_30: t('finance:area.days0to30', '0–30 days'),
     d1_30: t('finance:area.days1to30', '1–30 days'),
     d31_60: t('finance:area.days31to60', '31–60 days'),
@@ -50,7 +54,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
   const title = heading ?? (kind === 'receivables'
     ? t('finance:area.receivablesAgeingTitle', 'Client balances by age')
     : t('finance:area.payablesAgeingBasis', 'Invoice age, by days'));
-  const currencies = [...new Set([...Object.keys(values), ...Object.keys(unknownCounts)])].map((currency) => [currency, values[currency]] as const).sort(([left], [right]) => {
+  const currencies = [...new Set([...Object.keys(values), ...Object.keys(unknownCounts), ...(kind === 'receivables' ? Object.keys(noDueDateCounts) : [])])].map((currency) => [currency, values[currency]] as const).sort(([left], [right]) => {
     if (isResolved && left === orgCurrency) return -1;
     if (isResolved && right === orgCurrency) return 1;
     return 0;
@@ -96,6 +100,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
               {bucketKeys.map((key, index) => {
                 const amount = amounts[index] ?? 0;
                 const unknown = unknownCounts[currency]?.[key] ?? 0;
+                const noDueDateCount = kind === 'receivables' && key === 'noDueDate' ? noDueDateCounts[currency] ?? 0 : 0;
                 const unknownLabel = t('financeHub:hub.fix.ageing.unknownCount', { defaultValue: unknown === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknown });
                 return (
                   <div key={key} data-testid={`ageing-bucket-${currency}-${key}`} className="grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-baseline gap-x-2">
@@ -105,6 +110,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
                       ? <span className="text-right text-control text-muted-foreground">{unknownLabel}</span>
                       : <span className={cn('max-w-full break-all text-right tabular text-sm', amount === 0 ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground')}>{formatCurrency(amount / 100, currency)}</span>}
                     {unknown > 0 && amount !== 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('financeHub:hub.fix.ageing.plusUnknown', { defaultValue: '+ {{label}}', label: unknownLabel })}</span>}
+                    {noDueDateCount > 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('finance:area.ageingNoDueDateCount', { count: noDueDateCount, defaultValue_one: '{{count}} invoice', defaultValue_other: '{{count}} invoices' })}</span>}
                   </div>
                 );
               })}

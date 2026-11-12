@@ -85,7 +85,7 @@ function buildTaskColumns(
         <span tabIndex={0} className={`block whitespace-normal break-words tabular ${task.status !== 'Done' && task.end_date < today ? 'text-destructive-text' : 'text-muted-foreground'}`}>
           {formatDay(task.end_date)}
           {task.status !== 'Done' && task.end_date < today && (
-            <span> · {daysLate(task.end_date, today)} {daysLate(task.end_date, today) === 1 ? t('projectDetail.tasks.dayLate', 'day late') : t('projectDetail.tasks.daysLate', 'days late')}</span>
+            <span> · {daysLate(task.end_date, today)} {daysLate(task.end_date, today) === 1 ? t('projectDetail.tasks.dayLate', 'day overdue') : t('projectDetail.tasks.daysLate', 'days overdue')}</span>
           )}
         </span>
       </Tooltip> : <span className="text-muted-foreground">—</span>,

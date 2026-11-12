@@ -10,7 +10,7 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ConsumptionMonthRow } from '@/src/lib/db/stockReports';
 
 const th = 'px-3 py-2 text-left text-sm font-semibold text-muted-foreground';
-const thNum = `${th} text-right`;
+const thNum = `${th} text-right tabular tabular-nums`;
 const td = 'px-3 py-2 align-top text-sm';
 const tdNum = `${td} text-right tabular-nums whitespace-nowrap`;
 const phoneMetric = (label: string, value: React.ReactNode, className?: string) => (

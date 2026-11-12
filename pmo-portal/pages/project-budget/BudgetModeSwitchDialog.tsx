@@ -158,7 +158,7 @@ const BudgetModeSwitchDialog: React.FC<BudgetModeSwitchDialogProps> = ({
                   <th scope="col" className="px-3 py-2">{t('financeCopy.category', 'Category')}</th>
                   <th scope="col" className="px-3 py-2">{t('projectDetail.budget.description', 'Description')}</th>
                   {targetMode === 'whole_project' && <th scope="col" className="px-3 py-2">{t('financeCopy.fiscalYear', 'Fiscal year')}</th>}
-                  <th scope="col" className="px-3 py-2 text-right">{t('financeCopy.amount', 'Amount')}</th>
+                  <th scope="col" className="px-3 py-2 text-right tabular tabular-nums">{t('financeCopy.amount', 'Amount')}</th>
                   {targetMode === 'per_year' && <th scope="col" className="px-3 py-2">{t('financeCopy.fiscalYear', 'Fiscal year')}</th>}
                 </tr>
               </thead>

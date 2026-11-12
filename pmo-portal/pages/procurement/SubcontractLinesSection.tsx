@@ -135,18 +135,18 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm tabular">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-sm text-muted-foreground">
                   <th scope="col" className="py-1.5 pr-3 font-semibold">{t('subcontract.col.line', 'Line')}</th>
                   <th scope="col" className="py-1.5 pr-3 font-semibold">{t('subcontract.col.unit', 'Unit')}</th>
-                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold">{t('subcontract.col.rate', 'Rate')}</th>
-                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold">{t('subcontract.col.po', 'PO qty')}</th>
-                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold">{t('subcontract.col.verified', 'Verified')}</th>
-                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold">{t('subcontract.col.billed', 'Billed')}</th>
-                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold">{t('subcontract.col.payable', 'Payable')}</th>
-                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold">{t('subcontract.col.notOnPo', 'Verified, not on PO')}</th>
-                  <th scope="col" className="py-1.5 text-right font-semibold">{t('subcontract.col.disputed', 'Disputed')}</th>
+                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold tabular tabular-nums">{t('subcontract.col.rate', 'Rate')}</th>
+                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold tabular tabular-nums">{t('subcontract.col.po', 'PO qty')}</th>
+                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold tabular tabular-nums">{t('subcontract.col.verified', 'Verified')}</th>
+                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold tabular tabular-nums">{t('subcontract.col.billed', 'Billed')}</th>
+                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold tabular tabular-nums">{t('subcontract.col.payable', 'Payable')}</th>
+                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold tabular tabular-nums">{t('subcontract.col.notOnPo', 'Verified, not on PO')}</th>
+                  <th scope="col" className="py-1.5 text-right font-semibold tabular tabular-nums">{t('subcontract.col.disputed', 'Disputed')}</th>
                   {canRequestVariation && <th scope="col" className="py-1.5 pl-3 text-right font-semibold">{t('subcontract.variations.request', 'Variation')}</th>}
                 </tr>
               </thead>
@@ -161,12 +161,12 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                         <span className="ml-2 text-muted-foreground">{r.description}</span>
                       </th>
                       <td className="py-1.5 pr-3">{r.unit}</td>
-                      <td className="py-1.5 pr-3 text-right">{formatCurrency(r.rate, currency)}</td>
-                      <td className="py-1.5 pr-3 text-right">{num(r.po_qty)}</td>
-                      <td className="py-1.5 pr-3 text-right">{num(r.verified)}</td>
-                      <td className="py-1.5 pr-3 text-right">{num(r.billed)}</td>
-                      <td className="py-1.5 pr-3 text-right font-semibold">{num(r.payable)}</td>
-                      <td className="py-1.5 pr-3 text-right">
+                      <td className="py-1.5 pr-3 text-right tabular tabular-nums">{formatCurrency(r.rate, currency)}</td>
+                      <td className="py-1.5 pr-3 text-right tabular tabular-nums">{num(r.po_qty)}</td>
+                      <td className="py-1.5 pr-3 text-right tabular tabular-nums">{num(r.verified)}</td>
+                      <td className="py-1.5 pr-3 text-right tabular tabular-nums">{num(r.billed)}</td>
+                      <td className="py-1.5 pr-3 text-right font-semibold tabular tabular-nums">{num(r.payable)}</td>
+                      <td className="py-1.5 pr-3 text-right tabular tabular-nums">
                         {num(r.verified_not_on_po)}
                         {days !== null && (
                           <span className="ml-2"><StatusPill variant="warn">
@@ -174,7 +174,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                           </StatusPill></span>
                         )}
                       </td>
-                      <td className="py-1.5 text-right">{num(r.disputed)}</td>
+                      <td className="py-1.5 text-right tabular tabular-nums">{num(r.disputed)}</td>
                       {canRequestVariation && <td className="py-1.5 pl-3 text-right">
                         <div className="flex flex-wrap justify-end gap-1.5">
                           <Button variant="ghost" size="sm" onClick={() => setVariation({ row: r, origin: 'pre_work' })}>
@@ -195,11 +195,11 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                     <div className="flex flex-wrap justify-end gap-x-6 gap-y-1">
                       <span>
                         {t('subcontract.lines.billedTotal', 'Billed value')}{' '}
-                        <b data-testid="subcontract-billed-total">{billedKnown ? formatCurrency(billedTotal, currency) : dash}</b>
+                        <b data-testid="subcontract-billed-total" className="tabular tabular-nums">{billedKnown ? formatCurrency(billedTotal, currency) : dash}</b>
                       </span>
                       <span>
                         {t('subcontract.lines.billLinesTotal', 'Bill lines total')}{' '}
-                        <b data-testid="subcontract-bill-lines-total">{billedKnown ? formatCurrency(billedTotal, currency) : dash}</b>
+                        <b data-testid="subcontract-bill-lines-total" className="tabular tabular-nums">{billedKnown ? formatCurrency(billedTotal, currency) : dash}</b>
                       </span>
                     </div>
                   </td>
