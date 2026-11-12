@@ -63,7 +63,8 @@ it('AC-ROP-018 a mismatched generation or missing scope withholds the totals', (
 it('AC-ROP-017 unknown account basis and an ordinary purchase require a decision', () => {
   const evidence = { sourceId: 'binding', generation: 'g', accountScope: 'mapped', complete: true, classifications: { a: 'unknown' as const, b: 'mapped' as const } };
   const result = proposeCapture([source('a', { familyId: 'a' }), source('b', { familyId: 'b', purchaseId: 'ordinary', purchaseOrigin: 'ordinary' })], null, evidence);
-  expect(result.map(x => x.reason)).toEqual(['account_basis_unknown', 'ordinary_purchase_requires_decision']);
+  expect(result[0].reason).toBe('account_basis_unknown');
+  expect(result[1]).toMatchObject({ outcome: 'matched', purchaseId: 'ordinary' });
 });
 it('AC-ROP-018 keeps a PMO-only assignment bridge outside ERP ledger totals', () => {
   const result = reconcileCapture({ scope: { sourceId: 'b', projectId: 'p', currency: 'USD', scale: 2, accountScope: 'mapped', generation: 'g', asOf: '2026-01-01T00:00:00Z' }, complete: true, ledgerGeneration: 'g', documents: [], lines: [], assignmentBridge: [{ id: 'assignment', amountMinor: '42' }] });
@@ -98,21 +99,21 @@ it('AC-ROP-017 state must be compatible with the proposed source kind', () => {
   const result = proposeCapture([source('a', { kind: 'order', state: 'paid' }), source('b', { state: 'received' })], null, { sourceId: 'binding', generation: 'g', accountScope: 'mapped', complete: true, classifications: { a: 'mapped', b: 'mapped' } });
   expect(result.map(x => x.reason)).toEqual(['state_unsupported', 'state_unsupported']);
 });
-it('AC-ROP-021 missing producer evidence cannot become a proposal or a complete report', () => {
+it('AC-ROP-021 missing item evidence stays separate from scoped reconciliation', () => {
   const doc = source('a', { missing: ['line_evidence'] });
   const proposal = proposeCapture([doc], null, { sourceId: 'binding', generation: 'g', accountScope: 'mapped', complete: true, classifications: { a: 'mapped' } });
-  expect(proposal[0]).toMatchObject({ outcome: 'remainder', reason: 'line_evidence' });
+  expect(proposal[0].outcome).toBe('propose');
   const scope = { sourceId: 'binding', projectId: 'p', currency: 'USD', scale: 2, accountScope: 'mapped', generation: 'g', asOf: '2026-01-01T00:00:00Z' };
-  expect(reconcileCapture({ scope, complete: true, ledgerGeneration: 'g', documents: [doc], lines: [] })).toMatchObject({ complete: false, ledgerMinor: null, missing: ['line_evidence'] });
+  expect(reconcileCapture({ scope, complete: true, ledgerGeneration: 'g', documents: [doc], lines: [] })).toMatchObject({ complete: true, ledgerMinor: '0', itemCoverage: { complete: false, missing: ['line_evidence'] } });
 });
 it('AC-ROP-017 refuses face amounts without a currency scale', () => {
   const proposal = proposeCapture([source('a', { faceScale: null })], null, { sourceId: 'binding', generation: 'g', accountScope: 'mapped', complete: true, classifications: { a: 'mapped' } });
   expect(proposal[0].reason).toBe('amount_or_currency_unknown');
 });
-it('AC-ROP-021 absent line capability is not assumed available', () => {
+it('AC-ROP-021 absent item evidence does not prevent a proposal', () => {
   const row = source('a', { lines: undefined });
   const result = proposeCapture([row], null, { sourceId: 'binding', generation: 'g', accountScope: 'mapped', complete: true, classifications: { a: 'mapped' } });
-  expect(result[0].reason).toBe('line_evidence');
+  expect(result[0].outcome).toBe('propose');
 });
 it('AC-ROP-018 shows original document face values separately from ledger totals', () => {
   const scope = { sourceId: 'binding', projectId: 'p', currency: 'USD', scale: 2, accountScope: 'mapped', generation: 'g', asOf: '2026-01-01T00:00:00Z' };
@@ -134,4 +135,16 @@ it('AC-ROP-017 a family cannot acquire an existing purchase from another binding
   const result = proposeCapture([source('a'), source('b', { sourceId: 'other', purchaseId: 'outside', purchaseOrigin: 'captured' })], null, { sourceId: 'binding', generation: 'g', accountScope: 'mapped', complete: true, classifications: { a: 'mapped', b: 'mapped' } });
   expect(result[0]).toMatchObject({ outcome: 'remainder', reason: 'family_conflict' });
   expect(result[0].purchaseId).toBeUndefined();
+});
+
+it('AC-ROP-017 an unlinked sibling of an ordinary purchase needs a decision', () => {
+  const result = proposeCapture([source('a', { purchaseId: 'ordinary', purchaseOrigin: 'ordinary' }), source('b')], null, { sourceId: 'binding', generation: 'g', accountScope: 'mapped', complete: true, classifications: { a: 'mapped', b: 'mapped' } });
+  expect(result[0]).toMatchObject({ outcome: 'matched', purchaseId: 'ordinary' });
+  expect(result[1]).toMatchObject({ outcome: 'remainder', reason: 'ordinary_purchase_requires_decision' });
+});
+it('AC-ROP-017 still refuses missing critical facts without item evidence', () => {
+  const docs = [source('project', { projectIds: [], familyId: 'project', lines: null }), source('family', { familyId: null, lines: null }), source('currency', { currency: null, familyId: 'currency', lines: null }), source('account', { familyId: 'account', lines: null }), source('binding', { sourceId: 'other', familyId: 'binding', lines: null })];
+  const evidence = { sourceId: 'binding', generation: 'g', accountScope: 'mapped', complete: true };
+  expect(proposeCapture(docs, null, evidence).map(x => x.reason)).toEqual(['no_project', 'family_unknown', 'amount_or_currency_unknown', 'account_basis_unknown', 'source_scope_mismatch']);
+  expect(proposeCapture([source('a', { lines: null })], null, { ...evidence, generation: '' })[0].reason).toBe('evidence_incomplete');
 });

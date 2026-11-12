@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { collectPages } from './captureHistory';
+import { collectPages, proposeCapture, reconcileCapture } from './captureHistory';
 import { createCaptureAdapter } from './odoo/captureHistory';
 import { createCaptureAdapter as createErpnextAdapter } from './erpnext/captureHistory';
 
@@ -25,5 +25,15 @@ it('AC-ROP-021 ERPNext cannot claim an empty complete feed without trusted capab
 it('AC-ROP-021 unsupported ERPNext capability names each absent evidence class', async () => {
   const adapter = createErpnextAdapter(async () => ({ supported: true as const, generation: 'g', nextCursor: null, items: [] }));
   const result = await collectPages(adapter.listSources, { limit: 1 });
-  expect(result.missing).toEqual(expect.arrayContaining(['source_binding', 'source_generation', 'line_evidence', 'family_evidence', 'currency_evidence']));
+  expect(result.missing).toEqual(expect.arrayContaining(['source_binding', 'source_generation', 'family_evidence', 'currency_evidence']));
+});
+
+it('AC-ROP-018 and AC-ROP-021 compose nonempty ERPNext sources without claiming item coverage', async () => {
+  const rows = ['Purchase Order', 'Purchase Invoice'].map((kind, i) => ({ id: String(i), row: { id: String(i), erp_doctype: kind, erp_name: String(i), erp_docstatus: 1, erp_status: i ? 'Unpaid' : 'To Receive', erp_modified: 'v', supplier: 's', supplier_name: null, doc_date: null, currency: 'USD', net_total: '1', is_return: false, purchase_orders: [] }, evidence: { sourceId: 'b', projectIds: ['p'], familyId: 'f', purchaseId: null, supplierId: 's', scale: 2, scaleCurrency: 'USD' } }));
+  const adapter = createErpnextAdapter(async () => ({ supported: true as const, generation: 'g', nextCursor: null, items: rows }), undefined, { sourceId: 'b', generation: 'g', linesAvailable: false, familiesAvailable: true, currencyAvailable: true });
+  const result = await collectPages(adapter.listSources, { limit: 1 });
+  expect(result.complete).toBe(true);
+  expect(proposeCapture(result.items, null, { sourceId: 'b', generation: 'g', accountScope: 'mapped', complete: true, classifications: { '1': 'mapped' } }).map(x => x.outcome)).toEqual(['propose', 'propose']);
+  const scope = { sourceId: 'b', projectId: 'p', currency: 'USD', scale: 2, accountScope: 'mapped', generation: 'g', asOf: 'now' };
+  expect(reconcileCapture({ scope, complete: true, ledgerGeneration: 'g', documents: result.items, lines: [{ id: 'l', sourceId: 'b', currency: 'USD', projectId: 'p', documentId: '1', amountMinor: '100', kind: 'supplier_invoice', classification: 'mapped' }] })).toMatchObject({ complete: true, ledgerMinor: '100', itemCoverage: { complete: false, missing: ['line_evidence'] } });
 });

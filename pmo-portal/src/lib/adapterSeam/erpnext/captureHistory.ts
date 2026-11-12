@@ -1,4 +1,4 @@
-import type { CaptureKind, CaptureLedgerLine, CaptureSource, CaptureState, Page } from '../captureHistory';
+import type { CaptureKind, CaptureLine, CaptureLedgerLine, CaptureSource, CaptureState, Page } from '../captureHistory';
 import { invertProjectMap } from './projectMap';
 
 /** Scale is authoritative currency evidence supplied by the caller, never inferred from a document. */
@@ -14,7 +14,7 @@ export interface MirrorDocument {
   supplier: string | null; supplier_name: string | null; doc_date: string | null; currency: string | null; net_total: string | null;
   is_return: boolean; purchase_orders: string[];
 }
-export interface DocumentEvidence { sourceId: string; projectIds: string[]; familyId: string | null; purchaseId: string | null; purchaseOrigin?: CaptureSource['purchaseOrigin']; scale: number | null; scaleCurrency?: string | null; supplierId?: string | null }
+export interface DocumentEvidence { sourceId: string; projectIds: string[]; familyId: string | null; purchaseId: string | null; purchaseOrigin?: CaptureSource['purchaseOrigin']; scale: number | null; scaleCurrency?: string | null; supplierId?: string | null; lines?: CaptureLine[] | null }
 export function normaliseDocument(row: MirrorDocument, evidence: DocumentEvidence): CaptureSource {
   const kinds: Record<string, CaptureKind> = { 'Purchase Order': 'order', 'Purchase Receipt': 'receipt', 'Purchase Invoice': 'supplier_invoice', 'Payment Entry': 'supplier_payment' };
   const kind = row.is_return ? 'adjustment' : kinds[row.erp_doctype] ?? 'other';
@@ -28,14 +28,15 @@ export function normaliseDocument(row: MirrorDocument, evidence: DocumentEvidenc
     else if (row.erp_status === 'Partly Paid') state = 'part_paid';
     else if ((kind === 'supplier_invoice' || kind === 'adjustment') && ['Unpaid', 'Overdue', 'Return', 'Credit Note Issued'].includes(row.erp_status ?? '')) state = 'invoiced';
   }
-  const missing = ['line_evidence'];
+  // A trusted reader may transport item evidence later; absence does not block scoped A facts.
+  const missing = evidence.lines == null ? ['line_evidence'] : [];
   if (!evidence.familyId) missing.push('family_evidence');
   let faceMinor: string | null = null;
   try { if (row.net_total !== null && evidence.scale !== null && row.currency && evidence.scaleCurrency === row.currency) faceMinor = toMinorUnits(row.net_total, evidence.scale); } catch { /* Unknown amount remains unavailable. */ }
   if (faceMinor === null) missing.push('face_currency_or_amount');
   return { id: row.id, sourceId: evidence.sourceId, version: row.erp_modified, kind, state, projectIds: evidence.projectIds, supplierId: evidence.supplierId ?? null, supplierReference: row.supplier, supplierName: row.supplier_name,
     currency: row.currency, faceMinor, faceScale: faceMinor === null ? null : evidence.scale, familyId: evidence.familyId, purchaseId: evidence.purchaseId, purchaseOrigin: evidence.purchaseOrigin ?? null, reference: row.erp_name,
-    date: row.doc_date, description: null, lines: null, missing };
+    date: row.doc_date, description: null, lines: evidence.lines ?? null, missing };
 }
 export interface MirrorLedger { id: string; project: string | null; voucher_type: string | null; debit: string | null; credit: string | null }
 export function normaliseLedger(row: MirrorLedger, projectMap: Readonly<Record<string, unknown>>, evidence: { sourceId: string; currency: string; scale: number; documentId: string | null; classification: CaptureLedgerLine['classification'] }): { projectId: string | null; line: CaptureLedgerLine; reason?: string } {
@@ -53,7 +54,6 @@ export function createCaptureAdapter(readPage: (cursor: string | null) => Promis
     const missing = [
       ...(!sourceCapability?.sourceId ? ['source_binding'] : []),
       ...(!sourceCapability?.generation ? ['source_generation'] : []),
-      ...(!sourceCapability?.linesAvailable ? ['line_evidence'] : []),
       ...(!sourceCapability?.familiesAvailable ? ['family_evidence'] : []),
       ...(!sourceCapability?.currencyAvailable ? ['currency_evidence'] : []),
     ];
@@ -63,6 +63,7 @@ export function createCaptureAdapter(readPage: (cursor: string | null) => Promis
     if (page.generation !== sourceCapability.generation) return { supported: false as const, missing: ['generation_changed'] };
     return { ...page, items: page.items.map(item => {
       if (item.id !== item.row.id || item.evidence.sourceId !== sourceCapability.sourceId) throw new Error('source identity mismatch');
+      if (!sourceCapability.linesAvailable && item.evidence.lines != null) throw new Error('item capability mismatch');
       return normaliseDocument(item.row, item.evidence);
     }) };
   }, async listLedger(cursor: string | null) {

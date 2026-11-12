@@ -46,3 +46,8 @@ it('AC-ROP-023 unknown order status is not presented as an open order', () => {
   const row = { id: 'd', erp_doctype: 'Purchase Order', erp_name: 'PO', erp_docstatus: 1, erp_status: null, erp_modified: 'v', supplier: 's', supplier_name: null, doc_date: null, currency: 'USD', net_total: '1', is_return: false, purchase_orders: [] };
   expect(normaliseDocument(row, { sourceId: 'b', projectIds: ['p'], familyId: 'f', purchaseId: null, scale: 2, scaleCurrency: 'USD' }).state).toBe('unknown');
 });
+it('AC-ROP-023 transports trusted item evidence without inventing it', () => {
+  const row = { id: 'd', erp_doctype: 'Purchase Invoice', erp_name: 'INV', erp_docstatus: 1, erp_status: 'Unpaid', erp_modified: 'v', supplier: 's', supplier_name: null, doc_date: null, currency: 'USD', net_total: '1', is_return: false, purchase_orders: [] };
+  const lines = [{ id: 'item', description: 'description', projectShares: [] }];
+  expect(normaliseDocument(row, { sourceId: 'b', projectIds: ['p'], familyId: 'f', purchaseId: null, scale: 2, scaleCurrency: 'USD', lines })).toMatchObject({ lines, missing: [] });
+});

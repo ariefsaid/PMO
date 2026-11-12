@@ -36,8 +36,7 @@ export function proposeCapture(sources: CaptureSource[], projectId: string | nul
     else if (!valid(s.version)) reason = 'revision_unknown';
     else if (s.state === 'cancelled') reason = 'cancelled';
     else if (s.state === 'draft') reason = 'unposted_source';
-    else if (s.missing?.length) reason = s.missing[0];
-    else if (!Array.isArray(s.lines)) reason = 'line_evidence';
+    else if (s.missing?.some(x => x !== 'line_evidence')) reason = s.missing.find(x => x !== 'line_evidence');
     else if (s.kind === 'adjustment' || (s.faceMinor !== null && integer(s.faceMinor) && BigInt(s.faceMinor) < 0n)) reason = 'adjustment_requires_source_link';
     else if (s.kind === 'journal') reason = 'journal';
     else if (s.kind === 'supplier_payment') reason = 'payment_without_invoice';
@@ -51,7 +50,7 @@ export function proposeCapture(sources: CaptureSource[], projectId: string | nul
     else if (!valid(s.currency) || s.faceMinor === null || !integer(s.faceMinor) || s.faceScale === null || !Number.isInteger(s.faceScale) || s.faceScale < 0 || s.faceScale > 18) reason = 'amount_or_currency_unknown';
     else if (!valid(s.familyId)) reason = 'family_unknown';
     else if (conflict) reason = 'family_conflict';
-    else if (group.some(x => x.purchaseId && x.purchaseOrigin === 'ordinary')) reason = 'ordinary_purchase_requires_decision';
+    else if (!s.purchaseId && group.some(x => x.purchaseId && x.purchaseOrigin === 'ordinary')) reason = 'ordinary_purchase_requires_decision';
     else if (group.some(x => x.purchaseId && !x.purchaseOrigin)) reason = 'purchase_origin_unknown';
     else if (s.kind === 'supplier_invoice' && (!evidence.classifications?.[s.id] || evidence.classifications[s.id] === 'unknown')) reason = 'account_basis_unknown';
     else if (s.kind === 'supplier_invoice' && evidence.classifications?.[s.id] !== 'mapped') reason = evidence.classifications?.[s.id];
@@ -71,7 +70,7 @@ export interface CaptureReport {
   remainder: Array<{ id: string; amountMinor: string; reason: string }>;
   excluded: Array<{ id: string; amountMinor: string; reason: string }>;
   documents: Array<Pick<CaptureSource, 'id' | 'kind' | 'state' | 'currency' | 'faceMinor' | 'faceScale'>>;
-  documentOnly: string[]; missing: string[]; scope: CaptureScope; assignmentBridge: Array<{ id: string; amountMinor: string }> | null;
+  documentOnly: string[]; missing: string[]; itemCoverage: { complete: boolean; missing: string[] }; scope: CaptureScope; assignmentBridge: Array<{ id: string; amountMinor: string }> | null;
 }
 /** Ledger input is already scoped to one project, binding, account scope, generation and ledger currency. */
 export function reconcileCapture(input: { scope: CaptureScope; complete: boolean; documents: CaptureSource[]; lines: CaptureLedgerLine[]; ledgerGeneration: string; assignmentBridge?: Array<{ id: string; amountMinor: string }> | null }): CaptureReport {
@@ -80,14 +79,15 @@ export function reconcileCapture(input: { scope: CaptureScope; complete: boolean
   if (input.assignmentBridge) { uniqueIds(input.assignmentBridge); if (input.assignmentBridge.some(x => !integer(x.amountMinor))) throw new Error('invalid assignment amount'); }
   const { scope } = input;
   const missing: string[] = [];
+  const itemMissing: string[] = input.complete ? [] : ['incomplete_census'];
   if (!input.complete) missing.push('incomplete_census');
-  if (!valid(input.ledgerGeneration) || input.ledgerGeneration !== scope.generation) missing.push('generation_changed');
+  if (!valid(input.ledgerGeneration) || input.ledgerGeneration !== scope.generation) { missing.push('generation_changed'); itemMissing.push('generation_changed'); }
   if (!valid(scope.sourceId) || !valid(scope.projectId) || !valid(scope.accountScope) || !valid(scope.generation) || !valid(scope.asOf)) missing.push('scope_unknown');
   if (!valid(scope.currency) || !Number.isInteger(scope.scale) || scope.scale < 0 || scope.scale > 18) missing.push('currency_unknown');
-  if (input.documents.some(d => d.sourceId !== scope.sourceId)) missing.push('source_scope_mismatch');
+  if (input.documents.some(d => d.sourceId !== scope.sourceId)) { missing.push('source_scope_mismatch'); itemMissing.push('source_scope_mismatch'); }
   for (const doc of input.documents) {
-    missing.push(...(doc.missing ?? []));
-    if (!Array.isArray(doc.lines)) missing.push('line_evidence');
+    missing.push(...(doc.missing ?? []).filter(x => x !== 'line_evidence'));
+    if (!Array.isArray(doc.lines) || doc.missing?.includes('line_evidence')) itemMissing.push('line_evidence');
     if ((doc.kind === 'order' || doc.kind === 'supplier_invoice') && (!valid(doc.currency) || doc.faceMinor === null || !integer(doc.faceMinor) || doc.faceScale === null || !Number.isInteger(doc.faceScale) || doc.faceScale < 0 || doc.faceScale > 18)) missing.push('face_currency_or_amount');
   }
   const docs = new Map(input.documents.map(d => [d.id, d]));
@@ -108,7 +108,7 @@ export function reconcileCapture(input: { scope: CaptureScope; complete: boolean
     remainder.push({ id: line.id, amountMinor: line.amountMinor, reason });
   }
   const complete = missing.length === 0;
-  return { complete, ledgerMinor: complete ? (represented + remaining).toString() : null, representedMinor: complete ? represented.toString() : null, remainderMinor: complete ? remaining.toString() : null, remainder, excluded, documents: input.documents.map(({ id, kind, state, currency, faceMinor, faceScale }) => ({ id, kind, state, currency, faceMinor, faceScale })), documentOnly: input.documents.filter(d => !linked.has(d.id)).map(d => d.id), missing: [...new Set(missing)], scope, assignmentBridge: input.assignmentBridge ?? null };
+  return { complete, ledgerMinor: complete ? (represented + remaining).toString() : null, representedMinor: complete ? represented.toString() : null, remainderMinor: complete ? remaining.toString() : null, remainder, excluded, documents: input.documents.map(({ id, kind, state, currency, faceMinor, faceScale }) => ({ id, kind, state, currency, faceMinor, faceScale })), documentOnly: input.documents.filter(d => !linked.has(d.id)).map(d => d.id), missing: [...new Set(missing)], itemCoverage: { complete: itemMissing.length === 0, missing: [...new Set(itemMissing)] }, scope, assignmentBridge: input.assignmentBridge ?? null };
 }
 
 export type Page<T> = { supported: true; generation: string; items: T[]; nextCursor: string | null } | { supported: false; missing: string[] };
