@@ -164,8 +164,9 @@ export const PMDashboard: React.FC = () => {
   // Restored figures (dev's PM band), each from the PM projects read: contract left, at risk, margin to date.
   // Summed per currency the dev way (any project unknown makes the figure unknown); drawn the company home's way:
   // the organisation currency first, another currency on its own line.
+  const moneyReason = (field: 'contract_remaining' | 'realized_margin') => projects.length === 0 ? null : projectMoneyFigure(projects, field, orgCurrency, 'unknown').unavailableReason ?? null;
   const perCurrency = (field: 'contract_remaining' | 'realized_margin') => {
-    if (projects.length === 0 || projectMoneyFigure(projects, field, orgCurrency, 'unknown').unavailableReason) return null;
+    if (projects.length === 0 || moneyReason(field)) return null;
     const totals = new Map<string, number>();
     for (const project of projects) totals.set(project.currency, (totals.get(project.currency) ?? 0) + (project[field] as number));
     return moneyTileValue([...totals].map(([currency, amount]) => ({ currency, amount })), orgCurrency);
@@ -232,7 +233,7 @@ export const PMDashboard: React.FC = () => {
       </div>
     </div>
   );
-  const waitsEl = <DashboardWaitsOnYou rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />;
+  const waitsEl = <DashboardWaitsOnYou plain rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />;
   const projectsEl = (
     <ProjectHealthCard
       testId="pm-projects"
@@ -298,8 +299,9 @@ export const PMDashboard: React.FC = () => {
           {header}
           <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col">
             {contractTile}
-            {/* What is left of the contract after recorded spending: drawn only when every project's remainder is known. */}
-            {(contractLeftTile || projectsPending) && (
+            {/* What is left of the contract after recorded spending: drawn only when every project's remainder is known;
+                otherwise counted in the hidden-figures line with its reason. */}
+            {projects.length > 0 || projectsPending ? (
               <KPITile
                 testId="kpi-contract-left"
                 tone="green"
@@ -307,11 +309,12 @@ export const PMDashboard: React.FC = () => {
                 label={t('hub.pm.leftAfterSpending', 'Left after spending')}
                 value={contractLeftTile?.value ?? null}
                 exactValue={contractLeftTile?.exact}
+                unavailableReason={contractLeftTile ? undefined : t('hub.pm.reasonMoneyIncomplete', 'a project has incomplete spending or contract data')}
                 loading={projectsPending}
                 to={projectsHref(userId)}
                 linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
               />
-            )}
+            ) : null}
             <KPITile
               testId="kpi-at-risk"
               tone="amber"
@@ -325,7 +328,7 @@ export const PMDashboard: React.FC = () => {
               linkLabel={t('hub.pm.openAtRisk', 'Open at-risk projects')}
               help={t('hub.pm.atRiskHelp', 'Counts your delivery projects when actual spending is at least 90% of a positive budget in the same currency. Unknown spending or budget data makes the total unavailable.')}
             />
-            {(marginKnown || projectsPending) && (
+            {projects.length > 0 || projectsPending ? (
               <KPITile
                 testId="kpi-margin-to-date"
                 tone="blue"
@@ -333,12 +336,13 @@ export const PMDashboard: React.FC = () => {
                 label={t('hub.pm.marginToDate', 'Margin to date')}
                 value={marginTile?.value ?? null}
                 exactValue={marginTile?.exact}
+                unavailableReason={marginTile ? undefined : t('hub.pm.reasonMoneyIncomplete', 'a project has incomplete spending or contract data')}
                 loading={projectsPending}
                 to={projectsHref(userId)}
                 linkLabel={t('hub.pm.openMarginProjects', 'Open projects with billed-work margin')}
                 help={t('hub.pm.marginHelp', 'Margin on billed work to date: billed-work revenue less recorded actual spending, grouped by project currency.')}
               />
-            )}
+            ) : null}
             <KPITile
               testId="kpi-team-hours"
               tone="blue"
@@ -364,7 +368,7 @@ export const PMDashboard: React.FC = () => {
           </KPIRow>
           <div className="grid items-stretch gap-[var(--space-panel-gap)] max-[899px]:grid-cols-1 min-[900px]:grid-cols-12">
             <div className="min-w-0 max-[899px]:order-2 min-[900px]:col-span-8 [&>div]:h-full">{projectsEl}</div>
-            <div className="min-w-0 max-[899px]:order-1 min-[900px]:col-span-4 [&>div]:h-full">{waitsEl}</div>
+            <div className="min-w-0 self-start max-[899px]:order-1 min-[900px]:col-span-4">{waitsEl}</div>
           </div>
           <div className="grid items-stretch gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2">
             <ChartCard title={t('home.deliveryVsBudget', 'Delivery and budget used by project')} actions={<CardLink to={projectsHref(userId)}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink>}

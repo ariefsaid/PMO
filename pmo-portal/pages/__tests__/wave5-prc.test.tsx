@@ -172,7 +172,7 @@ describe('AC-IXD-DASH-W5-C2C — PMDashboard: attention areas are risk-sorted', 
   });
 
   const rowHrefs = () => within(screen.getByTestId('pm-projects')).getAllByRole('link').map((link) => link.getAttribute('href')).filter((href) => href?.startsWith('/projects/'));
-  const atRiskRows = () => within(screen.getByTestId('pm-projects')).getAllByRole('link').filter((link) => /budget at 90% or more/.test(link.textContent ?? ''));
+  const atRiskRows = () => within(screen.getByTestId('pm-projects')).getAllByRole('link').filter((link) => /budget at 90% or more/i.test(link.textContent ?? ''));
 
   it('C2C-PM-1: at-risk projects appear before safe ones', () => {
     renderPMDashboard();
