@@ -398,9 +398,9 @@ const DistributionGrid: React.FC<DistributionGridProps> = ({
               <thead className="bg-muted text-sm text-muted-foreground">
                 <tr>
                   <th scope="col" className="sticky left-0 z-[1] bg-muted px-3 py-2 text-left">{t('financeCopy.category', 'Category')}</th>
-                  <th scope="col" className="px-3 py-2 text-right">{t('financeCopy.total', 'Total')}</th>
+                  <th scope="col" className="px-3 py-2 text-right tabular tabular-nums">{t('financeCopy.total', 'Total')}</th>
                   <th scope="col" className="min-w-48 px-3 py-2 text-left">{t('projectDetail.budget.customDistribution', 'Custom distribution')}</th>
-                  {resolved.years.map((year) => <th key={year.name} scope="col" className="min-w-32 px-3 py-2 text-right">{year.name}</th>)}
+                  {resolved.years.map((year) => <th key={year.name} scope="col" className="min-w-32 px-3 py-2 text-right tabular tabular-nums">{year.name}</th>)}
                 </tr>
               </thead>
               <tbody>
