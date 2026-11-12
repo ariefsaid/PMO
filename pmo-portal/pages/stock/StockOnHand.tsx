@@ -15,6 +15,20 @@ import type { StockOnHandRow } from '@/src/lib/db/stockReports';
 
 const NEW_KINDS = ['receive', 'transfer', 'issue', 'return', 'count', 'adjustment'] as const;
 
+/**
+ * C18 scan order: item first, then warehouse. The read's own `order by w.code, i.code` groups by
+ * warehouse, so one item's stores sit apart in the list and finding "where is this item held" takes
+ * one look per warehouse. Codes compare numerically ("ITEM-9" before "ITEM-10"), then names, then ids
+ * so the order is total and stable across refetches.
+ */
+const compareBalanceRows = (a: StockOnHandRow, b: StockOnHandRow): number =>
+  a.itemCode.localeCompare(b.itemCode, undefined, { numeric: true }) ||
+  a.itemName.localeCompare(b.itemName) ||
+  a.warehouseCode.localeCompare(b.warehouseCode, undefined, { numeric: true }) ||
+  a.warehouseName.localeCompare(b.warehouseName) ||
+  a.itemId.localeCompare(b.itemId) ||
+  a.warehouseId.localeCompare(b.warehouseId);
+
 const StockOnHand: React.FC = () => {
   const { t } = useTranslation('stock');
   const may = usePermission();
@@ -62,7 +76,8 @@ const StockOnHand: React.FC = () => {
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? allRows.filter((r) => `${r.itemCode} ${r.itemName}`.toLowerCase().includes(q)) : allRows;
+    const visible = q ? allRows.filter((r) => `${r.itemCode} ${r.itemName}`.toLowerCase().includes(q)) : allRows;
+    return [...visible].sort(compareBalanceRows);
   }, [allRows, search]);
   // Cost columns follow the DATA, not the role: if the server omitted them they are absent, never a fabricated 0.
   const showCost = (onHand.data ?? []).some((r) => r.valueOnHand !== undefined);

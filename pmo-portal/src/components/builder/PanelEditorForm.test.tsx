@@ -42,6 +42,20 @@ function openForm(props?: Partial<React.ComponentProps<typeof PanelEditorForm>>)
 }
 
 describe('PanelEditorForm — whitelist constraints', () => {
+  it('C10 PanelEditorForm.tsx:217: an incomplete filter cannot be silently dropped on confirm', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    openForm({ onConfirm });
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'companies');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.click(screen.getByRole('button', { name: /add filter/i }));
+
+    expect(screen.getByText('Complete or remove each filter row before saving.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /add panel|confirm/i })).toBeDisabled();
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
   it('CMP-004: closing a changed panel asks first, and Keep editing preserves the draft', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
