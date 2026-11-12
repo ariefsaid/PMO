@@ -431,7 +431,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
               <ul aria-label={t('m365Documents.picker.libraries', 'Libraries')} className="max-h-72 overflow-auto">
                 {libraries.value.map((lib) => (
                   <li key={lib.id} className="border-b border-border last:border-b-0">
-                    <Button variant="ghost" className={ROW_BUTTON} title={lib.name} onClick={() => openItems(lib, [])}><Icon name="folder" className="shrink-0" /><span className={`min-w-0 flex-1 text-left ${WRAP}`}>{lib.name}</span></Button>
+                    <Button variant="ghost" className={`${ROW_BUTTON} w-full`} title={lib.name} onClick={() => openItems(lib, [])}><Icon name="folder" className="shrink-0" /><span className={`min-w-0 flex-1 text-left ${WRAP}`}>{lib.name}</span></Button>
                   </li>
                 ))}
               </ul>
