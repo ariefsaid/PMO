@@ -428,6 +428,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
       {remoteConflict && (
         <div role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-[13px]">
           <p>{t('viewBuilder:serverVersionChanged', 'The saved view changed while you were editing.')}</p>
+          <p className="mt-1">{t('viewBuilder:serverVersionChangedHelp', 'Reload drops the edits you have not saved; continue keeps them.')}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => applyViewToEditor(remoteConflict)}>
               {t('viewBuilder:reloadSavedView', 'Reload saved view')}

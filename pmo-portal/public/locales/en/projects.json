@@ -97,7 +97,8 @@
       "nounPlural": "companies"
     },
     "endCustomer": {
-      "nounPlural": "companies"
+      "nounPlural": "companies",
+      "helper": "Optional. The company the work is finally for; leave empty when it is the client."
     }
   }
 }

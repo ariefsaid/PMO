@@ -97,7 +97,8 @@
       "nounPlural": "perusahaan"
     },
     "endCustomer": {
-      "nounPlural": "perusahaan"
+      "nounPlural": "perusahaan",
+      "helper": "Opsional. Perusahaan yang akhirnya menerima pekerjaan; kosongkan bila sama dengan klien."
     }
   }
 }

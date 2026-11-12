@@ -154,7 +154,7 @@
     "STK_RETURN_EXCEEDS": "Pengembalian tidak boleh melebihi jumlah yang dikeluarkan.",
     "STK_ARCHIVED": "Data ini sudah diarsipkan.",
     "STK_FRACTION": "Satuan ini hanya menerima bilangan bulat.",
-    "STK_BACKDATE": "Tanggal terlalu jauh ke belakang atau di masa depan.",
+    "STK_BACKDATE": "Hanya Admin yang dapat memberi tanggal lebih dari 31 hari ke belakang, dan tidak ada yang dapat memakai tanggal di masa depan.",
     "STK_HAS_STOCK": "Stok masih ada, jadi tidak bisa diarsipkan.",
     "STK_UNIT_LOCKED": "Satuan ini sudah dipakai dokumen stok, jadi tidak bisa diubah.",
     "STK_INVALID": "Sebagian isian tidak valid.",
@@ -374,7 +374,8 @@
       "source": "Pilih baris pengeluaran yang dikembalikan.",
       "quantity": "Masukkan jumlah di atas nol (maksimal 3 desimal).",
       "unitCost": "Masukkan biaya satuan (nol atau lebih)."
-    }
+    },
+    "qtyUnitHelp": "Masukkan jumlah dalam {{unit}}."
   },
   "count": {
     "sections": {
@@ -413,7 +414,8 @@
       "counted": "Isi jumlah terhitung (0 atau lebih, maksimal 3 desimal).",
       "costNeeded": "Isi biaya satuan: sistem tidak menyimpan barang ini."
     },
-    "costOnFile": "Biaya satuan sudah tersimpan. Kosongkan untuk mempertahankannya."
+    "costOnFile": "Biaya satuan sudah tersimpan. Kosongkan untuk mempertahankannya.",
+    "editingDraft": "Mengedit draf tersimpan: stok tidak berubah sampai Anda mempostingnya."
   },
   "consumption": {
     "from": "Dari bulan",
@@ -476,7 +478,7 @@
       "warehousePlaceholder": "Pilih gudang",
       "pick": "Pilih barang dan gudang untuk melihat saran.",
       "current": "Level berlaku: {{level}} {{unit}}",
-      "currentQuantity": "pesan {{quantity}} {{unit}}",
+      "currentQuantity": "pada level ini Anda memesan {{quantity}} {{unit}}",
       "noCurrent": "Belum ada level pemesanan ulang di sini.",
       "suggestedLevel": "Saran level",
       "suggestedQuantity": "Saran jumlah pesanan",

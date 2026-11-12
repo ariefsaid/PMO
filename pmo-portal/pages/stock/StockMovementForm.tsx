@@ -142,6 +142,11 @@ const StockMovementForm: React.FC = () => {
     const item = l.itemId ? itemById.get(l.itemId) : undefined;
     return item ? (wholeByUnit.get(item.unit_id) ?? false) : false;
   }
+  /** The item's own unit code, so the quantity field can say what its number is measured in (C16). */
+  function unitCodeOfLine(l: LineState): string {
+    const item = l.itemId ? itemById.get(l.itemId) : undefined;
+    return item ? (units.data ?? []).find((u) => u.id === item.unit_id)?.code ?? '' : '';
+  }
 
   async function submit(ev: React.FormEvent) {
     ev.preventDefault();
@@ -252,7 +257,7 @@ const StockMovementForm: React.FC = () => {
                         autoComplete="off"
                         value={l.quantity}
                         onChange={(v) => setLine(l.key, { quantity: v })}
-                        helper={kind === 'return' && src ? t('form.issuedHelper', { qty: src.quantity, unit: src.item?.unit.code ?? '' }) : undefined}
+                        helper={kind === 'return' && src ? t('form.issuedHelper', { qty: src.quantity, unit: src.item?.unit.code ?? '' }) : unitCodeOfLine(l) ? t('form.qtyUnitHelp', 'Enter the quantity in {{unit}}.', { unit: unitCodeOfLine(l) }) : undefined}
                         error={fieldErrors[`qty${l.key}`]}
                       />
                       {kind === 'receive' && (

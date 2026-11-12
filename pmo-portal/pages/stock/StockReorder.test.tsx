@@ -74,6 +74,22 @@ describe('StockReorder', () => {
     expect(reorder.suggestion).toHaveBeenCalledWith('w1', 'i1');
   });
 
+  it('C16 an empty two-select panel says what to do, and the instruction goes once both are chosen', async () => {
+    renderPage();
+    const panel = screen.getByRole('region', { name: 'Set a reorder level' });
+    expect(within(panel).getByText('Choose an item and a warehouse to see a suggestion.')).toBeInTheDocument();
+    await pickPair();
+    await screen.findByText('Suggested level');
+    expect(screen.queryByText('Choose an item and a warehouse to see a suggestion.')).not.toBeInTheDocument();
+  });
+
+  it('C16 the level in force says the stored quantity is what you order at that level', async () => {
+    reorder.suggestion.mockResolvedValue({ ...okSuggestion, current: { reorderLevel: '40', reorderQuantity: '55' } });
+    renderPage();
+    await pickPair();
+    expect(await screen.findByText(/Level in force: 40 m, you order 55 m at this level/)).toBeInTheDocument();
+  });
+
   it('AC-STK-026 "not enough history" shows no figure and says why (28 days / 3 movements)', async () => {
     reorder.suggestion.mockResolvedValue(noHistory);
     renderPage();

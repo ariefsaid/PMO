@@ -162,6 +162,20 @@ describe('StockMovementForm', () => {
     expect(input.lines).toEqual([{ itemId: 'i2', quantity: '2.5', boqItemId: 'b1' }]);
   });
 
+  it('C16 the quantity field says which unit the number is in, for an issue', async () => {
+    renderForm('issue');
+    await fillIssue('5');
+    expect(screen.getByLabelText(/^Quantity/)).toHaveAccessibleDescription(/Enter the quantity in bag\./);
+  });
+
+  it('C16 a backdated movement names the horizon instead of "too far back"', async () => {
+    documents.create.mockRejectedValue({ code: 'P0001', message: 'STK_BACKDATE: only an Admin may date a movement more than 31 days back' });
+    renderForm('issue');
+    await fillIssue('5');
+    await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
+    expect(await screen.findByText(/Only an Admin can date a movement more than 31 days back/)).toBeInTheDocument();
+  });
+
   it('STK_FRACTION a fraction on a whole-number unit is refused before it is sent', async () => {
     renderForm('issue');
     await fillIssue('2.5');
