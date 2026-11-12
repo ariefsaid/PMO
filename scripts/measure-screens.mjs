@@ -455,6 +455,7 @@ async function loadToolModules() {
   ]);
   return {
     probe: probeModule.probe,
+    frame: probeModule.frame,
     tasteLayout: probeModule.layout,
     tasteApp: probeModule.app,
     colourShare: probeModule.colourShare,
@@ -541,9 +542,104 @@ async function measureUxProof(page, cell, route, login, budget, tools) {
     const key = `${route}@${cell.width}@${login}`;
     const targetBaseline = budget.targets?.[key];
     const findings = tools.violations(metrics, budget[key], `${route} @${cell.width}`, budget.charts?.[key], targetBaseline);
-    if (targetBaseline === undefined) findings.push(`${route} @${cell.width}: missing shrink-only target baseline; run the measured seed after fixes.`);
-    return toolResult(findings, { metrics, baseline: budget[key] ?? null, chartBaseline: budget.charts?.[key] ?? null, targetBaseline: targetBaseline ?? null });
+    // A missing shrink-only baseline is a gap in the budget file, not something wrong with the screen:
+    // it travels as a note so the finding count stays the screen's own violations (the slow path's 0/0).
+    const notes = targetBaseline === undefined
+      ? [`${route} @${cell.width}: missing shrink-only target baseline; run the measured seed after fixes.`]
+      : [];
+    return { ...toolResult(findings, { metrics, baseline: budget[key] ?? null, chartBaseline: budget.charts?.[key] ?? null, targetBaseline: targetBaseline ?? null }), notes };
   } catch (error) { return unknownResult(error); }
+}
+
+const WALK_MAX_SCREENS = 40;
+
+// The scroll walk: taste's own inspector checks every screen it photographs, because some defects only
+// exist at a scroll position or as a frame-to-frame state (two texts drawn over each other while a
+// heading swaps, a caption covered every time it is in view). The one-pass driver judges a single
+// snapshot, so it reuses the skill's in-page frame check (probe.mjs `frame`) at each screen and applies
+// the same aggregation the inspector does (inspect.mjs "what only shows up while scrolling").
+async function walkFrameChecks(page, tools, width, pageHeight, metrics) {
+  const height = HEIGHT_BY_WIDTH[width] ?? Math.round(width * 0.625);
+  const check = () => page.evaluate(tools.frame, { film: false }).catch(() => null);
+  const where = () => page.evaluate(() => ({
+    y: Math.round(scrollY || document.scrollingElement.scrollTop || 0),
+    max: Math.round(document.scrollingElement.scrollHeight - innerHeight),
+  })).catch(() => null);
+  const controls = metrics?.page?.pauseControl
+    ? await page.evaluate((id) => !!document.querySelector(id), metrics.page.pauseControl).catch(() => false)
+    : false;
+  const total = Math.max(1, Math.ceil((Number(pageHeight) || height) / height));
+  const stride = Math.max(1, Math.ceil(total / WALK_MAX_SCREENS));
+  const frames = [await check()];
+  let lastY = 0;
+  for (let i = 1; i <= WALK_MAX_SCREENS + 8; i++) {
+    await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), i * stride * height).catch(() => {});
+    await delay(650);
+    let pos = await where();
+    if (pos && pos.y <= lastY + 2 && pos.y < pos.max - 2) {
+      await page.mouse.wheel(0, Math.round(height / 2)).catch(() => {});
+      await delay(1000);
+      await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), i * stride * height).catch(() => {});
+      await delay(650);
+      pos = await where();
+    }
+    if (!pos || pos.y <= lastY + 2) break;
+    lastY = pos.y;
+    frames.push(await check());
+    if (pos.y >= pos.max - 2) break;
+  }
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' })).catch(() => {});
+  await delay(350);
+  return { frames: frames.filter(Boolean), pauseControl: controls, stride };
+}
+
+export function walkFrameFindings(walk, width, height) {
+  const frames = Array.isArray(walk) ? walk : walk.frames;
+  const pauseControl = Array.isArray(walk) ? false : !!walk.pauseControl;
+  const stride = Array.isArray(walk) ? 1 : (walk.stride || 1);
+  const findings = [];
+  const screenOf = (frame, index) => (frame && frame.y != null ? Math.round(frame.y / height) + 1 : index * stride + 1);
+  const collect = (key) => [...new Map(frames.filter(Boolean).flatMap((frame, index) => (frame[key] || []).map((item) => [item.text, { ...item, screen: screenOf(frame, index) }]))).values()];
+  const coveredText = collect('covered');
+  if (coveredText.length) findings.push({ level: 'FAIL', id: 'covered-text', width, message: 'Large text lies under another element at some scroll position: ' + coveredText.slice(0, 4).map((c) => `"${c.text}" (screen ${c.screen}, ${Math.round(c.share * 100)}% hidden)`).join('; ') });
+  const clippedText = collect('clipped');
+  if (clippedText.length) findings.push({ level: 'FAIL', id: 'clipped-text', width, message: 'Large text is cut off along its top by the box that holds it: ' + clippedText.slice(0, 3).map((c) => `"${c.text}" (screen ${c.screen})`).join('; ') });
+  const overPictures = collect('pinnedOver');
+  if (overPictures.length) findings.push({ level: 'WARN', id: 'pinned-over-picture', width, message: 'Pinned large text slides across pictures while the page scrolls: ' + overPictures.slice(0, 3).map((c) => `"${c.text}" (screen ${c.screen}, ${Math.round(c.share * 100)}% over a picture)`).join('; ') });
+  const overText = [...new Map(frames.filter(Boolean).flatMap((frame) => (frame.overText || []).map((o) => [`${o.a}|${o.b}`, { ...o, y: frame.y }]))).values()];
+  if (overText.length) findings.push({ level: 'FAIL', id: 'text-over-text', width, message: 'Two texts are drawn on top of each other while the page scrolls: ' + overText.slice(0, 3).map((o) => `"${o.a}" over "${o.b}" (at ${o.y}px)`).join('; ') });
+  const sightings = new Map();
+  for (const frame of frames.filter(Boolean)) for (const [text, ok] of frame.seen || []) {
+    const s = sightings.get(text) || { n: 0, ok: 0, at: [] };
+    s.n++; s.ok += ok; if (s.at.length < 6) s.at.push(frame.y); sightings.set(text, s);
+  }
+  const unread = [...sightings.entries()].filter(([, s]) => s.n >= 2 && !s.ok).map(([text, s]) => ({ text, n: s.n, at: s.at }));
+  if (unread.length) findings.push({ level: 'FAIL', id: 'never-readable', width, message: `${unread.length} block(s) of text are covered at every scroll position they were seen at: ` + unread.slice(0, 4).map((u) => `"${u.text.slice(0, 44)}" (${u.n} frames)`).join('; ') });
+  const playing = [...new Set(frames.filter(Boolean).flatMap((frame) => frame.playing || []))];
+  if (playing.length && !pauseControl) findings.push({ level: 'WARN', id: 'no-pause', width, message: `${playing.length} video loop(s) play with no control to pause them: ${playing.slice(0, 3).join(', ')}` });
+  const onMedia = new Map();
+  for (const frame of frames.filter(Boolean)) for (const item of frame.onMedia || []) {
+    const set = onMedia.get(item.media) || new Set();
+    for (const text of item.texts) set.add(text);
+    onMedia.set(item.media, set);
+  }
+  const captioned = [...onMedia.entries()].map(([media, set]) => ({ media, texts: [...set], words: [...set].join(' ').split(/\s+/).filter(Boolean).length })).filter((item) => item.texts.length >= 2 || item.words > 12);
+  if (captioned.length) findings.push({ level: 'WARN', id: 'caption-on-media', width, message: 'Small text is set on ' + captioned.length + ' large picture(s): ' + captioned.slice(0, 3).map((item) => `${item.media} under ${item.texts.slice(0, 3).map((text) => `"${text.slice(0, 32)}"`).join(', ')}`).join('; ') });
+  const straddled = collect('straddle');
+  if (straddled.length) findings.push({ level: 'WARN', id: 'text-straddles-edge', width, message: 'A picture edge runs through a paragraph, so part of it sits on the picture and part on the ground: ' + straddled.slice(0, 3).map((s) => `"${s.text}" (screen ${s.screen}, ${Math.round(s.share * 100)}% on the picture)`).join('; ') });
+  if (width >= 1100) {
+    const runs = new Map();
+    frames.filter(Boolean).forEach((frame, index) => {
+      for (const text of frame.big || []) {
+        const r = runs.get(text) || { start: index, last: index - 1, best: 0 };
+        if (r.last === index - 1) r.last = index; else { r.start = index; r.last = index; }
+        r.best = Math.max(r.best, r.last - r.start + 1); runs.set(text, r);
+      }
+    });
+    const longPins = [...runs.entries()].filter(([, r]) => r.best >= 3);
+    if (longPins.length) findings.push({ level: 'WARN', id: 'long-pin', width, message: `The same large text stays on screen for ${Math.max(...longPins.map(([, r]) => r.best))} screens in a row: ` + longPins.slice(0, 2).map(([text]) => `"${text}"`).join('; ') });
+  }
+  return findings;
 }
 
 async function measureTaste(page, width, screenshotBuffer, tools) {
@@ -566,7 +662,9 @@ async function measureTaste(page, width, screenshotBuffer, tools) {
       ...tools.judgeApp(appMetrics, metrics, { width }),
     ].filter((finding) => !tools.appSkip.has(finding.id) && finding.id !== 'no-title' && finding.id !== 'small-title');
     if (devServer) findings.push({ level: 'WARN', id: 'dev-server', width, message: 'This page is served by a development server.' });
-    return toolResult(findings, { metrics, layout: layoutMetrics, app: appMetrics });
+    const walk = await walkFrameChecks(page, tools, width, metrics?.page?.height, metrics);
+    findings.push(...walkFrameFindings(walk, width, HEIGHT_BY_WIDTH[width] ?? Math.round(width * 0.625)));
+    return toolResult(findings, { metrics, layout: layoutMetrics, app: appMetrics, walkFrames: walk.frames.length });
   } catch (error) { return unknownResult(error); }
 }
 
@@ -583,6 +681,23 @@ async function measureStageshow(page, tools) {
   } catch (error) { return unknownResult(error); }
 }
 
+// impeccable detect exits 0 = scan completed with no primary findings, 1 = at least one requested target
+// could not be scanned, 2 = scan completed with primary findings. Reading only 0 and 1 wrote every cell
+// that HAS a finding as "unknown" (the detector's own exit code IS the completed-with-findings signal).
+const DETECTOR_COMPLETE_EXITS = new Set([0, 2]);
+
+export function detectorOutcome(status, stdout, stderr) {
+  let report;
+  try { report = JSON.parse(stdout); }
+  catch { return unknownResult(new Error('detector returned invalid JSON: ' + String(stderr || stdout || '(empty output)').slice(0, 200))); }
+  if (!DETECTOR_COMPLETE_EXITS.has(status)) {
+    const reason = status === 1 ? 'detector could not scan a requested target' : `detector exited ${status}`;
+    return unknownResult(new Error(stderr || reason));
+  }
+  if (!hasDetectorFindingShape(report)) return unknownResult(new Error(stderr || 'detector returned no finding list'));
+  return toolResult([], { count: countDetectorFindings(report), exitCode: status, report });
+}
+
 function runImpeccable(detector, port, target) {
   if (!detector) return { status: 'unknown', findings: null, error: 'impeccable detector script not found; pass --impeccable <script>' };
   const result = spawnSync(detector, ['detect', '--cdp', String(port), '--target', target, '--json', '--no-advisory'], {
@@ -591,13 +706,7 @@ function runImpeccable(detector, port, target) {
     timeout: 15000,
   });
   if (result.error) return unknownResult(result.error);
-  let report;
-  try { report = JSON.parse(result.stdout); }
-  catch { return unknownResult(new Error(result.stderr || result.stdout || 'detector returned invalid JSON')); }
-  if (!hasDetectorFindingShape(report) || (result.status !== 0 && result.status !== 1)) {
-    return unknownResult(new Error(result.stderr || 'detector returned no finding list'));
-  }
-  return toolResult([], { count: countDetectorFindings(report), exitCode: result.status, report });
+  return detectorOutcome(result.status, result.stdout, result.stderr);
 }
 
 function assertCleanTool(name, result) {
@@ -618,6 +727,18 @@ function createFixtureHtml() {
     section { margin: 0 0 16px; padding: 16px; border: 1px solid #ececec; background: #fff; }
     button { width: 100%; height: 44px; padding: 0 16px; border: 1px solid #d6d6d6; background: #fff; color: inherit; font: inherit; }
   </style></head><body><main><h1>Overview</h1><p>Records remain visible to the people who need them.</p><section><h2>Current status</h2><p>All work is moving within its planned dates.</p></section><button type="button">Open records</button></main></body></html>`;
+}
+
+function createOverlapFixtureHtml() {
+  // Planted text-over-text: two headings drawn on the same line, which the snapshot rules cannot see
+  // and the scroll walk must catch (a swap or a travelling caption that shares the line's pixels).
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; color: #202124; background: #fff; font: 16px/1.5 system-ui, sans-serif; }
+    main { padding: 24px; }
+    h1 { margin: 0 0 12px; font-size: 24px; }
+    .stage { position: relative; height: 200px; }
+    .layer { position: absolute; left: 16px; top: 16px; font-size: 24px; line-height: 1.25; color: #202124; }
+  </style></head><body><main><h1>Overview</h1><div class="stage"><div class="layer">Alpha heading drawn on the line</div><div class="layer">Bravo heading drawn on the line</div></div></main></body></html>`;
 }
 
 async function selfTest() {
@@ -660,7 +781,16 @@ async function selfTest() {
     assertCleanTool('stageshow layout-core', stageshow);
     assertCleanTool('impeccable count reducer', detectorFixture);
     if (formatFindingCount({ status: 'unknown', count: 0 }) !== 'unknown') throw new Error('self-test unknown detector count was coerced to zero');
-    console.log('measure-screens self-test passed: clean fixture page; planted unknown stayed unknown; planted ragged row rejected');
+    // A planted overlap must be caught by the scroll walk: a check that cannot see the defect the slow
+    // path found is not a check. Same page, two headings on one line.
+    await page.setContent(createOverlapFixtureHtml(), { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => document.fonts.ready);
+    const overlap = await measureTaste(page, 390, await page.screenshot({ type: 'png' }), tools);
+    const overlapIds = (overlap.findings ?? []).map((finding) => finding.id);
+    if (overlap.status !== 'complete' || !overlapIds.includes('text-over-text')) {
+      throw new Error(`self-test did not catch planted overlapping text (${overlapIds.join(', ') || overlap.error})`);
+    }
+    console.log('measure-screens self-test passed: clean fixture page; planted text-over-text caught; planted unknown stayed unknown; planted ragged row rejected');
   } finally {
     await page.close();
     await browser.close();
@@ -803,11 +933,11 @@ async function runDetectorAndChecks(browser, cell, route, role, statePath, budge
       toolResults = { uxProof: unknown, taste: unknown, stageshow: unknown, impeccable: unknown };
     } else {
       const login = statePath ? path.basename(statePath, '.json') : 'anonymous';
-      const [uxProof, taste, stageshow] = await Promise.all([
-        measureUxProof(cellPage, cell, actualRoute, login, budget, tools),
-        measureTaste(cellPage, cell.width, screenshot, tools),
-        measureStageshow(cellPage, tools),
-      ]);
+      // Sequential: taste's scroll walk moves the page, so the two snapshot measurements must finish
+      // before it starts (they used to share one Promise.all, which the walk would have raced).
+      const uxProof = await measureUxProof(cellPage, cell, actualRoute, login, budget, tools);
+      const stageshow = await measureStageshow(cellPage, tools);
+      const taste = await measureTaste(cellPage, cell.width, screenshot, tools);
       const impeccable = runImpeccable(detector, debugPort, cellPage.url());
       toolResults = { uxProof, taste, stageshow, impeccable };
     }

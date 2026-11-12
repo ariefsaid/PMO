@@ -8,7 +8,7 @@ try {
   // The missing driver is the expected RED state while this test is introduced first.
 }
 
-const { parseScorecard, formatFindingCount, materializeRoute, markdownTable } = api;
+const { parseScorecard, formatFindingCount, materializeRoute, markdownTable, detectorOutcome, walkFrameFindings } = api;
 
 test('parses measured rows, expands role and denial rows, and excludes redirects', () => {
   assert.equal(typeof parseScorecard, 'function');
@@ -76,4 +76,70 @@ test('materializes a cell path from its route and seeded values', () => {
   assert.equal(materializeRoute('/records/:recordId/:tab', 'record-7'), '/records/record-7/overview');
   assert.equal(materializeRoute('*', 'not-found'), '/not-found');
   assert.throws(() => materializeRoute('/records/:recordId', 'none seeded (create one)'), (error) => error.code === 'NO_SEED_RECORD');
+});
+
+// impeccable detect: exit 0 = completed, no primary findings; 1 = a requested target could not be
+// scanned; 2 = completed WITH primary findings. The driver used to accept only 0 and 1, so every cell
+// that had a detector finding was written as "unknown" and its count was never reported.
+test('reads detector exit 2 as completed with its findings counted', () => {
+  assert.equal(typeof detectorOutcome, 'function');
+  const finding = (antipattern) => ({ antipattern, name: antipattern, severity: 'warning' });
+  const clean = detectorOutcome(0, '[]', '');
+  assert.equal(clean.status, 'complete');
+  assert.equal(clean.count, 0);
+  assert.equal(clean.exitCode, 0);
+  const withFindings = detectorOutcome(2, JSON.stringify([finding('cramped-padding'), finding('overused-font')]), '');
+  assert.equal(withFindings.status, 'complete');
+  assert.equal(withFindings.count, 2);
+  assert.equal(withFindings.exitCode, 2);
+  const unscanned = detectorOutcome(1, '[]', '');
+  assert.equal(unscanned.status, 'unknown');
+  assert.match(unscanned.error, /could not scan/);
+  const crashed = detectorOutcome(3, '', 'detector crashed: no display');
+  assert.equal(crashed.status, 'unknown');
+  assert.match(crashed.error, /detector crashed/);
+  const garbage = detectorOutcome(0, 'not json', '');
+  assert.equal(garbage.status, 'unknown');
+  assert.match(garbage.error, /invalid JSON/);
+});
+
+const cleanFrame = (y = 0) => ({
+  y,
+  covered: [],
+  clipped: [],
+  pinnedOver: [],
+  overText: [],
+  seen: [['a block of readable words', 1]],
+  playing: [],
+  onMedia: [],
+  straddle: [],
+  big: [],
+  filled: 0.6,
+});
+
+test('the scroll walk reports nothing on a clean page', () => {
+  assert.equal(typeof walkFrameFindings, 'function');
+  assert.deepEqual(walkFrameFindings([cleanFrame(0), cleanFrame(900)], 390, 844), []);
+});
+
+test('the scroll walk catches two texts drawn over each other', () => {
+  assert.equal(typeof walkFrameFindings, 'function');
+  const findings = walkFrameFindings([{ ...cleanFrame(), overText: [{ a: 'Alpha heading', b: 'Bravo heading', size: 24 }] }], 390, 844);
+  assert.deepEqual(findings.map((finding) => finding.id), ['text-over-text']);
+  assert.equal(findings[0].level, 'FAIL');
+});
+
+test('the scroll walk catches large text under another element at a scroll position', () => {
+  assert.equal(typeof walkFrameFindings, 'function');
+  const findings = walkFrameFindings([{ ...cleanFrame(1800), covered: [{ text: 'A large statement', share: 0.62 }] }], 1440, 900);
+  assert.deepEqual(findings.map((finding) => finding.id), ['covered-text']);
+  assert.match(findings[0].message, /screen 3/);
+});
+
+test('the scroll walk catches text covered in every frame it is seen in', () => {
+  assert.equal(typeof walkFrameFindings, 'function');
+  const unread = [0, 900].map((y) => ({ ...cleanFrame(y), seen: [['a caption nobody can read', 0]] }));
+  assert.deepEqual(walkFrameFindings(unread, 390, 844).map((finding) => finding.id), ['never-readable']);
+  const readableLater = [0, 900].map((y, index) => ({ ...cleanFrame(y), seen: [['a caption that gets its turn', index === 0 ? 0 : 1]] }));
+  assert.deepEqual(walkFrameFindings(readableLater, 390, 844), []);
 });
