@@ -12,11 +12,11 @@ import {
 } from './useTableColumnSizing';
 import type {
   Column,
-  ColAlign,
   DataTableSelection,
 } from './DataTable';
 import { PrimaryCell } from './DataTableShared';
 import type { GroupedRowEntry } from './DataTableShared';
+import { columnAlignmentClass, numericColumnClass } from './dataTableColumns';
 
 /** Sticky row-actions column (⋯). Chromium sticky-table-cell paint quirks, pinned empirically
  *  (2026-10-08 fix round, AC-TBL-STICKY-001):
@@ -37,12 +37,6 @@ const ROW_MENU_STICKY_CLASS =
  *  over 12px to the LEFT of the cell. Positioned inside the sticky cell so it travels with it. */
 const ROW_MENU_SEAM_CLASS =
   'pointer-events-none absolute inset-y-0 -left-3 w-3 bg-gradient-to-l from-[hsl(var(--foreground)/0.16)] to-transparent';
-
-function alignClass(align?: ColAlign) {
-  if (align === 'num') return 'text-right';
-  if (align === 'center') return 'text-center';
-  return 'text-left';
-}
 
 /** Whether content is hidden to the right of the scrollport. Held OUTSIDE React state on purpose: the first
  *  measurement usually flips it, and as `useState` that flip re-rendered the whole table body once per mount.
@@ -249,7 +243,8 @@ export function DataTableDesktop<Row>({
                   className={cn(
                     'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] text-control font-semibold text-foreground break-words select-none',
                     col.stickyLeft && 'left-0 z-[3]',
-                    alignClass(col.align),
+                    columnAlignmentClass(col),
+                    numericColumnClass(col),
                     col.colClassName
                   )}
                 >
@@ -365,7 +360,7 @@ export function DataTableDesktop<Row>({
                 <tr key={`group-${entry.label}-${entryIndex}`} className="h-[var(--table-row-min-height)] bg-secondary">
                   {selection && <td className="px-2" />}
                   <th scope="row" colSpan={groupHeaderSpan ? columns.length : undefined} className="px-[var(--table-cell-inset)] text-left text-control font-semibold text-foreground"><div className="flex flex-wrap items-center justify-between gap-x-4">{groupToggle(entry.label, entry.count)}{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</div></th>
-                  {!groupHeaderSpan && columns.slice(1).map((column) => <td key={column.key} className={cn('px-[var(--table-cell-inset)]', alignClass(column.align))} />)}
+                  {!groupHeaderSpan && columns.slice(1).map((column) => <td key={column.key} className={cn('px-[var(--table-cell-inset)]', columnAlignmentClass(column), numericColumnClass(column))} />)}
                   {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary')} />}
                 </tr>
               );
@@ -442,8 +437,8 @@ export function DataTableDesktop<Row>({
                         className={cn(
                           'h-[var(--table-row-min-height)] break-words px-[var(--table-cell-inset)] py-2 align-middle [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
                           col.stickyLeft && cn('sticky left-0 z-[1]', stickyRowSurface),
-                          alignClass(col.align),
-                          col.align === 'num' && 'tabular',
+                          columnAlignmentClass(col),
+                          numericColumnClass(col),
                           col.colClassName
                         )}
                       >
@@ -484,7 +479,7 @@ export function DataTableDesktop<Row>({
         {totals && totals.length > 0 && <tfoot>
           {totals.map((total) => <tr key={total.key} className="h-[var(--table-row-min-height)] border-t-[1.5px] border-border bg-secondary font-semibold tabular">
             {selection && <td />}
-            {columns.map((column, index) => <td key={column.key} className={cn('px-[var(--table-cell-inset)] py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-secondary', alignClass(column.align), column.align === 'num' && 'tabular')}>
+            {columns.map((column, index) => <td key={column.key} className={cn('px-[var(--table-cell-inset)] py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-secondary', columnAlignmentClass(column), numericColumnClass(column))}>
               {total.values?.[column.key] ?? (index === 0 ? total.label : null)}
             </td>)}
             {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary')} />}
