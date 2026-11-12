@@ -12,6 +12,8 @@ bash scripts/ux-proof.sh /route
 node .claude/skills/taste/scripts/inspect.mjs --app <url> --out <private-output-directory>
 ```
 
+Measure scorecard batches with `node scripts/measure-screens.mjs --cells <private-scorecard.md> --out <private-results-dir> --from 1 --limit 10`; resume at the next `--from` after each batch.
+
 - Run `ux-proof.sh` for every touched route and role at phone and desktop; it captures both themes and runs the detector and axe, because type/copy/phone regressions can hide in a role branch.
 - Verify the rendered route and role in every capture, because a successful run on login is not a successful audit of the requested screen.
 - Keep words within the existing chrome budget excluding record rows and chart labels, because live record counts must not punish unchanged screen copy.
