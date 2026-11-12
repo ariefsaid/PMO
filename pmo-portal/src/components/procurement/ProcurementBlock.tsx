@@ -90,7 +90,13 @@ export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: str
   </section>
 );
 
-export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWithRefs>, 'rows' | 'columns' | 'rowKey' | 'tableId'> {
+type DistributiveOmit<T, Keys extends PropertyKey> = T extends unknown ? Omit<T, Keys> : never;
+type ProcurementListTableProps = DistributiveOmit<
+  DataTableProps<ProcurementWithRefs>,
+  'rows' | 'columns' | 'rowKey' | 'tableId'
+>;
+
+export type ProcurementListProps = ProcurementListTableProps & {
   tableId: string;
   label: string;
   rows: ProcurementWithRefs[];
@@ -99,7 +105,7 @@ export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWit
   embedded?: boolean;
   /** N7: with nothing to list at all, the empty state stands alone — no column headers over a void. */
   bareEmpty?: boolean;
-}
+};
 
 /** Shared list surface and DataTable contract, including its controlled selection and row menu. */
 export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, columns, children, embedded = false, bareEmpty = false, tableId, ...tableProps }) => (

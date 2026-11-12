@@ -87,7 +87,7 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     renderPage('Project Manager');
 
     const errorTitle = await screen.findByText('Could not load stock keepers, so Post is unavailable.');
-    const error = errorTitle.closest('[role="alert"]');
+    const error = errorTitle.closest('[role="alert"]') as HTMLElement | null;
     expect(error).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Post' })).not.toBeInTheDocument();
     master.listKeepers.mockResolvedValue([{ warehouse_id: 'w1', user_id: 'me', org_id: 'org-1' }]);

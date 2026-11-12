@@ -75,13 +75,13 @@ const arRows: ErpAgingSnapshotRow[] = [
 const emptyProps = {
   actuals: [] as ErpActualsSnapshotRow[],
   actualsPending: false,
-  actualsError: false,
+  actualsError: false as const,
   apAging: [] as ErpAgingSnapshotRow[],
   apAgingPending: false,
-  apAgingError: false,
+  apAgingError: false as const,
   arAging: [] as ErpAgingSnapshotRow[],
   arAgingPending: false,
-  arAgingError: false,
+  arAgingError: false as const,
 };
 
 describe('AccountingSnapshotsSection — empty state (unflipped default)', () => {

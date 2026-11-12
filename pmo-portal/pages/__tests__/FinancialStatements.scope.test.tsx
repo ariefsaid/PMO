@@ -190,7 +190,7 @@ describe('Financial statements company scope (AC-007)', () => {
 
     await waitFor(() => expect(projectGetSpy).toHaveBeenCalledTimes(2));
     const errorTitle = await screen.findByText("Couldn't load the selected project's name");
-    const error = errorTitle.closest('[role="alert"]');
+    const error = errorTitle.closest('[role="alert"]') as HTMLElement | null;
     expect(error).not.toBeNull();
     expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue(projectId);
     projectGetSpy.mockResolvedValue([{ id: projectId, name: 'Named delivery project', short_name: 'North Terminal', code: 'PRJ-42' } as never]);
@@ -243,7 +243,7 @@ describe('Financial statements company scope (AC-007)', () => {
     expect(screen.queryByText('private project lookup failure')).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue(projectId);
     const projectNameErrorTitle = await screen.findByText("Couldn't load the selected project's name");
-    const projectNameError = projectNameErrorTitle.closest('[role="alert"]');
+    const projectNameError = projectNameErrorTitle.closest('[role="alert"]') as HTMLElement | null;
     expect(projectNameError).not.toBeNull();
     expect(within(projectNameError!).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
     expect(requestedInputs().filter((input) => input.projectId === projectId)).toHaveLength(1);

@@ -376,7 +376,7 @@ describe('DataTable', () => {
 
   it('F18: the error state does not show the column header row above the error panel', () => {
     const { container } = render(
-      <DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="error" errorTitle="Load failed" />
+      <DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="error" errorTitle="Load failed" onRetry={() => {}} />
     );
     expect(container.querySelector('thead')).toHaveClass('sr-only');
   });

@@ -704,7 +704,7 @@ describe('MeetingDetail — action items + the external-tasks gate (spec §8.5)'
     renderPage('Engineer');
 
     const errorTitle = await screen.findByText("Couldn't load this meeting's action items.");
-    const error = errorTitle.closest('[role="alert"]');
+    const error = errorTitle.closest('[role="alert"]') as HTMLElement | null;
     expect(error).not.toBeNull();
     await userEvent.click(within(error!).getByRole('button', { name: 'Retry' }));
     expect(actionItemsState.refetch).toHaveBeenCalledTimes(1);

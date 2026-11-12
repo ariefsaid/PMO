@@ -120,7 +120,7 @@ describe('FIN-S5: receipts list', () => {
     renderPage('/incoming-payments?create=1&invoice=si-1');
 
     const errorTitle = await screen.findByText("Couldn't load invoice numbers");
-    const error = errorTitle.closest('[role="alert"]');
+    const error = errorTitle.closest('[role="alert"]') as HTMLElement | null;
     expect(error).not.toBeNull();
     expect(await screen.findByRole('dialog', { name: 'Receive payment' })).toBeInTheDocument();
     h.invoices.refetch.mockClear();

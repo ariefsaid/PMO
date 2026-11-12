@@ -116,7 +116,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     h.position = { data: undefined, isPending: false, isError: true, refetch: retry };
     renderPage();
     const errorTitle = screen.getByText("Couldn't load this float's position");
-    const error = errorTitle.closest('[role="alert"]');
+    const error = errorTitle.closest('[role="alert"]') as HTMLElement | null;
     expect(error).not.toBeNull();
     expect(within(error!).getByText(/No figure is shown/)).toBeInTheDocument();
     expect(screen.queryByText(/Books do not balance/)).toBeNull();
@@ -134,8 +134,8 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
 
     const receiptsError = await screen.findByText("Couldn't load the float's records");
     const countsError = await screen.findByText("Couldn't load counts");
-    await userEvent.click(within(receiptsError.closest('[role="alert"]')!).getByRole('button', { name: 'Retry' }));
-    await userEvent.click(within(countsError.closest('[role="alert"]')!).getByRole('button', { name: 'Retry' }));
+    await userEvent.click(within(receiptsError.closest('[role="alert"]') as HTMLElement).getByRole('button', { name: 'Retry' }));
+    await userEvent.click(within(countsError.closest('[role="alert"]') as HTMLElement).getByRole('button', { name: 'Retry' }));
     expect(receiptsRetry).toHaveBeenCalledTimes(1);
     expect(countsRetry).toHaveBeenCalledTimes(1);
   });
