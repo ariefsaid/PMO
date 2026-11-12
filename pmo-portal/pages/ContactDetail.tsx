@@ -279,10 +279,10 @@ const ContactDetail: React.FC = () => {
         />
       )}
 
-      {/* Confirm the record leaving the default contact list before archiving it. */}
+      {/* Archive is reversible, so its confirmation keeps the standard tone. */}
       <ConfirmDialog
         open={archiveOpen}
-        tone="destructive"
+        tone="default"
         title={t('contactDetail.archiveConfirm.title', 'Archive {{name}}?', {
           name: contact.full_name,
         })}

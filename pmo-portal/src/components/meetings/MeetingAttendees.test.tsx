@@ -14,7 +14,7 @@ vi.mock('@/src/hooks/useMeetings', () => ({
 
 const attendees = [{
   id: 'attendee-1', meeting_id: 'meeting-1', profile_id: 'profile-1', contact_id: null,
-  display_name: null, added_by: 'owner-1', created_at: '2026-11-01T00:00:00Z',
+  display_name: null, created_at: '2026-11-01T00:00:00Z',
   profile: { id: 'profile-1', full_name: 'Meeting attendee' }, contact: null,
 }] as MeetingAttendeeWithRefs[];
 

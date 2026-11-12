@@ -77,7 +77,7 @@ describe('Calendar page (#1982)', () => {
       await act(async () => { fireEvent.pointerMove(window, { ...at(dayCell(18)), pointerId: 1 }); });
       await act(async () => { fireEvent.pointerUp(window, { ...at(dayCell(18)), pointerId: 1 }); });
 
-      const dialog = await screen.findByRole('alertdialog', { name: 'Move task due date?' });
+      const dialog = await screen.findByRole('dialog', { name: 'Move task due date?' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Move task' }));
       await waitFor(() => expect(moveTask).toHaveBeenCalledWith({
         task: expect.objectContaining({ id: 't1' }),

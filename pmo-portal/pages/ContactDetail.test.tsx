@@ -167,7 +167,7 @@ describe('ContactDetail', () => {
     expect(within(header).getByRole('button', { name: /^archive$/i })).toBeInTheDocument();
     expect(within(header).getAllByRole('button').map((button) => button.textContent)).toEqual(['Edit', 'Archive']);
     await userEvent.click(within(header).getByRole('button', { name: /^archive$/i }));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Archive Jane Doe?' });
+    const dialog = await screen.findByRole('dialog', { name: 'Archive Jane Doe?' });
     expect(dialog).toHaveTextContent(/hidden from the default list/i);
   });
 
@@ -294,7 +294,7 @@ describe('ContactDetail', () => {
   it('CW-4b: a manager can archive from the header (confirm-before-write)', async () => {
     renderPage('Admin');
     await userEvent.click(screen.getByTestId('contact-archive'));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Archive Jane Doe?' });
+    const dialog = await screen.findByRole('dialog', { name: 'Archive Jane Doe?' });
     await userEvent.click(within(dialog).getByRole('button', { name: /archive contact/i }));
     expect(mutations.archive.mutateAsync).toHaveBeenCalledWith('ct1');
   });
@@ -320,7 +320,7 @@ describe('ContactDetail — list-return context (AC-LRC-007)', () => {
   it('AC-LRC-007: archive-success also returns to the SAME filtered list context, not a bare reset', async () => {
     renderPageWithReturnContext();
     await userEvent.click(screen.getByTestId('contact-archive'));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Archive Jane Doe?' });
+    const dialog = await screen.findByRole('dialog', { name: 'Archive Jane Doe?' });
     await userEvent.click(within(dialog).getByRole('button', { name: /archive contact/i }));
     await screen.findByTestId('Contacts index-probe');
     expect(screen.getByTestId('Contacts index-probe')).toHaveTextContent(

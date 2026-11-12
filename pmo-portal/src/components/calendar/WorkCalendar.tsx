@@ -163,7 +163,7 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
       </EventCalendar>
       <ConfirmDialog
         open={pendingMove !== null}
-        tone="destructive"
+        tone="default"
         title={t('move.confirmTitle', 'Move task due date?')}
         description={pendingMove
           ? pendingMove.task.start_date && pendingMove.patch.start_date

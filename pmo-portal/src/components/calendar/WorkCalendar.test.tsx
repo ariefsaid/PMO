@@ -88,7 +88,7 @@ describe('WorkCalendar (#1982)', () => {
   it('C2 Calendar.tsx:60-69 (AC-1982-drag) confirms the new due date before saving a dragged task', async () => {
     const { props } = renderCal({ tasks: [task({ start_date: '2026-11-08' })] });
     await drag(dayCell(2026, 10, 12), dayCell(2026, 10, 18));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Move task due date?' });
+    const dialog = await screen.findByRole('dialog', { name: 'Move task due date?' });
     expect(dialog).toHaveTextContent('Pour slab');
     expect(dialog).toHaveTextContent(formatDay('2026-11-08'));
     expect(dialog).toHaveTextContent(formatDay('2026-11-12'));
@@ -112,7 +112,7 @@ describe('WorkCalendar (#1982)', () => {
     const err = new Error('nope');
     renderCal({ onMoveTask: vi.fn().mockRejectedValue(err), onMoveError });
     await drag(dayCell(2026, 10, 12), dayCell(2026, 10, 18));
-    fireEvent.click(within(await screen.findByRole('alertdialog', { name: 'Move task due date?' })).getByRole('button', { name: 'Move task' }));
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Move task due date?' })).getByRole('button', { name: 'Move task' }));
     await act(async () => { await Promise.resolve(); });
     expect(onMoveError).toHaveBeenCalledWith(err, expect.objectContaining({ id: 't1' }));
     expect(dayOf('Pour slab')).toEqual(new Date(2026, 10, 12));
@@ -121,7 +121,7 @@ describe('WorkCalendar (#1982)', () => {
   it('keeps the original due date when the viewer cancels a proposed move', async () => {
     const { props } = renderCal();
     await drag(dayCell(2026, 10, 12), dayCell(2026, 10, 18));
-    fireEvent.click(within(await screen.findByRole('alertdialog', { name: 'Move task due date?' })).getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Move task due date?' })).getByRole('button', { name: 'Cancel' }));
     expect(props.onMoveTask).not.toHaveBeenCalled();
     expect(dayOf('Pour slab')).toEqual(new Date(2026, 10, 12));
   });
