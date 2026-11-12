@@ -2,7 +2,11 @@
   "coverage": {
     "hiddenNotLinked": "pengeluaran belum terhubung",
     "hiddenReadError": "pengeluaran tidak dapat dibaca",
-    "setUp": "Atur"
+    "setUp": "Atur",
+    "partial": "Nilai aktual hanya tersedia sebagian pada {{partial}} dari {{total}} proyek.",
+    "partialUpdated": "Nilai aktual hanya tersedia sebagian pada {{partial}} dari {{total}} proyek. Diperbarui {{date}}.",
+    "unknown": "Nilai aktual tidak diketahui pada {{count}} dari {{total}} proyek.",
+    "readError": "Pengeluaran proyek tidak dapat dibaca."
   },
   "moneyFiguresUnavailable": "Beberapa nilai keuangan proyek masih dikonfirmasi.",
   "actual": {

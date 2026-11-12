@@ -124,6 +124,13 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
   const explain = (content: string, value: React.ReactNode, className = 'font-semibold tabular-nums text-foreground') => (
     <Tooltip content={content}><span tabIndex={0} className={className}>{value}</span></Tooltip>
   );
+  const cashLead = cashReceived === null ? null : (
+    <span data-testid="money-lead-cash">
+      {explain(t('projectDetail.money.cashSource', 'Receipt cash allocated to invoices for this project; separate from invoice settlement.'),
+        t('projectDetail.money.cashLead', 'Received {{amount}}', { amount: whole(cashReceived) }),
+        'text-lg font-semibold tabular-nums text-foreground')}
+    </span>
+  );
   // C4: a figure the system cannot know is left out of the strip; the reason is said once below it.
   const steps = [
     { key: 'contract', label: t('projectDetail.money.contract', 'Contract'), value: contractValue, source: hasBoq
@@ -187,9 +194,10 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
             t('projectDetail.money.leadInvoiced', '{{percent}}% invoiced', { percent: invoicedShare }),
             'text-2xl font-semibold leading-tight tabular-nums text-foreground')}
           {paidShare !== null && <span className="text-sm tabular-nums text-muted-foreground">{t('projectDetail.money.leadPaid', '{{percent}}% paid', { percent: paidShare })}</span>}
-          {cashReceived !== null && <span data-testid="money-lead-cash" className="text-lg font-semibold tabular-nums text-foreground">{t('projectDetail.money.cashLead', 'Received {{amount}}', { amount: whole(cashReceived) })}</span>}
+          {cashLead}
         </p>
       )}
+      {invoicedShare === null && cashLead !== null && <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">{cashLead}</p>}
       <dl className={cn('grid min-w-0 gap-y-2', fillRow && 'flex-1')} style={fillRow ? { gridTemplateRows: `repeat(${steps.length}, minmax(min-content, 1fr))` } : undefined} aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
         {steps.map((step) => {
           const percent = share(step.value);
@@ -221,6 +229,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
           )}
         </dl>
       )}
+      {invoices.isPending && canViewMoney && <p role="status" className="mt-4 text-sm text-muted-foreground">{t('projectDetail.money.invoicesChecking', 'Checking invoices…')}</p>}
       {invoices.isError && <Note>{t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")} <Button variant="ghost" size="sm" onClick={() => void invoices.refetch()}>{t('common.retry', 'Retry')}</Button></Note>}
       {cashReceived !== null && paid !== null && paid > cashReceived && (
         <Note>

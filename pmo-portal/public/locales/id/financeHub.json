@@ -53,6 +53,7 @@
     "procurementTitleCode": "Judul + kode pengadaan",
     "project": "Proyek",
     "invoiceRecorded": "Faktur dicatat",
+    "overdueHint": "Jumlah faktur terbuka yang melewati tanggal jatuh tempo berdasarkan perhitungan; total menjumlahkan saldo terutang yang diketahui, termasuk pajak, menurut mata uang. Saldo yang tidak diketahui tidak dijumlahkan.",
     "waiting": "Menunggu dibayar",
     "daysWaiting": "{{count}} hari",
     "amount": "Jumlah",
@@ -107,6 +108,9 @@
         "headingCount_other": "Jatuh tempo · {{count}} faktur"
       },
       "waiting": {
+        "draftsApproveDetail": "Faktur yang menunggu persetujuan Anda",
+        "draftsSecondDetail": "Faktur Anda memerlukan penyetuju lain",
+        "toSendDetail": "Faktur yang disetujui tanpa tanggal diterima",
         "draftsApprove_one": "{{count}} draf untuk disetujui",
         "draftsApprove_other": "{{count}} draf untuk disetujui",
         "draftsSecond_one": "{{count}} draf menunggu penyetuju kedua",
@@ -131,8 +135,8 @@
         "oldestMeaning": "Hari kalender sejak tanggal faktur pemasok",
         "unknownCount_one": "{{count}} saldo tidak diketahui",
         "unknownCount_other": "{{count}} saldo tidak diketahui",
-        "unknownNote_one": "{{count}} faktur tanpa jumlah dan tidak masuk total",
-        "unknownNote_other": "{{count}} faktur tanpa jumlah dan tidak masuk total",
+        "unknownNote_one": "{{count}} faktur pemasok tidak memiliki jumlah, sehingga saldonya tidak disertakan dalam total. Buka pengadaan untuk mencatatnya.",
+        "unknownNote_other": "{{count}} faktur pemasok tidak memiliki jumlah, sehingga saldonya tidak disertakan dalam total. Buka pengadaan untuk mencatatnya.",
         "oldestBasis": "sejak tanggal faktur"
       },
       "attention": {
