@@ -134,7 +134,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
 
   // Search and status live in the list URL so a record address can retain and restore the exact context.
   const [searchParams, setSearchParams] = useSearchParams();
-  const urlFilters = useUrlFilters(['q', 'status']);
+  const urlFilters = useUrlFilters(['q', 'status', 'attribution']);
   const search = urlFilters.values.q;
   const requestedCustomerId = searchParams.get('customer');
   const selectedCustomer = requestedCustomerId
@@ -530,7 +530,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
             {t('invoiceProject.unassignedFilter', 'Unassigned invoices')}
           </span>
           <Button variant="ghost" size="sm" onClick={() => updateListParam('attribution', '')}>
-            {t('financeCopy.clearFilter', 'Clear filter')}
+            {t('finance:financeCopy.clearAttribution', 'Clear attribution')}
           </Button>
         </div>
       )}

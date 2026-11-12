@@ -452,5 +452,8 @@
       "whoNow": "Yang dapat menyetujui sekarang",
       "helpRule": "Jika tidak ada yang terdaftar, {{roles}} dapat menyetujui kasus orang lain."
     }
+  },
+  "exchangeRates": {
+    "displayOnly": "Hanya setara tampilan"
   }
 }
