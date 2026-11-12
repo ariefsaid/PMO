@@ -151,7 +151,9 @@ export default function ReceivablesPage() {
     return next;
   }, { replace: true });
 
-  const unknownReason = (count: number) => t('finance:area.ageingUnknownCount', { defaultValue: count === 1 ? '{{count}} invoice has no balance reported by the accounting system' : '{{count}} invoices have no balance reported by the accounting system', count });
+  // One short reason for a hidden figure: the count and the fact, nothing about the accounting system
+  // (the page's help carries the why; the long sentence cost every hidden-figure state 6 words).
+  const unknownReason = (count: number) => t('finance:area.ageingUnknownCount', { defaultValue: count === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count });
   const seeInvoices = { to: '/finance/receivables?status=Unpaid', label: t('financeHub:hub.seeInvoices', 'See invoices') };
 
   return (
