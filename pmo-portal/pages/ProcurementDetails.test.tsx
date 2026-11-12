@@ -535,8 +535,10 @@ describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
     expect(within(moneyCard).getByText(/Money · USD, before tax/)).toBeInTheDocument();
     expect(within(moneyCard).getByText('$50,000')).toBeInTheDocument();
     expect(within(moneyCard).queryByText('50,000')).not.toBeInTheDocument();
-    // Nothing ordered is no figure, so the card does not draw an empty "Ordered".
-    expect(within(moneyCard).queryByText('Ordered')).not.toBeInTheDocument();
+    // R2 (dev restores "None recorded" + "—"): nothing ordered yet still draws its figure, so an absent
+    // value is not read as a figure the card does not track.
+    expect(within(moneyCard).getByText('Ordered')).toBeInTheDocument();
+    expect(within(moneyCard).getAllByText('None recorded').length).toBeGreaterThan(0);
   });
 });
 
@@ -2128,11 +2130,16 @@ describe('Procurement detail restructure fixes', () => {
     expect(within(money).getByText('$110,500')).toBeInTheDocument();   // the order total, labelled Ordered
   });
 
-  it('draws no figure for an empty ordered, invoiced, or paid amount, and never a zero', () => {
+  it('R2 restores the dev fallback: an absent figure is a dash with "None recorded", never a zero', () => {
     renderPage();
 
     const money = screen.getByTestId('procurement-money-summary');
-    for (const kind of ['Ordered', 'Invoiced', 'Paid']) expect(within(money).queryByText(kind)).not.toBeInTheDocument();
+    for (const kind of ['Ordered', 'Invoiced', 'Paid']) {
+      const tile = within(money).getByText(kind).closest('div') as HTMLElement;
+      expect(tile).toHaveTextContent('—');
+      expect(tile).toHaveTextContent('None recorded');
+    }
+    // A dash is not a zero: nothing recorded must never read as "$0".
     expect(money).not.toHaveTextContent('$0');
   });
 

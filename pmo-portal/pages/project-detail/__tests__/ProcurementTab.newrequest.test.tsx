@@ -251,7 +251,9 @@ describe('project procurement tab', () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: /Pay/ }));
     expect(screen.getByText('supplier invoice')).toBeInTheDocument();
-    expect(screen.getByText('Supplier invoice')).toBeInTheDocument();
+    // R2 restore (state word): a Vendor Invoiced procurement reads "Invoiced, not paid" on every procurement
+    // pill, so the stage filter's rows say money is still owed.
+    expect(screen.getByText('Invoiced, not paid')).toBeInTheDocument();
     expect(screen.queryByText('awaiting review')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Clear stage filter' }));
     expect(screen.getByText('awaiting review')).toBeInTheDocument();

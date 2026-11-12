@@ -203,6 +203,18 @@ describe('Procurement drawer body', () => {
     expect(within(drawer).getAllByText('$62,000')).toHaveLength(1);
     expect(within(drawer).getByText('Unpaid in full')).toBeInTheDocument();
   });
+
+  it('R2: the pill says the invoice is still unpaid, not just that a supplier invoice exists', () => {
+    renderBlock();
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByText('Invoiced, not paid')).toBeInTheDocument();
+  });
+
+  it('R2: the drawer subtitle names the missing supplier and the id when the record has no code', () => {
+    procState.data = [row({ code: null, vendor: null, vendor_id: null })];
+    renderBlock();
+    expect(screen.getByRole('dialog')).toHaveTextContent('p-1 · No supplier');
+  });
 });
 
 describe('Procurement list rows', () => {
@@ -229,6 +241,20 @@ describe('Procurement list rows', () => {
     expect(within(table).getAllByText('$62,000')).toHaveLength(1);
     expect(table).not.toHaveTextContent(/Unpaid/);
   });
+
+  it('R2: a row with no code falls back to its record id, and no supplier says so', () => {
+    procState.data = [row({ code: null, vendor: null, vendor_id: null })];
+    renderBlock('/procurement');
+    expect(screen.getByRole('table')).toHaveTextContent('p-1 · No supplier');
+  });
+
+  it('R2: the Paid / invoiced cell says Not recorded when a source amount is unreadable, never blank', () => {
+    procState.data = [row({ procurement_invoices: [{ amount: null, erp_outstanding_amount: null, invoice_date: '2026-10-20' }] })];
+    renderBlock('/procurement');
+    const cell = within(screen.getByRole('table')).getByTestId('settlement-unknown');
+    expect(cell).toHaveTextContent('—');
+    expect(cell).toHaveTextContent('Not recorded');
+  });
 });
 
 describe('Procurement list rows on a phone (L3)', () => {
@@ -247,7 +273,7 @@ describe('Procurement list rows on a phone (L3)', () => {
   it('shows title, stage pill, one amount and a next-step link instead of label/value pairs', () => {
     renderBlock('/procurement');
     const card = screen.getByRole('button', { name: 'Open Inverters' }).closest('li')!;
-    expect(within(card).getByText('Supplier invoice')).toBeInTheDocument();
+    expect(within(card).getByText('Invoiced, not paid')).toBeInTheDocument();
     expect(within(card).getAllByText('$62,000')).toHaveLength(1);
     expect(within(card).getByRole('button', { name: 'Pay' })).toBeInTheDocument();
     expect(card.querySelector('dl')).toBeNull();

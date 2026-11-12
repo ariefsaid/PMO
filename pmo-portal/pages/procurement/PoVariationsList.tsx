@@ -193,7 +193,12 @@ export const PoVariationsList: React.FC<PoVariationsListProps> = ({ poId, projec
       onCancel={() => { setApproving(null); setDecisionError(null); }}
       onConfirm={async () => { if (approving) await decide(approving, true); }} />
     <ReasonDialog open={rejecting !== null} kind="reject" subject={rejecting?.number ?? undefined}
-      context={rejecting ? `${rejecting.number} · ${formatCurrency(Number(rejecting.amount), currency)}` : undefined}
+      // The consequence of the write belongs beside the reason the person must give: the PO keeps its
+      // amount and the variation stays out of it.
+      context={rejecting ? <>
+        <span className="block">{rejecting.number} · {formatCurrency(Number(rejecting.amount), currency)}</span>
+        <span className="mt-1 block">{t('subcontract.variations.rejectBody', 'This variation will be rejected or disputed and will not increase the PO.')}</span>
+      </> : undefined}
       loading={mutations.decideVariation.isPending}
       error={decisionError}
       onCancel={() => { setRejecting(null); setDecisionError(null); }}

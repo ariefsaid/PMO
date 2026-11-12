@@ -1,7 +1,7 @@
 import { Avatar } from '@/src/components/ui/Avatar';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, Icon, useFigureReport, type HiddenFigure } from '@/src/components/ui';
+import { Card, CardHead, CardPad, Icon, Tooltip, useFigureReport, type HiddenFigure } from '@/src/components/ui';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
@@ -191,7 +191,11 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
   });
   const otherPositions = [...(reserved.otherCurrencies ?? []), ...(committed.otherCurrencies ?? [])];
   const otherCurrencyNotice = otherPositions.length ? t('money.otherCurrenciesExcluded', ' · Other currencies excluded from comparison') : '';
-  return <span className="text-control font-normal text-muted-foreground">{label}{otherCurrencyNotice}</span>;
+  // What the figure includes and leaves out, kept from the per-figure explanation: "not yet committed" is the
+  // project budget less commitments and reservations, before actual spend, and counts this procurement at its stage.
+  return <Tooltip title={t('money.projectBudget', 'Project budget tracked')} content={t('money.budgetSignalTooltip', 'Available = project budget less committed and reserved spend. “After this procurement” includes it at its current stage. Source: project budget, committed procurement spend, and reserved procurement spend.')}>
+    <span tabIndex={0} className="rounded-sm text-control font-normal text-muted-foreground underline decoration-dotted underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{label}{otherCurrencyNotice}</span>
+  </Tooltip>;
 };
 
 const moneyLabels: Record<ProcurementMoneyKind, string> = {
@@ -202,6 +206,12 @@ const moneyLabels: Record<ProcurementMoneyKind, string> = {
 const moneySources: Record<ProcurementMoneyKind, string> = {
   requested: 'purchase request', ordered: 'purchase order', invoiced: 'supplier invoice', paid: 'payment', unpaid: 'invoice balance',
 };
+
+/**
+ * What a figure's amount is made of — kept because it states what the number includes (or, for Unpaid, what it
+ * nets). The missing-value explanations are not kept: a figure with no value is not drawn, and the page's
+ * hidden-figures line names the missing source once.
+ */
 
 export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = ({ procurement, linkedDocuments, isEngineer, budgetSignal }) => {
   const { t } = useTranslation('procurementRecord');
@@ -228,17 +238,16 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
   const overdueDays = dueDay != null && dueDay < todayUtc ? Math.floor((todayUtc - dueDay) / 86_400_000) : 0;
 
-  // A figure with no value is not drawn (never "—" or 0): a source amount that is missing is reported once, in the
-  // page's hidden-figures line; one that simply does not exist yet (nothing ordered, nothing paid) says nothing.
-  const shown = kinds.flatMap<{ kind: ProcurementMoneyKind; hidden: boolean }>((kind) => {
+  // Every figure the card tracks is drawn: a source amount that could not be read is reported once in the
+  // page's hidden-figures line, and a figure that simply has no value yet says "None recorded" beside a
+  // dash — so an empty space never has to be guessed at as "not tracked".
+  const shown = kinds.flatMap<{ kind: ProcurementMoneyKind; hidden: boolean; absent: boolean }>((kind) => {
     const figure = money[kind];
-    const absent = figure.amount == null && !figure.unknown;
-    if (figure.unknown) return [{ kind, hidden: true }];
-    if (absent) return [];
-    // Nothing owed is not a figure either: "Unpaid 0" on a request says nothing.
+    if (figure.unknown) return [{ kind, hidden: true, absent: false }];
+    // Nothing owed is not a figure: "Unpaid 0" on a request says nothing.
     if (kind === 'unpaid' && (figure.amount ?? 0) <= 0) return [];
     if (kind === 'requested' && requestedStartedLater) return [];
-    return [{ kind, hidden: false }];
+    return [{ kind, hidden: false, absent: figure.amount == null }];
   });
   useFigureReport(shown.filter((entry) => entry.hidden).map<HiddenFigure>((entry) => ({
     label: t(`money.${entry.kind}`, moneyLabels[entry.kind]),
@@ -247,6 +256,12 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   const visible = shown.filter((entry) => !entry.hidden);
   // No figure and no budget line: no empty card.
   if (visible.length === 0 && !budgetSignal && !isEngineer) return null;
+  // What a figure's amount is made of — kept because it states what the number includes (or, for Unpaid, what it
+  // nets). The missing-value explanations are not kept: a figure with no value is not drawn, and the page's
+  // hidden-figures line names the missing source once.
+  const explanationFor = (kind: ProcurementMoneyKind, label: string) => kind === 'unpaid'
+    ? t('money.unpaidHelp', 'Calculated from invoiced less paid amounts, or from linked accounting-system invoice balances. Source: supplier invoices, payments, and linked accounting-system documents.')
+    : t('money.calculation', { defaultValue: 'Sum of recorded {{figure}} amounts. Source: procurement records and linked accounting-system documents.', figure: label.toLowerCase() });
 
   return (
     <Card data-testid="procurement-money-summary">
@@ -256,15 +271,23 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
       {visible.length > 0 && (
         <CardPad>
           <div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-5">
-            {visible.map(({ kind }) => {
+            {visible.map(({ kind, absent }) => {
               const figure = money[kind];
               const lead = kind === 'unpaid';
               return (
                 <div key={kind}>
-                  <p className="mb-1 text-control font-medium text-foreground">{t(`money.${kind}`, moneyLabels[kind])}</p>
-                  <p className={`${lead ? 'text-section font-semibold' : 'text-group font-medium'} text-foreground tabular-nums`}>
-                    {formatCurrency(figure.amount ?? 0, procurement.currency)}
+                  <p className="mb-1 text-control font-medium text-foreground">
+                    <Tooltip content={explanationFor(kind, t(`money.${kind}`, moneyLabels[kind]))}>
+                      <span tabIndex={0} className="rounded-sm underline decoration-dotted underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{t(`money.${kind}`, moneyLabels[kind])}</span>
+                    </Tooltip>
                   </p>
+                  <p className={`${lead ? 'text-section font-semibold' : 'text-group font-medium'} text-foreground tabular-nums`}>
+                    {absent ? '—' : formatCurrency(figure.amount ?? 0, procurement.currency)}
+                  </p>
+                  {absent && <p className="mt-0.5 text-control text-muted-foreground">{t('money.noneRecorded', 'None recorded')}</p>}
+                  {/* The lead figure is the invoice balance still owed, net of what was paid — its label alone would
+                      read as the invoice total. */}
+                  {lead && !absent && <p className="mt-0.5 text-control text-muted-foreground">{t('money.outstanding', 'Outstanding balance')}</p>}
                   {lead && nextDueDate && <p className={`mt-0.5 text-control ${overdueDays > 0 ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
                     {overdueDays > 0
                       ? t('money.overdue', { defaultValue: 'Overdue {{days}} days · due {{date}}', days: overdueDays, date: showDate(nextDueDate) })
@@ -379,6 +402,9 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
     <Card data-testid="procurement-timeline">
       <CardHead
         className="flex-wrap"
+        // The list's own completeness: entries are dated and a step the company does not require leaves no gap to
+        // read as missing data.
+        subline={t('timeline.inDateOrder', 'in date order · missing steps aren’t required by your company')}
         actions={<button type="button" onClick={onFullHistory} className="shrink-0 text-sm font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>}
       >
         {t('timeline.title', 'Timeline')}
