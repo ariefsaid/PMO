@@ -81,7 +81,7 @@ export const StackedBar: React.FC<{
               : NEUTRAL_SWATCHES[Math.min(Math.max(colorIndex, 0), NEUTRAL_SWATCHES.length - 1)]!;
             return (
               <g key={segment.key}>
-                <rect x={x} y={y + 4} width="10" height="10" rx="2" fill={swatch.fill} fillOpacity={swatch.opacity ?? 1} />
+                <rect x={x} y={y + 4} width="10" height="10" rx="2" fill={swatch.fill} />
                 <text x={x + 16} y={y + 14} fill="currentColor" fontSize="14" fontFamily="inherit">{segment.label}</text>
               </g>
             );
