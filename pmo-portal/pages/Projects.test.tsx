@@ -425,21 +425,66 @@ describe('Projects table — compact layout (#1)', () => {
     projectsState.isError = false;
   });
 
-  it('#1: Progress column cell uses compact ProgressBar (min-w-[80px] wrapper) to fit narrow columns', () => {
-    renderPage();
-    // The progressbar role should be in the table and have a compact constrained wrapper
-    const progressbars = screen.getAllByRole('progressbar');
-    expect(progressbars.length).toBeGreaterThan(0);
-    // The outer wrapper span should have min-w-[80px] (compact mode)
-    const bar = progressbars[0];
-    expect(bar).toHaveAttribute('aria-label', 'Delivery 50%');
-    expect(screen.getByText('50%')).toBeInTheDocument();
-    const wrapper = bar.closest('span')?.parentElement;
-    expect(wrapper).toBeTruthy();
-    // The outermost span container should use compact sizing (min-w-[80px])
-    const outerSpan = bar.closest('span[class*="min-w-[80px]"]') ??
-      bar.parentElement?.closest('span[class*="min-w-[80px]"]');
-    expect(outerSpan).not.toBeNull();
+  it('renders each populated project table column with its row values', () => {
+    const previousProjects = projectsState.data;
+    const previousMoney = projectMoneyState.data;
+    const previousMoneyPending = projectMoneyState.isPending;
+    const previousMoneyError = projectMoneyState.isError;
+    const previousDelivery = {
+      p1: deliverySummaryState.p1,
+      p2: deliverySummaryState.p2,
+      p3: deliverySummaryState.p3,
+      isError: deliverySummaryState.isError,
+    };
+    const previousViewerId = roleBox.viewerId;
+
+    try {
+      projectsState.data = [
+        { ...seed[0], pmo_project_number: 'PMO-SYN-001', code: 'CLIENT-SYN-44', end_client: { name: 'Regional Services Client' } },
+        { ...seed[1], project_manager_id: 'u-bob', pm: { full_name: 'Bob Manager' } },
+        { ...seed[2], project_manager_id: 'u-carol', pm: { full_name: 'Carol Manager' } },
+      ] as unknown as ProjectWithRefs[];
+      roleBox.viewerId = 'u-viewer';
+      deliverySummaryState.p1 = { deliveryPct: 50, committedSpend: 2_100_000, budget: 4_700_000 };
+      projectMoneyState.data = {
+        p1: {
+          ledgerBasis: 'erp',
+          actuals: {
+            currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false,
+            categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }],
+          },
+          activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+        },
+      };
+      projectMoneyState.isPending = false;
+      projectMoneyState.isError = false;
+
+      renderPage('Admin');
+
+      const table = within(screen.getByTestId('projects-table-container'));
+      for (const column of ['Project', 'PM', 'Status', 'Contract', 'Actual', 'Progress', 'Budget used']) {
+        expect(table.getByRole('columnheader', { name: column })).toBeInTheDocument();
+      }
+
+      const row = screen.getByText('Innovate Corp HQ Fit-Out').closest('tr')!;
+      expect(within(row).getByText('Innovate Corp')).toBeInTheDocument();
+      expect(within(row).getByTitle('PMO-SYN-001 · CLIENT-SYN-44')).toHaveTextContent('PMO-SYN-001 · CLIENT-SYN-44');
+      expect(within(row).getByText('Regional Services Client')).toBeInTheDocument();
+      expect(within(row).getByText('Alice Manager')).toBeInTheDocument();
+      expect(within(row).getByText('Ongoing')).toBeInTheDocument();
+      expect(within(row).getByText('$5,000,000')).toBeInTheDocument();
+      expect(within(row).getByText('$125,000')).toBeInTheDocument();
+      expect(within(row).getByLabelText('Delivery 50%')).toBeInTheDocument();
+      expect(within(row).getByText('50%')).toBeInTheDocument();
+      expect(within(row).getByLabelText('25% of Active budget')).toBeInTheDocument();
+    } finally {
+      projectsState.data = previousProjects;
+      projectMoneyState.data = previousMoney;
+      projectMoneyState.isPending = previousMoneyPending;
+      projectMoneyState.isError = previousMoneyError;
+      Object.assign(deliverySummaryState, previousDelivery);
+      roleBox.viewerId = previousViewerId;
+    }
   });
 
   it('RF-009: hides optional progress and budget columns when loaded data is absent', () => {

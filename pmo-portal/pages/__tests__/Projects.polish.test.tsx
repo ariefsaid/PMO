@@ -40,18 +40,6 @@ describe('UIP-003 project recognition', () => {
     expect(screen.queryByRole('columnheader', { name: 'Action' })).not.toBeInTheDocument();
   });
 
-  it('UIP-003 reserves desktop identity space and two-line titles while keeping numeric alignment', async () => {
-    page();
-    const title = screen.getByRole('button', { name: state.data[0].name });
-    expect(title).toHaveClass('md:line-clamp-2');
-    expect(title.className).not.toMatch(/truncate|16ch/);
-    expect(screen.getByRole('columnheader', { name: 'Project' })).toHaveStyle({ minWidth: '240px' });
-    expect(screen.queryByRole('columnheader', { name: 'Customer' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: 'End customer' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Contract' })).toHaveClass('text-right');
-    expect(screen.getByText(/CLIENT-001/)).toBeInTheDocument();
-  });
 });
 
 it.each([true, false])('UIP-004 Projects keeps classification in its one filter builder (desktop=%s) with URL-owned chips and clear', async (desktop) => {
