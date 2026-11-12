@@ -117,6 +117,11 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     //       and, once the task exists, the line is replaced by the action-item block.
     // Save took focus, so the author clicks back to the end of the action line first.
     // Clicking the block's far right puts the caret at the end of the line on every platform.
+    // Read the signed-in name from the banner BEFORE the modal opens: an open dialog makes the
+    // shell behind it inert, so the banner cannot be queried while the modal is up (release trace).
+    const accountIdentity = page.getByRole('banner').getByRole('button')
+      .filter({ hasText: /\bEngineer\b/ }).locator('span').filter({ hasText: /\bEngineer\b/ }).first();
+    const currentUserName = (await accountIdentity.innerText()).split('\n')[0].trim();
     const actionBlock = editor.locator('.bn-block-content', { hasText: actionLine });
     await waitForFonts(page);
     const box = await actionBlock.boundingBox();
@@ -128,9 +133,6 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     const nameBox = actionModal.getByRole('textbox', { name: 'Task name' });
     await expect(nameBox).toHaveValue(actionLine); // prefilled from the minute line
     await nameBox.fill(taskName); // …and consciously edited before publishing
-    const accountIdentity = page.getByRole('banner').getByRole('button')
-      .filter({ hasText: /\bEngineer\b/ }).locator('span').filter({ hasText: /\bEngineer\b/ }).first();
-    const currentUserName = (await accountIdentity.innerText()).split('\n')[0].trim();
     const ownerPicker = actionModal.getByRole('combobox', { name: /^Owner$/ });
     await ownerPicker.click();
     await expect(page.getByTestId('combo-loading')).toHaveCount(0, { timeout: 30_000 });
