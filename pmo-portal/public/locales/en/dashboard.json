@@ -151,6 +151,7 @@
     "amountsMissing_other": "{{count}} amounts missing"
   },
   "figures": {
+    "stillToInvoice": "Still to invoice on work orders",
     "contractOnHand": "Contract on hand",
     "billedMargin": "Margin on billed work",
     "pipeline": "Pipeline (weighted)",
@@ -394,6 +395,7 @@
       "checkedRiskClear": "0 projects at risk. All {{count}} active delivery projects are currently on track.",
       "projectSpendHelp": "Used is recorded spending divided by contract value. It is shown only when actuals are complete and currencies match.",
       "aboutPipelineStages": "About pipeline by stage",
+      "readyToPayDueUnknown": "The procurement record has no supplier invoice due date, so due state is unknown.",
       "readyToPayHelp": "Invoice age counts calendar days from the supplier invoice date. Invoices without a date have no age.",
       "budgetReviewHelp": "Percent used is recorded spending divided by the active budget when actuals are complete and currencies match. Variance is spending minus budget; positive means over budget.",
       "topBudgetsByVariance": "Top 5 active budgets by variance",
@@ -693,6 +695,14 @@
     "label": "About {{subject}}"
   },
   "home": {
+    "findingAllOnTrack": "All {{count}} active projects on track",
+    "contractSharePct": "{{percent}}% of contract",
+    "pipelineGross": "Gross {{amount}}",
+    "stageWeightedOfGross": "{{name}}: {{weighted}} weighted of {{gross}} gross",
+    "ofGross": "of {{amount}}",
+    "spending": "Spending",
+    "budgetsOver": "Budgets running over",
+    "overdueInvoices": "Overdue client invoices",
     "allMine": "All {{count}} projects",
     "allOverdue": "All overdue",
     "allProjects": "All {{count}} projects",
@@ -895,6 +905,8 @@
     "approvalTimesheetWeek": "Timesheet, week of {{week}}",
     "waitingSinceToday": "waiting since today",
     "retry": "Retry",
-    "findingNoneCheckedOffTrack": "No checked project is off track"
+    "findingNoneCheckedOffTrack": "No checked project is off track",
+    "moreProcurements_one": "more procurement awaiting approval",
+    "moreProcurements_other": "more procurements awaiting approval"
   }
 }

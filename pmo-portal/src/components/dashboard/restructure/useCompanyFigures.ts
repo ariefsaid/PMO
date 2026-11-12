@@ -384,6 +384,9 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       return [t('dashboard:executive.knownMarginPercentage', '{{percent}} of billed revenue for projects with known margin', { percent: amount })];
     })
     .join(' · ');
+  const unbilledTotals = useMemo(() => selectUnbilledTotals(workOrders.data?.totals), [workOrders.data?.totals]);
+  const unbilledKnown = unbilledTotals?.length ? currencyText(unbilledTotals, orgCurrency, moneyReason) : null;
+  const unbilledCount = workOrders.data?.totals.reduce((sum, row) => sum + row.count, 0) ?? 0;
   const today = useMemo<DashboardFigure[]>(() => [
     {
       id: 'contract-on-hand', label: t('figures.contractOnHand', 'Contract on hand'), value: onHandValue,
@@ -459,7 +462,17 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       exactValue: leftToBillKnown?.length ? currencyFigure(leftToBillKnown, orgCurrency, moneyReason)?.exactValue : undefined,
       href: '/finance/reports',
     },
-  ], [dashboard.data?.on_hand_realized_margin, dashboard.data?.on_hand_value, owed, billedMargin, billedMarginLabel, billedMarginSubline, dashboard.data?.pipeline_projected_margin, margin, moneyReason, onHand, onHandValue, ongoingProjectsLabel, pipelineTotals, leftToBillTotals, leftToBillKnown, overdue, overdueKnown, pipelineGross, pipelineWeighted, remaining, spendPartial, supplierKnown, suppliers, t, orgCurrency]);
+    {
+      // HOME4: the open work orders' unbilled remainder (dev's tile, same read as the finance waits).
+      id: 'still-to-invoice', label: t('figures.stillToInvoice', 'Still to invoice on work orders'),
+      value: workOrders.data === undefined ? null : unbilledKnown ?? (workOrders.data.incompleteCount > 0 ? null : moneyFigure(0, orgCurrency, moneyReason).value),
+      unavailableReason: t('figures.unbilledUnknown', 'Some work orders could not be totalled.'),
+      amounts: workOrders.data === undefined || workOrders.data.incompleteCount > 0 ? null : unbilledTotals?.length ? unbilledTotals : [{ currency: orgCurrency, amount: 0 }],
+      exactValue: unbilledTotals?.length ? currencyFigure(unbilledTotals, orgCurrency, moneyReason)?.exactValue : undefined,
+      subline: workOrders.data ? t('figures.workOrderCount', { count: unbilledCount + workOrders.data.incompleteCount, defaultValue_one: '{{count}} work order', defaultValue_other: '{{count}} work orders' }) : undefined,
+      href: '/projects',
+    },
+  ], [unbilledTotals, unbilledKnown, unbilledCount, workOrders.data, dashboard.data?.on_hand_realized_margin, dashboard.data?.on_hand_value, owed, billedMargin, billedMarginLabel, billedMarginSubline, dashboard.data?.pipeline_projected_margin, margin, moneyReason, onHand, onHandValue, ongoingProjectsLabel, pipelineTotals, leftToBillTotals, leftToBillKnown, overdue, overdueKnown, pipelineGross, pipelineWeighted, remaining, spendPartial, supplierKnown, suppliers, t, orgCurrency]);
 
   const periodFigures = useMemo<DashboardFigure[]>(() => {
     const wonCount = winRate.data?.wins_count;
@@ -502,11 +515,13 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     pack: { pending: pack.isPending, error: pack.isError, retry: () => { void pack.refetch(); } },
     payments: { pending: payments.isPending, error: payments.isError, retry: () => { void payments.refetch(); } },
     winRate: { pending: winRate.isPending, error: winRate.isError, retry: () => { void winRate.refetch(); } },
+    workOrders: { pending: workOrders.isPending, error: workOrders.isError, retry: () => { void workOrders.refetch(); } },
   };
   const FIGURE_SOURCE: Record<string, string> = {
     'contract-on-hand': 'dashboard', 'billed-margin': 'dashboard', pipeline: 'dashboard',
     'owed-clients': 'invoices', 'client-overdue': 'invoices', 'supplier-payables': 'procurements',
     'left-to-bill': 'pack', invoiced: 'pack', collected: 'payments', won: 'winRate', 'win-rate': 'winRate',
+    'still-to-invoice': 'workOrders',
   };
   const figureStatus = (id: string): FigureStatus => source[FIGURE_SOURCE[id]] ?? { pending: false, error: false };
 

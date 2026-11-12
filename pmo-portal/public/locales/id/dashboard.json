@@ -151,6 +151,7 @@
     "amountsMissing_other": "{{count}} jumlah belum ada"
   },
   "figures": {
+    "stillToInvoice": "Perintah kerja belum ditagihkan",
     "contractOnHand": "Kontrak berjalan",
     "billedMargin": "Margin pekerjaan tertagih",
     "pipeline": "Pipeline (tertimbang)",
@@ -394,6 +395,7 @@
       "checkedRiskClear": "0 proyek berisiko. Semua {{count}} proyek pekerjaan aktif saat ini sesuai rencana.",
       "projectSpendHelp": "Persentase terpakai adalah pengeluaran tercatat dibagi nilai kontrak. Nilai ditampilkan hanya jika aktual lengkap dan mata uangnya sama.",
       "aboutPipelineStages": "Tentang pipeline berdasarkan tahap",
+      "readyToPayDueUnknown": "Catatan pengadaan tidak memiliki tanggal jatuh tempo faktur pemasok, sehingga status jatuh temponya tidak diketahui.",
       "readyToPayHelp": "Umur faktur dihitung berdasarkan hari kalender sejak tanggal faktur pemasok. Faktur tanpa tanggal tidak memiliki umur.",
       "budgetReviewHelp": "Persentase terpakai adalah pengeluaran tercatat dibagi anggaran aktif jika aktual lengkap dan mata uangnya sama. Varians adalah pengeluaran dikurangi anggaran; nilai positif berarti melampaui anggaran.",
       "topBudgetsByVariance": "5 anggaran aktif dengan varians terbesar",
@@ -693,6 +695,14 @@
     "label": "Tentang {{subject}}"
   },
   "home": {
+    "findingAllOnTrack": "Semua {{count}} proyek aktif sesuai rencana",
+    "contractSharePct": "{{percent}}% dari kontrak",
+    "pipelineGross": "Bruto {{amount}}",
+    "stageWeightedOfGross": "{{name}}: {{weighted}} tertimbang dari {{gross}} bruto",
+    "ofGross": "dari {{amount}}",
+    "spending": "Pengeluaran",
+    "budgetsOver": "Anggaran terlampaui",
+    "overdueInvoices": "Faktur klien lewat jatuh tempo",
     "allMine": "Semua {{count}} proyek",
     "allOverdue": "Semua terlambat",
     "allProjects": "Semua {{count}} proyek",
@@ -895,6 +905,8 @@
     "approvalTimesheetWeek": "Lembar waktu, minggu {{week}}",
     "waitingSinceToday": "menunggu sejak hari ini",
     "retry": "Coba lagi",
-    "findingNoneCheckedOffTrack": "Tidak ada proyek terperiksa yang melenceng"
+    "findingNoneCheckedOffTrack": "Tidak ada proyek terperiksa yang melenceng",
+    "moreProcurements_one": "pengadaan lain menunggu persetujuan",
+    "moreProcurements_other": "pengadaan lain menunggu persetujuan"
   }
 }

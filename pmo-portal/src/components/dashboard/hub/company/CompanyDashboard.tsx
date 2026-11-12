@@ -32,7 +32,7 @@ import { StatusBarChart } from '@/src/components/dashboard/StatusBarChart';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { stageForStatus, PROCUREMENT_STAGES, type ProcurementStage } from '@/src/lib/procurement/stage';
-import { formatTableMoney } from '@/src/lib/format';
+import { formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { ACTIVE_PROJECT_STATUSES } from '@/src/lib/db/projects';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
@@ -47,17 +47,19 @@ import { BudgetReviewCard, FinanceAnalysis, ReadyToPayCard } from './FinanceBloc
 import { useSupplierUnpaid } from './financeData';
 import { InvoicedCollectedCard, LossReasonsCard, PurchasingCard, ReceivablesAgeCard, SalesOverviewCard } from './OverviewCards';
 import { ApprovalItems } from './ApprovalItems';
-import { FindingLine, PipelineCurrencyReport, UncheckedReport } from './FindingLine';
+import { FindingLine, PageHelp, PipelineCurrencyReport, UncheckedReport } from './FindingLine';
 import { ProjectHealthCard } from './ProjectHealthCard';
+import { tileMoneyLines } from '@/src/components/dashboard/restructure/currencyOrder';
 import { FinancesCard } from './FinancesCard';
-import { healthOrder, isOffTrack, overBudget, overdueTaskCount } from './homeHealth';
+import { contractShare, healthOrder, isOffTrack, overBudget, overdueTaskCount } from './homeHealth';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
+// HOME4: procurements awaiting approval (with its Requested drill) and budgets running over are back on every company home.
 const WAIT_ORDER: Record<'Executive' | 'Admin' | 'Finance', string[]> = {
-  Executive: ['approvals'],
-  Admin: ['approvals'],
-  Finance: ['approvals', 'supplier-invoices', 'overdue-invoices', 'ready-to-bill'],
+  Executive: ['approvals', 'procurement-approvals', 'budgets-over'],
+  Admin: ['approvals', 'procurement-approvals', 'budgets-over'],
+  Finance: ['approvals', 'supplier-invoices', 'overdue-invoices', 'ready-to-bill', 'budgets-over'],
 };
 
 
@@ -123,6 +125,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   }; });
   // A7: project rows and the plan chart are drawn from the dashboard read alone; the project list only names the link.
   const projectsPending = figures.dashboardPending;
+  // Project manager per project, from the project list the page already reads (unknown stays out of the row).
+  const owners = React.useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, project.pm?.full_name ?? null])), [projects.data]);
   const projectsError = figures.dashboardError;
   const unchecked = data?.risk_unchecked_projects ?? 0;
 
@@ -139,7 +143,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   }
 
   // "Waits on you": one row per kind, each a link to the fix.
-  const waitRows: WaitRow[] = WAIT_ORDER[role].flatMap((id) => needs.items.filter((item) => item.id === id)).map((item) => ({
+  // The role's own rows, then the company rows (budgets over) every company home carries.
+  const waitPool = [...needs.items, ...needs.areaItems.filter((item) => !needs.items.some((own) => own.id === item.id))];
+  const waitRows: WaitRow[] = WAIT_ORDER[role].flatMap((id) => waitPool.filter((item) => item.id === id)).map((item) => ({
     id: item.id,
     count: item.countLabel ?? item.count,
     label: item.id === 'approvals' ? t('home.approvalsCompact', 'Approvals') : item.label,
@@ -157,6 +163,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     invoiced: t('dashboard:hub.company.help.invoiced', 'Sum of invoices issued within the selected period, excluding tax.'),
     collected: t('dashboard:hub.company.help.collected', 'Sum of recorded incoming payments received within the selected period.'),
     'left-to-bill': t('dashboard:hub.company.help.leftToBill', 'Signed contract value less invoices issued, in each contract currency.'),
+    'still-to-invoice': t('dashboard:hub.company.help.unbilled', 'Remaining amount and count from open work orders that are not fully invoiced.'),
   };
   // One money tile from a figure: unknown (no amounts) draws nothing and is reported to the page's one hidden-figures line.
   const moneyTile = (figure: DashboardFigure | undefined, opts: TileOpts = {}) => {
@@ -331,6 +338,22 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const lossRange = figures.winRateRange;
     const wonAmounts = won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined;
     const trendRange = trendWindow(figures.organizationToday);
+    // The open pipeline before weighting, per currency (the dashboard read's own totals).
+    const grossTotals = (data?.pipeline_total_value_by_currency ?? []).filter((row) => Number.isFinite(row.total_value)).map((row) => ({ currency: row.currency, amount: row.total_value }));
+    const pipelineGross = grossTotals.length ? tileMoneyLines(grossTotals, orgCurrency, formatTileMoney) : null;
+    // Caveats and definitions for the page's one help list ("About Dashboard"), each said once.
+    const activeDelivery = data?.active_delivery_projects ?? 0;
+    const actualsCount = data?.active_delivery_actual_project_count;
+    const incompleteSpend = attention.filter((row) => contractShare(row) === null).length;
+    const pageHelp = [
+      ...(activeDelivery > 0 && actualsCount != null ? [{ label: t('home.spending', 'Spending'), text: [
+        t('dashboard:hub.company.actualsCoverage', 'Actuals available for {{available}} of {{total}} active delivery projects.', { available: actualsCount, total: activeDelivery }),
+        incompleteSpend > 0 ? `${t('dashboard:hub.company.spendIncomplete', { count: incompleteSpend, defaultValue_one: '{{count}} project has incomplete spending', defaultValue_other: '{{count}} projects have incomplete spending' })}.` : null,
+      ].filter(Boolean).join(' ') }] : []),
+      { label: t('dashboard:hub.company.spendingVsContract', 'Spending vs contract'), text: t('dashboard:hub.company.projectSpendHelp', 'Used is recorded spending divided by contract value. It is shown only when actuals are complete and currencies match.') },
+      { label: t('home.budgetsOver', 'Budgets running over'), text: t('dashboard:hub.company.budgetAttentionHelp', 'A project budget is over its recorded spend comparison.') },
+      { label: t('home.overdueInvoices', 'Overdue client invoices'), text: t('dashboard:hub.company.help.clientOverdue', 'Count of submitted or unpaid client invoices whose recorded due date has passed. Amounts include only known balances.') },
+    ];
     const trendMonths = trendRange.from && trendRange.to ? monthsBetween(trendRange.from, trendRange.to).map((month) => month.slice(0, 7)) : [];
     const half = 'min-w-0 min-[900px]:col-span-6';
     const third = 'min-w-0 min-[900px]:col-span-4';
@@ -342,6 +365,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       moneyTile(collected, collectedOpts),
       moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: t('home.onSignedContracts', 'On signed contracts') }),
       figures.figureStatus('billed-margin').pending || margin?.amounts ? moneyTile(margin, { caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,
+      moneyTile(todayFigure('still-to-invoice')),
     ].filter((tile) => tile !== null);
     const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);
 
@@ -357,12 +381,20 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     );
     const healthCard = (
       <ProjectHealthCard className={cn(half, 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
-        pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
+        pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry}
+        owners={owners} projectCount={projects.isPending || projects.isError ? undefined : projects.data?.length} />
     );
     const approvalsTotal = needs.approvals?.length ?? 0;
-    const otherWaits = waitRows.filter((row) => row.id !== 'approvals');
+    // Each waiting thing appears once: a procurement already among the approvals gets no second row; only the ones
+    // beyond them keep the scoped row, as "N more".
+    const listedProcurements = (needs.approvals ?? []).filter((entry) => entry.kind === 'procurement').length;
+    const otherWaits = waitRows.filter((row) => row.id !== 'approvals').flatMap((row) => {
+      if (row.id !== 'procurement-approvals' || listedProcurements === 0 || typeof row.count !== 'number') return [row];
+      const more = row.count - listedProcurements;
+      return more > 0 ? [{ ...row, count: more, label: t('home.moreProcurements', { count: more, defaultValue_one: 'more procurement awaiting approval', defaultValue_other: 'more procurements awaiting approval' }) }] : [];
+    });
     const nothingYet = otherWaits.length === 0 && approvalsTotal === 0;
-    // The badge counts the items themselves (each approval, each invoice in a row), never the number of rows.
+    // The badge counts the distinct things waiting (each approval, each item in a row), never the number of rows.
     const waitingTotal = approvalsTotal + otherWaits.reduce((sum, row) => sum + (typeof row.count === 'number' ? row.count : 0), 0);
     const waits = (
       <DashboardWaitsOnYou plain count={waitingTotal || undefined} className={cn(third, 'max-[899px]:order-3')} rows={otherWaits}
@@ -372,28 +404,41 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     );
     // Finance: Waits on you beside what clients owe by age (a short list at a third, bars at two-thirds); the two
     // tables then take the full width, each as tall as its rows.
+    const purchasing = (
+      <PurchasingCard className="flex-1 max-[899px]:order-7" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
+    );
+    // The column of a third: Waits on you over Purchasing by stage (it closes level with its neighbour; Purchasing takes the slack).
+    const waitsColumn = (
+      <div className={cn(third, 'flex flex-col gap-[var(--space-panel-gap)] max-[899px]:contents')}>
+        {waits}
+        {purchasing}
+      </div>
+    );
+    // Finance: the Sales block (dev's finance home had it) without the loss breakdown, which it never read.
+    const sales = (className: string, aside?: React.ReactNode) => (
+      <SalesOverviewCard wide className={className} weighted={weighted} gross={pipelineGross} forecastMargin={safeMargin} stages={pipeline.data?.stages ?? []} projects={pipelineProjects} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
+        aside={aside} />
+    );
     const lowerRow = finance ? (
       <>
-        {waits}
+        {waitsColumn}
         <ReceivablesAgeCard rowPitch={40} className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />
-        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-7')}>{readyCard}</div>
-        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-8')}>{overdueCard}</div>
+        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-8')}>{readyCard}</div>
+        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-9')}>{overdueCard}</div>
+        <div className={cn('min-w-0 min-[900px]:col-span-12 empty:hidden', 'max-[899px]:order-10')}><BudgetReviewCard rows={budgetRows} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} /></div>
+        {sales(cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-11'))}
       </>
     ) : (
       <>
-        {/* Left third: Waits on you over Purchasing by stage (the column closes level with Sales; Purchasing takes the slack). */}
-        <div className={cn(third, 'flex flex-col gap-[var(--space-panel-gap)] max-[899px]:contents')}>
-          {waits}
-          <PurchasingCard className="flex-1 max-[899px]:order-7" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
-        </div>
-        <SalesOverviewCard wide className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} weighted={weighted} forecastMargin={safeMargin} stages={pipeline.data?.stages ?? []} projects={pipelineProjects} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
-          aside={<LossReasonsCard embedded range={lossRange} />} />
+        {waitsColumn}
+        {sales(cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6'), <LossReasonsCard embedded range={lossRange} />)}
       </>
     );
     return (
       <FigureScope>
         <UncheckedReport count={unchecked} />
-        {!finance && <PipelineCurrencyReport mixed={pipelineMixed} margin={marginMismatch} />}
+        <PageHelp entries={pageHelp} />
+        <PipelineCurrencyReport mixed={pipelineMixed} margin={marginMismatch} />
         <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="overview">
           <div>
             <PageHeader
@@ -403,7 +448,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
               action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
             />
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-              <FindingLine offTrack={figures.dashboardPending || figures.dashboardError ? undefined : { count: offTrackCount, atLeast: offTrackSaturated, total: activeProjectCount, unchecked }} overdue={overdue /* undefined until its own invoices read and the org day resolve */} approvals={needs.approvals?.length} />
+              <FindingLine currency={orgCurrency} offTrack={figures.dashboardPending || figures.dashboardError ? undefined : { count: offTrackCount, atLeast: offTrackSaturated, total: activeProjectCount, unchecked, allClear: offTrackCount === 0 && unchecked === 0 && data?.projects_at_risk === 0 }} overdue={overdue /* undefined until its own invoices read and the org day resolve */} approvals={needs.approvals?.length} />
               <FigureHiddenLine compact />
             </div>
           </div>
@@ -421,7 +466,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   return (
     <FigureScope>
       <UncheckedReport count={unchecked} />
-        {!finance && <PipelineCurrencyReport mixed={pipelineMixed} margin={marginMismatch} />}
+      {!finance && <PipelineCurrencyReport mixed={pipelineMixed} margin={marginMismatch} />}
       <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="focused">
         {header}
         {waitsEl}

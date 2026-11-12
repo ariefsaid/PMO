@@ -745,7 +745,8 @@ describe('company home — Overview layout (the default: one page, charts carry 
     state.role = 'Finance';
     financePositionState.position = { receivablesAgeing: { USD: { notDue: 100_000, noDueDate: 25_000, d1_30: 50_000, d31_60: 0, d61_90: 0, over90: 25_000 } }, receivablesNoDueDateCounts: { USD: 1 }, payablesAgeing: {}, overdue: [], receivablesUnknownCount: 2 } as never;
     renderPage();
-    for (const name of ['Waits on you', 'Client overdue', 'Ready to pay']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
+    // Waits on you carries its count badge (the work order still to invoice), so its name starts with the title.
+    for (const name of [/^Waits on you/, 'Client overdue', 'Ready to pay']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
     const rows = tableCells('Owed by clients, by age');
     expect(rows).toHaveLength(6);
     expect(rows[0]).toContain('$1K');
