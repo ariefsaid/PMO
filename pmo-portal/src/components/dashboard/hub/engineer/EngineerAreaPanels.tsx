@@ -65,7 +65,7 @@ export function EngineerTimesheetCard({
               <>
                 {status === 'Rejected' && <p className="text-control text-destructive-text">{t('home.eng.returnedLine', 'Sent back for correction.')}</p>}
                 {chart
-                  ? <MonthColumns labelAll height={150} ariaLabel={t('home.eng.weekStrip', 'Hours by day this week')} points={days.map((day) => ({ key: day.date, tick: day.label, a: day.hours, labelA: day.hours > 0 ? formatNumberExact(day.hours) : undefined }))} />
+                  ? <MonthColumns labelAll height={110} ariaLabel={t('home.eng.weekStrip', 'Hours by day this week')} points={days.map((day) => ({ key: day.date, tick: day.label, a: day.hours, labelA: day.hours > 0 ? formatNumberExact(day.hours) : undefined }))} />
                   : (
                   <ol aria-label={t('home.eng.weekStrip', 'Hours by day this week')} className="grid grid-cols-7 gap-1 text-center text-control">
                     {days.map((day) => (

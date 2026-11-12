@@ -15,7 +15,7 @@ import { Button } from '@/src/components/ui/Button';
 import { Icon } from '@/src/components/ui/icons';
 import { PageHeader } from '@/src/components/ui/PageHeader';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
-import { BarList, ChartCard, type BarRow } from './charts';
+import { ChartCard, type BarRow } from './charts';
 import {
   EngineerRecentEntriesPanel,
   EngineerReturnedCard,
@@ -203,7 +203,16 @@ export const EngineerDashboard: React.FC = () => {
   const hoursTitle = t('hub.engineer.byProject', 'This week by project');
   const projectHours = (
     <ChartCard embedded title={hoursTitle} known={projectRows.length > 0} hiddenReason={t('home.eng.reasonNoHours', 'no time is logged this week')} testId="chart-hours-by-project">
-      <BarList ariaLabel={hoursTitle} rows={projectRows} />
+      {/* A plain list, not a chart: the full project name stays in the text and the row cuts it only visually. */}
+      <ul aria-label={hoursTitle} className="grid gap-1.5">
+        {projectRows.map((row) => (
+          <li key={row.id} className="grid grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] items-center gap-3 text-control">
+            <span className="truncate" title={row.name}>{row.name}</span>
+            <span aria-hidden className="h-2 rounded-full bg-secondary"><span className="block h-2 rounded-full bg-primary" style={{ width: `${Math.round(((row.value ?? 0) / Math.max(...projectRows.map((r) => r.value ?? 0), 1)) * 100)}%` }} /></span>
+            <span className="tabular">{row.label}</span>
+          </li>
+        ))}
+      </ul>
     </ChartCard>
   );
 

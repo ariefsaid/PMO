@@ -394,7 +394,7 @@ describe('Engineer home — Overview layout', () => {
     expect(label).toBe('Hours by day this week. Mon: 8; Tue: 7.5; Wed: ; Thu: ; Fri: ; Sat: ; Sun: ');
     expect(tile('kpi-hours-week')).toHaveTextContent('15.5 h');
     const hours = screen.getByTestId('chart-hours-by-project');
-    expect(within(hours).getByRole('img')).toHaveAccessibleName('This week by project. PRJ-1 · Cedar Works: 15.5 h');
+    expect(within(hours).getByRole('list', { name: 'This week by project' })).toHaveTextContent('PRJ-1 · Cedar Works15.5 h');
     expect(within(timesheetCard()).queryByRole('list', { name: 'Hours by day this week' })).not.toBeInTheDocument();
   });
 
@@ -480,8 +480,8 @@ describe('Engineer home — the floor restored', () => {
       ],
     }];
     renderDashboard();
-    const name = within(screen.getByTestId('chart-hours-by-project')).getByRole('img').getAttribute('aria-label') ?? '';
-    for (const part of ['PRJ-A · Alpha: 5 h', 'PRJ-E · Echo: 1 h', 'project unavailable: 2 h']) expect(name).toContain(part);
-    expect(name).not.toContain('Other');
+    // Every project its own row, the full name in the text (the screen may cut it short, never the words).
+    const rows = within(within(screen.getByTestId('chart-hours-by-project')).getByRole('list')).getAllByRole('listitem').map((row) => row.textContent);
+    expect(rows).toEqual(['PRJ-A · Alpha5 h', 'PRJ-B · Bravo4 h', 'PRJ-C · Charlie3 h', 'PRJ-D · Delta2 h', 'project unavailable2 h', 'PRJ-E · Echo1 h']);
   });
 });
