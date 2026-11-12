@@ -81,9 +81,6 @@ const Terms: React.FC = () => (
       <p className="text-muted-foreground italic">
         Governing law and dispute-resolution terms to be confirmed.
       </p>
-      <p className="mt-2 text-muted-foreground">
-        This section is not part of the agreement yet: the law and the forum are still being decided.
-      </p>
     </LegalSection>
   </LegalPageLayout>
 );

@@ -92,14 +92,6 @@ describe('Terms page', () => {
     expect(text).toMatch(/Termination for cause/i);
   });
 
-  it('C16: the Governing Law section says it is not a term of the agreement yet', () => {
-    renderTerms();
-    const heading = screen.getByRole('heading', { level: 2, name: /Governing Law/ });
-    const section = heading.closest('section') ?? heading.parentElement!;
-    expect(within(section).getByText(/not part of the agreement yet/)).toBeInTheDocument();
-    expect(within(section).getByText(/still being decided/)).toBeInTheDocument();
-  });
-
   it('AC-LEG-030: unauthenticated → "Back to sign in" → /login; authenticated → "Back to app" → /', () => {
     const { unmount } = renderTerms();
     expect(screen.getByRole('link', { name: /back to sign in/i })).toHaveAttribute('href', '/login');
