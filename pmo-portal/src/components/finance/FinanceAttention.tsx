@@ -2,7 +2,7 @@ import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import React from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, LateText, ListState, isMostUrgentLateRow } from '@/src/components/ui';
+import { Button, LateText, ListState, Tooltip, isMostUrgentLateRow } from '@/src/components/ui';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { formatCurrency, formatDay } from '@/src/lib/format';
@@ -44,19 +44,19 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
     ...(draftsToApprove > 0 ? [{
       key: 'approve', count: draftsToApprove,
       label: t('financeHub:hub.fix.waiting.draftsApprove', { defaultValue: '{{count}} draft to approve', count: draftsToApprove }),
-      detail: [],
+      detail: [t('financeHub:hub.fix.waiting.draftsApproveDetail', 'Invoices waiting for your approval')],
       to: '/finance/receivables?todo=approve', action: t('financeHub:hub.fix.waiting.review', 'Review'),
     }] : []),
     ...(canAct && position.drafts.awaitingOther.length > 0 ? [{
       key: 'second', count: position.drafts.awaitingOther.length,
       label: t('financeHub:hub.fix.waiting.draftsSecond', { defaultValue: '{{count}} draft waiting for a second approver', count: position.drafts.awaitingOther.length }),
-      detail: [],
+      detail: [t('financeHub:hub.fix.waiting.draftsSecondDetail', 'Your invoices need another approver')],
       to: '/finance/receivables?todo=second', action: t('financeHub:hub.fix.waiting.review', 'Review'),
     }] : []),
     ...(position.toSend.length > 0 ? [{
       key: 'send', count: position.toSend.length,
       label: t('financeHub:hub.fix.waiting.toSend', { defaultValue: '{{count}} approved invoices to record delivery', count: position.toSend.length }),
-      detail: [],
+      detail: [t('financeHub:hub.fix.waiting.toSendDetail', 'Approved invoices without a received date')],
       to: '/finance/receivables?todo=send', action: t('financeHub:hub.fix.waiting.markReceived', 'Record delivery'),
     }] : []),
     ...(position.unappliedPayments.length > 0 ? [{
@@ -92,11 +92,13 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
     <section aria-label={t('finance:area.attention', 'Finance attention')} className="@container grid min-w-0 grid-cols-1 gap-0">
       {overdueCount > 0 && (
         <div>
-          <h2 className="mb-2 text-group font-semibold text-foreground">
+          <Tooltip content={t('financeHub:hub.overdueHint', 'Count of open invoices past their derived due date; total sums known outstanding balances, including tax, by currency. Unknown balances are not added.') }>
+          <h2 tabIndex={0} className="mb-2 text-group font-semibold text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               <span className="text-destructive-text">{t('financeHub:hub.fix.overdue.headingCount', { defaultValue: overdueCount === 1 ? 'Overdue · {{count}} invoice' : 'Overdue · {{count}} invoices', count: overdueCount })}</span>
               {overdueCurrencyLines[0] && <span className="font-normal"> · {overdueCurrencyLines[0]}</span>}
               {showOverdueUnknownCount && position.overdueUnknownCount > 0 && <span className="font-normal text-muted-foreground">{t('financeHub:hub.fix.overdue.unknownCount', { defaultValue: position.overdueUnknownCount === 1 ? ' · {{count}} balance unknown' : ' · {{count}} balances unknown', count: position.overdueUnknownCount })}</span>}
           </h2>
+          </Tooltip>
           {overdueCurrencyLines.slice(1).map((amount) => <p key={amount} className="mb-2 text-sm text-muted-foreground">{amount}</p>)}
           <div className="divide-y divide-border">
             {overdueRows.map((entry) => {

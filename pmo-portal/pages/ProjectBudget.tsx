@@ -631,7 +631,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     },
     {
       key: 'spent', header: t('projectDetail.budget.spent', 'Spent'), kind: 'money', align: 'num', size: 125, minSize: 100,
-      cell: (row) => canSeeActuals && row.spent !== null ? <Tooltip content={actualSource}><span>{formatSpent(row.spent)}</span></Tooltip> : null,
+      cell: (row) => canSeeActuals ? <Tooltip content={actualSource}><span>{formatSpent(row.spent)}</span></Tooltip> : null,
     },
     {
       key: 'committed', header: t('projectDetail.budget.committed', 'Committed'), kind: 'money', align: 'num', size: 125, minSize: 100,
@@ -639,12 +639,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     },
     {
       key: 'left', header: t('projectDetail.budget.left', 'Left after spend'), kind: 'money', align: 'num', size: 150, minSize: 120,
-      cell: (row) => row.left === null ? null : <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span className={row.left < 0 ? 'text-destructive-text' : undefined}>{formatAmount(row.left)}</span></Tooltip>,
+      cell: (row) => <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span className={row.left !== null && row.left < 0 ? 'text-destructive-text' : undefined}>{formatAmount(row.left)}</span></Tooltip>,
     },
     {
       key: 'used', header: t('projectDetail.budget.percentUsed', '% used'), kind: 'percent', align: 'num', size: 100, minSize: 80,
       cell: (row) => row.used === null
-        ? null
+        ? <Tooltip content={t('projectDetail.budget.utilizationUnknown', 'Utilization is unavailable when budget, spending, or commitments are unknown, or when budget is zero.')}><span tabIndex={0}>—</span></Tooltip>
         : <Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
     },
     {
@@ -656,12 +656,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     key: 'total', label: t('financeCopy.total', 'Total'),
     values: {
       budget: <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items, grouped by category.')}><span tabIndex={0}>{formatBudget(tableBudgetTotal)}</span></Tooltip>,
-      spent: totalSpent === null ? null : <Tooltip content={actualSource}><span tabIndex={0}>{formatSpent(totalSpent)}</span></Tooltip>,
+      spent: canSeeActuals ? <Tooltip content={actualSource}><span tabIndex={0}>{formatSpent(totalSpent)}</span></Tooltip> : null,
       committed: <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')}><span tabIndex={0}>{formatAmount(totalCommitted)}</span></Tooltip>,
-      left: tableLeftTotal === null ? null : <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span tabIndex={0}>{formatAmount(tableLeftTotal)}</span></Tooltip>,
+      left: <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span tabIndex={0}>{formatAmount(tableLeftTotal)}</span></Tooltip>,
       used: compatibleBasis && tableBudgetTotal && totalSpent !== null && totalCommitted !== null
         ? <Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0}>{Math.round((totalSpent + totalCommitted) / tableBudgetTotal * 100)}%</span></Tooltip>
-        : null,
+        : <Tooltip content={t('projectDetail.budget.utilizationUnknown', 'Utilization is unavailable when budget, spending, or commitments are unknown, or when budget is zero.')}><span tabIndex={0}>—</span></Tooltip>,
     },
   }] : [];
   const categoryMenu = (row: (typeof enrichedRows)[number]): RowMenuItem[] => [
@@ -961,6 +961,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             />
             {position.actualsPending && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</p>}
             {position.actualsError && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{t('projectDetail.budget.actualsError', "Couldn't check spending.")}<Button variant="ghost" size="sm" onClick={() => void position.refetchActuals()}>{t('common.retry', 'Retry')}</Button></p>}
+            {canSeeActuals && position.unknown > 0 && !position.currencyDiffers && !position.actualsPending && !position.actualsError && <p className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingUnlinked', "Spending isn't linked yet.")} {canManageAccounting ? <Link to="/administration/accounting#budget-account-map" className="font-medium text-primary-text underline underline-offset-2">{t('projectDetail.cost.finishSetup', 'Finish spending setup')}</Link> : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}</p>}
           </> : versions.length === 0 ? null : <ListState variant="empty" title={t('projectDetail.budget.noActiveBudget', 'No active budget')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} />
         ) : activeVersion ? <><AttributedSpendingNote projectId={projectId} /><BudgetProjection projectId={projectId} orgId={currentUser?.org_id} budgetVersionId={activeVersion.id} projectStartDate={project.start_date ?? null} projectEndDate={project.end_date ?? null} budgetMode={activeVersion.budget_mode} approvedBudgetYears={approvedBudgetYears} currency={project.currency} budgetCurrency={activeBudgetCurrency} canEdit={canWrite} committedByCategory={Object.fromEntries(summaryRows.map((row) => [row.category, canSeeCommitments ? row.committed : null]))} canReadCommitments={canSeeCommitments} onAdjustInDraft={adjustInDraft} onExport={(payload: BudgetProjectionExport) => {
           const csv = buildBudgetProjectionCsv(payload, {

@@ -9,7 +9,7 @@ import { useExport } from '@/src/components/export/useExport';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
-import { formatTableMoney } from '@/src/lib/format';
+import { formatDateOnly, formatTableMoney } from '@/src/lib/format';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { moneyTileProps } from '@/src/components/finance/moneyTile';
@@ -99,6 +99,17 @@ const PayablesPage: React.FC = () => {
       exportValue: (row) => row.procurement.project ? projectDisplayName(row.procurement.project) : '',
     },
     {
+      key: 'recorded',
+      header: t('financeHub:hub.invoiceRecorded', 'Invoice recorded'),
+      kind: 'date',
+      size: 130,
+      cell: (row) => {
+        const recordedAt = row.procurement.vendor_invoiced_at ?? row.procurement.updated_at;
+        return <span className="whitespace-nowrap">{recordedAt ? formatDateOnly(recordedAt.slice(0, 10)) : '—'}</span>;
+      },
+      exportValue: (row) => (row.procurement.vendor_invoiced_at ?? row.procurement.updated_at)?.slice(0, 10) ?? '',
+    },
+    {
       key: 'age',
       header: t('financeHub:hub.invoiceAge', 'Invoice age'),
       kind: 'status',
@@ -159,13 +170,13 @@ const PayablesPage: React.FC = () => {
         <KPITile
           icon="grid" tone="blue" label={t('financeHub:hub.toPaySuppliers', 'To pay suppliers')}
           caption={isPending || isError ? undefined : supplierCaption}
-          value={toPay?.value ?? null} exactValue={toPay?.exactValue} loading={isPending} error={isError}
+          value={toPay?.value ?? null} exactValue={toPay?.exactValue} loading={isPending} loadingLabel={t('financeHub:hub.loadingFigure', 'Loading figure')} error={isError}
           unavailableReason={toPay || isPending || isError ? undefined : t('financeHub:hub.fix.payables.unknownCount', { defaultValue: payablesPosition.payablesUnknownCount === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: payablesPosition.payablesUnknownCount })}
           help={t('financeHub:hub.payablesHint', 'Unpaid supplier invoice balances (invoice amount less payments made), grouped by currency. Unknown balances are counted, not added.')}
         />
         {(agePending || ageError || oldest) && <KPITile
           icon="grid" tone="amber" label={t('financeHub:hub.oldestInvoiceAge', 'Oldest invoice age')}
-          value={agePending || ageError || oldest?.ageDays === null || !oldest ? null : t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: oldest.ageDays })} loading={agePending} error={ageError}
+          value={agePending || ageError || oldest?.ageDays === null || !oldest ? null : t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: oldest.ageDays })} loading={agePending} loadingLabel={t('financeHub:hub.loadingFigure', 'Loading figure')} error={ageError}
         />}
       </KPIRow>
       {ageingPending && <section aria-label={t('finance:area.payablesAgeingBasis', 'Invoice age, by days')} className="mb-5 min-w-0">
@@ -214,7 +225,7 @@ const PayablesPage: React.FC = () => {
         tableId="finance-payables-table"
         className="rounded-t-none border-t-0"
       />
-      {!isPending && !isError && payablesPosition.payablesUnknownCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('financeHub:hub.fix.payables.unknownNote', { defaultValue: payablesPosition.payablesUnknownCount === 1 ? '{{count}} invoice has no amount and is left out of the total' : '{{count}} invoices have no amount and are left out of the total', count: payablesPosition.payablesUnknownCount })}</p>}
+      {!isPending && !isError && payablesPosition.payablesUnknownCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('financeHub:hub.fix.payables.unknownNote', { defaultValue: payablesPosition.payablesUnknownCount === 1 ? '{{count}} supplier invoice has no amount on record, so its balance is left out of the total. Open the procurement to record it.' : '{{count}} supplier invoices have no amount on record, so their balances are left out of the total. Open the procurement to record them.', count: payablesPosition.payablesUnknownCount })}</p>}
       </div>
     </ListPage>
     </FigureScope>

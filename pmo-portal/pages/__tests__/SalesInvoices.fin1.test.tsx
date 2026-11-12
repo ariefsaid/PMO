@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -137,13 +137,28 @@ beforeEach(() => {
 });
 
 describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
-  it('labels the mobile invoice amount; an unknown balance is said once at page level, not on the card', () => {
+  it('labels the mobile invoice amount and states when the outstanding balance is unknown', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })));
+    try {
+      h.invoices.data = [invoice('INV-001', { amount: 1000, tax_amount: 100, erp_outstanding_amount: null })];
+      renderAt('/sales-invoices', 'Finance', undefined, true);
+      expect(screen.getByText(/Invoice total excl. PPN:.*1,000/)).toBeInTheDocument();
+      expect(screen.getByText('Outstanding balance unknown')).toBeInTheDocument();
+    } finally {
+      cleanup();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('AC-R2R-E-012: shows an unknown outstanding dash and explains its tax basis', async () => {
     h.invoices.data = [invoice('INV-001', { amount: 1000, tax_amount: 100, erp_outstanding_amount: null })];
     renderAt('/sales-invoices', 'Finance', undefined, true);
-    expect(screen.getByText(/Invoice total excl. PPN:.*1,000/)).toBeInTheDocument();
-    expect(screen.queryByText('Outstanding balance unknown')).not.toBeInTheDocument();
-    vi.unstubAllGlobals();
+    const outstandingIndex = screen.getAllByRole('columnheader').findIndex((header) => header.textContent?.includes('Outstanding'));
+    const row = screen.getByRole('row', { name: /INV-001/ }) as HTMLTableRowElement;
+    expect(outstandingIndex).toBeGreaterThanOrEqual(0);
+    expect(row.cells[outstandingIndex]).toHaveTextContent('—');
+    await userEvent.hover(screen.getByRole('button', { name: 'Outstanding · tax included' }));
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Outstanding · tax included');
   });
 
   it('shows at most 7 columns, with no Date, Received, separate Customer or empty e-Faktur column', () => {

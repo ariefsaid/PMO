@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
+import { formatDateOnly } from '@/src/lib/format';
 
 const state = vi.hoisted(() => ({
   role: 'Finance',
@@ -187,6 +188,7 @@ describe('Payables page', () => {
     expect(screen.getByRole('heading', { name: 'Payables', level: 1 })).toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: 'Search payables' })).toBeInTheDocument();
     expect(screen.getAllByTestId('kpi-skeleton')).toHaveLength(1);
+    expect(screen.getByRole('status', { name: 'Loading figure' })).toBeInTheDocument();
     expect(screen.getByText('100 days')).toBeInTheDocument();
     expect(screen.queryByText(/IDR\s*0\b/)).not.toBeInTheDocument();
   });
@@ -233,7 +235,8 @@ describe('Payables page', () => {
     expect(screen.getByRole('columnheader', { name: 'Procurement' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Procurement title \+ code/ })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Invoice age' })).toBeInTheDocument();
-    expect(screen.queryByText(/19 Jul/)).not.toBeInTheDocument();
+    expect(screen.getByText(formatDateOnly('2026-07-19'))).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Invoice recorded' })).toBeInTheDocument();
     expect(screen.queryByText('—')).not.toBeInTheDocument();
     expect(screen.queryByText('How it is calculated')).not.toBeInTheDocument();
     // One help control for the page; no per-figure "?".
@@ -300,8 +303,20 @@ describe('Payables page', () => {
     const row = screen.getByRole('row', { name: /Bumi Rental/ });
     expect(row).not.toHaveTextContent(/IDR\s?0\b|Rp\s?0\b/);
     expect(row).not.toHaveTextContent('—');
-    expect(screen.getAllByText(/1 invoice has no amount and is left out of the total/)).toHaveLength(1);
+    expect(screen.getAllByText(/1 supplier invoice has no amount on record, so its balance is left out of the total/)).toHaveLength(1);
+    expect(screen.getByText(/Open the procurement to record it/)).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: /Invoice age, by days/ })).getByTestId('ageing-bucket-IDR-d0_30')).toHaveTextContent('1 balance unknown');
+  });
+
+  it('AC-R2R-E-007: exports the recorded invoice date', async () => {
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Export' }));
+    const columns = state.exportXlsx.mock.calls[0]?.[1] as Array<{ header: string; exportValue?: (row: FinancePosition['payables'][number]) => string }>;
+    const recorded = columns.find((column) => column.header === 'Invoice recorded');
+    expect(recorded).toBeDefined();
+    expect(recorded?.exportValue?.(payablesFixture().payables[0])).toBe('2026-07-19');
+    expect(screen.getByText(formatDateOnly('2026-07-19'))).toBeInTheDocument();
   });
 
   it('counts only known suppliers and names invoices with an unknown supplier', () => {
