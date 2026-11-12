@@ -771,7 +771,7 @@
     "caughtUp": {
       "and": "and",
       "noKinds": "approvals",
-      "sub": "No {{kinds}} waiting in PMO. ERPNext documents are approved in ERPNext.",
+      "sub": "No {{kinds}} waiting in PMO. New {{kinds}} entered in PMO will appear here. ERPNext documents are approved in ERPNext.",
       "title": "You’re all caught up"
     },
     "employeeLinks": {
@@ -797,10 +797,12 @@
     "entryOther": "entries",
     "group": {
       "procurement": {
+        "emptySub": "Procurement cases that need your approval will appear here.",
         "emptyTitle": "No procurement cases awaiting your decision",
         "title": "Procurement cases"
       },
       "timesheets": {
+        "emptySub": "Submitted timesheets from your reports will appear here for review.",
         "emptyTitle": "No timesheets awaiting your decision",
         "title": "Timesheets"
       }
@@ -850,7 +852,9 @@
       "expense": "Expense claims",
       "invoice": "Customer invoices"
     },
-    "timesheets": {},
+    "timesheets": {
+      "policyHelp": "Policy: a different person approves each timesheet."
+    },
     "scopeToggleLabel": "Approvals scope",
     "title": "Approvals",
     "unknownOwner": "Unknown",

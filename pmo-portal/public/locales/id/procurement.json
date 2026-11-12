@@ -344,7 +344,8 @@
     "rejectSubject": "permintaan pembelian",
     "returnShort": "Kembalikan",
     "returned": "Pengadaan dikembalikan",
-    "returnedDetail": "{{title}} telah dikembalikan"
+    "returnedDetail": "{{title}} telah dikembalikan",
+    "returnConsequence": "Pemohon akan diberi tahu dan dapat memperbaiki lalu mengajukan ulang."
   },
   "decisionSupport": {
     "thisProcurement": "Total pengadaan",

@@ -159,7 +159,8 @@ describe('OE-04 — approve/return from the TimesheetApprovalPreview', () => {
     const user = userEvent.setup();
     renderPreview('panel');
 
-    expect(screen.queryByText('Policy: a different person approves each timesheet.')).not.toBeInTheDocument();
+    // R2-restore (a): the panel states the separation-of-duties rule under the record.
+    expect(screen.getByText('Policy: a different person approves each timesheet.')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /approve/i }));
     expect(approveMutate).not.toHaveBeenCalled();

@@ -228,6 +228,13 @@ describe('AC-IFW-PROC-02: Reject fires transition with to:Rejected', () => {
     expect(transitionMutate).toHaveBeenCalledWith({ to: 'Rejected', notes: 'Please revise the requested quantities.' });
     expect(navigateMock).not.toHaveBeenCalled();
   });
+
+  it('R2-restore: the Return dialog states what the requester can do next', async () => {
+    renderAs();
+    await userEvent.click(screen.getByRole('button', { name: /^Return$/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/The requester will be notified and may revise and resubmit\./)).toBeInTheDocument();
+  });
 });
 
 // ── AC-IFW-PROC-02: can()-gate — no action buttons when role lacks permission ─
