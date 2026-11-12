@@ -109,7 +109,7 @@ describe('StockCount', () => {
     expect(documents.create).not.toHaveBeenCalled();
   });
 
-  it('C2 StockCount.tsx:175-180 confirms replacing entered count lines with stock on hand', async () => {
+  it('C2 StockCount.tsx:175-180 (FR-STK-025) confirms replacing entered count lines with stock on hand', async () => {
     reports.onHand.mockResolvedValue([onHand('i1', 'CEM', '40'), onHand('i2', 'CAB', '100')]);
     renderAt('/stock/new/count');
     await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');

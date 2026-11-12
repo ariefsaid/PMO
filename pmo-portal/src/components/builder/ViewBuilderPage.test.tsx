@@ -376,7 +376,7 @@ describe('ViewBuilderPage — guard states', () => {
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
   });
 
-  it('C2 ViewBuilderPage.tsx:432 protects an unsaved edit before reloading the remote version', async () => {
+  it('C2 ViewBuilderPage.tsx:432 (PGA06-009) protects an unsaved edit before reloading the remote version', async () => {
     const view = {
       id: 'v1', name: 'Saved name', description: 'Saved description', scope: 'private',
       spec: { version: 1, panels: [PANEL_A] }, archived_at: null, org_id: 'org1', user_id: 'u1',

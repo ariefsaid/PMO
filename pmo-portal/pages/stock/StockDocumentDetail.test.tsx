@@ -123,7 +123,7 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     expect(await screen.findByText('edit page')).toBeInTheDocument();
   });
 
-  it('C2 StockDocumentDetail.tsx:155,158-160,187-191 confirms the balance change before Post', async () => {
+  it('C2 StockDocumentDetail.tsx:155,158-160,187-191 (FR-STK-062) confirms the balance change before Post', async () => {
     documents.get.mockResolvedValue(countDraft({ created_by: 'someone-else' }));
     renderPage('Project Manager');
     await userEvent.click(await screen.findByRole('button', { name: 'Post' }));

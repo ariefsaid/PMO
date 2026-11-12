@@ -149,7 +149,7 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(cell('2026-09-10')).toBeEnabled();
   });
 
-  it('C2 EquipmentUsage.tsx:243,356 confirms which submitted week will be approved', async () => {
+  it('C2 EquipmentUsage.tsx:243,356 (AC-EQU-017) confirms which submitted week will be approved', async () => {
     h.userId = 'u-pm';
     h.entries = [
       entry({ id: 'e5', status: 'Submitted', author_id: 'u-eng' }),

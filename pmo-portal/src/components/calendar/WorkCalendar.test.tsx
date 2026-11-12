@@ -85,7 +85,7 @@ describe('WorkCalendar (#1982)', () => {
     await act(async () => { fireEvent.pointerUp(window, { ...at(to), pointerId: 1 }); });
   };
 
-  it('C2 Calendar.tsx:60-69 confirms the new due date before saving a dragged task', async () => {
+  it('C2 Calendar.tsx:60-69 (AC-1982-drag) confirms the new due date before saving a dragged task', async () => {
     const { props } = renderCal({ tasks: [task({ start_date: '2026-11-08' })] });
     await drag(dayCell(2026, 10, 12), dayCell(2026, 10, 18));
     const dialog = await screen.findByRole('alertdialog', { name: 'Move task due date?' });
