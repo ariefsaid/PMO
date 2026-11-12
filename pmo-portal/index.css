@@ -130,6 +130,10 @@
   --chart-8: 292.2581 68.8889% 55.8824%;
   /* Status bars are data marks; solid fills keep the marks above 3:1 on cards. */
   --chart-status-fill-tint: 100%;
+  /* Second neutral data-mark step (StackedBar). Opaque on purpose: a translucent fill reads
+     as the card behind it (#ffffff) to a contrast probe, so its label ink is unmeasurable.
+     Carries --background ink at 4.79:1 and clears 3:1 as a mark on cards. */
+  --chart-neutral-mid: 217.5 13.1148% 44%;
 
   /* Dedicated shadow ink and elevation levels. Panels and sheets stay flat. */
   --surface-shadow: 222.8571 10.7692% 12.7451% / 16.0784%;
@@ -278,6 +282,9 @@
   --chart-7: 83.7805 80.3922% 40%;
   --chart-8: 291.9018 84.456% 62.1569%;
   --chart-status-fill-tint: 100%;
+  /* Inverted for dark: the mid step is lighter than the surface, so its ink is --background
+     (5.08:1) and it clears 3:1 as a mark on the dark card. */
+  --chart-neutral-mid: 218.5714 13.0841% 56%;
 
   /* Dark-theme shadow ink remains low-opacity on dark surfaces. */
   --surface-shadow: 205.7143 13.7255% 10%;
@@ -395,6 +402,7 @@
   --color-chart-6: hsl(var(--chart-6));
   --color-chart-7: hsl(var(--chart-7));
   --color-chart-8: hsl(var(--chart-8));
+  --color-chart-neutral-mid: hsl(var(--chart-neutral-mid));
   --color-avatar-2: hsl(var(--avatar-2));
   --radius-lg: var(--radius);
   --radius-md: var(--control-radius);

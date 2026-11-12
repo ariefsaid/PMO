@@ -148,11 +148,11 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
             )}
             {current && isOverdueMilestone(current, today) ? (
               <span className="font-semibold text-warning-foreground">
-                {t('projectDetail.milestones.overdue', 'Overdue')}
+                {t('projectDetail.milestones.overdue', 'Late')}
               </span>
             ) : overdueElsewhere ? (
               <span className="font-semibold text-warning-foreground">
-                {t('projectDetail.milestones.overduePhase', 'Overdue: {{name}}', { name: overdueElsewhere.name })}
+                {t('projectDetail.milestones.overduePhase', 'Late: {{name}}', { name: overdueElsewhere.name })}
               </span>
             ) : null}
           </>
@@ -258,7 +258,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
                       </li>
                       <li className="inline-flex items-center gap-1.5">
                         <span aria-hidden className="size-2.5 rounded-sm bg-warning" />
-                        {t('projectDetail.milestones.deliveryStatusKey.overdue', 'Overdue')}
+                        {t('projectDetail.milestones.deliveryStatusKey.overdue', 'Late')}
                       </li>
                       <li className="inline-flex items-center gap-1.5">
                         <span aria-hidden className="size-2.5 rounded-sm bg-primary" />
