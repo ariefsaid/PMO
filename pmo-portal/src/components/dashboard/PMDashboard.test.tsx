@@ -438,6 +438,19 @@ describe('Project Manager home — one screen agrees with itself', () => {
   });
 });
 
+describe('Project Manager home — the budget flag says how far', () => {
+  it('a project spending more than its budget is flagged Over budget; at 90% to 100% it reads Budget at 90% or more', () => {
+    state.projects.data = [
+      makeProject({ id: 'p1', name: 'Project One', status: 'Ongoing Project', budget: 100_000, spent: 104_000 }),
+      makeProject({ id: 'p2', name: 'Project Two', status: 'Ongoing Project', budget: 100_000, spent: 95_000 }),
+    ];
+    renderDashboard();
+    expect(rowFor('Project One')).toHaveTextContent('Over budget');
+    expect(rowFor('Project One')).not.toHaveTextContent('Budget at 90% or more');
+    expect(rowFor('Project Two')).toHaveTextContent('Budget at 90% or more');
+  });
+});
+
 describe('Project Manager home — the projects link while loading', () => {
   it('says no project count until the list is known', () => {
     state.projects.data = undefined;

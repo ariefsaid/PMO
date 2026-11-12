@@ -121,6 +121,11 @@ export function projectSpendOfContractPct(project: PMDashboardProject): number |
   return Math.round((project.spent / project.contract_value) * 100);
 }
 
+/** At risk and already spending more than the budget (same currency, complete actuals). */
+export function projectOverBudget(project: PMDashboardProject): boolean {
+  return projectAtRisk(project) && (project.spent as number) > (project.budget as number);
+}
+
 export function projectBudgetUsagePct(project: PMDashboardProject): number | null {
   if (!projectRiskBasisKnown(project) || project.budget === null || project.spent === null) return null;
   return Math.round((project.spent / project.budget) * 100);
