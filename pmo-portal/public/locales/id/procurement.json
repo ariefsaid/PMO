@@ -301,7 +301,9 @@
     "ageShort": "Umur",
     "ageInStageDays": "{{count}} hari",
     "raisedBy": "Dibuat oleh",
+    "ownerAccessibleName": "Dibuat oleh {{name}}",
     "stageCountTooltip": "Jumlah pengadaan yang saat ini berada di tahap {{stage}}. Sumber: kasus pengadaan perusahaan.",
+    "stageShareTooltip": "{{stage}} mencakup {{count}} dari {{total}} pengadaan dalam daftar ini.",
     "table": {
       "accessibleName": "Pengadaan"
     },

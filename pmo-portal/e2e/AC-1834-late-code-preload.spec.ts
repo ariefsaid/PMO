@@ -106,7 +106,8 @@ test.describe('AC-1834 content shows without a second app-wide spinner under thr
     // Content: the list is ready (KPI summary renders only once reads have landed, or the
     // table itself on views without rows).
     await expect(
-      page.locator('section[aria-label="Procurement summary"], div[role="tabpanel"] table').first(),
+      page.getByRole('heading', { level: 2, name: 'All procurements' })
+        .or(page.locator('div[role="tabpanel"] table')).first(),
     ).toBeVisible({ timeout: 90_000 });
     const contentAt = Date.now();
     await page.waitForTimeout(1_500); // a late spinner would need to mount within this window to be caught

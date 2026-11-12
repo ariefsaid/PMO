@@ -301,7 +301,9 @@
     "ageShort": "Age",
     "ageInStageDays": "{{count}}d",
     "raisedBy": "Raised by",
+    "ownerAccessibleName": "Raised by {{name}}",
     "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: company procurement cases.",
+    "stageShareTooltip": "{{stage}} includes {{count}} of {{total}} procurements in this list.",
     "table": {
       "accessibleName": "Procurement"
     },

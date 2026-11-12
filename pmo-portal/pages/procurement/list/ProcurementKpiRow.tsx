@@ -37,6 +37,7 @@ function figureLines(totals: readonly CurrencyTotal[], home: string): { lines: s
  */
 export const ProcurementKpiRow = React.memo(function ProcurementKpiRow({ rows, role }: ProcurementKpiRowProps) {
   const { t } = useTranslation('procurementList');
+  const summaryHeadingId = React.useId();
   const home = useOrgCurrency();
   const organizationDay = useFxOrgDay(true);
   const engineer = role === 'Engineer';
@@ -73,7 +74,10 @@ export const ProcurementKpiRow = React.memo(function ProcurementKpiRow({ rows, r
   ];
 
   return (
-    <section aria-label={t('summary.label', 'Procurement summary')}>
+    <section aria-labelledby={summaryHeadingId} className="space-y-2">
+      <h2 id={summaryHeadingId} className="text-sm font-medium text-foreground">
+        {t('scope.heading', 'All procurements')}
+      </h2>
       <StatTiles tiles={tiles} columns={2} />
     </section>
   );

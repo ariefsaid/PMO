@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
@@ -178,7 +178,7 @@ describe('Procurement list restructure', () => {
     expect(screen.getByRole('button', { name: 'Export list' })).toBeEnabled();
   });
 
-  it('Finance opens Needs you with the oldest unpaid supplier invoice first', () => {
+  it('Finance sees approval decisions first, then the oldest work in each kind, with row actions intact', () => {
     roleState.role = 'Finance';
     authState.userId = 'u-finance';
     procState.data = [
@@ -189,20 +189,62 @@ describe('Procurement list restructure', () => {
         created_at: daysAgo(12),
         procurement_invoices: [{ amount: 400, erp_outstanding_amount: 400, invoice_date: daysAgo(12) }],
       }),
+      row({
+        id: 'invoice-new',
+        title: 'Newer unpaid invoice',
+        status: 'Vendor Invoiced',
+        created_at: daysAgo(5),
+        procurement_invoices: [{ amount: 400, erp_outstanding_amount: 400, invoice_date: daysAgo(5) }],
+      }),
       row({ id: 'approval-new', title: 'Newer approval', status: 'Requested', created_at: daysAgo(3) }),
+      row({ id: 'approval-old', title: 'Older approval', status: 'Requested', created_at: daysAgo(8) }),
     ];
 
     renderPage();
 
     const needsYou = screen.getByRole('tab', { name: /Needs you/i });
     expect(needsYou).toHaveAttribute('aria-selected', 'true');
-    const invoiceTitle = screen.getByRole('button', { name: 'Open Older unpaid invoice' });
-    const approvalTitle = screen.getByRole('button', { name: 'Open Newer approval' });
-    const invoiceRow = invoiceTitle.closest('tr, li');
-    const approvalRow = approvalTitle.closest('tr, li');
-    expect(invoiceRow).not.toBeNull();
-    expect(approvalRow).not.toBeNull();
-    expect(Boolean(invoiceRow!.compareDocumentPosition(approvalRow!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    const approvalOldTitle = screen.getByRole('button', { name: 'Open Older approval' });
+    const approvalNewTitle = screen.getByRole('button', { name: 'Open Newer approval' });
+    const invoiceOldTitle = screen.getByRole('button', { name: 'Open Older unpaid invoice' });
+    const invoiceNewTitle = screen.getByRole('button', { name: 'Open Newer unpaid invoice' });
+    const approvalOldRow = approvalOldTitle.closest('tr, li');
+    const approvalNewRow = approvalNewTitle.closest('tr, li');
+    const invoiceOldRow = invoiceOldTitle.closest('tr, li');
+    const invoiceNewRow = invoiceNewTitle.closest('tr, li');
+    expect(approvalOldRow).not.toBeNull();
+    expect(approvalNewRow).not.toBeNull();
+    expect(invoiceOldRow).not.toBeNull();
+    expect(invoiceNewRow).not.toBeNull();
+    expect(Boolean(approvalOldRow!.compareDocumentPosition(approvalNewRow!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(Boolean(approvalNewRow!.compareDocumentPosition(invoiceOldRow!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(Boolean(invoiceOldRow!.compareDocumentPosition(invoiceNewRow!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(within(approvalOldRow as HTMLElement).getByText('Approve or return')).toBeInTheDocument();
+    expect(within(approvalOldRow as HTMLElement).getByRole('button', { name: 'Open Older approval' })).toBeInTheDocument();
+  });
+
+  it('keeps stage share and requester name accessible after simplifying list chrome', async () => {
+    roleState.role = 'Admin';
+    procState.data = [
+      row({ id: 'request', title: 'Request purchase', status: 'Requested', requested_by: { full_name: 'Requester Example' } }),
+      row({ id: 'order', title: 'Order purchase', status: 'Ordered' }),
+      row({ id: 'invoice', title: 'Invoice purchase', status: 'Vendor Invoiced', procurement_invoices: [{ amount: 500, erp_outstanding_amount: 250 }] }),
+    ];
+    renderPage('/procurement?tab=all');
+
+    const stageGroup = screen.getByRole('group', { name: 'Procurement stages' });
+    const requestStage = within(stageGroup).getByRole('button', { name: /Request/ });
+    await userEvent.hover(requestStage);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('1 of 3 procurements');
+
+    const requestRow = screen.getByRole('button', { name: 'Open Request purchase' }).closest('tr');
+    expect(requestRow).not.toBeNull();
+    expect(screen.queryByText('Requester Example')).not.toBeInTheDocument();
+    const requester = within(requestRow as HTMLElement).getByRole('img', { name: 'Raised by Requester Example' });
+    await userEvent.unhover(requestStage);
+    await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
+    await userEvent.hover(requester);
+    await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Requested by Requester Example'));
   });
 
   it('Project Managers see procurements only for projects they manage', () => {
@@ -358,6 +400,7 @@ describe('Procurement list restructure', () => {
     expect(screen.getByRole('tab', { name: /Not in a procurement/i })).toHaveTextContent('$700');
     expect(screen.queryByTestId('summary-cell-needs-you')).toBeNull();
     expect(screen.queryByTestId('summary-cell-orphans')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'All procurements' })).toBeInTheDocument();
     expect(screen.getByTestId('summary-total-unpaid')).toHaveTextContent('$2.43M');
     expect(screen.getByTestId('summary-total-unpaid')).toHaveAttribute('aria-label', expect.stringContaining('$2,433,500'));
     expect(screen.getByText(/^2 procurements/)).toBeInTheDocument();

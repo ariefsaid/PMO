@@ -258,9 +258,13 @@ const ProcurementPage: React.FC = () => {
       && (!raisedById || row.requested_by_id === raisedById)
       && matchesStage(row, selectedStage);
   }, [needsById, projectId, raisedById, scopedIds, search, selectedStage, supplierId, tab, workingSet]);
-  const needsYouOrder = useCallback((a: ProcurementWithRefs, b: ProcurementWithRefs) =>
-    (needsById.get(a.id)?.result.since.getTime() ?? 0) - (needsById.get(b.id)?.result.since.getTime() ?? 0),
-  [needsById]);
+  const needsYouOrder = useCallback((a: ProcurementWithRefs, b: ProcurementWithRefs) => {
+    const aResult = needsById.get(a.id)?.result;
+    const bResult = needsById.get(b.id)?.result;
+    const decisionPriority = Number(bResult?.reason === 'approve') - Number(aResult?.reason === 'approve');
+    if (decisionPriority !== 0) return decisionPriority;
+    return (aResult?.since.getTime() ?? 0) - (bResult?.since.getTime() ?? 0);
+  }, [needsById]);
 
   const setTab = useCallback((next: ProcurementTab) => updateQuery({ tab: next }), [updateQuery]);
   const onViewChange = useCallback((next: ProcurementRouteView) => {
@@ -285,9 +289,9 @@ const ProcurementPage: React.FC = () => {
       .filter((row) => !raisedById || row.requested_by_id === raisedById)
       .filter((row) => matchesStage(row, selectedStage))
       .sort((a, b) => tab === 'needs-you'
-        ? (needsById.get(a.id)?.result.since.getTime() ?? 0) - (needsById.get(b.id)?.result.since.getTime() ?? 0)
+        ? needsYouOrder(a, b)
         : new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [needsById, projectId, raisedById, search, selectedStage, supplierId, tab, tabRows, workingSet]);
+  }, [needsYouOrder, projectId, raisedById, search, selectedStage, supplierId, tab, tabRows, workingSet]);
 
   const onOpen = useCallback((row: ProcurementWithRefs) => {
     trackProcurementDetailOpened('/procurement/:procurementId', 'card');

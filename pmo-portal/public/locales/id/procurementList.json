@@ -19,8 +19,8 @@
     "all": "Semua",
     "orphans": "Belum masuk pengadaan"
   },
-  "summary": {
-    "label": "Ringkasan pengadaan"
+  "scope": {
+    "heading": "Semua pengadaan"
   },
   "stage": {
     "request": "Permintaan",

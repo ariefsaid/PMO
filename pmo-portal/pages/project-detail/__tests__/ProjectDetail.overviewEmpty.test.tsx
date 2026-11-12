@@ -101,7 +101,7 @@ describe('PD-B active Overview renders the approved money and delivery compositi
     const phases = within(panel).getByRole('region', { name: 'Phase timeline' });
     expect(phases).toHaveTextContent('No phases yet. Add phases to track delivery progress.');
     expect(within(phases).getByRole('button', { name: 'Update phases' })).toBeInTheDocument();
-    for (const gone of ['Budget utilization', 'Budget snapshot', 'Procurement summary', 'Contract drawdown', 'Progress curve',
+    for (const gone of ['Budget utilization', 'Budget snapshot', 'All procurements', 'Contract drawdown', 'Progress curve',
       'Statements are not available yet', 'No procurement cases for this project yet', 'No dated phases yet', 'No budget categories in this version']) {
       expect(within(panel).queryByText(gone)).toBeNull();
     }

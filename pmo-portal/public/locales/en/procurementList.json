@@ -19,8 +19,8 @@
     "all": "All",
     "orphans": "Not in a procurement"
   },
-  "summary": {
-    "label": "Procurement summary"
+  "scope": {
+    "heading": "All procurements"
   },
   "stage": {
     "request": "Request",

@@ -118,14 +118,14 @@ describe('Procurement list — inline preview (fix #5)', () => {
     expect(within(row as HTMLElement).getByText('Requested')).toBeInTheDocument();
     // Raised by the signed-in user, so the approval is waiting on someone else.
     expect(within(row as HTMLElement).getByText('Waiting on approver')).toBeInTheDocument();
-    expect(within(row as HTMLElement).getByText('Alice Engineer')).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByRole('img', { name: 'Raised by Alice Engineer' })).toBeInTheDocument();
   });
   it('UIP-007: rows with a missing requester and a long title still list and stay openable', () => {
     const longTitle = 'Cable supply for the extended site commissioning works';
     procState.data = [PROC_ROW, { ...PROC_ROW, id: 'pr-2', title: longTitle, total_value: 9800, project: null, requested_by: null }];
     renderPage();
     const longRow = screen.getByRole('button', { name: `Open ${longTitle}` }).closest('tr') as HTMLElement;
-    expect(within(longRow).getByText('Unassigned')).toBeInTheDocument();
+    expect(within(longRow).getByRole('img', { name: 'Raised by Unassigned' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open Steel Beams Supply' })).toBeInTheDocument();
   });
   it('AC-FIX5-PREVIEW-01: a row opens its preview drawer', async () => {

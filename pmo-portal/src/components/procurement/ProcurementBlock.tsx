@@ -604,7 +604,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             </button>
             {(row.code || row.vendor?.name) && (
               <span className="block line-clamp-2 break-words text-sm text-muted-foreground">
-                {row.code && <span className="font-mono">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
+                {row.code && <span className="font-normal">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
               </span>
             )}
           </div>
@@ -668,16 +668,15 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text',
         colClassName: projectId ? 'hidden' : undefined,
-        size: 190,
-        minSize: 150,
+        size: 104,
+        minSize: 96,
         sortKey: 'owner',
         cell: (row) => {
           const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
           return (
             <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement case.', { name: owner })}>
-              <span tabIndex={0} className="inline-flex max-w-full items-center gap-2 rounded-sm text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              <span role="img" aria-label={t('procurement.ownerAccessibleName', 'Raised by {{name}}', { name: owner })} tabIndex={0} className="inline-flex items-center justify-center rounded-sm text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                 <Avatar name={owner} decorative />
-                <span className="truncate">{owner}</span>
               </span>
             </Tooltip>
           );
@@ -781,8 +780,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     const stageRows = rows.filter((row) => stageForStatus(row.status) === key);
     return { key, rows: stageRows, currencyTotals: totalsByStage.get(key) ?? [] };
   });
-  // The stage band is a funnel: its bars share ONE scale (the largest stage in the first currency), so the
-  // stages compare by length as well as by number.
+  // The project stage band uses one currency scale to compare its stage bars.
   const scaleCurrency = stageStats.flatMap((stage) => stage.currencyTotals)[0]?.currency;
   const scaleMax = Math.max(0, ...stageStats.map((stage) => stage.currencyTotals.find((item) => item.currency === scaleCurrency)?.value ?? 0));
   const moneyTooltip = t(
@@ -902,31 +900,30 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       >
         {!projectId && !isPending && !isError && data && (
           <div className="border-b border-border px-3 pb-2.5 pt-3 sm:px-4">
-            {/* Stages as parts of one whole: width = share of procurements; the chips below name each part. */}
-            {stageStats.filter(({ rows: stageRows }) => stageRows.length > 0).length > 1 && <div aria-hidden="true" className="mb-2.5 flex h-2 w-full gap-px overflow-hidden rounded-full bg-secondary">
-              {stageStats.filter(({ rows: stageRows }) => stageRows.length > 0).map(({ key, rows: stageRows }) => (
-                <span key={key} title={`${stageText(key, t)}: ${stageRows.length}`} style={{ flexGrow: stageRows.length }}
-                  className={key === 'Request' && canApprove && pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length > 0 ? 'bg-primary' : 'bg-muted-foreground/40'} />
-              ))}
-            </div>}
           <div role="group" aria-label={t('projectDetail.procurement.stageBand.label', 'Procurement stages')} className="flex flex-wrap gap-2">
             {stageStats.filter(({ key, rows: stageRows }) => stageRows.length > 0 || selectedStage === key).map(({ key, rows: stageRows, currencyTotals }) => {
               const forYou = key === 'Request' && canApprove
                 ? pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length
                 : 0;
+              const share = t('procurement.stageShareTooltip', '{{stage}} includes {{count}} of {{total}} procurements in this list.', {
+                stage: stageText(key, t),
+                count: stageRows.length,
+                total: rows.length,
+              });
               return (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={selectedStage === key}
-                  onClick={() => setSelectedStage((current) => current === key ? null : key)}
-                  className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring sm:min-h-9 ${selectedStage === key ? 'border-primary/40 bg-accent text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-accent/40 hover:text-foreground'}`}
-                >
-                  {stageText(key, t)}
-                  <span className="tabular text-foreground">{stageRows.length}</span>
-                  {canSeeMoney && currencyTotals.map((item) => <span key={item.currency} className="tabular" title={formatCurrency(item.value, item.currency)}>{formatShortMoney(item.value, item.currency)}</span>)}
-                  {forYou > 0 && <span className="font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
-                </button>
+                <Tooltip key={key} content={share}>
+                  <button
+                    type="button"
+                    aria-pressed={selectedStage === key}
+                    onClick={() => setSelectedStage((current) => current === key ? null : current)}
+                    className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring sm:min-h-9 ${selectedStage === key ? 'border-primary/40 bg-accent text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-accent/40 hover:text-foreground'}`}
+                  >
+                    {stageText(key, t)}
+                    <span className="tabular text-foreground">{stageRows.length}</span>
+                    {canSeeMoney && currencyTotals.map((item) => <span key={item.currency} className="tabular" title={formatCurrency(item.value, item.currency)}>{formatShortMoney(item.value, item.currency)}</span>)}
+                    {forYou > 0 && <span className="font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
+                  </button>
+                </Tooltip>
               );
             })}
           </div>

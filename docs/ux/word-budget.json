@@ -4,8 +4,8 @@
   "/projects@390@exec@acme.test": 24,
   "/projects@1440@exec@acme.test": 25,
   "/projects@768@exec@acme.test": 25,
-  "/procurement@390@exec@acme.test": 48,
-  "/procurement@1440@exec@acme.test": 48,
+  "/procurement@390@exec@acme.test": 43,
+  "/procurement@1440@exec@acme.test": 43,
   "/finance@390@exec@acme.test": 150,
   "/finance@1440@exec@acme.test": 150,
   "/sales@390@exec@acme.test": 56,
@@ -391,7 +391,8 @@
     "/projects/41000000-0000-0000-0000-000000000002/activity@1440@pm@acme.test": 0,
     "/my-tasks@390@engineer@acme.test": 0,
     "/projects/41000000-0000-0000-0000-000000000002@768@exec@acme.test": 0,
-    "/sales@768@exec@acme.test": 0
+    "/sales@768@exec@acme.test": 0,
+    "/procurement@1440@exec@acme.test": 0
   },
   "/procurement/00000000-0000-0000-0000-000000000002@390@exec@acme.test": 32,
   "/procurement/00000000-0000-0000-0000-000000000002@390@pm@acme.test": 32,

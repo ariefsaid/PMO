@@ -22,7 +22,7 @@ export interface ProcurementSummary {
 
 /**
  * T3: Aggregates a list of procurement rows into the 3-bucket summary
- * used by the Overview "Procurement summary" card.
+ * used by the Overview procurement rollup card.
  */
 export function summarizeProcurement(rows: ProcurementWithRefs[]): ProcurementSummary {
   let open = 0;
