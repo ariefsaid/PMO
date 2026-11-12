@@ -141,8 +141,8 @@ describe('Projects delivery progress + budget used', () => {
     renderPage();
 
     expect(screen.getAllByLabelText('Delivery 50%')).toHaveLength(1);
-    expect(screen.getByText('Budget used')).toBeInTheDocument();
-    expect(screen.getByLabelText('53% of Active budget').closest('[title]')).toHaveAttribute('title', '$2,000,000 of $3,800,000 Active budget');
+    expect(screen.getByText('Budget used before tax')).toBeInTheDocument();
+    expect(screen.getByLabelText('53% of Active budget before tax').closest('[title]')).toHaveAttribute('title', '$2,000,000 of $3,800,000 Active budget before tax');
     expect(screen.getByText('53%')).toBeInTheDocument();
     // PL-A: a project without phases shows a dash (its reason is the title), not prose.
     expect(screen.queryByText('No phases yet')).not.toBeInTheDocument();
@@ -180,7 +180,7 @@ describe('Projects delivery progress + budget used', () => {
     renderPage();
 
     const noMilestonesRow = screen.getByText('No Milestones Yet').closest('tr')!;
-    const budgetColumn = screen.getAllByRole('columnheader').findIndex((header) => header.textContent === 'Budget used');
+    const budgetColumn = screen.getAllByRole('columnheader').findIndex((header) => header.textContent === 'Budget used before tax');
     const budgetCell = within(noMilestonesRow).getAllByRole('cell')[budgetColumn];
     expect(budgetCell).toBeEmptyDOMElement();
     expect(within(budgetCell).queryByText(/\$0 of \$0/i)).not.toBeInTheDocument();
