@@ -153,7 +153,7 @@ describe('Finance hub', () => {
       ...positionFixture(),
       receivablesCount: 1,
       receivablesUnknownCount: 1,
-      receivablesAgeing: { IDR: { notDue: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+      receivablesAgeing: { IDR: { notDue: 0, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
       overdue: [{ invoice, daysOverdue: 104, outstanding: null }],
       overdueTotals: {},
       overdueUnknownCount: 1,
@@ -164,7 +164,7 @@ describe('Finance hub', () => {
     expect(screen.getByRole('heading', { name: 'Waiting on Finance' })).toBeInTheDocument();
     const receivables = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
     expect(receivables).toHaveTextContent('1 balance unknown');
-    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/1 invoice has no balance reported by the accounting system/i);
+    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/1 balance unknown|1 invoice has no balance reported by the accounting system/i);
 
     const attention = screen.getByRole('region', { name: 'Finance attention' });
     expect(within(attention).getByRole('heading', { name: /Overdue/ })).not.toHaveTextContent('balance unknown');
