@@ -3564,7 +3564,6 @@
       "effective": "Effective language: {{value}}"
     },
     "loading": "Loading profile…",
-    "noChanges": "No changes to save",
     "number": {
       "label": "Number format",
       "help": "Preview: {{value}}",

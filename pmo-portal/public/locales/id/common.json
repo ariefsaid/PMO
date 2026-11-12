@@ -3564,7 +3564,6 @@
       "effective": "Bahasa aktif: {{value}}"
     },
     "loading": "Memuat profil…",
-    "noChanges": "Tidak ada perubahan untuk disimpan",
     "number": {
       "label": "Format angka",
       "help": "Pratinjau: {{value}}",

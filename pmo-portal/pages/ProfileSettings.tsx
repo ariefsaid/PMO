@@ -316,7 +316,7 @@ const ProfileSettings: React.FC = () => {
           {/* A disabled control says why: the reason sits beside Save and leaves with the first change. */}
           {!dirty && (
             <p id={SAVE_NO_CHANGES_ID} className="text-control text-muted-foreground">
-              {t('profileSettings.noChanges', 'No changes to save')}
+              {t('profilePreferences:noChanges', 'No changes to save')}
             </p>
           )}
         </div>
