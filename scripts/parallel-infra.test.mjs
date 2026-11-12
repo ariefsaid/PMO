@@ -139,6 +139,60 @@ test('the test lock admits PMO_TEST_LOCK_SLOTS holders at once and makes the nex
   });
 });
 
+// ── #2217: a database-lock holder never queues behind a unit run ──────────────
+// Lock order is db (outer) → test (inner), so a DB job holds the database while it waits here.
+// With a single slot it waited behind a unit run doing no DB work — and every other DB job on the
+// machine waited behind it. A caller that already holds the DB lock (PMO_DB_LOCK_HELD) therefore
+// gets at least two slots, however few it asked for.
+test('the test lock gives a DB-lock holder its own slot, so it never queues behind a unit job', async () => {
+  await withTempAsync('pmo-lock-dbheld-', async (dir) => {
+    const lock = path.join(dir, 'test.lock');
+    const unit = spawnLocked(TEST_LOCK, lock, { PMO_TEST_LOCK_SLOTS: '1' }, ['sleep', '5']);
+    const unitDone = waitFor(unit);
+    await waitUntilAcquired(unit); // slot 0 is provably held before the DB job asks for a slot
+    assert.ok(fs.existsSync(`${lock}.holder`),
+      'the unit holder should leave a holder record naming its command');
+
+    const dbJob = spawnLocked(TEST_LOCK, lock, {
+      PMO_TEST_LOCK_SLOTS: '1',
+      PMO_DB_LOCK_HELD: '1',
+      PMO_TEST_LOCK_TIMEOUT: '10',
+    }, ['true']);
+    const { code, stderr } = await waitFor(dbJob);
+    assert.equal(code, 0, `a DB-lock holder must start at once, not time out behind the unit run: ${stderr}`);
+    assert.match(stderr, /ACQUIRED \(waited 0s\)/,
+      `the DB-lock holder should not have queued for slot 0: ${stderr}`);
+    assert.equal(unit.exitCode, null,
+      'the job must have started because it had its own slot, not because the unit job finished');
+    assert.ok(!fs.existsSync(`${lock}.1.holder`),
+      'a released job must remove its own holder record');
+
+    unit.kill('SIGKILL');
+    await unitDone;
+  });
+});
+
+test('without the DB lock a one-slot job still waits behind the unit job holding slot 0', async () => {
+  await withTempAsync('pmo-lock-unitwait-', async (dir) => {
+    const lock = path.join(dir, 'test.lock');
+    const unit = spawnLocked(TEST_LOCK, lock, { PMO_TEST_LOCK_SLOTS: '1' }, ['sleep', '5']);
+    const unitDone = waitFor(unit);
+    await waitUntilAcquired(unit);
+
+    const queued = spawnLocked(TEST_LOCK, lock, {
+      PMO_TEST_LOCK_SLOTS: '1',
+      PMO_TEST_LOCK_TIMEOUT: '1',
+    }, ['true']);
+    const { code, stderr } = await waitFor(queued);
+    assert.equal(code, 75, `a unit job without the DB lock must keep its slot count and wait: ${stderr}`);
+    assert.match(stderr, /gave up after/);
+    assert.equal(unit.exitCode, null, 'the unit job must still be holding slot 0');
+
+    unit.kill('SIGKILL');
+    await unitDone;
+  });
+});
+
 // ── Timeout path returns 75 (EX_TEMPFAIL) ─────────────────────────────────────
 test('lock timeout exits 75 (EX_TEMPFAIL) instead of blocking forever', async () => {
   await withTempAsync('pmo-lock-timeout-', async (dir) => {
