@@ -118,10 +118,11 @@ describe('company dashboard procurement reads (PERF-FIN-1)', () => {
 describe('company dashboard layout stability (CLS)', () => {
   it('holds each figure tile and the approvals line at their loaded height while loading', () => {
     renderExec();
-    const tiles = screen.getAllByTestId('kpi-skeleton').map((bar) => bar.parentElement as HTMLElement);
+    const band = screen.getByRole('region', { name: 'Company figures' });
+    const tiles = within(band).getAllByTestId('kpi-skeleton').map((bar) => bar.parentElement as HTMLElement);
     expect(tiles).toHaveLength(4);
     tiles.forEach((tile) => expect(tile.className).toMatch(/min-h-\[/));
-    const approvals = screen.getAllByTestId('liststate-loading')[0];
+    const approvals = within(screen.getByTestId('waits-on-you')).getAllByTestId('liststate-loading')[0];
     expect(approvals.className).toMatch(/\bh-11\b/);
   });
 });

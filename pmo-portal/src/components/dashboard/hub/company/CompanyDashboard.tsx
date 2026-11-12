@@ -22,7 +22,6 @@ import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useCompanyFigures } from '@/src/components/dashboard/restructure/useCompanyFigures';
-import { selectOverdueTaskCount } from '@/src/components/dashboard/restructure/overdueTasks';
 import { useNeedsYou } from '@/src/components/dashboard/restructure/useNeedsYou';
 import { PeriodPicker } from '@/src/components/dashboard/restructure/PeriodPicker';
 import { usePeriod } from '@/src/components/dashboard/restructure/usePeriod';
@@ -40,7 +39,6 @@ import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { invoiceGross } from '@/src/lib/revenue/nativeInvoice';
 import { trendWindow } from '@/src/lib/dashboardTrend';
 import { monthsBetween } from '@/src/lib/reports/months';
-import type { AttentionProject } from '@/src/lib/db/dashboard';
 import type { Role } from '@/src/auth/AuthContext';
 import { InvoicedTrendCard } from './InvoicedTrendCard';
 import { PlanVsActualChart } from './PlanVsActualChart';
@@ -307,12 +305,11 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     ? <ListState variant="error" title={t('dashboard:hub.company.figuresError', "Couldn't load company position figures")} onRetry={figures.todayRetry} />
     : <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className={cols}>{tileList}</KPIRow>;
 
-  const panelGrid = 'grid items-start gap-[var(--space-panel-gap)]';
   if (overview) {
     // One grid: 12 columns, one gutter (--space-panel-gap, 24px desktop). At 1440 the canvas is 1168px:
     // 12c + 11 x 24 = 1168 -> c = 75.33; a half is 6c + 5g = 572, a third 4c + 3g = 373.3; 3 x 373.3 + 2 x 24 = 1168.
     // Rows: figures (12) · Project health (6) | Finances (6) · Waits on you (4) | Sales (8) · Purchasing (6) | Win and loss (6).
-    // Finance: figures · health | finances · Waits on you (4) | Client overdue (8) · Ready to pay (8) | Owed by age (4).
+    // Finance: figures · health | finances · Waits on you (4) | Payables (8) · Client overdue (8) | Owed by age (4).
     // Below 900px every block takes the full width, in the phone order: finding, figures, waits, health, finances, the rest.
     const lossRange = figures.winRateRange;
     const wonAmounts = won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined;
@@ -321,7 +318,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const half = 'min-w-0 min-[900px]:col-span-6';
     const third = 'min-w-0 min-[900px]:col-span-4';
     const bandTiles = figures.todayPending || figures.periodPending
-      ? Array.from({ length: 4 }, (_, i) => <KPITile key={i} loading icon="grid" tone="blue" label="" value="" />)
+      ? Array.from({ length: 4 }, (_, i) => <KPITile key={i} loading icon="grid" tone="blue" label="" value="" className="min-h-[96px]" />)
       : [
         moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.projectCount', { count: onHandCount, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }), reason: t('home.reasonContract', 'contract values are missing') }),
         moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
@@ -368,8 +365,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const lowerRow = finance ? (
       <>
         {waits}
-        <div className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')}>{overdueCard}</div>
-        <div className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-7')}>{readyCard}</div>
+        <div className={cn('min-w-0 min-[900px]:col-span-8 [&>*]:h-full', 'max-[899px]:order-6')}>{readyCard}</div>
+        <div className={cn('min-w-0 min-[900px]:col-span-8 [&>*]:h-full', 'max-[899px]:order-7')}>{overdueCard}</div>
         <ReceivablesAgeCard className={cn(third, 'max-[899px]:order-8')} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />
       </>
     ) : (
