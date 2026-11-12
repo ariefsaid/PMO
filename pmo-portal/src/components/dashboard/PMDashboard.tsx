@@ -254,7 +254,8 @@ export const PMDashboard: React.FC = () => {
       pending={projectsPending}
       error={projectsError}
       retry={refresh}
-      allLink={{ to: projectsHref(userId), label: t('home.allMine', 'All {{count}} projects', { count: projects.length }) }}
+      // The count is said only once the list it opens is known.
+      allLink={{ to: projectsHref(userId), label: projectsPending || projectsError ? t('home.allProjectsBare', 'All projects') : t('home.allMine', 'All {{count}} projects', { count: projects.length }) }}
       quietLabel={t('hub.pm.nothingNeedsYou', 'Nothing needs you here.')}
       emptyLabel={t('hub.pm.noProjects', 'No delivery projects assigned to you yet')}
     />

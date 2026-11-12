@@ -438,6 +438,15 @@ describe('Project Manager home — one screen agrees with itself', () => {
   });
 });
 
+describe('Project Manager home — the projects link while loading', () => {
+  it('says no project count until the list is known', () => {
+    state.projects.data = undefined;
+    state.projects.isPending = true;
+    renderDashboard();
+    expect(screen.queryByRole('link', { name: /All 0 projects/ })).not.toBeInTheDocument();
+  });
+});
+
 describe('Project Manager home — margin follows the company figure', () => {
   it('with some projects incomplete, the band shows the known margin on billed work and counts the incomplete ones as hidden', async () => {
     state.projects.data = [
