@@ -99,9 +99,9 @@ When directions must be explored, build real isolated branches with the same flo
 
 ### 5. Craft pass
 
-Read [references/craft.md](references/craft.md) whole; inspect grouping, aligned columns, insets, optical balance and type steps because parts must read as one design.
+Read impeccable's `reference/craft-floor.md` before any UI edit, then [references/craft.md](references/craft.md) whole; inspect grouping, aligned columns, insets, optical balance and type steps because parts must read as one design.
 Run the relevant CRAFT example and inspect its computed styles before borrowing a relation; adapt it through existing PMO primitives.
-**Done:** each visible craft fault has a measured correction or a defended relation, including the bottom and corners.
+**Done:** each visible craft fault has a measured correction or a defended relation, including the bottom and corners; `impeccable detect` on the touched `.tsx`/`.css` files is clean or each finding is named a false positive with its reason.
 
 ### 6. States and phone are compositions
 
@@ -119,7 +119,7 @@ Classify every red as stale look-pin, real loss to restore or evidenced flaky fa
 
 ### 8. Director rendered judgement, then owner
 
-Read [references/judging.md](references/judging.md) whole; the Director answers its critique questions against actual-size renders and thumbnails, not just before-shots or gate totals.
+Read [references/judging.md](references/judging.md) whole, including its impeccable critique pass; the Director answers its critique questions against actual-size renders and thumbnails, not just before-shots or gate totals.
 Use one Director review and one fix round; if the whole shape still fails, stop patching and return the composition decision to the Director.
 At batch end, a blind fresh-eyes review is scored privately against a hidden list; authors' familiarity is not acceptance evidence.
 Show the owner the before/after image, screenshot set and local URL with a short report claiming only visible changes; the owner judges and clicks through.
