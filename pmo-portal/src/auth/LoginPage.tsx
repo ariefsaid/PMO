@@ -29,10 +29,11 @@ import { returnPathFrom } from './returnTo';
 const DEMO_PASSWORD = 'Passw0rd!dev';
 
 // Translation keys, not labels: the panel appears in a demo build a prospective client sees, so its
-// words go through the catalogues like any other visible text. The key is also what analytics records.
+// words go through the catalogues like any other visible text. `label` is only the English fallback
+// and the ANALYTICS value (DemoPersonaLabel), so it stays the stable role name, not the display copy.
 const DEMO_PERSONAS = [
   { labelKey: 'login.demo.executive',       label: 'Executive',       email: 'exec@acme.test' },
-  { labelKey: 'login.demo.projectManager',  label: 'Project manager', email: 'pm@acme.test' },
+  { labelKey: 'login.demo.projectManager',  label: 'Project Manager', email: 'pm@acme.test' },
   { labelKey: 'login.demo.finance',         label: 'Finance',         email: 'finance@acme.test' },
   { labelKey: 'login.demo.engineer',        label: 'Engineer',        email: 'engineer@acme.test' },
   { labelKey: 'login.demo.admin',           label: 'Admin',           email: 'admin@acme.test' },
