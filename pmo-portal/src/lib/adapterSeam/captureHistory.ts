@@ -90,6 +90,13 @@ export interface CaptureSource {
   projectIds: string[];
   version: string;
   purchaseId: string | null;
+  reference?: string;
+  supplier?: string | null;
+  supplierName?: string | null;
+  date?: string | null;
+  currency?: string | null;
+  amount?: string | null;
+  parentIds?: string[];
 }
 export interface CaptureProposal {
   id: string;
