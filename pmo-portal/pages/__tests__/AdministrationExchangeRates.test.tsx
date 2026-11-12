@@ -283,7 +283,7 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     const summary = await screen.findByTestId('fx-page-summary');
     expect(summary).toHaveTextContent('3 with rates');
     expect(summary).toHaveTextContent(/No rate for 28 Oct, 30 Oct/);
-    expect(screen.getByRole('status')).toHaveTextContent('These gaps cover this page only');
+    expect(screen.getByText('These gaps cover this page only; use the page controls to review other dates.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
   });
 
