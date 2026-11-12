@@ -346,7 +346,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         receivables={figures.receivables} receivablesPending={figures.receivablesPending} receivablesError={figures.receivablesError}
         payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError}
         retry={() => { figures.todayRetry(); figures.periodRetry(); }}
-        chart={<InvoicedCollectedCard embedded chartHeight={200} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />}
+        chart={<InvoicedCollectedCard embedded chartHeight={188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />}
         leftToBill={{ rows: figures.leftToBillByProject, pending: figures.figureStatus('left-to-bill').pending, error: figures.figureStatus('left-to-bill').error }} />
     );
     const healthCard = (

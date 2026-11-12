@@ -92,7 +92,7 @@ export const SalesOverviewCard: React.FC<{
             : open.length === 0 ? <ListState variant="empty" icon="pipe" title={t('hub.company.noPipeline', 'No open pipeline stages')} />
               : (
                 // AC-1117: each stage bar is a link to the pipeline filtered to that stage (one scale, weighted value).
-                <ul aria-label={t('home.pipelineChart', 'Weighted pipeline by stage')} className="flex flex-1 flex-col justify-around gap-1">
+                <ul aria-label={t('home.pipelineChart', 'Weighted pipeline by stage')} className="flex flex-1 flex-col justify-between gap-1">
                   {open.map((stage) => {
                     const name = `${statusLabel(stage.status as string)} · ${stage.count}`;
                     const value = money(stage.weighted_value, currency);

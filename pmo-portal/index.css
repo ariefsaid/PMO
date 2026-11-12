@@ -973,3 +973,7 @@ p { text-wrap: pretty; }
 
 /* Assistant "typing" cue: dots fade in a wave (no bounce). */
 @keyframes thinking-dot { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+
+/* recharts measures label text in an off-screen span (aria-hidden, top -20000px) that it leaves in the body.
+   Nobody sees it; hiding it keeps its box (measurement still works) and keeps it out of text audits. */
+#recharts_measurement_span { visibility: hidden; }
