@@ -200,8 +200,8 @@
   "age": {
     "overdue_one": "{{n}} day overdue",
     "overdue_other": "{{n}} days overdue",
-    "late_one": "{{n}} day late",
-    "late_other": "{{n}} days late"
+    "late_one": "{{n}} day overdue",
+    "late_other": "{{n}} days overdue"
   },
   "reasonDialog": {
     "returnTitle": "Return {{subject}}",
