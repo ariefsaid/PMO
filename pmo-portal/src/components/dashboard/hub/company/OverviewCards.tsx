@@ -10,7 +10,7 @@ import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { PROCUREMENT_STAGES, type ProcurementStage } from '@/src/lib/procurement/stage';
 import { formatMonthShort, formatTileMoney } from '@/src/lib/format';
 import { tileMoneyLines } from '@/src/components/dashboard/restructure/currencyOrder';
-import type { BudgetReviewRow, PipelineStage, TopProject } from '@/src/lib/db/dashboard';
+import type { BudgetReviewRow, PipelineProject, PipelineStage, TopProject } from '@/src/lib/db/dashboard';
 import type { AgeingBuckets } from '@/src/lib/finance/financePosition';
 import { BarList, ChartCard, MonthColumns, SeriesKey, StackedBar, type BarRow, type ChartTone } from '@/src/components/dashboard/charts';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
@@ -60,9 +60,11 @@ export const SalesOverviewCard: React.FC<{
   wide?: boolean;
   /** Drawn under the win rate (e.g. win and loss by client). */
   aside?: React.ReactNode;
-  /** The open pipeline before weighting, beside the weighted total. */
-  gross?: string | null;
-}> = ({ weighted, forecastMargin, stages, pending, error, retry, currency, period, won, range, className, wide = false, aside, gross }) => {
+  /** The open pipeline before weighting, beside the weighted total: one line per currency, the organisation's first. */
+  gross?: string[] | null;
+  /** The open opportunities: each stage's gross is grouped from these by their own currency (the stage read adds currencies together). */
+  stageProjects?: PipelineProject[];
+}> = ({ weighted, forecastMargin, stages, pending, error, retry, currency, period, won, range, className, wide = false, aside, gross, stageProjects = [] }) => {
   const { t } = useTranslation('dashboard');
   // The definitions go to the page's one help list (no per-figure "?").
   useFigureReport([], [
@@ -84,7 +86,7 @@ export const SalesOverviewCard: React.FC<{
             <div>
               <div className="text-control text-muted-foreground">{t('home.pipelineWeighted', 'Weighted pipeline')}</div>
               <div className="text-[23px] font-bold leading-tight tabular" title={weighted.exact}>{weighted.value}</div>
-              {gross && <div className="text-control text-muted-foreground">{t('home.pipelineGross', 'Gross {{amount}}', { amount: gross })}</div>}
+              {gross && <div className="text-control text-muted-foreground">{t('home.pipelineGross', 'Gross {{amount}}', { amount: gross[0] })}{gross.slice(1).map((line) => <span key={line} className="block">{line}</span>)}</div>}
               {forecastMargin != null && <div className="text-control text-muted-foreground">{t('dashboard:hub.company.forecastMargin', 'Forecast margin')}: {(forecastMargin * 100).toFixed(1)}%</div>}
             </div>
           )}
@@ -104,8 +106,13 @@ export const SalesOverviewCard: React.FC<{
                   {open.map((stage) => {
                     const name = `${statusLabel(stage.status as string)} · ${stage.count}`;
                     const value = money(stage.weighted_value, currency);
-                    // The stage's gross project value, after the weighted one it is drawn by.
-                    const stageGross = Number.isFinite(stage.total_value) ? money(stage.total_value, currency) : '';
+                    // The stage's gross project value per currency (its projects' contract values, each in its own currency).
+                    const grossByCurrency = new Map<string, number>();
+                    for (const project of stageProjects) {
+                      if (project.status === stage.status && Number.isFinite(project.contract_value)) grossByCurrency.set(project.currency, (grossByCurrency.get(project.currency) ?? 0) + project.contract_value);
+                    }
+                    const grossLines = grossByCurrency.size ? tileMoneyLines([...grossByCurrency].map(([code, amount]) => ({ currency: code, amount })), currency, formatTileMoney) : [];
+                    const stageGross = grossLines.join('; ');
                     return (
                       <li key={String(stage.status)}>
                         <Link to={`/sales?status=${encodeURIComponent(stage.status as string)}`} aria-label={stageGross ? t('home.stageWeightedOfGross', '{{name}}: {{weighted}} weighted of {{gross}} gross', { name, weighted: value, gross: stageGross }) : `${name}: ${value}`}
@@ -113,7 +120,7 @@ export const SalesOverviewCard: React.FC<{
                           <span className="truncate text-right">{name}</span>
                           <span className="flex min-w-0 items-center gap-2">
                             <span aria-hidden className="h-[18px] min-w-0.5 rounded-r bg-primary" style={{ width: `${Math.max(1, (stage.weighted_value / max) * 75)}%` }} />
-                            <span className="shrink-0 font-semibold tabular">{value}{stageGross && <span className="font-normal text-muted-foreground"> {t('home.ofGross', 'of {{amount}}', { amount: stageGross })}</span>}</span>
+                            <span className="shrink-0 font-semibold tabular">{value}{grossLines.length > 0 && <span className="font-normal text-muted-foreground"> {t('home.ofGross', 'of {{amount}}', { amount: grossLines[0] })}{grossLines.slice(1).map((line) => <span key={line} className="block text-right">{line}</span>)}</span>}</span>
                           </span>
                         </Link>
                       </li>
