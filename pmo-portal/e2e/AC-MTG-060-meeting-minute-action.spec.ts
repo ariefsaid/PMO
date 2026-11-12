@@ -119,9 +119,8 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     // Clicking the block's far right puts the caret at the end of the line on every platform.
     // Read the signed-in name from the banner BEFORE the modal opens: an open dialog makes the
     // shell behind it inert, so the banner cannot be queried while the modal is up (release trace).
-    const accountIdentity = page.getByRole('banner').getByRole('button')
-      .filter({ hasText: /\bEngineer\b/ }).locator('span').filter({ hasText: /\bEngineer\b/ }).first();
-    const currentUserName = (await accountIdentity.innerText()).split('\n')[0].trim();
+    const currentUserName = (await page.getByRole('button', { name: 'Account menu' })
+      .locator('span.block.max-w-full').innerText()).trim();
     const actionBlock = editor.locator('.bn-block-content', { hasText: actionLine });
     await waitForFonts(page);
     const box = await actionBlock.boundingBox();
