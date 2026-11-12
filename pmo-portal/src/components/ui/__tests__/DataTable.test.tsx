@@ -55,6 +55,46 @@ const columns: Column<Row>[] = [
 ];
 
 describe('DataTable', () => {
+  it('aligns numeric and money columns, and uses tabular figures without changing text columns', () => {
+    const typedColumns: Column<Row>[] = [
+      { key: 'name', header: 'Name', kind: 'text', cell: (row) => row.name },
+      { key: 'value', header: 'Quantity', kind: 'number', cell: (row) => row.value },
+      { key: 'money', header: 'Amount', kind: 'money', cell: (row) => `$${row.value}` },
+    ];
+
+    const { container } = render(<DataTable rows={rows} columns={typedColumns} rowKey={(row) => row.id} />);
+    const numberHeader = container.querySelector('th[data-col-key="value"]');
+    const numberCell = screen.getByRole('cell', { name: '1200' });
+    const moneyHeader = container.querySelector('th[data-col-key="money"]');
+    const moneyCell = screen.getByRole('cell', { name: '$1200' });
+    const textHeader = container.querySelector('th[data-col-key="name"]');
+    const textCell = screen.getByRole('cell', { name: 'Alpha' });
+
+    for (const element of [numberHeader, numberCell, moneyHeader, moneyCell]) {
+      expect(element).toHaveClass('text-right', 'tabular-nums');
+    }
+    for (const element of [textHeader, textCell]) {
+      expect(element).not.toHaveClass('text-right', 'tabular-nums');
+    }
+  });
+
+  it('keeps numeric values tabular in phone cards without changing text values', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    const typedColumns: Column<Row>[] = [
+      { key: 'name', header: 'Name', kind: 'text', cell: (row) => row.name },
+      { key: 'status', header: 'Status', kind: 'text', cell: () => 'Active' },
+      { key: 'value', header: 'Quantity', kind: 'number', cell: (row) => row.value },
+    ];
+
+    render(<DataTable rows={rows} columns={typedColumns} rowKey={(row) => row.id} />);
+    expect(screen.getByTestId('dt-card-branch')).toBeInTheDocument();
+    expect(screen.getByText('1200').closest('dd')).toHaveClass('tabular-nums');
+    expect(screen.getAllByText('Active')[0].closest('dd')).not.toHaveClass('tabular-nums');
+  });
+
   it('maps controlled selection to row checkboxes without activating the selected row', async () => {
     const onChange = vi.fn();
     const onActivate = vi.fn();

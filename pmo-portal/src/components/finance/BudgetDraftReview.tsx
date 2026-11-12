@@ -192,7 +192,7 @@ export function BudgetDraftReview() {
               <th scope="col" className="w-8 py-1"><span className="sr-only">{t('draftReview.select', 'Select')}</span></th>
               <th scope="col" className="py-1">{t('draftReview.project', 'Project')}</th>
               <th scope="col" className="py-1">{t('draftReview.budget', 'Draft')}</th>
-              <th scope="col" className="py-1 text-right">{t('draftReview.total', 'Total')}</th>
+              <th scope="col" className="py-1 text-right tabular tabular-nums">{t('draftReview.total', 'Total')}</th>
               <th scope="col" className="py-1">{t('draftReview.mapped', 'All categories mapped')}</th>
               <th scope="col" className="py-1">{t('draftReview.source', 'Source document')}</th>
               <th scope="col" className="py-1">{t('draftReview.status', 'Status')}</th>

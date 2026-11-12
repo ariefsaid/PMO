@@ -8,10 +8,10 @@ import { ToastProvider } from '@/src/components/ui';
 
 /**
  * AC-IFW-TASKS-01 — My Tasks renders tasks ordered by urgency within a project group:
- *   - Overdue tasks (end_date in past + status != Done) sort FIRST and carry a "N days late" flag.
+ *   - Overdue tasks (end_date in past + status != Done) sort FIRST and carry a "N days overdue" flag.
  *   - Done tasks sink BELOW open ones regardless of created_at order.
  *
- * Lens-D regression invariant: overdue ordering and the lateness flag are stable.
+ * Lens-D regression invariant: overdue ordering and the overdue flag are stable.
  */
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -112,21 +112,21 @@ describe('MyTasks — urgency ordering + overdue flag (AC-IFW-TASKS-01)', () => 
     expect(screen.queryByText('Overdue Task')).not.toBeInTheDocument();
   });
 
-  it('AC-IFW-TASKS-01: overdue task carries a "N days late" flag', () => {
+  it('AC-IFW-TASKS-01: overdue task carries a "N days overdue" flag', () => {
     renderMyTasks();
-    // The row label is the shared late text ("N days late"), not the task name "Overdue Task"
-    const lateFlag = screen.getByTestId('my-task-late-status-t-overdue');
-    expect(lateFlag).toHaveTextContent(/^[\d,]+ days? late$/i);
+    // The row label is the shared overdue text ("N days overdue"), not the task name "Overdue Task"
+    const overdueFlag = screen.getByTestId('my-task-late-status-t-overdue');
+    expect(overdueFlag).toHaveTextContent(/^[\d,]+ days? overdue$/i);
   });
 
-  it('AC-IFW-TASKS-01: Done task does NOT carry a lateness flag even with past end_date', () => {
+  it('AC-IFW-TASKS-01: Done task does NOT carry an overdue flag even with past end_date', () => {
     renderMyTasks();
-    // Only one late flag should appear, not two
-    expect(screen.getAllByText(/^[\d,]+ days? late$/i)).toHaveLength(1);
+    // Only one overdue flag should appear, not two
+    expect(screen.getAllByText(/^[\d,]+ days? overdue$/i)).toHaveLength(1);
     expect(screen.queryByTestId('my-task-late-status-t-done')).not.toBeInTheDocument();
   });
 
-  it('AC-IFW-TASKS-01: Future task does NOT carry a lateness flag', () => {
+  it('AC-IFW-TASKS-01: Future task does NOT carry an overdue flag', () => {
     // Render only the future (non-overdue) task
     tasksState.data = [
       {
@@ -140,6 +140,6 @@ describe('MyTasks — urgency ordering + overdue flag (AC-IFW-TASKS-01)', () => 
       },
     ];
     renderMyTasks();
-    expect(screen.queryByText(/^[\d,]+ days? late$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^[\d,]+ days? overdue$/i)).not.toBeInTheDocument();
   });
 });

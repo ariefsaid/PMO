@@ -280,7 +280,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
                       <th scope="col" className="px-2 py-1">{t('budgetPaste.col.row', 'Row')}</th>
                       <th scope="col" className="px-2 py-1">{fieldLabel.category}</th>
                       <th scope="col" className="px-2 py-1">{fieldLabel.description}</th>
-                      <th scope="col" className="px-2 py-1 text-right">{fieldLabel.amount}</th>
+                      <th scope="col" className="px-2 py-1 text-right tabular tabular-nums">{fieldLabel.amount}</th>
                       <th scope="col" className="px-2 py-1">{t('budgetPaste.col.status', 'Check')}</th>
                     </tr>
                   </thead>

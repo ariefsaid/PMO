@@ -375,9 +375,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         </div>
         {canViewMoney && (
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-            <span>{formatCurrency(p.contract_value, p.currency)}</span>
+            <span className="tabular tabular-nums">{formatCurrency(p.contract_value, p.currency)}</span>
             {!sharedBasis && <TaxBasisLabel treatment={p.tax_treatment} showDetails={false} className="leading-tight" />}
-            {actual && <span className="text-muted-foreground">{t('projects:card.actualInline', '{{amount}} actual', { amount: actual })}</span>}
+            {actual && <span className="tabular tabular-nums text-muted-foreground">{t('projects:card.actualInline', '{{amount}} actual', { amount: actual })}</span>}
             {budgetUsed && <span className="min-w-[7rem] max-w-[10rem] flex-1">{budgetUsed}</span>}
           </div>
         )}

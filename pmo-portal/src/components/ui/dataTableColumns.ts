@@ -2,6 +2,25 @@ import React from 'react';
 import type { Column, DataTableProps } from './DataTable';
 
 const EMPTY_MARKERS = new Set(['—', '–', '-']);
+const NUMERIC_KINDS = new Set(['money', 'number', 'percent']);
+
+type ColumnPresentation = Pick<Column<unknown>, 'kind' | 'align'>;
+
+/** Numeric column kinds default to right alignment; legacy `align: 'num'` columns keep it too. */
+export function isNumericColumn<Row>(column: Pick<Column<Row>, 'kind' | 'align'>): boolean {
+  return NUMERIC_KINDS.has(column.kind ?? '') || column.align === 'num';
+}
+
+/** An explicit centered matrix column remains centered; otherwise numeric columns line up on the right. */
+export function columnAlignmentClass(column: ColumnPresentation): string {
+  if (column.align === 'center') return 'text-center';
+  return isNumericColumn(column) ? 'text-right' : 'text-left';
+}
+
+/** Keep the shared table marker and standard utility so figures stay fixed-width in every table branch. */
+export function numericColumnClass(column: ColumnPresentation): string | undefined {
+  return isNumericColumn(column) ? 'tabular tabular-nums' : undefined;
+}
 
 /** True when a cell renders nothing a person can read: null/false/''/whitespace, the "—" marker, or a list/fragment of those.
  *  Any other element counts as content (its output cannot be inspected without rendering it). */

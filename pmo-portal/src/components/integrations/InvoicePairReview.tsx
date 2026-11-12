@@ -156,7 +156,7 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
                 <th className={th}>{t('invoicePairs.col.pmo', 'PMO invoice')}</th>
                 <th className={th}>{t('invoicePairs.col.erp', 'ERP invoice')}</th>
                 <th className={th}>{t('invoicePairs.col.customer', 'Customer')}</th>
-                <th className={`${th} text-right`}>{t('invoicePairs.col.amount', 'Amount')}</th>
+                <th className={`${th} text-right tabular tabular-nums`}>{t('invoicePairs.col.amount', 'Amount')}</th>
               </tr>
             </thead>
             <tbody>
