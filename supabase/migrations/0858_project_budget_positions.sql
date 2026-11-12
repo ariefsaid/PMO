@@ -28,6 +28,7 @@ language sql stable security invoker set search_path = public, pg_catalog as $$
            public.org_reads_erp_ledger() as uses_erp
   ), projects as materialized (
     select p.id, p.org_id, p.status::text as status, p.archived_at, p.currency as project_currency,
+           o.default_currency as org_currency,
            case when c.uses_erp then coalesce(
              (select m.attrs->>'currency'
                 from public.external_master_records m
@@ -74,21 +75,63 @@ language sql stable security invoker set search_path = public, pg_catalog as $$
   ), erp_enabled as materialized (
     select true as enabled from projects p where p.uses_erp limit 1
   ), erp_actual_rows as materialized (
-    select a.project_id, a.mapped, a.actuals_to_date
+    select a.project_id, a.mapped, a.actuals_to_date, a.equipment_charge_to_date
       from erp_enabled e
       cross join lateral public.project_mapped_actuals_all(null) a
       join projects p on p.id = a.project_id and p.uses_erp
+  ), erp_charge_rows as materialized (
+    select c.project_id, c.n, c.amount
+      from erp_enabled e
+      cross join lateral public.equipment_charge_org_actuals(null) c
+      join projects p on p.id = c.project_id and p.uses_erp
+  ), erp_charges as (
+    -- Hire charges are priced in organizations.default_currency; preserve an unknown amount rather than coalescing it.
+    select c.project_id,
+           sum(c.n)::bigint as charge_count,
+           case when count(*) filter (where c.amount is null
+                       or c.amount::text in ('NaN','Infinity','-Infinity')) > 0 then null::numeric
+                else sum(c.amount) end as charge_amount
+      from erp_charge_rows c
+     group by c.project_id
+  ), erp_ledger_readings as materialized (
+    -- ERP actual snapshots contain only populated project readings. With no row for the project,
+    -- the current model cannot distinguish an authoritative empty ledger from an absent reading;
+    -- treat absence as unknown even when an internal charge has an as-of timestamp.
+    select distinct s.project_id
+      from erp_enabled e
+      cross join lateral (
+        select latest.snapshot_id
+          from public.erp_actuals_snapshot latest
+         where latest.org_id = (select org_id from caller)
+         order by latest.created_at desc, latest.id desc
+         limit 1
+      ) generation
+      join public.erp_actuals_snapshot s
+        on s.org_id = (select org_id from caller) and s.snapshot_id = generation.snapshot_id
+      join projects p on p.id = s.project_id and p.uses_erp
   ), erp_actuals as (
     select a.project_id,
            case when count(*) filter (where a.mapped) = 0
                   or count(*) filter (where a.mapped and (
                        a.actuals_to_date is null
                        or a.actuals_to_date::text in ('NaN','Infinity','-Infinity')
-                     )) > 0 then null::numeric
+                     )) > 0
+                  or bool_or(l.project_id is not null) is not true
+                  -- Do not relabel an org-currency hire charge as the ERP/company currency.
+                  or (coalesce(max(c.charge_count), 0) > 0
+                      and (max(c.charge_amount) is null or p.org_currency is distinct from p.currency))
+                then null::numeric
+                -- project_mapped_actuals_all already includes mapped hire charges. Remove those from its subtotal,
+                -- then add all charges once so categories without an ERP account mapping remain in project consumption.
                 else sum(a.actuals_to_date) filter (where a.mapped)
+                     - coalesce(sum(a.equipment_charge_to_date) filter (where a.mapped), 0::numeric)
+                     + coalesce(max(c.charge_amount), 0::numeric)
            end as actual
       from erp_actual_rows a
-     group by a.project_id
+      join projects p on p.id = a.project_id and p.uses_erp
+      left join erp_ledger_readings l on l.project_id = a.project_id
+      left join erp_charges c on c.project_id = a.project_id
+     group by a.project_id, p.org_currency, p.currency
   ), source_positions as (
     select p.id as project_id,
            case when p.uses_erp then 'erp' else 'pmo' end as ledger_basis,

@@ -1,22 +1,29 @@
 -- S03 canonical project budget positions: exact, set-based actual + open-commitment facts.
 begin;
 create extension if not exists pgtap;
-select plan(38);
+select plan(42);
 
 insert into public.organizations (id, name, default_currency, default_timezone) values
   ('a0300000-0000-0000-0000-000000000001', 'S03 PMO', 'USD', 'UTC'),
   ('a0300000-0000-0000-0000-000000000002', 'S03 ERP', 'USD', 'UTC'),
-  ('a0300000-0000-0000-0000-000000000003', 'S03 Other', 'USD', 'UTC');
+  ('a0300000-0000-0000-0000-000000000003', 'S03 Other', 'USD', 'UTC'),
+  ('a0300000-0000-0000-0000-000000000004', 'S03 ERP currency mismatch', 'USD', 'UTC');
 insert into auth.users (id, email) values
   ('a0300000-0000-0000-0000-0000000000a1', 's03-finance@example.test'),
   ('a0300000-0000-0000-0000-0000000000a2', 's03-engineer@example.test'),
   ('a0300000-0000-0000-0000-0000000000a3', 's03-erp-finance@example.test'),
-  ('a0300000-0000-0000-0000-0000000000a4', 's03-other-finance@example.test');
+  ('a0300000-0000-0000-0000-0000000000a4', 's03-other-finance@example.test'),
+  ('a0300000-0000-0000-0000-0000000000a5', 's03-currency-finance@example.test'),
+  ('a0300000-0000-0000-0000-0000000000a6', 's03-currency-engineer@example.test'),
+  ('a0300000-0000-0000-0000-0000000000a7', 's03-erp-engineer@example.test');
 insert into public.profiles (id, org_id, full_name, email, role, status) values
   ('a0300000-0000-0000-0000-0000000000a1', 'a0300000-0000-0000-0000-000000000001', 'S03 Finance', 's03-finance@example.test', 'Finance', 'active'),
   ('a0300000-0000-0000-0000-0000000000a2', 'a0300000-0000-0000-0000-000000000001', 'S03 Engineer', 's03-engineer@example.test', 'Engineer', 'active'),
   ('a0300000-0000-0000-0000-0000000000a3', 'a0300000-0000-0000-0000-000000000002', 'S03 ERP Finance', 's03-erp-finance@example.test', 'Finance', 'active'),
-  ('a0300000-0000-0000-0000-0000000000a4', 'a0300000-0000-0000-0000-000000000003', 'S03 Other Finance', 's03-other-finance@example.test', 'Finance', 'active');
+  ('a0300000-0000-0000-0000-0000000000a4', 'a0300000-0000-0000-0000-000000000003', 'S03 Other Finance', 's03-other-finance@example.test', 'Finance', 'active'),
+  ('a0300000-0000-0000-0000-0000000000a5', 'a0300000-0000-0000-0000-000000000004', 'S03 Currency Finance', 's03-currency-finance@example.test', 'Finance', 'active'),
+  ('a0300000-0000-0000-0000-0000000000a6', 'a0300000-0000-0000-0000-000000000004', 'S03 Currency Engineer', 's03-currency-engineer@example.test', 'Engineer', 'active'),
+  ('a0300000-0000-0000-0000-0000000000a7', 'a0300000-0000-0000-0000-000000000002', 'S03 ERP Engineer', 's03-erp-engineer@example.test', 'Engineer', 'active');
 
 insert into public.projects (id, org_id, name, status, currency) values
   ('a0300000-0000-0000-0000-0000000000d1', 'a0300000-0000-0000-0000-000000000001', 'S03 half paid', 'Ongoing Project', 'USD'),
@@ -31,7 +38,10 @@ insert into public.projects (id, org_id, name, status, currency) values
   ('a0300000-0000-0000-0000-0000000000da', 'a0300000-0000-0000-0000-000000000002', 'S03 primary ERP position', 'Ongoing Project', 'USD'),
   ('a0300000-0000-0000-0000-0000000000db', 'a0300000-0000-0000-0000-000000000001', 'S03 below threshold', 'Ongoing Project', 'USD'),
   ('a0300000-0000-0000-0000-0000000000dc', 'a0300000-0000-0000-0000-000000000001', 'S03 nonintegral percent', 'Ongoing Project', 'USD'),
-  ('a0300000-0000-0000-0000-0000000000dd', 'a0300000-0000-0000-0000-000000000001', 'S03 zero Active budget', 'Ongoing Project', 'USD');
+  ('a0300000-0000-0000-0000-0000000000dd', 'a0300000-0000-0000-0000-000000000001', 'S03 zero Active budget', 'Ongoing Project', 'USD'),
+  ('a0300000-0000-0000-0000-0000000000de', 'a0300000-0000-0000-0000-000000000004', 'S03 ERP charge currency mismatch', 'Ongoing Project', 'EUR'),
+  ('a0300000-0000-0000-0000-0000000000df', 'a0300000-0000-0000-0000-000000000002', 'S03 ERP unmapped hire charge', 'Ongoing Project', 'USD'),
+  ('a0300000-0000-0000-0000-0000000000d0', 'a0300000-0000-0000-0000-000000000002', 'S03 ERP missing ledger with hire charge', 'Ongoing Project', 'USD');
 
 insert into public.budget_versions (id, org_id, project_id, version, name, status, currency) values
   ('a0300000-0000-0000-0000-0000000000b1', 'a0300000-0000-0000-0000-000000000001', 'a0300000-0000-0000-0000-0000000000d1', 1, 'S03 half budget', 'Draft', 'USD'),
@@ -45,7 +55,10 @@ insert into public.budget_versions (id, org_id, project_id, version, name, statu
   ('a0300000-0000-0000-0000-0000000000ba', 'a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000da', 1, 'S03 primary ERP budget', 'Draft', 'USD'),
   ('a0300000-0000-0000-0000-0000000000bb', 'a0300000-0000-0000-0000-000000000001', 'a0300000-0000-0000-0000-0000000000db', 1, 'S03 below threshold budget', 'Draft', 'USD'),
   ('a0300000-0000-0000-0000-0000000000bc', 'a0300000-0000-0000-0000-000000000001', 'a0300000-0000-0000-0000-0000000000dc', 1, 'S03 nonintegral budget', 'Draft', 'USD'),
-  ('a0300000-0000-0000-0000-0000000000bd', 'a0300000-0000-0000-0000-000000000001', 'a0300000-0000-0000-0000-0000000000dd', 1, 'S03 zero Active budget', 'Draft', 'USD');
+  ('a0300000-0000-0000-0000-0000000000bd', 'a0300000-0000-0000-0000-000000000001', 'a0300000-0000-0000-0000-0000000000dd', 1, 'S03 zero Active budget', 'Draft', 'USD'),
+  ('a0300000-0000-0000-0000-0000000000be', 'a0300000-0000-0000-0000-000000000004', 'a0300000-0000-0000-0000-0000000000de', 1, 'S03 mixed currency budget', 'Draft', 'EUR'),
+  ('a0300000-0000-0000-0000-0000000000bf', 'a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000df', 1, 'S03 unmapped hire budget', 'Draft', 'USD'),
+  ('a0300000-0000-0000-0000-0000000000b0', 'a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000d0', 1, 'S03 missing ledger budget', 'Draft', 'USD');
 insert into public.budget_line_items (org_id, budget_version_id, category, description, budgeted_amount) values
   ('a0300000-0000-0000-0000-000000000001', 'a0300000-0000-0000-0000-0000000000b1', 'Labor', 'S03 half budget line', 1000),
   ('a0300000-0000-0000-0000-000000000001', 'a0300000-0000-0000-0000-0000000000b2', 'Labor', 'S03 hire budget line', 500),
@@ -58,7 +71,10 @@ insert into public.budget_line_items (org_id, budget_version_id, category, descr
   ('a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000ba', 'Labor', 'S03 primary ERP budget line', 1000),
   ('a0300000-0000-0000-0000-000000000001', 'a0300000-0000-0000-0000-0000000000bb', 'Labor', 'S03 below threshold budget line', 1000),
   ('a0300000-0000-0000-0000-000000000001', 'a0300000-0000-0000-0000-0000000000bc', 'Labor', 'S03 nonintegral budget line', 1000),
-  ('a0300000-0000-0000-0000-000000000001', 'a0300000-0000-0000-0000-0000000000bd', 'Labor', 'S03 zero Active budget line', 0);
+  ('a0300000-0000-0000-0000-000000000001', 'a0300000-0000-0000-0000-0000000000bd', 'Labor', 'S03 zero Active budget line', 0),
+  ('a0300000-0000-0000-0000-000000000004', 'a0300000-0000-0000-0000-0000000000be', 'Equipment', 'S03 mixed currency budget line', 1000),
+  ('a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000bf', 'Equipment', 'S03 unmapped hire budget line', 1000),
+  ('a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000b0', 'Equipment', 'S03 missing ledger budget line', 1000);
 update public.budget_versions set status = 'Active'
  where id = any(array[
    'a0300000-0000-0000-0000-0000000000b1'::uuid,
@@ -72,7 +88,10 @@ update public.budget_versions set status = 'Active'
    'a0300000-0000-0000-0000-0000000000ba'::uuid,
    'a0300000-0000-0000-0000-0000000000bb'::uuid,
    'a0300000-0000-0000-0000-0000000000bc'::uuid,
-   'a0300000-0000-0000-0000-0000000000bd'::uuid
+   'a0300000-0000-0000-0000-0000000000bd'::uuid,
+   'a0300000-0000-0000-0000-0000000000be'::uuid,
+   'a0300000-0000-0000-0000-0000000000bf'::uuid,
+   'a0300000-0000-0000-0000-0000000000b0'::uuid
  ]);
 
 insert into public.procurements (id, org_id, title, status, total_value, project_id, currency, budget_category, origin) values
@@ -104,16 +123,46 @@ insert into public.equipment_usage_entries (org_id, asset_id, project_id, work_d
    'a0300000-0000-0000-0000-0000000000d2', '2026-10-10', 4, 'hours', 'work', 'Approved',
    'a0300000-0000-0000-0000-0000000000a2', 'a0300000-0000-0000-0000-0000000000a1', now());
 
+insert into public.equipment_assets (id, org_id, code, name, default_unit) values
+  ('a0300000-0000-0000-0000-0000000000e3', 'a0300000-0000-0000-0000-000000000004', 'S03-EUR', 'S03 EUR generator', 'hours'),
+  ('a0300000-0000-0000-0000-0000000000e4', 'a0300000-0000-0000-0000-000000000002', 'S03-USD', 'S03 USD generator', 'hours');
+insert into public.equipment_costing_settings (org_id, asset_id, setting_key, version, basis, work_rate, rate_unit,
+                                                charge_category, effective_from) values
+  ('a0300000-0000-0000-0000-000000000004', 'a0300000-0000-0000-0000-0000000000e3',
+   'a0300000-0000-0000-0000-0000000000e6', 1, 'hire_rate', 50, 'hours', 'Equipment', '2026-01-01'),
+  ('a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000e4',
+   'a0300000-0000-0000-0000-0000000000e7', 1, 'hire_rate', 50, 'hours', 'Labor', '2026-01-01');
+insert into public.equipment_usage_entries (org_id, asset_id, project_id, work_date, quantity, unit, kind, status,
+                                             author_id, approver_id, approved_at) values
+  ('a0300000-0000-0000-0000-000000000004', 'a0300000-0000-0000-0000-0000000000e3',
+   'a0300000-0000-0000-0000-0000000000de', '2026-10-10', 4, 'hours', 'work', 'Approved',
+   'a0300000-0000-0000-0000-0000000000a6', 'a0300000-0000-0000-0000-0000000000a5', now()),
+  ('a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000e4',
+   'a0300000-0000-0000-0000-0000000000df', '2026-10-10', 4, 'hours', 'work', 'Approved',
+   'a0300000-0000-0000-0000-0000000000a7', 'a0300000-0000-0000-0000-0000000000a3', now()),
+  ('a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000e4',
+   'a0300000-0000-0000-0000-0000000000d0', '2026-10-10', 4, 'hours', 'work', 'Approved',
+   'a0300000-0000-0000-0000-0000000000a7', 'a0300000-0000-0000-0000-0000000000a3', now());
+
 insert into public.external_org_bindings (org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at)
 values ('a0300000-0000-0000-0000-000000000002', 'erpnext', 'https://s03.example.test', 's03-test-ref', 'active',
         'a0300000-0000-0000-0000-0000000000a3', now());
+insert into public.external_org_bindings (org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at)
+values ('a0300000-0000-0000-0000-000000000004', 'erpnext', 'https://s03-currency.example.test', 's03-test-ref', 'active',
+        'a0300000-0000-0000-0000-0000000000a5', now());
 insert into public.budget_category_account_map (org_id, category, erp_account, is_push_target)
-values ('a0300000-0000-0000-0000-000000000002', 'Equipment', 'S03 actual account', false);
+values
+  ('a0300000-0000-0000-0000-000000000002', 'Equipment', 'S03 actual account', false),
+  ('a0300000-0000-0000-0000-000000000004', 'Equipment', 'S03 EUR actual account', false);
+insert into public.external_master_records (org_id, external_tier, kind, external_id, name, attrs, source_write_date)
+values ('a0300000-0000-0000-0000-000000000004', 'odoo', 'company', 's03-company', 'S03 company EUR', '{"currency":"EUR"}', '2026-10-10 00:00:00');
 insert into public.erp_actuals_snapshot (org_id, project_id, cost_center, account, fiscal_year, debit, credit, net, snapshot_id)
 values
   ('a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000d5', 'S03 cost center', 'S03 actual account', '2026', 700, 0, 700, 'a0300000-0000-0000-0000-0000000000e5'),
   ('a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000d6', 'S03 cost center', 'S03 actual account', '2026', null, null, null, 'a0300000-0000-0000-0000-0000000000e5'),
-  ('a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000da', 'S03 cost center', 'S03 actual account', '2026', 500, 0, 500, 'a0300000-0000-0000-0000-0000000000e5');
+  ('a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000da', 'S03 cost center', 'S03 actual account', '2026', 500, 0, 500, 'a0300000-0000-0000-0000-0000000000e5'),
+  ('a0300000-0000-0000-0000-000000000002', 'a0300000-0000-0000-0000-0000000000df', 'S03 cost center', 'S03 actual account', '2026', 700, 0, 700, 'a0300000-0000-0000-0000-0000000000e5'),
+  ('a0300000-0000-0000-0000-000000000004', 'a0300000-0000-0000-0000-0000000000de', 'S03 EUR cost center', 'S03 EUR actual account', '2026', 700, 0, 700, 'a0300000-0000-0000-0000-0000000000e6');
 
 select is((select prosecdef from pg_catalog.pg_proc where oid = 'public.project_budget_positions(uuid[])'::regprocedure), false,
           'S03 function runs as invoker so source-table RLS remains in force');
@@ -259,5 +308,32 @@ select results_eq(
      where project_id = 'a0300000-0000-0000-0000-0000000000d6'$$,
   $$values (null::text, null::text, null::text, null::boolean)$$,
   'S03 unknown ERP actual withholds the full dependent tuple');
+select results_eq(
+  $$select active_budget_amount::numeric, spent::numeric, consumption::numeric, complete, used_ratio::numeric,
+           used_percent::numeric, consumption_variance::numeric, risk_eligible, at_risk
+      from public.project_budget_positions(array['a0300000-0000-0000-0000-0000000000df'::uuid])
+     where project_id = 'a0300000-0000-0000-0000-0000000000df'$$,
+  $$values (1000::numeric, 900::numeric, 900::numeric, true, 0.9::numeric, 90::numeric, -100::numeric, true, true)$$,
+  'T-S03-02 comparable unmapped Labor hire charge is added once to the 700 ERP actual');
+select is((select mapped from public.project_mapped_actuals_all(null)
+            where project_id = 'a0300000-0000-0000-0000-0000000000df' and category = 'Labor'), false,
+          'T-S03-02 category coverage still marks Labor unmapped while project consumption includes its charge');
+select results_eq(
+  $$select active_budget_amount::numeric, spent::numeric, consumption::numeric, complete, used_ratio::numeric,
+           used_percent::numeric, consumption_variance::numeric, risk_eligible, at_risk
+      from public.project_budget_positions(array['a0300000-0000-0000-0000-0000000000d0'::uuid])
+     where project_id = 'a0300000-0000-0000-0000-0000000000d0'$$,
+  $$values (1000::numeric, null::numeric, null::numeric, false, null::numeric, null::numeric, null::numeric, true, null::boolean)$$,
+  'T-S03-03 hire charge without a project ledger snapshot leaves ERP consumption and comparisons unknown');
+reset role;
+set local role authenticated;
+select pg_temp.act_as('a0300000-0000-0000-0000-0000000000a5');
+select results_eq(
+  $$select active_budget_amount::numeric, spent::numeric, consumption::numeric, complete, used_ratio::numeric,
+           used_percent::numeric, consumption_variance::numeric, risk_eligible, at_risk
+      from public.project_budget_positions(array['a0300000-0000-0000-0000-0000000000de'::uuid])
+     where project_id = 'a0300000-0000-0000-0000-0000000000de'$$,
+  $$values (1000::numeric, null::numeric, null::numeric, false, null::numeric, null::numeric, null::numeric, true, null::boolean)$$,
+  'T-S03-01 USD hire charge with EUR ERP/company actual leaves consumption comparisons unknown');
 select * from finish();
 rollback;
