@@ -176,6 +176,26 @@ describe('StockMovementForm', () => {
     expect(await screen.findByText(/Only an Admin can date a movement more than 31 days back/)).toBeInTheDocument();
   });
 
+  it('C16 a refused post brings the error strip into view and focuses it, so it is seen and read, not skipped at 390', async () => {
+    // Discover finding (2026-11-13, repair/c16 row 5): at 390 the strip landed behind the fixed
+    // action bar — its last line cut off — so a refused post read as "nothing happened". Geometry
+    // cannot be proven in jsdom; this locks the scroll + focus that puts it clear of the bar.
+    documents.create.mockRejectedValue({ code: 'P0001', message: 'STK_BACKDATE: only an Admin may date a movement more than 31 days back' });
+    const scrollIntoView = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    try {
+      renderForm('issue');
+      await fillIssue('5');
+      await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
+      const alert = (await screen.findAllByRole('alert')).find((a) => /Only an Admin can date a movement more than 31 days back/.test(a.textContent ?? ''));
+      expect(alert, 'the strip is announced as an alert').toBeDefined();
+      expect(scrollIntoView.mock.contexts, 'the strip itself is scrolled into view').toContain(alert);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' });
+      expect(alert).toHaveFocus();
+    } finally {
+      scrollIntoView.mockRestore();
+    }
+  });
+
   it('STK_FRACTION a fraction on a whole-number unit is refused before it is sent', async () => {
     renderForm('issue');
     await fillIssue('2.5');
