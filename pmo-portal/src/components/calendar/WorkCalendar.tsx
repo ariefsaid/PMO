@@ -80,14 +80,21 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
   tasks, milestones, loading, initialDate, withProject, canMoveTask, onMoveTask, onWindowChange, onOpenItem, onMoveError, onMoveBlocked,
 }) => {
   const { t } = useTranslation('calendar');
+  const taskKindLabel = t('eventKind.task', 'Task');
+  const milestoneKindLabel = t('eventKind.milestone', 'Phase');
   // A dropped task shows on its new day at once; the host's refetch (new `tasks`) or a failed save clears it.
   const [moved, setMoved] = useState<Record<string, WorkTask>>({});
   useEffect(() => setMoved({}), [tasks]);
 
   const shown = useMemo(() => tasks.map((task) => moved[task.id] ?? task), [tasks, moved]);
   const events = useMemo(
-    () => toWorkEvents(shown, milestones, canMoveTask, { withProject }),
-    [shown, milestones, canMoveTask, withProject],
+    () => toWorkEvents(shown, milestones, canMoveTask, { withProject }).map((event) => ({
+      ...event,
+      ariaLabelPrefix: event.data?.kind === 'task'
+        ? taskKindLabel
+        : event.data?.kind === 'milestone' ? milestoneKindLabel : undefined,
+    })),
+    [shown, milestones, canMoveTask, withProject, taskKindLabel, milestoneKindLabel],
   );
 
   const handleUpdate = useCallback((update: EventCalendarProposedUpdate<WorkItem>) => {

@@ -12,6 +12,10 @@
     "agenda": "Agenda"
   },
   "empty": "Tidak ada yang jatuh tempo pada periode ini",
+  "eventKind": {
+    "task": "Tugas",
+    "milestone": "Fase"
+  },
   "error": {
     "title": "Kalender tidak dapat dimuat",
     "sub": "Periksa koneksi Anda lalu coba lagi."

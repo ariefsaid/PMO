@@ -12,6 +12,10 @@
     "agenda": "Agenda"
   },
   "empty": "Nothing due in this period",
+  "eventKind": {
+    "task": "Task",
+    "milestone": "Phase"
+  },
   "error": {
     "title": "Could not load the calendar",
     "sub": "Check your connection and try again."

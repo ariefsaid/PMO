@@ -24,7 +24,7 @@ type View =
   | { kind: 'leaving' };
 
 const OAuthConsentPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'oauthConsent']);
   const [params] = useSearchParams();
   const authorizationId = params.get('authorization_id');
   const [view, setView] = useState<View>(authorizationId ? { kind: 'loading' } : { kind: 'invalid' });
@@ -157,6 +157,10 @@ const OAuthConsentPage: React.FC = () => {
     }
   }
 
+  const pageTitle = view.kind === 'loading' || view.kind === 'invalid' || view.kind === 'loadError'
+    ? t('oauthConsent:pageTitle', 'Sign-in request')
+    : null;
+
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
@@ -174,7 +178,14 @@ const OAuthConsentPage: React.FC = () => {
           </div>
         </div>
         <Card>
-          <CardPad>{body}</CardPad>
+          <CardPad>
+            {pageTitle && (
+              <h1 className="mb-4 text-[20px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
+                {pageTitle}
+              </h1>
+            )}
+            {body}
+          </CardPad>
         </Card>
       </div>
     </div>
