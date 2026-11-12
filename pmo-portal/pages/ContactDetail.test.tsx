@@ -165,6 +165,7 @@ describe('ContactDetail', () => {
     const header = screen.getByTestId('record-header');
     expect(within(header).getByRole('button', { name: /^edit$/i }).className).toContain('bg-primary');
     expect(within(header).getByRole('button', { name: /^archive$/i })).toBeInTheDocument();
+    expect(within(header).getAllByRole('button').map((button) => button.textContent)).toEqual(['Edit', 'Archive']);
     await userEvent.click(within(header).getByRole('button', { name: /^archive$/i }));
     const dialog = await screen.findByRole('alertdialog', { name: 'Archive Jane Doe?' });
     expect(dialog).toHaveTextContent(/hidden from the default list/i);

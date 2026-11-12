@@ -15,7 +15,7 @@ vi.mock('@/src/hooks/useMeetings', () => ({
 const attendees = [{
   id: 'attendee-1', meeting_id: 'meeting-1', profile_id: 'profile-1', contact_id: null,
   display_name: null, added_by: 'owner-1', created_at: '2026-11-01T00:00:00Z',
-  profile: { id: 'profile-1', full_name: 'Rina Hartono' }, contact: null,
+  profile: { id: 'profile-1', full_name: 'Meeting attendee' }, contact: null,
 }] as MeetingAttendeeWithRefs[];
 
 describe('MeetingAttendees', () => {
@@ -37,7 +37,7 @@ describe('MeetingAttendees', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove attendee' }));
 
     const dialog = await screen.findByRole('alertdialog', { name: 'Remove attendee?' });
-    expect(dialog).toHaveTextContent('Rina Hartono');
+    expect(dialog).toHaveTextContent('Meeting attendee');
     expect(dialog).toHaveTextContent(/access to this meeting.s minutes/i);
     expect(h.remove).not.toHaveBeenCalled();
   });
