@@ -148,6 +148,7 @@ export interface CaptureSourceCensus { complete: boolean; sources: CaptureSource
 export async function collectCaptureSources(adapter: CaptureAdapter): Promise<CaptureSourceCensus> {
   const sources: CaptureSource[] = [];
   const seen = new Set<string>();
+  const sourceIds = new Set<string>();
   let cursor: string | null = null;
   let revision: string | undefined;
   try {
@@ -158,7 +159,13 @@ export async function collectCaptureSources(adapter: CaptureAdapter): Promise<Ca
         return { complete: false, sources, missing: ['source generation changed'] };
       }
       revision = page.revision;
-      sources.push(...page.sources);
+      for (const source of page.sources) {
+        if (!source.id || sourceIds.has(source.id)) {
+          return { complete: false, sources, missing: ['duplicate source identity'] };
+        }
+        sourceIds.add(source.id);
+        sources.push(source);
+      }
       cursor = page.nextCursor;
       if (cursor !== null && seen.has(cursor)) return { complete: false, sources, missing: ['repeated source cursor'] };
       if (cursor !== null) seen.add(cursor);

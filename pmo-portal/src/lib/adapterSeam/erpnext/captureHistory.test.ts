@@ -46,3 +46,14 @@ it('AC-ROP-018 a census whose source generation changes between pages is incompl
   expect(result.complete).toBe(false);
   expect(result.missing).toContain('source generation changed');
 });
+
+it('AC-ROP-021 does not claim completeness when the same source is repeated across pages', async () => {
+  const { collectCaptureSources } = await import('../captureHistory');
+  const row = { id: 'same', kind: 'order' as const, state: 'ordered' as const, projectIds: ['p'], version: '1', purchaseId: null };
+  const adapter = { listSources: async (cursor: string | null) => cursor === null
+    ? { supported: true as const, sources: [row], nextCursor: 'next', revision: 'v' }
+    : { supported: true as const, sources: [row], nextCursor: null, revision: 'v' } };
+  const result = await collectCaptureSources(adapter);
+  expect(result.complete).toBe(false);
+  expect(result.missing).toContain('duplicate source identity');
+});
