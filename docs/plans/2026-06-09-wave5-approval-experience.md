@@ -529,7 +529,7 @@ in spec and be wrong once rendered).
   in the same mockup file as the reordered screen.
 - **Procurement reorder (Surface A / N7/D6/D7/D8) — NO mockup; review post-build.** This is a
   re-layout of existing, already-approved blocks; the incremental change is best judged on the real
-  rendered screen via the design-reviewer 3-lens rendered audit (§2.3 of design-workflow) rather than
+  rendered screen via the design-reviewer 3-lens rendered audit (§2.3 of docs/archive/design-workflow-lens-battery.md) rather than
   a throwaway mockup.
 - **Timesheet expand + bulk (Surface B / N11/N12) — NO mockup; review post-build.** Both reuse
   documented patterns (read-only grid; DataTable selection-bulk wash); the rendered audit suffices.

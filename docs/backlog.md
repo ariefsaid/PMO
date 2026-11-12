@@ -1889,7 +1889,7 @@ The rule that generates the last two rows: **whoever owns the credential owns th
   3-reviewer + twice-design-review; DB-index review assigned to code-quality.)
 - **Lens D — Product / Intent (JTBD) codified + first pass run, 2026-06-14** — `docs/jtbd.md` is the
   role × job-story oracle (Lens D grades every FE screen against it); wired into
-  `docs/design-workflow.md` §2.3(d), `design-reviewer` agent, `docs/director-playbook.md` intake hook,
+  `docs/archive/design-workflow-lens-battery.md` §2.3(d), `design-reviewer` agent, `docs/director-playbook.md` intake hook,
   `DESIGN.md` §7, and Part C of `docs/product-expectations.md`. **(b) DONE:** the dual-substrate
   (Opus + gpt-5.4) JTBD walkthrough on `dev` → [`docs/reviews/2026-06-14-jtbd-walkthrough.md`](reviews/2026-06-14-jtbd-walkthrough.md):
   3 anchors re-confirmed (a HOLDS·Critical, b HOLDS, c PARTIALLY-RESOLVED+re-appears-pre-win), **9

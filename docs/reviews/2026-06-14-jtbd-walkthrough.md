@@ -108,7 +108,7 @@ the structural theme (§3) so they're fixed as classes:
 5. **Seed enrichment** (§5) — contacts+activity, so CRM jobs are demonstrable.
 
 Each item routes through the normal per-issue loop; being intent gaps, they're now **Lens-D regression
-candidates** (design-workflow §3a) — the fix should leave a component/e2e invariant so it can't silently
+candidates** (docs/archive/design-workflow-lens-battery.md §3a) — the fix should leave a component/e2e invariant so it can't silently
 regress.
 
 ---
