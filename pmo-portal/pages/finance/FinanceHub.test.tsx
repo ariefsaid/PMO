@@ -10,6 +10,17 @@ const state = vi.hoisted(() => ({
   role: 'Finance',
   currency: 'IDR',
   position: null as FinancePosition | null,
+  financeSources: {
+    invoicesPending: false,
+    invoicesError: false,
+    paymentsPending: false,
+    paymentsError: false,
+    procurementsPending: false,
+    procurementsError: false,
+    orgDayPending: false,
+    orgDayError: false,
+  },
+  erp: { isPending: false, isError: false },
   figures: {
     data: undefined as unknown,
     isPending: false,
@@ -38,12 +49,13 @@ vi.mock('@/src/hooks/useFinancePosition', () => ({
   useFinancePosition: () => ({
     position: state.position,
     today: '2026-10-27',
-    isPending: false,
-    isError: false,
+    ...state.financeSources,
+    isPending: Object.entries(state.financeSources).some(([key, value]) => key.endsWith('Pending') && value),
+    isError: Object.entries(state.financeSources).some(([key, value]) => key.endsWith('Error') && value),
     retry: vi.fn(),
   }),
 }));
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], ...state.erp }) }));
 vi.mock('@/src/hooks/useFinanceHubFigures', () => ({
   useFinanceHubFigures: () => state.figures,
 }));
@@ -101,6 +113,17 @@ function renderHub(role = 'Finance') {
 beforeEach(() => {
   state.currency = 'IDR';
   state.position = positionFixture();
+  state.financeSources = {
+    invoicesPending: false,
+    invoicesError: false,
+    paymentsPending: false,
+    paymentsError: false,
+    procurementsPending: false,
+    procurementsError: false,
+    orgDayPending: false,
+    orgDayError: false,
+  };
+  state.erp = { isPending: false, isError: false };
   state.figures = {
     data: {
       pack: { asAt: '2026-10-01', unbilled: [{ currency: 'IDR', cents: 1_230_000 }, { currency: 'USD', cents: 500_000 }], contractRows: 2, invoicedBasisRows: 2 },
@@ -123,6 +146,70 @@ describe('Finance hub', () => {
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
     expect(screen.getByRole('link', { name: 'Open Receivables' }).parentElement).toHaveTextContent(/IDR\s*0/);
     expect(screen.getByRole('link', { name: 'Open Payables' }).parentElement).toHaveTextContent(/IDR\s*0/);
+  });
+
+  it('keeps receivable and payable areas visible while an unrelated payment read is pending', () => {
+    state.financeSources.paymentsPending = true;
+    renderHub();
+
+    const receivablesTile = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    const payablesTile = screen.getByRole('link', { name: 'Open Payables' }).parentElement as HTMLElement;
+    expect(within(receivablesTile).getByText('IDR 83.2M')).toBeInTheDocument();
+    expect(within(payablesTile).getByText('IDR 62.4M')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Payables' })).toBeInTheDocument();
+    expect(screen.getByTestId('finance-attention-loading')).toBeInTheDocument();
+  });
+
+  it('shows an invoice-read error only on receivables while payables keep their figures', () => {
+    state.financeSources.invoicesError = true;
+    renderHub();
+
+    const receivablesTile = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    const payablesTile = screen.getByRole('link', { name: 'Open Payables' }).parentElement as HTMLElement;
+    expect(receivablesTile).not.toHaveTextContent('IDR 83.2M');
+    expect(receivablesTile).not.toHaveTextContent('IDR 0');
+    expect(within(payablesTile).getByText('IDR 62.4M')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Receivables' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Payables' })).toBeInTheDocument();
+    expect(screen.getAllByText("Couldn't load balance ageings").length).toBeGreaterThan(0);
+  });
+
+  it('keeps receivables visible when the procurement read fails on the payables side', () => {
+    state.financeSources.procurementsError = true;
+    renderHub();
+
+    const receivablesTile = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    const payablesTile = screen.getByRole('link', { name: 'Open Payables' }).parentElement as HTMLElement;
+    expect(within(receivablesTile).getByText('IDR 83.2M')).toBeInTheDocument();
+    expect(payablesTile).not.toHaveTextContent('IDR 62.4M');
+    expect(payablesTile).not.toHaveTextContent('IDR 0');
+    expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Payables' })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Couldn't load balance ageings").length).toBeGreaterThan(0);
+  });
+
+  it('lets receivables finish while linked supplier invoices are still loading', () => {
+    state.erp.isPending = true;
+    renderHub();
+
+    const receivablesTile = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    expect(within(receivablesTile).getByText('IDR 83.2M')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Payables' })).not.toBeInTheDocument();
+  });
+
+  it('keeps receivables visible and reports the linked supplier invoice error on payables', () => {
+    state.erp.isError = true;
+    renderHub();
+
+    const receivablesTile = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
+    const payablesTile = screen.getByRole('link', { name: 'Open Payables' }).parentElement as HTMLElement;
+    expect(within(receivablesTile).getByText('IDR 83.2M')).toBeInTheDocument();
+    expect(payablesTile).not.toHaveTextContent('IDR 0');
+    expect(payablesTile).not.toHaveTextContent('IDR 62.4M');
+    expect(screen.getByRole('region', { name: 'Receivables' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Ageing' })).toHaveTextContent("Couldn't load balance ageings");
   });
 
   it('I2 mounts the invoice pair review on the page Finance lands on, handing it the caller org', () => {
