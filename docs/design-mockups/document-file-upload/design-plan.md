@@ -1,7 +1,7 @@
 # Design Plan — Document File Upload (Static HTML Mockup)
 
 **Feature:** Document file upload on the project Documents tab.
-**Scope:** Pre-spec mockup gate (`docs/design-workflow.md` §1a). Extends the existing metadata-only `DocumentsTab` with file presence, upload, download, preview, revision lineage, and the `Superseded` status.
+**Scope:** Pre-spec mockup gate (`docs/archive/design-workflow-lens-battery.md` §1a). Extends the existing metadata-only `DocumentsTab` with file presence, upload, download, preview, revision lineage, and the `Superseded` status.
 **Binding inputs:** OD-DOC-1..5 (`docs/decisions.md`), glossary Document/Revision/Superseded definitions, `DESIGN.md` tokens.
 **Output:** `docs/design-mockups/document-file-upload/index.html` (and optional `states.html`).
 

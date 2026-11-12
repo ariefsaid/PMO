@@ -147,7 +147,7 @@ contract). Not for routine implementation choices.
   all four. **Lens D** grades intent-fit against `docs/jtbd.md` (the role × job-story oracle) — a feature
   without a captured job story has no Lens D oracle and cannot pass the intent gate. Flip the mode (top of
   `docs/qa-portfolio.md`) to re-enable this battery; it stays intact in-repo. Full workflow:
-  `docs/design-workflow.md` §1a/§2.3.
+  `docs/archive/design-workflow-lens-battery.md` §1a/§2.3.
 - **Storybook** is adopted for the shared component library (isolated component dev, state matrix,
   a11y checks) — introduced in Phase 3 when the reusable component library is created, not before.
 

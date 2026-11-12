@@ -428,7 +428,7 @@ they are component render/interaction proofs; none requires a cross-stack e2e. S
 | `AC-IFW-TASKS-02` | Log-time prefills task's project | Unit (RTL) | `pages/__tests__/MyTasks.logtime.test.tsx` + `…/Timesheets.prefill.test.tsx` | `pages/MyTasks.tsx`, `pages/Timesheets.tsx` |
 | `AC-IFW-SEED-01` | Demo seed has contacts + activity | DB smoke | `supabase db reset` + psql count (no Vitest) | `supabase/seed-demo-solar.sql` |
 
-**Lens-D regression invariants** (design-workflow §3a — each locks an intent fix so it can't silently
+**Lens-D regression invariants** (docs/archive/design-workflow-lens-battery.md §3a — each locks an intent fix so it can't silently
 regress): `AC-IFW-PROC-01` (approve-without-navigation), `AC-IFW-DASH-01` (BvA row is a link),
 `AC-IFW-DASH-02` (at-risk link), `AC-IFW-CAL-01` (every calendar chip is interactive), `AC-IFW-COMPANY-01`
 (related-objects list), `AC-IFW-TASKS-02` (log-time carries `?project=`). These are the canonical

@@ -106,7 +106,7 @@ Run **(a) then (b)** — (b) needs (a)'s oracle to grade against:
 
 **(a) Codify the methodology** (this is the durable, must-do part — we build feature-by-feature):
 - Author `docs/jtbd.md` (role × job map; seed from the existing roles + screens).
-- Add **Lens D** to `docs/design-workflow.md` §1a (mockup round 1) and §2.3 (post-build round 2) — the
+- Add **Lens D** to `docs/archive/design-workflow-lens-battery.md` §1a (mockup round 1) and §2.3 (post-build round 2) — the
   FE battery becomes **4-lens**, run **twice**.
 - Update the `design-reviewer` agent (`.claude/agents/design-reviewer.md`, → regenerate `.codex`) with
   the Lens-D interrogation + the calibration anchors (§3 above).
@@ -126,7 +126,7 @@ feed the confirmed ones into the next build cycle, and the recurring ones become
 - Lens D is a **standing gate**, run at the mockup gate and post-build for **every FE issue** — so
   intent-fit is checked *before* code exists (cheap) and again on the built result (drift).
 - Discovery → regression: confirmed Lens-D findings that are observable become e2e/component invariants
-  at the lowest sufficient layer (per ADR-0010 / the design-workflow §3a discovery→regression rule),
+  at the lowest sufficient layer (per ADR-0010 / the docs/archive/design-workflow-lens-battery.md §3a discovery→regression rule),
   so an intent fix can't silently regress.
 
 ---

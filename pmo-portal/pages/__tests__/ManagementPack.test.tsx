@@ -289,12 +289,15 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(cell.className).not.toContain('font-mono');
   });
 
-  it('AC-1405-REPORT-006: projects with no progress use invoiced basis without a false missing-month warning', () => {
+  it('AC-1405-REPORT-006: projects with no progress use invoiced basis without a false missing-month warning', async () => {
     renderPage();
     const row = within(projectCell('Alpha').closest('tr')!);
 
     // O11: with no progress on any project, the invoiced basis is said once, not repeated in a column.
-    expect(screen.getByText('Without progress assessments, earned revenue follows invoiced revenue.')).toBeInTheDocument();
+    const hiddenLine = screen.getByTestId('figures-hidden');
+    expect(hiddenLine).toHaveTextContent('Why');
+    await userEvent.click(within(hiddenLine).getByRole('button', { name: 'Why' }));
+    expect(await screen.findByText('Without progress assessments, earned revenue follows invoiced revenue.')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
     expect(row.queryByText(/No entry for/)).not.toBeInTheDocument();
     expect(row.queryByRole('progressbar')).not.toBeInTheDocument();
@@ -369,7 +372,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
   });
 
-  it('AC-1405-REPORT-009: an unknown lead-currency backlog is left out of the tile and explained once with its fix link', () => {
+  it('AC-1405-REPORT-009: an unknown lead-currency backlog is left out of the tile and explained once with its fix link', async () => {
     h.query.data = buildManagementPack({
       ...facts,
       invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 50, invoice_count: 1 }],
@@ -379,8 +382,11 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     // C4: no "Unavailable" value anywhere; the unknown backlog tile is hidden and counted in the one page line.
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
     expect(within(figures).queryByText('Left to bill')).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden');
-    expect(screen.getAllByText('Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.')).toHaveLength(1);
+    const hiddenLine = screen.getByTestId('figures-hidden');
+    expect(hiddenLine).toHaveTextContent('2 figures hidden');
+    await userEvent.click(within(hiddenLine).getByRole('button', { name: 'Why' }));
+    expect(await screen.findByText('Without progress assessments, earned revenue follows invoiced revenue.')).toBeInTheDocument();
+    expect(screen.getByText('Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Review invoices' })).toHaveAttribute('href', '/finance/receivables');
   });
 

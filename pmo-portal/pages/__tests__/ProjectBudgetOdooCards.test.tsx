@@ -165,16 +165,18 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     expect(within(table).getByText('IDR 1,200')).toBeInTheDocument();
   });
 
-  it('the notice names each currency separately: budget USD, spending IDR, commitments USD', async () => {
+  it('the shared hidden-figure line names each currency separately once', async () => {
     renderPage(projectIn('USD'));
-    const notice = await screen.findByText(/Comparisons are unavailable across currencies/);
-    expect(notice.textContent).toBe('Budget: USD. Spending: IDR. Commitments: USD. Comparisons are unavailable across currencies.');
+    const hidden = await screen.findByTestId('figures-hidden');
+    const reason = 'Budget: USD. Spending: IDR. Commitments: USD. Comparisons are unavailable across currencies.';
+    expect(hidden).toHaveTextContent(reason);
+    expect(screen.queryByText(reason, { exact: true })).not.toBeInTheDocument();
   });
 
   it('never subtracts across currencies: Left gives no number and says the currencies differ', async () => {
     renderPage(projectIn('USD'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/different currencies/i);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/Comparisons are unavailable across currencies/i);
     expect(figures.textContent).not.toMatch(/4,500/);
     expect(screen.queryByText('Over budget')).not.toBeInTheDocument();
     expect(screen.queryByText('On track')).not.toBeInTheDocument();

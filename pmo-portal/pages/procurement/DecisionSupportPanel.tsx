@@ -30,6 +30,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardPad } from '@/src/components/ui/Card';
 import { StatTiles } from '@/src/components/ui/StatTiles';
 import { ErrBanner } from '@/src/components/ui/ErrBanner';
+import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { ProjectNameLink } from '@/src/components/ui/ProjectNameLink';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
@@ -47,6 +48,11 @@ const PANEL_VISIBLE_STATUSES: ProcurementStatus[] = [
   'Vendor Quoted',
   'Quote Selected',
 ];
+
+const UnavailableComparison: React.FC<{ reason: string }> = ({ reason }) => {
+  const inFigureScope = useFigureReport([{ label: 'Budget comparison', reason }]);
+  return inFigureScope ? null : <p className="text-control text-muted-foreground">{reason}</p>;
+};
 
 export interface DecisionSupportPanelProps {
   /** The procurement's project_id. Pass null/undefined to suppress the panel. */
@@ -166,7 +172,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       (!requestInOtherCurrency && (currency !== projectCurrency || budgetCurrency !== projectCurrency))) {
     return (
       <Card variant="bare" className="mb-4"><CardPad>{heading}
-        <p className="text-control text-muted-foreground">{t('decisionSupport.currencyUnavailable', 'Budget comparison unavailable for these currencies.')}</p>
+        <UnavailableComparison reason={t('decisionSupport.currencyUnavailable', 'Budget comparison unavailable for these currencies.')} />
       </CardPad></Card>
     );
   }
@@ -189,7 +195,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       : computeBudgetSignal({ budget: budgetAmount, committed: committedSpend, reserved, totalValue, status, projectCurrency, budgetCurrency, requestCurrency: currency });
   } catch {
     return <Card variant="bare" className="mb-4"><CardPad>{heading}
-      <p className="text-control text-muted-foreground">{t('decisionSupport.amountUnavailable', 'Budget comparison unavailable for these amounts.')}</p>
+      <UnavailableComparison reason={t('decisionSupport.amountUnavailable', 'Budget comparison unavailable for these amounts.')} />
     </CardPad></Card>;
   }
   const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } = signal;

@@ -5,11 +5,28 @@ import { MemoryRouter } from 'react-router';
 import { KPIRow, KPITile } from '../KPITile';
 import { StatTiles } from '../StatTiles';
 import { FigureScope, FigureHiddenLine } from '../FigureScope';
+import { useFigureReport } from '../useFigureScope';
 import { PageHeader } from '../PageHeader';
 
 const wrap = (ui: React.ReactElement) => render(<MemoryRouter><FigureScope>{ui}</FigureScope></MemoryRouter>);
 
+const ReportedReason: React.FC = () => {
+  useFigureReport([{ label: 'Receivables', reason: 'Invoice balance is unknown', link: { to: '/finance/receivables', label: 'See invoices' } }]);
+  return null;
+};
+
 describe('figure tiles: unknown value hides the tile and reports to ONE page line', () => {
+  it('a child-reported reason appears in the shared Why list with its fix link', async () => {
+    wrap(<><FigureHiddenLine compact /><ReportedReason /></>);
+
+    const line = await screen.findByTestId('figures-hidden');
+    expect(line).toHaveTextContent('1 figure hidden · Why');
+    await userEvent.click(within(line).getByRole('button', { name: 'Why' }));
+
+    expect(await screen.findByText('Invoice balance is unknown')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'See invoices' })).toHaveAttribute('href', '/finance/receivables');
+  });
+
   it('KPITile with an unavailable reason renders nothing and is counted in the line, with its fix link', async () => {
     wrap(
       <>

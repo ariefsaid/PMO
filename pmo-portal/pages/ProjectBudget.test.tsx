@@ -164,7 +164,7 @@ const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const project = { id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', start_date: '2026-01-01', end_date: '2027-12-31' } as unknown as ProjectWithRefs;
-const renderPage = (projectId = 'p-1') => {
+const renderPage = (projectId = 'p-1', shell = false) => {
   const result = render(
     <FinanceI18nTestProvider>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -174,7 +174,8 @@ const renderPage = (projectId = 'p-1') => {
           </ToastProvider>
         </MemoryRouter>
       </QueryClientProvider>
-    </FinanceI18nTestProvider>
+    </FinanceI18nTestProvider>,
+    shell ? { wrapper: ({ children }) => <div data-app-shell="root">{children}</div> } : undefined,
   );
   // Existing lifecycle/editor proofs exercise the line editor itself. The new composed tab keeps it
   // behind the draft banner, so open that disclosure for this behavior-focused suite.
@@ -558,6 +559,31 @@ describe('ProjectBudget T5 DataTable adoption', () => {
     const total = screen.getByTestId('budget-edit-total');
     expect(total).toHaveTextContent('$200,000.25');
     expect(total.closest('tfoot')).not.toBeNull();
+  });
+
+  it.each(['Discard', 'Keep editing'] as const)('restores the correct surface after choosing %s for unsaved draft edits', async (choice) => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    const { container } = renderPage('p-1', true);
+    const shell = container.querySelector('[data-app-shell="root"]')!;
+    await userEvent.click(screen.getByRole('button', { name: 'Edit line item Labor' }));
+    await userEvent.clear(screen.getByLabelText('Amount'));
+    await userEvent.type(screen.getByLabelText('Amount'), '250000');
+    await userEvent.click(within(screen.getByRole('region', { name: 'Draft budget editor' })).getByRole('button', { name: 'Close' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    expect(shell).toHaveAttribute('inert');
+    await userEvent.click(within(dialog).getByRole('button', { name: choice }));
+    await waitFor(() => expect(shell).not.toHaveAttribute('inert'));
+    if (choice === 'Discard') {
+      const edit = screen.getByRole('button', { name: 'Edit draft' });
+      edit.focus();
+      expect(edit).toHaveFocus();
+      expect(edit).toHaveAccessibleName('Edit draft');
+      expect(screen.queryByRole('region', { name: 'Draft budget editor' })).not.toBeInTheDocument();
+    } else {
+      expect(screen.getByRole('region', { name: 'Draft budget editor' })).toBeVisible();
+      expect(screen.getByLabelText('Amount')).toHaveValue('250,000');
+    }
   });
 
   it('the Draft editor still edits a row inline and saves through the same write path', async () => {
