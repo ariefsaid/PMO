@@ -187,9 +187,9 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard drills', () => {
   it('#1461: each period figure drills with its own window to the list holding its counted records', async () => {
     renderExec();
     // The harness org day is 2026-06-03, so the default ytd period is 2026-01..2026-06.
-    // - Billed work in period sums issued invoices dated in the window → receivables invoices in that window.
+    // - Invoiced sums issued invoices dated in the window → receivables invoices in that window.
     // - Collected sums Paid receipts dated in the window → the payments view, Paid, same window (billing analysis).
-    expect(within(screen.getByRole('region', { name: 'Company figures' })).getByRole('link', { name: /^Billed work in period/ }))
+    expect(within(screen.getByRole('region', { name: 'Company figures' })).getByRole('link', { name: /^Invoiced/ }))
       .toHaveAttribute('href', '/finance/receivables?from=2026-01&to=2026-06');
     await userEvent.click(screen.getByText('Analysis'));
     expect(await screen.findByRole('link', { name: /^Collected/ }))

@@ -154,7 +154,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     'billed-margin': t('dashboard:hub.company.help.margin', 'Known margin is billed-work revenue less recorded spending. It is not cash received.'),
     'owed-clients': t('home.help.owedClients', 'Outstanding balance of every open client invoice. Hidden while any balance is unknown.'),
     'supplier-payables': t('dashboard:hub.company.help.supplierPayables', 'Sum of procurement cases in the supplier-invoiced state awaiting payment.'),
-    invoiced: t('dashboard:hub.company.help.invoiced', 'Billed-work value dated within the selected period, excluding tax.'),
+    invoiced: t('dashboard:hub.company.help.invoiced', 'Sum of invoices issued within the selected period, excluding tax.'),
     collected: t('dashboard:hub.company.help.collected', 'Sum of recorded incoming payments received within the selected period.'),
     'left-to-bill': t('dashboard:hub.company.help.leftToBill', 'Signed contract value less invoices issued, in each contract currency.'),
   };
@@ -193,12 +193,12 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     ? [
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
-      moneyTile(invoiced, { label: t('home.billedWorkInPeriod', 'Billed work in period'), caption: periodLabel }),
+      moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
       moneyTile(collected, collectedOpts),
     ]
     : [
       moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.projectCount', { count: onHandCount, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }), reason: t('home.reasonContract', 'contract values are missing') }),
-      moneyTile(invoiced, { label: t('home.billedWorkInPeriod', 'Billed work in period'), caption: periodLabel }),
+      moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
       // Known margin is a fifth tile only when the accounting source provides it.
@@ -338,7 +338,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     // Each tile carries a secondary line so their captions end together at the band's foot.
     const bandTiles = [
       moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.signedContractCount', { count: onHandCount, defaultValue_one: '{{count}} with a signed contract', defaultValue_other: '{{count}} with a signed contract' }), reason: t('home.reasonContract', 'contract values are missing') }),
-      moneyTile(invoiced, { label: t('home.billedWorkInPeriod', 'Billed work in period'), caption: periodLabel }),
+      moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
       moneyTile(collected, collectedOpts),
       moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: t('home.onSignedContracts', 'On signed contracts') }),
       figures.figureStatus('billed-margin').pending || margin?.amounts ? moneyTile(margin, { caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,

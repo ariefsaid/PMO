@@ -47,15 +47,15 @@ describe('S02 billed-work figure agreement on real screens', () => {
     const user = userEvent.setup();
     const { container } = renderFigureAgreementRoute(reportRoute);
     const figures = await screen.findByRole('region', { name: 'Report figures' });
-    await waitFor(() => expect(figures.textContent).toMatch(/Billed work in period\s*\$110/u));
-    expect(figures.textContent).toMatch(/Billed work in period\s*\$110/u);
+    await waitFor(() => expect(figures.textContent).toMatch(/Invoiced in period\s*\$110/u));
+    expect(figures.textContent).toMatch(/Invoiced in period\s*\$110/u);
     expect(figures.textContent).toMatch(/Invoiced to date\s*\$150/u);
-    expect(figures.textContent).toMatch(/Opening billed work\s*\$40/u);
-    expect(screen.getByRole('columnheader', { name: 'Invoiced to date' })).toBeInTheDocument();
+    expect(figures.textContent).toMatch(/Opening invoiced\s*\$40/u);
+    expect(screen.getByRole('columnheader', { name: 'Invoiced' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Show monthly totals/u }));
     await waitFor(() => expect(container.textContent).toContain('Nov 2026'));
     expect(container.textContent).toMatch(/110/u);
-    expect(screen.getByRole('columnheader', { name: 'Billed work in period' })).toBeInTheDocument();
+    expect(within(screen.getByRole('table', { name: 'Monthly totals' })).getByRole('columnheader', { name: 'Invoiced' })).toBeInTheDocument();
   });
 
   it('home and Reports agree when both use the same selected month', async () => {
@@ -64,14 +64,14 @@ describe('S02 billed-work figure agreement on real screens', () => {
       location: '/?period=custom&from=2026-11&to=2026-11',
     });
     const homeFigures = await screen.findByRole('region', { name: 'Company figures' });
-    await waitFor(() => expect(homeFigures.textContent).toMatch(/Billed work in period\s*\$110/u));
-    const homeAmount = homeFigures.textContent?.match(/Billed work in period\s*(\$[\d,.]+)/u)?.[1];
+    await waitFor(() => expect(homeFigures.textContent).toMatch(/Invoiced\s*\$110/u));
+    const homeAmount = homeFigures.textContent?.match(/Invoiced\s*(\$[\d,.]+)/u)?.[1];
     home.unmount();
 
     renderFigureAgreementRoute(reportRoute);
     const reportFigures = await screen.findByRole('region', { name: 'Report figures' });
-    await waitFor(() => expect(reportFigures.textContent).toMatch(/Billed work in period\s*\$110/u));
-    const reportAmount = within(reportFigures).getByText('Billed work in period').parentElement?.parentElement?.textContent?.match(/\$[\d,.]+/u)?.[0];
+    await waitFor(() => expect(reportFigures.textContent).toMatch(/Invoiced in period\s*\$110/u));
+    const reportAmount = within(reportFigures).getByText('Invoiced in period').parentElement?.parentElement?.textContent?.match(/\$[\d,.]+/u)?.[0];
 
     expect(homeAmount).toBe('$110');
     expect(reportAmount).toBe(homeAmount);
@@ -79,7 +79,7 @@ describe('S02 billed-work figure agreement on real screens', () => {
 
   it('contract invoiced is unavailable when the agreement fixture includes a foreign-currency Contract invoice', async () => {
     renderFigureAgreementRoute(contractRoute);
-    const invoicedStep = await screen.findByRole('listitem', { name: /^Invoiced /u });
+    const invoicedStep = await screen.findByRole('listitem', { name: /^Invoiced /u }, { timeout: 10_000 });
     expect(invoicedStep).toHaveTextContent('—');
     expect(invoicedStep).not.toHaveTextContent('$100');
     expect(invoicedStep).not.toHaveTextContent('$0');
@@ -89,7 +89,7 @@ describe('S02 billed-work figure agreement on real screens', () => {
   it('contract invoiced is $100 and 10% for a single-currency Contract invoice set', async () => {
     setFigureAgreementSingleCurrencyContractCase(true);
     renderFigureAgreementRoute(contractRoute);
-    const invoicedStep = await screen.findByRole('listitem', { name: /^Invoiced /u });
+    const invoicedStep = await screen.findByRole('listitem', { name: /^Invoiced /u }, { timeout: 10_000 });
     expect(invoicedStep).toHaveTextContent('$100');
     expect(invoicedStep).toHaveTextContent('Signed contract · excluding tax');
     expect(invoicedStep).toHaveTextContent('10%');

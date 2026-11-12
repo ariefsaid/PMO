@@ -19,7 +19,7 @@ const renderCard = (months: Array<{ month: string; amount: number }> | undefined
 );
 
 describe('InvoicedCollectedCard', () => {
-  it('keeps billed-work and collected month series in one chart when three months have activity', () => {
+  it('keeps the invoiced and collected month series in one chart when three months have activity', () => {
     renderCard([
       { month: '2026-01-01', amount: 100 },
       { month: '2026-02-01', amount: 0 },
@@ -28,8 +28,8 @@ describe('InvoicedCollectedCard', () => {
     ], new Map([['2026-01', 50], ['2026-02', 0], ['2026-03', 250], ['2026-04', 0]]));
 
     expect(screen.getByTestId('chart-invoiced-collected')).toBeInTheDocument();
-    const chart = screen.getByRole('img', { name: /billed work and collected/i });
-    expect(chart.getAttribute('aria-label')).toContain('Billed work, excl. tax');
+    const chart = screen.getByRole('img', { name: /invoiced and collected/i });
+    expect(chart.getAttribute('aria-label')).toContain('Invoiced, excl. tax');
     expect(chart.getAttribute('aria-label')).toContain('Collected');
     expect(chart.getAttribute('aria-label')).toContain('Collected $0');
   });
@@ -53,6 +53,6 @@ describe('InvoicedCollectedCard', () => {
 
     expect(screen.getByTestId('chart-invoiced-collected')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: /collected/i })).toBeInTheDocument();
-    expect(screen.getByTestId('invoiced-collected-gap')).toHaveTextContent('Billed work is incomplete; collected amounts are shown.');
+    expect(screen.getByTestId('invoiced-collected-gap')).toHaveTextContent('Invoiced is incomplete; collected amounts are shown.');
   });
 });

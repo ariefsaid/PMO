@@ -44,15 +44,15 @@ export const InvoicedTrendTile: React.FC<{ trend: InvoicedTrend; /** Inside a ca
   const reason = t('figures.moneyUnknownReason', 'The accounting source did not provide a comparable amount.');
   const money = (amount: number) => moneyFigure(amount, trend.currency, reason);
   const total = money(trend.total);
-  const label = t('trend.label', 'Billed work, last {{months}} completed months · excl. tax', { months: TREND_MONTHS });
+  const label = t('trend.label', 'Invoiced, last {{months}} completed months · excl. tax', { months: TREND_MONTHS });
   const { first, last } = { first: trend.points[0], last: trend.points[trend.points.length - 1] };
   const firstText = `${monthText(first.month)} · ${money(trend.first).value}`;
   const lastText = `${monthText(last.month)} · ${money(trend.last).value}`;
 
   if (compact) return (
     <section aria-label={label} data-testid="invoiced-trend" className="grid min-w-0 gap-1">
-      <p data-testid="invoiced-trend-summary" className="text-control text-muted-foreground">{t('trend.compactLabel', 'Billed work · last {{months}} completed months', { months: TREND_MONTHS })}</p>
-      <Line points={trend.points} className="h-14 w-full" name={t('trend.chartName', 'Billed work trend, {{first}} to {{last}}', { first: monthText(first.month), last: monthText(last.month), })} />
+      <p data-testid="invoiced-trend-summary" className="text-control text-muted-foreground">{t('trend.compactLabel', 'Invoiced, last {{months}} months', { months: TREND_MONTHS })}</p>
+      <Line points={trend.points} className="h-14 w-full" name={t('trend.chartName', 'Invoiced trend, {{first}} to {{last}}', { first: monthText(first.month), last: monthText(last.month), })} />
       <div aria-hidden="true" className="flex justify-between gap-3 text-control text-muted-foreground tabular"><span>{firstText}</span><span>{lastText}</span></div>
     </section>
   );
@@ -72,7 +72,7 @@ export const InvoicedTrendTile: React.FC<{ trend: InvoicedTrend; /** Inside a ca
       </div>
       {trend.hasLine && (
         <div className="flex min-w-0 basis-72 flex-1 flex-col gap-1.5 sm:max-w-lg">
-          <Line points={trend.points} name={t('trend.chartName', 'Billed work trend, {{first}} to {{last}}', { first: monthText(first.month), last: monthText(last.month), })} />
+          <Line points={trend.points} name={t('trend.chartName', 'Invoiced trend, {{first}} to {{last}}', { first: monthText(first.month), last: monthText(last.month), })} />
           <div aria-hidden="true" className="flex justify-between gap-3 text-control text-muted-foreground tabular">
             <span>{firstText}</span>
             <span>{lastText}</span>
