@@ -554,7 +554,7 @@ on conflict (id) do nothing;
 -- The first live ERP ledger refresh replaces the whole snapshot generation, so synthetic actuals vanish on a connected bench.
 insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, as_of, snapshot_id)
 select '00000000-0000-0000-0000-000000000001'::uuid, project_id::uuid, 'Salary - PSC', '2026', amount, 0, amount, now() - interval '1 day', '5a000000-0000-0000-0000-000000000001'::uuid
-from (values ('41000000-0000-0000-0000-000000000004',260000), ('40000000-0000-0000-0000-000000000001',2100000), ('41000000-0000-0000-0000-000000000003',2800000)) v(project_id,amount)
+from (values ('41000000-0000-0000-0000-000000000004',260000), ('40000000-0000-0000-0000-000000000001',600000), ('41000000-0000-0000-0000-000000000003',2800000)) v(project_id,amount)
 on conflict do nothing;
 
 -- Monthly local-only demonstration facts; the newest invoice is unpaid, the next is partly paid and not due, and one older invoice is overdue.
