@@ -10,7 +10,7 @@ Redesign-lane PRs (`redesign/` branch prefix) are exempt from graduate-every-fin
 
 The Director's per-issue loop reads this line. Allowed values:
 - **`portfolio`** (default, ADR-0030 trial) — Discover→Graduate→Cover (this doc).
-- **`4-lens`** — the legacy battery: `design-workflow.md` §1a (mockup round) + §2.3 (rendered round), full
+- **`4-lens`** — the legacy battery: `docs/archive/design-workflow-lens-battery.md` §1a (mockup round) + §2.3 (rendered round), full
   A/B/C/D ×2. **Kept intact in-repo** — flip here to revert, no rebuild.
 - **`3-lens`** — the same battery minus Lens D (intent).
 
