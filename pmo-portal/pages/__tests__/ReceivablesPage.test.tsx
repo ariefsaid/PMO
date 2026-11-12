@@ -113,9 +113,31 @@ describe('Receivables page', () => {
 
     renderPage();
 
-    expect(screen.getByRole('region', { name: /Client balances by age/ }))
-      .toHaveTextContent('1 invoice has no balance reported by the accounting system');
-    expect(screen.getByRole('region', { name: /Client balances by age/ })).not.toHaveTextContent('No balances');
+    const ageing = screen.getByRole('region', { name: /Client balances by age/ });
+    const over90 = within(ageing).getByTestId('ageing-bucket-IDR-over90');
+    expect(over90).toHaveTextContent('1 balance unknown');
+    expect(over90).not.toHaveTextContent(/IDR\s?0\b/);
+    expect(ageing).not.toHaveTextContent('No balances');
+  });
+
+  it('F7: an overdue receivable with an unknown balance is counted in its age bucket, never shown as zero', () => {
+    const unknownInvoice = invoice({ id: 'unknown-overdue', erp_outstanding_amount: null });
+    h.invoices = [unknownInvoice];
+    h.position = {
+      ...h.position,
+      receivablesCount: 1,
+      receivablesUnknownCount: 1,
+      overdueUnknownCount: 1,
+      overdue: [{ invoice: unknownInvoice, daysOverdue: 119, outstanding: null }],
+      receivablesAgeing: { IDR: { notDue: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+    };
+
+    renderPage();
+
+    const ageing = screen.getByRole('region', { name: /Client balances by age/ });
+    const over90 = within(ageing).getByTestId('ageing-bucket-IDR-over90');
+    expect(over90).toHaveTextContent('1 balance unknown');
+    expect(over90).not.toHaveTextContent(/IDR\s?0\b/);
   });
 
   it('F4 identifies unknown due-soon balances without inventing zero', () => {
@@ -135,7 +157,7 @@ describe('Receivables page', () => {
     }
   });
 
-  it('hides unknown owed and overdue figures and says why once, in one page line', () => {
+  it('hides unknown owed and overdue figures, with the overdue count in its age bucket', () => {
     h.invoices = [invoice({ erp_outstanding_amount: null })];
     h.position = { ...h.position, receivablesAgeing: {}, receivablesUnknownCount: 1, overdueTotals: {}, overdueUnknownCount: 1,
       overdue: [{ invoice: invoice({ erp_outstanding_amount: null }), daysOverdue: 5, outstanding: null }] };
@@ -143,7 +165,9 @@ describe('Receivables page', () => {
     expect(screen.queryByText('Owed to you')).not.toBeInTheDocument();
     expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('3 figures hidden: 1 invoice has no balance reported by the accounting system');
-    expect(screen.getByRole('region', { name: /Client balances by age/ })).toHaveTextContent(/no balance reported by the accounting system/i);
+    const ageing = screen.getByRole('region', { name: /Client balances by age/ });
+    expect(within(ageing).getByTestId('ageing-bucket-IDR-d1_30')).toHaveTextContent('1 balance unknown');
+    expect(ageing).not.toHaveTextContent(/no balance reported by the accounting system/i);
     // The overdue filter in the list is the one way in; no second "N overdue" line sits above it.
     expect(screen.queryByTestId('receivables-overdue-row')).toBeNull();
     expect(screen.queryByText(/Show all \d+ overdue/)).toBeNull();

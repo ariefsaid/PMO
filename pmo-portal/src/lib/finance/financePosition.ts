@@ -56,6 +56,22 @@ export interface FinancePosition {
   payablesAgeing: Record<string, PayablesAgeingBuckets>;
 }
 
+export function groupUnknownOverdueReceivablesByAge(overdue: FinancePosition['overdue']): {
+  counts: Record<string, Partial<Record<keyof AgeingBuckets, number>>>;
+  total: number;
+} {
+  const counts: Record<string, Partial<Record<keyof AgeingBuckets, number>>> = {};
+  let total = 0;
+  for (const row of overdue) {
+    if (row.outstanding !== null) continue;
+    const currencyCounts = counts[row.invoice.currency] ??= {};
+    const bucket = ageingBucket(row.daysOverdue, 'receivables');
+    currencyCounts[bucket] = (currencyCounts[bucket] ?? 0) + 1;
+    total += 1;
+  }
+  return { counts, total };
+}
+
 /** The one shared predicate for the dashboard's Ready to pay list and Finance payables. */
 export function isProcurementReadyToPay(procurement: Pick<ProcurementWithRefs, 'status'>): boolean {
   return procurement.status === 'Vendor Invoiced';
