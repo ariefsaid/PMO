@@ -32,7 +32,7 @@ const base = {
   procurements_by_status: [],
   top_projects: [],
 };
-const h = vi.hoisted(() => ({ budgetReviewHangs: false, dash: null as unknown, win: null as unknown, pack: null as unknown, loss: null as unknown, delivery: {} as Record<string, number>, projectsPending: false, invoices: [] as unknown[] }));
+const h = vi.hoisted(() => ({ pipeline: null as unknown, budgetReviewHangs: false, dash: null as unknown, win: null as unknown, pack: null as unknown, loss: null as unknown, delivery: {} as Record<string, number>, projectsPending: false, invoices: [] as unknown[] }));
 const attn = (id: string, name: string, over: Record<string, unknown> = {}) => ({
   id, name, short_name: null, client_name: null, contract_value: 100, currency: 'USD', budget: null, spent: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD',
   status: 'Ongoing Project', attention_signals: 0, overdue_items: 0, overdue_tasks: 0, overdue_milestones: 0, overdue_invoices: 0, waiting_approvals: 0, over_budget: false, budget_used_ratio: null, ...over,
@@ -73,7 +73,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: h.dash, isPending: false, isError: false, refetch: vi.fn() }),
   usePMDashboardProjects: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useFinanceBudgetReview: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useSalesPipeline: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+  useSalesPipeline: () => ({ data: h.pipeline, isPending: false, isError: false, refetch: vi.fn() }),
   useWinRate: () => ({ data: h.win, isPending: false, isError: false, refetch: vi.fn() }),
   useLossBreakdown: () => ({ data: h.loss, isPending: h.loss === null, isError: false, refetch: vi.fn() }),
 }));
@@ -107,6 +107,7 @@ const tile = (label: string) => {
 
 beforeEach(() => {
   h.dash = { ...base };
+  h.pipeline = { stages: [], projects: [] };
   h.win = null;
   h.pack = { months: [], rows: [], totals: [] };
   h.loss = null;
@@ -176,6 +177,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
 
   it('AC-IXD-DASH-W5-C2A: Contract on hand counts the same on-hand projects it sums, and opens them', () => {
     h.dash = { ...base };
+  h.pipeline = { stages: [], projects: [] };
     renderExec();
     expect(tile('Contract on hand')).toHaveTextContent('2 with a signed contract');
     expect(within(figures()).getByRole('link', { name: /Contract on hand/ })).toHaveAttribute('href', '/projects?filter=on-hand');
@@ -339,4 +341,61 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     const link = within(screen.getByTestId('project-health')).getByRole('link', { name: /All projects/ });
     expect(link).toHaveTextContent(/^All projects$/);
   });
+});
+
+describe('pipeline currency safety', () => {
+  const stage = { status: 'Leads', count: 2, total_value: 3000, weighted_value: 1500, win_probability: 0.5 };
+  const project = (currency: string) => ({ status: 'Leads', currency, contract_value: 1000 });
+  it('withholds mixed stage and pipeline weighted amounts and forecast margin with reasons', async () => {
+    h.pipeline = { stages: [stage], projects: [project('USD'), project('IDR')] };
+    h.dash = { ...base, pipeline_total_value_by_currency: [{ currency: 'USD', total_value: 1000, weighted_value: 500 }, { currency: 'IDR', total_value: 2000, weighted_value: 1000 }] };
+    renderExec();
+    const sales = screen.getByTestId('sales-overview');
+    expect(within(sales).getByRole('link', { name: /Leads/ })).not.toHaveTextContent('$1.5K');
+    expect(within(sales).queryByText('Forecast margin: 20.0%')).toBeNull();
+    expect(within(sales).queryByText('Weighted pipeline')).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Why' }));
+    expect(screen.getByText(/pipeline.*mixed currencies/i)).toBeInTheDocument();
+    expect(screen.getByText(/forecast margin.*currency/i)).toBeInTheDocument();
+  });
+  it('places won amounts in separate currency lines', () => {
+    h.pipeline = { stages: [stage], projects: [project('USD')] };
+    h.win = { wins_count: 2, losses_count: 0, value_by_currency: [{ currency: 'USD', wins_value: 1000, losses_value: 0 }, { currency: 'IDR', wins_value: 2000, losses_value: 0 }] };
+    renderExec();
+    const won = within(screen.getByTestId('sales-overview')).getByRole('button', { name: /Won/ });
+    expect([...won.querySelectorAll('[data-currency-line]')].map((line) => line.textContent?.replace(/\u00a0/g, ' '))).toEqual(['$1K', '+ IDR 2K']);
+  });
+  it('focused home withholds mixed stage amounts and separates won currencies', () => {
+    localStorage.setItem('home-layout', 'focused');
+    h.pipeline = { stages: [stage], projects: [project('USD'), project('IDR')] };
+    h.win = { wins_count: 2, losses_count: 0, value_by_currency: [{ currency: 'USD', wins_value: 1000, losses_value: 0 }, { currency: 'IDR', wins_value: 2000, losses_value: 0 }] };
+    renderExec();
+    expect(screen.getByRole('button', { name: /Leads/ })).not.toHaveTextContent('$1.5K');
+    expect(screen.getByRole('button', { name: /Won/ }).querySelectorAll('[data-currency-line]')).toHaveLength(2);
+  });
+  it('withholds margin for a foreign-only pipeline', async () => {
+    h.pipeline = { stages: [stage], projects: [project('IDR'), project('IDR')] };
+    renderExec();
+    expect(screen.queryByText(/Forecast margin: 20/)).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Why' }));
+    expect(screen.getByText(/forecast margin.*currency/i)).toBeInTheDocument();
+  });
+  it('keeps stage weighted amount and forecast margin for an org currency pipeline', () => {
+    h.pipeline = { stages: [stage], projects: [project('USD'), project('USD')] };
+    renderExec();
+    const sales = screen.getByTestId('sales-overview');
+    expect(within(sales).getByRole('link', { name: /Leads/ })).toHaveTextContent('$1.5K');
+    expect(within(sales).getByText('Forecast margin: 20.0%')).toBeInTheDocument();
+  });
+});
+
+it('focused owed caption omits mixed currency amounts when it cannot show separate lines', () => {
+  localStorage.setItem('home-layout', 'focused');
+  h.invoices = [
+    { id: 'a', status: 'Unpaid', currency: 'USD', invoice_date: '2026-06-01', erp_due_date: '2026-06-29', received_date: null, erp_outstanding_amount: 1000, erp_payment_terms_days: 30 },
+    { id: 'b', status: 'Unpaid', currency: 'IDR', invoice_date: '2026-06-01', erp_due_date: '2026-06-29', received_date: null, erp_outstanding_amount: 2000, erp_payment_terms_days: 30 },
+  ];
+  renderExec();
+  expect(tile('Owed by clients')).toHaveTextContent('2 overdue');
+  expect(tile('Owed by clients')).not.toHaveTextContent('$1K + IDR 2K overdue');
 });

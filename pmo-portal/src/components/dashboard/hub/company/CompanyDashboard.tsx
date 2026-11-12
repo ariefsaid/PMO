@@ -47,7 +47,7 @@ import { BudgetReviewCard, FinanceAnalysis, ReadyToPayCard } from './FinanceBloc
 import { useSupplierUnpaid } from './financeData';
 import { InvoicedCollectedCard, LossReasonsCard, PurchasingCard, ReceivablesAgeCard, SalesOverviewCard } from './OverviewCards';
 import { ApprovalItems } from './ApprovalItems';
-import { FindingLine, UncheckedReport } from './FindingLine';
+import { FindingLine, PipelineCurrencyReport, UncheckedReport } from './FindingLine';
 import { ProjectHealthCard } from './ProjectHealthCard';
 import { FinancesCard } from './FinancesCard';
 import { healthOrder, isOffTrack, overBudget, overdueTaskCount } from './homeHealth';
@@ -210,15 +210,21 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
 
   // Sales (exec/admin): the open stages as one bar set, then what was won in the period.
   const won = periodFigure('won');
-  const weighted = moneyTileValue(todayFigure('pipeline')?.amounts, orgCurrency);
+  const pipelineProjects = pipeline.data?.projects;
+  const openCurrencies = new Set(pipelineProjects?.map((project) => project.currency) ?? []);
+  const pipelineMixed = openCurrencies.size > 1;
+  // 0187:101 stamps new budgets in org currency; this proxy breaks if budgets gain their own currency.
+  const marginMismatch = pipelineProjects?.some((project) => project.currency !== orgCurrency) ?? false;
+  const safeMargin = pipelineProjects && !marginMismatch ? data?.pipeline_projected_margin : null;
+  const weighted = pipelineProjects && !pipelineMixed ? moneyTileValue(todayFigure('pipeline')?.amounts, orgCurrency) : null;
   const salesCard = (
     <Card>
       <CardHead level={2} actions={cardLink('/sales', t('dashboard:hub.company.openSales', 'Open sales'))}>{t('home.sales', 'Sales')}</CardHead>
       <CardPad className="grid gap-3">
-        {weighted && <div><div className="text-control text-muted-foreground">{t('home.pipelineWeighted', 'Weighted pipeline')}</div><div className="text-[23px] font-bold leading-tight tabular" title={weighted.exact}>{weighted.value}</div>{data?.pipeline_projected_margin != null && <div className="text-control text-muted-foreground">{t('dashboard:hub.company.forecastMargin', 'Forecast margin')}: {(data.pipeline_projected_margin * 100).toFixed(1)}%</div>}</div>}
+        {weighted && <div><div className="text-control text-muted-foreground">{t('home.pipelineWeighted', 'Weighted pipeline')}</div><div className="text-[23px] font-bold leading-tight tabular" title={weighted.exact}>{weighted.value}</div>{safeMargin != null && <div className="text-control text-muted-foreground">{t('dashboard:hub.company.forecastMargin', 'Forecast margin')}: {(safeMargin * 100).toFixed(1)}%</div>}</div>}
         {pipeline.isPending ? <ListState variant="loading" shape="chart" rows={2} />
           : pipeline.isError ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={() => { void pipeline.refetch(); }} />
-          : <SalesFunnel stages={pipeline.data?.stages ?? []} currency={orgCurrency} period="" won={won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined} />}
+          : <SalesFunnel stages={pipeline.data?.stages ?? []} projects={pipelineProjects} currency={orgCurrency} period="" won={won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined} />}
       </CardPad>
     </Card>
   );
@@ -380,13 +386,14 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           {waits}
           <PurchasingCard className="flex-1 max-[899px]:order-7" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
         </div>
-        <SalesOverviewCard wide className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} weighted={weighted} forecastMargin={data?.pipeline_projected_margin} stages={pipeline.data?.stages ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
+        <SalesOverviewCard wide className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} weighted={weighted} forecastMargin={safeMargin} stages={pipeline.data?.stages ?? []} projects={pipelineProjects} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
           aside={<LossReasonsCard embedded range={lossRange} />} />
       </>
     );
     return (
       <FigureScope>
         <UncheckedReport count={unchecked} />
+        {!finance && <PipelineCurrencyReport mixed={pipelineMixed} margin={marginMismatch} />}
         <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="overview">
           <div>
             <PageHeader
@@ -414,6 +421,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   return (
     <FigureScope>
       <UncheckedReport count={unchecked} />
+        {!finance && <PipelineCurrencyReport mixed={pipelineMixed} margin={marginMismatch} />}
       <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="focused">
         {header}
         {waitsEl}

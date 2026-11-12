@@ -58,3 +58,13 @@ export const UncheckedReport: React.FC<{ count: number }> = ({ count }) => {
   }] : []);
   return null;
 };
+
+/** Explain once why the pipeline figures were withheld. */
+export const PipelineCurrencyReport: React.FC<{ mixed: boolean; margin: boolean }> = ({ mixed, margin }) => {
+  const { t } = useTranslation('dashboard');
+  useFigureReport([
+    ...(mixed ? [{ label: t('home.pipelineWeighted', 'Weighted pipeline'), reason: t('home.pipelineMixedCurrency', 'Pipeline weighted amounts are hidden for mixed currencies.') }] : []),
+    ...(margin ? [{ label: t('hub.company.forecastMargin', 'Forecast margin'), reason: t('home.marginCurrencyMismatch', 'Forecast margin is hidden when a contract currency differs from the budget currency.') }] : []),
+  ]);
+  return null;
+};
