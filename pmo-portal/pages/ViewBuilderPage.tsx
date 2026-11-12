@@ -30,6 +30,7 @@ import {
   FormGrid,
   FormSection,
   Button,
+  ConfirmDialog,
   useToast,
   type SelectOption,
 } from '@/src/components/ui';
@@ -116,6 +117,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
   });
   const observedServerVersionRef = useRef<{ id: string; updatedAt: string | null } | null>(null);
   const [remoteConflict, setRemoteConflict] = useState<UserViewRow | null>(null);
+  const [panelToRemove, setPanelToRemove] = useState<PanelSpec | null>(null);
 
   // In create mode: any non-empty field or panel counts as dirty.
   // In edit mode: compare against the values loaded from the existing view.
@@ -195,7 +197,14 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
   };
 
   const handleRemovePanel = (idx: number) => {
-    setPanels((prev) => prev.filter((_, i) => i !== idx));
+    const panel = panels[idx];
+    if (panel) setPanelToRemove(panel);
+  };
+
+  const confirmRemovePanel = () => {
+    if (!panelToRemove) return;
+    setPanels((prev) => prev.filter((panel) => panel.id !== panelToRemove.id));
+    setPanelToRemove(null);
   };
 
   const handleMoveUp = (idx: number) => {
@@ -429,7 +438,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
         <div role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-[13px]">
           <p>{t('viewBuilder:serverVersionChanged', 'The saved view changed while you were editing.')}</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => applyViewToEditor(remoteConflict)}>
+            <Button variant="outline" size="sm" onClick={() => guardLeave(() => applyViewToEditor(remoteConflict))}>
               {t('viewBuilder:reloadSavedView', 'Reload saved view')}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setRemoteConflict(null)}>
@@ -505,6 +514,19 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
           setPanelModalOpen(false);
           setEditingIndex(null);
         }}
+      />
+
+      <ConfirmDialog
+        open={panelToRemove !== null}
+        tone="destructive"
+        title={t('viewBuilder:removePanelConfirmTitle', 'Remove this panel?')}
+        description={t('viewBuilder:removePanelConfirmDescription', 'The {{primitive}} panel for {{entity}} will be removed from this view draft. Other panels stay.', {
+          primitive: panelToRemove?.primitive ?? '',
+          entity: panelToRemove?.querySpec.entity ?? '',
+        })}
+        confirmLabel={t('viewBuilder:removePanelConfirm', 'Remove panel')}
+        onConfirm={confirmRemovePanel}
+        onCancel={() => setPanelToRemove(null)}
       />
 
       {/* AI Composer modal (FR-AS-015, AC-AS-013, AC-AS-017, AC-AS-018) */}

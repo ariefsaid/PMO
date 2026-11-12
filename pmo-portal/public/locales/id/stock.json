@@ -271,6 +271,10 @@
     "cancelDraft": "Batalkan draf",
     "cancelled": "Draf dibatalkan",
     "actionFailed": "Tindakan gagal",
+    "postConfirm": {
+      "title": "Posting dokumen stok ini?",
+      "description": "{{number}} akan diposting dan jumlah stok yang tersedia akan berubah sesuai baris ini. Dokumen ini tidak dapat diubah lagi."
+    },
     "confirm": {
       "title": "Batalkan draf ini?",
       "description": "Draf tetap tersimpan sebagai catatan tetapi tidak dapat diposting lagi.",
@@ -384,6 +388,11 @@
     "systemNow": "Sistem saat ini",
     "variance": "Selisih",
     "fill": "Isi dari stok yang ada",
+    "fillConfirm": {
+      "title": "Ganti baris hitungan?",
+      "description": "Semua baris dan jumlah yang sudah dimasukkan akan diganti dengan barang yang jumlah stoknya positif.",
+      "confirm": "Ganti baris"
+    },
     "reason": "Alasan",
     "reasonHelp": "Misalnya: rusak, hilang, ditemukan di halaman.",
     "direction": "Arah",

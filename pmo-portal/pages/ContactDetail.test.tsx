@@ -160,6 +160,16 @@ describe('ContactDetail', () => {
     expect(screen.getByText('jane@example.com')).toBeInTheDocument();
   });
 
+  it('C2 ContactDetail.tsx:186-201 makes Edit primary while retaining the confirmed Archive action', async () => {
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByRole('button', { name: /^edit$/i }).className).toContain('bg-primary');
+    expect(within(header).getByRole('button', { name: /^archive$/i })).toBeInTheDocument();
+    await userEvent.click(within(header).getByRole('button', { name: /^archive$/i }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Archive Jane Doe?' });
+    expect(dialog).toHaveTextContent(/hidden from the default list/i);
+  });
+
   it('CW-4b: shows the loading skeleton while the record is pending', () => {
     detailState.data = undefined;
     detailState.isPending = true;
@@ -282,8 +292,8 @@ describe('ContactDetail', () => {
 
   it('CW-4b: a manager can archive from the header (confirm-before-write)', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^archive$/i }));
-    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(screen.getByTestId('contact-archive'));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Archive Jane Doe?' });
     await userEvent.click(within(dialog).getByRole('button', { name: /archive contact/i }));
     expect(mutations.archive.mutateAsync).toHaveBeenCalledWith('ct1');
   });
@@ -308,8 +318,8 @@ describe('ContactDetail — list-return context (AC-LRC-007)', () => {
 
   it('AC-LRC-007: archive-success also returns to the SAME filtered list context, not a bare reset', async () => {
     renderPageWithReturnContext();
-    await userEvent.click(screen.getByRole('button', { name: /^archive$/i }));
-    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(screen.getByTestId('contact-archive'));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Archive Jane Doe?' });
     await userEvent.click(within(dialog).getByRole('button', { name: /archive contact/i }));
     await screen.findByTestId('Contacts index-probe');
     expect(screen.getByTestId('Contacts index-probe')).toHaveTextContent(

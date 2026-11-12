@@ -9,5 +9,8 @@
   "serverVersionChanged": "The saved view changed while you were editing.",
   "reloadSavedView": "Reload saved view",
   "continueEditing": "Continue editing",
+  "removePanelConfirmTitle": "Remove this panel?",
+  "removePanelConfirmDescription": "The {{primitive}} panel for {{entity}} will be removed from this view draft. Other panels stay.",
+  "removePanelConfirm": "Remove panel",
   "invalidProjectFilter": "Enter a valid project ID."
 }

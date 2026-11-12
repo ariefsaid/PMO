@@ -146,6 +146,25 @@ describe('PanelEditorForm — whitelist constraints', () => {
     expect(groupByAfter).toHaveValue('');
   });
 
+  it('C2 PanelEditorForm.tsx:149 preserves the unrelated label and column span when entity changes', async () => {
+    const user = userEvent.setup();
+    openForm({
+      initialPanel: {
+        id: 'panel-a',
+        primitive: 'DataTable',
+        querySpec: { entity: 'projects', select: ['name', 'status'] },
+        layout: { colSpan: 2 },
+        props: { label: 'Project status' },
+      },
+    });
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'companies');
+
+    expect(screen.getByRole('textbox', { name: /panel label/i })).toHaveValue('Project status');
+    expect(screen.getByRole('textbox', { name: /column span/i })).toHaveValue('2');
+    expect(screen.getByRole('combobox', { name: /entity/i })).toHaveValue('companies');
+  });
+
   it('AC-VB-003: incidents column options equal exactly ENTITY_WHITELIST["incidents"].allowedColumns', async () => {
     const user = userEvent.setup();
     openForm();

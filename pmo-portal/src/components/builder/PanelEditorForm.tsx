@@ -152,6 +152,8 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
       ...emptyForm(),
       primitive: prev.primitive,
       entity: entity as WhitelistedEntity | '',
+      label: prev.label,
+      colSpan: prev.colSpan,
     }));
   };
 

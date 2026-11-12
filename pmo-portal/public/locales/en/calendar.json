@@ -11,6 +11,14 @@
     "day": "Day",
     "agenda": "Agenda"
   },
+  "move": {
+    "confirmTitle": "Move task due date?",
+    "confirmBody": "{{task}} will move from {{from}} to {{to}}. The current due date will be replaced.",
+    "confirmRangeBody": "{{task}} will move its dates: start {{startFrom}} to {{startTo}}, due {{dueFrom}} to {{dueTo}}. The current dates will be replaced.",
+    "confirm": "Move task",
+    "savedTitle": "Task due date updated",
+    "savedBody": "{{task}} is now due {{date}}."
+  },
   "empty": "Nothing due in this period",
   "error": {
     "title": "Could not load the calendar",

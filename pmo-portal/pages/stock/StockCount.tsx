@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon } from '@/src/components/ui';
+import { Button, ConfirmDialog, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { StockError } from '@/src/components/stock/StockError';
@@ -78,6 +78,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
+  const [confirmFillOpen, setConfirmFillOpen] = useState(false);
   const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const initialSnapshot = useRef(JSON.stringify({ warehouseId, reason, note, lines: lines.filter((l) => l.itemId || l.counted || l.quantity || l.unitCost).map(({ itemId, counted, quantity, direction, unitCost }) => ({ itemId, counted, quantity, direction, unitCost })) }));
   const snapshot = JSON.stringify({ warehouseId, reason, note, lines: lines.filter((l) => l.itemId || l.counted || l.quantity || l.unitCost).map(({ itemId, counted, quantity, direction, unitCost }) => ({ itemId, counted, quantity, direction, unitCost })) });
@@ -175,8 +176,18 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
   function fillFromOnHand() {
     const rows = (onHand.data ?? []).filter((r) => r.warehouseId === warehouseId && Number(r.qtyOnHand) > 0);
     if (!rows.length) return;
+    setConfirmFillOpen(true);
+  }
+
+  function confirmFillFromOnHand() {
+    const rows = (onHand.data ?? []).filter((r) => r.warehouseId === warehouseId && Number(r.qtyOnHand) > 0);
+    if (!rows.length) {
+      setConfirmFillOpen(false);
+      return;
+    }
     setLines(rows.map((r, i) => blank(i + 1, r.itemId)));
     nextKey.current = rows.length + 1;
+    setConfirmFillOpen(false);
   }
 
   return (
@@ -278,6 +289,15 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
         open={pendingLeave !== null}
         onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
         onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+      />
+      <ConfirmDialog
+        open={confirmFillOpen}
+        tone="destructive"
+        title={t('count.fillConfirm.title', 'Replace the count lines?')}
+        description={t('count.fillConfirm.description', 'All current lines and entered counts will be replaced by the positive stock-on-hand items.')}
+        confirmLabel={t('count.fillConfirm.confirm', 'Replace lines')}
+        onConfirm={confirmFillFromOnHand}
+        onCancel={() => setConfirmFillOpen(false)}
       />
     </div>
   );

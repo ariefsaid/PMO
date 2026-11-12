@@ -176,6 +176,8 @@
     "cardTitle": "Pemakaian",
     "confirmApproveBody": "Ini akan menyetujui entri pemakaian peralatan yang dicatat.",
     "confirmApproveTitle": "Setujui entri pemakaian?",
+    "confirmApproveWeekTitle": "Setujui pemakaian peralatan minggu ini?",
+    "confirmApproveWeekBody": "Setujui {{count}} {{entries}} yang diajukan untuk {{asset}} pada {{from}} – {{to}}. Statusnya akan menjadi Disetujui. Entri Anda sendiri dan entri yang tidak dapat Anda setujui akan dilewati tanpa perubahan.",
     "columns": {
       "date": "Tanggal",
       "decision": "Keputusan",

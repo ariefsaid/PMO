@@ -19,8 +19,9 @@ import type {
   EventCalendarProposedUpdate,
   EventCalendarRangeInfo,
 } from '@/src/components/reui/event-calendar/event-calendar-types';
-import { Button, ViewToggle } from '@/src/components/ui';
+import { Button, ConfirmDialog, ViewToggle } from '@/src/components/ui';
 import { getDateFnsLocale } from '@/src/lib/locale/activeLocale';
+import { formatDay } from '@/src/lib/format';
 import type { MilestoneDate } from '@/src/lib/db/milestones';
 import type { TaskPatch } from '@/src/lib/db/tasks';
 import { movedTaskDates, toWorkEvents, windowForRange, type WorkItem, type WorkTask } from '@/src/lib/calendar/workCalendar';
@@ -80,8 +81,13 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
   tasks, milestones, loading, initialDate, withProject, canMoveTask, onMoveTask, onWindowChange, onOpenItem, onMoveError, onMoveBlocked,
 }) => {
   const { t } = useTranslation('calendar');
-  // A dropped task shows on its new day at once; the host's refetch (new `tasks`) or a failed save clears it.
+  // A confirmed move shows on its new day while the host's saved task read catches up.
   const [moved, setMoved] = useState<Record<string, WorkTask>>({});
+  const [pendingMove, setPendingMove] = useState<{
+    task: WorkTask;
+    patch: Pick<TaskPatch, 'start_date' | 'end_date'>;
+  } | null>(null);
+  const [savingMove, setSavingMove] = useState(false);
   useEffect(() => setMoved({}), [tasks]);
 
   const shown = useMemo(() => tasks.map((task) => moved[task.id] ?? task), [tasks, moved]);
@@ -100,16 +106,32 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
     }
     const patch = movedTaskDates(task, update.start);
     if (patch.end_date === task.end_date) return false;
-    setMoved((m) => ({ ...m, [task.id]: { ...task, ...patch, end_date: patch.end_date ?? task.end_date } as WorkTask }));
-    onMoveTask(task, patch).catch((err: unknown) => {
-      setMoved((m) => {
-        const { [task.id]: _drop, ...rest } = m;
+    setPendingMove({ task, patch });
+    return false; // the host owns the data; our overlay + refetch paints the move
+  }, [canMoveTask, moved, onMoveBlocked]);
+
+  const confirmMove = useCallback(async () => {
+    if (!pendingMove) return;
+    const { task, patch } = pendingMove;
+    setSavingMove(true);
+    setMoved((current) => ({
+      ...current,
+      [task.id]: { ...task, ...patch, end_date: patch.end_date ?? task.end_date } as WorkTask,
+    }));
+    try {
+      await onMoveTask(task, patch);
+      setPendingMove(null);
+    } catch (err) {
+      setMoved((current) => {
+        const { [task.id]: _drop, ...rest } = current;
         return rest;
       });
       onMoveError?.(err, task);
-    });
-    return false; // the host owns the data; our overlay + refetch paints the move
-  }, [canMoveTask, moved, onMoveBlocked, onMoveError, onMoveTask]);
+      setPendingMove(null);
+    } finally {
+      setSavingMove(false);
+    }
+  }, [onMoveError, onMoveTask, pendingMove]);
 
   const handleRange = useCallback(
     (info: EventCalendarRangeInfo) => onWindowChange?.(windowForRange(info.range)),
@@ -139,6 +161,30 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
         <Toolbar />
         <EventCalendarContent className="rounded-lg border border-border bg-card" />
       </EventCalendar>
+      <ConfirmDialog
+        open={pendingMove !== null}
+        tone="destructive"
+        title={t('move.confirmTitle', 'Move task due date?')}
+        description={pendingMove
+          ? pendingMove.task.start_date && pendingMove.patch.start_date
+            ? t('move.confirmRangeBody', '{{task}} will move its dates: start {{startFrom}} to {{startTo}}, due {{dueFrom}} to {{dueTo}}. The current dates will be replaced.', {
+              task: pendingMove.task.name,
+              startFrom: formatDay(pendingMove.task.start_date),
+              startTo: formatDay(pendingMove.patch.start_date),
+              dueFrom: formatDay(pendingMove.task.end_date),
+              dueTo: formatDay(pendingMove.patch.end_date),
+            })
+            : t('move.confirmBody', '{{task}} will move from {{from}} to {{to}}. The current due date will be replaced.', {
+              task: pendingMove.task.name,
+              from: formatDay(pendingMove.task.end_date),
+              to: formatDay(pendingMove.patch.end_date),
+            })
+          : ''}
+        confirmLabel={t('move.confirm', 'Move task')}
+        loading={savingMove}
+        onConfirm={() => { void confirmMove(); }}
+        onCancel={() => { if (!savingMove) setPendingMove(null); }}
+      />
     </div>
   );
 };

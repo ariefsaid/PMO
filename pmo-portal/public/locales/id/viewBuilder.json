@@ -9,5 +9,8 @@
   "serverVersionChanged": "Tampilan tersimpan berubah saat Anda mengedit.",
   "reloadSavedView": "Muat ulang tampilan tersimpan",
   "continueEditing": "Lanjutkan mengedit",
+  "removePanelConfirmTitle": "Hapus panel ini?",
+  "removePanelConfirmDescription": "Panel {{primitive}} untuk {{entity}} akan dihapus dari draf tampilan ini. Panel lain tetap ada.",
+  "removePanelConfirm": "Hapus panel",
   "invalidProjectFilter": "Masukkan ID proyek yang valid."
 }

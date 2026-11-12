@@ -75,6 +75,7 @@ const EquipmentUsagePage: React.FC = () => {
   const [problem, setProblem] = useState<string | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [approving, setApproving] = useState<Pending>(null);
+  const [approvingWeek, setApprovingWeek] = useState<{ assetId: string; count: number } | null>(null);
   const [rejecting, setRejecting] = useState<Pending>(null);
 
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
@@ -240,7 +241,7 @@ const EquipmentUsagePage: React.FC = () => {
       return false;
     }
   };
-  const approveAssetWeek = async (assetId: string) => {
+  const approveAssetWeek = async (assetId: string): Promise<boolean> => {
     setProblem(null);
     try {
       const r = await approveWeek.mutateAsync({ assetId, weekStart });
@@ -248,7 +249,11 @@ const EquipmentUsagePage: React.FC = () => {
       if (r.skipped_own > 0) parts.push(t('equipment:usage.skippedOwn', '{{count}} skipped (your own)', { count: r.skipped_own }));
       if (r.skipped_not_permitted > 0) parts.push(t('equipment:usage.skippedNotPermitted', '{{count}} skipped (not yours to approve)', { count: r.skipped_not_permitted }));
       toast(parts.join(' · '), undefined, 'success');
-    } catch (err) { fail(err); }
+      return true;
+    } catch (err) {
+      fail(err);
+      return false;
+    }
   };
   const approvalColumns: Column<EquipmentUsageRow>[] = [
     { key: 'date', header: t('equipment:usage.columns.date', 'Date'), kind: 'primary', rowHeader: true, cell: (e) => dayLabel(e.work_date) },
@@ -353,7 +358,7 @@ const EquipmentUsagePage: React.FC = () => {
             <section key={assetId} className="mb-4" aria-labelledby={`equipment-approvals-${assetId}`}>
               <div className="mb-2 flex items-center justify-between gap-2">
                 <h3 id={`equipment-approvals-${assetId}`} className="text-sm font-semibold">{assetName(assetId)}</h3>
-                {rows.some(mayDecide) && <Button variant="primary" size="sm" disabled={approveWeek.isPending} onClick={() => void approveAssetWeek(assetId)}>{t('equipment:usage.approveWeek', 'Approve week')}</Button>}
+                {rows.some(mayDecide) && <Button variant="primary" size="sm" disabled={approveWeek.isPending} onClick={() => setApprovingWeek({ assetId, count: rows.filter(mayDecide).length })}>{t('equipment:usage.approveWeek', 'Approve week')}</Button>}
               </div>
               <DataTable<EquipmentUsageRow> embedded rows={rows} columns={approvalColumns} rowKey={(e) => e.id} tableId={`equipment-approvals-${assetId}`}
                 accessibleName={t('equipment:usage.approvalsLabel', 'Submitted usage for {{asset}}', { asset: assetName(assetId) })} />
@@ -371,6 +376,26 @@ const EquipmentUsagePage: React.FC = () => {
         onConfirm={async () => {
           const a = approving;
           if (a && await decide(a.id, 'Approved')) setApproving(null);
+        }}
+      />
+      <ConfirmDialog
+        open={approvingWeek !== null}
+        title={t('equipment:usage.confirmApproveWeekTitle', 'Approve equipment usage week?')}
+        description={t('equipment:usage.confirmApproveWeekBody', 'Approve {{count}} submitted {{entries}} for {{asset}} during {{from}} – {{to}}. Their status will change to Approved. Your own entries and any entry you cannot approve are skipped and stay unchanged.', {
+          count: approvingWeek?.count ?? 0,
+          entries: approvingWeek?.count === 1 ? 'entry' : 'entries',
+          asset: approvingWeek ? assetName(approvingWeek.assetId) : '',
+          from: dayLabel(weekStart),
+          to: dayLabel(weekEnd),
+        })}
+        confirmLabel={t('equipment:usage.approveWeek', 'Approve week')}
+        loading={approveWeek.isPending}
+        onCancel={() => { if (!approveWeek.isPending) setApprovingWeek(null); }}
+        onConfirm={() => {
+          const pending = approvingWeek;
+          if (pending) void approveAssetWeek(pending.assetId).then((succeeded) => {
+            if (succeeded) setApprovingWeek(null);
+          });
         }}
       />
       <ReasonDialog maxLength={500} open={rejecting !== null} kind="return" subject={t('equipment:usage.entrySubject', 'usage entry')} context={rejecting?.label}

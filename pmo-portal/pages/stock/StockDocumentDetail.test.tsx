@@ -123,10 +123,14 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     expect(await screen.findByText('edit page')).toBeInTheDocument();
   });
 
-  it('FR-STK-062 a Project Manager who did not author it sees Post and no Edit', async () => {
+  it('C2 StockDocumentDetail.tsx:155,158-160,187-191 confirms the balance change before Post', async () => {
     documents.get.mockResolvedValue(countDraft({ created_by: 'someone-else' }));
     renderPage('Project Manager');
     await userEvent.click(await screen.findByRole('button', { name: 'Post' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Post this stock document?' });
+    expect(dialog).toHaveTextContent(/stock on hand will change/i);
+    expect(documents.post).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Post' }));
     await waitFor(() => expect(documents.post).toHaveBeenCalledWith('d1', 4));   // the revision on screen
     expect(screen.queryByRole('button', { name: 'Edit draft' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Another person must post this/)).not.toBeInTheDocument();
@@ -182,6 +186,8 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     documents.post.mockRejectedValueOnce(new AppError('STK_STALE: this draft changed since you opened it; review it again', 'P0001'));
     renderPage('Project Manager');
     await userEvent.click(await screen.findByRole('button', { name: 'Post' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Post this stock document?' });
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Post' }));
     expect((await screen.findAllByText(/changed since you opened it/)).length).toBeGreaterThan(0);
     await waitFor(() => expect(documents.get.mock.calls.length).toBeGreaterThanOrEqual(2));
   });
