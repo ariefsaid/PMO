@@ -116,8 +116,9 @@ const ROUTES: Route[] = [
   // to the phone card's full amount instead of the desktop weighted-total testid.
   { name: 'sales pipeline', user: 'exec@acme.test', path: '/sales', ready: async (p, width) => {
     // ux/1110 reformats the funnel figures as compact tile money (formatTileMoney, 3 significant
-    // digits, no title attr): the weighted total of the IDR fixture, 75,185,000,000, renders as
-    // "IDR 75.2B" on the desktop tiles. The 390px phone layout keeps the full amount on the card.
+    // digits) with the exact amount as the figure's title (T5, the home-tile contract): the weighted
+    // total of the IDR fixture, 75,185,000,000, renders as "IDR 75.2B" on the desktop tiles. The
+    // 390px phone layout keeps the full amount on the card.
     const figure = width === 390 ? p.locator('main .tabular').filter({ hasText: /5,457,143,000/ }).first() : p.getByTestId('pipeline-weighted-total');
     await expect(figure).toContainText(width === 390 ? /5,457,143,000/ : /75\.2B/);
     await expect(figure).toBeVisible();

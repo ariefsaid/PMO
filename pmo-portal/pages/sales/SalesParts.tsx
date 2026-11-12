@@ -4,7 +4,7 @@ import { ExportButton } from '@/src/components/export';
 import {
   Button, Drawer, FigureHiddenLine, FigureScope, Icon, LifecycleStepper, SearchMini, StatTiles, StatusPill, TaxBasisLabel, ViewToggle,
 } from '@/src/components/ui';
-import { formatCurrency, formatDay, formatTileMoney } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
   dealJourneySteps, formatPercent, daysSince, daysSinceLatestTouch, isNeedsAttention, isStaleBid, weightedValue,
@@ -119,7 +119,7 @@ export const PhoneFigures: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => {
         <StatTiles
           variant="bare"
           tiles={[
-            { label: t('sales:options.weightedForecast', 'Weighted forecast'), value: total === null ? null : formatTileMoney(m.funnel.totalWeighted, cur), unavailableReason: total === null ? mixed : undefined },
+            { label: t('sales:options.weightedForecast', 'Weighted forecast'), value: total === null ? null : formatTileMoney(m.funnel.totalWeighted, cur), exactValue: total === null ? undefined : formatTableMoney(m.funnel.totalWeighted, cur) ?? undefined, unavailableReason: total === null ? mixed : undefined },
             { label: t('sales:options.openValue', 'Open value'), value: total === null ? null : formatTileMoney(total, cur), unavailableReason: total === null ? mixed : undefined,
               sub: t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length }) },
           ]}
