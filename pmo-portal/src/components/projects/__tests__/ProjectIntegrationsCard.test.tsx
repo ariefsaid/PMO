@@ -280,7 +280,7 @@ describe('ProjectIntegrationsCard', () => {
       });
     });
 
-    it('AC-S21-003 preserves a saved list ID in the one-line link when its list is unavailable', async () => {
+    it('AC-S21-003 preserves the saved list link in the one-line link when its list is unavailable', async () => {
       const unavailableBinding: ProjectBinding = {
         ...mockProjectClickUpBinding,
         external_container_id: 'list-archived-17',
