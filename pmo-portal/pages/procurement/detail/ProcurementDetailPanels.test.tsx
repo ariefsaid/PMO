@@ -61,6 +61,54 @@ describe('procurement record panels', () => {
     expect(money).not.toHaveTextContent('amount not recorded');
   });
 
+  it('R2 KEEP: a figure label says what its amount sums, as a tooltip', async () => {
+    render(<ProcurementMoneySummary procurement={procurement} linkedDocuments={[overdueInvoice]} isEngineer={false} budgetSignal={null} />);
+    await userEvent.hover(screen.getByText('Invoiced'));
+    expect(await screen.findByRole('tooltip', {}, { timeout: 1_500 })).toHaveTextContent('Sum of recorded invoiced amounts');
+  });
+
+  it('R2 KEEP: the unpaid figure explains that it is invoices less payments', async () => {
+    render(<ProcurementMoneySummary procurement={procurement} linkedDocuments={[overdueInvoice]} isEngineer={false} budgetSignal={null} />);
+    await userEvent.hover(screen.getByText('Unpaid'));
+    expect(await screen.findByRole('tooltip', {}, { timeout: 1_500 })).toHaveTextContent('Calculated from invoiced less paid amounts');
+  });
+
+  it('R2 DROP: an unreadable source amount is not explained per figure, the hidden-figures line owns it', () => {
+    const missingRequestAmount = {
+      ...procurement,
+      total_value: 3400,
+      purchase_requests: [{ amount: null }],
+    } as unknown as ProcurementDetail;
+    render(<ProcurementMoneySummary procurement={missingRequestAmount} linkedDocuments={[]} isEngineer={false} budgetSignal={null} />);
+    expect(screen.getByTestId('procurement-money-summary')).not.toHaveTextContent(/could not be calculated/);
+  });
+
+  it('R2 RESTORE: a figure with nothing recorded says None recorded beside a dash, never a blank space', () => {
+    const nothingYet = {
+      ...procurement,
+      total_value: 3400,
+      purchase_requests: [{ amount: 3400 }],
+      purchase_orders: [],
+      invoices: [],
+      payments: [],
+    } as unknown as ProcurementDetail;
+    render(<ProcurementMoneySummary procurement={nothingYet} linkedDocuments={[]} isEngineer={false} budgetSignal={null} />);
+    const money = screen.getByTestId('procurement-money-summary');
+    const ordered = within(money).getByText('Ordered').closest('div') as HTMLElement;
+    expect(ordered).toHaveTextContent('—');
+    expect(ordered).toHaveTextContent('None recorded');
+  });
+
+  it('R2 KEEP: the timeline says its order and that an unrequired step leaves no gap to read as missing', () => {
+    render(<ProcurementTimeline procurement={procurement} ledgerRows={[]} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={vi.fn()} />);
+    expect(screen.getByText(/in date order · missing steps aren’t required by your company/)).toBeInTheDocument();
+  });
+
+  it('R2 KEEP: the Unpaid lead figure says it is the balance still owed, net of payments', () => {
+    render(<ProcurementMoneySummary procurement={procurement} linkedDocuments={[overdueInvoice]} isEngineer={false} budgetSignal={null} />);
+    expect(screen.getByText('Outstanding balance')).toBeInTheDocument();
+  });
+
   it('P5: the timeline note and the Full history link are both reachable and the link still works', async () => {
     const onFullHistory = vi.fn();
     render(<ProcurementTimeline procurement={procurement} ledgerRows={[]} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={onFullHistory} />);
@@ -75,6 +123,12 @@ describe('procurement budget signal currency', () => {
   it('shows compatible project headroom', () => {
     render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="USD" />);
     expect(screen.getByText(/Budget not yet committed \$700/)).toBeInTheDocument();
+  });
+
+  it('R2 KEEP: the budget line says what it subtracts and what it leaves out', async () => {
+    render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="USD" />);
+    await userEvent.hover(screen.getByText(/Budget not yet committed \$700/));
+    expect(await screen.findByRole('tooltip', {}, { timeout: 1_500 })).toHaveTextContent('project budget less committed and reserved spend');
   });
   it('does not compare a foreign request with project headroom', () => {
     render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="EUR" />);

@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { ProcurementKpiRow } from '../ProcurementKpiRow';
@@ -52,5 +53,17 @@ describe('ProcurementKpiRow (memoised) data contract', () => {
 
     expect(screen.queryByTestId('summary-total-unpaid')).not.toBeInTheDocument();
     expect(screen.queryByText('Supplier invoices unpaid')).not.toBeInTheDocument();
+  });
+
+  it('R2: with nothing unpaid the caption says so, and the ordered tile says what its amount leaves out', () => {
+    render(<ProcurementKpiRow rows={[row('a', 'Ordered', 5_000)]} role="Finance" />);
+    expect(screen.getByText(/Nothing waiting for payment/)).toBeInTheDocument();
+    expect(screen.getByText(/Committed with suppliers, no invoice yet/)).toBeInTheDocument();
+  });
+
+  it('R2: the invoice age says what it counts from, so the figure reconciles against a statement', async () => {
+    render(<ProcurementKpiRow rows={[row('a', 'Vendor Invoiced', 5_000)]} role="Finance" />);
+    await userEvent.hover(screen.getByText(/Invoice age 18 days/));
+    expect(await screen.findByRole('tooltip', {}, { timeout: 1_500 })).toHaveTextContent('Oldest unpaid supplier invoice date');
   });
 });

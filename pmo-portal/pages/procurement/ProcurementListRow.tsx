@@ -225,11 +225,10 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           >
             {row.title}
           </Link>
-          {row.code && (
-            <div className="font-mono text-sm text-muted-foreground">
-              {row.code}
-            </div>
-          )}
+          {/* A row with no code still carries an identifier, so two same-titled records are told apart. */}
+          <div className="font-mono text-sm text-muted-foreground">
+            {row.code ?? row.id.slice(0, 8)}
+          </div>
         </div>
 
         </div>

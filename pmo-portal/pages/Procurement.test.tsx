@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
@@ -377,6 +377,38 @@ describe('Procurement index — states', () => {
     procState.data = [];
     renderPage();
     expect(screen.getByText(/Purchases recorded only in the accounting system are not listed here\./)).toBeInTheDocument();
+  });
+
+  it('R2: the empty list says what will appear there, beside the New procurement action', () => {
+    procState.data = [];
+    renderPage();
+    expect(screen.getByText(/New procurements will appear here as they are raised\./)).toBeInTheDocument();
+  });
+});
+
+describe('Procurement list phone toolbar', () => {
+  const original = window.matchMedia;
+  beforeEach(() => {
+    procState.data = seed;
+    procState.isPending = false;
+    procState.isError = false;
+    effRole.value = 'Project Manager';
+    window.matchMedia = ((query: string) => ({
+      matches: query.startsWith('(max-width'), media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+  });
+  afterEach(() => { window.matchMedia = original; });
+
+  it('R2: the Filters trigger carries how many filters are in force, the stage filter included', () => {
+    renderPage('/procurement?view=grouped&project=pr1&stage=order');
+    const trigger = screen.getByRole('button', { name: /^Filters/ });
+    expect(within(trigger).getByTestId('filter-bar-count')).toHaveTextContent('2');
+  });
+
+  it('R2: the Filters trigger has no count badge when nothing is filtered', () => {
+    renderPage('/procurement?view=grouped');
+    expect(screen.getByRole('button', { name: 'Filters' })).not.toHaveTextContent(/\d/);
   });
 });
 

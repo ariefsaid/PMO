@@ -520,6 +520,9 @@ const ProcurementPage: React.FC = () => {
                   onClear={clearFilters}
                   shown={filtered.length}
                   total={tabRows.length}
+                  // The stage filter lives beside the bar (its own chip line), so the page tells the
+                  // badge about it: on a phone it is in force even though the sheet cannot show it.
+                  extraActiveCount={urlFilters.values.stage ? 1 : 0}
                   labels={{
                     all: t('tab.all', 'All'),
                     filters: t('filter.filters', 'Filters'),
@@ -564,7 +567,7 @@ const ProcurementPage: React.FC = () => {
               variant="empty"
               icon="cart"
               title={isEngineer ? t('empty.engineer.title', "You haven't raised any procurements yet") : t('empty.title', 'No procurements yet')}
-              sub={t('procurement:procurement.empty.scopeNote', 'Purchases recorded only in the accounting system are not listed here.')}
+              sub={`${t('empty.sub', 'New procurements will appear here as they are raised.')} ${t('procurement:procurement.empty.scopeNote', 'Purchases recorded only in the accounting system are not listed here.')}`}
               action={canCreate ? { label: t('newProcurement', 'New procurement'), onClick: () => navigate('/procurement/new') } : undefined}
             />
           )}
