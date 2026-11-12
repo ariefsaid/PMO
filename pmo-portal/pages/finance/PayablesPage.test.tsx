@@ -16,6 +16,9 @@ const state = vi.hoisted(() => ({
   orgDayError: false,
   exportXlsx: vi.fn(),
   erpDocuments: [] as unknown[],
+  refetchProcurements: vi.fn(),
+  refetchErp: vi.fn(),
+  retryOrgDay: vi.fn(),
 }));
 
 vi.mock('@/src/auth/usePermission', () => ({
@@ -36,7 +39,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
     })) ?? [],
     isPending: false,
     isError: false,
-    refetch: vi.fn(),
+    refetch: state.refetchProcurements,
   }),
 }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
@@ -44,11 +47,11 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({
     day: state.orgDayPending || state.orgDayError ? null : '2026-07-19',
     isPending: state.orgDayPending,
     isError: state.orgDayError,
-    retry: vi.fn(),
+    retry: state.retryOrgDay,
   }),
 }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({
-  useErpPurchases: () => ({ data: state.erpDocuments, isPending: state.payablesPending, isError: state.payablesError, refetch: vi.fn() }),
+  useErpPurchases: () => ({ data: state.erpDocuments, isPending: state.payablesPending, isError: state.payablesError, refetch: state.refetchErp }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({
@@ -135,6 +138,9 @@ beforeEach(() => {
   state.orgDayError = false;
   state.erpDocuments = [];
   state.exportXlsx.mockClear();
+  state.refetchProcurements.mockClear();
+  state.refetchErp.mockClear();
+  state.retryOrgDay.mockClear();
 });
 
 afterEach(() => {
@@ -160,6 +166,17 @@ describe('Payables page', () => {
     expect(screen.queryByText(/IDR\s*0\b/)).not.toBeInTheDocument();
   });
 
+  it('retries procurement and accounting-system reads from the payable error', async () => {
+    state.payablesError = true;
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getAllByRole('button', { name: 'Retry' })[0]!);
+
+    expect(state.refetchProcurements).toHaveBeenCalledTimes(1);
+    expect(state.refetchErp).toHaveBeenCalledTimes(1);
+  });
+
   it('B5: shows the balance and table while organization-day ageing is pending', () => {
     state.orgDayPending = true;
     renderPage();
@@ -180,6 +197,16 @@ describe('Payables page', () => {
     expect(screen.queryByText('100 days')).not.toBeInTheDocument();
   });
 
+  it('retries organization-day age data from the ageing error', async () => {
+    state.orgDayError = true;
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(state.retryOrgDay).toHaveBeenCalledTimes(1);
+  });
+
   it('B5: shows its loading state while the linked purchase read is pending', () => {
     state.payablesPending = true;
     renderPage();
@@ -189,6 +216,18 @@ describe('Payables page', () => {
     expect(screen.getAllByTestId('kpi-skeleton')).toHaveLength(1);
     expect(screen.getByText('100 days')).toBeInTheDocument();
     expect(screen.queryByText(/IDR\s*0\b/)).not.toBeInTheDocument();
+  });
+
+  it('keeps Export disabled while the payable read is pending or failed', () => {
+    state.payablesPending = true;
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled();
+
+    cleanup();
+    state.payablesPending = false;
+    state.payablesError = true;
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled();
   });
 
   it('does not surface unrelated receivable errors as a payables table error', () => {
