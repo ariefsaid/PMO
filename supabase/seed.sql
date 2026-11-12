@@ -2486,7 +2486,7 @@ end $$;
 --     not measure five record routes because the seed held no row to address — /expenses/:claimId,
 --     /imprest/:floatId, /equipment/assets/:assetId, /stock/documents/:documentId and /views/:viewId —
 --     and could not reach a handful of states for the same reason (archived warehouse and company, a draft
---     count, a shared vs owned saved view, the M365 entitlement). Each record below is the smallest honest
+--     count, a shared vs owned saved view). Each record below is the smallest honest
 --     fixture for that cell: written through the real RPC wherever an RPC is the product's only writer.
 --     Every id is FIXED (5eed0000-…) so a measuring cell can cite the record it shot.
 --     LOCAL-ONLY file; nothing here runs against prod. Rows follow the neighbouring sections:
@@ -2714,17 +2714,6 @@ insert into contacts (id, org_id, company_id, full_name, title, email, phone) va
    'ruth.calder@heliopartners.example','+44 7700 900042')
 on conflict (id) do nothing;
 
--- W.7 — ENTITLEMENT: the Microsoft 365 integration switch, ON for the demo org (flag only — no
--- connection row, no token, no secret; nothing is linked). Without the row the /integrations page renders
--- the unentitled state and the M365 surfaces cannot be measured at all. Written through the Operator RPC
--- (0070/0532: the Operator is the sole writer) as the seeded platform operator (0…ff, §U).
-do $$
-begin
-  if not exists (select 1 from public.org_features
-                  where org_id = '00000000-0000-0000-0000-000000000001'
-                    and feature_key = 'm365_integration' and enabled) then
-    perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000ff","role":"authenticated"}', true);
-    perform public.operator_toggle_feature('00000000-0000-0000-0000-000000000001', 'm365_integration', true);
-    perform set_config('request.jwt.claims', '', true);
-  end if;
-end $$;
+-- W.7 — (withdrawn) The Microsoft 365 entitlement stays OFF in the seed: e2e journeys assume the unentitled
+-- default and entitle one page at a time (e2e/helpers.ts grantM365EntitlementFixture). Measure the M365 card the
+-- same way, by rewriting the org_features read for that page only.
