@@ -128,10 +128,9 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     const nameBox = actionModal.getByRole('textbox', { name: 'Task name' });
     await expect(nameBox).toHaveValue(actionLine); // prefilled from the minute line
     await nameBox.fill(taskName); // …and consciously edited before publishing
-    const currentUserName = await page
-      .getByRole('button', { name: 'Account menu' })
-      .locator('span.block.max-w-full')
-      .innerText();
+    const accountIdentity = page.getByRole('banner').getByRole('button')
+      .filter({ hasText: /\bEngineer\b/ }).locator('span').filter({ hasText: /\bEngineer\b/ }).first();
+    const currentUserName = (await accountIdentity.innerText()).split('\n')[0].trim();
     const ownerPicker = actionModal.getByRole('combobox', { name: /^Owner$/ });
     await ownerPicker.click();
     await expect(page.getByTestId('combo-loading')).toHaveCount(0, { timeout: 30_000 });

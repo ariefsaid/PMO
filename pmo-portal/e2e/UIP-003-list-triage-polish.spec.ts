@@ -49,6 +49,9 @@ test('UIP-003: classify same-prefix records, open them, and retain classificatio
         ? page.getByTestId('projects-table-container').getByRole('button', { name: names[1], exact: true })
         : page.getByRole('table').getByRole('button', { name: `Open ${names[1]}`, exact: true });
       await expect(intended).toBeVisible();
+      if (route === 'projects') {
+        await expect(page.getByTestId('figures-hidden')).toContainText('spending is not linked');
+      }
       const narrowed = page.url();
       await intended.click();
       // The pipeline row opens the deal preview first (#1426); the user continues with "Open deal".
