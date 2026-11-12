@@ -39,6 +39,8 @@
     "errorSub": "The request failed. Check your connection and try again.",
     "externalRef": "ERP reference",
     "inUse": "This asset is in use by usage entries or costing. Archive it instead.",
+    "loadMore": "Load more",
+    "showingSoFar": "Showing {{count}} so far",
     "name": "Name",
     "new": "New asset",
     "newTitle": "New equipment asset",

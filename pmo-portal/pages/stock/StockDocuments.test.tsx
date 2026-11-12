@@ -63,6 +63,20 @@ describe('StockDocuments (AC-STK-032)', () => {
     expect(documents.list.mock.calls[1][0].before).toEqual({ createdAt: page[49].created_at, id: 'd50' });
   });
 
+  it('C8 StockDocuments.tsx:56 reports the loaded page as partial until the final page arrives', async () => {
+    const page = Array.from({ length: 50 }, (_, i) => doc(i + 1, { id: `d${i + 1}`, number: `ISS-${i + 1}`, created_at: `2026-10-01T00:00:${String(i).padStart(2, '0')}Z` }));
+    documents.list.mockResolvedValueOnce(page);
+    documents.list.mockResolvedValueOnce([doc(51, { number: 'ISS-51' })]);
+    renderPage();
+    await screen.findByText('ISS-1');
+
+    expect(screen.getByText('Showing 50 so far')).toBeInTheDocument();
+    expect(screen.queryByText('Documents 50')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByText('ISS-51')).toBeInTheDocument();
+    expect(screen.getByText('Showing 51 of 51')).toBeInTheDocument();
+  });
+
   it('the kind filter reaches the list call', async () => {
     renderPage();
     await screen.findByText('ISS-1');

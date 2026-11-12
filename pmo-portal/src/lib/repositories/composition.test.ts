@@ -68,7 +68,7 @@ vi.mock('@/src/lib/db/equipment', async (importOriginal) => ({ ...(await importO
 vi.mock('@/src/lib/db/timeAndMaterials', async (importOriginal) => ({ ...(await importOriginal<object>()), listTmClaims: vi.fn() }));
 vi.mock('@/src/lib/db/expenseReceipts', async (importOriginal) => ({ ...(await importOriginal<object>()), listExpenseReceipts: vi.fn() }));
 vi.mock('@/src/lib/db/contacts', async (importOriginal) => ({ ...(await importOriginal<object>()), listContacts: vi.fn() }));
-vi.mock('@/src/lib/db/meetings', async (importOriginal) => ({ ...(await importOriginal<object>()), listMeetings: vi.fn() }));
+vi.mock('@/src/lib/db/meetings', async (importOriginal) => ({ ...(await importOriginal<object>()), listMeetings: vi.fn(), listMeetingsPage: vi.fn() }));
 vi.mock('@/src/lib/db/userViews', async (importOriginal) => ({ ...(await importOriginal<object>()), listUserViews: vi.fn() }));
 vi.mock('@/src/lib/db/operators', async (importOriginal) => ({ ...(await importOriginal<object>()), isOperator: vi.fn() }));
 vi.mock('@/src/lib/db/usage', async (importOriginal) => ({ ...(await importOriginal<object>()), getOrgUsageSummary: vi.fn() }));
@@ -130,6 +130,7 @@ const ROWS: Row[] = [
   { member: 'erpPurchases', method: 'list', mod: '@/src/lib/pagedRead', fn: 'fetchAllRowsByKeyset', args: [], mode: 'called', resolve: [] },
   { member: 'contact', method: 'list', mod: '@/src/lib/db/contacts', fn: 'listContacts', args: [] },
   { member: 'meeting', method: 'list', mod: '@/src/lib/db/meetings', fn: 'listMeetings', args: [] },
+  { member: 'meeting', method: 'listPage', mod: '@/src/lib/db/meetings', fn: 'listMeetingsPage', args: [undefined, 0] },
   { member: 'userView', method: 'list', mod: '@/src/lib/db/userViews', fn: 'listUserViews', args: [] },
   { member: 'operator', method: 'isOperator', mod: '@/src/lib/db/operators', fn: 'isOperator', args: [] },
   { member: 'usage', method: 'getOrgUsageSummary', mod: '@/src/lib/db/usage', fn: 'getOrgUsageSummary', args: [] },

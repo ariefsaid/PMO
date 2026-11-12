@@ -276,13 +276,15 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     expect(lastPage).not.toHaveTextContent('earlier rates on the next pages');
   });
 
-  it('page history names missing calendar dates in the displayed range', async () => {
+  it('C8 AdministrationExchangeRates.tsx:246-256 scopes missing calendar dates to this page', async () => {
     const sparseRows = [fxRow(0), fxRow(2), fxRow(4)];
-    h.list.mockResolvedValue({ rows: sparseRows, nextCursor: null });
+    h.list.mockResolvedValue({ rows: sparseRows, nextCursor: '2026-10-28' });
     renderPage();
     const summary = await screen.findByTestId('fx-page-summary');
     expect(summary).toHaveTextContent('3 with rates');
     expect(summary).toHaveTextContent(/No rate for 28 Oct, 30 Oct/);
+    expect(screen.getByRole('status')).toHaveTextContent('These gaps cover this page only');
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
   });
 
   it('upload preview states the reviewed file’s coverage window before confirmation', async () => {

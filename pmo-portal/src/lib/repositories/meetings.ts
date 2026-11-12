@@ -1,6 +1,7 @@
 /** Meeting repository implementation (#526). */
 import {
   listMeetings,
+  listMeetingsPage,
   listMeetingsForContact,
   getMeeting,
   createMeeting,
@@ -20,6 +21,7 @@ import type { MeetingRepository } from './contracts/meetings';
 
 export const meetingRepository: MeetingRepository = {
   list: (params) => wrap(() => listMeetings(params)),
+  listPage: (params, offset) => wrap(() => listMeetingsPage(params, offset)),
   listForContact: (contactId) => wrap(() => listMeetingsForContact(contactId)),
   get: (id) => wrap(() => getMeeting(id)),
   create: (input) => wrap(() => createMeeting(input)),

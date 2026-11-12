@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, ListPage, ListState, SelectField, StatusPill, TextField, type Column } from '@/src/components/ui';
+import { DataTable, ListPage, ListState, SelectField, StatusPill, TextField, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { useStockItems, useStockLedger, useStockWarehouses } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -31,6 +31,7 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
     ...(documentId ? { documentId } : {}), ...(from ? { from } : {}), ...(to ? { to } : {}),
   });
   const rows = useMemo(() => (ledger.data?.pages ?? []).flatMap((p) => p.rows), [ledger.data]);
+  const total = ledger.data && !ledger.hasNextPage ? rows.length : undefined;
   const showCost = rows.some((r) => r.valueDelta !== undefined);
 
   const columns: Column<StockLedgerRow>[] = useMemo(() => {
@@ -89,13 +90,14 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
       {state === 'empty' && <ListState variant="empty" icon="folder" title={t(filtered ? 'ledger.states.noMatch' : 'ledger.states.empty')} sub={t(filtered ? 'ledger.states.noMatchSub' : 'ledger.states.emptySub')} />}
       {state === undefined && (
         <>
-          <DataTable<StockLedgerRow> rows={rows} columns={columns} rowKey={(r) => String(r.seq)} tableId={embedded ? 'stock-ledger-embedded' : 'stock-ledger'} accessibleName={t('ledger.title')} embedded={embedded} />
-          {ledger.hasNextPage && (
-            <div className="mt-3 flex justify-center">
-              <Button variant="outline" loading={ledger.isFetchingNextPage} onClick={() => void ledger.fetchNextPage()}>{t('ledger.loadMore')}</Button>
-            </div>
-          )}
-          {!ledger.hasNextPage && <p className="mt-3 text-center text-sm text-muted-foreground">{t('ledger.end', { count: rows.length })}</p>}
+          <DataTable<StockLedgerRow> rows={rows} columns={columns} rowKey={(r) => String(r.seq)} tableId={embedded ? 'stock-ledger-embedded' : 'stock-ledger'} accessibleName={t('ledger.title')} embedded={embedded}
+            total={total}
+            hasMore={Boolean(ledger.hasNextPage)}
+            isLoadingMore={ledger.isFetchingNextPage}
+            onLoadMore={() => void ledger.fetchNextPage()}
+            partialLabel={t('ledger.showingSoFar', { count: rows.length, defaultValue: 'Showing {{count}} so far' })}
+            loadMoreLabel={t('ledger.loadMore')} />
+          {!ledger.hasNextPage && <p className="mt-3 text-center text-sm text-muted-foreground">{t('ledger.end', { count: total })}</p>}
         </>
       )}
     </>
@@ -105,7 +107,7 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
   return (
     <ListPage
       title={t('ledger.title')}
-      count={ledger.data ? rows.length : undefined}
+      count={total}
     >
       <StockTabs />
       <StockFilters>

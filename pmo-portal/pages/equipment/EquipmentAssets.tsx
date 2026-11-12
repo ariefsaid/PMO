@@ -7,7 +7,7 @@ import {
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useCreateAsset, useDeleteAsset, useEquipmentAssets, useUpdateAsset } from '@/src/hooks/useEquipment';
+import { useCreateAsset, useDeleteAsset, useEquipmentAssetPages, useUpdateAsset } from '@/src/hooks/useEquipment';
 import { LIST_LIMIT, type EquipmentAssetRow } from '@/src/lib/db/equipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { unitLabel } from './equipmentLabels';
@@ -63,13 +63,15 @@ const EquipmentAssetsPage: React.FC = () => {
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
   const writeCtx = { record: { viewOnly: realRole !== effectiveRole } }; // view-as is read-only
-  const { data, isPending, isError, refetch } = useEquipmentAssets();
+  const { data, isPending, isError, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = useEquipmentAssetPages();
   const update = useUpdateAsset();
   const del = useDeleteAsset();
   const [creating, setCreating] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const rows = data?.rows ?? [];
+  const pages = data?.pages ?? [];
+  const rows = pages.flatMap((page) => page.rows);
+  const total = data && !hasNextPage ? rows.length : undefined;
 
   const run = async () => {
     const p = pending;
@@ -100,7 +102,7 @@ const EquipmentAssetsPage: React.FC = () => {
   return (
     <ListPage
       title={t('equipment:assets.title', 'Assets')}
-      count={data ? rows.length : undefined}
+      count={total}
       primaryAction={<CanWrite entity="equipmentAsset" action="create" ctx={writeCtx}>
         <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:assets.new', 'New asset')}</Button>
       </CanWrite>}
@@ -114,7 +116,7 @@ const EquipmentAssetsPage: React.FC = () => {
       )}
       {!isPending && !isError && data && (
         <>
-          {data.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
+          {pages[0]?.truncated && rows.length <= LIST_LIMIT && <p role="status" className="mb-2 text-sm text-muted-foreground">
             {t('equipment:assets.truncated', 'Showing the first {{count}} assets. Archive the ones you no longer use.', { count: LIST_LIMIT })}</p>}
           <DataTable<EquipmentAssetRow> rows={rows} columns={columns} rowKey={(a) => a.id} tableId="equipment-assets-table"
             onActivate={(a) => navigate(`/equipment/assets/${a.id}`)}
@@ -123,6 +125,12 @@ const EquipmentAssetsPage: React.FC = () => {
               ...(may('edit', 'equipmentAsset', writeCtx) ? [{ label: t('equipment:assets.archive', 'Archive'), onClick: () => setPending({ kind: 'archive', asset: a }) }] : []),
               ...(may('delete', 'equipmentAsset', writeCtx) ? [{ label: t('equipment:assets.delete', 'Delete'), danger: true, onClick: () => setPending({ kind: 'delete', asset: a }) }] : []),
             ]}
+            total={total}
+            hasMore={Boolean(hasNextPage)}
+            isLoadingMore={isFetchingNextPage}
+            onLoadMore={() => void fetchNextPage()}
+            partialLabel={t('assets.showingSoFar', { ns: 'equipment', count: rows.length, defaultValue: 'Showing {{count}} so far' })}
+            loadMoreLabel={t('equipment:assets.loadMore', 'Load more')}
             state={rows.length === 0 ? 'empty' : undefined}
             emptyTitle={t('equipment:assets.empty', 'No equipment yet')}
             emptySub={t('equipment:assets.emptySub', 'An Admin or Project Manager adds the machines so crews can log their hours.')} />

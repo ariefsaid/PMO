@@ -80,8 +80,13 @@ export interface MeetingPatch {
   notes?: Array<MeetingNoteBlock | NoteBlock>;
 }
 
-/** FR-MTG-035 (list): an explicit row cap + explicit ordering rather than a required filter. */
-export const MEETING_LIST_CAP = 200;
+/** User-facing pages stay small; callers must expose continuation instead of treating this as a total. */
+export const MEETING_PAGE_SIZE = 25;
+
+export interface MeetingListPage {
+  rows: MeetingListItem[];
+  hasMore: boolean;
+}
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
 interface PostgrestErrorLike {
@@ -131,7 +136,7 @@ function ilikeAnyOf(columns: readonly string[], term: string): string {
 /**
  * List meetings visible to the caller (RLS: attendee ∪ author ∪ grant ∪ Admin, org-scoped),
  * newest-first by `occurred_at` (FR-MTG-028), excluding templates and archived rows by default
- * (FR-MTG-029), capped by MEETING_LIST_CAP (FR-MTG-035). A project filter narrows to one project;
+ * (FR-MTG-029). A project filter narrows to one project;
  * without it project-less meetings are included.
  *
  * Search (#708) is the UNION of two legs run in parallel, so a partial word ("coord") finds
@@ -141,7 +146,7 @@ function ilikeAnyOf(columns: readonly string[], term: string): string {
  *    (FR-MTG-011 — quoted phrases and -exclusions); the trigger builds the vector with the `simple`
  *    config (0205), so the query parses with the same config;
  *  - substring: `ilike` over title + notes_text.
- * The merge de-duplicates by id, sorts newest-first and re-applies the cap.
+ * The merge de-duplicates by id and sorts newest-first with a stable id tie-breaker.
  *
  * ⚑ A full-text error (index unavailable / transient DB fault — `websearch_to_tsquery` never raises
  * on malformed text) returns the substring leg alone: the accepted cost of not failing the list.
@@ -151,49 +156,83 @@ function ilikeAnyOf(columns: readonly string[], term: string): string {
  * `?q=` list URL — so it is built with `ilikeAnyOf`, which PostgREST-quotes each value. The term can
  * never close its value and add a condition to the `or` filter.
  */
-export async function listMeetings(params?: MeetingListParams): Promise<MeetingListItem[]> {
+function buildMeetingListQuery(params: MeetingListParams | undefined, leg: 'fts' | 'substring' | undefined, from: number, to: number) {
   const q = params?.search?.trim();
-  const build = (leg?: 'fts' | 'substring') => {
-    let query = supabase
-      .from('meetings')
-      .select(LIST_SELECT)
-      .eq('is_template', false);
-    if (!params?.includeArchived) query = query.is('archived_at', null);
-    if (params?.projectId) query = query.eq('project_id', params.projectId);
-    if (q && leg === 'fts') {
-      query = query.textSearch('notes_search', q, { type: 'websearch', config: 'simple' });
-    } else if (q && leg === 'substring') {
-      query = query.or(ilikeAnyOf(['title', 'notes_text'], q));
-    }
-    return query.order('occurred_at', { ascending: false }).limit(MEETING_LIST_CAP);
-  };
+  let query = supabase
+    .from('meetings')
+    .select(LIST_SELECT)
+    .eq('is_template', false);
+  if (!params?.includeArchived) query = query.is('archived_at', null);
+  if (params?.projectId) query = query.eq('project_id', params.projectId);
+  if (q && leg === 'fts') {
+    query = query.textSearch('notes_search', q, { type: 'websearch', config: 'simple' });
+  } else if (q && leg === 'substring') {
+    query = query.or(ilikeAnyOf(['title', 'notes_text'], q));
+  }
+  return query.order('occurred_at', { ascending: false }).order('id', { ascending: true }).range(from, to);
+}
 
-  if (!q) {
-    const { data, error } = await build();
+function sortMeetingRows(rows: MeetingListItem[]): MeetingListItem[] {
+  return rows.sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at)
+    || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+async function readMeetingPrefix(
+  params: MeetingListParams,
+  leg: 'fts' | 'substring',
+  target: number,
+): Promise<{ rows: MeetingListItem[]; error: { message: string; code?: string } | null }> {
+  const rows: MeetingListItem[] = [];
+  for (let from = 0; from < target; from += MEETING_PAGE_SIZE) {
+    const to = Math.min(from + MEETING_PAGE_SIZE - 1, target - 1);
+    const { data, error } = await buildMeetingListQuery(params, leg, from, to);
+    if (error) return { rows, error };
+    const page = (data ?? []) as unknown as MeetingListItem[];
+    rows.push(...page);
+    if (page.length < to - from + 1) break;
+  }
+  return { rows, error: null };
+}
+
+/** One ordered page, with a sentinel row proving whether the caller can continue. */
+export async function listMeetingsPage(params: MeetingListParams | undefined, offset: number): Promise<MeetingListPage> {
+  const q = params?.search?.trim();
+  const end = offset + MEETING_PAGE_SIZE;
+
+  if (!q || !substringText(q)) {
+    const { data, error } = await buildMeetingListQuery(params, q ? 'fts' : undefined, offset, end);
     if (error) throwWrite(error);
-    return (data ?? []) as unknown as MeetingListItem[];
+    const rows = (data ?? []) as unknown as MeetingListItem[];
+    return { rows: rows.slice(0, MEETING_PAGE_SIZE), hasMore: rows.length > MEETING_PAGE_SIZE };
   }
 
-  // A term of only wildcard / escape symbols leaves nothing to match; its substring leg would be
-  // `"%%"` — every row — so run the full-text leg alone.
-  if (!substringText(q)) {
-    const { data, error } = await build('fts');
-    if (error) throwWrite(error);
-    return (data ?? []) as unknown as MeetingListItem[];
-  }
-
-  const [fts, substring] = await Promise.all([build('fts'), build('substring')]);
+  // Search is a union of FTS and substring matches. Read stable 25-row chunks from each leg until
+  // each prefix is long enough to decide this page, avoiding both merge gaps and PostgREST's
+  // response-row ceiling on large histories.
+  const target = end + 1;
+  const [fts, substring] = await Promise.all([
+    readMeetingPrefix(params!, 'fts', target),
+    readMeetingPrefix(params!, 'substring', target),
+  ]);
   if (substring.error) throwWrite(substring.error);
-  const substringRows = (substring.data ?? []) as unknown as MeetingListItem[];
-  if (fts.error) return substringRows;
-
   const byId = new Map<string, MeetingListItem>();
-  for (const row of [...((fts.data ?? []) as unknown as MeetingListItem[]), ...substringRows]) {
+  for (const row of [...(fts.error ? [] : fts.rows), ...substring.rows]) {
     if (!byId.has(row.id)) byId.set(row.id, row);
   }
-  return [...byId.values()]
-    .sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at))
-    .slice(0, MEETING_LIST_CAP);
+  const combined = sortMeetingRows([...byId.values()]);
+  const page = combined.slice(offset, end + 1);
+  return { rows: page.slice(0, MEETING_PAGE_SIZE), hasMore: page.length > MEETING_PAGE_SIZE };
+}
+
+/** Fully read the meetings collection for non-paged repository callers. */
+export async function listMeetings(params?: MeetingListParams): Promise<MeetingListItem[]> {
+  const rows: MeetingListItem[] = [];
+  for (let offset = 0; ; ) {
+    const page = await listMeetingsPage(params, offset);
+    rows.push(...page.rows);
+    if (!page.hasMore) return rows;
+    offset += page.rows.length;
+  }
 }
 
 /**

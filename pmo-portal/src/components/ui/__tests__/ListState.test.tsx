@@ -11,6 +11,23 @@ vi.mock('@/src/lib/analytics', () => ({ trackEmptyStateSeen: analytics.trackEmpt
 import { ListState } from '../ListState';
 
 describe('ListState', () => {
+  it('partial: announces an incomplete result and keeps its recovery action available', async () => {
+    const onLoadMore = vi.fn();
+    render(
+      <ListState
+        variant="partial"
+        title="Showing 50 so far"
+        sub="Load more to see the rest."
+        action={{ label: 'Load more', onClick: onLoadMore }}
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('Showing 50 so far');
+    expect(screen.getByText('Load more to see the rest.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(onLoadMore).toHaveBeenCalledOnce();
+  });
+
   it('loading: renders skeleton rows + aria-busy', () => {
     render(<ListState variant="loading" />);
     const region = screen.getByTestId('liststate-loading');

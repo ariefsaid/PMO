@@ -39,6 +39,8 @@
     "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
     "externalRef": "Referensi ERP",
     "inUse": "Aset ini dipakai oleh entri pemakaian atau penetapan biaya. Arsipkan saja.",
+    "loadMore": "Muat lebih banyak",
+    "showingSoFar": "Menampilkan {{count}} sejauh ini",
     "name": "Nama",
     "new": "Aset baru",
     "newTitle": "Aset peralatan baru",

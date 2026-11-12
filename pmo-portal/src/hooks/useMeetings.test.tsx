@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
@@ -7,6 +7,7 @@ const { repoMock } = vi.hoisted(() => ({
   repoMock: {
     meeting: {
       list: vi.fn(),
+      listPage: vi.fn(),
       get: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
@@ -32,7 +33,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));
 
-import { useMeetings, useMeetingMutations } from './useMeetings';
+import { useMeetings, useMeetingsPages, useMeetingMutations } from './useMeetings';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <QueryClientProvider
@@ -48,6 +49,24 @@ beforeEach(() => {
 });
 
 describe('useMeetings', () => {
+  it('C8 meetings.ts:84,168,196 loads the next page at the number of rows already shown', async () => {
+    repoMock.meeting.listPage
+      .mockResolvedValueOnce({ rows: Array.from({ length: 25 }, (_, i) => ({ id: `m${i}` })), hasMore: true })
+      .mockResolvedValueOnce({ rows: [{ id: 'm25' }], hasMore: false });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const stableWrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useMeetingsPages({ projectId: 'p1' }), { wrapper: stableWrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(repoMock.meeting.listPage).toHaveBeenNthCalledWith(1, { projectId: 'p1' }, 0);
+    expect(result.current.hasNextPage).toBe(true);
+    await act(async () => { await result.current.fetchNextPage(); });
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+    expect(repoMock.meeting.listPage).toHaveBeenNthCalledWith(2, { projectId: 'p1' }, 25);
+    expect(result.current.data?.pages.flatMap((page) => page.rows.map((row) => row.id))).toHaveLength(26);
+  });
+
   it('passes the project filter + search through to the repository (server-side, DD-MTG-5)', async () => {
     repoMock.meeting.list.mockResolvedValue([]);
     const { result } = renderHook(
@@ -71,6 +90,7 @@ describe('useMeetingMutations.restore', () => {
     repoMock.meeting.restore.mockResolvedValue(undefined);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(['meetings', 'org-1', 'all', '', 'archived'], ['stale']);
+    client.setQueryData(['meetings-pages', 'org-1', 'all', '', 'archived'], { pages: [{ rows: ['stale'], hasMore: false }] });
     const localWrapper = ({ children }: { children: React.ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );
@@ -80,6 +100,7 @@ describe('useMeetingMutations.restore', () => {
 
     expect(repoMock.meeting.restore).toHaveBeenCalledWith('m1');
     expect(client.getQueryState(['meetings', 'org-1', 'all', '', 'archived'])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['meetings-pages', 'org-1', 'all', '', 'archived'])?.isInvalidated).toBe(true);
   });
 });
 

@@ -15,6 +15,9 @@ const { listState, mutations, useMeetingsSpy } = vi.hoisted(() => ({
     isPending: false,
     isError: false,
     isPlaceholderData: false,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: vi.fn(),
     /** When true, the UNFILTERED query answers with react-query's kept-previous `[]` placeholder
      *  (a refetch still in flight after Clear filters). */
     unfilteredPlaceholder: false,
@@ -45,19 +48,19 @@ vi.mock('@/src/components/meetings/MinutesEditor', async () => {
 });
 
 vi.mock('@/src/hooks/useMeetings', () => ({
-  useMeetings: (params: { projectId?: string; search?: string; includeArchived?: boolean } = {}) => {
+  useMeetingsPages: (params: { projectId?: string; search?: string; includeArchived?: boolean } = {}) => {
     useMeetingsSpy(params);
     // list-working-set-return (#683): Meetings' search/project narrowing is a SERVER query
     // (DD-MTG-5) — simulate that here so an AC-LRC-012 zero-match/clear-filters case is
     // observable through the page, not just as a spy call.
     const narrowed = Boolean(params.projectId || params.search);
     if (!narrowed && listState.unfilteredPlaceholder) {
-      return { ...listState, data: [], isPlaceholderData: true };
+      return { ...listState, data: { pages: [{ rows: [] }] }, isPlaceholderData: true };
     }
     const visibleRows = params.includeArchived
       ? listState.data
       : listState.data.filter((row) => !(row as { archived_at?: string | null }).archived_at);
-    return { ...listState, data: narrowed ? [] : visibleRows };
+    return { ...listState, data: { pages: [{ rows: narrowed ? [] : visibleRows }] } };
   },
   useMeetingMutations: () => mutations,
 }));
@@ -174,6 +177,9 @@ beforeEach(() => {
   listState.isPending = false;
   listState.isError = false;
   listState.isPlaceholderData = false;
+  listState.hasNextPage = false;
+  listState.isFetchingNextPage = false;
+  listState.fetchNextPage.mockClear();
   listState.unfilteredPlaceholder = false;
   listState.refetch.mockClear();
   Object.values(mutations).forEach((m) => {
@@ -195,6 +201,15 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     const row = screen.getByText('Kickoff with Acme').closest('tr')!;
     expect(within(row).getByText('Harbour Upgrade')).toBeInTheDocument();
     expect(within(row).getByText('Site office')).toBeInTheDocument();
+  });
+
+  it('C8 meetings.ts:84,168,196 labels a capped list as partial and offers Load more', async () => {
+    listState.data = Array.from({ length: 200 }, (_, i) => ({ ...(seed[0] as object), id: `m${i}`, title: `Meeting ${i}` }));
+    listState.hasNextPage = true;
+    renderPage();
+    expect(screen.getByText('Showing 200 so far')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(listState.fetchNextPage).toHaveBeenCalledOnce();
   });
 
   it('AC-002 #1325: the project column leads with the short name and titles the contractual one', () => {

@@ -1,5 +1,5 @@
 import { invalidateTaskProjections } from './taskQueryKeys';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   repositories,
   type MeetingWithRefs,
@@ -30,6 +30,24 @@ export function useMeetings(params?: MeetingListParams) {
     // Keep the previous rows on screen while a search/filter keystroke refetches — the list
     // must not flash its loading skeleton (and unmount the search box) on every character.
     placeholderData: (prev: MeetingListItem[] | undefined) => prev,
+  });
+}
+
+/** Paged Meetings index read; the shared table footer owns the visible continuation action. */
+export function useMeetingsPages(params?: MeetingListParams) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useInfiniteQuery({
+    queryKey: ['meetings-pages', orgId, params?.projectId ?? 'all', params?.search ?? '', params?.includeArchived ? 'archived' : 'active'],
+    queryFn: ({ pageParam }) => repositories.meeting.listPage(params, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, pages) => lastPage.hasMore
+      ? pages.reduce((loaded, page) => loaded + page.rows.length, 0)
+      : undefined,
+    enabled: Boolean(orgId),
+    // Preserve the existing index behavior while filters/search resolve; the page gates its
+    // continuation control until the new query has settled.
+    placeholderData: (previous) => previous,
   });
 }
 
@@ -113,6 +131,7 @@ export function useMeetingMutations() {
   const orgId = useAuth().currentUser?.org_id;
   const invalidateMeetings = () => {
     qc.invalidateQueries({ queryKey: ['meetings'] });
+    qc.invalidateQueries({ queryKey: ['meetings-pages'] });
     qc.invalidateQueries({ queryKey: ['meeting'] });
   };
 

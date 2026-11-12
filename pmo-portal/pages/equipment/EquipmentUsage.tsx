@@ -80,7 +80,7 @@ const EquipmentUsagePage: React.FC = () => {
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
   const weekEnd = days[6];
   const assetsQ = useEquipmentAssets();
-  const usageQ = useEquipmentUsage({ from: weekStart, to: weekEnd });
+  const usageQ = useEquipmentUsage({ from: weekStart, to: weekEnd, ...(assetFilter ? { assetId: assetFilter } : {}) });
   const projectsQ = useProjectPickerOptions();
   const usersQ = useUsers();
   const save = useSaveUsage();

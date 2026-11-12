@@ -7,6 +7,7 @@ import type {
   MeetingInput,
   MeetingPatch,
   MeetingListParams,
+  MeetingListPage,
   MeetingAttendeeRow,
   MeetingAttendeeWithRefs,
   MeetingAttendeeInput,
@@ -20,8 +21,10 @@ import type {
  * users (OD-MTG-2/FR-MTG-033).
  */
 export interface MeetingRepository {
-  /** Visible meetings, newest-first, capped; optional project filter + notes/title search. */
+  /** Visible meetings, newest-first; optional project filter + notes/title search. */
   list(params?: MeetingListParams): Promise<MeetingListItem[]>;
+  /** One explicit page of visible meetings; `hasMore` signals whether another page exists. */
+  listPage(params: MeetingListParams | undefined, offset: number): Promise<MeetingListPage>;
   /** Meetings a CONTACT attended, RLS-filtered to what the viewer may read (DD-MTG-6 timeline). */
   listForContact(contactId: string): Promise<ContactMeetingRef[]>;
   /** A single meeting by id, or null when not found / not readable (attendance-scoped). */

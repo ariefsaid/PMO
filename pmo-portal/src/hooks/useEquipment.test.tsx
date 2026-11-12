@@ -18,7 +18,7 @@ let org: string | undefined = 'org-1';
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: org } }) }));
 
 import {
-  EQUIPMENT_QUERY_ROOTS, useEquipmentAssets, useEquipmentUsage, useEquipmentUsageTotals, useEquipmentCosting,
+  EQUIPMENT_QUERY_ROOTS, useEquipmentAssets, useEquipmentAssetPages, useEquipmentUsage, useEquipmentUsageTotals, useEquipmentCosting,
   useEquipmentAllocations, useSaveUsage, useTransitionUsage, useApproveWeek, useArchiveUsage, useSaveCosting,
   useEndCosting, usePreviewCosting, useRegister, useAssetMaintenance, useEquipmentPickers, usePendingEquipmentChanges,
   useAssetMatches, useAcceptAssetMatches, useSendEquipmentCommand, useOdooEquipmentOwned,
@@ -41,6 +41,21 @@ beforeEach(() => {
 });
 
 describe('AC-EQU-017 equipment hooks', () => {
+  it('C8 EquipmentAssets.tsx:117 requests the next asset page from the loaded row count', async () => {
+    equipment.listAssets
+      .mockResolvedValueOnce({ rows: [{ id: 'a1' }], truncated: true })
+      .mockResolvedValueOnce({ rows: [{ id: 'a2' }], truncated: false });
+    const { result } = renderHook(() => useEquipmentAssetPages(), { wrapper: wrap(fresh()) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(equipment.listAssets).toHaveBeenNthCalledWith(1, 0);
+    expect(result.current.hasNextPage).toBe(true);
+    await act(async () => { await result.current.fetchNextPage(); });
+    expect(equipment.listAssets.mock.calls).toEqual([[0], [1]]);
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+    expect(equipment.listAssets).toHaveBeenNthCalledWith(2, 1);
+    expect(result.current.data?.pages.flatMap((page) => page.rows.map((row) => row.id))).toEqual(['a1', 'a2']);
+  });
+
   it('AC-EQU-017 every query key carries the org id', async () => {
     const client = fresh();
     renderHook(() => {

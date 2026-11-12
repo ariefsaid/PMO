@@ -20,7 +20,7 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useMeetings, useMeetingMutations } from '@/src/hooks/useMeetings';
+import { useMeetingsPages, useMeetingMutations } from '@/src/hooks/useMeetings';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
@@ -53,12 +53,13 @@ const Meetings: React.FC = () => {
   const search = values.q;
   const deferredSearch = useDeferredValue(search);
 
-  const { data, isPending, isError, isPlaceholderData, refetch } = useMeetings({
+  const { data, isPending, isError, isPlaceholderData, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = useMeetingsPages({
     projectId: !projectFilter || projectFilter === 'All' ? undefined : projectFilter,
     search: deferredSearch.trim() || undefined,
     includeArchived: showArchived,
   });
-  const rows = useMemo(() => data ?? [], [data]);
+  const rows = useMemo(() => data?.pages.flatMap((page) => page.rows) ?? [], [data]);
+  const total = data && !hasNextPage && !isPlaceholderData ? rows.length : undefined;
   // A filter/search change keeps the PREVIOUS query's rows on screen (placeholderData in the
   // hook). A kept-previous EMPTY result says nothing about the new query — e.g. right after Clear
   // filters it would read as "No meetings yet" — so the body shows loading until it lands.
@@ -75,12 +76,6 @@ const Meetings: React.FC = () => {
 
   const canCreate = may('create', 'meeting');
 
-  const isFiltered = Boolean((projectFilter && projectFilter !== 'All') || search.trim());
-  const unfilteredTotalRef = React.useRef<number>(0);
-  if (!isFiltered && data) {
-    unfilteredTotalRef.current = data.length;
-  }
-  const scopeTotal = isFiltered ? Math.max(unfilteredTotalRef.current, rows.length) : rows.length;
 
   const projectOptions = useMemo(
     () => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })),
@@ -264,7 +259,7 @@ const Meetings: React.FC = () => {
             onChange={handleFilterChange}
             onClear={clear}
             shown={rows.length}
-            total={scopeTotal}
+            total={total}
             labels={{
               all: t('meetings.filters.allProjects', 'All projects'),
               clear: 'Clear all',
@@ -327,6 +322,12 @@ const Meetings: React.FC = () => {
           // options bag interpolates in unit tests exactly as it does at runtime.
           rowLabel={(m) => t('meetings.table.rowLabel', 'Open {{title}}', { title: m.title })}
           rowMenu={rowMenu}
+          total={total}
+          hasMore={Boolean(hasNextPage && !isPlaceholderData)}
+          isLoadingMore={isFetchingNextPage}
+          onLoadMore={() => void fetchNextPage()}
+          partialLabel={t('list.showingSoFar', { ns: 'meetings', count: rows.length, defaultValue: 'Showing {{count}} so far' })}
+          loadMoreLabel={t('list.loadMore', { ns: 'meetings', defaultValue: 'Load more' })}
           state={rows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('meetings.table.emptyTitle', 'No meetings match')}
           emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clear }}

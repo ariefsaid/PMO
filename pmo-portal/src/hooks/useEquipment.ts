@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
@@ -24,6 +24,21 @@ export function useEquipmentAssets() {
   const orgId = useOrgId();
   return useQuery({ queryKey: ['equipment-assets', orgId], queryFn: () => repositories.equipment.listAssets(), enabled: Boolean(orgId) });
 }
+
+/** The register screen pages through every asset instead of treating its 200-row sentinel as the whole list. */
+export function useEquipmentAssetPages() {
+  const orgId = useOrgId();
+  return useInfiniteQuery({
+    queryKey: ['equipment-assets', orgId, 'pages'],
+    queryFn: ({ pageParam }) => repositories.equipment.listAssets(pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, pages) => lastPage.truncated
+      ? pages.reduce((loaded, page) => loaded + page.rows.length, 0)
+      : undefined,
+    enabled: Boolean(orgId),
+  });
+}
+
 export function useEquipmentUsage(range: { from: string; to: string; assetId?: string; projectId?: string; status?: UsageStatus }) {
   const orgId = useOrgId();
   return useQuery({

@@ -15,40 +15,46 @@ const h = vi.hoisted(() => {
     textSearch: [] as unknown[],
     order: [] as unknown[],
     limit: [] as unknown[],
+    range: [] as unknown[],
     insert: [] as unknown[],
     update: [] as unknown[],
     delete: 0,
     single: 0,
     maybeSingle: 0,
   };
-  const builder: Record<string, unknown> = {};
-  const chain = (name: keyof typeof calls) => (...args: unknown[]) => {
-    if (name === 'delete' || name === 'single' || name === 'maybeSingle') {
-      (calls[name] as number)++;
-    } else {
-      (calls[name] as unknown[]).push(args.length === 1 ? args[0] : args);
+  const makeBuilder = () => {
+    const state: { range?: [number, number]; result?: { data: unknown; error: unknown } } = {};
+    const builder: Record<string, unknown> = {};
+    const chain = (name: keyof typeof calls) => (...args: unknown[]) => {
+      if (name === 'delete' || name === 'single' || name === 'maybeSingle') {
+        (calls[name] as number)++;
+      } else {
+        (calls[name] as unknown[]).push(args.length === 1 ? args[0] : args);
+      }
+      if (name === 'textSearch') state.result = queue[0];
+      if (name === 'or') state.result = queue.length > 1 ? queue[1] : queue[0];
+      return builder;
+    };
+    for (const name of ['select', 'eq', 'is', 'not', 'or', 'textSearch', 'order', 'limit', 'insert', 'update', 'delete', 'single', 'maybeSingle'] as const) {
+      builder[name] = chain(name);
     }
+    builder.range = (from: number, to: number) => {
+      calls.range.push([from, to]);
+      state.range = [from, to];
+      return builder;
+    };
+    builder.then = (resolve: (v: unknown) => unknown) => {
+      const result = state.result ?? queue[0]!;
+      const data = state.range && Array.isArray(result.data)
+        ? result.data.slice(state.range[0], state.range[1] + 1)
+        : result.data;
+      return resolve({ ...result, data });
+    };
     return builder;
   };
-  builder.select = chain('select');
-  builder.eq = chain('eq');
-  builder.is = chain('is');
-  builder.not = chain('not');
-  builder.or = chain('or');
-  builder.textSearch = chain('textSearch');
-  builder.order = chain('order');
-  builder.range = () => builder;
-  builder.limit = chain('limit');
-  builder.insert = chain('insert');
-  builder.update = chain('update');
-  builder.delete = chain('delete');
-  builder.single = chain('single');
-  builder.maybeSingle = chain('maybeSingle');
-  builder.then = (resolve: (v: unknown) => unknown) =>
-    resolve(queue.length > 1 ? queue.shift() : queue[0]);
   const from = vi.fn((table: string) => {
     calls.from.push(table);
-    return builder;
+    return makeBuilder();
   });
   return { from, calls, queue };
 });
@@ -56,7 +62,8 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 
 import {
-  MEETING_LIST_CAP,
+  MEETING_PAGE_SIZE,
+  listMeetingsPage,
   listMeetings,
   listMeetingsForContact,
   getMeeting,
@@ -85,14 +92,22 @@ beforeEach(() => {
 });
 
 describe('listMeetings (FR-MTG-028/029/035)', () => {
-  it('excludes templates + archived, orders occurred_at DESC, and caps rows explicitly', async () => {
+  it('C8 meetings.ts:84,168,196 returns an explicit page and indicates whether more rows exist', async () => {
+    h.queue[0] = { data: Array.from({ length: MEETING_PAGE_SIZE + 1 }, (_, i) => ({ id: `m${i}`, title: `Meeting ${i}` })), error: null };
+    const page = await listMeetingsPage(undefined, 0);
+    expect(page.rows).toHaveLength(MEETING_PAGE_SIZE);
+    expect(page.hasMore).toBe(true);
+    expect(h.calls.range).toEqual([[0, MEETING_PAGE_SIZE]]);
+  });
+
+  it('excludes templates + archived, orders occurred_at DESC, and fetches an explicit sentinel page', async () => {
     h.queue[0] = { data: [{ id: 'm1', title: 'Kickoff' }], error: null };
     const rows = await listMeetings();
     expect(h.calls.from).toEqual(['meetings']);
     expect(h.calls.eq).toContainEqual(['is_template', false]);
     expect(h.calls.is).toContainEqual(['archived_at', null]);
     expect(h.calls.order).toContainEqual(['occurred_at', { ascending: false }]);
-    expect(h.calls.limit).toContainEqual(MEETING_LIST_CAP);
+    expect(h.calls.range).toContainEqual([0, MEETING_PAGE_SIZE]);
     expect(rows[0].title).toBe('Kickoff');
   });
 
@@ -179,23 +194,23 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
       expect(rows.map((r) => r.id)).toEqual(['c', 'a', 'b']);
     });
 
-    it('#708: the merged result is re-capped to MEETING_LIST_CAP, keeping the newest', async () => {
+    it('#708: the complete merged result continues beyond the first page', async () => {
       const at = (i: number) => new Date(Date.UTC(2026, 0, 1) + i * 60_000).toISOString();
       h.queue.length = 0;
       h.queue.push({
-        data: Array.from({ length: 150 }, (_, i) => row(`f${i}`, at(i))),
+        data: Array.from({ length: 150 }, (_, i) => row(`f${149 - i}`, at(149 - i))),
         error: null,
       });
       h.queue.push({
-        data: Array.from({ length: 150 }, (_, i) => row(`s${i}`, at(1000 + i))),
+        data: Array.from({ length: 150 }, (_, i) => row(`s${149 - i}`, at(1000 + 149 - i))),
         error: null,
       });
       const rows = await listMeetings({ search: 'plan' });
-      expect(rows).toHaveLength(MEETING_LIST_CAP);
+      expect(rows).toHaveLength(300);
       expect(rows[0].id).toBe('s149');
-      // All 150 (newer) substring rows survive; only the 50 newest full-text rows fill the rest.
+      // Both complete result legs survive the union instead of stopping at the old 200-row cap.
       expect(rows.filter((r) => r.id.startsWith('s'))).toHaveLength(150);
-      expect(rows.filter((r) => r.id.startsWith('f'))).toHaveLength(50);
+      expect(rows.filter((r) => r.id.startsWith('f'))).toHaveLength(150);
     });
 
     it('#708: a full-text error returns the substring leg alone', async () => {

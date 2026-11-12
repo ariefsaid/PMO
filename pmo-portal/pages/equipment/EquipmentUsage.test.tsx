@@ -18,6 +18,7 @@ type Entry = {
 const h = vi.hoisted(() => ({
   entries: [] as unknown[],
   setEntries: (() => undefined) as (e: unknown[]) => void,
+  usageArgs: [] as unknown[],
   query: { isPending: false, isError: false, refetch: vi.fn() },
   save: vi.fn(), transition: vi.fn(), approveWeek: vi.fn(), archive: vi.fn(),
   userId: 'u-eng',
@@ -27,7 +28,8 @@ vi.mock('@/src/hooks/useEquipment', async () => {
   const React = await import('react');
   return {
     useEquipmentAssets: () => ({ data: { rows: [{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', archived_at: null }], truncated: false }, isPending: false, isError: false }),
-    useEquipmentUsage: () => {
+    useEquipmentUsage: (args: unknown) => {
+      h.usageArgs.push(args);
       const [rows, set] = React.useState<unknown[]>(h.entries);
       h.setEntries = set;
       return { data: { rows, truncated: false }, ...h.query };
@@ -53,8 +55,8 @@ const entry = (over: Partial<Entry>): Entry => ({
 const day = (iso: string) => formatDay(iso);
 const cell = (iso: string, project = 'EQU P1') => screen.getByRole('textbox', { name: `Loader 1 · ${project} · ${day(iso)}, hours` });
 
-const renderPage = (role: Role = 'Engineer') =>
-  render(<ImpersonationProvider realRole={role}><MemoryRouter><ToastProvider><EquipmentUsagePage /></ToastProvider></MemoryRouter></ImpersonationProvider>);
+const renderPage = (role: Role = 'Engineer', initialEntry = '/equipment/usage') =>
+  render(<ImpersonationProvider realRole={role}><MemoryRouter initialEntries={[initialEntry]}><ToastProvider><EquipmentUsagePage /></ToastProvider></MemoryRouter></ImpersonationProvider>);
 
 const ViewAs: React.FC<{ role: Role }> = ({ role }) => {
   const { viewAs } = useEffectiveRole();
@@ -68,6 +70,7 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     vi.setSystemTime(new Date(2026, 8, 11, 9, 0, 0)); // Fri 11 Sep 2026: the week is Mon 7 - Sun 13 Sep
     h.userId = 'u-eng';
     h.entries = [entry({})];
+    h.usageArgs = [];
     h.query = { isPending: false, isError: false, refetch: vi.fn() };
     h.save = vi.fn(async (input: { work_date: string; quantity: number }) => {
       h.setEntries([...h.entries, entry({ id: 'e2', work_date: input.work_date, quantity: input.quantity })]);
@@ -82,6 +85,11 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     h.archive = vi.fn().mockResolvedValue(undefined);
   });
   afterEach(() => { vi.useRealTimers(); });
+
+  it('C8 EquipmentUsage.tsx:83,101 scopes the bounded week read to the selected asset', () => {
+    renderPage('Engineer', '/equipment/usage?week=2026-09-07&asset=a1');
+    expect(h.usageArgs.at(-1)).toMatchObject({ from: '2026-09-07', to: '2026-09-13', assetId: 'a1' });
+  });
 
   it('AC-RSN-005 shows the returned equipment entry reason and person', () => {
     h.entries = [{ ...entry({ status: 'Rejected', decision_notes: 'Correct the asset' }), rejected_by: 'u-pm', rejected_at: '2026-09-09T10:00:00Z', rejecter: { full_name: 'Reviewer' } }];
