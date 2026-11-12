@@ -102,7 +102,7 @@ const SalesInvoicesFilters: React.FC<{
         total={totalCount}
         labels={{
           all: t('financeCopy.statusAll', 'All'),
-          clear: t('financeCopy.clearFilter', 'Clear filter'),
+          clear: t('finance:financeCopy.clearAll', 'Clear all'),
           filters: t('finance:receivables.filters', 'Filters'),
         }}
       />
