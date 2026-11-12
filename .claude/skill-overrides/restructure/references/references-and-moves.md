@@ -2,15 +2,22 @@
 
 Read whole at step 3; references are observed evidence for a decision, not permission to change PMO's business job.
 
+## Pattern floor and evidence order
+
+- Evidence order: frozen feature floor (content) → the reference design system (pattern floor) → stageshow product studies (structure, interaction) → owner images → public product pages for the rest.
+- The reference design system (private study in `docs/private/design-system/`) is the floor for tables, filter bars, forms, record headers, status, empty and error states, spacing and density: a composed screen may not fall below what it does for the same pattern. Taste and impeccable win where they disagree on contrast, accessibility, fonts or icons.
+- Each UI brief names the study pattern its screen must meet. Tracked text never names the reference brand.
+
 ## Two shelves
 
 | Shelf | Where | What it answers | What it cannot establish |
 |---|---|---|---|
-| **SCREEN** | `docs/private/references/<screen-kind>/` | Which information, hierarchy and actions a real analogous screen puts together | PMO's required features, financial definitions, permissions or a reference's unseen states |
-| **CRAFT** | Generated stageshow product studies and gold examples | How rows, controls, columns, menus and popovers are constructed; see `craft.md` | What a dashboard, approval queue or invoice screen should show |
+| **SCREEN** | `docs/private/references/<screen-kind>/`, first from stageshow product studies captured in its playground | Which structure, hierarchy, actions and interaction a real analogous screen uses | PMO's required features, financial definitions, permissions or a reference's unseen states |
+| **CRAFT** | The same stageshow studies and gold examples, read for construction | How rows, controls, columns, menus and popovers are constructed; see `craft.md` | What a dashboard, approval queue or invoice screen should show |
 
 - Use the screen kinds `dashboard`, `list`, `record`, `approval`, `form` and `phone`, because a shelf must be findable by the next Director.
-- Before composing a kind with fewer than three verified references, collect three first from owner-supplied images or public product pages, docs and demos opened in a browser, because memory is not a reference shelf.
+- stageshow's product studies are the standing reference library for structure and interaction, in place of an external screenshot service. Before composing a kind with fewer than three verified references, capture them from the stageshow playground at reading width; owner images next; public product pages only for money and ERP content no study covers (which figures a finance approval or invoice record shows), because memory is not a reference shelf.
+- PMO content and figures come from the frozen feature floor and the ERP references, never from a study.
 - Count only images actually present and opened at a readable size; pending copies and descriptions do not count, because a filename is not visual evidence.
 - Keep one `index.md` per kind with `file | product kind | decision shown | leave behind | source/date | product identity | viewed`, because a later session needs both provenance and the limit of the take.
 - Keep source identities and URLs private; use generic product kinds in tracked text, because this repository publishes everything tracked.
@@ -18,7 +25,7 @@ Read whole at step 3; references are observed evidence for a decision, not permi
 - A crop proves only what its bounds show; record unseen context and states as unknown, because a missing edge cannot prove a missing feature.
 - The owner's finance-home images illustrate a figure band, one finding and a wide actual/projected/target chart; use their arrangement as evidence, because a picture cannot supply PMO forecast data.
 - Open a CRAFT preview and inspect its DOM/computed styles for the needed part, because a hand-built recreation demonstrates construction rather than production business coverage.
-- Treat a chat or editor study as part-level craft only, because its composition cannot justify the contents of an ERP screen.
+- A study counts as the real product it reproduces for grading; a generic example with no product is an example, not precedent.
 
 ## Pick one direction whole
 
