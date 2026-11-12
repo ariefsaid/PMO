@@ -52,6 +52,25 @@ begin
 end $$;
 revoke all on function public.assert_record_only_rollback_safe() from public, anon, authenticated;
 
+-- Adapter bridge for source-line facts: the caller supplies the neutral 0687 key.
+create function public.journal_source_line_facts(p_org uuid, p_project uuid, p_doctype text, p_voucher text, p_account text)
+returns table(has_negative boolean, party_count bigint) language sql stable security definer
+set search_path = public, pg_catalog as $$
+  with mapped_project as (
+    select m.value as source_project from public.external_org_bindings b, jsonb_each_text(coalesce(b.config->'project_map','{}'::jsonb)) m
+     where b.org_id=p_org and b.external_tier='erpnext' and b.activated_at is not null and m.key=p_project::text
+    union all
+    select pb.external_container_id from public.external_project_bindings pb
+     where pb.org_id=p_org and pb.project_id=p_project and pb.external_tier='odoo'
+       and exists (select 1 from public.external_org_bindings b where b.org_id=p_org and b.external_tier='odoo' and b.activated_at is not null)
+  )
+  select coalesce(bool_or(coalesce(g.debit,0)-coalesce(g.credit,0)<0),false), count(distinct nullif(btrim(g.party),''))
+    from public.erp_gl_entry_mirror g
+   where g.org_id=p_org and g.voucher_type=p_doctype and g.voucher_no=p_voucher and g.account=p_account
+     and not g.is_cancelled and g.project in (select source_project from mapped_project)
+$$;
+revoke all on function public.journal_source_line_facts(uuid,uuid,text,text,text) from public, anon, authenticated;
+
 -- A source key is the 0687 stable tuple (doctype, voucher, project, account), scoped by session org.
 create function public.create_record_only_journal_purchase(p_group jsonb, p_dry_run boolean default false)
 returns jsonb language plpgsql security definer set search_path = public, pg_catalog as $$
@@ -59,7 +78,7 @@ declare
   v_org uuid := public.auth_org_id(); v_actor uuid := auth.uid();
   v_request uuid; v_project uuid; v_vendor uuid; v_purchase uuid; v_old jsonb;
   v_currency text; v_binding uuid; v_bindings integer; v_title text; v_reference text; v_line jsonb; v_source record;
-  v_total numeric := 0; v_date date; v_sources jsonb := '[]'::jsonb; v_party uuid; v_key text; v_seen text[] := '{}';
+  v_total numeric := 0; v_date date; v_sources jsonb := '[]'::jsonb; v_party uuid; v_key text; v_seen text[] := '{}'; v_facts record; v_group_party text;
 begin
   perform public.assert_is_active_member();
   if public.auth_role()::text is distinct from 'Admin' then
@@ -114,20 +133,15 @@ begin
      where erp_doctype = v_line->>'erp_doctype' and account = v_line->>'account';
     if not found then raise exception 'line_not_found' using errcode = '22023'; end if;
     if v_source.is_cancelled or v_source.amount <= 0 then raise exception 'line_not_positive_or_cancelled' using errcode = '22023'; end if;
-    -- Inspect underlying mapped GL rows before accepting the aggregate: a credit is not silently netted into a purchase.
-    if exists (
-      select 1 from public.erp_gl_entry_mirror g
-       where g.org_id=v_org and g.voucher_type=v_source.erp_doctype and g.voucher_no=v_source.voucher_no
-         and g.account=v_source.account and not g.is_cancelled and coalesce(g.debit,0)-coalesce(g.credit,0)<0
-         and g.project in (
-           select m.value from public.external_org_bindings b, jsonb_each_text(coalesce(b.config->'project_map','{}'::jsonb)) m
-            where b.org_id=v_org and b.external_tier='erpnext' and b.activated_at is not null and m.key=v_project::text
-           union all
-           select pb.external_container_id from public.external_project_bindings pb
-            where pb.org_id=v_org and pb.project_id=v_project and pb.external_tier='odoo'
-              and exists (select 1 from public.external_org_bindings b where b.org_id=v_org and b.external_tier='odoo' and b.activated_at is not null)
-         )
-    ) then raise exception 'negative_line_requires_review' using errcode='22023'; end if;
+    select * into v_facts from public.journal_source_line_facts(v_org,v_project,v_source.erp_doctype,v_source.voucher_no,v_source.account);
+    if v_facts.has_negative then raise exception 'negative_line_requires_review' using errcode='22023'; end if;
+    if v_facts.party_count > 1 then raise exception 'supplier_mismatch' using errcode='22023'; end if;
+    if nullif(btrim(v_source.party),'') is not null then
+      if v_group_party is not null and v_group_party is distinct from v_source.party then
+        raise exception 'supplier_mismatch' using errcode='22023';
+      end if;
+      v_group_party := v_source.party;
+    end if;
     if exists (select 1 from public.erp_journal_line_links where org_id=v_org and erp_doctype=v_source.erp_doctype
        and voucher_no=v_source.voucher_no and project_id=v_project and account=v_source.account) then
       raise exception 'line_already_attached' using errcode = '22023';
@@ -138,7 +152,13 @@ begin
       end if;
     else
       v_party := public.erp_supplier_company(v_org, v_source.party, v_source.party);
-      if v_party is distinct from v_vendor then raise exception 'supplier_mismatch' using errcode = '22023'; end if;
+      if v_party is null then
+        if coalesce((p_group->>'vendor_confirmed')::boolean,false) is not true then
+          raise exception 'vendor_confirmation_required' using errcode = '22023';
+        end if;
+      elsif v_party is distinct from v_vendor then
+        raise exception 'supplier_mismatch' using errcode = '22023';
+      end if;
     end if;
     v_total := v_total + v_source.amount;
     v_date := least(v_date, v_source.posting_date);

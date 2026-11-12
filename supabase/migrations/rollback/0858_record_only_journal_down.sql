@@ -640,6 +640,7 @@ grant execute on function public.detach_erp_journal_line(uuid) to authenticated;
 
 drop function if exists public.record_only_step_refusal(uuid);
 drop function public.create_record_only_journal_purchase(jsonb,boolean);
+drop function if exists public.journal_source_line_facts(uuid,uuid,text,text,text);
 do $$ begin if to_regclass('public.erp_purchase_captures') is not null then execute 'drop trigger if exists erp_purchase_captures_org_guard on public.erp_purchase_captures'; end if; end $$;
 drop function if exists public.guard_erp_purchase_capture_org();
 drop function if exists public.assert_record_only_rollback_safe();

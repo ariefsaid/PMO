@@ -1,6 +1,6 @@
 -- Record-only purchases: journal creation is atomic and never changes project actuals.
 begin;
-select plan(87);
+select plan(91);
 insert into organizations (id, name, default_currency) values
   ('21950000-0000-0000-0000-00000000000a','JEC A','IDR'), ('21950000-0000-0000-0000-00000000000b','JEC B','IDR');
 insert into auth.users (id, email) values
@@ -42,6 +42,12 @@ insert into erp_gl_entry_mirror (org_id, erp_name, company, account, project, vo
 insert into public.erp_gl_entry_mirror (org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,erp_modified) values
  ('21950000-0000-0000-0000-00000000000a','g4','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-4','2026-03-07',10,0,false,'2026-03-07');
 insert into public.erp_gl_entry_mirror (org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,party,erp_modified) values
+ ('21950000-0000-0000-0000-00000000000a','gunknown1','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-UNKNOWN-1','2026-03-06',10,0,false,'Unmapped A','2026-03-06'),
+ ('21950000-0000-0000-0000-00000000000a','gunknown2','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-UNKNOWN-2','2026-03-06',10,0,false,'Unmapped B','2026-03-06');
+insert into public.erp_gl_entry_mirror (org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,party,erp_modified) values
+ ('21950000-0000-0000-0000-00000000000a','gmixp1','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-MIXPARTY','2026-03-06',10,0,false,'Example vendor','2026-03-06'),
+ ('21950000-0000-0000-0000-00000000000a','gmixp2','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-MIXPARTY','2026-03-06',10,0,false,'Different supplier','2026-03-06');
+insert into public.erp_gl_entry_mirror (org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,party,erp_modified) values
  ('21950000-0000-0000-0000-00000000000a','gparty','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-PARTY','2026-03-06',20,0,false,'Different supplier','2026-03-06');
 insert into public.erp_gl_entry_mirror (org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,erp_modified) values
  ('21950000-0000-0000-0000-00000000000a','gm1','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-MIX','2026-03-06',100,0,false,'2026-03-06'),
@@ -66,7 +72,8 @@ insert into procurements (id, org_id, title, requested_by_id, project_id, curren
 
 insert into companies (id, org_id, name, type) values
  ('21950000-0000-0000-0000-000000000901','21950000-0000-0000-0000-00000000000a','Example vendor','Vendor'),
- ('21950000-0000-0000-0000-000000000902','21950000-0000-0000-0000-00000000000b','B vendor','Vendor');
+ ('21950000-0000-0000-0000-000000000902','21950000-0000-0000-0000-00000000000b','B vendor','Vendor'),
+ ('21950000-0000-0000-0000-000000000903','21950000-0000-0000-0000-00000000000a','Different supplier','Vendor');
 
 insert into auth.users(id,email) values
  ('21950000-0000-0000-0000-0000000000a5','rrp-exec@example.com'),
@@ -168,6 +175,9 @@ select set_config('rop.multiline', public.create_record_only_journal_purchase(js
 select is((current_setting('rop.multiline')::jsonb->>'amount')::numeric,60::numeric,'AC-ROP-001 two source lines are summed');
 select is(jsonb_array_length(current_setting('rop.multiline')::jsonb->'source_keys'),2,'AC-ROP-001 preview retains both source keys');
 select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines,0,voucher_no}','"JV-MIX"'),true)$test$, '22023','negative_line_requires_review','AC-ROP-007 negative source rows cannot be silently netted');
+select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines}','[{"erp_doctype":"Journal Entry","voucher_no":"JV-UNKNOWN-1","project_id":"21950000-0000-0000-0000-0000000000d1","account":"Project Subcontractors - X"},{"erp_doctype":"Journal Entry","voucher_no":"JV-UNKNOWN-2","project_id":"21950000-0000-0000-0000-0000000000d1","account":"Project Subcontractors - X"}]'::jsonb),true)$test$, '22023','supplier_mismatch','AC-ROP-007 different unresolved parties cannot share a purchase');
+select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines,0,voucher_no}','"JV-MIXPARTY"'),true)$test$, '22023','supplier_mismatch','AC-ROP-007 multiple parties in one journal line are refused');
+select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(jsonb_set(pg_temp.journal_group(),'{journal_lines,0,voucher_no}','"JV-PARTY"'),'{vendor_confirmed}','false'),true)$test$, '22023','supplier_mismatch','AC-ROP-007 confirmation cannot override a known conflicting supplier');
 select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines,0,voucher_no}','"JV-PARTY"'),true)$test$, '22023','supplier_mismatch','AC-ROP-007 a conflicting known supplier is refused');
 select ok(not has_function_privilege('anon','public.create_record_only_journal_purchase(jsonb,boolean)','execute'),'AC-ROP-005 anonymous create is revoked');
 select ok(not has_function_privilege('anon','public.undo_captured_purchase(uuid,text,boolean)','execute'),'AC-ROP-005 anonymous undo is revoked');
@@ -222,9 +232,10 @@ insert into auth.users(id,email) values ('21950000-0000-0000-0000-0000000000b2',
 insert into public.profiles(id,org_id,full_name,email,role,status) values ('21950000-0000-0000-0000-0000000000b2','21950000-0000-0000-0000-00000000000b','B Admin','rrp-b-admin@example.com','Admin','active');
 update public.external_org_bindings set external_tier='odoo',config='{"ledger_basis_at":"2026-01-01"}'::jsonb where org_id='21950000-0000-0000-0000-00000000000b';
 insert into public.external_project_bindings(org_id,project_id,external_tier,external_container_id) values ('21950000-0000-0000-0000-00000000000b','21950000-0000-0000-0000-0000000000d3','odoo','ERP-B1');
-update public.erp_gl_entry_mirror set voucher_type='account.move' where org_id='21950000-0000-0000-0000-00000000000b' and voucher_no='JV-B';
+update public.erp_gl_entry_mirror set voucher_type='account.move',party='Unmapped partner' where org_id='21950000-0000-0000-0000-00000000000b' and voucher_no='JV-B';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950000-0000-0000-0000-0000000000b2","role":"authenticated"}';
+select throws_ok($test$select public.create_record_only_journal_purchase('{"request_id":"21950000-0000-0000-0000-000000000997","project_id":"21950000-0000-0000-0000-0000000000d3","vendor_id":"21950000-0000-0000-0000-000000000902","vendor_confirmed":false,"title":"Odoo journal","journal_lines":[{"erp_doctype":"account.move","voucher_no":"JV-B","project_id":"21950000-0000-0000-0000-0000000000d3","account":"Project Subcontractors - X"}]}'::jsonb,true)$test$, '22023','vendor_confirmation_required','AC-ROP-007 unresolved ledger party needs vendor confirmation');
 select is(public.create_record_only_journal_purchase('{"request_id":"21950000-0000-0000-0000-000000000997","project_id":"21950000-0000-0000-0000-0000000000d3","vendor_id":"21950000-0000-0000-0000-000000000902","vendor_confirmed":true,"title":"Odoo journal","journal_lines":[{"erp_doctype":"account.move","voucher_no":"JV-B","project_id":"21950000-0000-0000-0000-0000000000d3","account":"Project Subcontractors - X"}]}'::jsonb,false)->>'outcome','create','AC-ROP-010 Odoo ledger journal is recorded');
 select is((select total_value from public.procurements where title='Odoo journal'),30::numeric,'AC-ROP-010 Odoo amount comes from ledger');
 select is((select count(*)::int from public.project_erp_journal_lines('21950000-0000-0000-0000-0000000000d3') where voucher_no='JV-B' and procurement_id is not null),1,'AC-ROP-001 Odoo journal read shows purchase');

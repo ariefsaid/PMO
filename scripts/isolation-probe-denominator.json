@@ -365,6 +365,7 @@
     "is_meeting_attendee(uuid)",
     "issue_po_revision(uuid)",
     "issue_subcontract_po_lines(uuid)",
+    "journal_source_line_facts(uuid,uuid,text,text,text)",
     "linked_step_state(uuid,uuid,text)",
     "link_erp_purchase_documents(jsonb,boolean)",
     "link_external_company(uuid,uuid,text,text)",
