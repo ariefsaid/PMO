@@ -121,6 +121,8 @@ afterEach(cleanup);
 
 const timesheetCard = () => screen.getByTestId('engineer-timesheet');
 const tasksCard = () => screen.getByTestId('engineer-tasks');
+const band = () => screen.getByRole('region', { name: 'Your week' });
+const tile = (id: string) => screen.getByTestId(id);
 
 describe('Engineer home (one question: is my week on track?)', () => {
   it('shows task rows while the organization day is pending and date-based cards wait for it', () => {
@@ -137,8 +139,10 @@ describe('Engineer home (one question: is my week on track?)', () => {
     state.tasks.isError = true;
     renderDashboard();
 
-    expect(timesheetCard()).toHaveTextContent('15.5 h');
-    expect(within(screen.getByTestId('waits-on-you')).getByText("Couldn't load what waits on you")).toBeInTheDocument();
+    expect(tile('kpi-hours-week')).toHaveTextContent('15.5 h');
+    // The needs read still answers: its rows stay, only the task list says it could not load.
+    expect(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /timesheet was returned/ })).toBeInTheDocument();
+    expect(within(tasksCard()).getByText("Couldn't load your tasks")).toBeInTheDocument();
     expect(within(tasksCard()).queryByText('Finalize drawings')).not.toBeInTheDocument();
   });
 
@@ -182,10 +186,11 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'My dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
     const card = timesheetCard();
-    expect(card).toHaveTextContent('15.5 h');
-    expect(card).not.toHaveTextContent('99');
-    expect(card).toHaveTextContent('Returned');
+    expect(tile('kpi-hours-week')).toHaveTextContent('15.5 h');
+    expect(band()).not.toHaveTextContent('99');
+    expect(tile('kpi-timesheet-status')).toHaveTextContent('Returned');
     expect(card).toHaveTextContent('Sent back for correction.');
+    expect(band().compareDocumentPosition(screen.getByTestId('waits-on-you')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByTestId('waits-on-you').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(timesheetCard().compareDocumentPosition(tasksCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(tasksCard().compareDocumentPosition(screen.getByTestId('engineer-returned')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -210,7 +215,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
     state.timesheets.data = [{ ...sheets[1], status: 'Draft', entries: [] }];
     const empty = renderDashboard();
     expect(within(timesheetCard()).getByRole('link', { name: 'Log time' })).toHaveAttribute('href', '/timesheets');
-    expect(within(timesheetCard()).getByText('0 h')).toBeInTheDocument();
+    expect(tile('kpi-hours-week')).toHaveTextContent('0 h');
     empty.unmount();
 
     state.timesheets.data = [{ ...sheets[1], status: 'Submitted' }];
@@ -255,7 +260,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(screen.getByRole('link', { name: /Finalize drawings/ })).toHaveAttribute('href', '/my-tasks');
   });
 
-  it('shows only the signed-in engineer\'s returned claims, and nothing at all when there are none', () => {
+  it('shows only the signed-in engineer\'s returned claims, and keeps the expenses doorway with an empty line when there are none', () => {
     const withClaims = renderDashboard();
     const returned = screen.getByTestId('engineer-returned');
     expect(within(returned).getByRole('link', { name: /Travel receipt/ })).toHaveAttribute('href', '/expenses?status=Rejected');
@@ -268,7 +273,9 @@ describe('Engineer home (one question: is my week on track?)', () => {
 
     state.expenses.data = { rows: [], truncated: false };
     renderDashboard();
-    expect(screen.queryByTestId('engineer-returned')).not.toBeInTheDocument();
+    const empty = screen.getByTestId('engineer-returned');
+    expect(empty).toHaveTextContent('No expense claims have been returned to you.');
+    expect(within(empty).getByRole('link', { name: 'Open Expenses' })).toHaveAttribute('href', '/expenses');
   });
 
   it('T9: shows up to 5 recent entries, opens Timesheets from one, with its description and status', () => {
@@ -298,6 +305,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(state.tasks.refetch).toHaveBeenCalledOnce();
     expect(state.expenses.refetch).toHaveBeenCalledOnce();
     expect(state.orgDay.retry).toHaveBeenCalledOnce();
+    expect(state.needs.refetch).toHaveBeenCalledOnce();
     refresh.unmount();
 
     state.timesheets.data = undefined;
@@ -328,19 +336,20 @@ describe('Engineer home (one question: is my week on track?)', () => {
   it('shows a genuine zero, not a dash, when no hours are logged; and no week figure when the source is unavailable', () => {
     state.timesheets.data = [{ ...sheets[1], entries: [] }];
     const zero = renderDashboard();
-    expect(timesheetCard()).toHaveTextContent('0 h');
+    expect(tile('kpi-hours-week')).toHaveTextContent('0 h');
     zero.unmount();
 
     state.timesheets.data = undefined;
     renderDashboard();
-    expect(timesheetCard()).not.toHaveTextContent('0 h');
+    expect(band()).not.toHaveTextContent('0 h');
     expect(screen.queryByText('Mon')).not.toBeInTheDocument();
   });
 
-  it('with no timesheet this week there is no status pill and the action is Log time', () => {
+  it('with no timesheet this week the status says Not started and the action is Log time', () => {
     state.timesheets.data = sheets.filter((sheet) => sheet.week_start_date !== '2026-06-01');
     renderDashboard();
-    expect(timesheetCard()).not.toHaveTextContent('Returned');
+    expect(tile('kpi-timesheet-status')).toHaveTextContent('Not started');
+    expect(tile('kpi-timesheet-status')).not.toHaveTextContent('Returned');
     expect(within(timesheetCard()).getByRole('link', { name: 'Log time' })).toBeInTheDocument();
   });
 
@@ -351,7 +360,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(screen.getByRole('heading', { name: 'Tugas saya' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Dikembalikan ke saya' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Entri terbaru' })).toBeInTheDocument();
-    expect(timesheetCard()).toHaveTextContent('Dikembalikan');
+    expect(tile('kpi-timesheet-status')).toHaveTextContent('Dikembalikan');
     expect(within(timesheetCard()).getByRole('list', { name: 'Jam per hari minggu ini' })).toHaveTextContent('Sen8');
     // Data is translated for display only.
     expect(sheets[1].entries[0].hours).toBe(8);
@@ -361,7 +370,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
       cleanup();
       state.timesheets.data = [{ ...sheets[1], status }];
       renderDashboard('id');
-      expect(timesheetCard()).toHaveTextContent(label);
+      expect(tile('kpi-timesheet-status')).toHaveTextContent(label);
     }
 
     cleanup();
@@ -375,14 +384,13 @@ describe('Engineer home (one question: is my week on track?)', () => {
 describe('Engineer home — Overview layout', () => {
   beforeEach(() => { localStorage.setItem('home-layout', 'overview'); });
 
-  it('draws the week as a column chart (Mon–Sun) beside my tasks, and the hours by project as one bar', () => {
+  it('draws the week as a column chart (Mon–Sun) beside my tasks, and the hours by project as a bar per project', () => {
     renderDashboard();
     const label = within(timesheetCard()).getByRole('img', { name: /^Hours by day this week\./ }).getAttribute('aria-label');
     expect(label).toBe('Hours by day this week. Mon: 8; Tue: 7.5; Wed: ; Thu: ; Fri: ; Sat: ; Sun: ');
-    expect(within(timesheetCard()).getByText('15.5 h')).toBeInTheDocument();
+    expect(tile('kpi-hours-week')).toHaveTextContent('15.5 h');
     const hours = screen.getByTestId('chart-hours-by-project');
-    expect(hours).toHaveTextContent('Cedar Works');
-    expect(within(hours).getByRole('img')).toHaveAccessibleName('Hours by project this week. Cedar Works 15.5');
+    expect(within(hours).getByRole('img')).toHaveAccessibleName('This week by project. PRJ-1 · Cedar Works: 15.5 h');
     expect(within(timesheetCard()).queryByRole('list', { name: 'Hours by day this week' })).not.toBeInTheDocument();
   });
 
@@ -396,7 +404,7 @@ describe('Engineer home — Overview layout', () => {
     expect(await screen.findByText('no time is logged this week')).toBeInTheDocument();
   });
 
-  it('an unknown stored layout is Overview; Focused keeps the strip and no project chart', () => {
+  it('an unknown stored layout is Overview; Focused keeps the strip and the project hours', () => {
     localStorage.setItem('home-layout', 'sideways');
     const first = renderDashboard();
     expect(screen.getByTestId('chart-hours-by-project')).toBeInTheDocument();
@@ -404,6 +412,71 @@ describe('Engineer home — Overview layout', () => {
     localStorage.setItem('home-layout', 'focused');
     renderDashboard();
     expect(within(timesheetCard()).getByRole('list', { name: 'Hours by day this week' })).toBeInTheDocument();
-    expect(screen.queryByTestId('chart-hours-by-project')).not.toBeInTheDocument();
+    expect(screen.getByTestId('chart-hours-by-project')).toBeInTheDocument();
+  });
+});
+
+describe('Engineer home — the floor restored', () => {
+  it('opens with the week as four figures: hours with its week, status with its due day, tasks due, claims returned', () => {
+    renderDashboard();
+    expect(tile('kpi-hours-week')).toHaveTextContent('15.5 h');
+    expect(tile('kpi-hours-week')).toHaveTextContent(/Week of Jun 1, 2026/);
+    expect(tile('kpi-timesheet-status')).toHaveTextContent('Returned');
+    expect(tile('kpi-timesheet-status')).toHaveTextContent(/Due Fri · Jun 5, 2026/);
+    expect(tile('kpi-tasks-due')).toHaveTextContent('2');
+    expect(tile('kpi-tasks-due')).toHaveTextContent('1 overdue · 1 due this week');
+    expect(within(band()).getByRole('link', { name: 'Open tasks due this week' })).toHaveAttribute('href', '/my-tasks?due=week');
+    expect(tile('kpi-expenses-returned')).toHaveTextContent('1');
+    expect(within(band()).getByRole('link', { name: 'Open returned expense claims' })).toHaveAttribute('href', '/expenses?status=Rejected');
+  });
+
+  it('counts known zeros as 0, not as missing', () => {
+    state.tasks.data = [];
+    state.expenses.data = { rows: [], truncated: false };
+    renderDashboard();
+    expect(tile('kpi-tasks-due')).toHaveTextContent(/^Tasks due0/);
+    expect(tile('kpi-expenses-returned')).toHaveTextContent(/^Expense claims returned0/);
+  });
+
+  it('a failed claims read leaves the other three figures standing', () => {
+    state.expenses.data = undefined;
+    state.expenses.isError = true;
+    renderDashboard();
+    expect(tile('kpi-hours-week')).toHaveTextContent('15.5 h');
+    expect(tile('kpi-tasks-due')).toHaveTextContent('2');
+    expect(tile('kpi-expenses-returned')).not.toHaveTextContent(/\d/);
+  });
+
+  it('Waits on you carries the returned timesheet and returned claims from the needs read, and no second task row', () => {
+    renderDashboard();
+    const waits = within(screen.getByTestId('waits-on-you'));
+    expect(waits.getByRole('link', { name: /timesheet was returned/ })).toHaveAttribute('href', '/timesheets');
+    expect(waits.getByRole('link', { name: /expense claim returned/ })).toHaveAttribute('href', '/expenses');
+    expect(waits.queryByRole('link', { name: /tasks overdue or due this week/ })).not.toBeInTheDocument();
+    expect(timesheetCard()).not.toHaveTextContent('No timesheet needs your attention.');
+  });
+
+  it('says no timesheet needs attention once the needs read has none', () => {
+    state.needs = { items: [], isPending: false, isError: false, refetch: vi.fn() };
+    renderDashboard();
+    expect(timesheetCard()).toHaveTextContent('No timesheet needs your attention.');
+  });
+
+  it('lists every project of the week with its code, and names an entry with no project', () => {
+    const projectEntry = (id: string, code: string, name: string, hours: number) => ({
+      ...entry(id, '2026-06-02', hours, null), project_id: id, project: { name, code },
+    });
+    state.timesheets.data = [{
+      ...sheets[1],
+      entries: [
+        projectEntry('a', 'PRJ-A', 'Alpha', 5), projectEntry('b', 'PRJ-B', 'Bravo', 4), projectEntry('c', 'PRJ-C', 'Charlie', 3),
+        projectEntry('d', 'PRJ-D', 'Delta', 2), projectEntry('e', 'PRJ-E', 'Echo', 1),
+        { ...entry('x', '2026-06-01', 2, null), project_id: 'gone', project: null },
+      ],
+    }];
+    renderDashboard();
+    const name = within(screen.getByTestId('chart-hours-by-project')).getByRole('img').getAttribute('aria-label') ?? '';
+    for (const part of ['PRJ-A · Alpha: 5 h', 'PRJ-E · Echo: 1 h', 'project unavailable: 2 h']) expect(name).toContain(part);
+    expect(name).not.toContain('Other');
   });
 });
