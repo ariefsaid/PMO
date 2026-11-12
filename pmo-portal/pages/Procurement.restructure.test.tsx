@@ -224,9 +224,10 @@ describe('Procurement list restructure', () => {
   });
 
   it('keeps stage share and requester name accessible after simplifying list chrome', async () => {
+    const requesterName = 'Long Requester Example With Several Names';
     roleState.role = 'Admin';
     procState.data = [
-      row({ id: 'request', title: 'Request purchase', status: 'Requested', requested_by: { full_name: 'Requester Example' } }),
+      row({ id: 'request', title: 'Request purchase', status: 'Requested', requested_by: { full_name: requesterName } }),
       row({ id: 'order', title: 'Order purchase', status: 'Ordered' }),
       row({ id: 'invoice', title: 'Invoice purchase', status: 'Vendor Invoiced', procurement_invoices: [{ amount: 500, erp_outstanding_amount: 250 }] }),
     ];
@@ -239,12 +240,14 @@ describe('Procurement list restructure', () => {
 
     const requestRow = screen.getByRole('button', { name: 'Open Request purchase' }).closest('tr');
     expect(requestRow).not.toBeNull();
-    expect(screen.queryByText('Requester Example')).not.toBeInTheDocument();
-    const requester = within(requestRow as HTMLElement).getByRole('img', { name: 'Raised by Requester Example' });
+    const requester = within(requestRow as HTMLElement).getByRole('img', { name: `Raised by ${requesterName}` });
+    const visibleName = within(requester).getByText(requesterName);
+    expect(visibleName).toBeInTheDocument();
+    expect(visibleName).toHaveClass('overflow-hidden', 'text-ellipsis', 'whitespace-nowrap');
     await userEvent.unhover(requestStage);
     await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
     await userEvent.hover(requester);
-    await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Requested by Requester Example'));
+    await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent(`Requested by ${requesterName}`));
   });
 
   it('Project Managers see procurements only for projects they manage', () => {

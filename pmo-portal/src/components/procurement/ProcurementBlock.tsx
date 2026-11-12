@@ -544,7 +544,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       header: t('projectDetail.procurement.table.value', 'Value'),
       kind: 'money',
       align: 'num',
-      size: 120,
+      size: 105,
       minSize: 105,
       sortKey: 'value',
       cell: (row) => rowAmount(row),
@@ -554,7 +554,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       key: 'settlement',
       header: t('procurement.settlement', 'Paid / invoiced'),
       kind: 'text',
-      size: 134,
+      size: 126,
       minSize: 126,
       cell: (row) => {
         const money = derivationFor(row).money;
@@ -594,8 +594,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('projectDetail.procurement.table.procurement', 'Procurement'),
         kind: 'text',
         rowHeader: true,
-        size: 280,
-        minSize: 220,
+        size: 158,
+        minSize: 150,
         sortKey: 'title',
         cell: (row) => (
           <div className="min-w-0 space-y-1">
@@ -618,7 +618,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         key: 'stage',
         header: t('projectDetail.procurement.table.status', 'Status'),
         kind: 'status',
-        size: 176,
+        size: 150,
         minSize: 150,
         sortKey: 'stage',
         cell: (row) => (
@@ -636,7 +636,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         kind: 'text',
         // Owner tidy ruling 2026-10-29: an action label is never truncated — the
         // column gets the width it needs and wraps to two lines instead.
-        size: 210,
+        size: 150,
         minSize: 150,
         cell: (row) => {
           const next = nextStepText(row.status, canDecideRow(row), t);
@@ -650,7 +650,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         kind: 'number',
         colClassName: projectId ? 'hidden' : undefined,
         align: 'num',
-        size: 100,
+        size: 76,
         minSize: 68,
         sortKey: 'age',
         cell: (row) => {
@@ -668,15 +668,16 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text',
         colClassName: projectId ? 'hidden' : undefined,
-        size: 104,
-        minSize: 96,
+        size: 160,
+        minSize: 128,
         sortKey: 'owner',
         cell: (row) => {
           const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
           return (
             <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement case.', { name: owner })}>
-              <span role="img" aria-label={t('procurement.ownerAccessibleName', 'Raised by {{name}}', { name: owner })} tabIndex={0} className="inline-flex items-center justify-center rounded-sm text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              <span role="img" aria-label={t('procurement.ownerAccessibleName', 'Raised by {{name}}', { name: owner })} tabIndex={0} className="inline-flex min-w-0 max-w-full items-center justify-start gap-2 rounded-sm text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                 <Avatar name={owner} decorative />
+                <span className="block min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap">{owner}</span>
               </span>
             </Tooltip>
           );
