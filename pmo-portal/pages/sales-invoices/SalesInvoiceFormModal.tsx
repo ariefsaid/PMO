@@ -9,7 +9,7 @@ import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { DEFAULT_BILLING_KIND, type BillingKind } from '@/src/lib/billingKind';
-import { currencySymbol, formatCurrencyCents } from '@/src/lib/format';
+import { currencySymbol, formatCurrency } from '@/src/lib/format';
 import type { PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { previewInvoiceDraft } from '@/src/lib/revenue/nativeInvoice';
@@ -211,9 +211,6 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
     <EntityFormModal
       open
       title={t('financeCopy.newInvoiceTitle', 'New invoice')}
-      subtitle={native
-        ? t('financeCopy.nativeNewInvoiceSubtitle', 'Raises a draft. A different Finance or Admin user approves it.')
-        : t('financeCopy.newInvoiceSubtitle', 'Create a new sales invoice for a client')}
       submitLabel={t('financeCopy.createInvoice', 'Create invoice')}
       cancelLabel={t('financeCopy.cancel', 'Cancel')}
       onSubmit={handleSubmit}
@@ -226,7 +223,7 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
     >
       {!native && pendingPush.status !== 'idle' && (
         <div className="mb-3.5 flex justify-end">
-          <span className="text-xs text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
+          <span className="text-control text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
         </div>
       )}
       <FormSection legend={t('financeCopy.invoiceDetails', 'Invoice details')}>
@@ -387,7 +384,7 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         <h3 className="text-sm font-semibold">
           {t('uxs16.invoiceDraftReview', 'Invoice draft review')}
           {draftReviewCurrency && (
-            <span className="ml-2 text-xs font-normal text-muted-foreground">{draftReviewCurrency}</span>
+            <span className="ml-2 text-control font-normal text-muted-foreground">{draftReviewCurrency}</span>
           )}
         </h3>
         {!draftReviewCurrency ? (
@@ -400,7 +397,7 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               <div className="flex min-w-0 items-baseline justify-between gap-4">
                 <dt className="text-muted-foreground">{t('uxs16.subtotal', 'Subtotal')}</dt>
                 <dd className="shrink-0 text-right tabular-nums">
-                  {draftPreview.subtotal === null ? '—' : formatCurrencyCents(draftPreview.subtotal, draftReviewCurrency)}
+                  {draftPreview.subtotal === null ? '—' : formatCurrency(draftPreview.subtotal, draftReviewCurrency, { precision: 'minor' })}
                 </dd>
               </div>
               {native && (
@@ -410,13 +407,13 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                   <span>{t('uxs16.tax', 'Tax')}</span>
                 </dt>
                 <dd className="shrink-0 text-right tabular-nums">
-                  {draftPreview.tax === null ? '—' : formatCurrencyCents(draftPreview.tax, draftReviewCurrency)}
+                  {draftPreview.tax === null ? '—' : formatCurrency(draftPreview.tax, draftReviewCurrency, { precision: 'minor' })}
                 </dd>
               </div>
               <div className="flex min-w-0 items-baseline justify-between gap-4 border-t border-border pt-2 font-semibold">
                 <dt>{t('uxs16.total', 'Total')}</dt>
                 <dd className="shrink-0 text-right tabular-nums">
-                  {draftPreview.total === null ? '—' : formatCurrencyCents(draftPreview.total, draftReviewCurrency)}
+                  {draftPreview.total === null ? '—' : formatCurrency(draftPreview.total, draftReviewCurrency, { precision: 'minor' })}
                 </dd>
               </div>
               </>
@@ -441,6 +438,8 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         )}
       </section>
       )}
+      {/* The consequence of Create lives next to it: the draft waits for a second person. */}
+      {native && <p className="mt-4 text-control text-muted-foreground">{t('financeCopy.nativeNewInvoiceSubtitle', 'Raises a draft. A different Finance or Admin user approves it.')}</p>}
     </EntityFormModal>
   );
 };

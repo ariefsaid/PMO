@@ -149,10 +149,6 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
     <EntityFormModal
       open
       title={t('projectDetail.workOrderValue.title', 'Set the work order value')}
-      subtitle={t(
-        'projectDetail.workOrderValue.subtitle',
-        'Your name is recorded against this figure. Whoever sets it cannot also issue the work order. That is the second pair of eyes on the money.',
-      )}
       submitLabel={t('projectDetail.workOrderValue.save', 'Set value')}
       onSubmit={handleSubmit}
       submitError={saveError}
@@ -164,8 +160,8 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
     >
       <FormSection legend={t('projectDetail.workOrderValue.legend', 'Value and tax basis')}>
         {/* Read-only context, as a labelled figure rather than a value spliced into prose. */}
-        <p data-testid="wo-value-current" className="mb-3 text-[12px] text-muted-foreground">
-          <span className="font-semibold uppercase tracking-[0.06em]">
+        <p data-testid="wo-value-current" className="mb-3 text-sm text-muted-foreground">
+          <span className="font-semibold">
             {t('projectDetail.workOrderValue.current', 'Current value')}
           </span>
           <span className="ml-2 font-bold tabular text-foreground">{currentValueText}</span>
@@ -212,6 +208,10 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
           />
         </FormGrid>
       </FormSection>
+      <p className="mt-3 text-sm text-muted-foreground">{t(
+        'projectDetail.workOrderValue.subtitle',
+        'Your name is recorded against this figure. Whoever sets it cannot also issue the work order. That is the second pair of eyes on the money.',
+      )}</p>
     </EntityFormModal>
   );
 };

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor, act } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import userEvent from '@testing-library/user-event';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
@@ -107,12 +108,14 @@ const renderAtUrl = (url: string) =>
   render(
     <ImpersonationProvider realRole="Engineer">
       <MemoryRouter initialEntries={[url]}>
+        <Link to="/next">Continue</Link>
         <Routes>
           <Route path="/timesheets" element={
             <ToastProvider>
               <TimesheetsPage />
             </ToastProvider>
           } />
+          <Route path="/next" element={<p>Next page</p>} />
         </Routes>
       </MemoryRouter>
     </ImpersonationProvider>,
@@ -128,6 +131,19 @@ beforeEach(() => {
 });
 
 describe('Timesheets — ?project= prefill (AC-IFW-TASKS-02)', () => {
+  it('warns before leaving an invalid raw hour buffer that cannot be saved and Stay keeps it', async () => {
+    renderAtUrl('/timesheets?project=p-solar-1');
+    const rawHours = await screen.findByRole('textbox', { name: /^Meridian Solar Phase 1, Mon hours$/ });
+    await userEvent.type(rawHours, '8h');
+    expect(rawHours).toHaveValue('8h');
+
+    await userEvent.click(screen.getByRole('link', { name: 'Continue' }));
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(discard).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByRole('textbox', { name: /^Meridian Solar Phase 1, Mon hours$/ })).toHaveValue('8h');
+    expect(screen.queryByText('Next page')).not.toBeInTheDocument();
+  });
+
   it('AC-IFW-TASKS-02: when ?project=<id> is present, the project is auto-added (grid is not empty)', async () => {
     renderAtUrl('/timesheets?project=p-solar-1');
     // After prefill the empty-state div should be gone (a row was added)
@@ -201,6 +217,7 @@ describe('Timesheets — ?project= prefill (AC-IFW-TASKS-02)', () => {
         rerender(
           <ImpersonationProvider realRole="Engineer">
             <MemoryRouter initialEntries={['/timesheets?project=p-solar-1']}>
+              <Link to="/next">Continue</Link>
               <Routes>
                 <Route
                   path="/timesheets"
@@ -210,6 +227,7 @@ describe('Timesheets — ?project= prefill (AC-IFW-TASKS-02)', () => {
                     </ToastProvider>
                   }
                 />
+                <Route path="/next" element={<p>Next page</p>} />
               </Routes>
             </MemoryRouter>
           </ImpersonationProvider>,

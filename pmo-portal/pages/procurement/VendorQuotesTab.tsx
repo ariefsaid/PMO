@@ -18,7 +18,7 @@ import {
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { trackComingSoonClicked } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrency, formatDateOnly, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatDay, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ProcurementFilesSubsection, type EmbeddedProcurementFile } from './ProcurementFilesSubsection';
 import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
@@ -207,7 +207,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
         }
       >
         Bid comparison
-        <span className="ml-2 text-[13px] font-normal text-muted-foreground">
+        <span className="ml-2 text-sm font-normal text-muted-foreground">
           {t('procurement:quotes.compareHint', 'Compare and select a supplier quote')}
         </span>
       </CardHead>
@@ -231,7 +231,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
           },
           { key: 'valueStatus', header: 'Value status', kind: 'status', size: 160, cell: (q) => <div className="flex flex-wrap gap-1">{isRowSelected(q, selectedId) && <StatusPill variant="won">{t('procurement:quoteComparison.selected', 'Selected')}</StatusPill>}{lowest !== null && Number(q.total_amount) === lowest && <StatusPill variant="won">{t('procurement:quoteComparison.lowestPrice', 'Lowest price')}</StatusPill>}</div> },
           { key: 'amount', header: 'Amount', kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{formatCurrency(Number(q.total_amount), q.currency)}</span> },
-          { key: 'validUntil', header: 'Valid until', kind: 'date', size: 160, cell: (q) => <span className="text-muted-foreground">{formatDateOnly(q.valid_until)}</span> },
+          { key: 'validUntil', header: 'Valid until', kind: 'date', size: 160, cell: (q) => <span className="text-muted-foreground">{formatDay(q.valid_until)}</span> },
           { key: 'attachments', header: 'Attachments', kind: 'text', size: 240, minSize: 180, cell: (q) => <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} /> }, 
           { key: 'select', header: '', kind: 'select', size: 40, minSize: 40, maxSize: 40, cell: (q) => {
             const selectable = canSelect && !isRowSelected(q, selectedId);
@@ -283,7 +283,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
               // never a fake-working CTA); the wrapping span's own click still
               // reports intent, since a `disabled` element cannot dispatch one.
               onClick={() => trackComingSoonClicked('vendor-quote-file-upload', 'procurement')}
-              className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-md border border-dashed border-input bg-secondary/50 px-2.5 text-[12.5px] text-muted-foreground"
+              className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-md border border-dashed border-input bg-secondary/50 px-2.5 text-sm text-muted-foreground"
             >
               <Icon name="doc" width="1em" height="1em" />
               Attach file (coming soon)

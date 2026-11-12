@@ -6,6 +6,7 @@ import {
   CardHead,
   CardPad,
   ConfirmDialog,
+  UnsavedChangesDialog,
   ListState,
   StatusPill,
   useToast,
@@ -28,8 +29,7 @@ import {
 } from '@/src/hooks/useMeetings';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDateOnly } from '@/src/lib/format';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { formatDay } from '@/src/lib/format';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
@@ -231,7 +231,7 @@ const MeetingDetail: React.FC = () => {
                   ) : (
                     <span className="font-medium">{task.name}</span>
                   )}
-                  <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
+                  <StatusPill record="task" state={task.status} />
                   <span className="text-muted-foreground">
                     {task.assignee
                       ? `${t('meetingDetail.minutes.ownerLabel', 'Owner')}: ${task.assignee.full_name}`
@@ -239,7 +239,7 @@ const MeetingDetail: React.FC = () => {
                   </span>
                   {task.end_date && (
                     <span className="text-muted-foreground">
-                      {t('meetingDetail.minutes.dueLabel', 'Due date')}: {formatDateOnly(task.end_date)}
+                      {t('meetingDetail.minutes.dueLabel', 'Due date')}: {formatDay(task.end_date)}
                     </span>
                   )}
                 </li>
@@ -303,22 +303,14 @@ const MeetingDetail: React.FC = () => {
         onCancel={() => setDeleteOpen(false)}
       />
 
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        tone="default"
-        title={tMeetings('confirm.unsavedChanges.title', 'Unsaved meeting changes')}
-        description={tMeetings(
-          'confirm.unsavedChanges.description',
-          'Your meeting header or minutes have unsaved changes. Leave this page and discard them?',
-        )}
-        confirmLabel={tMeetings('confirm.unsavedChanges.leave', 'Leave')}
-        cancelLabel={tMeetings('confirm.unsavedChanges.stay', 'Stay')}
-        onConfirm={() => {
+        onDiscard={() => {
           const leave = pendingLeave;
           setPendingLeave(null);
           leave?.();
         }}
-        onCancel={() => setPendingLeave(null)}
+        onKeepEditing={() => setPendingLeave(null)}
       />
     </div>
   );

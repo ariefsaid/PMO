@@ -1,8 +1,7 @@
 import React from 'react';
 import type { TFunction } from 'i18next';
-import { Tooltip, StatusPill } from '@/src/components/ui';
-import { formatDateOnly } from '@/src/lib/format';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { Avatar, Tooltip, StatusPill } from '@/src/components/ui';
+import { formatDay } from '@/src/lib/format';
 import { projectReference, validMicrosoftBrowserUrl } from '@/src/lib/m365/reference';
 import { isMicrosoftFolder } from './documentUtils';
 import type { ProjectDocumentRow, DocStatus } from '@/src/lib/db/documents';
@@ -29,10 +28,6 @@ export function createDocumentRegisterCells(deps: DocumentRegisterCellDeps) {
     const name = ownerId ? profileNames.get(ownerId)?.trim() : '';
     return name || (ownerId && ownerId === currentUserId ? t('project:projectDetail.documents.owner.you', 'You') : '');
   };
-  const ownerInitials = (label: string) => {
-    const words = label.split(/\s+/).filter(Boolean);
-    return words.length > 1 ? `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase() : (words[0]?.slice(0, 2) ?? '?').toUpperCase();
-  };
   const sourceName = (doc: ProjectDocumentRow) =>
     doc.source === 'onedrive'
       ? t('project:projectDetail.documents.source.sharePoint', 'SharePoint')
@@ -44,7 +39,7 @@ export function createDocumentRegisterCells(deps: DocumentRegisterCellDeps) {
         ? t('project:projectDetail.documents.tooltip.sourceSharePoint', 'Linked from Microsoft 365. The link opens the stored SharePoint item.')
         : t('project:projectDetail.documents.tooltip.sourceUpload', 'File source recorded in the project document register.')}
     >
-      <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center text-[13px] text-muted-foreground" aria-label={sourceName(doc)}>
+      <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center text-sm text-muted-foreground" aria-label={sourceName(doc)}>
         {sourceName(doc)}
       </span>
     </Tooltip>
@@ -57,10 +52,8 @@ export function createDocumentRegisterCells(deps: DocumentRegisterCellDeps) {
         title={t('project:projectDetail.documents.tooltip.ownerTitle', 'Owner')}
         content={t('project:projectDetail.documents.tooltip.owner', 'Document author from the organization profile.')}
       >
-        <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center gap-2 text-[13px] text-foreground" aria-label={label}>
-          <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground">
-            {ownerInitials(label)}
-          </span>
+        <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center gap-2 text-sm text-foreground" aria-label={label}>
+          <Avatar name={label} decorative />
           <span className="truncate">{label}</span>
         </span>
       </Tooltip>
@@ -73,12 +66,12 @@ export function createDocumentRegisterCells(deps: DocumentRegisterCellDeps) {
         title={t('project:projectDetail.documents.tooltip.statusTitle', 'Status')}
         content={t('project:projectDetail.documents.tooltip.status', 'Current status from the document review workflow.')}
       >
-        <span tabIndex={0} className="inline-flex"><StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill></span>
+        <span tabIndex={0} className="inline-flex"><StatusPill record="document" state={doc.status} /></span>
       </Tooltip>
     );
   const documentDateCell = (doc: ProjectDocumentRow) => (
     <span className="whitespace-nowrap tabular text-muted-foreground">
-      {doc.doc_date ? formatDateOnly(doc.doc_date) : '—'}
+      {doc.doc_date ? formatDay(doc.doc_date) : '—'}
     </span>
   );
   const documentHasFile = (doc: ProjectDocumentRow) => {
@@ -90,9 +83,9 @@ export function createDocumentRegisterCells(deps: DocumentRegisterCellDeps) {
     Issued: t('project:projectDetail.documents.action.issue', 'Issue'),
     Approved: t('project:projectDetail.documents.action.approve', 'Approve'),
     Rejected: t('project:projectDetail.documents.action.reject', 'Reject'),
-    Closed: t('project:projectDetail.documents.action.close', 'Close'),
-    Superseded: t('project:projectDetail.documents.action.close', 'Close'),
+    Closed: t('project:projectDetail.documents.action.close', 'Close document'),
+    Superseded: t('project:projectDetail.documents.action.close', 'Close document'),
   };
 
-  return { ownerLabel, ownerInitials, sourceName, sourceCell, ownerCell, statusCell, documentDateCell, documentHasFile, statusLabels, fileCell };
+  return { ownerLabel, sourceName, sourceCell, ownerCell, statusCell, documentDateCell, documentHasFile, statusLabels, fileCell };
 }

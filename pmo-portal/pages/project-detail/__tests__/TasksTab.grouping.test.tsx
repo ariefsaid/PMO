@@ -65,6 +65,7 @@ vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => 
 
 import TasksTab from '../tabs/TasksTab';
 import { clearOwnershipCache, setTaskOwnership, setProjectBindings } from '@/src/lib/adapterSeam/ownershipCache';
+import { formatDay } from '@/src/lib/format';
 
 /** A phase's heading row and the text of every row up to the next phase heading. */
 function phase(name: RegExp) {
@@ -171,7 +172,7 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
 
     const phaseOne = phase(/Engineering design/i);
     expect(phaseOne.text).toContain('Task A');
-    expect(within(phaseOne.heading).getByText(/Target Aug 15, 2026/)).toBeInTheDocument();
+    expect(within(phaseOne.heading).getByText(new RegExp(`Target ${formatDay('2026-08-15')}`))).toBeInTheDocument();
     expect(within(phaseOne.heading).getByText('50%')).toBeInTheDocument();
   });
 

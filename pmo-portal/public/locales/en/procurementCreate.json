@@ -1,41 +1,33 @@
 {
   "backToProcurement": "Procurement",
-  "backToChoices": "What do you have?",
+  "backToChoices": "choose type",
   "denied": "You do not have permission to create procurements.",
   "question": "What do you have?",
-  "questionDescription": "Start with a new need or a document already in hand.",
   "continueAttempt": "The save may have completed. Continue with the same choice to retry.",
   "continueNeed": "A purchase request is saved with lines still to finish. Continue with the same need.",
   "choices": {
     "need": {
       "title": "A new need",
-      "description": "Raise a purchase request."
+      "description": "Raise a purchase request"
     },
     "order": {
       "title": "An order",
-      "description": "Record a purchase order you already have."
+      "description": "Record an order you already have"
     },
     "invoice": {
       "title": "A supplier invoice",
-      "description": "Record an invoice that needs tracking."
+      "description": "Track a supplier invoice"
     },
     "payment": {
       "title": "A scheduled payment",
-      "description": "Record a payment to a supplier. Finance marks it paid."
+      "description": "Schedule a supplier payment"
     },
     "accounting": {
       "title": "A document already in the accounting system",
-      "description": "Find documents that are not in a procurement."
+      "description": "Find documents outside a procurement"
     }
   },
   "heading": "New procurement",
-  "draftNote": {
-    "need": "This purchase request remains a draft until you submit it.",
-    "order": "Add the procurement details, then record the purchase order.",
-    "invoice": "Add the procurement details, then record the supplier invoice.",
-    "payment": "Add the procurement details, then record the payment."
-  },
-  "save": "Save",
   "details": "Procurement details",
   "titleField": "Title",
   "titleRequired": "A procurement title is required.",
@@ -62,6 +54,19 @@
     "retryProjects": "Retry projects",
     "loadingSuppliers": "Loading suppliers…",
     "suppliersError": "Couldn't load suppliers.",
-    "retrySuppliers": "Retry suppliers"
+    "retrySuppliers": "Retry suppliers",
+    "noProjects": "No projects available. You can continue without a project or ask an administrator to add one.",
+    "noSuppliers": "No suppliers available. A supplier is optional; ask an administrator to add one if needed."
+  },
+  "saveLabel": {
+    "need": "Save draft",
+    "order": "Save and record order",
+    "invoice": "Save and record invoice",
+    "payment": "Save and record payment"
+  },
+  "uncertainSave": "The save may have completed. Check its status before starting a new request; retrying here uses the same request.",
+  "checkSaveStatus": "Check request status",
+  "actions": {
+    "cancel": "Cancel"
   }
 }

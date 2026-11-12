@@ -33,7 +33,6 @@
     "deleteConfirm": "Delete asset",
     "deleteTitle": "Delete this asset?",
     "deleted": "Asset deleted",
-    "description": "The machines usage is logged against. Open one to see how it is costed and what each project carries.",
     "empty": "No equipment yet",
     "emptySub": "An Admin or Project Manager adds the machines so crews can log their hours.",
     "error": "Couldn't load equipment assets",
@@ -42,13 +41,12 @@
     "inUse": "This asset is in use by usage entries or costing. Archive it instead.",
     "name": "Name",
     "new": "New asset",
-    "newSubtitle": "A short reference so usage can be logged. The ERP stays the asset register.",
     "newTitle": "New equipment asset",
     "notFound": "This asset was not found",
     "notFoundSub": "It may have been archived.",
     "refLine": "ERP reference {{ref}}",
     "rowLabel": "Open {{name}}",
-    "title": "Equipment assets",
+    "title": "Assets",
     "truncated": "Showing the first {{count}} assets. Archive the ones you no longer use.",
     "unit": "Default unit",
     "unitLine": "Logged in {{unit}}"
@@ -81,7 +79,6 @@
     "accountHelper": "Costs posted to this account (or account group) with no project are shared across projects by usage.",
     "basis": "Costing basis",
     "change": "Change costing",
-    "changeSubtitle": "Applies from the date below. Earlier months keep the setting that was current then.",
     "changeTitle": "Change costing for {{asset}}",
     "costCenter": "Cost centre (optional)",
     "countStandby": "Count standby toward the share",
@@ -122,7 +119,8 @@
     "version": "Version",
     "voided": "Voided",
     "workRate": "Work rate per unit",
-    "workRateLine": "Work {{rate}} per {{unit}}"
+    "workRateLine": "Work {{rate}} per {{unit}}",
+    "effectiveFromHelp": "Earlier months keep their current setting."
   },
   "driver": {
     "fuel": "fuel litres",
@@ -137,6 +135,7 @@
     "equipment": "Equipment"
   },
   "panel": {
+    "notRecorded": "{{count}} not recorded",
     "columns": {
       "allocated": "Allocated",
       "equipment": "Equipment"
@@ -149,7 +148,7 @@
   "status": {
     "approved": "Approved",
     "draft": "Draft",
-    "rejected": "Rejected",
+    "rejected": "Returned",
     "submitted": "Submitted"
   },
   "unit": {
@@ -175,6 +174,8 @@
     "assetNoun": "equipment",
     "cancel": "Cancel",
     "cardTitle": "Usage",
+    "confirmApproveBody": "This will approve the logged equipment usage entry.",
+    "confirmApproveTitle": "Approve usage entry?",
     "columns": {
       "date": "Date",
       "decision": "Decision",
@@ -186,7 +187,6 @@
       "status": "Status",
       "total": "Total"
     },
-    "description": "Log the hours or days each machine worked on a project, submit the week, and approve what others logged.",
     "empty": "No equipment logged this week",
     "emptySub": "Add a row for a machine and a project, then type the hours for each day.",
     "error": "Couldn't load equipment usage",
@@ -210,11 +210,8 @@
     "ownEntry": "Your own entry",
     "prevWeek": "Previous week",
     "projectNoun": "project",
-    "reject": "Reject",
-    "rejectConfirm": "Reject entry",
-    "rejectEntry": "Reject {{what}}",
-    "rejectReason": "Reason",
-    "rejectTitle": "Reject this entry?",
+    "reject": "Return",
+    "rejectEntry": "Return {{what}}",
     "retry": "Retry",
     "rowAsset": "Equipment",
     "rowKind": "Kind",
@@ -236,6 +233,8 @@
     "totalsError": "Couldn't load usage totals",
     "trips": "Trips",
     "truncated": "Showing the first {{count}} entries. Pick one machine to see the rest.",
-    "waiting": "Waiting approval"
+    "waiting": "Waiting approval",
+    "entrySubject": "usage entry",
+    "chartLabel": "Work per month, {{unit}}"
   }
 }

@@ -144,7 +144,7 @@ beforeEach(() => {
 });
 
 describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
-  it('UIP-008: desktop queue reserves two lines for request identity ahead of status and metadata', async () => {
+  it('UIP-008: desktop queue reserves two lines for request identity ahead of the metadata; no status pill repeats on every row', async () => {
     const title = 'Cable supply for extended commissioning — northern distribution boards';
     procState.data = [{ ...procRows[0], title }];
     renderAs('Finance');
@@ -152,7 +152,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const identity = within(button).getByText(title);
     expect(identity.className).toContain('line-clamp-2');
     expect(identity.className).not.toContain('truncate');
-    expect(identity.parentElement).toContainElement(within(button).getByText('Requested'));
+    expect(within(button).queryByText('Requested')).toBeNull();
     expect(button).toHaveAccessibleName(/Cable supply.*Apollo/);
     await userEvent.tab();
     await userEvent.click(button);
@@ -180,8 +180,8 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
       expect(within(preview).getAllByText('$48,000').length).toBeGreaterThan(0);
       expect(within(preview).queryByText('North hall switchgear evidence')).toBeNull();
       expect(within(preview).getByRole('button', { name: 'Approve' })).toBeVisible();
-      expect(within(preview).getByRole('button', { name: 'Reject' })).toBeVisible();
-      expect(control).toHaveTextContent('Requested');
+      expect(within(preview).getByRole('button', { name: 'Return' })).toBeVisible();
+      expect(control).not.toHaveTextContent('Requested');
       expect(navigateMock).not.toHaveBeenCalled();
     } finally {
       window.matchMedia = realMatchMedia;
@@ -189,12 +189,11 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
       delete detailItems.south;
     }
   });
-  it('CW-6: the page title is "Approvals" (matches the rail label), with the "Needs my approval" subtitle', () => {
+  it('CW-6: the page title is "Approvals" (matches the rail label)', () => {
     renderAs('Project Manager');
     // The H1 reconciles with the rail's "Approvals" nav item — one canonical name.
     expect(screen.getByRole('heading', { level: 1, name: /^Approvals$/i })).toBeInTheDocument();
-    // "Needs my approval" survives as the subtitle (clarifies whose queue this is).
-    expect(screen.getByText(/Needs my approval/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Needs my approval/i)).toBeNull();
   });
 
   it('UXS-025: pending work precedes collapsed approved correction history', () => {
@@ -204,7 +203,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     }];
     renderAs('Project Manager');
 
-    const queue = screen.getByRole('heading', { name: /Approvals queue/i });
+    const queue = screen.getByRole('heading', { name: /Purchases and timesheets/i });
     const history = screen.getByText('Approved history and corrections');
     expect(queue.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(history.closest('details')).not.toHaveAttribute('open');
@@ -287,7 +286,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveAttribute('aria-selected', 'true');
     expect(within(preview).getByText(/Anita Rao/i)).toBeInTheDocument();
-    expect(within(preview).getByText('Policy: a different person approves each timesheet.')).toBeInTheDocument();
+    expect(within(preview).queryByText('Policy: a different person approves each timesheet.')).not.toBeInTheDocument();
     expect(screen.queryByText(/Steel beams/i)).not.toBeInTheDocument();
   });
 
@@ -306,7 +305,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const queueRow = screen.getByRole('button', { name: /Steel beams/i });
     await userEvent.click(queueRow);
     expect(within(preview).getByRole('button', { name: /Approve/i })).toBeInTheDocument();
-    expect(within(preview).getByRole('button', { name: /Reject/i })).toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: /Return/i })).toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
   });
 

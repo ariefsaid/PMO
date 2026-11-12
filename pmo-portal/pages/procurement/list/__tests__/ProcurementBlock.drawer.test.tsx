@@ -95,7 +95,7 @@ describe('Procurement drawer header (B4)', () => {
   it('QM-9 removes the duplicate Next action row-menu item', async () => {
     renderBlock('/procurement');
     await userEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
-    expect(screen.getByRole('menuitem', { name: 'Open procurement' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Open procurement' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Next action' })).not.toBeInTheDocument();
   });
 
@@ -131,13 +131,13 @@ describe('Procurement drawer header (B4)', () => {
     procState.data = [row({ status: 'Requested', procurement_invoices: [], approved_by_id: null })];
     renderBlock('/procurement');
     await userEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Return' }));
-    const confirm = await screen.findByRole('dialog', { name: 'Return this procurement?' });
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Return' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Return procurement' });
     const send = within(confirm).getByRole('button', { name: 'Return' });
     expect(send).toBeDisabled();
-    await userEvent.type(within(confirm).getByLabelText(/Return comment/), '   ');
+    await userEvent.type(within(confirm).getByLabelText(/Reason for returning/), '   ');
     expect(send).toBeDisabled();
-    await userEvent.type(within(confirm).getByLabelText(/Return comment/), 'Quantities need revising');
+    await userEvent.type(within(confirm).getByLabelText(/Reason for returning/), 'Quantities need revising');
     expect(send).toBeEnabled();
     fireEvent.click(send);
     await waitFor(() => expect(transitionSpy).toHaveBeenCalledWith('p-1', 'Rejected', 'Quantities need revising'));
@@ -168,7 +168,7 @@ describe('Procurement drawer body', () => {
     const timeline = screen.getByRole('region', { name: 'Step timeline' });
     const request = within(timeline).getByText('Request').closest('li')!;
     expect(request).toHaveTextContent('Not recorded');
-    expect(request).not.toHaveTextContent('Oct 27, 2026');
+    expect(request).not.toHaveTextContent('27 Oct');
   });
 
   it('QM-2 treats a scheduled payment as invoiced until it is paid', () => {
@@ -176,8 +176,8 @@ describe('Procurement drawer body', () => {
     renderBlock();
     const timeline = screen.getByRole('region', { name: 'Step timeline' });
     const pay = within(timeline).getByText('Invoiced').closest('li')!;
-    expect(pay).toHaveTextContent('Oct 20, 2026');
-    expect(pay).not.toHaveTextContent('Oct 22, 2026');
+    expect(pay).toHaveTextContent('20 Oct');
+    expect(pay).not.toHaveTextContent('22 Oct');
     expect(within(timeline).queryByText('Paid')).not.toBeInTheDocument();
   });
 
@@ -212,13 +212,14 @@ describe('Procurement list rows', () => {
     authState.role = 'Finance';
   });
 
-  it('B7: stage band and stage pill read Request · Order · Receive · Pay', () => {
+  it('B7: the stage band names only stages in use, in Request · Order · Receive · Pay words', () => {
     procState.data = [row({ id: 'o', status: 'Ordered', procurement_invoices: [] }), row({ id: 'r', status: 'Received', procurement_invoices: [] })];
     renderBlock('/procurement');
-    const band = screen.getByRole('region', { name: 'Procurement stages' });
+    const band = screen.getByRole('group', { name: 'Procurement stages' });
     const labels = within(band).getAllByRole('button').map((button) => button.textContent ?? '');
-    expect(labels[1]).toMatch(/^Order/);
-    expect(labels[2]).toMatch(/^Receive/);
+    expect(labels).toHaveLength(2);   // stages with nothing in them are not drawn
+    expect(labels[0]).toMatch(/^Order/);
+    expect(labels[1]).toMatch(/^Receive/);
     expect(band).not.toHaveTextContent(/Ordered|Received/);
   });
 
@@ -246,9 +247,9 @@ describe('Procurement list rows on a phone (L3)', () => {
   it('shows title, stage pill, one amount and a next-step link instead of label/value pairs', () => {
     renderBlock('/procurement');
     const card = screen.getByRole('button', { name: 'Open Inverters' }).closest('li')!;
-    expect(within(card).getByText('Invoiced, not paid')).toBeInTheDocument();
+    expect(within(card).getByText('Supplier invoice')).toBeInTheDocument();
     expect(within(card).getAllByText('$62,000')).toHaveLength(1);
-    expect(within(card).getByRole('link', { name: 'Pay' })).toHaveAttribute('href', '/procurement/p-1');
+    expect(within(card).getByRole('button', { name: 'Pay' })).toBeInTheDocument();
     expect(card.querySelector('dl')).toBeNull();
     expect(card).not.toHaveTextContent(/Category|Materials|Paid \/ invoiced/);
     expect(within(card).getByText('Rina Requester')).toBeInTheDocument();

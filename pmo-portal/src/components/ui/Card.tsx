@@ -35,7 +35,7 @@ export const Card: React.FC<CardProps> = ({
   <div
     className={cn(
       variant === 'framed' && 'panel-card',
-      variant === 'bare' && 'space-y-[var(--space-group)]',
+      variant === 'bare' && 'space-y-[var(--space-group)] [&>:is(h2,h3,h4,h5,h6)+*]:mt-0',
       clip && 'overflow-hidden',
       seam && 'panel-card-seam',
       interactive &&
@@ -72,17 +72,19 @@ export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
   const Heading = `h${level}` as const;
   return (
     <div
-      className={cn('flex items-start gap-2 px-[var(--panel-inset)] py-4', className)}
+      // The heading sits 16px above its content: this row's own bottom padding is the whole gap, so the
+      // next sibling (usually CardPad) drops its top inset instead of stacking 16 + inset (a 40px band).
+      className={cn('flex items-start gap-2 px-[var(--panel-inset)] py-4 [&+*]:pt-0', className)}
     >
       <div className="min-w-0 flex-1">
         <Heading
           ref={ref}
-          className="flex min-w-0 items-center gap-2 text-group font-semibold"
+          className="flex min-w-0 items-center gap-2 text-group font-semibold text-foreground"
           {...rest}
         >
           {children}
         </Heading>
-        {subline != null && <p className="mt-1 text-support font-normal text-muted-foreground">{subline}</p>}
+        {subline != null && <p className="mt-1 text-control font-normal text-muted-foreground">{subline}</p>}
       </div>
       {actions != null && actions !== false && (
         <div className="ml-auto flex shrink-0 items-center gap-1.5">{actions}</div>

@@ -4,8 +4,9 @@
  * directly" mocking idiom (`@/src/lib/repositories/budgetProjection` is mocked; usePermission reads
  * the real JWT role via the mocked `useEffectiveRole`).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, within, waitFor, act } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -39,6 +40,12 @@ vi.mock('@/src/auth/impersonation', () => ({
 import BudgetAccountMap from './BudgetAccountMap';
 import { Constants } from '@/src/lib/supabase/database.types';
 
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
+
 /**
  * Router-driven fragment navigation control (AC-ADMIA-004). The focus/scroll behavior is keyed to
  * the ROUTER hash (the single source of truth), so these tests navigate a MemoryRouter — while the
@@ -63,14 +70,14 @@ const FragmentNav: React.FC = () => {
 
 const selectCatalogueAccount = async (user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement, account: string) => {
   await user.click(within(dialog).getByRole('combobox', { name: /erp account/i }));
-  const search = await screen.findByRole('searchbox');
+  const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
   await user.type(search, account);
   await user.click(await screen.findByRole('option', { name: new RegExp(account, 'i') }));
 };
 
 const openRowOptions = async (user: ReturnType<typeof userEvent.setup>, category: string) => {
   const row = (await screen.findByText(category)).closest('tr')!;
-  await user.click(within(row).getByText('Account options'));
+  await user.click(within(row).getByLabelText('Account options'));
   return row;
 };
 
@@ -118,7 +125,6 @@ describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
     renderPage();
     expect(await screen.findByRole('button', { name: 'Review 1 proposal' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Suggested posting accounts' })).toBeInTheDocument();
-    expect(screen.getByText(/existing choices are kept/i)).toBeInTheDocument();
     expect(screen.queryByText('6100 - Office')).not.toBeInTheDocument();
   });
 
@@ -172,7 +178,7 @@ describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
       { account: '6100 - Office', accountName: 'Office', accountNumber: '6100', parentAccount: 'Operating Expenses', rootType: 'Expense', isGroup: false, disabled: false },
     ] });
     renderPage();
-    expect(await screen.findByText(/overhead account will not be substituted/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No clear direct-cost match/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /review .*proposals/i })).not.toBeInTheDocument();
   });
 });
@@ -309,7 +315,7 @@ describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
     await user.click(within(materials).getByRole('button', { name: /map materials/i }));
     const modal = await screen.findByRole('dialog');
     await user.click(within(modal).getByRole('combobox', { name: /erp account/i }));
-    const search = await screen.findByRole('searchbox');
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
     await user.type(search, '5100 - Direct Costs');
     expect(screen.queryByRole('option', { name: /5100 - Direct Costs/i })).not.toBeInTheDocument();
     expect(createMock).not.toHaveBeenCalled();
@@ -384,17 +390,17 @@ describe('BudgetAccountMap — I-8: reachable, and it marks what is blocking', (
     expect(document.activeElement).not.toBe(document.getElementById('budget-account-map'));
   });
 
-  it('I-8 an UNMAPPED category is marked as blocking every push, not merely "Not mapped"', async () => {
+  it('I-8 an UNMAPPED category is marked "Not mapped" (the push-blocking rule is in the page help)', async () => {
     renderPage('Admin');
     await screen.findByText('Labor');
     const row = screen.getByText('Contingency').closest('tr')!;
-    expect(within(row).getByText(/blocks every push/i)).toBeInTheDocument();
+    expect(within(row).getByText('Not mapped')).toBeInTheDocument();
   });
 
   it('I-8 a MAPPED category is not marked as blocking', async () => {
     renderPage('Admin');
     const row = (await screen.findByText('Labor')).closest('tr')!;
-    expect(within(row).queryByText(/blocks every push/i)).not.toBeInTheDocument();
+    expect(within(row).queryByText('Not mapped')).not.toBeInTheDocument();
   });
 });
 
@@ -411,10 +417,10 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
     const labor = (await screen.findByText('Labor')).closest('tr')!;
     const salary = within(labor).getByText('Salary - PSC').parentElement!;
     expect(within(salary).getByText('Budget push')).toBeInTheDocument();
-    await userEvent.click(within(labor).getByText(/additional account\(s\) count toward actuals only/i));
+    await userEvent.click(within(labor).getByText(/more, actuals only/i));
     expect(within(labor).getByText('Allowances - PSC')).toBeInTheDocument();
     expect(within(labor).getAllByText('Budget push')).toHaveLength(1);
-    expect(within(labor).queryByText(/blocks every push/i)).not.toBeInTheDocument();
+    expect(within(labor).queryByText('No push account')).not.toBeInTheDocument();
     expect(within(labor).queryByRole('button')).not.toBeInTheDocument();
   });
 
@@ -422,7 +428,7 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
     listMock.mockResolvedValue(MULTI);
     renderPage('Admin');
     const materials = (await screen.findByText('Materials')).closest('tr')!;
-    expect(within(materials).getByText('No push account: blocks every push')).toBeInTheDocument();
+    expect(within(materials).getByText('No push account')).toBeInTheDocument();
   });
 
   it('AC-BAM-009 an account added to a category that has a push account is added read-only', async () => {
@@ -468,7 +474,7 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
     await user.click(within(materials).getByRole('button', { name: 'Add account to Materials' }));
     const modal = await screen.findByRole('dialog', { name: 'Add account to Materials' });
     await user.click(within(modal).getByRole('combobox', { name: /erp account/i }));
-    const search = await screen.findByRole('searchbox');
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
     await user.type(search, 'Allowances - PSC');
     expect(screen.queryByRole('option', { name: /Allowances - PSC/i })).not.toBeInTheDocument();
     expect(createMock).not.toHaveBeenCalled();

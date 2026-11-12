@@ -14,7 +14,7 @@ import {
   type StatusVariant,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency, formatDateOnly, formatNumberExact, formatNumberWhole } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatNumberExact, formatNumberWhole } from '@/src/lib/format';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderAcceptanceWithLines, WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
@@ -190,7 +190,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
   const lineColumns: Column<OrderLineView>[] = [
     {
       key: 'item', header: t('projectDetail.cascade.colItem', 'Item'), kind: 'primary', rowHeader: true,
-      cell: (line) => <span>{line.item?.item_code ? <span className="mr-2 text-xs text-muted-foreground">{line.item.item_code}</span> : null}{line.item?.description ?? line.allocation.boqItemId}</span>,
+      cell: (line) => <span>{line.item?.item_code ? <span className="mr-2 text-sm text-muted-foreground">{line.item.item_code}</span> : null}{line.item?.description ?? line.allocation.boqItemId}</span>,
       secondaryCell: (line) => t('projectDetail.cascade.contractQuantity', 'Contract quantity {{quantity}} {{unit}}', { quantity: formatNumberExact(line.allocation.quantity), unit: line.item?.unit ?? '' }),
     },
     { key: 'unit', header: t('projectDetail.cascade.colUnit', 'Unit'), cell: (line) => <span className="text-muted-foreground">{line.item?.unit ?? '—'}</span>, kind: 'meta' },
@@ -212,7 +212,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
         {percentDone !== null && <Tooltip content={t('projectDetail.cascade.source.lineDeliveryProgress', 'Accepted quantity ÷ ordered quantity. A final short delivery is flagged.') }>
           <span className="mt-1 block w-full max-w-24 cursor-help"><ProgressBar value={percentDone} widthless aria-label={t('projectDetail.cascade.deliveryProgress', 'Delivered percentage')} /></span>
         </Tooltip>}
-        {short && <span className="block text-[11px] text-warning-foreground">{t('projectDetail.cascade.short', '({{n}} short)', { n: formatNumberExact(line.allocation.quantity - deliveredQuantity) })}</span>}
+        {short && <span className="block text-sm text-warning-foreground">{t('projectDetail.cascade.short', '({{n}} short)', { n: formatNumberExact(line.allocation.quantity - deliveredQuantity) })}</span>}
       </div>;
     }, exportValue: (line) => line.allocation.acceptedQuantity ?? '' },
     { key: 'invoiced', header: t('projectDetail.cascade.colInvoiced', 'Invoiced'), align: 'num', kind: 'number', cell: (line) => <Tooltip content={t('projectDetail.cascade.source.lineInvoiced', 'Source: quantity already claimed against this work order allocation.') }><span className="cursor-help tabular-nums">{formatNumberExact(line.allocation.claimedQuantity)}</span></Tooltip>, exportValue: (line) => line.allocation.claimedQuantity },
@@ -237,10 +237,10 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
           {canViewBilling && billingState && billingState !== 'not-billable' && <StatusPill variant={billingStateTones[billingState]}>
             {billingStateLabels[billingState]}
           </StatusPill>}
-          {row.client_po_number && <span className="text-xs text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Customer PO')} {row.client_po_number}</span>}
-          {row.order_date && <span className="text-xs text-muted-foreground">{t('projectDetail.workOrders.orderDate', 'Order date')} {formatDateOnly(row.order_date)}</span>}
+          {row.client_po_number && <span className="text-sm text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Customer PO')} {row.client_po_number}</span>}
+          {row.order_date && <span className="text-sm text-muted-foreground">{t('projectDetail.workOrders.orderDate', 'Order date')} {formatDay(row.order_date)}</span>}
           {canViewBilling && ageById.has(row.id) && <Tooltip content={t('projectDetail.workOrders.acceptanceAgeSource', 'Counted from the earliest confirmed BAST not yet followed by a submitted invoice.')}>
-            <span tabIndex={0} className="text-xs font-semibold text-warning-foreground">
+            <span tabIndex={0} className="text-sm font-semibold text-warning-foreground">
               {t('projectDetail.workOrders.acceptanceAge', 'Days since acceptance, not invoiced: {{days}}', { days: ageById.get(row.id) })}
             </span>
           </Tooltip>}
@@ -260,13 +260,13 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
 
         {canViewBilling && <dl className="flex flex-wrap gap-x-6 gap-y-2" data-testid={`wo-money-${row.id}`} aria-label={t('common:projectDetail.workOrders.billing.column', 'Billing')}>
           {/* AC-BWO-004: what is still to invoice leads, ahead of invoiced and paid. */}
-          {billingRow?.figuresComplete && row.status !== 'Draft' && row.status !== 'Cancelled' && <div className="min-w-0 text-xs">
+          {billingRow?.figuresComplete && row.status !== 'Draft' && row.status !== 'Cancelled' && <div className="min-w-0 text-sm">
               <dt className="sr-only">{t('common:projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice')}</dt>
               <dd data-testid={`wo-still-${row.id}`} className="cursor-help text-muted-foreground tabular-nums"><Tooltip content={t('projectDetail.workOrders.billing.pendingNote', 'Drafts and unraised claims count as not yet invoiced.') }><span>{billingRow.remaining < 0
                 ? t('common:projectDetail.workOrders.billing.lineOver', 'Over by {{amount}}', { amount: formatNumberWhole(Math.abs(billingRow.remaining)) })
                 : t('common:projectDetail.workOrders.billing.lineRemaining', 'Still to invoice {{amount}}', { amount: formatNumberWhole(billingRow.remaining) })}</span></Tooltip></dd>
             </div>}
-          {row.status === 'Closed' && row.closing_value !== null && row.closing_value !== undefined && <div className="min-w-0 text-xs">
+          {row.status === 'Closed' && row.closing_value !== null && row.closing_value !== undefined && <div className="min-w-0 text-sm">
             <dt className="sr-only">{t('projectDetail.workOrders.closingValue', 'Closing value')}</dt>
             <dd data-testid={`wo-closing-${row.id}`} className="text-muted-foreground tabular-nums">
               {t('projectTabs:contractQuantities.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', {
@@ -282,7 +282,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
           {hasInvoiced && settlement?.unpaid !== null && settlement?.unpaid !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatNumberWhole(settlement.unpaid)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.')} destructive={settlement.unpaid > 0} />}
         </dl>}
 
-        {orderFiguresMissing && <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role={invoicesRead.isError || billingRead.isError ? 'alert' : 'status'}>
+        {orderFiguresMissing && <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" role={invoicesRead.isError || billingRead.isError ? 'alert' : 'status'}>
           <span>{invoicesRead.isError || billingRead.isError
             ? billingRead.isError
               ? t('common:projectDetail.workOrders.billing.loadError', "Couldn't load billing for these work orders")
@@ -295,7 +295,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
           </button>
         </p>}
 
-        {canViewBilling && billingRow?.figuresComplete === false && <div className="text-xs text-muted-foreground" role="note">
+        {canViewBilling && billingRow?.figuresComplete === false && <div className="text-sm text-muted-foreground" role="note">
           <p>{t('common:projectDetail.workOrders.billing.incompleteNote', 'An invoice on one of these work orders has no amount or is in another currency, so the totals cannot be added up.')}</p>
           {billingRow.problems && billingRow.problems.length > 0 && <ul className="mt-1 list-inside list-disc">
             {billingRow.problems.map((problem) => {
@@ -310,14 +310,14 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
         </div>}
 
         {canViewBilling && orderOverdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their due date.')}>
-          <span className="inline-flex w-fit cursor-help items-center gap-2 text-xs text-warning-foreground tabular-nums">
+          <span className="inline-flex w-fit cursor-help items-center gap-2 text-sm text-warning-foreground tabular-nums">
             <StatusPill variant="overdue">{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
             <strong>{formatNumberWhole(orderOverdue)}</strong>
           </span>
         </Tooltip>}
       </header>
 
-      {pendingBast && <p className="mt-2 text-xs text-muted-foreground" role="status">
+      {pendingBast && <p className="mt-2 text-sm text-muted-foreground" role="status">
         {t('projectDetail.cascade.pendingAcceptance', 'Delivery awaiting confirmation')} · {pendingBast.acceptance_date} · {pendingBast.is_final
           ? t('projectTabs:contractQuantities.workOrders.acceptances.final', 'Final')
           : t('projectTabs:contractQuantities.workOrders.acceptances.stage', 'Stage')}
@@ -346,10 +346,10 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
           />
         </div>
       ) : (
-        <p className="mt-3 text-xs text-muted-foreground">{t('projectDetail.cascade.moneyOnly', 'Money-only order')}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.cascade.moneyOnly', 'Money-only order')}</p>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border pt-3 text-xs">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border pt-3 text-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'BAST state')}</span>
           {pendingBast ? <StatusPill variant="warn">{t('projectDetail.cascade.pendingAcceptance', 'Delivery awaiting confirmation')}</StatusPill>
@@ -366,7 +366,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
                 : invoice.status === 'Cancelled' ? 'lost' : 'neutral';
             return <Tooltip key={invoice.id} content={t('projectDetail.cascade.invoicePillSource', 'Source: invoice status mirrored from accounting.') }>
               <button type="button" className="touch-target rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" aria-label={t('projectDetail.cascade.openInvoice', 'Open invoice {{invoice}}', { invoice: invoice.si_number ?? invoice.status })} onClick={() => openInvoiceDrawer(invoice)}>
-                <span className="mr-1 text-[11px] text-muted-foreground">{invoice.si_number ?? t('projectDetail.cascade.invoiceDraft', 'Invoice draft')}</span>
+                <span className="mr-1 text-sm text-muted-foreground">{invoice.si_number ?? t('projectDetail.cascade.invoiceDraft', 'Invoice draft')}</span>
                 <StatusPill variant={tone}>{invoice.status}</StatusPill>
               </button>
             </Tooltip>;
@@ -383,29 +383,29 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
         {acceptancesRead.isError && <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.acceptances.error', 'Couldn’t load the BASTs')} onRetry={() => void acceptancesRead.refetch()} />}
         {(hasOrderLines || bastList.length > 0 || canPrepare || row.status === 'Issued') && (
           <details className="group">
-            <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
               {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST: {{wo}}', { wo: row.wo_number ?? row.title })}
               <span className="ml-2">{t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: rawLines.length, basts: bastList.length })}</span>
             </summary>
             <div className="mt-3 flex flex-col gap-4">
               {orderLineFactsReady && !hasOrderLines && row.status === 'Issued' && <section aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}>
-                <p className="text-[13px] text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.acceptances.form.noAllocations', 'Allocate contract lines to this work order first.')}</p>
+                <p className="text-sm text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.acceptances.form.noAllocations', 'Allocate contract lines to this work order first.')}</p>
                 {canEditLines && <Button variant="outline" size="sm" className="mt-2" onClick={() => setLinesFor(row)}>
                   {t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines')}
                 </Button>}
               </section>}
               {hasOrderLines && <section aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}>
-                <h4 className="mb-1 text-xs font-semibold text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}</h4>
-                <ul className="flex flex-col gap-0.5 text-xs" data-testid={`wo-lines-${row.id}`}>
+                <h4 className="mb-1 text-sm font-semibold text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}</h4>
+                <ul className="flex flex-col gap-0.5 text-sm" data-testid={`wo-lines-${row.id}`}>
                   {rawLines.map((line) => {
                     const item = boqRows.find((boqItem) => boqItem.id === line.boq_item_id);
                     return <li key={line.id} className="tabular">{item ? `${item.item_code} — ${item.description}` : line.boq_item_id} <span className="font-semibold">{formatNumberExact(Number(line.quantity))}{item ? ` ${item.unit}` : ''}</span></li>;
                   })}
                 </ul>
-                {canEditLines && <Button variant="ghost" size="sm" className="mt-1 px-0 text-xs text-muted-foreground" onClick={() => setLinesFor(row)}>{t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Edit lines')}</Button>}
+                {canEditLines && <Button variant="ghost" size="sm" className="mt-1 px-0 text-muted-foreground" onClick={() => setLinesFor(row)}>{t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Edit lines')}</Button>}
               </section>}
               <section aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}>
-                <h4 className="mb-1 text-xs font-semibold text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}</h4>
+                <h4 className="mb-1 text-sm font-semibold text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}</h4>
                 <WorkOrderAcceptances
                   workOrder={row}
                   boqItems={boqRows}

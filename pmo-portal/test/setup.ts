@@ -180,3 +180,33 @@ if (typeof window !== 'undefined' && !('ResizeObserver' in window)) {
     disconnect() {}
   };
 }
+
+// Base UI opens a Menu on the frame after the pointer-down, so a bare `await userEvent.click(trigger)`
+// returns before the popup exists. Wait for the trigger's aria-expanded to flip so tests keep reading
+// as the user's journey; closing and non-flipping clicks time out quietly (nothing to wait for).
+type Click = (element: Element, ...rest: never[]) => Promise<void>;
+if (typeof document !== 'undefined') {
+  const userEvent = (await import('@testing-library/user-event')).default as unknown as {
+    click: Click;
+    setup: (...args: unknown[]) => { click: Click };
+  };
+  const { waitFor } = await import('@testing-library/react');
+  const waitForMenu = (click: Click): Click => async (element, ...rest) => {
+    const trigger = element instanceof Element ? element.closest('[aria-haspopup="menu"]') : null;
+    const wasClosed = trigger?.getAttribute('aria-expanded') === 'false';
+    await click(element, ...rest);
+    if (trigger && wasClosed) {
+      await waitFor(() => {
+        if (trigger.isConnected && trigger.getAttribute('aria-expanded') === 'true' && !document.querySelector('[role="menu"]')) throw new Error('popup not mounted');
+        if (trigger.isConnected && trigger.getAttribute('aria-expanded') !== 'true') throw new Error('menu not open yet');
+      }, { timeout: 500 }).catch(() => undefined);
+    }
+  };
+  userEvent.click = waitForMenu(userEvent.click.bind(userEvent));
+  const setup = userEvent.setup.bind(userEvent);
+  userEvent.setup = (...args) => {
+    const instance = setup(...args);
+    instance.click = waitForMenu(instance.click.bind(instance));
+    return instance;
+  };
+}

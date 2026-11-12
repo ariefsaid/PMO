@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Combobox, EntityFormModal, FieldError, NumberField, type ComboboxOption, type SubmitError } from '@/src/components/ui';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { currencySymbol, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { invoiceNumber } from '@/src/lib/revenue/nativeInvoice';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
@@ -34,6 +34,17 @@ export const ApplyReceiptForm: React.FC<ApplyReceiptFormProps> = ({ receipt, una
   // One identity per form session (this component is mounted only while the form is open): a retry replays, never doubles.
   const intent = useCommandIntent();
   const candidates = useMemo(() => applicableInvoices(receipt, invoices), [receipt, invoices]);
+  const matchingNativeInvoices = invoices.filter((invoice) => Boolean(invoice.pmo_native)
+    && invoice.customer_id === receipt.customer_id
+    && invoice.currency === receipt.currency);
+  const hasUnreportedApprovedBalance = matchingNativeInvoices.some((invoice) =>
+    invoice.status === 'Unpaid' && invoice.erp_outstanding_amount == null);
+  const hasInvoiceAwaitingApproval = matchingNativeInvoices.some((invoice) => invoice.status === 'Submitted');
+  const noCandidateMessage = hasUnreportedApprovedBalance
+    ? t('finance:receipts.apply.balanceUnavailable', 'The approved invoice balance is not available. Refresh invoices before trying again.')
+    : hasInvoiceAwaitingApproval
+      ? t('finance:receipts.apply.awaitingApproval', 'This invoice is waiting for approval. Approve it before applying the receipt.')
+      : t('finance:receipts.apply.noOpenInvoices', 'No approved invoice in {{currency}} with a reported balance is available. Create or approve one, or refresh its balance, then try again.', { currency: receipt.currency });
   const [rows, setRows] = useState<Row[]>([{ key: 0, invoiceId: '', amount: '' }]);
   const [nextKey, setNextKey] = useState(1);
   const [attempted, setAttempted] = useState(false);
@@ -51,7 +62,7 @@ export const ApplyReceiptForm: React.FC<ApplyReceiptFormProps> = ({ receipt, una
     if (amount === null || amount <= 0) return t('finance:receipts.apply.amountPositive', 'Enter an amount above zero, with no more than 2 decimals.');
     const balance = balanceOf(r.invoiceId);
     if (balance !== null && cents(amount) > cents(balance)) {
-      return t('finance:receipts.apply.exceedsBalance', 'This is more than the invoice still owes ({{amount}}).', { amount: formatCurrencyCents(balance, receipt.currency) });
+      return t('finance:receipts.apply.exceedsBalance', 'This is more than the invoice still owes ({{amount}}).', { amount: formatCurrency(balance, receipt.currency, { precision: 'minor' }) });
     }
     return undefined;
   };
@@ -69,7 +80,7 @@ export const ApplyReceiptForm: React.FC<ApplyReceiptFormProps> = ({ receipt, una
       .map((inv) => ({
         value: inv.id,
         label: invoiceNumber(inv) ?? inv.id,
-        sub: t('financeCopy.amountOutstanding', '{{amount}} outstanding', { amount: formatCurrencyCents(inv.erp_outstanding_amount ?? 0, inv.currency) }),
+        sub: inv.erp_outstanding_amount == null ? '—' : t('financeCopy.amountOutstanding', '{{amount}} outstanding', { amount: formatCurrency(inv.erp_outstanding_amount, inv.currency, { precision: 'minor' }) }),
       }));
   }, [candidates, rows, t]);
 
@@ -92,7 +103,6 @@ export const ApplyReceiptForm: React.FC<ApplyReceiptFormProps> = ({ receipt, una
     <EntityFormModal
       open
       title={t('finance:receipts.apply.title', 'Apply to invoices')}
-      subtitle={t('finance:receipts.apply.subtitle', '{{amount}} not yet applied', { amount: formatCurrencyCents(unapplied, receipt.currency) })}
       submitLabel={t('finance:receipts.apply.submit', 'Apply')}
       cancelLabel={t('financeCopy.cancel', 'Cancel')}
       onSubmit={submit}
@@ -102,8 +112,9 @@ export const ApplyReceiptForm: React.FC<ApplyReceiptFormProps> = ({ receipt, una
       dirty={rows.some((r) => r.invoiceId || r.amount)}
       submitDisabled={invalid}
     >
+      <p className="mb-3 text-control font-medium">{t('finance:receipts.apply.subtitle', '{{amount}} not yet applied', { amount: formatCurrency(unapplied, receipt.currency, { precision: 'minor' }) })}</p>
       {candidates.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('finance:receipts.apply.noOpenInvoices', 'This customer has no approved invoice in {{currency}} that still owes money.', { currency: receipt.currency })}</p>
+        <p className="text-sm text-muted-foreground">{noCandidateMessage}</p>
       ) : (
         <div className="space-y-3">
           <ul className="space-y-3" aria-label={t('finance:receipts.apply.title', 'Apply to invoices')}>
@@ -170,7 +181,7 @@ export const ApplyReceiptForm: React.FC<ApplyReceiptFormProps> = ({ receipt, una
               {t('finance:receipts.apply.addInvoice', 'Add another invoice')}
             </Button>
             <p role="status" className={left < 0 ? 'text-sm font-medium text-destructive tabular' : 'text-sm tabular'}>
-              {t('finance:receipts.apply.leftToApply', 'Left to apply: {{amount}}', { amount: formatCurrencyCents(left / 100, receipt.currency) })}
+              {t('finance:receipts.apply.leftToApply', 'Left to apply: {{amount}}', { amount: formatCurrency(left / 100, receipt.currency, { precision: 'minor' }) })}
             </p>
           </div>
           {left < 0 && <FieldError id="apply-total-error">{t('finance:receipts.apply.exceedsReceipt', 'This is more than the payment has left to apply.')}</FieldError>}

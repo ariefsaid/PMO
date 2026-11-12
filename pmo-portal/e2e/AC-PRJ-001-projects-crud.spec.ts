@@ -83,8 +83,8 @@ test(
     await page.goto('/sales');
     await openPipelineCard(page, editedName);
 
-    await page.getByLabel('More actions').click();
-    await page.getByRole('button', { name: 'Archive', exact: true }).click();
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await page.getByRole('menuitem', { name: 'Archive', exact: true }).click();
     const archiveDialog = page.getByRole('alertdialog');
     await expect(archiveDialog).toBeVisible({ timeout: 8_000 });
     await archiveDialog.getByRole('button', { name: /archive project/i }).click();

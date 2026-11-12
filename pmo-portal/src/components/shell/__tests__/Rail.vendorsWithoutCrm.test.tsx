@@ -12,10 +12,11 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 
 import { Rail } from '../Rail';
+import { RailDrawerContext } from '../railDrawerContext';
 
 describe('Rail without CRM', () => {
   it('FIN-S9: a PM in an org without CRM still reaches vendors from the rail', () => {
-    render(<MemoryRouter><Rail /></MemoryRouter>);
+    render(<MemoryRouter><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter>);
     expect(screen.queryByRole('link', { name: 'Companies' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Suppliers' })).toHaveAttribute('href', '/companies?type=Vendor');
   });

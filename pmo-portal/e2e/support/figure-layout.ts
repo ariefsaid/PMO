@@ -23,7 +23,7 @@
  * so the profile read is rewritten to `locale: 'id'` (same technique as UXS-006).
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { signIn } from '../helpers';
+import { openAppPath, signIn } from '../helpers';
 import { expectFiguresContained } from './layout-oracles';
 import { FINANCE_FIXTURE, installIdrDashboardFixture } from '../dashboard-idr.fixtures';
 
@@ -67,10 +67,6 @@ const exactIdr = (value: number, language: 'en' | 'id') => new Intl.NumberFormat
   language === 'id' ? 'id-ID' : 'en-US',
   { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 },
 ).format(value);
-const shortIdr = (value: number, language: 'en' | 'id') => new Intl.NumberFormat(
-  language === 'id' ? 'id-ID' : 'en-US',
-  { style: 'currency', currency: 'IDR', notation: 'compact', minimumFractionDigits: 0, maximumFractionDigits: 1 },
-).format(value);
 async function expectFixtureAmount(figure: Locator, amount: number, language: 'en' | 'id') {
   await expect(figure).toBeVisible();
   await expect(figure.locator('[title]')).toHaveAttribute('title', exactIdr(amount, language));
@@ -78,11 +74,13 @@ async function expectFixtureAmount(figure: Locator, amount: number, language: 'e
 const companyReady: Route['ready'] = async (page, _width, language) => {
   const company = page.getByRole('region', { name: language === 'id' ? 'Angka perusahaan' : 'Company figures' });
   await expect(company.locator('.tabular').filter({ hasText: /373[.,]5/ }).first()).toBeVisible({ timeout: 20_000 });
-  const sales = page.getByRole('region', { name: language === 'id' ? 'Kinerja penjualan' : 'Sales performance' });
-  await expect(sales.locator('.tabular').filter({ hasText: /212[.,]6/ }).first()).toBeVisible();
+  // The Sales card carries the weighted pipeline; the win rate and billing sit in the Analysis disclosure,
+  // opened here so their figures stay inside the geometry gate.
+  const weighted = page.getByText(language === 'id' ? 'Pipeline terbobot' : 'Weighted pipeline', { exact: true }).locator('xpath=..');
+  await expect(weighted.locator('.tabular').filter({ hasText: /75[.,]2/ }).first()).toBeVisible();
+  const analysis = page.getByText(language === 'id' ? 'Analisis' : 'Analysis', { exact: true });
+  if (await analysis.isVisible().catch(() => false)) await analysis.click();
   await expect(page.getByTestId('kpi-win-rate')).toHaveText(/95(?:[.,]0)?%/);
-  const billing = page.getByRole('region', { name: language === 'id' ? 'Posisi penagihan' : 'Billing position' });
-  await expect(billing.locator('.tabular').first()).toHaveText(shortIdr(FINANCE_FIXTURE.receivable, language));
 };
 const financeReady: Route['ready'] = async (page, _width, language) => {
   const areas = page.getByRole('region', { name: language === 'id' ? 'Area keuangan' : 'Finance areas' });
@@ -110,15 +108,19 @@ const reportReady: Route['ready'] = async (page, _width, language) => {
 const ROUTES: Route[] = [
   { name: 'executive', user: 'exec@acme.test', path: '/', ready: companyReady, widths: WIDTHS, bahasaWidths: [1440, 390] },
   { name: 'finance', user: 'finance@acme.test', path: '/finance', ready: financeReady, widths: WIDTHS, bahasaWidths: [1440] },
-  { name: 'pm', user: 'pm@acme.test', path: '/', ready: async (p) => { await expect(p.getByTestId('kpi-my-contract-value').locator('.tabular').filter({ hasText: /160[.,]9/ })).toBeVisible(); }, widths: WIDTHS, bahasaWidths: [] },
+  { name: 'pm', user: 'pm@acme.test', path: '/', ready: async (p) => { await expect(p.getByTestId('kpi-my-contract-value').locator('.tabular').filter({ hasText: /161B/ })).toBeVisible(); }, widths: WIDTHS, bahasaWidths: [] },
   { name: 'revenue by project', user: 'exec@acme.test', path: '/revenue-by-project', ready: reportReady, widths: [1440, 390], bahasaWidths: [1440] },
   { name: 'management pack', user: 'exec@acme.test', path: '/reports', ready: reportReady, widths: [1440, 390], bahasaWidths: [1440] },
   // Phase 2 (#1529): the sales pipeline route joins the matrix — the weighted total is the loaded,
   // independently fetched figure; at 390px the phone layout renders deal cards, so readiness binds
   // to the phone card's full amount instead of the desktop weighted-total testid.
   { name: 'sales pipeline', user: 'exec@acme.test', path: '/sales', ready: async (p, width) => {
+    // ux/1110 reformats the funnel figures as compact tile money (formatTileMoney, 3 significant
+    // digits) with the exact amount as the figure's title (T5, the home-tile contract): the weighted
+    // total of the IDR fixture, 75,185,000,000, renders as "IDR 75.2B" on the desktop tiles. The
+    // 390px phone layout keeps the full amount on the card.
     const figure = width === 390 ? p.locator('main .tabular').filter({ hasText: /5,457,143,000/ }).first() : p.getByTestId('pipeline-weighted-total');
-    await expect(figure).toContainText(width === 390 ? /5,457,143,000/ : /75,185,000,000/);
+    await expect(figure).toContainText(width === 390 ? /5,457,143,000/ : /75\.2B/);
     await expect(figure).toBeVisible();
   }, widths: WIDTHS, bahasaWidths: [] },
 ];
@@ -131,7 +133,7 @@ export function registerFigureLayout(name: string) {
         await installIdrDashboardFixture(page);
         await page.setViewportSize({ width, height: 900 });
         await signIn(page, route.user);
-        await page.goto(route.path);
+        await openAppPath(page, route.path);
         await expect(page.locator('html')).toHaveAttribute('lang', 'en');
         await route.ready(page, width, 'en');
         await expectFiguresContained(page, `${route.name} ${width}px en`);
@@ -143,7 +145,7 @@ export function registerFigureLayout(name: string) {
         await installIdrDashboardFixture(page);
         await page.setViewportSize({ width, height: 900 });
         await signIn(page, route.user);
-        await page.goto(route.path);
+        await openAppPath(page, route.path);
         await expect(page.locator('html')).toHaveAttribute('lang', 'id');
         await route.ready(page, width, 'id');
         await expectFiguresContained(page, `${route.name} ${width}px id`);

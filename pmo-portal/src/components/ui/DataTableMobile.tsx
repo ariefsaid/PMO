@@ -9,6 +9,7 @@ import type {
 } from './DataTable';
 import { PrimaryCell } from './DataTableShared';
 import type { GroupedRowEntry } from './DataTableShared';
+import { numericColumnClass } from './dataTableColumns';
 
 /**
  * Strips responsive-hide classes (e.g. "hidden xl:table-cell") from colClassName
@@ -108,11 +109,11 @@ export function DataTableMobile<Row>({
       aria-label={accessibleName}
       className="divide-y divide-border/70"
     >
-      {selection && !state && <li className="flex items-center gap-2 border-b border-border/70 bg-secondary/30 px-4 py-2">
+      {selection && !state && (!selection.selectAllAfterFirst || selection.selectedIds.size > 0) && <li className="flex items-center gap-2 border-b border-border/70 bg-secondary/30 px-4 py-2">
         <span onClick={(event) => event.stopPropagation()}>
           <Checkbox checked={selectAllChecked} onChange={toggleAllRows} label={t('table.selectAllRows', 'Select all rows')} labelledBy={`${tableInstanceId}-select-all`} disabled={visibleSelectionIds.length === 0} />
         </span>
-        <span id={`${tableInstanceId}-select-all`} className="cursor-default select-none text-[12px] text-muted-foreground" onClick={() => { if (visibleSelectionIds.length > 0) toggleAllRows(selectAllChecked !== true); }}>{t('table.selectAllRows', 'Select all rows')}</span>
+        <span id={`${tableInstanceId}-select-all`} className="cursor-default select-none text-control text-muted-foreground" onClick={() => { if (visibleSelectionIds.length > 0) toggleAllRows(selectAllChecked !== true); }}>{t('table.selectAllRows', 'Select all rows')}</span>
       </li>}
       {state ? (
         <li className="p-0">{listStateNode}</li>
@@ -133,10 +134,14 @@ export function DataTableMobile<Row>({
           const menuItems = hasMenu ? (rowMenu!(row) ?? []) : [];
 
           return (
+            // data-record-row marks this as ONE record of the list for the rendered UX gate
+            // (scripts/ux-proof-metrics.mjs): record words are data, never chrome. Keep it when
+            // restructuring the card — inference alone lets the first card into the word budget.
             <li
               key={key}
               id={targetId}
               tabIndex={targetId ? -1 : undefined}
+              data-record-row=""
               className={cn(
                 'relative flex min-h-[var(--table-row-min-height)] flex-col gap-2 p-[var(--table-cell-inset)] text-control transition-colors',
                 onActivate && 'cursor-pointer',
@@ -145,12 +150,8 @@ export function DataTableMobile<Row>({
             >
               {/* Title row: first column + rowMenu ⋯ pinned top-right */}
               <div className="flex items-start justify-between gap-3">
-                {/* Card title — activation button if rowLabel+onActivate supplied.
-                    [&_.truncate]:block: a `truncate` cell is usually an INLINE <span>, and
-                    overflow:hidden is a no-op on inline boxes — so a long title bleeds past
-                    the viewport at phone widths (AC-MOBILE-OVERFLOW-001). Forcing truncate
-                    descendants to block lets them clip with an ellipsis within this min-w-0
-                    column, independent of text width (no font-metric-dependent 1–6px bleed). */}
+                {/* Card title — activation button if rowLabel+onActivate supplied. Text that
+                    outgrows the card wraps so its full meaning stays visible at phone widths. */}
                 <div className="flex min-w-0 flex-1 items-start gap-2">
                   {selection && <span className="shrink-0" onClick={(event) => event.stopPropagation()}>
                     <Checkbox
@@ -159,7 +160,7 @@ export function DataTableMobile<Row>({
                       label={selectionLabel(row, titleCol)}
                     />
                   </span>}
-                  <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">
+                  <div className="min-w-0 flex-1 break-words font-semibold [&_.truncate]:block [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal">
                     {onActivate && rowLabel ? (
                       <button
                         type="button"
@@ -196,23 +197,17 @@ export function DataTableMobile<Row>({
                     if (content == null || content === false) return null;
                     return (
                       <React.Fragment key={col.key}>
-                        <dt
-                          className={cn(
-                            'text-[12px] font-semibold text-muted-foreground self-start',
-                            stripHiddenClasses(col.colClassName)
-                          )}
-                        >
+                        <dt className={cn('text-control font-semibold text-muted-foreground self-start', stripHiddenClasses(col.colClassName))}>
                           {col.header}
                         </dt>
                         <dd
                           className={cn(
-                            // [&_.truncate]:block — see the title note above: inline truncate
-                            // cells (e.g. a contact email) don't clip and bleed at 360px.
-                            'min-w-0 break-words text-control text-foreground [&_.truncate]:block',
+                            // Table content wraps instead of hiding the end of an identity or label.
+                            'min-w-0 break-words text-control text-foreground [&_.truncate]:block [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
                             // ONE value alignment in cards: every value starts at the label
                             // column's x — money keeps its tabular figures but loses the
                             // desktop column's right alignment here (director fix).
-                            col.align === 'num' && 'tabular',
+                            numericColumnClass(col),
                             col.align === 'center' && 'text-center',
                             stripHiddenClasses(col.colClassName),
                             // A cell whose desktop column stacks right-aligned (money cells
@@ -237,7 +232,7 @@ export function DataTableMobile<Row>({
             const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
               ? total.values[column.key]
               : index === 0 ? total.label : null;
-            return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', column.align === 'num' && 'tabular')}>{value}</dd></React.Fragment>;
+            return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', numericColumnClass(column))}>{value}</dd></React.Fragment>;
           })}
         </dl>
       </li>)}

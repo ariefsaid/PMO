@@ -1,11 +1,12 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import React from 'react';
 import { Link, type Location } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Badge, Icon, StatusPill, TaxBasisLabel, Tooltip, type Column } from '@/src/components/ui';
+import { Badge, StatusPill, TaxBasisLabel, type Column } from '@/src/components/ui';
 import { EfakturCell } from '@/src/components/EfakturCell';
 import { withCurrencyColumn } from '@/src/components/export';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
-import { formatCurrency, formatCurrencyCents, formatDateOnly, formatInstantDate } from '@/src/lib/format';
+import { formatCurrencyCents, formatDay, formatInstantDate, formatTableMoney } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
@@ -41,7 +42,8 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
   const projectLabelOf = (inv: SalesInvoiceRow) => projectOptionsById.get(inv.project_id ?? '')?.contractualName;
   const showEfaktur = all.some((inv) => inv.efaktur_number || inv.efaktur_date);
   // Lists show whole units (G1); exact cents stay on the record page.
-  const listMoney = formatCurrency;
+  // Tables show the full amount with its currency (screen rule: "IDR 1,467,628,320"), right-aligned.
+  const listMoney = (amount: number, currency: string) => formatTableMoney(amount, currency) ?? '—';
   const invoiceColumn: Column<SalesInvoiceRow> = {
     key: 'si_number',
     header: embedded ? t('finance:receivables.invoiceColumn', 'Invoice') : t('financeCopy.invoice', "Invoice #"),
@@ -65,10 +67,10 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
         : preErp;
       return (
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          {embedded ? <span className={draftLabel ? 'min-w-0 break-words text-[13px] text-foreground' : 'min-w-0 break-all font-mono text-[13px] text-foreground'}>{draftLabel ?? number ?? '—'}</span> : <Link
+          {embedded ? <span className={draftLabel ? 'min-w-0 break-words text-control text-foreground' : 'min-w-0 break-all font-mono text-control text-foreground'}>{draftLabel ?? number ?? '—'}</span> : <Link
             to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
             state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
-            className={draftLabel ? 'truncate text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline'}
+            className={draftLabel ? 'truncate text-control text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate font-mono text-control text-foreground underline-offset-2 hover:underline focus-visible:underline'}
             title={draftLabel ?? number ?? ''}
           >{draftLabel ?? number ?? '—'}</Link>}
           {/* #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history. */}
@@ -116,7 +118,10 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
       const legacyLabel = status.partlySettled
         ? t('financeCopy.statusPartlyPaid', 'Partly paid')
         : salesInvoiceStatusLabel(inv.status, t);
-      const pill = <StatusPill className={embedded ? 'max-w-full whitespace-normal!' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
+      // Embedded (the receivables list): the desktop table's coloured pill needs its own 8px vertical
+      // inset, or the label sits flush against the tint (impeccable cramped-padding). The shared pill
+      // keeps DESIGN.md's 20px spec elsewhere; the desktop row has room for the taller chip.
+      const pill = <StatusPill className={embedded ? 'max-w-full whitespace-normal! py-2' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
       // The invoice keeps its own status; Odoo's word is added only while something is unsettled (a settled invoice is the normal case).
       if (!status.odooOutcome || status.odooOutcome.cls === 'confirmed') return pill;
       return <span className="flex min-w-0 flex-col items-start gap-1">{pill}<OdooOutcome outcome={status.odooOutcome} unreachable={status.odooOffline} compact /></span>;
@@ -141,16 +146,16 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
       return (
         <span className="flex w-full flex-col items-end gap-0.5 text-right md:inline-flex md:w-auto md:flex-row md:flex-wrap md:items-baseline md:justify-end md:gap-x-1.5">
           <span className="inline-flex items-baseline justify-end gap-1">
-            <span className="tabular text-right text-[13px]">
+            <span className="tabular text-right text-control">
               {inv.amount != null ? listMoney(inv.amount, inv.currency) : '—'}
             </span>
-            {showCode && <span className="text-xs text-muted-foreground">{inv.currency}</span>}
+            {showCode && <span className="text-control text-muted-foreground">{inv.currency}</span>}
           </span>
           {inv.amount != null && <FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} />}
           {inv.amount != null && inv.tax_treatment !== sharedTaxBasis ? <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
           {/* I-4: a PMO invoice states what the client owes in full, so Outstanding reconciles by eye. */}
           {inv.pmo_native && invoiceGross(inv) != null && invoiceGross(inv) !== inv.amount && (
-            <span className="w-full text-right text-xs text-muted-foreground md:basis-full">
+            <span className="w-full text-right text-control text-muted-foreground md:basis-full">
               {t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: listMoney(invoiceGross(inv)!, inv.currency) })}
               <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />
             </span>
@@ -163,28 +168,30 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
   };
   const outstandingColumn: Column<SalesInvoiceRow> = {
     key: 'erp_outstanding_amount',
-    header: embedded ? <span className="inline-flex items-center gap-1">{t('financeCopy.outstanding', 'Outstanding')}<Tooltip content={t('finance:receivables.outstanding', 'Outstanding · tax included')}><button type="button" aria-label={t('finance:receivables.outstanding', 'Outstanding · tax included')} className="inline-grid size-4 place-items-center rounded-full normal-case text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></span> : t('financeCopy.outstanding', "Outstanding"),
+    header: embedded ? t('financeCopy.outstanding', 'Outstanding') : t('financeCopy.outstanding', "Outstanding"),
     kind: 'money',
     align: 'num',
     size: embedded ? 140 : 170,
     cell: (inv) => {
       const overpaid = overpaidBy(inv);
       const paid = paidToDate(inv);
+      // Unknown is not a dash in every row: a column unknown on every row is dropped, and the page says why once.
+      if (inv.erp_outstanding_amount == null && paid == null && overpaid == null) return null;
       return (
         <span className="flex w-full flex-col items-end gap-0.5 text-right">
-          <span className="tabular text-[13px]">
-            {inv.erp_outstanding_amount != null ? listMoney(inv.erp_outstanding_amount, inv.currency) : '—'}
+          <span className="tabular text-control">
+            {inv.erp_outstanding_amount != null ? listMoney(inv.erp_outstanding_amount, inv.currency) : null}
           </span>
           {inv.erp_outstanding_amount != null && <FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" />}
           {/* I-4: what a PMO invoice has been paid so far (total due − paid = outstanding). */}
           {paid != null && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-control text-muted-foreground">
               {t('financeCopy.paidToDateAmount', 'Paid {{amount}}', { amount: listMoney(paid, inv.currency) })}
             </span>
           )}
           {/* #784 DD-NAR-17: a receipt above the balance is kept; the excess is shown, never hidden. */}
           {overpaid != null && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-control text-muted-foreground">
               {t('financeCopy.overpaidBy', 'Overpaid by {{amount}}', { amount: listMoney(overpaid, inv.currency) })}
             </span>
           )}
@@ -200,7 +207,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     size: embedded ? 100 : 130,
     cell: (inv) => {
       const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
-      return due ? formatDateOnly(due) : '—';
+      return due ? formatDay(due) : '—';
     },
     exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date) ?? '',
   };
@@ -224,12 +231,11 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     cell: (inv) => {
       const project = projectLabelOf(inv);
       const manager = inv.project_id ? projectsById.get(inv.project_id)?.pm?.full_name?.trim() : null;
-      const managerInitial = manager?.charAt(0).toLocaleUpperCase() ?? '—';
       return <span className="flex min-w-0 flex-col gap-0.5">
         <span className="min-w-0 break-words font-medium">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
-        <span className="flex min-w-0 flex-wrap items-center gap-1 text-xs text-muted-foreground">
+        <span className="flex min-w-0 flex-wrap items-center gap-1 text-control text-muted-foreground">
           <span className="min-w-0 break-words">{project ?? '—'}</span>
-          <span aria-hidden="true" className="inline-grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground" title={manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}>{managerInitial}</span>
+          <Avatar name={manager} size="xs" decorative />
           <span className="min-w-0 break-words">{manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}</span>
         </span>
       </span>;
@@ -242,10 +248,10 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     kind: 'date',
     size: embedded ? 124 : 165,
     cell: (inv) => <span className="block min-w-0 whitespace-normal break-words">{inv.received_date
-      ? t('finance:receivables.deliveryReceived', 'Received {{date}}', { date: formatDateOnly(inv.received_date) })
+      ? t('finance:receivables.deliveryReceived', 'Delivered {{date}}', { date: formatDay(inv.received_date) })
       : inv.status === 'Draft'
         ? t('finance:receivables.deliveryDraft', 'Draft by {{name}}', { name: inv.author_user_id ? profilesById.get(inv.author_user_id)?.full_name ?? t('finance:receivables.authorUnavailable', 'unknown') : t('finance:receivables.authorUnavailable', 'unknown') })
-        : t('finance:receivables.deliveryNotReceived', 'Not marked received')}</span>,
+        : t('finance:receivables.deliveryNotReceived', 'Not delivered yet')}</span>,
     exportValue: (inv) => inv.received_date ?? '',
   };
   const displayColumns = embedded
@@ -262,7 +268,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     amountColumn,
     outstandingColumn,
     { key: 'invoice_date', header: t('financeCopy.date', "Date"), kind: 'date', cell: (inv) => inv.invoice_date, exportValue: (inv) => inv.invoice_date ?? '' },
-    { key: 'received_date', header: t('financeCopy.receivedDate', "Received"), kind: 'date', cell: (inv) => inv.received_date, exportValue: (inv) => inv.received_date ?? '' },
+    { key: 'received_date', header: t('financeCopy.receivedDate', "Delivered"), kind: 'date', cell: (inv) => inv.received_date, exportValue: (inv) => inv.received_date ?? '' },
     dueColumn,
     { key: 'efaktur_number', header: t('efaktur.number', 'e-Faktur number'), cell: (inv) => inv.efaktur_number, exportValue: (inv) => inv.efaktur_number ?? '' },
     { key: 'efaktur_date', header: t('efaktur.date', 'e-Faktur date'), kind: 'date', cell: (inv) => inv.efaktur_date, exportValue: (inv) => inv.efaktur_date ?? '' },
@@ -276,9 +282,9 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         {statusColumn.cell(inv)}
-        <span className="shrink-0 text-xs text-muted-foreground">{due ? formatDateOnly(due) : '—'}</span>
+        <span className="shrink-0 text-control text-muted-foreground">{due ? formatDay(due) : '—'}</span>
       </div>
-      <span className="text-right text-xs tabular">{inv.tax_treatment === 'inclusive' ? t('finance:receivables.mobileInvoiceAmountInclusive', 'Invoice total incl. PPN') : inv.tax_treatment === 'exclusive' ? t('finance:receivables.mobileInvoiceAmount', 'Invoice total excl. PPN') : t('finance:receivables.mobileInvoiceAmountUnspecified', 'Invoice amount')}: {inv.amount == null ? '—' : formatCurrency(inv.amount, inv.currency)}{total != null && total !== inv.amount && <span className="block">{t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: formatCurrency(total, inv.currency) })}</span>}{unknown ? <span className="block text-muted-foreground">{t('finance:receivables.mobileOutstandingUnknown', 'Outstanding balance unknown')}</span> : inv.erp_outstanding_amount != null && inv.status !== 'Paid' && inv.status !== 'Cancelled' && <span className="block text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}: {formatCurrency(inv.erp_outstanding_amount, inv.currency)}{partial && total != null && <span> {t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, inv.currency) })}</span>}</span>}</span>
+      <span className="text-right text-control tabular">{inv.tax_treatment === 'inclusive' ? t('finance:receivables.mobileInvoiceAmountInclusive', 'Invoice total incl. PPN') : inv.tax_treatment === 'exclusive' ? t('finance:receivables.mobileInvoiceAmount', 'Invoice total excl. PPN') : t('finance:receivables.mobileInvoiceAmountUnspecified', 'Invoice amount')}: {inv.amount == null ? '—' : listMoney(inv.amount, inv.currency)}{total != null && total !== inv.amount && <span className="block">{t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: listMoney(total, inv.currency) })}</span>}{unknown ? null : inv.erp_outstanding_amount != null && inv.status !== 'Paid' && inv.status !== 'Cancelled' && <span className="block text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}: {listMoney(inv.erp_outstanding_amount, inv.currency)}{partial && total != null && <span> {t('finance:receivables.ofTotal', 'of {{total}}', { total: listMoney(total, inv.currency) })}</span>}</span>}</span>
     </div>;
   };
 

@@ -4,6 +4,11 @@ import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { cn } from '@/src/components/ui';
 
+/** The filter row of a stock page: under the section tabs, so the tabs stay the first thing on every stock screen. */
+export const StockFilters: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="mb-4 flex flex-wrap items-end gap-3">{children}</div>
+);
+
 /** Section strip shared by every /stock page: On hand | Documents | Ledger | Reorder | Setup (Setup only for master-data writers). */
 export const StockTabs: React.FC = () => {
   const { t } = useTranslation('stock');

@@ -64,7 +64,7 @@ export function BudgetDocumentLinks({ versionId, status, versionLabel }: BudgetD
         )}
       </div>
       {!mayMutate && (
-        <p className="mt-1 text-[12px] text-muted-foreground">
+        <p className="mt-1 text-control text-muted-foreground">
           {status === 'Active'
             ? t('m365Documents.budget.readOnlyActive', 'Evidence is read-only: this version is Active. Archive it, then use Clone to revise to start a new draft.')
             : status === 'Archived'
@@ -73,7 +73,7 @@ export function BudgetDocumentLinks({ versionId, status, versionLabel }: BudgetD
         </p>
       )}
       {mayMutate && !connected && (
-        <p className="mt-1 text-[12px] text-muted-foreground">
+        <p className="mt-1 text-control text-muted-foreground">
           {t('m365Documents.budget.connectHint', 'Connect Microsoft 365 in My integrations to link documents.')}
         </p>
       )}
@@ -89,7 +89,7 @@ export function BudgetDocumentLinks({ versionId, status, versionLabel }: BudgetD
             onRetry={() => void query.refetch()}
           />
         ) : rows.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">{t('m365Documents.budget.empty', 'No evidence documents are linked to this version.')}</p>
+          <p className="text-control text-muted-foreground">{t('m365Documents.budget.empty', 'No evidence documents are linked to this version.')}</p>
         ) : (
           <ul className="divide-y divide-border">
             {rows.map((row) => {
@@ -100,7 +100,7 @@ export function BudgetDocumentLinks({ versionId, status, versionLabel }: BudgetD
                     {reference ? (
                       <LinkedDocumentCell reference={reference} owner={{ kind: 'budget', id: row.id }} />
                     ) : (
-                      <span className="text-[12px] text-muted-foreground">{t('m365Documents.budget.unavailable', 'This link is unavailable.')}</span>
+                      <span className="text-control text-muted-foreground">{t('m365Documents.budget.unavailable', 'This link is unavailable.')}</span>
                     )}
                   </div>
                   {mayMutate && (
@@ -118,7 +118,7 @@ export function BudgetDocumentLinks({ versionId, status, versionLabel }: BudgetD
             })}
           </ul>
         )}
-        {removeError && <p role="alert" className="mt-2 text-[12px] text-destructive-text">{removeError}</p>}
+        {removeError && <p role="alert" className="mt-2 text-control text-destructive-text">{removeError}</p>}
       </div>
 
       {mayMutate && (

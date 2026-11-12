@@ -5,6 +5,13 @@ import { axe } from 'jest-axe';
 import { Switch } from '../Switch';
 
 describe('Switch', () => {
+  it('keeps the visual track compact inside a 44px phone target', () => {
+    render(<Switch checked={false} onChange={() => {}} label="Rule" />);
+    const toggle = screen.getByRole('switch', { name: 'Rule' });
+    expect(toggle).toHaveClass('touch-target', 'max-[640px]:h-11', 'max-[640px]:w-11');
+    expect(toggle.querySelector('span')).toHaveClass('h-[22px]', 'w-[40px]');
+  });
+
   it('is a named switch that reports its state and toggles with the pointer and the keyboard', async () => {
     const onChange = vi.fn();
     render(<Switch checked={false} onChange={onChange} label="Approval required before payment" />);

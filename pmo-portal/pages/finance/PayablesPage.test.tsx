@@ -8,6 +8,12 @@ import type { FinancePosition } from '@/src/lib/finance/financePosition';
 const state = vi.hoisted(() => ({
   role: 'Finance',
   position: null as FinancePosition | null,
+  financePending: false,
+  financeError: false,
+  payablesPending: false,
+  payablesError: false,
+  orgDayPending: false,
+  orgDayError: false,
   exportXlsx: vi.fn(),
   erpDocuments: [] as unknown[],
 }));
@@ -16,10 +22,33 @@ vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (action: string, entity: string) => entity === 'finance' && action === 'view',
 }));
 vi.mock('@/src/hooks/useFinancePosition', () => ({
-  useFinancePosition: () => ({ position: state.position, isPending: false, isError: false, retry: vi.fn() }),
+  useFinancePosition: () => ({ position: state.position, isPending: state.financePending, isError: state.financeError, retry: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProcurements: () => ({
+    data: state.position?.payables.map(({ procurement, ageDays, amount }) => ({
+      ...procurement,
+      procurement_invoices: procurement.procurement_invoices?.length === 0 && amount === null ? [] : [{
+        invoice_date: ageDays === null ? null : new Date(Date.parse(`2026-07-19T00:00:00Z`) - ageDays * 86_400_000).toISOString().slice(0, 10),
+        amount: amount === null ? null : (amount / 100),
+        erp_outstanding_amount: amount === null ? null : (amount / 100),
+      }],
+    })) ?? [],
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({
+    day: state.orgDayPending || state.orgDayError ? null : '2026-07-19',
+    isPending: state.orgDayPending,
+    isError: state.orgDayError,
+    retry: vi.fn(),
+  }),
 }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({
-  useErpPurchases: () => ({ data: state.erpDocuments, isPending: false, isError: false }),
+  useErpPurchases: () => ({ data: state.erpDocuments, isPending: state.payablesPending, isError: state.payablesError, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({
@@ -64,6 +93,7 @@ function payablesFixture(): FinancePosition {
         currency: 'IDR',
         vendor_invoiced_at: null,
         updated_at: '2026-07-19T00:00:00Z',
+        procurement_invoices: [{ invoice_date: '2026-04-10', amount: 62_400_000, erp_outstanding_amount: 62_400_000 }],
         project_id: 'project-1',
         project: { name: 'North project', short_name: 'North', code: 'PRJ-10', pmo_project_number: null },
       } as FinancePosition['payables'][number]['procurement'],
@@ -97,6 +127,12 @@ function renderPage(role = 'Finance', position: FinancePosition = payablesFixtur
 
 beforeEach(() => {
   state.position = payablesFixture();
+  state.financePending = false;
+  state.financeError = false;
+  state.payablesPending = false;
+  state.payablesError = false;
+  state.orgDayPending = false;
+  state.orgDayError = false;
   state.erpDocuments = [];
   state.exportXlsx.mockClear();
 });
@@ -107,6 +143,79 @@ afterEach(() => {
 });
 
 describe('Payables page', () => {
+  it('B5: renders payable figures while an unrelated finance position read is pending', () => {
+    state.financePending = true;
+    renderPage();
+
+    expect(screen.getByText('IDR 62.4M')).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Supplier invoices waiting to be paid' })).toBeInTheDocument();
+  });
+
+  it('B5: shows the payable error when a payable source fails without reporting zero', () => {
+    state.payablesError = true;
+    renderPage();
+
+    expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes("Couldn't load supplier invoices"))).toBe(true);
+    expect(screen.queryByText(/IDR 62\.4M/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/IDR\s*0\b/)).not.toBeInTheDocument();
+  });
+
+  it('B5: shows the balance and table while organization-day ageing is pending', () => {
+    state.orgDayPending = true;
+    renderPage();
+
+    expect(screen.getByText('IDR 62.4M')).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toHaveTextContent('62,400,000');
+    expect(within(screen.getByRole('region', { name: 'Invoice age, by days' })).getByTestId('liststate-loading')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText('100 days')).not.toBeInTheDocument();
+  });
+
+  it('B5: shows an ageing error while balance and table figures remain available', () => {
+    state.orgDayError = true;
+    renderPage();
+
+    expect(screen.getByText('IDR 62.4M')).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toHaveTextContent('62,400,000');
+    expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes("Couldn't load balance ageings"))).toBe(true);
+    expect(screen.queryByText('100 days')).not.toBeInTheDocument();
+  });
+
+  it('B5: shows its loading state while the linked purchase read is pending', () => {
+    state.payablesPending = true;
+    renderPage();
+
+    expect(screen.getByRole('heading', { name: 'Payables', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: 'Search payables' })).toBeInTheDocument();
+    expect(screen.getAllByTestId('kpi-skeleton')).toHaveLength(1);
+    expect(screen.getByText('100 days')).toBeInTheDocument();
+    expect(screen.queryByText(/IDR\s*0\b/)).not.toBeInTheDocument();
+  });
+
+  it('does not surface unrelated receivable errors as a payables table error', () => {
+    state.financeError = true;
+    renderPage();
+
+    expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toBeInTheDocument();
+  });
+
+  it('uses plain lateness text except for the oldest overdue invoice', () => {
+    const base = payablesFixture();
+    const next = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-next', title: 'Inspection follow-up', code: 'PR-105' },
+      ageDays: 95,
+    } as FinancePosition['payables'][number];
+    renderPage('Finance', { ...base, payables: [next, base.payables[0]] });
+
+    const lateAges = screen.getAllByTestId('payables-late-age');
+    expect(lateAges).toHaveLength(2);
+    expect(screen.getByTestId('payables-overdue-count')).toHaveClass('bg-status-danger-surface');
+    expect(screen.getByTestId('payables-overdue-count')).toHaveTextContent('2 overdue');
+    expect(screen.getByRole('heading', { name: 'Invoice age' })).toBeVisible();
+    expect(lateAges.filter((row) => row.classList.contains('text-destructive-text'))).toHaveLength(1);
+    expect(lateAges.find((row) => row.classList.contains('text-destructive-text'))).toHaveTextContent('100 days');
+  });
+
   it('AC-1405-PAY-001: shows one shared to-pay total, ageing and supplier/project context', () => {
     renderPage();
 
@@ -117,16 +226,19 @@ describe('Payables page', () => {
     expect(screen.getByText('North')).toBeInTheDocument();
     expect(screen.getByText('DW')).toBeInTheDocument();
     expect(screen.getAllByText(/100 days/)).toHaveLength(2);
-    expect(screen.getByText('Calendar days since invoiced status was recorded, or last update if unavailable')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /Supplier invoices by age · since invoiced status or last update/ })).toBeInTheDocument();
+    expect(screen.getByText('Oldest invoice age')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Invoice age, by days/ })).toBeInTheDocument();
     expect(screen.queryByText(/Paid this month/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\.00\b/)).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Procurement' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Procurement title \+ code/ })).not.toBeInTheDocument();
-    expect(screen.getByText(/Jul 19, 2026|19 Jul 2026/)).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Invoice age' })).toBeInTheDocument();
+    expect(screen.queryByText(/19 Jul/)).not.toBeInTheDocument();
     expect(screen.queryByText('—')).not.toBeInTheDocument();
     expect(screen.queryByText('How it is calculated')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'How this figure is calculated' })).toHaveLength(2);
+    // One help control for the page; no per-figure "?".
+    expect(screen.queryAllByRole('button', { name: 'How this figure is calculated' })).toHaveLength(0);
+    expect(screen.getAllByRole('button', { name: /About Payables/ })).toHaveLength(1);
   });
 
   it('F11: the to-pay figure is short with its exact amount kept, while the table total stays full', () => {
@@ -171,6 +283,7 @@ describe('Payables page', () => {
     renderPage('Finance', { ...payablesFixture(), payables: [], payablesTotals: {}, payablesAgeing: {} });
 
     expect(screen.getByText('No supplier invoices waiting to be paid.')).toBeInTheDocument();
+    expect(screen.getByText('To pay suppliers').parentElement?.parentElement).toHaveTextContent(/IDR\s*0/);
     expect(screen.queryByRole('button', { name: /Open supplier invoice for/ })).not.toBeInTheDocument();
   });
 
@@ -187,9 +300,22 @@ describe('Payables page', () => {
     const row = screen.getByRole('row', { name: /Bumi Rental/ });
     expect(row).not.toHaveTextContent(/IDR\s?0\b|Rp\s?0\b/);
     expect(row).not.toHaveTextContent('—');
-    expect(within(screen.getByRole('region', { name: 'Payables figures' })).getByText('1 balance unknown')).toBeInTheDocument();
-    expect(screen.getAllByText(/1 supplier invoice has no amount on record, so its balance is left out of the total/)).toHaveLength(1);
-    expect(within(screen.getByRole('region', { name: /Supplier invoices by age/ })).getByTestId('ageing-bucket-IDR-d0_30')).toHaveTextContent('1 balance unknown');
+    expect(screen.getAllByText(/1 invoice has no amount and is left out of the total/)).toHaveLength(1);
+    expect(within(screen.getByRole('region', { name: /Invoice age, by days/ })).getByTestId('ageing-bucket-IDR-d0_30')).toHaveTextContent('1 balance unknown');
+  });
+
+  it('counts only known suppliers and names invoices with an unknown supplier', () => {
+    const base = payablesFixture();
+    const unknownSupplier = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-unknown-vendor', vendor: null, vendor_id: null },
+      ageDays: null,
+    } as FinancePosition['payables'][number];
+    renderPage('Finance', { ...base, payables: [unknownSupplier] });
+
+    const figures = screen.getByRole('region', { name: 'Payables figures' });
+    expect(within(figures).getByText('1 invoice, supplier not recorded')).toBeInTheDocument();
+    expect(within(figures).queryByText(/0 suppliers?/)).not.toBeInTheDocument();
   });
 
   it('L12(a): a supplier invoice kept in the accounting system shows the amount the procurement record shows', () => {
@@ -219,7 +345,7 @@ describe('Payables page', () => {
       payablesAgeing: { IDR: { d0_30: 6_240_000_000, d31_60: 0, d61_90: 0, over90: 0 } },
     });
 
-    const ageing = screen.getByRole('region', { name: /Supplier invoices by age/ });
+    const ageing = screen.getByRole('region', { name: /Invoice age, by days/ });
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('1 balance unknown');
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).not.toHaveTextContent(/IDR\s?0\b/);
     expect(within(ageing).getByTestId('ageing-bucket-IDR-d0_30')).not.toHaveTextContent(/unknown/);

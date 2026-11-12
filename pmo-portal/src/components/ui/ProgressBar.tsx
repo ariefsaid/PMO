@@ -88,7 +88,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         />
       </span>
       {showValue && (
-        <span className="w-10 text-right text-[12.5px] font-bold tabular">{value}%</span>
+        <span className="w-10 text-right text-control font-bold tabular tabular-nums">{value}%</span>
       )}
     </span>
   );

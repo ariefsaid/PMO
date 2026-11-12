@@ -6,6 +6,8 @@ import { Badge } from './StatusPill';
 export interface ViewOption<V extends string = string> {
   value: V;
   label: string;
+  /** Optional accessible name when the visible label is shortened to fit the screen. */
+  ariaLabel?: string;
   icon?: IconName;
   /** Optional trailing count badge (e.g. an Approvals queue size). */
   count?: number;
@@ -105,6 +107,7 @@ export function ViewToggle<V extends string = string>({
             key={opt.value}
             type="button"
             data-value={opt.value}
+            aria-label={opt.ariaLabel}
             // tabs: role="tab" + aria-selected + roving tabIndex
             // toggle: no role override + aria-pressed + always focusable
             {...(!isToggle && { role: 'tab', 'aria-selected': on, tabIndex: tabbable ? 0 : -1 })}
@@ -113,7 +116,7 @@ export function ViewToggle<V extends string = string>({
             onClick={() => onChange(opt.value)}
             className={cn(
               // touch-target: ≥44px hit area on coarse pointers, 28px visual (WCAG 2.5.5).
-              'touch-target inline-flex h-7 items-center gap-1.5 rounded-[5px] px-3 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-100',
+              'touch-target inline-flex h-auto min-h-7 break-words items-center gap-1.5 rounded-[5px] px-3 py-1 text-control font-medium',
               '[&_svg]:size-[14px]',
               on
                 ? 'bg-background font-semibold text-foreground shadow-[0_1px_2px_hsl(240_6%_10%/0.1)]'

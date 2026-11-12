@@ -27,8 +27,8 @@ export const EntryList: React.FC<EntryListProps> = ({ entries }) => {
     return (
       <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
         {/* Standardized to match the sibling cards' empty copy (item J). */}
-        <div className="text-[14px] font-semibold text-foreground">{t('dashboard.engineer.noHours', 'No hours logged this week')}</div>
-        <div className="max-w-[40ch] text-[12px] text-muted-foreground">
+        <div className="text-control font-semibold text-foreground">{t('dashboard.engineer.noHours', 'No hours logged this week')}</div>
+        <div className="max-w-[40ch] text-control text-muted-foreground">
           {t('dashboard.engineer.entriesEmptySub', 'Hours you log will show up here.')}
         </div>
       </div>
@@ -41,21 +41,21 @@ export const EntryList: React.FC<EntryListProps> = ({ entries }) => {
         const noteText = entry.notes?.trim() || t('dashboard.engineer.noNote', 'No note');
         return (
           <li key={entry.id} className="flex items-start gap-3 px-4 py-2">
-            <span className="w-[52px] shrink-0 pt-px text-[11px] text-muted-foreground">
+            <span className="w-[52px] shrink-0 break-words pt-px text-control text-muted-foreground">
               {formatEntryDate(entry.entry_date)}
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-1.5 min-w-0">
-                <span className="truncate text-[13px] font-semibold">{entry.project?.name ?? t('dashboard.engineer.unknownProject', 'Unknown')}</span>
+                <span className="min-w-0 break-words text-control font-semibold">{entry.project?.name ?? t('dashboard.engineer.unknownProject', 'Unknown')}</span>
                 {entry.project?.code && (
-                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                  <span className="shrink-0 break-words font-mono text-control text-muted-foreground">
                     {entry.project.code}
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 truncate text-[12px] text-muted-foreground">{noteText}</p>
+              <p className="mt-0.5 break-words text-control text-muted-foreground">{noteText}</p>
             </div>
-            <span className="w-10 shrink-0 text-right text-[12px] font-semibold tabular text-foreground">
+            <span className="w-10 shrink-0 text-right text-control font-semibold tabular text-foreground">
               {entry.hours}h
             </span>
           </li>

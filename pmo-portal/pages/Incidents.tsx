@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import {
   ListPage,
-  SearchMini,
-  ViewToggle,
+  FilterBar,
+  useUrlFilters,
   ListState,
   DataTable,
   StatusPill,
@@ -13,6 +14,7 @@ import {
   Icon,
   type Column,
   type RowMenuItem,
+  type FilterBarFilter,
 } from '@/src/components/ui';
 import { ExportAllButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
@@ -21,7 +23,9 @@ import { useIncidentsPage, useIncidentsExportAll, useIncidentMutations } from '@
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { INCIDENTS_PAGE_SIZE, type IncidentRow, type IncidentStatus } from '@/src/lib/db/incidents';
-import { severityVariant, workflowVariant } from '@/src/lib/status/statusVariants';
+import { formatDay } from '@/src/lib/format';
+import { severityVariant } from '@/src/lib/status/statusVariants';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { NEXT_STATUS, TRANSITION_COPY, type AdvanceStatus } from '@/src/lib/incidents/transitions';
 import { IncidentFormModal } from '@/components/IncidentFormModal';
 
@@ -46,6 +50,7 @@ interface TransitionTarget {
 }
 
 const Incidents: React.FC = () => {
+  const { t: tStatus } = useTranslation('status');
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
@@ -53,30 +58,33 @@ const Incidents: React.FC = () => {
   const { create, update, transition, remove } = useIncidentMutations();
   const exportAll = useIncidentsExportAll();
 
-  const [typed, setTyped] = useState('');
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<StatusFilter>('All');
-  const [page, setPage] = useState(1);
-
-  // Search is applied 300 ms after the last keystroke; a new term or status starts at page 1.
-  useEffect(() => {
-    const timer = setTimeout(() => { setSearch(typed.trim()); setPage(1); }, 300);
-    return () => clearTimeout(timer);
-  }, [typed]);
+  // R2: page joins q/status in the URL so Back/refresh return to the same page; page 1 (the
+  // default) stays out of the URL. Filter resets ride the filter's own history entry (replace)
+  // and batch with the filter write — react-router 8 does not queue same-tick param writes.
+  const { values, setFilter, setFilters, clear } = useUrlFilters(['q', 'status', 'page']);
+  const statusFilter = values.status as IncidentStatus | '';
+  const search = values.q;
+  const page = Math.max(1, Number.parseInt(values.page || '1', 10) || 1);
+  const setPage = (next: number, options?: { replace?: boolean }) =>
+    setFilter('page', next > 1 ? String(next) : '', options);
 
   const { list, allTotal } = useIncidentsPage({
     page,
     pageSize: INCIDENTS_PAGE_SIZE,
-    status: filter === 'All' ? undefined : filter,
-    search: search || undefined,
+    status: statusFilter || undefined,
+    search: search.trim() || undefined,
   });
   const { data, isPending, isError, refetch } = list;
   const rows = data?.rows;
   const total = data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / INCIDENTS_PAGE_SIZE));
-  // Deleting the last row of the last page leaves an empty page behind: step back.
+  // Deleting the last row of the last page leaves an empty page behind: step back (a correction,
+  // not a choice — it replaces so Back keeps the page the user actually came from). setPage's
+  // identity changes every render by design (URL-backed filter setters are render-local); the
+  // guard stops the write once page ≤ lastPage, so a per-render re-run is harmless.
   useEffect(() => {
-    if (data && page > lastPage) setPage(lastPage);
+    if (data && page > lastPage) setPage(lastPage, { replace: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- setPage's identity changes every render by design (URL-backed filter setters are render-local); the guard stops the write once page ≤ lastPage, so a per-render re-run is harmless.
   }, [data, page, lastPage]);
 
   // Modal: null = closed; { incident: null } = create; { incident } = edit.
@@ -105,7 +113,7 @@ const Incidents: React.FC = () => {
       key: 'type',
       header: 'Incident',
       cell: (i) => (
-        <span className="truncate font-semibold" title={i.type}>
+        <span className="truncate font-semibold" title={i.description ?? i.type}>
           {i.type}
         </span>
       ),
@@ -120,14 +128,14 @@ const Incidents: React.FC = () => {
     {
       key: 'status',
       header: 'Status',
-      cell: (i) => <StatusPill variant={workflowVariant(i.status)}>{i.status}</StatusPill>,
+      cell: (i) => <StatusPill record="incident" state={i.status} />,
       exportValue: (i) => i.status,
     },
     {
       key: 'incident_date',
       header: 'Date',
       kind: 'date',
-      cell: (i) => <span className="tabular text-muted-foreground">{i.incident_date}</span>,
+      cell: (i) => <span className="tabular text-muted-foreground">{formatDay(i.incident_date)}</span>,
       exportValue: (i) => i.incident_date,
       colClassName: 'hidden sm:table-cell',
     },
@@ -198,12 +206,31 @@ const Incidents: React.FC = () => {
 
   const transitionCopy = transitionTarget ? TRANSITION_COPY[transitionTarget.to] : null;
 
+  const filters: FilterBarFilter[] = useMemo(() => [
+    {
+      key: 'status',
+      label: 'Filter by status',
+      kind: 'segment',
+      semantics: 'tabs',
+      options: ['Open', 'Investigating', 'Closed'].map((s) => ({
+        value: s,
+        label: statusLabel('incident', s as IncidentStatus, tStatus),
+      })),
+    },
+  ], [tStatus]);
+
+  const handleFilterChange = (key: string, value: string) => {
+    // One batched write (react-router 8 does not queue same-tick setSearchParams calls): the
+    // new filter value pushes its own history entry and the reset to page 1 rides along.
+    setFilters({ [key]: value, page: '' });
+    if (key === 'status') {
+      trackFilterApplied('status', STATUS_FILTERS.length, 'incidents');
+    }
+  };
+
   return (
     <ListPage
       title="Incidents"
-      count={data ? total : undefined}
-      total={data ? allTotal : undefined}
-      description="The organisation incident register. Anyone can file an incident; managers investigate and close them."
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ incident: null })}>
@@ -214,32 +241,26 @@ const Incidents: React.FC = () => {
       }
       filters={
         state !== 'loading' && (
-          /* AC-2: scrollable so all status segments are reachable at 390px. */
-          <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
-            <ViewToggle<StatusFilter>
-              options={STATUS_FILTERS.map((f) => ({ value: f, label: f }))}
-              value={filter}
-              onChange={(v) => {
-                setFilter(v);
-                setPage(1);
-                trackFilterApplied('status', STATUS_FILTERS.length, 'incidents');
-              }}
-              ariaLabel="Filter by status"
-            />
-          </div>
-        )
-      }
-      search={
-        state !== 'loading' && (
-          <SearchMini
-            placeholder="Search incidents…"
-            aria-label="Search incidents"
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
+          <FilterBar
+            searchKey="q"
+            searchLabel="Search incidents"
+            // search_used analytics (2026-07-13 wiring plan): c002a54a4's FilterBar adoption
+            // dropped these two props; restored so the incidents search reports again.
             searchSurface="incidents-list"
             module="incidents"
-            resultCount={total}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+            filters={filters}
+            values={values}
+            onChange={handleFilterChange}
+            onClear={() => {
+              // clear() removes every URL key including `page`, so the reset is implied.
+              clear();
+            }}
+            shown={data ? total : 0}
+            total={data ? (allTotal ?? total) : 0}
+            labels={{
+              all: 'All',
+              clear: 'Clear all',
+            }}
           />
         )
       }
@@ -251,7 +272,7 @@ const Incidents: React.FC = () => {
             entity="Incidents"
             columns={columns}
             hasRows={total > 0}
-            fetchRows={() => exportAll.mutateAsync({ status: filter === 'All' ? undefined : filter, search: search || undefined })}
+            fetchRows={() => exportAll.mutateAsync({ status: statusFilter || undefined, search: search.trim() || undefined })}
           />
         )
       }
@@ -303,17 +324,18 @@ const Incidents: React.FC = () => {
           state={(rows ?? []).length === 0 ? 'empty' : undefined}
           emptyTitle="No incidents match your filters"
           emptySub="Try a different status or clear the search."
+          emptyAction={{ label: 'Clear filters', onClick: () => clear() }}
         tableId="incidents-table" />
       )}
 
       {state === undefined && total > INCIDENTS_PAGE_SIZE && (
-        <nav aria-label="Pages" className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
+        <nav aria-label="Pages" className="mt-3 flex items-center justify-between gap-3 text-control tabular-nums">
           <span>{(page - 1) * INCIDENTS_PAGE_SIZE + 1}–{Math.min(page * INCIDENTS_PAGE_SIZE, total)} of {total}</span>
           <span className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} aria-label="Previous page">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label="Previous page">
               <Icon name="back" aria-hidden="true" />
             </Button>
-            <Button variant="outline" size="sm" disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)} aria-label="Next page">
+            <Button variant="outline" size="sm" disabled={page >= lastPage} onClick={() => setPage(page + 1)} aria-label="Next page">
               <Icon name="chev" aria-hidden="true" />
             </Button>
           </span>

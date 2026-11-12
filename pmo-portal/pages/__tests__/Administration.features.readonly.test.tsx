@@ -141,8 +141,11 @@ describe('AC-ENT-004 — Features: org-Admin read-only, Operator controls', () =
   it('AC-ENT-004: core modules render always-on and are NOT toggleable', async () => {
     renderSection(true);
     await screen.findByTestId('feature-row-crm');
-    // The core line lists the modules and offers no control of its own.
-    expect(screen.getByText(/core modules \(never switchable\)/i)).toBeInTheDocument();
+    // Since r2-qf-phone (307179a5b) the console renders BOTH layout variants (desktop table +
+    // stacked phone rows; CSS picks per width), so the core line appears in each — it lists the
+    // modules and offers no control of its own in either.
+    expect(within(screen.getByTestId('feature-phone-rows')).getByText(/core modules \(never switchable\)/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/core modules \(never switchable\)/i).length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByRole('switch', { name: /projects/i })).toBeNull();
   });
 });

@@ -29,10 +29,10 @@ const WinTarget: React.FC<{ eligibility: ReturnType<typeof useProjectWinEligibil
     return <button type="button" onClick={onSelect}
       className="block w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">Won, Pending KoM</button>;
   }
-  if (eligibility.isPending || eligibility.isFetching) return <p role="status" className="px-2.5 py-1 text-xs text-muted-foreground">{t('project:winEligibility.checking', 'Checking win eligibility…')}</p>;
-  if (eligibility.isError || !eligibility.data) return <p role="status" className="px-2.5 py-1 text-xs text-muted-foreground">{t('project:winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')}</p>;
+  if (eligibility.isPending || eligibility.isFetching) return <p role="status" className="px-2.5 py-1 text-sm text-muted-foreground">{t('project:winEligibility.checking', 'Checking win eligibility…')}</p>;
+  if (eligibility.isError || !eligibility.data) return <p role="status" className="px-2.5 py-1 text-sm text-muted-foreground">{t('project:winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')}</p>;
   if (eligibility.data === 'allowed') return null;
-  return <p role="status" className="px-2.5 py-1 text-xs text-muted-foreground">{winEligibilityMessage(t, eligibility.data)}</p>;
+  return <p role="status" className="px-2.5 py-1 text-sm text-muted-foreground">{winEligibilityMessage(t, eligibility.data)}</p>;
 };
 
 /**
@@ -184,7 +184,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
       )}
       {/* Inline error display — always visible when error exists (NFR-PR-UI-001) */}
       {mutation.isError && mutation.error && (
-        <p className="mb-1 text-xs text-destructive" role="alert">
+        <p className="mb-1 text-sm text-destructive" role="alert">
           {mutation.error.message}
         </p>
       )}
@@ -207,7 +207,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
       {/* Target selection dropdown */}
       {open && !pendingTarget && (
         <div ref={popoverRef} className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
-          <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+          <p className="px-2.5 pb-1 pt-1.5 text-sm font-semibold text-muted-foreground">
             Move to
           </p>
           {legalTargets.map(target => target === 'Won, Pending KoM' ? (
@@ -225,7 +225,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
           <button
             type="button"
             onClick={handleCancel}
-            className="mt-[5px] block w-full rounded-md border-t border-border px-2.5 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent"
+            className="mt-[5px] block w-full rounded-md border-t border-border px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent"
           >
             Cancel
           </button>
@@ -236,9 +236,9 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
       {pendingTarget === 'Won, Pending KoM' && !canWin && (
         <div className="absolute right-0 z-20 mt-1 min-w-[240px] rounded-lg border border-border bg-popover p-3 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
           {winEligibility.data === 'allowed' && !winEligibility.isPending && !winEligibility.isFetching && !winEligibility.isError
-            ? <p role="status" className="text-xs text-muted-foreground">{t('project:winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')}</p>
+            ? <p role="status" className="text-sm text-muted-foreground">{t('project:winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')}</p>
             : <WinTarget eligibility={winEligibility} onSelect={() => {}} />}
-          <button type="button" onClick={handleCancel} className="mt-2 text-xs text-foreground">Cancel</button>
+          <button type="button" onClick={handleCancel} className="mt-2 text-sm text-foreground">Cancel</button>
         </div>
       )}
       {pendingTarget === 'Won, Pending KoM' && canWin && (
@@ -246,19 +246,19 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
           onSubmit={handleWinSubmit}
           className="absolute right-0 z-20 mt-1 min-w-[240px] rounded-lg border border-border bg-popover p-3 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)] space-y-2"
         >
-          <p className="text-xs font-semibold">Win — enter contract details</p>
+          <p className="text-sm font-semibold">Win — enter contract details</p>
           <WinDetailsFields idPrefix={project.id} contractRef={contractRef} contractDate={contractDate} onRef={setContractRef} onDate={setContractDate} />
           <div className="flex gap-2 pt-1">
             <button
               type="submit"
-              className="flex-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)] transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="flex-1 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)] transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               Confirm
             </button>
             <button
               type="button"
               onClick={handleCancel}
-              className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               Cancel
             </button>

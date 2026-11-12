@@ -1,8 +1,8 @@
 {
+  "submitWeek": "Ajukan minggu ini",
   "approvalQueue": {
     "unknownProject": "Proyek tidak diketahui",
     "approved": "Lembar waktu disetujui",
-    "returned": "Lembar waktu dikembalikan",
     "approvedDetail": "Minggu {{name}} disetujui",
     "returnedDetail": "Dikembalikan kepada {{name}} untuk diperbaiki",
     "approve": "Setujui",
@@ -27,6 +27,12 @@
     "title": "Buang perubahan yang belum disimpan?",
     "description": "Jam minggu ini yang belum disimpan akan dibuang.",
     "confirm": "Buang perubahan"
+  },
+  "discardHours": {
+    "title": "Buang jam yang belum disimpan?",
+    "description": "Tinggalkan halaman ini dan buang jam yang belum disimpan?",
+    "leave": "Tinggalkan",
+    "stay": "Tetap di sini"
   },
   "reconcile": {
     "message": "Muat ulang minggu ini sebelum melanjutkan.",

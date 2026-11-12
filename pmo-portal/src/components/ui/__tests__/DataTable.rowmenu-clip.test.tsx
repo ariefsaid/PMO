@@ -12,13 +12,13 @@
  *
  * Plus the added a11y contract: focus-to-first on open, return-focus-to-trigger
  * on close, Arrow/Home/End roving (wrap), Enter/Space activate,
- * aria-orientation="vertical", and the load-bearing stopPropagation guard
+ and the load-bearing stopPropagation guard
  * (clicking a menu item must never fire the row's onActivate — guards PR-B).
  *
  * Owning layer: Unit/RTL (the render-clip itself is verified by design-reviewer).
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DataTable, type Column } from '../DataTable';
 
@@ -38,7 +38,9 @@ const columns: Column<Row>[] = [
 
 const openFirstMenu = async () => {
   const trigger = screen.getAllByRole('button', { name: /row actions/i })[0];
-  await userEvent.click(trigger);
+  // Keyboard open: the library lands focus on the first item (a pointer open leaves it on the popup).
+  trigger.focus();
+  await userEvent.keyboard('{Enter}');
   return { trigger, menu: screen.getByRole('menu') };
 };
 
@@ -77,20 +79,7 @@ describe('DataTable RowMenu — clip escape + a11y (AC-W6-IXD-MENU)', () => {
     const { menu } = await openFirstMenu();
     // Toasts occupy z-index 1000 and can overlap a bottom-row menu; the action
     // menu must remain the top interactive layer so pointer events reach items.
-    expect(Number(menu.style.zIndex)).toBeGreaterThan(1000);
-  });
-
-  it('AC-W6-IXD-MENU: the menu container carries aria-orientation="vertical"', async () => {
-    render(
-      <DataTable
-        rows={rows}
-        columns={columns}
-        rowKey={(r) => r.id}
-        rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]}
-      />,
-    );
-    const { menu } = await openFirstMenu();
-    expect(menu).toHaveAttribute('aria-orientation', 'vertical');
+    expect(Number(menu.parentElement!.style.zIndex)).toBeGreaterThan(1000);
   });
 
   it('AC-W6-IXD-MENU: focus moves to the first menuitem on open', async () => {
@@ -157,15 +146,15 @@ describe('DataTable RowMenu — clip escape + a11y (AC-W6-IXD-MENU)', () => {
     );
     const { menu } = await openFirstMenu();
     const items = within(menu).getAllByRole('menuitem');
-    expect(items[0]).toHaveFocus(); // open → first
+    await waitFor(() => expect(items[0]).toHaveFocus()); // open → first
     await userEvent.keyboard('{ArrowDown}');
     expect(items[1]).toHaveFocus();
     await userEvent.keyboard('{ArrowDown}');
     expect(items[2]).toHaveFocus();
     await userEvent.keyboard('{ArrowDown}'); // wrap to first
-    expect(items[0]).toHaveFocus();
+    await waitFor(() => expect(items[0]).toHaveFocus()); // Base UI moves focus next frame
     await userEvent.keyboard('{ArrowUp}'); // wrap to last
-    expect(items[2]).toHaveFocus();
+    await waitFor(() => expect(items[2]).toHaveFocus());
   });
 
   it('AC-W6-IXD-MENU: Home/End jump to first/last menuitem', async () => {

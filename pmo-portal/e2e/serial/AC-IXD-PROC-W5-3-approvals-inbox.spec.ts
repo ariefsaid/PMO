@@ -45,7 +45,7 @@ test.describe.configure({ retries: 0 });
 // ── AC-IXD-PROC-W5-3 ────────────────────────────────────────────────────────
 // Given: a PM opens /approvals.
 // When:  they select the Requested procurement row this spec owns in the two-pane inbox.
-// Then:  the preview pane reveals the request details + Approve/Reject there, the URL
+// Then:  the preview pane reveals the request details + Approve/Return there, the URL
 //        STAYS on /approvals, and the PM can approve the request without leaving the inbox.
 //
 // Journey updated (deliberate UX change, per the BDD authoring rule): the two-pane inbox
@@ -91,7 +91,10 @@ test(
     await expect(previewTitle).toBeVisible({ timeout: 15_000 });
     const title = (await previewTitle.textContent())?.trim() ?? 'request';
     await expect(preview.getByRole('button', { name: /^approve$/i })).toBeVisible();
-    await expect(preview.getByRole('button', { name: /^reject$/i })).toBeVisible();
+    // VOCABULARY (ux/1110): the inverse action reads "Return" (a refused purchase is revised and
+    // resubmitted; only the stored state stays "Rejected"). Oracle unchanged: the inbox offers the
+    // approve action AND its inverse side by side, in place.
+    await expect(preview.getByRole('button', { name: /^return$/i })).toBeVisible();
 
     // Goal oracle 3: the approval confirms and succeeds from the inbox without route-away.
     await preview.getByRole('button', { name: /^approve$/i }).click();

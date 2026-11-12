@@ -75,7 +75,7 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     await user.type(screen.getByLabelText(/Title/), 'Design review');
     await user.click(screen.getByRole('button', { name: 'Edit minutes' }));
     await user.type(screen.getByLabelText(/External guest/), 'Guest One');
-    await user.click(screen.getByRole('button', { name: /Add guest/i }));
+    await user.click(screen.getByRole('button', { name: 'Add' }));
     await user.click(screen.getByRole('button', { name: 'Save meeting' }));
     await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
     expect(mutations.create.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ title: 'Design review' }));
@@ -86,7 +86,8 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
   it('AC-MTG1-003 a pristine editor baseline can be left without a discard dialog', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // The unsaved-changes confirm is a destructive ConfirmDialog → role="alertdialog".
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(screen.getByTestId('path')).toHaveTextContent('/meetings');
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
@@ -157,7 +158,7 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/Title/), 'Design review');
     await user.type(screen.getByLabelText(/External guest/), 'Guest One');
-    await user.click(screen.getByRole('button', { name: /Add guest/i }));
+    await user.click(screen.getByRole('button', { name: 'Add' }));
     await user.click(screen.getByRole('button', { name: 'Save meeting' }));
     await waitFor(() => expect(mutations.addAttendee.mutateAsync).toHaveBeenCalled());
     expect(screen.getByLabelText(/Title/)).toBeDisabled();
@@ -175,7 +176,7 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     await user.type(screen.getByLabelText(/Title/), 'Design review');
     await user.click(screen.getByRole('button', { name: 'Edit minutes' }));
     await user.type(screen.getByLabelText(/External guest/), 'Guest One');
-    await user.click(screen.getByRole('button', { name: /Add guest/i }));
+    await user.click(screen.getByRole('button', { name: 'Add' }));
     await user.click(screen.getByRole('button', { name: 'Save meeting' }));
     expect(await screen.findByText(/some details were not saved/i)).toHaveAttribute('role', 'alert');
     expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
@@ -202,7 +203,7 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     await user.type(screen.getByLabelText(/Title/), 'Design review');
     await user.click(screen.getByRole('button', { name: 'Edit minutes' }));
     await user.type(screen.getByLabelText(/External guest/), 'Guest One');
-    await user.click(screen.getByRole('button', { name: /Add guest/i }));
+    await user.click(screen.getByRole('button', { name: 'Add' }));
     await user.click(screen.getByRole('button', { name: 'Save meeting' }));
     expect(await screen.findByText(/some details were not saved/i)).toHaveAttribute('role', 'alert');
     expect(mutations.update.mutateAsync).toHaveBeenCalledTimes(1);
@@ -217,8 +218,9 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/Title/), 'Unsaved meeting');
     await user.click(screen.getByRole('link', { name: 'Meetings' }));
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Leave' }));
+    // Shared UnsavedChangesDialog (F3a, 444d4ce88): destructive tone, keeping the edits is the default.
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
     expect(screen.getByTestId('path')).toHaveTextContent('/meetings');
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });

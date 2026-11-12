@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, DataTable, Icon, StatusPill, type Column } from '@/src/components/ui';
-import { formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { knownUnappliedCash, type ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
 import { receiptNumber } from '@/src/lib/revenue/nativeInvoice';
@@ -20,7 +20,7 @@ interface Props {
 /** S-06 (RF-030..034) — the read-only receipt page: every invoice allocation, cash not yet applied, and recorded withholding. */
 export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, odoo = false }) => {
   const { t } = useTranslation();
-  const money = (n: number) => formatCurrencyCents(n, receipt.currency);
+  const money = (n: number) => formatCurrency(n, receipt.currency, { precision: 'minor' });
   const cancelled = Boolean(receipt.cancelled_at || receipt.erp_cancelled_at);
   const unapplied = knownUnappliedCash({ ...receipt, allocation_details: allocations });
   const notReported = t('uxs06.notReported', 'Not reported');
@@ -39,7 +39,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       label: t('financeCopy.taxWithheld', 'Tax withheld'), testId: 'receipt-withheld',
       value: <>
         {money(receipt.withheld_amount!)}
-        {slip && <span className="mt-0.5 block font-mono text-[13px] font-normal text-muted-foreground">{slip}</span>}
+        {slip && <span className="mt-0.5 block font-mono text-control font-normal text-muted-foreground">{slip}</span>}
       </>,
     }] : []),
     ...(withheldShown ? [{
@@ -52,9 +52,9 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
   ];
   const allocationColumns = useMemo<Column<ReceiptAllocation & { rowKey: string }>[]>(() => [
     { key: 'invoice', header: t('financeCopy.invoice', 'Invoice #'), kind: 'primary', cell: (allocation) => allocation.invoice_id
-      ? <Link to={`/sales-invoices/${encodeURIComponent(allocation.invoice_id)}`} className="font-mono text-[13px] text-primary-text hover:underline focus-visible:underline">{allocation.invoice_number}</Link>
-      : <span className="font-mono text-[13px]" title={t('uxs06.invoiceNotInPmo', 'This invoice is not in PMO yet.')}>{allocation.invoice_number}</span>, primaryTitle: (allocation) => allocation.invoice_number },
-    { key: 'amount', header: t('uxs06.applied', 'Applied'), kind: 'money', align: 'num', cell: (allocation) => allocation.amount != null && allocation.currency != null ? formatCurrencyCents(Number(allocation.amount), allocation.currency) : notReported },
+      ? <Link to={`/sales-invoices/${encodeURIComponent(allocation.invoice_id)}`} className="font-mono text-control text-primary-text hover:underline focus-visible:underline">{allocation.invoice_number}</Link>
+      : <span className="font-mono text-control" title={t('uxs06.invoiceNotInPmo', 'This invoice is not in PMO yet.')}>{allocation.invoice_number}</span>, primaryTitle: (allocation) => allocation.invoice_number },
+    { key: 'amount', header: t('uxs06.applied', 'Applied'), kind: 'money', align: 'num', cell: (allocation) => allocation.amount != null && allocation.currency != null ? formatCurrency(Number(allocation.amount), allocation.currency, { precision: 'minor' }) : notReported },
   ], [notReported, t]);
 
   return (
@@ -82,14 +82,14 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
               </StatusPill>}
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          {[receipt.customer_name, receipt.date ? formatDateOnly(receipt.date) : null].filter(Boolean).join(' · ') || '—'}
+          {[receipt.customer_name, receipt.date ? formatDay(receipt.date) : null].filter(Boolean).join(' · ') || '—'}
         </p>
       </header>
 
       <dl className="mb-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
         {facts.map((f) => (
           <div key={f.label}>
-            <dt className="text-xs text-muted-foreground">{f.label}</dt>
+            <dt className="text-control text-muted-foreground">{f.label}</dt>
             <dd data-testid={f.testId} className="tabular mt-0.5 text-[15px] font-medium">{f.value}</dd>
           </div>
         ))}

@@ -31,7 +31,7 @@ const { queue, approveMutate, rejectMutate } = vi.hoisted(() => ({
     isError: false,
     refetch: vi.fn(),
   },
-  // approve.mutate / reject.mutate each call onError with a coded error
+  // approve/reject promises reject with a coded error
   approveMutate: vi.fn(),
   rejectMutate: vi.fn(),
 }));
@@ -40,10 +40,10 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => queue,
   useTimesheetMutations: () => ({
     approve: {
-      mutate: approveMutate,
+      mutateAsync: approveMutate,
       isPending: false,
     },
-    reject: { mutate: rejectMutate, isPending: false },
+    reject: { mutateAsync: rejectMutate, isPending: false },
   }),
 }));
 
@@ -51,14 +51,8 @@ import { ApprovalsQueue } from '../ApprovalsQueue';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Simulate onError being called with a Postgres 42501 error (approve path)
-  approveMutate.mockImplementation((_args: unknown, opts?: { onError?: (err: unknown) => void }) => {
-    opts?.onError?.(pgPermissionError);
-  });
-  // Simulate onError being called with the same coded error (reject/return path)
-  rejectMutate.mockImplementation((_args: unknown, opts?: { onError?: (err: unknown) => void }) => {
-    opts?.onError?.(pgPermissionError);
-  });
+  approveMutate.mockRejectedValue(pgPermissionError);
+  rejectMutate.mockRejectedValue(pgPermissionError);
 });
 
 describe('ApprovalsQueue error classification (W2-8)', () => {
@@ -88,6 +82,8 @@ describe('ApprovalsQueue error classification (W2-8)', () => {
     // The toast headline must be the classified one (not the raw error message)
     // classifyMutationError('42501') → "You don't have permission to do that."
     expect(await findToastAnnouncement('alert', /you don't have permission to do that/i)).toBeInTheDocument();
+    const openDialog = await screen.findByRole('dialog');
+    expect(within(openDialog).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
 
     // The raw error message must NOT be the toast headline
     expect(screen.queryByRole('heading', { name: /permission denied for table timesheets/i })).not.toBeInTheDocument();
@@ -107,15 +103,16 @@ describe('ApprovalsQueue error classification (W2-8)', () => {
     const returnBtn = screen.getByRole('button', { name: /return/i });
     await user.click(returnBtn);
 
-    // The confirm dialog opens — confirm it (tone=destructive → alertdialog)
-    await waitFor(() => {
-      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
-    });
-    const dialog = screen.getByRole('alertdialog');
-    await user.click(within(dialog).getByRole('button', { name: /return timesheet/i }));
+    // The return dialog opens: a reason is required before it will send
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/Reason for returning/), 'Needs correcting');
+    await user.click(within(dialog).getByRole('button', { name: 'Return' }));
 
     // The toast headline must be the classified one (not the raw error message)
     expect(await findToastAnnouncement('alert', /you don't have permission to do that/i)).toBeInTheDocument();
+    const openDialog = await screen.findByRole('dialog');
+    expect(within(openDialog).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
+    expect(within(openDialog).getByLabelText(/Reason for returning/)).toHaveValue('Needs correcting');
 
     // The raw error message must NOT be in the toast
     expect(screen.queryByRole('heading', { name: /permission denied for table timesheets/i })).not.toBeInTheDocument();

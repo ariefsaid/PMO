@@ -168,8 +168,8 @@ describe('AC-IXD-PROC-A8: Admin break-glass header edit', () => {
     detailState.data = { ...base, status: 'Draft' };
     renderPage();
     // Edit lives in the header's "More procurement actions" menu since the restructure (#1404).
-    const header = await openMoreActions();
-    expect(header.getByTestId('edit-header')).toBeInTheDocument();
+    await openMoreActions();
+    expect(screen.getByTestId('edit-header')).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-A8: an Admin who is NOT the requester sees Edit-header on a Rejected PR', async () => {
@@ -178,8 +178,8 @@ describe('AC-IXD-PROC-A8: Admin break-glass header edit', () => {
     detailState.data = { ...base, status: 'Rejected' };
     renderPage();
     // Edit lives in the header's "More procurement actions" menu since the restructure (#1404).
-    const header = await openMoreActions();
-    expect(header.getByTestId('edit-header')).toBeInTheDocument();
+    await openMoreActions();
+    expect(screen.getByTestId('edit-header')).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-A8: a non-Admin, non-requester (Finance) does NOT see Edit-header on a Draft PR', async () => {
@@ -190,8 +190,8 @@ describe('AC-IXD-PROC-A8: Admin break-glass header edit', () => {
     detailState.data = { ...base, status: 'Draft' };
     renderPage();
     // Open the menu first: a closed menu would make the absence assertion vacuous.
-    const header = await openMoreActions();
-    expect(header.getByRole('menuitem', { name: 'Full history' })).toBeInTheDocument();
+    await openMoreActions();
+    expect(screen.getByRole('menuitem', { name: 'Full history' })).toBeInTheDocument();
     expect(screen.queryByTestId('edit-header')).toBeNull();
   });
 
@@ -201,8 +201,8 @@ describe('AC-IXD-PROC-A8: Admin break-glass header edit', () => {
     detailState.data = { ...base, status: 'Draft', requested_by_id: 'u-requester' };
     renderPage();
     // Edit lives in the header's "More procurement actions" menu since the restructure (#1404).
-    const header = await openMoreActions();
-    expect(header.getByTestId('edit-header')).toBeInTheDocument();
+    await openMoreActions();
+    expect(screen.getByTestId('edit-header')).toBeInTheDocument();
   });
 });
 
@@ -217,8 +217,8 @@ describe('AC-IXD-PROC-B3: Admin break-glass transitions with SoD preserved', () 
     renderPage();
     // Approve is the one primary action; Reject sits in the header's "More procurement actions" menu.
     expect(headerActions().getByRole('button', { name: /^Approve$/ })).toBeInTheDocument();
-    const header = await openMoreActions();
-    expect(header.getByRole('menuitem', { name: /^Reject$/ })).toBeInTheDocument();
+    await openMoreActions();
+    expect(screen.getByRole('menuitem', { name: /^Reject$/ })).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-B3: Admin who IS the requester does NOT see Approve/Reject on a Requested PR (SoD-a)', async () => {
@@ -228,8 +228,8 @@ describe('AC-IXD-PROC-B3: Admin break-glass transitions with SoD preserved', () 
     renderPage();
     expect(screen.queryByRole('button', { name: /^Approve$/ })).toBeNull();
     // Open the menu first so the absence of Reject is not vacuous (it lives in "More procurement actions").
-    const header = await openMoreActions();
-    expect(header.getByRole('menuitem', { name: 'Full history' })).toBeInTheDocument();
+    await openMoreActions();
+    expect(screen.getByRole('menuitem', { name: 'Full history' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /^Reject$/ })).toBeNull();
   });
 

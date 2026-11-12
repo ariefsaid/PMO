@@ -208,8 +208,8 @@ describe('AC-VQ-002: VendorQuotesTab — bid comparison rows', () => {
         selectedId="q-lo"
       />,
     );
-    // formatDate('2026-05-30') → 'May 30, 2026'
-    expect(screen.getAllByText('May 30, 2026').length).toBeGreaterThanOrEqual(1);
+    // screen-rules: "10 Nov 2026"; within the current year "10 Nov" — never "May 30, 2026".
+    expect(screen.getAllByText(/^30 May( 2026)?$/).length).toBeGreaterThanOrEqual(1);
   });
 
   it('AC-VQ-002: renders em-dash for null valid_until', () => {

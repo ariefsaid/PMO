@@ -1,7 +1,7 @@
 import React from 'react';
 import { DataTable, ListState, type Column } from '@/src/components/ui';
 import type { UsageSummaryRow, OperatorUsageSummaryRow } from '@/src/lib/db/usage';
-import { PLATFORM_CURRENCY, formatCurrencyFine, formatNumber } from '@/src/lib/format';
+import { PLATFORM_CURRENCY, formatCurrencyFine, formatNumber, formatUtcMonthYearFull } from '@/src/lib/format';
 
 /**
  * Administration › Usage section (ops-admin-surface S5, FR-USE-002/003/004/006). Sourced ONLY
@@ -17,6 +17,13 @@ import { PLATFORM_CURRENCY, formatCurrencyFine, formatNumber } from '@/src/lib/f
  */
 
 type UsageRow = UsageSummaryRow | OperatorUsageSummaryRow;
+
+/** "Jul 2026" from the RPC's month-start date; missing or unparseable → em-dash, never a raw value. */
+function monthBucket(month: string | null): string {
+  if (!month) return '—';
+  const parsed = new Date(month);
+  return Number.isNaN(parsed.getTime()) ? '—' : formatUtcMonthYearFull(parsed);
+}
 
 export interface AdministrationUsageProps {
   rows: UsageRow[];
@@ -70,7 +77,10 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
   const hasProviderCost = rows.length > 0 && 'provider_cost_usd' in rows[0];
 
   const columns: Column<UsageRow>[] = [
-    { key: 'month', header: 'Month', cell: (r) => r.month },
+    // The RPC's month bucket is a UTC month-start DATE; a raw `2026-07-01` is an ISO string on
+    // screen (ux/1110 rule 1), so it goes through the shared UTC-pinned month formatter — the same
+    // UTC pin the sibling agent-cost dashboard uses for its month buckets.
+    { key: 'month', header: 'Month', cell: (r) => monthBucket(r.month) },
     { key: 'action', header: 'Action', cell: (r) => r.action },
     { key: 'runs', header: 'Runs', cell: (r) => formatNumber(r.run_count) },
     {
@@ -83,6 +93,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
           {
             key: 'providerCost',
             header: 'Provider cost',
+            keepWhenBlank: true,
             // `in` tests key presence (the org row lacks this column entirely); it does NOT test null.
             // The RPC returns null when provider pricing is unconfigured, and formatting null
             // renders $0.00 — a real-looking zero for "unknown". Guard both, as margin does below.
@@ -103,7 +114,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
     <div>
       <DataTable<UsageRow> rows={rows} columns={columns} rowKey={(r) => `${r.month}-${r.owner_id}-${r.action}`} tableId="administrationusage-table" />
       {!hasMargin && (
-        <p className="mt-2 text-[12.5px] text-muted-foreground">
+        <p className="mt-2 text-control text-muted-foreground">
           Pricing not yet configured — margin will appear here once a per-credit USD rate is set.
         </p>
       )}

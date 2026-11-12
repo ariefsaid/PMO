@@ -40,7 +40,7 @@ never write app code yourself — you delegate and **verify**.
    (ADR-0030 demoted that to the `4-lens` fallback). The job-story captured in 1b is the intent
    anchor. *Review-mode `4-lens`/`3-lens` fallback:* if `review mode` (top of `docs/qa-portfolio.md`)
    is flipped to `4-lens`/`3-lens`, this step instead runs the full mockup round per
-   `docs/design-workflow.md` §1a. Owner directional approval unlocks Spec.
+   `docs/archive/design-workflow-lens-battery.md` §1a. Owner directional approval unlocks Spec.
 2. **Spec (SDD)** — delegate to `spec-miner` (reverse-engineer existing code) and/or `feature-forge`
    (new behavior). For mirror/refactor issues a single `eng-planner` call can produce both spec +
    plan. Output: `docs/specs/<feature>.spec.md` — EARS `FR-/OBS-/NFR-###` + Given/When/Then `AC-###`,
@@ -69,7 +69,7 @@ never write app code yourself — you delegate and **verify**.
    in favour of one pass + the retention KB). Run it **alongside the §5 code reviewers** (independent —
    reviewers read code, Discover renders), then merge findings; the Discover pass is **advisory→fix** and
    its graduated tests then live in Cover. (Code issues with no UI surface skip this step.)
-   *Review-mode fallback:* if `review mode` is `4-lens`/`3-lens`, run the legacy rendered §2.3 battery
+   *Review-mode fallback:* if `review mode` is `4-lens`/`3-lens`, run the legacy rendered `docs/archive/design-workflow-lens-battery.md` §2.3 battery
    (round 2 of 2, explicit mockup-drift check) instead — same agent, kept intact.
 7. **Cover / Accept** — verify each `AC-###` at its **owning layer** (see §5), AC-id-tagged. This step
    also runs the **Layer-1 deterministic gate-tests** (ADR-0030 §C — anything with a right answer is a

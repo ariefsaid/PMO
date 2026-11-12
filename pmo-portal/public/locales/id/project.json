@@ -42,7 +42,7 @@
     "cascade": {
       "error": "Kontrak tidak dapat dimuat.",
       "title": "Kontrak",
-      "contract": "Kontrak",
+      "contract": "Nilai kontrak",
       "source": {
         "contract": "Sumber: baris kontrak berharga (kuantitas × tarif), tidak termasuk pajak.",
         "contractFallback": "Sumber: ringkasan penagihan proyek, tidak termasuk pajak.",
@@ -50,7 +50,7 @@
         "delivered": "Sumber: kuantitas yang diterima pada BAST terkonfirmasi × tarif kontrak.",
         "invoiced": "Sumber: jumlah faktur yang bukan draf atau dibatalkan.",
         "paid": "Sumber: jumlah faktur dikurangi saldo terutang menurut akuntansi.",
-        "canInvoice": "Kuantitas terkirim yang belum difakturkan, dihitung dengan tarif kontrak, ditambah sisa nilai pesanan tanpa rincian kuantitas.",
+        "canInvoice": "Kuantitas diterima yang belum diklaim, dihitung dengan tarif kontrak, ditambah sisa nilai pesanan tanpa rincian kuantitas.",
         "overdue": "Jumlah saldo terutang positif pada faktur yang telah melewati tanggal jatuh tempo.",
         "notOrderedValue": "Sumber: kuantitas kontrak yang belum dialokasikan dikalikan tarif kontraknya.",
         "downPayment": "Sumber: total uang muka proyek yang ditagihkan dan dipulihkan.",
@@ -72,8 +72,26 @@
       "delivered": "Terkirim",
       "invoiced": "Ditagih",
       "paid": "Dibayar",
-      "orderBillingError": "Nilai yang dapat ditagihkan belum tersedia saat data penagihan pesanan kerja dimuat.",
+      "orderBillingError": "Jumlah yang dapat ditagihkan tidak dapat dimuat.",
       "orderBillingLoading": "Nilai yang dapat ditagihkan sedang dimuat.",
+      "orderBillingIncomplete": "Nilai yang dapat ditagihkan belum tersedia sampai nilai pesanan lengkap.",
+      "openDraftOrder": "Buka pesanan draf",
+      "reasonDraftOrder": "Pesanan pelanggan masih berupa draf.",
+      "reasonNoAllocations": "Belum ada baris kontrak yang dialokasikan.",
+      "reasonNoAcceptance": "Belum ada kuantitas yang diterima.",
+      "reasonAlreadyClaimed": "Kuantitas yang diterima sudah diklaim.",
+      "reasonMoneyOrdersClaimed": "Nilai pesanan pelanggan sudah ditagihkan.",
+      "reasonComputedZero": "Total yang dapat ditagihkan bernilai nol dengan tarif kontrak saat ini.",
+      "stepOrder": "Pesanan",
+      "stepAllocation": "Baris",
+      "stepAcceptance": "Diterima",
+      "recordAcceptedQuantity": "Catat kuantitas diterima",
+      "stepUnclaimed": "Belum diklaim",
+      "beforeBill": "Penagihan",
+      "billingSteps": "Langkah penagihan",
+      "done": "Selesai",
+      "notNeeded": "Belum ada",
+      "needed": "Kurang",
       "canInvoice": "Dapat ditagihkan",
       "overdue": "Terlambat",
       "notOrdered": "Belum dipesan",
@@ -147,7 +165,7 @@
         },
         "rateSource": "Sumber: harga satuan pada baris kontrak.",
         "openLine": "Buka baris kontrak {{item}}",
-        "manage": "Edit baris kontrak",
+        "manage": "Edit baris",
         "toast": {
           "saved": "Baris bill of quantities disimpan",
           "deleted": "Baris bill of quantities dihapus"
@@ -333,7 +351,6 @@
         "claimError": "Tagihan gagal dimuat",
         "save": "Lampirkan",
         "none": "Tidak ada dokumen terbit atau disetujui yang memiliki berkas di proyek ini.",
-        "subtitle": "Pilih dokumen terbit atau disetujui dari register proyek ini, seperti laporan progres atau berita acara serah terima (BAST) klien.",
         "title": "Lampirkan bukti penagihan",
         "revision": "rev {{revision}}",
         "document": "Dokumen bukti"
@@ -373,6 +390,7 @@
       }
     },
     "activity": {
+      "notesTitle": "Catatan dan aktivitas",
       "title": "Aktivitas",
       "viewLabel": "Tampilan aktivitas",
       "all": "Semua",
@@ -445,6 +463,7 @@
       "contract": "Kontrak",
       "contractSourceBoq": "Jumlah kuantitas kontrak dikalikan harga satuan dari daftar kuantitas proyek.",
       "contractSourceRecord": "Nilai kontrak yang disetujui pada catatan proyek.",
+      "contractUnavailable": "Nilai kontrak belum tercatat.",
       "ordered": "Dipesan",
       "orderedSource": "Jumlah alokasi pesanan kerja yang diterbitkan dikalikan harga satuan daftar kuantitas.",
       "delivered": "Terkirim",
@@ -476,14 +495,20 @@
       "invoicedOut": "Nilai difakturkan tidak ditampilkan sampai setiap jumlah faktur diketahui.",
       "paidOut": "Nilai dibayar tidak ditampilkan sampai setiap saldo faktur diketahui.",
       "cashIncomplete": "Kas diterima tidak ditampilkan sampai setiap penerimaan dialokasikan ke faktur.",
-      "cashInvalid": "Kas diterima tidak ditampilkan karena data penerimaan tidak dapat diverifikasi."
+      "cashInvalid": "Kas diterima tidak ditampilkan karena data penerimaan tidak dapat diverifikasi.",
+      "hiddenFigures": "Tidak ditampilkan: {{figures}}.",
+      "cashLead": "Diterima {{amount}}",
+      "contractLocked": "hanya baca",
+      "cashIncompleteShort": "Kas diterima (kwitansi belum dialokasikan ke faktur)",
+      "cashInvalidShort": "Kas diterima (pembacaan kwitansi belum diverifikasi)",
+      "cashUnmatchedShort": "Kas diterima (belum ada penerimaan yang dicocokkan)"
     },
     "cost": {
       "estimateTitle": "Anggaran",
       "estimateTooltip": "Anggaran perkiraan dari catatan proyek; bukan versi anggaran aktif.",
       "noEstimate": "Belum ada anggaran perkiraan",
       "estimated": "Anggaran perkiraan {{amount}}",
-      "title": "Anggaran vs aktual",
+      "title": "Anggaran",
       "openBudgetArea": "Buka anggaran",
       "error": "Anggaran tidak dapat dimuat",
       "noBudget": "Belum ada anggaran aktif, jadi pengeluaran belum dapat dibandingkan.",
@@ -516,16 +541,22 @@
       "snapshotOver": "{{amount}} melebihi anggaran",
       "snapshotOverOnCommitments": "{{amount}} lebih begitu pesanan terikat masuk",
       "atRisk": "Berisiko",
-      "rowBudgetOnly": "{{budget}} dianggarkan"
+      "hiddenSpending": "pengeluaran belum terhubung",
+      "setUp": "Atur"
     },
     "milestones": {
       "currentPhaseLabel": "Fase saat ini",
       "taskCount": "{{done}} dari {{total}} tugas",
-      "noCurrentPhase": "Tidak ada fase aktif"
+      "noCurrentPhase": "Tidak ada fase aktif",
+      "deliveryStatusKey": {
+        "label": "Keterangan warna fase pelaksanaan",
+        "completed": "Selesai",
+        "overdue": "Terlambat",
+        "currentOrPlanned": "Saat ini / direncanakan"
+      }
     },
     "billingMilestones": {
       "title": "Milestone penagihan",
-      "subline": "Work order klien. Penagihan mengikuti tiap work order.",
       "error": "Gagal memuat milestone penagihan",
       "empty": "Belum ada work order.",
       "openContract": "Buka kontrak & penagihan",
@@ -565,7 +596,7 @@
       "noDates": "Tanggal belum diatur",
       "ariaLabel": "Informasi proyek",
       "projectManager": "Manajer proyek: {{name}}",
-      "progressTooltip": "Rata-rata tertimbang penyelesaian tahapan berdasarkan bobot tiap tahap; sumber: rencana tahapan proyek.",
+      "progressTooltip": "Rata-rata tertimbang penyelesaian tahapan berdasarkan bobot tiap tahap; sumber: rencana tahapan proyek. Progres fase bukan kuantitas yang dapat ditagihkan.",
       "progress": "Progres",
       "progressAria": "Progres proyek {{percent}}%",
       "progressLoading": "Progres sedang dimuat",
@@ -579,17 +610,28 @@
       },
       "more": "Tindakan lainnya",
       "projectDetails": "Detail proyek",
+      "pastEndDate": "Melewati tanggal akhir · {{count}} h",
       "contractValueReadOnly": "Nilai kontrak · hanya baca",
       "contractValueReadOnlyExplanation": "Nilai kontrak yang disetujui dikunci bagi manajer proyek setelah proyek dimenangkan. Eksekutif, Finance, atau administrator dapat memperbaruinya dan perubahan tersebut akan dicatat.",
       "changeDeliveryStatus": "Ubah status pelaksanaan",
       "copyLink": "Salin tautan",
-      "changeContractValue": "Ubah nilai kontrak"
+      "previewFileFor": "Pratinjau berkas untuk {{title}}",
+      "previewFile": "Pratinjau berkas",
+      "changeContractValue": "Ubah nilai kontrak",
+      "unsavedValue": {
+        "title": "Nilai kontrak belum disimpan",
+        "description": "Perubahan nilai kontrak dan dasar pajak akan hilang jika Anda meninggalkan halaman ini.",
+        "discard": "Buang perubahan",
+        "leave": "Tinggalkan",
+        "keepEditing": "Lanjut mengedit",
+        "stay": "Tetap di sini"
+      }
     },
     "rail": {
       "contractDate": "Tanggal kontrak"
     },
     "tabs": {
-      "contract": "Kontrak & penagihan",
+      "contract": "Kontrak",
       "activity": "Aktivitas",
       "materials": "Material"
     },
@@ -763,12 +805,12 @@
         "preview": "Pratinjau",
         "download": "Unduh",
         "copyLink": "Salin tautan",
-        "openSharePoint": "Buka di SharePoint",
-        "closePreview": "Tutup pratinjau"
+        "openSharePoint": "Buka di SharePoint"
       },
       "bulk": {
         "statusUpdated": "Status diperbarui untuk {{count}} dokumen",
         "statusFailed": "Beberapa dokumen tidak dapat diperbarui",
+        "partialSuccess": "{{count}} dokumen berhasil diperbarui. Dokumen yang gagal tetap dipilih agar dapat dicoba lagi.",
         "ariaLabel": "Tindakan untuk dokumen terpilih",
         "selected": "{{count}} dipilih",
         "download": "Unduh",
@@ -812,6 +854,10 @@
     },
     "tasks": {
       "selectTask": "Pilih tugas {{name}}",
+      "form": {
+        "noAssignees": "Belum ada orang yang dapat ditugaskan. Tambahkan atau aktifkan pengguna di Administrasi."
+      },
+      "addTask": "Tambah tugas",
       "bulk": {
         "toast": {
           "partial": "{{succeeded}} diperbarui; {{failed}} gagal. Tinjau tugas yang dipilih lalu coba lagi.",
@@ -846,6 +892,7 @@
         "progress": "Progres"
       },
       "noTaskProgress": "Progres tingkat tugas tidak disimpan. Progres tahap dihitung dari status tugas pada tahap tersebut atau nilai pengganti manualnya.",
+      "moveTo": "Pindah ke {{status}}",
       "moreOptions": "Opsi tugas lainnya",
       "clickUpSettings": "Daftar ClickUp dan sinkronisasi",
       "scope": {
@@ -870,6 +917,7 @@
         "countHelp": "Jelaskan jumlah menurut status"
       },
       "openTask": "Buka tugas {{name}}",
+      "daysOverdueCount": "Terlambat {{count}} hari",
       "daysLateCount": "Terlambat {{count}} hari",
       "listAriaLabel": "Tugas proyek",
       "phaseDatesTooltip": "Rentang dari tanggal mulai tugas paling awal hingga tenggat tugas paling akhir dalam cakupan tugas saat ini. Sumber: catatan tugas pada tahap.",
@@ -892,7 +940,9 @@
         "history": "Riwayat"
       },
       "noMilestone": "Tanpa fase",
-      "drawerMoreActions": "Tindakan tugas lainnya"
+      "drawerMoreActions": "Tindakan tugas lainnya",
+      "statusMix": "Tugas menurut status",
+      "statusMixOther": "Lainnya"
     },
     "workOrders": {
       "acceptanceAge": "Hari sejak BAST, belum ditagih: {{days}}",

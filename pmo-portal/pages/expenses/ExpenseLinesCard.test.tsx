@@ -52,6 +52,11 @@ describe('ExpenseLinesCard', () => {
     expect(within(table).getAllByText(formatCurrency(150000, 'IDR').replace(/\u00a0/g, ' '))).toHaveLength(2);
     expect(within(table).getByText('Taxi')).toBeInTheDocument();
   });
+  it('D4: renders USD cents on both an expense line and its transaction total', () => {
+    render(<ToastProvider><ExpenseLinesCard claimId="c1" lines={[{ ...LINE, amount: 12.5 }] as never} isPending={false} isError={false} currency="USD" editable={false} /></ToastProvider>);
+    expect(screen.getByTestId('lines-total')).toHaveTextContent('$12.50');
+    expect(within(screen.getByRole('table')).getAllByText('$12.50')).toHaveLength(2);
+  });
   it('AC-EXP-062 keeps the expense line card layout on phones', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     renderCard(false, [LINE]);

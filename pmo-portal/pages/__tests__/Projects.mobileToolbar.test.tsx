@@ -124,6 +124,32 @@ function mockMobileViewport() {
   );
 }
 
+function mockTabletViewport() {
+  const width = 768;
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => {
+      const minWidth = query.match(/min-width:\s*(\d+)px/);
+      const maxWidth = query.match(/max-width:\s*(\d+)px/);
+      const matches = minWidth
+        ? width >= Number(minWidth[1])
+        : maxWidth
+          ? width <= Number(maxWidth[1])
+          : false;
+      return {
+        matches,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      };
+    }),
+  );
+}
+
 const resets = {
   data: seed,
   isPending: false,
@@ -185,6 +211,44 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
 
     // header primary action preserved
     expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument();
+  });
+
+  it('keeps the project toolbar controls reachable and usable at 768px', async () => {
+    mockTabletViewport();
+    const user = userEvent.setup();
+    renderPage('Admin');
+
+    expect(screen.getByTestId('projects-mobile-toolbar')).toBeInTheDocument();
+    expect(screen.getByTestId('projects-mobile-count')).toHaveTextContent('Showing 1 of 1');
+    expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument();
+
+    const statusTabs = screen.getByRole('tablist', { name: /status filter/i });
+    const completed = within(statusTabs).getByRole('tab', { name: /^Completed$/i });
+    await user.click(completed);
+    expect(completed).toHaveAttribute('aria-selected', 'true');
+    await user.click(within(statusTabs).getByRole('tab', { name: /^All$/i }));
+
+    const addFilter = screen.getByRole('button', { name: /^Add filter$/i });
+    await user.click(addFilter);
+    expect(screen.getByPlaceholderText(/search filters/i)).toBeVisible();
+    await user.keyboard('{Escape}');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(addFilter).toHaveFocus());
+
+    const search = screen.getByRole('searchbox', { name: /search projects/i });
+    await user.type(search, 'Innovate');
+    expect(search).toHaveValue('Innovate');
+    await user.clear(search);
+
+    const viewTabs = screen.getByRole('tablist', { name: /projects view/i });
+    const board = within(viewTabs).getByRole('tab', { name: /^Board$/i });
+    await user.click(board);
+    expect(board).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^More actions$/i }));
+    expect(screen.getByRole('button', { name: /^Export$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Import$/i })).toBeInTheDocument();
   });
 
   it('AC-1242: selects the trailing At risk filter and Board view from the phone toolbar', async () => {

@@ -292,6 +292,7 @@ test('AC-732 whole-project Draft authoring: distribution saves, goes stale on a 
 
   // Close/reopen to reload only persisted by-days inputs before the stale and error scenarios.
   await draftEditor.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('alertdialog', { name: 'Discard your changes?' }).getByRole('button', { name: 'Discard', exact: true }).click();
   await draftBanner.getByRole('button', { name: 'Edit draft', exact: true }).click();
   const refreshedEditor = page.getByRole('region', { name: 'Draft budget editor' });
   const refreshedDistribution = refreshedEditor.getByTestId('budget-distribution-grid');
@@ -345,11 +346,12 @@ test('AC-1413 an approver returns a waiting Draft with a reason; the PM resubmit
   await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 10_000 });
   const waiting = page.getByRole('region', { name: 'Draft waiting for approval' });
   await expect(waiting).toContainText('E2E Return Budget');
-  await waiting.getByRole('button', { name: 'Return to drafter', exact: true }).click();
+  // ux/1110 labels the approver's action "Return" on the draft banner.
+  await waiting.getByRole('button', { name: 'Return', exact: true }).click();
   const returnDialog = page.getByRole('dialog');
-  await expect(returnDialog.getByRole('button', { name: 'Return draft', exact: true })).toBeDisabled();
+  await expect(returnDialog.getByRole('button', { name: 'Return', exact: true })).toBeDisabled();
   await returnDialog.getByRole('textbox', { name: /Reason for returning/ }).fill('Split labour by quarter');
-  await returnDialog.getByRole('button', { name: 'Return draft', exact: true }).click();
+  await returnDialog.getByRole('button', { name: 'Return', exact: true }).click();
   await expect(returnDialog).not.toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole('region', { name: 'Draft waiting for approval' })).toHaveCount(0);
   await expect(page.getByTestId('budget-returned-banner')).toContainText('Split labour by quarter');
@@ -366,7 +368,7 @@ test('AC-1413 an approver returns a waiting Draft with a reason; the PM resubmit
   await login(page, 'finance@acme.test');
   await page.goto(project);
   await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 10_000 });
-  await expect(page.getByRole('region', { name: 'Draft waiting for approval' }).getByRole('button', { name: 'Return to drafter', exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('region', { name: 'Draft waiting for approval' }).getByRole('button', { name: 'Return', exact: true })).toBeVisible({ timeout: 10_000 });
 });
 
 test('AC-732 an Engineer\'s budget deep link falls back to the Project Overview', async ({ page }) => {

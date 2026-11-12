@@ -40,7 +40,7 @@ export const ProcurementGroupedView: React.FC<ProcurementGroupedViewProps> = ({ 
             <header className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-3 md:px-4">
               <div className="flex min-w-0 items-baseline gap-2.5">
                 <h2 id={`group-title-${group.key}`} className="text-[14px] font-semibold">{label}</h2>
-                <span data-testid={`group-count-${group.key}`} className="tabular text-[13px] text-muted-foreground">{group.rows.length}</span>
+                <span data-testid={`group-count-${group.key}`} className="tabular text-sm text-muted-foreground">{group.rows.length}</span>
               </div>
               <MoneyTotalLines totals={totals} tooltip={tooltip} testId={`group-total-${group.key}`} className="items-end" />
             </header>
@@ -55,7 +55,7 @@ export const ProcurementGroupedView: React.FC<ProcurementGroupedViewProps> = ({ 
                 ))}
               </div>
             ) : (
-              <p className="px-3.5 pb-3 text-[13px] text-muted-foreground">{t('group.empty', 'No procurements in this group.')}</p>
+              <p className="px-3.5 pb-3 text-sm text-muted-foreground">{t('group.empty', 'No procurements in this group.')}</p>
             )}
           </section>
         );

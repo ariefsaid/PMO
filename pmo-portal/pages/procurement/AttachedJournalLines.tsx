@@ -2,7 +2,7 @@ import React, { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, DataTable, ListState, StatusPill, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency, formatDate } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useDetachJournalLine, usePurchaseJournalLines } from '@/src/hooks/useErpJournalLines';
 import type { ErpJournalLine } from '@/src/lib/repositories/erpJournalLines';
@@ -46,7 +46,7 @@ export const AttachedJournalLines: React.FC<{ procurementId: string; projectId: 
         : <span className="font-mono">{l.voucherNo}</span>),
       secondaryCell: (l) => l.remarks ?? null,
     },
-    { key: 'date', header: t('erpJournal.column.date', 'Date'), kind: 'date', cell: (l) => formatDate(l.postingDate) },
+    { key: 'date', header: t('erpJournal.column.date', 'Date'), kind: 'date', cell: (l) => formatDay(l.postingDate) },
     { key: 'account', header: t('erpJournal.column.account', 'Account'), cell: (l) => l.account },
     {
       key: 'amount', header: t('erpJournal.column.amount', 'Amount'), kind: 'money', align: 'num',

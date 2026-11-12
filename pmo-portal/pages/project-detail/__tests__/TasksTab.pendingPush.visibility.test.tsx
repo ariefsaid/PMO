@@ -119,8 +119,8 @@ describe('TasksTab — PMO-owned surfaces stay badge-free (AC-CUA-061)', () => {
     renderTab();
     await screen.findByText('Survey the site');
     await userEvent.click(await screen.findByRole('tab', { name: /^board$/i }));
-    const statusCtl = screen.getByLabelText(/status for survey the site/i) as HTMLSelectElement;
-    await userEvent.selectOptions(statusCtl, 'Done');
+    await userEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Move to Done' }));
     await waitFor(() => expect(taskRepo.updateStatus).toHaveBeenCalledWith('t1', 'Done', 'p1'));
     expectNoPushBadge();
   });
@@ -130,7 +130,7 @@ describe('TasksTab — PMO-owned surfaces stay badge-free (AC-CUA-061)', () => {
     await screen.findByText('Survey the site');
     const row = screen.getByText('Survey the site').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: /edit/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /edit/i }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.clear(within(dialog).getByLabelText(/task name/i));
     await userEvent.type(within(dialog).getByLabelText(/task name/i), 'Survey the perimeter');

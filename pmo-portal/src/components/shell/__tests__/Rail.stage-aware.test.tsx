@@ -57,12 +57,13 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
 // (plain role) unless a specific test overrides it. Avoids a QueryClient in the harness.
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 import { Rail } from '../Rail';
+import { RailDrawerContext } from '../railDrawerContext';
 
 /** Render Rail at a /projects/:id URL so NavLink URL-based logic would otherwise pick Projects. */
 const renderRail = (override: 'salesPipeline' | 'projects' | null) =>
   render(
     <MemoryRouter initialEntries={['/projects/some-uuid']}>
-      <Rail railActiveOverride={override} />
+      <RailDrawerContext.Provider value><Rail railActiveOverride={override} /></RailDrawerContext.Provider>
     </MemoryRouter>,
   );
 

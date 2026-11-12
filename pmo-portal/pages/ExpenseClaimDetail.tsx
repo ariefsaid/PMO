@@ -1,8 +1,9 @@
+import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ListState, RecordHeader, StatusPill } from '@/src/components/ui';
+import { Card, CardHead, CardPad, ListState, RecordHeader, StatusPill, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -16,14 +17,15 @@ import { availableExpenseActions, settlementPreview } from '@/src/lib/expenses/e
 import { approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency } from '@/src/lib/format';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { ExpenseDecisionBar } from './expenses/ExpenseDecisionBar';
 import { ExpenseLinesCard } from './expenses/ExpenseLinesCard';
 import { ExpenseReceiptsCard } from './expenses/ExpenseReceiptsCard';
 import { ExpensePostingsCard } from './expenses/ExpensePostingsCard';
 import { ExpenseClaimFormModal } from './expenses/ExpenseClaimFormModal';
 import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
-import { expenseKindLabel, expenseStatusLabel } from './expenses/expenseLabels';
+import { expenseKindLabel } from './expenses/expenseLabels';
 
 /** `/expenses/:claimId` (FR-EXP-063..065). Shows only the actions the server would allow; the RPCs decide. */
 const ExpenseClaimDetail: React.FC = () => {
@@ -38,7 +40,8 @@ const ExpenseClaimDetail: React.FC = () => {
   const linesQuery = useExpenseClaimLines(claimId);
   const routeQuery = useExpenseClaimRoute(claimId, claim?.status);
   const outstandingQuery = useExpenseAdvanceOutstanding(claim?.kind === 'advance' ? claim.id : claim?.advance_id ?? null);
-  const { update } = useExpenseClaimMutations();
+  const { update, transition } = useExpenseClaimMutations();
+  const { toast } = useToast();
   const float = useImprestFloat(claim?.imprest_float_id);
   const projectChoices = useProjectChoices();
   const ownAdvances = useOwnAdvanceOptions(claim?.advance_id ?? null);
@@ -83,6 +86,18 @@ const ExpenseClaimDetail: React.FC = () => {
     && claim.claimant_id !== userId && !actions.includes('approve');
   const amount = Number(claim.amount);
   const paidSplit = settlementPreview(amount, Number(claim.advance_applied));
+  const hasReturnDetails = claim.status === 'Rejected' || (claim.status === 'Draft' && !!(claim.rejected_at || claim.rejection_notes || claim.rejected_by));
+  const canReopenFromBanner = claim.status === 'Rejected' && actions.includes('reopen');
+  const reopenForEditing = async () => {
+    try {
+      await transition.mutateAsync({ id: claim.id, to: 'Draft' });
+      toast(t('expenses.toast.reopened', 'Back to Draft'), claim.title, 'success');
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
+  const returnedToastLabel = statusLabel('expense', 'Rejected', t);
 
   return (
     <div>
@@ -92,12 +107,12 @@ const ExpenseClaimDetail: React.FC = () => {
         icon={claim.kind === 'advance' ? 'A' : 'E'}
         status={
           <span data-testid="expense-status" data-status={claim.status}>
-            <StatusPill variant={workflowVariant(claim.status)}>{expenseStatusLabel(claim.status, t)}</StatusPill>
+            <StatusPill record="expense" state={claim.status} />
           </span>
         }
         meta={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>{claim.claim_number ?? t('expenses.draftNumber', 'Draft')}</span>
+            {claim.claim_number && <span>{claim.claim_number}</span>}
             <span>{expenseKindLabel(claim.kind, t)}</span>
             <span>{claim.claimant?.full_name ?? '—'}</span>
             {claim.project_id ? (
@@ -108,38 +123,52 @@ const ExpenseClaimDetail: React.FC = () => {
             {claim.budget_category && <span>{budgetCategoryLabel(claim.budget_category, t)}</span>}
           </span>
         }
-        actions={canEdit ? <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>{t('expenses.detail.editDetails', 'Edit details')}</Button> : undefined}
+        menuItems={canEdit ? [{ key: 'edit', label: t('expenses.detail.editDetails', 'Edit details'), onSelect: () => setEditOpen(true) }] : undefined}
       />
+
+      {hasReturnDetails && (
+        <ReturnedBanner
+          record="expense"
+          reason={claim.rejection_notes}
+          person={claim.rejecter?.full_name}
+          at={claim.rejected_at}
+          action={canReopenFromBanner ? {
+            label: t('expenses.actions.reopen', 'Edit and resubmit'),
+            onClick: reopenForEditing,
+            disabled: transition.isPending,
+          } : undefined}
+        />
+      )}
 
       <Card variant="bare" className="mb-4">
         <CardHead>{t('expenses.detail.summary', 'Summary')}</CardHead>
         <CardPad>
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
-              <dt className="text-xs text-muted-foreground">{t('expenses.detail.amount', 'Amount')}</dt>
-              <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrency(amount, claim.currency)}</dd>
+              <dt className="text-control text-muted-foreground">{t('expenses.detail.amount', 'Amount')}</dt>
+              <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrency(amount, claim.currency, { precision: 'minor' })}</dd>
             </div>
             {claim.kind === 'claim' && claim.status === 'Paid' && (
               <>
                 <div>
-                  <dt className="text-xs text-muted-foreground">{t('expenses.detail.advanceApplied', 'Advance applied')}</dt>
-                  <dd className="tabular-nums">{formatCurrency(paidSplit.applied, claim.currency)}</dd>
+                  <dt className="text-control text-muted-foreground">{t('expenses.detail.advanceApplied', 'Advance applied')}</dt>
+                  <dd className="tabular-nums">{formatCurrency(paidSplit.applied, claim.currency, { precision: 'minor' })}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">{t('expenses.detail.cashPaid', 'Cash paid')}</dt>
-                  <dd className="tabular-nums">{formatCurrency(paidSplit.cash, claim.currency)}</dd>
+                  <dt className="text-control text-muted-foreground">{t('expenses.detail.cashPaid', 'Cash paid')}</dt>
+                  <dd className="tabular-nums">{formatCurrency(paidSplit.cash, claim.currency, { precision: 'minor' })}</dd>
                 </div>
               </>
             )}
             {claim.kind === 'advance' && claim.status === 'Paid' && (
               <div>
-                <dt className="text-xs text-muted-foreground">{t('expenses.detail.outstanding', 'Outstanding')}</dt>
-                <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrency(outstanding, claim.currency)}</dd>
+                <dt className="text-control text-muted-foreground">{t('expenses.detail.outstanding', 'Outstanding')}</dt>
+                <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrency(outstanding, claim.currency, { precision: 'minor' })}</dd>
               </div>
             )}
             {claim.payment_reference && (
               <div>
-                <dt className="text-xs text-muted-foreground">{t('expenses.detail.reference', 'Payment reference')}</dt>
+                <dt className="text-control text-muted-foreground">{t('expenses.detail.reference', 'Payment reference')}</dt>
                 <dd>{claim.payment_reference}</dd>
               </div>
             )}
@@ -152,11 +181,6 @@ const ExpenseClaimDetail: React.FC = () => {
             </p>
           )}
           {claim.purpose && <p className="mt-3 text-sm">{claim.purpose}</p>}
-          {claim.rejection_notes && (claim.status === 'Rejected' || claim.status === 'Draft') && (
-            <p role="note" className="mt-3 text-sm">
-              {t('expenses.detail.rejectionNote', 'Rejected: {{note}}', { note: claim.rejection_notes })}
-            </p>
-          )}
         </CardPad>
       </Card>
 
@@ -173,7 +197,7 @@ const ExpenseClaimDetail: React.FC = () => {
         </p>
       )}
 
-      <ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding} />
+      <ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding} hideReopen={canReopenFromBanner} returnedToastLabel={returnedToastLabel} />
 
       {claim.kind === 'claim' && (
         <ExpenseLinesCard claimId={claim.id} lines={linesQuery.data ?? []} isPending={linesQuery.isPending}

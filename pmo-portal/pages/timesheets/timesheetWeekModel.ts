@@ -1,4 +1,3 @@
-import { format } from 'date-fns/format';
 import { startOfWeek } from 'date-fns/startOfWeek';
 import type { TimesheetDay, TimesheetGridRow } from '@/src/components/ui';
 import type { TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
@@ -6,9 +5,13 @@ import type { EditRow } from '@/src/lib/timesheet-edit';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { formatWeekday } from '@/src/lib/format';
 
+/** The local calendar day as `YYYY-MM-DD` (a storage key, never shown to a person). */
+export const dayKey = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 export function weekStart(date: Date) {
   const start = startOfWeek(date, { weekStartsOn: 1 });
-  return { date: start, key: format(start, 'yyyy-MM-dd') };
+  return { date: start, key: dayKey(start) };
 }
 
 export function datesInWeek(start: Date): Date[] {
@@ -21,7 +24,7 @@ export function datesInWeek(start: Date): Date[] {
 
 export function entriesToGridRows(entries: TimesheetEntryWithProject[], weekDates: Date[], unknownProject: string): TimesheetGridRow[] {
   const map = new Map<string, TimesheetGridRow>();
-  const dateStrings = weekDates.map((date) => format(date, 'yyyy-MM-dd'));
+  const dateStrings = weekDates.map((date) => dayKey(date));
   for (const e of entries) {
     const key = `${e.project_id}`;
     let row = map.get(key);

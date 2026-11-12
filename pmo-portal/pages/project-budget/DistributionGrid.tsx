@@ -296,7 +296,7 @@ const DistributionGrid: React.FC<DistributionGridProps> = ({
           <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.distributionIntro', 'Review how each category total is allocated across the project fiscal years. Saving changes only this Draft distribution.')}</p>
         </div>
         {savedPlan && (
-          <span role="status" className={savedPlanIsCurrent ? 'text-xs text-muted-foreground' : 'text-xs font-medium text-warning-foreground'}>
+          <span role="status" className={savedPlanIsCurrent ? 'text-sm text-muted-foreground' : 'text-sm font-medium text-warning-foreground'}>
             {savedPlanIsCurrent
               ? t('projectDetail.budget.distributionSaved', 'Saved distribution')
               : t('projectDetail.budget.distributionStale', 'Saved distribution needs review')}
@@ -393,14 +393,14 @@ const DistributionGrid: React.FC<DistributionGridProps> = ({
             </p>
           )}
 
-          <div className="max-w-full overflow-x-auto rounded-md border border-border">
+          <div className="hidden max-w-full overflow-x-auto rounded-md border border-border sm:block">
             <table className="min-w-[42rem] w-full border-collapse text-sm" aria-label={t('projectDetail.budget.distributionGridLabel', 'Category fiscal-year distribution')}>
-              <thead className="bg-muted text-xs text-muted-foreground">
+              <thead className="bg-muted text-sm text-muted-foreground">
                 <tr>
                   <th scope="col" className="sticky left-0 z-[1] bg-muted px-3 py-2 text-left">{t('financeCopy.category', 'Category')}</th>
-                  <th scope="col" className="px-3 py-2 text-right">{t('financeCopy.total', 'Total')}</th>
+                  <th scope="col" className="px-3 py-2 text-right tabular tabular-nums">{t('financeCopy.total', 'Total')}</th>
                   <th scope="col" className="min-w-48 px-3 py-2 text-left">{t('projectDetail.budget.customDistribution', 'Custom distribution')}</th>
-                  {resolved.years.map((year) => <th key={year.name} scope="col" className="min-w-32 px-3 py-2 text-right">{year.name}</th>)}
+                  {resolved.years.map((year) => <th key={year.name} scope="col" className="min-w-32 px-3 py-2 text-right tabular tabular-nums">{year.name}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -488,6 +488,102 @@ const DistributionGrid: React.FC<DistributionGridProps> = ({
               )}
             </table>
           </div>
+          <ul className="divide-y divide-border rounded-md border border-border bg-card sm:hidden" data-testid="budget-distribution-phone-rows">
+            {resolved.categories.map((category) => {
+              const override = overrideValues[category.category];
+              const rowMethod = override?.method ?? method;
+              const categoryName = budgetCategoryLabel(category.category, t);
+              const categoryGroupIssue = visibleGroupIssues.find((issue) => issue.scope === 'category' && issue.category === category.category);
+              const phoneCategoryGroupErrorId = `distribution-category-group-error-${versionId}-${category.category}-phone`;
+              return (
+                <li key={category.category} className="min-w-0 space-y-2 p-3">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <h5 className="min-w-0 break-words text-control font-semibold text-foreground">{categoryName}</h5>
+                    <div className="shrink-0 text-right">
+                      <span className="text-control text-muted-foreground">{t('financeCopy.total', 'Total')}</span>
+                      <p className="tabular-nums text-control font-semibold">{formatMoney(formatExactCents(category.cents))}</p>
+                    </div>
+                  </div>
+
+                  <label className="touch-target flex min-h-11 items-center gap-2.5 text-control">
+                    <input
+                      type="checkbox"
+                      aria-label={t('projectDetail.budget.customForCategory', 'Use custom distribution for {{category}}', { category: categoryName })}
+                      aria-describedby={categoryGroupIssue ? phoneCategoryGroupErrorId : undefined}
+                      checked={Boolean(override)}
+                      disabled={controlsDisabled}
+                      onChange={(event) => setOverride(category.category, event.target.checked ? { method, inputs: {} } : null)}
+                      className="size-4 accent-[hsl(var(--primary))]"
+                    />
+                    <span>{t('projectDetail.budget.customForCategoryLabel', 'Custom')}</span>
+                  </label>
+                  {override && (
+                    <select
+                      aria-label={t('projectDetail.budget.customMethodForCategory', 'Custom method for {{category}}', { category: categoryName })}
+                      value={rowMethod}
+                      disabled={controlsDisabled}
+                      onChange={(event) => setOverride(category.category, { method: event.target.value as BudgetDistributionMethod, inputs: override.inputs })}
+                      className="touch-target h-11 w-full rounded-md border border-input bg-background px-3 text-control text-foreground"
+                    >
+                      {METHODS.map((value) => <option key={value} value={value}>{t(`projectDetail.budget.distributionMethod_${value}`, value.replaceAll('_', ' '))}</option>)}
+                    </select>
+                  )}
+                  {categoryGroupIssue && <p id={phoneCategoryGroupErrorId} className="text-sm text-destructive-text">{validationMessage(categoryGroupIssue)}</p>}
+
+                  <details className="min-w-0 border-t border-border pt-1">
+                    <summary className="touch-target inline-flex min-h-11 cursor-pointer items-center rounded-sm text-control font-medium text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                      {t('projectDetail.budget.distributionTitle', 'Fiscal-year distribution')}
+                    </summary>
+                    <div className="grid min-w-0 gap-2 pt-2">
+                      {resolved.years.map((year) => {
+                        const amount = previewAmounts.get(`${category.category}\u0000${year.name}`);
+                        if (review) {
+                          return (
+                            <div key={year.name} className="flex min-w-0 items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-control">
+                              <span className="shrink-0 font-medium">{year.name}</span>
+                              <span className="min-w-0 break-words text-right tabular-nums">{amount ? formatMoney(amount) : '—'}</span>
+                            </div>
+                          );
+                        }
+                        if (override && rowMethod !== 'by_days') {
+                          const issue = fieldIssue('category', year.name, category.category);
+                          const errorId = `distribution-override-error-${versionId}-${category.category}-${year.name}-phone`;
+                          return (
+                            <div key={year.name} className="min-w-0 space-y-1">
+                              <label className="text-control font-medium" htmlFor={`distribution-override-${versionId}-${category.category}-${year.name}-phone`}>
+                                {year.name}
+                              </label>
+                              <input
+                                id={`distribution-override-${versionId}-${category.category}-${year.name}-phone`}
+                                aria-label={t('projectDetail.budget.customInputForYear', '{{category}} input for {{year}}', { category: categoryName, year: year.name })}
+                                aria-invalid={issue || categoryGroupIssue ? true : undefined}
+                                aria-describedby={[issue ? errorId : null, categoryGroupIssue ? phoneCategoryGroupErrorId : null].filter(Boolean).join(' ') || undefined}
+                                type="text"
+                                inputMode="decimal"
+                                value={override.inputs[year.name] ?? ''}
+                                disabled={controlsDisabled}
+                                onChange={(event) => setOverride(category.category, { ...override, inputs: { ...override.inputs, [year.name]: event.target.value } })}
+                                className="touch-target h-11 w-full rounded-md border border-input bg-background px-3 text-right text-control tabular-nums text-foreground"
+                              />
+                              {issue && <p id={errorId} className="text-sm text-destructive-text">{validationMessage(issue)}</p>}
+                            </div>
+                          );
+                        }
+                        return (
+                          <div key={year.name} className="flex min-w-0 items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-control">
+                            <span className="shrink-0 font-medium">{year.name}</span>
+                            <span className="min-w-0 break-words text-right text-muted-foreground">
+                              {override ? t('projectDetail.budget.usesDays', 'By days') : t('projectDetail.budget.sharedMethod', 'Shared method')}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
 
           {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/[0.06] px-3 py-2 text-sm text-destructive-text">{error}</p>}
           {review && (

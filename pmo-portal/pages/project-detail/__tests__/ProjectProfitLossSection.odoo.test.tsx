@@ -4,19 +4,19 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
-const h = vi.hoisted(() => ({ odoo: false, error: false, retry: vi.fn() }));
+const h = vi.hoisted(() => ({ odoo: false, error: false, catalogueError: false, retry: vi.fn() }));
 vi.mock('@/src/hooks/useOdooLedger', () => ({ useOdooLedgerMode: () => ({ odoo: h.odoo, onLedger: h.odoo, pending: false, error: h.error, retry: h.retry }) }));
 vi.mock('@/src/components/financial-statements/OdooStatementsSection', () => ({
   OdooStatementsSection: ({ projectId }: { projectId?: string }) => <div data-testid="odoo-statements-stub" data-project={projectId} />,
 }));
 vi.mock('@/src/hooks/useFinancialStatements', () => ({
-  useFinancialStatementCatalogue: () => ({ eligible: true, isPending: true, isError: false, data: undefined, refetch: vi.fn() }),
+  useFinancialStatementCatalogue: () => ({ eligible: true, isPending: !h.catalogueError, isError: h.catalogueError, data: undefined, refetch: vi.fn() }),
   useFinancialStatement: () => ({ eligible: true, isPending: false, isFetching: false, isError: false, data: undefined, refetch: vi.fn() }),
 }));
 
 import ProjectProfitLossSection from '../ProjectProfitLossSection';
 
-afterEach(() => { cleanup(); h.error = false; h.retry.mockReset(); });
+afterEach(() => { cleanup(); h.error = false; h.catalogueError = false; h.retry.mockReset(); });
 describe('ProjectProfitLossSection by tier', () => {
   it('Odoo: the Odoo section for this project', () => {
     h.odoo = true;
@@ -26,9 +26,13 @@ describe('ProjectProfitLossSection by tier', () => {
   it('#2065 a failed mode read shows a plain notice with Retry above the saved-report section', async () => {
     h.odoo = false;
     h.error = true;
+    h.catalogueError = true;
     render(<FinanceI18nTestProvider><ProjectProfitLossSection projectId="p1" /></FinanceI18nTestProvider>);
     expect(screen.getByText('We could not check where these figures come from')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    const notice = screen.getByText('We could not check where these figures come from');
+    const savedReport = screen.getByText("Couldn't load financial statements");
+    expect(notice.compareDocumentPosition(savedReport) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry ledger mode' }));
     expect(h.retry).toHaveBeenCalledTimes(1);
   });
   it('anything else: the saved-report section (which stays quiet while it loads)', () => {

@@ -33,7 +33,6 @@ let financeId = '';
 let weekStart = '';
 let today = '';
 let workdayLabel = '';
-let fixedNow = new Date();
 let timesheetSlotReserved = false;
 let itemCode = '';
 
@@ -122,15 +121,14 @@ test.beforeEach(async () => {
     const candidateWeek = candidate.toISOString().slice(0, 10);
     if (occupiedWeeks.has(candidateWeek)) continue;
     weekStart = candidateWeek;
-    fixedNow = new Date(Date.UTC(
-      candidate.getUTCFullYear(), candidate.getUTCMonth(), candidate.getUTCDate(),
-      now.getUTCHours(), now.getUTCMinutes(),
-    ));
     break;
   }
   if (!weekStart) throw new Error('AC-TM-018 could not find an empty engineer week within the next year.');
-  today = fixedNow.toISOString().slice(0, 10);
-  workdayLabel = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][fixedNow.getUTCDay()] ?? 'Mon';
+  // The journey is driven to the fixture week through the app's own week deep link
+  // (pages/Timesheets.tsx owns the selected week in `?week=YYYY-MM-DD`), so the test never fakes the
+  // browser clock: hours go into the week's Monday cell and the claim period is that same Monday.
+  today = weekStart;
+  workdayLabel = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(`${weekStart}T00:00:00.000Z`).getUTCDay()] ?? 'Mon';
   timesheetSlotReserved = true;
 
   const company = await admin
@@ -287,7 +285,6 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
 
   const billingUrl = `/projects/${projectId}/billing`;
   await login(page, FINANCE_EMAIL);
-  await page.clock.setFixedTime(fixedNow);
   await page.goto(billingUrl);
   await expect(page.getByRole('heading', { name: 'Time and materials' })).toBeVisible({ timeout: 20_000 });
 
@@ -317,11 +314,8 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await expect(assignmentDialog).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(ENGINEER_NAME, { exact: true })).toBeVisible();
 
-  // Restore wall-clock time while replaying the captured auth fixture, then pin the business date again.
-  await page.clock.setFixedTime(new Date());
   await login(page, ENGINEER_EMAIL);
-  await page.clock.setFixedTime(fixedNow);
-  await page.goto('/timesheets');
+  await page.goto(`/timesheets?week=${weekStart}`);
   await expect(page.getByTestId('timesheets-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByLabel('Add a project')).toBeVisible({ timeout: 10_000 });
   await page.getByLabel('Add a project').selectOption(projectId);
@@ -347,9 +341,7 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   if (submitted.error) throw new Error(`AC-TM-018 submitted week: ${submitted.error.message}`);
   expect(submitted.data.status).toBe('Submitted');
 
-  await page.clock.setFixedTime(new Date());
   await login(page, MANAGER_EMAIL);
-  await page.clock.setFixedTime(fixedNow);
   await page.goto('/approvals?scope=timesheets');
   await expect(page.getByTestId('approvals-loading')).not.toBeVisible({ timeout: 15_000 });
   const approvalQueue = page.getByRole('region', { name: 'Approvals queue' });
@@ -396,8 +388,10 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await expect(pmClaimLine).toContainText(/400[,\s]000/);
   const sourceEntries = claimDrawer.getByRole('region', { name: 'Approved source entries' });
   const engineerSources = sourceEntries.getByRole('listitem').filter({ hasText: ENGINEER_NAME });
-  const sourceDate = new Intl.DateTimeFormat('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+  // ux/1110 prints a day day-first ("9 Nov", year only when it is not the current one) —
+  // src/lib/format.ts formatDay — so the source entry reads "Field engineer · 9 Nov · 8 hours".
+  const sourceDate = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'short', timeZone: 'UTC',
   }).format(new Date(`${today}T00:00:00.000Z`));
   await expect(engineerSources).toContainText(new RegExp(`${LINE_LABEL}.*${sourceDate}.*${HOURS} hours?`, 'i'));
   await claimDrawer.getByRole('button', { name: 'Prepare sign-off' }).click();
@@ -411,7 +405,24 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   // below that band, never on top of it. Asserted on desktop and again on a phone width
   // (a wrapped header is taller; placement re-measures on resize).
   const expectToastClearOfDrawerHeader = async () => {
-    const toastBox = await visibleToast(page, /client sign-off prepared/i).boundingBox();
+    // The library slides the toast in (transform transition); measure after it settles so the
+    // box is the resting placement, not a mid-flight frame above its final offset.
+    const toast = visibleToast(page, /client sign-off prepared/i);
+    await expect(toast).toBeVisible({ timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('[data-sonner-toast]');
+        if (!el) return false;
+        const w = window as unknown as { __toastY?: number };
+        const now = el.getBoundingClientRect().y;
+        const settled = w.__toastY !== undefined && Math.abs(w.__toastY - now) < 0.5;
+        w.__toastY = now;
+        return settled;
+      },
+      undefined,
+      { timeout: 5_000 },
+    ).catch(() => { /* fall through to the single measurement below */ });
+    const toastBox = await toast.boundingBox();
     const headerBox = await claimDrawer.locator('[data-drawer-header]').boundingBox();
     expect(toastBox, 'the success toast rendered').toBeTruthy();
     expect(headerBox, 'the claim drawer header rendered').toBeTruthy();
@@ -430,9 +441,7 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await expect(claimDrawer.getByText('A different user must confirm this sign-off.')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Confirm sign-off' })).toHaveCount(0);
 
-  await page.clock.setFixedTime(new Date());
   await login(page, FINANCE_EMAIL);
-  await page.clock.setFixedTime(fixedNow);
   await page.goto(billingUrl);
   const financeClaims = page.locator('section[aria-labelledby="tm-claims-heading"]');
   await expect(financeClaims.getByText('Awaiting confirmation', { exact: true })).toBeVisible({ timeout: 20_000 });
@@ -500,9 +509,7 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
 
   // A second person approves it from the Approvals queue, after reading the lines; the claim row then shows the invoice number.
   const clientName = `${projectName.replace('Time materials ', '')} Client`;
-  await page.clock.setFixedTime(new Date());
   await login(page, 'admin@acme.test');
-  await page.clock.setFixedTime(fixedNow);
   await page.goto('/approvals');
   const invoiceQueue = page.getByRole('region', { name: 'Customer invoices awaiting you' });
   const invoiceItem = invoiceQueue.getByRole('listitem').filter({ hasText: clientName });

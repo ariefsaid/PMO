@@ -10,6 +10,7 @@ const collectionsIntegration = vi.hoisted(() => ({
   companies: [] as Array<{ id: string; name: string }>,
   arAging: [] as ErpAgingSnapshotRow[],
   customerLinks: new Map<string, string>(),
+  organizationDay: '2026-11-11',
 }));
 
 const dash = {
@@ -28,12 +29,13 @@ const dash = {
 };
 
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 864e5).toISOString();
+const invoiceDate = (daysAgo: number) => new Date(Date.parse(`${collectionsIntegration.organizationDay}T00:00:00Z`) - daysAgo * 864e5).toISOString().slice(0, 10);
 
 const procurements = [
-  // pr1: real vendor_invoiced_at ~10 days old; updated_at today (proxy would read 0 — proves the column wins).
-  { id: 'pr1', status: 'Vendor Invoiced', total_value: 250_000, currency: 'USD', vendor_invoiced_at: iso(10), updated_at: iso(0) },
-  // pr2: null vendor_invoiced_at (legacy/edge) → falls back to updated_at ~3 days old.
-  { id: 'pr2', status: 'Vendor Invoiced', total_value: 150_000, currency: 'USD', vendor_invoiced_at: null, updated_at: iso(3) },
+  // pr1: invoice date ~10 days old; updated_at today (recorded age would read 0).
+  { id: 'pr1', status: 'Vendor Invoiced', total_value: 250_000, currency: 'USD', procurement_invoices: [{ invoice_date: invoiceDate(10) }], vendor_invoiced_at: iso(10), updated_at: iso(0) },
+  // pr2: no invoice date; updated_at ~3 days old must not be presented as invoice age.
+  { id: 'pr2', status: 'Vendor Invoiced', total_value: 150_000, currency: 'USD', procurement_invoices: [], vendor_invoiced_at: null, updated_at: iso(3) },
   { id: 'pr3', status: 'Paid', total_value: 999_999, currency: 'USD', vendor_invoiced_at: null, updated_at: iso(0) },
 ];
 
@@ -56,10 +58,11 @@ const budgetReview = [
   budgetReviewRow({ id: 'b6', name: 'Rank6', client_name: 'C6', budget: 1_000_000, spent: 1_050_000, variance: 50_000 }),
 ];
 
-// OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
+// Finance's earned-less-invoiced card reads the existing Finance figures projection.
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useFinanceHubFigures', () => ({ useFinanceHubFigures: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: dash, isPending: false, isError: false, refetch: vi.fn() }),
   useFinanceBudgetReview: () => ({ data: budgetReview, isPending: false, isError: false, refetch: vi.fn() }),
@@ -93,6 +96,7 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 // query. ⚑ This mock sits at line-start on purpose — an earlier automated insert landed it INSIDE
 // the vi.mock call below, which parses as a syntax error rather than a wrong value.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: collectionsIntegration.organizationDay, isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'fin-1', org_id: 'org-1' }, role: 'Finance' }),
 }));
@@ -218,21 +222,21 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
 });
 
 describe('FinanceDashboard N16 — invoice age from vendor_invoiced_at', () => {
-  // AC-FIN-DEBT-005: age column reads vendor_invoiced_at when present, header is invoice age.
-  it('AC-FIN-DEBT-005: Ready-to-pay age column shows age from vendor_invoiced_at, header is invoice age', () => {
+  // AC-FIN-DEBT-005: age column reads supplier invoice date, header is invoice age.
+  it('AC-FIN-DEBT-005: Ready-to-pay age column shows age from invoice date, header is invoice age', () => {
     renderPane();
-    // pr1.vendor_invoiced_at ≈ 10 days ago ⇒ "10 days" (NOT updated_at=today which would read "Today").
+    // pr1's invoice date ≈ 10 days ago ⇒ "10 days" (not its recorded date).
     expect(screen.getByText('10 days')).toBeInTheDocument();
-    // Header no longer reads the misleading "Last updated" proxy; it reads as invoice age.
+    // Header names the invoice-date clock.
     expect(screen.queryByText('Last updated')).not.toBeInTheDocument();
-    // The N16 age-column header is exactly "Invoiced" (the honest invoice-age label).
-    expect(screen.getByText('Invoiced', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('Invoice age', { exact: true })).toBeInTheDocument();
   });
-  // AC-FIN-DEBT-006: null vendor_invoiced_at falls back to updated_at without error.
-  it('AC-FIN-DEBT-006: null vendor_invoiced_at falls back to updated_at', () => {
+  // AC-FIN-DEBT-006: a missing supplier invoice date remains unknown, not recorded age.
+  it('AC-FIN-DEBT-006: missing invoice date does not use the recorded date as invoice age', () => {
     renderPane();
-    // pr2.vendor_invoiced_at null, updated_at ≈ 3 days ago ⇒ "3 days".
-    expect(screen.getByText('3 days')).toBeInTheDocument();
+    expect(screen.queryByText('3 days')).not.toBeInTheDocument();
+    const row = screen.getByText('pr2').closest('tr');
+    expect(row).toHaveTextContent('—');
   });
 });
 
@@ -288,9 +292,11 @@ describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snaps
   });
 });
 
-describe('still to invoice (OD-BILL-1 / #786)', () => {
-  it('AC-UNB-005 the finance dashboard carries the still-to-invoice card', () => {
+describe('Done, not yet billed (D1)', () => {
+  it('Finance dashboard carries the earned-less-invoiced card', () => {
     renderPane();
-    expect(screen.getByTestId('still-to-invoice-loading')).toBeInTheDocument();
+    const card = screen.getByTestId('dashboard-done-not-yet-billed');
+    expect(card).toHaveTextContent('Done, not yet billed');
+    expect(within(card).getByTestId('liststate-loading')).toBeInTheDocument();
   });
 });

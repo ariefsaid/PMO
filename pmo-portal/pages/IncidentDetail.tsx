@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import {
   RecordHeader,
   Card,
@@ -19,10 +20,11 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useIncident, useIncidentMutations } from '@/src/hooks/useIncidents';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { severityVariant, workflowVariant } from '@/src/lib/status/statusVariants';
+import { severityVariant } from '@/src/lib/status/statusVariants';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { NEXT_STATUS, TRANSITION_COPY, type AdvanceStatus } from '@/src/lib/incidents/transitions';
 import type { IncidentInput } from '@/src/lib/db/incidents';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { IncidentFormModal } from '@/components/IncidentFormModal';
 
 /**
@@ -38,6 +40,7 @@ import { IncidentFormModal } from '@/components/IncidentFormModal';
 const IncidentDetail: React.FC = () => {
   const { incidentId } = useParams<{ incidentId: string }>();
   const navigate = useNavigate();
+  const { t: tStatus } = useTranslation('status');
   const may = usePermission();
   const { toast } = useToast();
 
@@ -148,10 +151,10 @@ const IncidentDetail: React.FC = () => {
         status={
           <span className="flex items-center gap-2" data-testid="incident-pills" data-status={incident.status}>
             <StatusPill variant={severityVariant(incident.severity)}>{incident.severity}</StatusPill>
-            <StatusPill variant={workflowVariant(incident.status)}>{incident.status}</StatusPill>
+            <StatusPill record="incident" state={incident.status} />
           </span>
         }
-        meta={<span className="tabular">Reported {formatDateOnly(incident.incident_date)}</span>}
+        meta={<span className="tabular">Reported {formatDay(incident.incident_date)}</span>}
         actions={
           canEdit ? (
             <Button variant="outline" size="sm" data-testid="incident-edit" onClick={() => setEditOpen(true)}>
@@ -169,7 +172,7 @@ const IncidentDetail: React.FC = () => {
           <div className="flex flex-col gap-2 py-3">
             {/* Consistent zone chrome: a "Next action" label leads the verb, matching the
                 procurement "Ready to advance" + pipeline "Next actions" record-action zones. */}
-            <div className="text-[12px] font-semibold text-muted-foreground">Next action</div>
+            <div className="text-control font-semibold text-muted-foreground">Next action</div>
             <Button
               variant="primary"
               size="sm"
@@ -189,9 +192,9 @@ const IncidentDetail: React.FC = () => {
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
             <Field label="Type" value={incident.type} />
-            <Field label="Date" value={formatDateOnly(incident.incident_date)} />
+            <Field label="Date" value={formatDay(incident.incident_date)} />
             <Field label="Severity" value={incident.severity} />
-            <Field label="Status" value={incident.status} />
+            <Field label="Status" value={statusLabel('incident', incident.status, tStatus)} />
             <Field label="Location" value={incident.location || '—'} />
             <Field
               label="Project"
@@ -211,9 +214,9 @@ const IncidentDetail: React.FC = () => {
         <CardHead>Description</CardHead>
         <CardPad>
           {incident.description ? (
-            <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed">{incident.description}</p>
+            <p className="whitespace-pre-wrap text-control leading-relaxed">{incident.description}</p>
           ) : (
-            <p className="text-[13.5px] text-muted-foreground">No description was recorded.</p>
+            <p className="text-control text-muted-foreground">No description was recorded.</p>
           )}
         </CardPad>
       </Card>
@@ -253,10 +256,10 @@ const IncidentDetail: React.FC = () => {
 /** A labelled read-only field (definition-list row) — body field primitive for the record page. */
 const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <div className="flex flex-col gap-0.5">
-    <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+    <dt className="text-control font-semibold text-muted-foreground">
       {label}
     </dt>
-    <dd className="text-[13.5px] text-foreground">{value}</dd>
+    <dd className="text-control text-foreground">{value}</dd>
   </div>
 );
 

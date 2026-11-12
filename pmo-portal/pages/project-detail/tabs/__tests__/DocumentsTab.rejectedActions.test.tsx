@@ -123,21 +123,21 @@ describe('AC-W3-B2: Rejected document status actions (Reopen + Close)', () => {
     renderTab('Admin', 'admin-1');
     const row = screen.getByText('Rejected Report').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
-    expect(screen.getByRole('menuitem', { name: /Reopen for revision/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /Reopen for revision/i })).toBeInTheDocument();
   });
 
   it('AC-W3-B2: a write-role (Admin) sees "Close" in the row menu of a Rejected document', async () => {
     renderTab('Admin', 'admin-1');
     const row = screen.getByText('Rejected Report').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
-    expect(screen.getByRole('menuitem', { name: /^Close$/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /^Close document$/i })).toBeInTheDocument();
   });
 
   it('AC-W3-B2: "Reopen for revision" drives a ConfirmDialog and transitions the doc to Draft on confirm', async () => {
     renderTab('Admin', 'admin-1');
     const row = screen.getByText('Rejected Report').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: /Reopen for revision/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Reopen for revision/i }));
 
     // Confirm dialog must appear — mutation not yet called
     expect(mutations.transition.mutateAsync).not.toHaveBeenCalled();
@@ -155,7 +155,7 @@ describe('AC-W3-B2: Rejected document status actions (Reopen + Close)', () => {
     renderTab('Admin', 'admin-1');
     const row = screen.getByText('Rejected Report').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: /^Close$/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Close document$/i }));
 
     // Confirm dialog must appear — mutation not yet called
     expect(mutations.transition.mutateAsync).not.toHaveBeenCalled();
@@ -173,7 +173,7 @@ describe('AC-W3-B2: Rejected document status actions (Reopen + Close)', () => {
     // The redesigned register keeps its non-mutating row menu (for example, Copy link),
     // while status-changing actions remain unavailable to a read-only role.
     expect(screen.queryByRole('menuitem', { name: /Reopen for revision/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: /^Close$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^Close document$/i })).not.toBeInTheDocument();
   });
 
   it('AC-W3-B2: a PM (write-role) also sees both Rejected actions on a doc they did NOT author', async () => {
@@ -182,7 +182,7 @@ describe('AC-W3-B2: Rejected document status actions (Reopen + Close)', () => {
     renderTab('Project Manager', 'pm-2');
     const row = screen.getByText('Rejected Report').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
-    expect(screen.getByRole('menuitem', { name: /Reopen for revision/i })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /^Close$/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /Reopen for revision/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /^Close document$/i })).toBeInTheDocument();
   });
 });

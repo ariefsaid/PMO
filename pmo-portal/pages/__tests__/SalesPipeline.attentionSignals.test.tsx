@@ -223,6 +223,22 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     expect(screen.getByText('Stale Northern Tender')).toBeInTheDocument();
   });
 
+  it('R2-P1b #10 resets the untouched age when the deal moved stages yesterday', () => {
+    const movedRecently = {
+      ...openProjectStale,
+      status: 'Tender Submitted',
+      last_update: daysAgo(45),
+      stage_started_at: daysAgo(1),
+    };
+    pipelineState.data = { stages: [], projects: [movedRecently] };
+
+    renderPage();
+
+    const attentionCard = screen.getByRole('region', { name: 'Needs attention' });
+    expect(attentionCard).toHaveTextContent('Nothing is stale');
+    expect(attentionCard).not.toHaveTextContent('Untouched for 45 days');
+  });
+
   it('AC-IXD-PIPE-W5-C5-6: "Needs attention" filter excludes deals with last_update < 30 days ago', async () => {
     lostState.data = [lostProjectRecent, lostProjectStale];
     renderPage();
@@ -239,7 +255,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
     // The stale OPEN deal IS flagged; the recent OPEN deal is NOT.
-    expect(screen.getByText('Eastgate Depot Upgrade')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('Eastgate Depot Upgrade')).toBeInTheDocument();
     expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();
   });
 

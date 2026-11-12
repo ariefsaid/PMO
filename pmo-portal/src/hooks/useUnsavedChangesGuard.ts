@@ -16,7 +16,7 @@ export interface UnsavedChangesGuardOptions {
    * link's own click handler with its router state, or a plain local navigation) — call it from
    * the confirm dialog's Leave; drop it on Stay.
    */
-  onBlocked: (leave: () => void) => void;
+  onBlocked: (leave: () => void, stay: () => void) => void;
   /**
    * Also hold browser Back/Forward changes. Off by default because a bare harness/router without
    * browser history has nothing to hold; every guarded form in the app turns it on.
@@ -130,7 +130,7 @@ export function useUnsavedChangesGuard({
   // (Stay) leaves the page and its edits where they are.
   useEffect(() => {
     if (!historyBlocker || historyBlocker.state !== 'blocked') return;
-    onBlockedRef.current(() => historyBlocker.proceed?.());
+    onBlockedRef.current(() => historyBlocker.proceed?.(), () => historyBlocker.reset?.());
   }, [historyBlocker]);
 
   // A saved draft is no longer at risk: release a block the page dismissed with Stay so the
@@ -204,7 +204,7 @@ export function useUnsavedChangesGuard({
           replayingRef.current = false;
           window.removeEventListener('click', fallback);
         }
-      });
+      }, () => undefined);
     };
 
     const handlePopState = (event: PopStateEvent) => {
@@ -237,7 +237,7 @@ export function useUnsavedChangesGuard({
         replayHistoryDeltaRef.current = delta;
         if (restoreInFlightRef.current) replayAfterRestoreRef.current = true;
         else window.history.go(delta);
-      });
+      }, () => undefined);
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -255,7 +255,7 @@ export function useUnsavedChangesGuard({
 
   return useCallback(
     (leave: () => void) => {
-      if (dirty) onBlockedRef.current(leave);
+      if (dirty) onBlockedRef.current(leave, () => undefined);
       else leave();
     },
     [dirty],

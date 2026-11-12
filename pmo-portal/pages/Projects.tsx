@@ -7,6 +7,9 @@ import {
   ListPage,
   ListState,
   DataTable,
+  FigureScope,
+  FigureHiddenLine,
+  useFigureReport,
   Button,
   Icon,
   useToast,
@@ -25,7 +28,13 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectCard from '../components/ProjectCard';
 import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
-import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+
+/** The page's one hidden-figures line: names a column the table dropped, and where it is fixed. */
+const ProjectsHiddenFigures: React.FC<{ reason: string | null; setupLink?: { to: string; label: string } }> = ({ reason, setupLink }) => {
+  const { t } = useTranslation();
+  useFigureReport(reason ? [{ label: t('projects.columns.actual', 'Actual'), reason, link: setupLink }] : []);
+  return <FigureHiddenLine className="mb-2 text-control text-muted-foreground" />;
+};
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -36,7 +45,6 @@ import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 const Projects: React.FC = () => {
   const { t } = useTranslation();
-  const projectStatusLabel = useProjectStatusLabel();
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
@@ -44,6 +52,7 @@ const Projects: React.FC = () => {
   const prefetchProject = usePrefetchProject();
   // Contract amounts follow the shared money-view permission (same as project detail).
   const canViewMoney = may('view', 'salesInvoice');
+  const canManageAccounting = may('manage', 'orgAccounting');
   const model = useProjectListModel(effectiveRole, currentUser, t, canViewMoney);
   const { isEngineer, tasksPending, tasksError, refetchTasks, data, isPending, isError, refetch,
     filter, view, calendarCursor, onCalendarCursorChange,
@@ -65,8 +74,6 @@ const Projects: React.FC = () => {
   const [editTarget, setEditTarget] = useState<ProjectWithRefs | null>(null);
   // null = closed; project = archive confirm open.
   const [archiveTarget, setArchiveTarget] = useState<ProjectWithRefs | null>(null);
-
-  const pageDescription = t('projects.description', 'Pre-win projects live in the Pipeline.');
 
   // Row/card drill captures the current list URL + scroll as validated return context
   // via `openRecord` (AC-LRC-003) — the canonical `/projects/:id` route is unchanged
@@ -107,9 +114,9 @@ const Projects: React.FC = () => {
     }
   };
 
-  const { visibleColumns, exportColumns } = projectTableColumns({
+  const { tableColumns, exportColumns, actualHiddenReason, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails } = projectTableColumns({
     filtered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending,
-    moneyError, canViewMoney, isAtRiskActual, onOpen, onPrefetch: prefetchProject, projectStatusLabel, t,
+    moneyError, canViewMoney, viewerId: currentUser?.id, isAtRiskActual, onOpen, onPrefetch: prefetchProject, t,
   });
 
   // ── States ──────────────────────────────────────────────────────────────
@@ -123,7 +130,6 @@ const Projects: React.FC = () => {
     return (
       <ListPage
         title={t('projects.title', 'Projects')}
-        description={pageDescription}
         primaryAction={primaryAction}
       >
         <div data-testid="projects-loading" className="rounded-lg border border-border bg-card">
@@ -137,7 +143,6 @@ const Projects: React.FC = () => {
     return (
       <ListPage
         title={t('projects.title', 'Projects')}
-        description={pageDescription}
         primaryAction={primaryAction}
       >
         <ListState
@@ -156,7 +161,6 @@ const Projects: React.FC = () => {
         title={t('projects.title', 'Projects')}
         count={0}
         total={0}
-        description={pageDescription}
         primaryAction={primaryAction}
       >
         <ListState
@@ -198,10 +202,8 @@ const Projects: React.FC = () => {
   return (
     <ListPage
       title={t('projects.title', 'Projects')}
-      count={filtered.length}
-      total={all.length}
-      description={pageDescription}
       primaryAction={primaryAction}
+      mobileToolbarBreakpoint={1280}
       {...toolbar}
     >
       {/* Body */}
@@ -247,9 +249,19 @@ const Projects: React.FC = () => {
             if (tr?.id) prefetchProject(tr.id);
           }}
         >
+          <FigureScope>
+            <ProjectsHiddenFigures reason={actualHiddenReason} setupLink={canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projects:coverage.setUp', 'Set up') } : undefined} />
+          </FigureScope>
+          {sharedBasis && canViewMoney && <p className="mb-2 text-control text-muted-foreground md:hidden">{t('projects:contractBasisNote', 'Contract amounts are {{basis}}.', { basis: sharedBasis })}</p>}
+          {sharedManager && <p className="mb-2 text-control text-muted-foreground">{t('projects:sharedManagerNote', 'Project manager: {{name}}', { name: sharedManager })}</p>}
           <DataTable<ProjectWithRefs>
             rows={filtered}
-            columns={visibleColumns}
+            columns={tableColumns}
+            className="[--table-row-min-height:40px]"
+            compactRows
+            mobileCardTitle={mobileCardTitle}
+            mobileCardDetails={mobileCardDetails}
+            cardBelow={1120}
             rowKey={(p) => p.id}
             rowTarget={(p) => p.id}
             tableId="projects-list"

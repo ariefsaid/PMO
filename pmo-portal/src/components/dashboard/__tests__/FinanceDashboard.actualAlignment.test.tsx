@@ -65,7 +65,16 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'finance-user', org_id: 'org-1' }, role: 'Finance' }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/components/dashboard/StillToInvoiceCard', () => ({ StillToInvoiceCard: () => null }));
+// D3 (final-polish list 3, "one ageing clock"): FinanceDashboard reads the org day through
+// useFxOrgDay, which is a react-query hook. Pin it like the sibling FinanceDashboard tests do so the
+// pane renders without a QueryClientProvider; the budget-review figures under test are unaffected.
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-11-11', isPending: false, isError: false, retry: vi.fn() }) }));
+// D1 (final-polish list 3): the "Done, not yet billed" card replaced StillToInvoiceCard and reads the
+// finance figures through react-query. Pinned pending here (as the sibling FinanceDashboard tests do)
+// so the pane renders without a QueryClientProvider; this test owns the budget-review table, not it.
+vi.mock('@/src/hooks/useFinanceHubFigures', () => ({
+  useFinanceHubFigures: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
+}));
 
 const row = (input: Partial<BudgetReviewRow> & Pick<BudgetReviewRow, 'id' | 'name'>): BudgetReviewRow => {
   const { id, name, ...overrides } = input;

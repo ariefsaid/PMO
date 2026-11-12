@@ -257,7 +257,8 @@ describe('CompanyDetail', () => {
 
   it('CW-4b: a manager can archive from the header (confirm-before-write)', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^archive$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^archive$/i }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /archive company/i }));
     expect(mutations.archive.mutateAsync).toHaveBeenCalledWith('co1');
@@ -290,7 +291,8 @@ describe('CompanyDetail — list-return context (AC-LRC-006)', () => {
 
   it('AC-LRC-006: archive-success also returns to the SAME filtered list context, not a bare reset', async () => {
     renderPageWithReturnContext();
-    await userEvent.click(screen.getByRole('button', { name: /^archive$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^archive$/i }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /archive company/i }));
     await screen.findByTestId('companies-index-probe');

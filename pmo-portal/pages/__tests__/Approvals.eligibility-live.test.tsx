@@ -45,9 +45,9 @@ describe('mounted manager eligibility', () => {
   it('keeps navigation and correction available when the only pending week is approved', async () => {
     state.approved = false; state.assigned = true;
     mount();
-    await screen.findByRole('link', { name: /approvals/i });
+    const navigationLink = await screen.findByRole('link', { name: /approvals/i });
     let lostPath = false;
-    const observer = new MutationObserver(() => { if (!screen.queryByRole('link', { name: /approvals/i })) lostPath = true; });
+    const observer = new MutationObserver(() => { if (!navigationLink.isConnected) lostPath = true; });
     observer.observe(document.body, { childList: true, subtree: true });
     await userEvent.click(await screen.findByRole('button', { name: /^approve$/i }));
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^approve$/i }));

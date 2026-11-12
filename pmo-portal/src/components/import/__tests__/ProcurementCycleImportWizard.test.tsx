@@ -6,9 +6,10 @@
  * All grouping/validation logic runs REAL (no mock) — we only stub the two I/O seams.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render as testingRender, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { Link, MemoryRouter, useLocation } from 'react-router';
 
 // ── Mock the two I/O seams ────────────────────────────────────────────────────
 
@@ -49,6 +50,26 @@ const vendorLookup = makeRefLookup(
   [{ id: 'v1', name: 'Acme Vendor' }],
   'Vendor',
 );
+
+const RouteProbe = () => {
+  const location = useLocation();
+  return <output data-testid="route-path">{location.pathname}</output>;
+};
+
+function render(ui: React.ReactElement) {
+  const wrap = (child: React.ReactElement) => (
+    <MemoryRouter initialEntries={['/procurement/import']}>
+      <RouteProbe />
+      <Link to="/next">Next page</Link>
+      {child}
+    </MemoryRouter>
+  );
+  const result = testingRender(wrap(ui));
+  return {
+    ...result,
+    rerender: (nextUi: React.ReactElement) => result.rerender(wrap(nextUi)),
+  };
+}
 
 function renderWizard(overrides?: { onClose?: (didImport: boolean) => void }) {
   const onClose = overrides?.onClose ?? vi.fn();
@@ -159,6 +180,34 @@ describe('ProcurementCycleImportWizard', () => {
     } finally {
       shell.remove();
     }
+  });
+
+  it('CMP-008: mapped procurement-cycle columns stay in place after close and route-leave confirmations', async () => {
+    const user = userEvent.setup();
+    const { onClose } = renderWizard();
+    vi.mocked(parseWorkbook).mockResolvedValue({ headers: FULL_HEADERS, rows: FULL_ROWS });
+    await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
+    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
+
+    const caseRef = screen.getByLabelText(/case_ref/);
+    await user.selectOptions(caseRef, '1');
+    const unload = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: /^close$/i }));
+    const closePrompt = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(within(closePrompt).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText(/case_ref/)).toHaveValue('1');
+    expect(onClose).not.toHaveBeenCalled();
+
+    // The modal makes its route background inert; dispatch the shell's route action
+    // directly to exercise the router blocker as a browser back/navigation would.
+    fireEvent.click(screen.getByText('Next page'));
+    const leavePrompt = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(within(leavePrompt).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByTestId('route-path')).toHaveTextContent('/procurement/import');
+    expect(screen.getByLabelText(/case_ref/)).toHaveValue('1');
   });
 
   it('AC-IMP-CYCLE-U1: renders upload step as a dialog with xlsx file input and row-cap hint', () => {

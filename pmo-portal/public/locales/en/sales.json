@@ -1,7 +1,14 @@
 {
+  "newProject": "New project",
   "goProbability": "% Go",
   "getProbability": "% Get",
   "goShort": "Go",
+  "chanceShort": "{{pct}} chance",
+  "chanceValue": "{{pct}}%",
+  "chanceHeader": "Chance",
+  "boardFigureContext": "Board figure context",
+  "chanceBadgeAria": "Chance {{chance}}; % Go {{go}}, % Get {{get}}",
+  "exclusiveTaxSummary": "excl. PPN",
   "getShort": "Get",
   "column": {
     "goPct": "% Go",
@@ -57,9 +64,10 @@
     "dealFiguresLabel": "Deal figures",
     "figuresLabel": "Pipeline figures",
     "weightedForecast": "Weighted forecast",
-    "weightedNote": "Value × chance it proceeds × chance we win",
+    "weightedNote": "Value × chance of winning",
     "openValue": "Open value",
     "openCount": "{{n}} open projects",
+    "openCountShort": "{{n}} projects",
     "needsYou": "Needs attention",
     "needsYouNote": "Untouched 30+ days or 90+ days in one stage",
     "outcomes": "Won · Lost",
@@ -70,6 +78,13 @@
     "quickView": "Quick view",
     "stageNav": "Pipeline stages",
     "needsYouHeading": "Needs you · {{n}}",
+    "nothingStale": "Nothing is stale",
+    "wonCount": "Won {{n}} all time",
+    "lostCount": "Lost {{n}} all time",
+    "wonCountShort": "Won {{n}}",
+    "lostCountShort": "Lost {{n}}",
+    "idleReasonShort": "Idle {{days}}d",
+    "staleReasonShort": "Stage {{days}}d",
     "showAllAttention": "Show all {{n}}"
   }
 }

@@ -24,7 +24,7 @@ test('AC-STK-001: a storekeeper issues 30 of 100 bags to a project work item and
   await page.getByLabel(/^Project/).selectOption({ label: SEED_PROJECT_NAME });
   await page.getByLabel(/^Work item/).selectOption({ label: `${work.item_code} - ${work.description}` });
   await page.getByRole('combobox', { name: /^Item/ }).click();
-  await page.getByRole('searchbox').fill(item.code);
+  await page.getByRole('combobox', { name: /^(search|cari) /i }).fill(item.code);
   await page.getByRole('option', { name: new RegExp(item.code) }).click();
   await page.getByLabel(/^Quantity/).fill('30');
   await page.getByRole('button', { name: 'Post issue' }).click();

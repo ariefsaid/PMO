@@ -1,41 +1,33 @@
 {
   "backToProcurement": "Pengadaan",
-  "backToChoices": "Apa yang Anda miliki?",
+  "backToChoices": "pilihan jenis",
   "denied": "Anda tidak memiliki izin untuk membuat pengadaan.",
   "question": "Apa yang Anda miliki?",
-  "questionDescription": "Mulai dari kebutuhan baru atau dokumen yang sudah tersedia.",
   "continueAttempt": "Penyimpanan mungkin sudah selesai. Lanjutkan dengan pilihan yang sama untuk mencoba lagi.",
   "continueNeed": "Permintaan pembelian tersimpan dengan item yang belum selesai. Lanjutkan kebutuhan yang sama.",
   "choices": {
     "need": {
       "title": "Kebutuhan baru",
-      "description": "Ajukan permintaan pembelian."
+      "description": "Ajukan permintaan pembelian"
     },
     "order": {
       "title": "Pesanan",
-      "description": "Catat pesanan pembelian yang sudah Anda miliki."
+      "description": "Catat pesanan yang sudah Anda miliki"
     },
     "invoice": {
       "title": "Tagihan pemasok",
-      "description": "Catat tagihan yang perlu dipantau."
+      "description": "Pantau tagihan pemasok"
     },
     "payment": {
       "title": "Pembayaran terjadwal",
-      "description": "Catat pembayaran ke pemasok. Bagian Keuangan menandainya lunas."
+      "description": "Jadwalkan pembayaran ke pemasok"
     },
     "accounting": {
       "title": "Dokumen yang sudah ada di sistem akuntansi",
-      "description": "Cari dokumen yang belum ada di pengadaan."
+      "description": "Cari dokumen di luar pengadaan"
     }
   },
   "heading": "Pengadaan baru",
-  "draftNote": {
-    "need": "Permintaan pembelian ini tetap berupa draf sampai Anda mengirimkannya.",
-    "order": "Tambahkan detail pengadaan, lalu catat pesanan pembelian.",
-    "invoice": "Tambahkan detail pengadaan, lalu catat tagihan pemasok.",
-    "payment": "Tambahkan detail pengadaan, lalu catat pembayaran."
-  },
-  "save": "Simpan",
   "details": "Detail pengadaan",
   "titleField": "Judul",
   "titleRequired": "Judul pengadaan wajib diisi.",
@@ -62,6 +54,19 @@
     "retryProjects": "Coba lagi proyek",
     "loadingSuppliers": "Memuat pemasok…",
     "suppliersError": "Pemasok tidak dapat dimuat.",
-    "retrySuppliers": "Coba lagi pemasok"
+    "retrySuppliers": "Coba lagi pemasok",
+    "noProjects": "Belum ada proyek. Anda dapat melanjutkan tanpa proyek atau meminta administrator menambahkannya.",
+    "noSuppliers": "Belum ada pemasok. Pemasok bersifat opsional; mintalah administrator menambahkannya jika diperlukan."
+  },
+  "saveLabel": {
+    "need": "Simpan draf",
+    "order": "Simpan dan catat pesanan",
+    "invoice": "Simpan dan catat tagihan",
+    "payment": "Simpan dan catat pembayaran"
+  },
+  "uncertainSave": "Penyimpanan mungkin sudah selesai. Periksa statusnya sebelum membuat permintaan baru; mencoba lagi di sini menggunakan permintaan yang sama.",
+  "checkSaveStatus": "Periksa status permintaan",
+  "actions": {
+    "cancel": "Batal"
   }
 }

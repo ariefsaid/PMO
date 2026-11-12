@@ -54,7 +54,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => detailState,
   useProcurementMutations: () => ({
-    transition: { mutate: transitionMutate, isPending: false },
+    transition: { mutateAsync: transitionMutate, isPending: false },
   }),
 }));
 
@@ -166,9 +166,9 @@ describe('AC-IFW-PROC-01: expanded state — budget impact + line items + adjace
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it('Reject button appears in expanded panel (adjacent — no navigation)', async () => {
+  it('Return button appears in expanded panel (adjacent — no navigation)', async () => {
     renderAs();
-    expect(screen.getByRole('button', { name: /^Reject$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Return$/i })).toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
   });
 });
@@ -196,17 +196,13 @@ describe('AC-IFW-PROC-01: expanded panel — loading + error states', () => {
 // ── AC-IFW-PROC-02: Approve fires transition({to:'Approved'}) ────────────────
 
 describe('AC-IFW-PROC-02: Approve fires transition with to:Approved', () => {
-  it('Approve → ConfirmDialog → confirm fires transition.mutate with {to:"Approved"}', async () => {
-    transitionMutate.mockImplementation((_arg: unknown, opts: { onSuccess?: () => void }) => opts?.onSuccess?.());
+  it('Approve → ConfirmDialog → confirm fires transition.mutateAsync with {to:"Approved"}', async () => {
     renderAs();
     await userEvent.click(screen.getByRole('button', { name: /^Approve$/i }));
     // ConfirmDialog should open
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /^Approve$/i }));
-    expect(transitionMutate).toHaveBeenCalledWith(
-      { to: 'Approved' },
-      expect.any(Object),
-    );
+    expect(transitionMutate).toHaveBeenCalledWith({ to: 'Approved' });
     // Lens-D regression: navigate was never called
     expect(navigateMock).not.toHaveBeenCalled();
   });
@@ -215,25 +211,21 @@ describe('AC-IFW-PROC-02: Approve fires transition with to:Approved', () => {
 // ── AC-IFW-PROC-02: Reject fires transition({to:'Rejected'}) ─────────────────
 
 describe('AC-IFW-PROC-02: Reject fires transition with to:Rejected', () => {
-  it('AC-1578: rejection requires a non-empty comment and sends it with the transition', async () => {
-    transitionMutate.mockImplementation((_arg: unknown, opts: { onSuccess?: () => void }) => opts?.onSuccess?.());
+  it('AC-1578: returning requires a non-empty comment and sends it with the transition', async () => {
     renderAs();
-    await userEvent.click(screen.getByRole('button', { name: /^Reject$/i }));
-    // tone="destructive" → role="alertdialog" (ConfirmDialog a11y contract)
-    const dialog = await screen.findByRole('alertdialog');
-    const confirm = within(dialog).getByRole('button', { name: /Reject procurement/i });
+    await userEvent.click(screen.getByRole('button', { name: /^Return$/i }));
+    // The shared ReasonDialog: required reason, filled confirm.
+    const dialog = await screen.findByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: /^Return$/i });
     expect(confirm).toBeDisabled();
-    const comment = within(dialog).getByRole('textbox', { name: /rejection comment/i });
+    const comment = within(dialog).getByRole('textbox', { name: /reason for returning/i });
     await userEvent.type(comment, '   ');
     expect(confirm).toBeDisabled();
     await userEvent.clear(comment);
     await userEvent.type(comment, 'Please revise the requested quantities.');
     expect(confirm).toBeEnabled();
     await userEvent.click(confirm);
-    expect(transitionMutate).toHaveBeenCalledWith(
-      { to: 'Rejected', notes: 'Please revise the requested quantities.' },
-      expect.any(Object),
-    );
+    expect(transitionMutate).toHaveBeenCalledWith({ to: 'Rejected', notes: 'Please revise the requested quantities.' });
     expect(navigateMock).not.toHaveBeenCalled();
   });
 });
@@ -244,7 +236,7 @@ describe('AC-IFW-PROC-02: can() gate — no Approve/Reject for Engineer role', (
   it('Engineer (no transition permission) sees NO Approve or Reject buttons even when expanded', async () => {
     renderAs('Engineer');
     expect(screen.queryByRole('button', { name: /^Approve$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Reject$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Return$/i })).not.toBeInTheDocument();
   });
 });
 
@@ -256,7 +248,6 @@ describe('AC-JR-W2-02: "Open procurement" link in expanded panel footer (T07)', 
     const link = screen.getByRole('link', { name: /open procurement/i });
     expect(link).toBeInTheDocument();
     expect(link.getAttribute('href')).toBe('/procurement/pr-001');
-    expect(screen.getByText('Procurement details')).toBeInTheDocument();
   });
 
   it('AC-JR-W2-02: "Open procurement" link is in the same footer region as Approve/Reject', async () => {

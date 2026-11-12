@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
@@ -145,7 +145,7 @@ describe('ProjectDetail — section deep links (AC-W2-IA-004)', () => {
     ['/projects/p1/budget', 'Budget'],
     ['/projects/p1/procurement', 'Procurement'],
     ['/projects/p1/tasks', 'Tasks'],
-    ['/projects/p1/contract', 'Contract & billing'],
+    ['/projects/p1/contract', 'Contract'],
     ['/projects/p1/documents', 'Documents'],
   ])('AC-W2-IA-004: %s selects the %s section', async (path, label) => {
     await renderAt(path);
@@ -154,28 +154,40 @@ describe('ProjectDetail — section deep links (AC-W2-IA-004)', () => {
   });
 
   it.each(['/projects/p1/work-orders', '/projects/p1/billing'])(
-    'AC-UNB-005: legacy route %s selects Contract & billing',
+    'AC-UNB-005: legacy route %s selects Contract',
     async (path) => {
       await renderAt(path);
-      expect(screen.getByRole('tab', { name: 'Contract & billing', selected: true })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Contract', selected: true })).toBeInTheDocument();
     },
   );
 
   it('AC-UNB-005: the legacy work-orders route still passes ?wo= through to the focused order', async () => {
     await renderAt('/projects/p1/work-orders?wo=wo-2');
-    expect(screen.getByRole('tab', { name: 'Contract & billing', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Contract', selected: true })).toBeInTheDocument();
     expect(screen.getByTestId('tab-work-orders')).toHaveTextContent('focus:wo-2');
   });
 
   it('AC-UNB-005: without ?wo= the work-orders area focuses nothing', async () => {
     await renderAt('/projects/p1/work-orders');
-    expect(screen.getByRole('tab', { name: 'Contract & billing', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Contract', selected: true })).toBeInTheDocument();
     expect(screen.getByTestId('tab-work-orders')).toHaveTextContent('focus:none');
   });
 
   it('AC-W2-IA-004: an unknown tab falls back to Overview without a crash', async () => {
     await renderAt('/projects/p1/unknown-tab');
     expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
+  });
+
+  it('keeps every project area reachable from the phone section picker without a sideways tab strip', async () => {
+    await renderAt('/projects/p1');
+
+    const picker = screen.getByRole('combobox', { name: 'Project sections' });
+    expect(picker.closest('[data-testid="mobile-project-area-select"]')).toHaveClass('md:hidden');
+    expect(screen.getByTestId('project-section-tabs')).toHaveClass('hidden', 'md:block');
+    expect(within(picker).getByRole('option', { name: 'Materials' })).toBeInTheDocument();
+
+    fireEvent.change(picker, { target: { value: 'budget' } });
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Budget', selected: true })).toBeInTheDocument());
   });
 
   it('scrolls the selected project tab into view on mount and after a tab change', async () => {
@@ -211,7 +223,7 @@ describe('ProjectDetail — section deep links (AC-W2-IA-004)', () => {
       await renderAt(path, 'Engineer');
       expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
       expect(screen.queryByRole('tab', { name: 'Budget' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('tab', { name: 'Contract & billing' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Contract' })).not.toBeInTheDocument();
     },
   );
 });
@@ -225,7 +237,7 @@ describe('ProjectDetail — primary action scope', () => {
     },
   );
 
-  it('keeps the primary action on Overview and limits Contract & billing to Chase payment', async () => {
+  it('keeps the primary action on Overview and limits Contract to Chase payment', async () => {
     invoiceState.data = [{
       id: 'inv-1', status: 'Submitted', invoice_date: '2026-10-01', erp_due_date: '2026-10-20',
       erp_payment_terms_days: 30, erp_outstanding_amount: '500',

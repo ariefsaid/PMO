@@ -106,15 +106,24 @@ export function resolveProjectDrop(status: ProjectStatus, column: SalesColumn): 
 
 /**
  * Aging threshold in days. A pipeline deal untouched for >= 30 days is flagged as
- * "needs attention". Applied to any row that carries `last_update`.
+ * "needs attention". The latest update or stage-change date is the touch date.
  *
  * DATA AVAILABILITY: `last_update` is now supplied for BOTH open pipeline rows
  * (get_sales_pipeline() projects it — migration 0020, AC-IXD-PIPE-W5-C5) AND lost
  * deals (useLostDeals, full projects row). So the attention filter spans open ∪ lost.
- * A row that genuinely lacks `last_update` (defensive only) returns false — no false
+ * A row that genuinely lacks both dates (defensive only) returns false — no false
  * positive from missing data, per the honest-dashboard rule.
  */
 export const ATTENTION_THRESHOLD_DAYS = 30;
+
+/** True when a board can state the exclusive default once and leave inclusive rows explicitly marked. */
+export function canSummarizeExclusiveTaxBasis(
+  projects: readonly Pick<PipelineProject, 'contract_value' | 'tax_treatment'>[],
+): boolean {
+  const priced = projects.filter((project) => Number(project.contract_value ?? 0) > 0);
+  return priced.some((project) => project.tax_treatment === 'exclusive')
+    && priced.every((project) => project.tax_treatment === 'exclusive' || project.tax_treatment === 'inclusive');
+}
 
 /** An open bid is stale after 90 days without a move to a new pipeline stage. */
 export function isStaleBid(
@@ -135,13 +144,24 @@ export function daysSince(isoTs: string | undefined | null): number | null {
   return Math.floor(ms / (1000 * 60 * 60 * 24));
 }
 
+/** Days since the latest client-visible update or pipeline-stage move. */
+export function daysSinceLatestTouch(
+  project: Pick<PipelineProject, 'last_update' | 'stage_started_at'>,
+): number | null {
+  const updateAge = daysSince(project.last_update);
+  const stageAge = daysSince(project.stage_started_at);
+  if (updateAge === null) return stageAge;
+  if (stageAge === null) return updateAge;
+  return Math.min(updateAge, stageAge);
+}
+
 /**
- * Returns true if the row qualifies as "needs attention": `last_update` is present
- * AND the days-since exceeds the threshold. Rows without `last_update` return false
+ * Returns true if the row qualifies as "needs attention": its latest update or
+ * stage move is present AND the days-since exceeds the threshold. Rows without both return false
  * (honest — no data, no false flag, per the honest-dashboard rule).
  */
-export function isNeedsAttention(p: Pick<PipelineProject, 'last_update'>): boolean {
-  const d = daysSince(p.last_update);
+export function isNeedsAttention(p: Pick<PipelineProject, 'last_update' | 'stage_started_at'>): boolean {
+  const d = daysSinceLatestTouch(p);
   return d !== null && d >= ATTENTION_THRESHOLD_DAYS;
 }
 
@@ -171,7 +191,7 @@ export function pillVariantForStatus(status: PipelineProject['status']): StatusV
 
 /** Whole-number percent label from an RPC win_probability fraction. */
 export function formatPercent(probability: number): string {
-  return formatLocalizedPercent(probability, 0);
+  return formatLocalizedPercent(probability, 1);
 }
 
 /**

@@ -98,10 +98,9 @@ describe('IntegrationsView — organization ownership scope label (AC-ADMIA-006)
   it('labels the panel as organization-owned and separate from the personal route', async () => {
     wrapWithRole('Admin', <IntegrationsView />);
     const scope = await screen.findByTestId('integrations-owner-scope');
-    // The org surface labels its scope explicitly…
-    expect(scope).toHaveTextContent(/organization/i);
-    // A personal connection never activates organization integrations.
-    expect(scope).toHaveTextContent(/personal connections do not activate organization integrations/i);
+    // The org surface points to where personal connections live, so they are not mistaken for these.
+    expect(scope).toHaveTextContent(/personal connections/i);
+    expect(within(scope).getByRole('link', { name: /my integrations/i })).toBeInTheDocument();
   });
 
   it('AC-ADMIA-006: the org scope copy names the personal surface by label, never a raw route string', async () => {
@@ -144,7 +143,7 @@ describe('AC-ICI readable organization connector identity (#680)', () => {
     // The readable display name is shown…
     expect(card.getByText('Ada Lovelace')).toBeInTheDocument();
     // …beside the existing formatted connection date…
-    expect(card.getByText(/Jan 1, 2026/)).toBeInTheDocument();
+    expect(card.getByText(/1 Jan/)).toBeInTheDocument();
     // …and the raw technical actor value is never interpolated.
     expect(card.queryByText('u1', { exact: true })).not.toBeInTheDocument();
   });
@@ -165,7 +164,7 @@ describe('AC-ICI readable organization connector identity (#680)', () => {
     // The translated neutral fallback is shown…
     expect(card.getByText('Former or unavailable user')).toBeInTheDocument();
     // …beside the retained connection date…
-    expect(card.getByText(/Jan 1, 2026/)).toBeInTheDocument();
+    expect(card.getByText(/1 Jan/)).toBeInTheDocument();
     // …and the raw actor value is never rendered.
     const actor = (bp as { connected_by: string | null }).connected_by;
     if (actor) expect(card.queryByText(actor, { exact: true })).not.toBeInTheDocument();
@@ -178,7 +177,7 @@ describe('AC-ICI readable organization connector identity (#680)', () => {
     const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
     expect(card.getByText('Pengguna sebelumnya atau tidak tersedia')).toBeInTheDocument();
     expect(card.queryByText('Former or unavailable user')).not.toBeInTheDocument();
-    expect(card.getByText(/Jan 1, 2026/)).toBeInTheDocument();
+    expect(card.getByText(/1 Jan/)).toBeInTheDocument();
   });
 
   it.each([
@@ -213,8 +212,8 @@ describe('AC-ICI readable organization connector identity (#680)', () => {
       // Translated fallback + retained date sit inside the card's metadata container…
       const fallback = card.getByText('Pengguna sebelumnya atau tidak tersedia');
       const metadata = fallback.closest('.flex.flex-wrap')!;
-      expect(metadata).toHaveTextContent(/Jan 1, 2026/);
-      expect(card.getByText(/Jan 1, 2026/)).toBeInTheDocument();
+      expect(metadata).toHaveTextContent(/1 Jan/);
+      expect(card.getByText(/1 Jan/)).toBeInTheDocument();
       // …and the read-only viewer gets no management controls.
       expect(card.queryByRole('button', { name: /^hubungkan clickup$/i })).not.toBeInTheDocument();
       expect(card.queryByRole('button', { name: /^putuskan koneksi clickup$/i })).not.toBeInTheDocument();

@@ -1,3 +1,4 @@
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -16,19 +17,16 @@ import { useUsers } from '@/src/hooks/useUsers';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import {
-  formatCurrency,
-  formatNumberMax2,
-  formatShortMoney,
-  formatInstantDate,
-} from '@/src/lib/format';
+import { StackedBar } from '@/src/components/projects/StackedBar';
+import { formatDay, formatTableMoney } from '@/src/lib/format';
+import { formatBudgetAmount, formatBudgetTile } from './project-detail/budget/budgetMoney';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatExactCents, parseExactCents } from '@/src/lib/exactDecimal';
 import { yearsInSpan } from '@/src/lib/budget/budgetDistribution';
 import { staleDistributionBasis } from '@/src/lib/budget/distributionStaleness';
-import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import {
   Button,
+  UnsavedChangesDialog,
   useToast,
   Card,
   CardHead,
@@ -43,6 +41,9 @@ import {
   Tooltip,
   KPIRow,
   KPITile,
+  FigureScope,
+  FigureHiddenLine,
+  PageHeader,
   ViewToggle,
   ProgressBar,
   Drawer,
@@ -67,6 +68,7 @@ import { useBudgetReadiness } from './project-budget/BudgetReadiness';
 import { useBudgetVersionActions } from './project-budget/BudgetVersionActions';
 import { fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 import { repositories } from '@/src/lib/repositories';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 // ---------------------------------------------------------------------------
 // Main page component (NFR-BV-UI-001)
@@ -188,6 +190,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [draftEditorOpen, setDraftEditorOpen] = useState(false);
   const [hasOpenEditorBuffers, setHasOpenEditorBuffers] = useState(false);
+  const [hasUnsavedEditorChanges, setHasUnsavedEditorChanges] = useState(false);
+  const [pasteDirty, setPasteDirty] = useState(false);
+  const [editorGeneration, setEditorGeneration] = useState(0);
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const [pasteTargetId, setPasteTargetId] = useState<string | null>(null);
   const pasteOpen = pasteTargetId !== null;
   const hasOpenLineBuffers = hasOpenEditorBuffers || pasteOpen;
@@ -270,6 +276,14 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       ? current
       : readiness);
   }, []);
+  const distributionDirty = draftMode === 'whole_project' && distributionReadiness.versionId === draftVersion?.id &&
+    ['dirty', 'invalid', 'saving'].includes(distributionReadiness.status);
+  const unsavedBudgetChanges = hasUnsavedEditorChanges || pasteDirty || distributionDirty;
+  const guardLeave = useUnsavedChangesGuard({
+    dirty: unsavedBudgetChanges,
+    guardHistory: true,
+    onBlocked: (leave, stay) => setPendingLeave({ leave, stay }),
+  });
 
   const { readinessMessages, canConfirmActivation, canActivate, canReturn, activateBlockedReason, soleOperator, activationPrecheckQuery } = useBudgetReadiness(draftVersion, currentUserId, hasOpenLineBuffers, distributionReadinessStatus);
 
@@ -535,7 +549,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     ? t('common.you', 'You')
     : usersQuery.data?.find((user) => user.id === version.created_by)?.full_name ?? null;
   const versionMeta = (version: BudgetVersionWithItems) => [
-    version.created_at ? formatInstantDate(version.created_at) : null,
+    version.created_at ? formatDay(version.created_at) : null,
     authorName(version),
   ].filter(Boolean).join(' · ');
   /** A row's budget status, or null when spending or commitments are unknown (the page states that reason once). */
@@ -543,31 +557,30 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     if (row.budget === 0 && row.left !== null && row.left < 0) return { variant: 'warn' as const, label: t('projectDetail.budget.notBudgeted', 'Not budgeted') };
     if (row.used === null || row.left === null) return null;
     if (row.left < 0) return { variant: 'lost' as const, label: t('projectDetail.budget.overBudget', 'Over budget') };
-    if (row.used >= 90) return { variant: 'lost' as const, label: t('projectDetail.budget.atRisk', 'At risk') };
+    if (row.used >= 90) return { variant: 'warn' as const, label: t('projectDetail.budget.atRisk', 'At risk') };
     if (row.used >= 70) return { variant: 'warn' as const, label: t('projectDetail.budget.watch', 'Watch') };
-    return { variant: 'won' as const, label: t('projectDetail.budget.onTrack', 'On track') };
+    return { variant: 'neutral' as const, label: t('projectDetail.budget.onTrack', 'On track') };
   };
-  // C5/C6: whole units use the project heading; foreign budget figures carry their own basis.
-  // C5 + money precision: no trailing .00 on whole amounts, but a real fraction (1,234.5) is never rounded away.
-  const formatAmount = (value: number | null) => value === null ? '—' : formatNumberMax2(value);
-  const formatBudget = (value: number | null) => value === null ? '—' : selectedCurrency === project.currency ? formatAmount(value) : `${selectedCurrency} ${formatAmount(value)}`;
-  const formatSpent = (value: number | null) => value === null ? '—' : spendCurrency === project.currency ? formatAmount(value) : `${spendCurrency} ${formatAmount(value)}`;
+  const formatAmount = (value: number | null, currency = project.currency) => value === null ? '—' : formatBudgetAmount(value, currency);
+  const formatBudget = (value: number | null) => formatAmount(value, selectedCurrency);
+  const formatSpent = (value: number | null) => formatAmount(value, spendCurrency);
   // F11: KPI tiles carry the short amount; the full amount stays on hover and for screen readers.
   const tileAmount = (value: number | null, currency = project.currency) => {
-    if (value === null) return { value: '—' };
-    const short = formatShortMoney(value, currency);
-    const exact = formatCurrency(value, currency);
-    return short === exact ? { value: short } : { value: short, exactValue: exact };
+    const tile = value === null ? null : formatBudgetTile(value, currency);
+    if (tile === null) return { value: null };
+    const exact = value !== null && value !== 0 && Math.abs(value) < 0.5 ? tile : formatTableMoney(value, currency);
+    return exact && exact !== tile ? { value: tile, exactValue: exact } : { value: tile };
   };
-  const budgetUnit = <span className="text-xs text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-xs" /></>}</span>;
+  const spendingSetupLink = canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projectDetail.cost.finishSetup', 'Finish spending setup') } : undefined;
+  const budgetUnit = <span className="text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
   const spentExcludedNote = spentExcluded > 0 && totalSpent !== null
-    ? t('projectDetail.budget.spentExcludes', 'Spent excludes categories with no Odoo account ({{count}})', { count: spentExcluded })
+    ? t('projectDetail.budget.spentExcludes', 'Excludes {{count}} unmapped categories', { count: spentExcluded })
     : undefined;
   const actualSource = odooActuals.onLedger
     ? t('projectDetail.budget.actualsSourceOdoo', 'Source: the Odoo ledger by budget category. Accounts without a budget category are listed above the table and not counted.')
     : t('projectDetail.budget.actualsSource', 'Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.');
   const exportRows = (rows: BudgetSummaryRow[], filename: string) => {
-    const header = ['Category', `Budget (${selectedCurrency})`, `Spent (${spendCurrency})`, `Committed (${project.currency})`, `Left (${project.currency})`];
+    const header = [t('financeCopy.category', 'Category'), `${t('financeCopy.budget', 'Budget')} (${selectedCurrency})`, `${t('projectDetail.budget.spent', 'Spent')} (${spendCurrency})`, `${t('projectDetail.budget.committed', 'Committed')} (${project.currency})`, `${t('projectDetail.budget.left', 'Left after spend')} (${project.currency})`];
     const csv = [header, ...rows.map((row) => {
       const left = compatibleBasis && canSeeActuals && row.spent !== null && canSeeCommitments && row.committed !== null
         ? row.budget - row.spent - row.committed
@@ -618,20 +631,20 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     },
     {
       key: 'spent', header: t('projectDetail.budget.spent', 'Spent'), kind: 'money', align: 'num', size: 125, minSize: 100,
-      cell: (row) => <Tooltip content={actualSource}><span>{canSeeActuals ? formatSpent(row.spent) : '—'}</span></Tooltip>,
+      cell: (row) => canSeeActuals && row.spent !== null ? <Tooltip content={actualSource}><span>{formatSpent(row.spent)}</span></Tooltip> : null,
     },
     {
       key: 'committed', header: t('projectDetail.budget.committed', 'Committed'), kind: 'money', align: 'num', size: 125, minSize: 100,
       cell: (row) => <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')}><span>{canSeeCommitments ? formatAmount(row.committed) : '—'}</span></Tooltip>,
     },
     {
-      key: 'left', header: t('projectDetail.budget.left', 'Left'), kind: 'money', align: 'num', size: 125, minSize: 100,
-      cell: (row) => <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span className={row.left !== null && row.left < 0 ? 'text-destructive-text' : undefined}>{formatAmount(row.left)}</span></Tooltip>,
+      key: 'left', header: t('projectDetail.budget.left', 'Left after spend'), kind: 'money', align: 'num', size: 150, minSize: 120,
+      cell: (row) => row.left === null ? null : <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span className={row.left < 0 ? 'text-destructive-text' : undefined}>{formatAmount(row.left)}</span></Tooltip>,
     },
     {
       key: 'used', header: t('projectDetail.budget.percentUsed', '% used'), kind: 'percent', align: 'num', size: 100, minSize: 80,
       cell: (row) => row.used === null
-        ? <Tooltip content={t('projectDetail.budget.utilizationUnknown', 'Utilization is unavailable when budget, spending, or commitments are unknown, or when budget is zero.')}><span>—</span></Tooltip>
+        ? null
         : <Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
     },
     {
@@ -643,12 +656,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     key: 'total', label: t('financeCopy.total', 'Total'),
     values: {
       budget: <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items, grouped by category.')}><span tabIndex={0}>{formatBudget(tableBudgetTotal)}</span></Tooltip>,
-      spent: <Tooltip content={actualSource}><span tabIndex={0}>{formatSpent(totalSpent)}</span></Tooltip>,
+      spent: totalSpent === null ? null : <Tooltip content={actualSource}><span tabIndex={0}>{formatSpent(totalSpent)}</span></Tooltip>,
       committed: <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')}><span tabIndex={0}>{formatAmount(totalCommitted)}</span></Tooltip>,
-      left: <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span tabIndex={0}>{formatAmount(tableLeftTotal)}</span></Tooltip>,
+      left: tableLeftTotal === null ? null : <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span tabIndex={0}>{formatAmount(tableLeftTotal)}</span></Tooltip>,
       used: compatibleBasis && tableBudgetTotal && totalSpent !== null && totalCommitted !== null
         ? <Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0}>{Math.round((totalSpent + totalCommitted) / tableBudgetTotal * 100)}%</span></Tooltip>
-        : '—',
+        : null,
     },
   }] : [];
   const categoryMenu = (row: (typeof enrichedRows)[number]): RowMenuItem[] => [
@@ -659,15 +672,15 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const versionColumns: Column<BudgetVersionWithItems>[] = [
     {
       key: 'version', header: t('projectDetail.budget.version', 'Version'), kind: 'primary', rowHeader: true,
-      cell: (version) => <span><span className="font-mono text-xs text-muted-foreground">v{version.version}</span> <span className="font-semibold">{version.name}</span></span>,
-      secondaryCell: (version) => versionMeta(version) ? <span className="text-xs text-muted-foreground">{versionMeta(version)}</span> : null,
+      cell: (version) => <span><span className="font-mono text-sm text-muted-foreground">v{version.version}</span> <span className="font-semibold">{version.name}</span></span>,
+      secondaryCell: (version) => versionMeta(version) ? <span className="text-sm text-muted-foreground">{versionMeta(version)}</span> : null,
     },
-    { key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', cell: (version) => <StatusPill variant={budgetVersionVariant(version.status)}>{version.status}</StatusPill> },
-    { key: 'total', header: t('financeCopy.total', 'Total'), kind: 'money', align: 'num', cell: (version) => <Tooltip content={t('projectDetail.budget.versionTotalSource', 'Source: sum of the budget line items in this version.')}><span tabIndex={0}>{`${version.currency || project.currency} ${formatAmount(version.total)}`}</span></Tooltip> },
+    { key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', cell: (version) => <StatusPill record="budgetVersion" state={version.status} /> },
+    { key: 'total', header: t('financeCopy.total', 'Total'), kind: 'money', align: 'num', cell: (version) => <Tooltip content={t('projectDetail.budget.versionTotalSource', 'Source: sum of the budget line items in this version.')}><span tabIndex={0}>{formatAmount(version.total, version.currency || project.currency)}</span></Tooltip> },
     { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (version) => {
       const index = orderedVersions.findIndex((item) => item.id === version.id);
       const previous = index > 0 ? orderedVersions[index - 1] : null;
-      return previous && (version.currency || project.currency) === (previous.currency || project.currency) ? <Tooltip content={t('projectDetail.budget.versionChangeSource', 'Calculated as this version total minus the prior numbered version total.')}><span tabIndex={0} className={version.total > previous.total ? 'text-destructive-text' : undefined}>{version.total > previous.total ? t('projectDetail.budget.changeIncrease', '+') : ''}{`${version.currency || project.currency} ${formatAmount(version.total - previous.total)}`}</span></Tooltip> : '—';
+      return previous && (version.currency || project.currency) === (previous.currency || project.currency) ? <Tooltip content={t('projectDetail.budget.versionChangeSource', 'Calculated as this version total minus the prior numbered version total.')}><span tabIndex={0} className={version.total > previous.total ? 'text-destructive-text' : undefined}>{version.total > previous.total ? t('projectDetail.budget.changeIncrease', '+') : ''}{formatAmount(version.total - previous.total, version.currency || project.currency)}</span></Tooltip> : '—';
     } },
     ...(canViewBudgetEnforcement ? [{ key: 'accounting', header: t('projectDetail.budget.accountingSystem', 'Accounting system'), cell: (version: BudgetVersionWithItems) => {
       if (version.status !== 'Active') return '—';
@@ -700,14 +713,18 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   ];
 
   const draftEditor = draftVersion && canWrite ? (
-    <section hidden={!draftEditorOpen || selectedVersion?.id !== draftVersion.id || view !== 'actual'} aria-label={t('projectDetail.budget.draftEditor', 'Draft budget editor')} className="min-w-0 space-y-3" data-testid="budget-draft-editor">
+    <section key={editorGeneration} hidden={!draftEditorOpen || selectedVersion?.id !== draftVersion.id || view !== 'actual'} aria-label={t('projectDetail.budget.draftEditor', 'Draft budget editor')} className="min-w-0 space-y-3" data-testid="budget-draft-editor">
       <fieldset disabled={authoringRefreshNeeded} className="min-w-0 space-y-3 border-0 p-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{draftVersion.name} · v{draftVersion.version}</h3>
         <div className="flex flex-wrap items-center gap-2">
           {canPaste && <Button variant="outline" size="sm" onClick={() => setPasteTargetId(draftVersion.id)}>{t('budgetPaste.open', 'Paste rows')}</Button>}
           <Button variant="outline" size="sm" onClick={() => setModeSwitchOpen(true)}>{t('projectDetail.budget.changeBudgetMode', 'Change budget mode')}</Button>
-          <Button variant="ghost" size="sm" onClick={() => setDraftEditorOpen(false)}>{t('common.close', 'Close')}</Button>
+          <Button variant="ghost" size="sm" onClick={() => guardLeave(() => {
+            setEditorGeneration((generation) => generation + 1);
+            setHasUnsavedEditorChanges(false);
+            setDraftEditorOpen(false);
+          })}>{t('common.close', 'Close')}</Button>
         </div>
       </div>
       <BudgetLineItemEditor
@@ -718,6 +735,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         onDeleteLineItem={requestDeleteLineItem}
         onUpdateLineItem={(id, patch) => mutations.updateLineItem.mutateAsync({ id, patch })}
         onOpenBuffersChange={setHasOpenEditorBuffers}
+        onDirtyChange={setHasUnsavedEditorChanges}
         onSaveSuccess={() => toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')}
         createIsPending={mutations.createLineItem.isPending}
         updateIsPending={mutations.updateLineItem.isPending}
@@ -782,14 +800,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   }
 
   return (
+    <FigureScope>
     <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]" data-testid={versions.length === 0 ? 'budget-empty' : 'budget-option-a'}>
-      <header className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-        {/* Project currency and tax basis apply to project spending and commitments. */}
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-          <h2 className="text-page font-bold tracking-[-0.02em] text-foreground">{t('projectDetail.budget.title', 'Project budget')}</h2>
-          {budgetUnit}
-        </div>
-      </header>
+      <PageHeader headingLevel={2} title={t('projectDetail.budget.title', 'Project budget')} count={budgetUnit} className="mb-0" />
+      <FigureHiddenLine />
 
       {authoringRecoveryNotice}
 
@@ -810,7 +824,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         <section aria-label={t('projectDetail.budget.draftReturned', 'Draft returned to the drafter')} className="panel-card flex min-w-0 flex-wrap items-center justify-between gap-3 p-[var(--panel-inset)]" data-testid="budget-returned-banner">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <StatusPill variant="draft">{t('financeCopy.statusDraft', 'Draft')}</StatusPill>
+              <StatusPill record="budgetVersion" state="Draft" />
               <h3 className="font-semibold">{t('projectDetail.budget.draftReturned', 'Draft returned to the drafter')}</h3>
               <span className="text-sm text-muted-foreground">{draftVersion.name} · v{draftVersion.version}</span>
             </div>
@@ -828,14 +842,14 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         <section aria-label={t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')} className="panel-card flex min-w-0 flex-wrap items-center justify-between gap-3 p-[var(--panel-inset)]" data-testid="budget-draft-banner">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <StatusPill variant="draft">{t('financeCopy.statusDraft', 'Draft')}</StatusPill>
+              <StatusPill record="budgetVersion" state="Draft" />
               <h3 className="font-semibold">{t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')}</h3>
               <span className="text-sm text-muted-foreground">{draftVersion.name} · v{draftVersion.version}</span>
             </div>
             {!canActivate && <p role="status" className="mt-1 text-sm text-muted-foreground">{activateBlockedReason ?? t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
             {canActivate && !hasOpenLineBuffers && <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.draftReady', 'This draft is ready for an eligible approver to activate.')}</p>}
             {canActivate && hasOpenLineBuffers && <p role="status" className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.saveOrDiscardLines', 'Save or discard all open line item edits before activating.')}</p>}
-            <div data-testid="budget-readiness-summary" aria-live="polite" className="mt-2 text-[13px] text-muted-foreground">
+            <div data-testid="budget-readiness-summary" aria-live="polite" className="mt-2 text-sm text-muted-foreground">
               {readinessMessages.map((message, index) => <p key={`${index}-${message}`}>{message}</p>)}
             </div>
             {!canWrite && draftMode === 'whole_project' && budgetDistributionQuery.isError && (
@@ -858,12 +872,31 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
 
-      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-2 lg:grid-cols-4">
+      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]">
         <KPITile icon="dollar" tone="blue" label={t('financeCopy.budget', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items, grouped by category.')} />
-        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, spendCurrency)} vs={spentExcludedNote} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} help={actualSource} />
+        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, spendCurrency)} caption={spentExcludedNote} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} hiddenLink={spendingSetupLink} help={actualSource} />
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')} />
-        <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} {...tileAmount(totalLeft)} vs={spentExcludedNote} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? (compatibleBasis ? t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.') : t('projectDetail.budget.currencyComparisonUnavailable', 'Comparison unavailable because budget and spending use different currencies.')) : undefined} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
+        <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left after spend')} {...tileAmount(totalLeft)} caption={spentExcludedNote} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? (compatibleBasis ? t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.') : t('projectDetail.budget.currencyBasisSplitNotice', 'Budget: {{budgetCurrency}}. Spending: {{spendCurrency}}. Commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.', { budgetCurrency: selectedCurrency, spendCurrency, projectCurrency: project.currency })) : undefined} hiddenLink={compatibleBasis ? spendingSetupLink : undefined} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
       </KPIRow>
+
+      {/* Parts of a whole: where the budget sits, drawn so the shares read at a glance. */}
+      {view === 'actual' && enrichedRows.filter((row) => row.budget > 0).length >= 3 && (
+        <Card className="min-w-0">
+          <CardHead className="pb-1">{t('projectDetail.budget.byCategory', 'Budget by category')}</CardHead>
+          <CardPad className="pt-2">
+            <StackedBar
+              ariaLabel={t('projectDetail.budget.byCategory', 'Budget by category')}
+              otherLabel={t('projectDetail.budget.otherCategories', 'Other')}
+              segments={enrichedRows.filter((row) => row.budget > 0).map((row) => ({
+                key: row.category,
+                label: budgetCategoryLabel(row.category, t),
+                value: row.budget,
+                display: formatBudgetTile(row.budget, activeBudgetCurrency ?? project.currency),
+              }))}
+            />
+          </CardPad>
+        </Card>
+      )}
 
       <Card role="region" aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0">
         <CardHead className="pb-1">{t('projectDetail.budget.budgetVsActual', 'Budget vs actual')}</CardHead>
@@ -886,12 +919,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
                 ...(hasActiveErpBinding && activeVersion ? [{ value: 'forecast' as const, label: t('projectDetail.budget.forecast', 'Forecast') }] : []),
               ]}
             />
-            <span className="text-xs font-medium text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
+            <span className="text-sm font-medium text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <span>{t('projectDetail.budget.version', 'Version')}</span>
-              <select aria-label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(event) => { setSelectedVersionId(event.target.value); setDraftEditorOpen(false); }} className="h-[30px] max-w-52 rounded-md border border-input bg-background px-2 text-xs text-foreground disabled:opacity-70">
+              <select aria-label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(event) => { setSelectedVersionId(event.target.value); setDraftEditorOpen(false); }} className="h-[30px] max-w-52 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:opacity-70">
                 {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {version.status}</option>)}
               </select>
             </label>
@@ -905,7 +938,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       {readonlyDistributionReadiness}
         {view === 'actual' ? (
           selectedVersion ? <>
-            {!compatibleBasis && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.currencyBasisSplitNotice', 'Budget: {{budgetCurrency}}. Spending: {{spendCurrency}}. Commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.', { budgetCurrency: selectedCurrency, spendCurrency, projectCurrency: project.currency })}</p>}
             <BudgetOdooActuals projectId={projectId} />
             <DataTable
               embedded
@@ -929,7 +961,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             />
             {position.actualsPending && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</p>}
             {position.actualsError && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{t('projectDetail.budget.actualsError', "Couldn't check spending.")}<Button variant="ghost" size="sm" onClick={() => void position.refetchActuals()}>{t('common.retry', 'Retry')}</Button></p>}
-            {canSeeActuals && position.unknown > 0 && !position.currencyDiffers && !position.actualsPending && !position.actualsError && <p className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingUnlinked', "Spending isn't linked yet.")} {canManageAccounting ? <a href="/administration/accounting#budget-account-map" className="font-medium text-primary-text underline underline-offset-2">{t('projectDetail.cost.finishSetup', 'Finish spending setup')}</a> : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}</p>}
           </> : versions.length === 0 ? null : <ListState variant="empty" title={t('projectDetail.budget.noActiveBudget', 'No active budget')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} />
         ) : activeVersion ? <><AttributedSpendingNote projectId={projectId} /><BudgetProjection projectId={projectId} orgId={currentUser?.org_id} budgetVersionId={activeVersion.id} projectStartDate={project.start_date ?? null} projectEndDate={project.end_date ?? null} budgetMode={activeVersion.budget_mode} approvedBudgetYears={approvedBudgetYears} currency={project.currency} budgetCurrency={activeBudgetCurrency} canEdit={canWrite} committedByCategory={Object.fromEntries(summaryRows.map((row) => [row.category, canSeeCommitments ? row.committed : null]))} canReadCommitments={canSeeCommitments} onAdjustInDraft={adjustInDraft} onExport={(payload: BudgetProjectionExport) => {
           const csv = buildBudgetProjectionCsv(payload, {
@@ -1033,7 +1064,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         nestedOpen={Boolean(pendingConfirm)}
         headerActions={selectedCategory && <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
           {canWrite && <Button variant="primary" size="sm" onClick={adjustInDraft}>{t('projectDetail.budget.adjustInDraft', 'Adjust in a draft')}</Button>}
-          <Link className="touch-target inline-flex min-h-9 items-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent" to={`/projects/${encodeURIComponent(projectId)}/budget`}>{t('projectDetail.budget.openFullPage', 'Open full page')}</Link>
+          <Link className={buttonClasses('outline', 'sm')} to={`/projects/${encodeURIComponent(projectId)}/budget`}>{t('projectDetail.budget.openFullPage', 'Open full page')}</Link>
           {/* B1: the same drawer header as every record — main action · Open full page · ⋯. */}
           <MenuButton items={[{ label: t('projectDetail.budget.exportCategory', 'Export category'), onClick: () => exportRows([selectedCategory], `Budget_${selectedCategory.category}`) }]}
             ariaLabel={t('projectDetail.budget.categoryActions', '{{category}} actions', { category: budgetCategoryLabel(selectedCategory.category, t) })} />
@@ -1049,7 +1080,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               [t('financeCopy.budget', 'Budget'), formatBudget(selectedCategory.budget), t('projectDetail.budget.budgetSource', 'Source: selected budget version line items, grouped by category.')],
               [t('projectDetail.budget.spent', 'Spent'), canSeeActuals ? formatAmount(selectedCategory.spent) : '—', actualSource],
               [t('projectDetail.budget.committed', 'Committed'), canSeeCommitments ? formatAmount(selectedCategory.committed) : '—', t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')],
-              [t('projectDetail.budget.left', 'Left'), formatAmount(selectedCategory.left), t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')],
+              [t('projectDetail.budget.left', 'Left after spend'), formatAmount(selectedCategory.left), t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')],
             ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-semibold tabular-nums"><Tooltip content={source}><span tabIndex={0}>{value}</span></Tooltip></dd></div>)}
           </dl>
           {/* C4: cost to finish and forecast final are per fiscal year, so they live in Forecast — pointed to, not printed as placeholders. */}
@@ -1067,7 +1098,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           <section aria-labelledby="budget-category-lines-heading" className="space-y-2">
             <h2 id="budget-category-lines-heading" className="text-sm font-semibold">{t('projectDetail.budget.budgetLineItems', 'Budget line items')}</h2>
             <ul className="divide-y divide-border" aria-label={t('projectDetail.budget.budgetLineItems', 'Budget line items')}>
-              {selectedCategory.lines.map((line) => <li key={line.id ?? `${line.category}-${line.description}`} className="flex min-w-0 items-start justify-between gap-3 py-2 text-sm"><span className="min-w-0 break-words text-muted-foreground">{line.description || '—'}<span className="ml-2 text-xs">{t('financeCopy.fiscalYear', 'Fiscal year')}: {line.fiscal_year ?? t('financeCopy.unPhased', 'Un-phased')}</span></span><Tooltip content={t('projectDetail.budget.budgetLineSource', 'Source: selected budget version line item.')}><span tabIndex={0} className="shrink-0 tabular-nums">{formatBudget(Number(line.budgeted_amount))}</span></Tooltip></li>)}
+              {selectedCategory.lines.map((line) => <li key={line.id ?? `${line.category}-${line.description}`} className="flex min-w-0 items-start justify-between gap-3 py-2 text-sm"><span className="min-w-0 break-words text-muted-foreground">{line.description || '—'}<span className="ml-2 text-sm">{t('financeCopy.fiscalYear', 'Fiscal year')}: {line.fiscal_year ?? t('financeCopy.unPhased', 'Un-phased')}</span></span><Tooltip content={t('projectDetail.budget.budgetLineSource', 'Source: selected budget version line item.')}><span tabIndex={0} className="shrink-0 tabular-nums">{formatBudget(Number(line.budgeted_amount))}</span></Tooltip></li>)}
               {selectedCategory.lines.length === 0 && <li className="py-2 text-sm text-muted-foreground">{t('projectDetail.budget.noLineItems', 'No budget line items are recorded for this category.')}</li>}
             </ul>
           </section>
@@ -1087,7 +1118,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         hasDraft={Boolean(draftVersion)}
         nestedOpen={Boolean(pendingConfirm)}
         readinessSummary={draftVersion ? (
-          <div data-testid="budget-readiness-summary" aria-live="polite" className="mt-2 text-[13px] text-muted-foreground">
+          <div data-testid="budget-readiness-summary" aria-live="polite" className="mt-2 text-sm text-muted-foreground">
             {readinessMessages.map((message, index) => <p key={`${index}-${message}`}>{message}</p>)}
           </div>
         ) : null}
@@ -1113,6 +1144,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         <BudgetPasteRowsDialog
           key={draftVersion.id}
           onClose={() => setPasteTargetId(null)}
+          onDirtyChange={setPasteDirty}
           projectId={projectId}
           targetId={draftVersion.id}
           selectedId={selectedVersion?.id ?? null}
@@ -1124,7 +1156,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         />
       )}
       {!authoringRefreshNeeded && budgetConfirm}
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+      />
     </div>
+    </FigureScope>
   );
 };
 

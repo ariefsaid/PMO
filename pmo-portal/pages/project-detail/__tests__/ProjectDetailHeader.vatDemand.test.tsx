@@ -134,10 +134,8 @@ const resolveVat = (n: number, payload: unknown) => {
 /** Open the compact header's "More actions" menu and click "Change contract value". */
 async function openValueEditor() {
   const header = screen.getByTestId('record-header');
-  const menu = within(header).getByLabelText('More actions').closest('details');
-  expect(menu).not.toBeNull();
-  await userEvent.click(within(menu!).getByLabelText('More actions'));
-  await userEvent.click(within(menu!).getByRole('button', { name: 'Change contract value' }));
+  await userEvent.click(within(header).getByRole('button', { name: 'More actions' }));
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Change contract value' }));
 }
 
 beforeEach(() => {
@@ -161,7 +159,7 @@ describe('VAT editability is read on demand (AC-PERF-001, plan Step 1a)', () => 
     // The editor is open; the read is in flight and the flag is locked while it is pending.
     expect(screen.getByTestId('contract-vat-flag')).toBeInTheDocument();
     expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/Checking whether PPN can be changed/i);
-    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toBeDisabled();
 
     // Exactly ONE request for the whole open — the enabled-flip and the begin-edit refetch dedupe.
     expect(stub.vatResolvers).toHaveLength(1);
@@ -171,7 +169,7 @@ describe('VAT editability is read on demand (AC-PERF-001, plan Step 1a)', () => 
     await waitFor(() =>
       expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/invoice that is not cancelled/i),
     );
-    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toBeDisabled();
     expect(stub.vatResolvers).toHaveLength(1);
     expect(header).toBeInTheDocument();
   });
@@ -183,8 +181,8 @@ describe('VAT editability is read on demand (AC-PERF-001, plan Step 1a)', () => 
     await waitFor(() =>
       expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/Editable until an invoice is raised/i),
     );
-    // Unlocked: no aria-disabled at all.
-    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).not.toHaveAttribute('aria-disabled');
+    // Unlocked: enabled.
+    expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toBeEnabled();
     expect(stub.vatResolvers).toHaveLength(1);
   });
 });

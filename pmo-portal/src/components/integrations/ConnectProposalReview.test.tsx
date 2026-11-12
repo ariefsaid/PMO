@@ -46,6 +46,10 @@ const readyStatus = (census: ConnectCensusRow[], waitingForSend = 0) => ({
   waitingForSend,
 });
 
+/** The picker's search field (the popup input), not its same-named trigger button. */
+const pickerSearch = async () =>
+  (await screen.findAllByRole('combobox', { name: /^(search|cari) /i })).find((el) => el.tagName === 'INPUT')!;
+
 describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -431,7 +435,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     expect(within(row).getByText('Acme Connected Record')).toBeInTheDocument();
     fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
     fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'Acme' } });
+    fireEvent.change(await pickerSearch(), { target: { value: 'Acme' } });
     const candidateOption = await screen.findByRole('option', { name: /Acme Candidate/ });
     fireEvent.click(candidateOption);
 
@@ -546,7 +550,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     const row = await screen.findByTestId('connect-review-list-row-long-search');
     fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
     fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'Mutiara' } });
+    fireEvent.change(await pickerSearch(), { target: { value: 'Mutiara' } });
 
     for (const [index, name] of longNames.entries()) {
       const option = await screen.findByRole('option', { name: new RegExp(name) });
@@ -580,7 +584,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     const row = await screen.findByTestId('connect-review-list-row-query-row');
     fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
     fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
-    const searchbox = screen.getByRole('searchbox');
+    const searchbox = await pickerSearch();
 
     fireEvent.change(searchbox, { target: { value: 'Sinar' } });
     expect(await screen.findByRole('option', { name: /PT Sinar Daya/ })).toBeInTheDocument();
@@ -907,7 +911,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     const row = await screen.findByTestId('connect-review-list-row-proposal-change');
     fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
     fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'New' } });
+    fireEvent.change(await pickerSearch(), { target: { value: 'New' } });
     const option = await screen.findByRole('option', { name: /New Connected Name/ });
     fireEvent.click(option);
 

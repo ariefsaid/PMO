@@ -60,7 +60,11 @@ describe('MilestoneStrip at-risk state (AC-DEL-009)', () => {
 
     render$();
 
-    expect(screen.getByText('Overdue')).toBeInTheDocument();
+    // "Late" renders in the phase-card pill and the desktop status-key legend; the card pill
+    // paints the state red (StatusPill "overdue" variant = danger surface).
+    const lateMarkers = screen.getAllByText('Late');
+    expect(lateMarkers.length).toBeGreaterThan(0);
+    expect(lateMarkers.some((el) => el.closest('.bg-status-danger-surface'))).toBeTruthy();
     const target = screen.getByText('Target 01 May, 2024');
     expect(target).toBeInTheDocument();
     expect(target.className).toContain('text-warning-foreground');

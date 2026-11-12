@@ -33,7 +33,7 @@ import { ContextBar } from '@/src/components/shell/ContextBar';
 function renderBar() {
   return render(
     <MemoryRouter>
-      <ContextBar breadcrumb={[]} onOpenPalette={() => {}} onToggleRail={() => {}} />
+      <ContextBar breadcrumb={[]} onOpenPalette={() => {}} />
     </MemoryRouter>,
   );
 }

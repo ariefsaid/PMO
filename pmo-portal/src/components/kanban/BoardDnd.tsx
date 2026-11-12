@@ -5,6 +5,7 @@ import {
   type CollisionDetection, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import type { DropState } from '@/src/components/ui/Kanban';
+import { prefersReducedMotion } from '@/src/lib/motion';
 import type { MoveState } from './useOptimisticMoves';
 import { buildAnnouncements, type BoardLabels } from './boardAnnouncements';
 
@@ -54,7 +55,8 @@ export const BoardDnd: React.FC<BoardDndProps> = ({ onMove, isHome, renderOverla
           }}
         >
           {children}
-          <DragOverlay>{activeId ? renderOverlay(activeId) : null}</DragOverlay>
+          {/* --motion-drawer-in / --ease-out: WAAPI easing can't read CSS vars */}
+          <DragOverlay dropAnimation={prefersReducedMotion() ? null : { duration: 200, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }}>{activeId ? renderOverlay(activeId) : null}</DragOverlay>
         </DndContext>
       </div>
     </ActiveCard.Provider>

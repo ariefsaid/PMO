@@ -25,6 +25,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [{ id: 'pj1', name: 'EQU P1', short_name: null, currency: 'IDR' }, { id: 'pj2', name: 'EQU P2', short_name: null, currency: 'IDR' }] }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: (h.viewAs ?? h.role) as Role }) }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 
 import EquipmentAssetDetail from './EquipmentAssetDetail';
 
@@ -57,6 +58,17 @@ describe('/equipment/assets/:assetId (AC-EQU-001 FE reference, FR-EQU-044/071)',
     h.preview = vi.fn().mockResolvedValue([{ project_id: 'pj1', month: '2026-10-01', category: 'Equipment', basis: 'actual_cost', amount: 600, driver_total: 8, entry_count: 3 }]);
     h.save = vi.fn().mockResolvedValue({ setting_key: 'sk1', version: 3, changed: true });
     h.end = vi.fn().mockResolvedValue(undefined);
+  });
+
+  it('shows unrecorded usage and hire rates as unknown', async () => {
+    h.costing = ok([setting({ basis: 'hire_rate', work_rate: null, rate_unit: 'hours' })]);
+    h.allocations = ok({ rows: [alloc({ basis: 'hire_rate', work_units: null, work_rate: null })], truncated: false });
+    h.totals = ok({ rows: [{ asset_id: 'a1', project_id: 'pj1', month: '2026-10-01', work_units: null, standby_units: null, fuel_litres: null, trips: null, submitted_count: null, unit: 'hours' }], truncated: false });
+    renderPage();
+    expect(screen.getByRole('region', { name: 'Usage' })).toHaveTextContent('—');
+    expect(screen.getByRole('region', { name: 'Costing' })).toHaveTextContent('—');
+    await userEvent.setup().click(screen.getByRole('button', { name: /how this was calculated/i }));
+    expect(screen.getByRole('group', { name: /calculation/i })).toHaveTextContent('—');
   });
 
   it('AC-EQU-001 the drill-down shows pool, driver, share and version for an actual-cost row', async () => {

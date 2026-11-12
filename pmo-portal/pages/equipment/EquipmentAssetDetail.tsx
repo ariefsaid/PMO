@@ -9,11 +9,14 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import {
   useEndCosting, useEquipmentAllocations, useEquipmentAssets, useEquipmentCosting, useEquipmentUsageTotals,
 } from '@/src/hooks/useEquipment';
+import { Bar, BarChart, LabelList, ResponsiveContainer, XAxis } from 'recharts';
+import { chartTheme } from '@/src/components/ui/chartTheme';
 import { useProjects } from '@/src/hooks/useProjects';
 import type { EquipmentAllocationRow, EquipmentCostingRow, EquipmentUsageTotalRow } from '@/src/lib/db/equipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency, formatNumberMax2, formatMonthYear } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatNumberMax2, formatMonthYear } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { EquipmentCostingForm } from './EquipmentCostingForm';
 import { basisLabel, driverLabel, unitLabel } from './equipmentLabels';
 import { fromIso, monthStart, toIso } from './equipmentWeek';
@@ -26,8 +29,8 @@ const Calculation: React.FC<{ r: EquipmentAllocationRow; t: T; money: (n: number
   const unit = unitLabel(t, r.unit);
   const rows: Array<[string, React.ReactNode]> = [];
   if (r.basis === 'hire_rate') {
-    rows.push([t('equipment:calc.work', 'Work'), t('equipment:calc.workLine', 'Work {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: formatNumberMax2(Number(r.work_units ?? 0)), unit, rate: formatNumberMax2(Number(r.work_rate ?? 0)), perUnit: unit })]);
-    if (r.standby_rate != null) rows.push([t('equipment:calc.standby', 'Standby'), t('equipment:calc.standbyLine', 'Standby {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: formatNumberMax2(Number(r.standby_units ?? 0)), unit, rate: formatNumberMax2(Number(r.standby_rate)), perUnit: unit })]);
+    rows.push([t('equipment:calc.work', 'Work'), t('equipment:calc.workLine', 'Work {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: r.work_units == null ? '—' : formatNumberMax2(Number(r.work_units)), unit, rate: r.work_rate == null ? '—' : money(Number(r.work_rate)), perUnit: unit })]);
+    if (r.standby_rate != null) rows.push([t('equipment:calc.standby', 'Standby'), t('equipment:calc.standbyLine', 'Standby {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: r.standby_units == null ? '—' : formatNumberMax2(Number(r.standby_units)), unit, rate: money(Number(r.standby_rate)), perUnit: unit })]);
   } else {
     if (r.pool != null) rows.push([t('equipment:calc.pool', 'Pool'), t('equipment:calc.poolLine', 'Pool {{amount}}', { amount: money(Number(r.pool)) }) + (r.line_count ? ` · ${t('equipment:calc.lines', 'Ledger lines: {{count}}', { count: r.line_count })}` : '')]);
     rows.push([t('equipment:calc.driver', 'Driver'), t('equipment:calc.driverLine', 'Shared by {{driver}}', { driver: driverLabel(t, r.driver) })]);
@@ -85,7 +88,7 @@ const AllocationsCard: React.FC<{ assetId: string; today: string; projectName: (
               emptySub={t('equipment:allocations.emptySub', 'Approved usage shows here by month and project.')} />
             {rows.filter((r) => open.has(rowId(r))).map((r) => (
               <div key={rowId(r)} className="mt-2 border-t border-border pt-1">
-                <p className="text-xs font-medium text-muted-foreground">{formatMonthYear(fromIso(r.month))}{r.project_id ? ` · ${projectName(r.project_id)}` : ''}</p>
+                <p className="text-sm font-medium text-muted-foreground">{formatMonthYear(fromIso(r.month))}{r.project_id ? ` · ${projectName(r.project_id)}` : ''}</p>
                 <Calculation r={r} t={t} money={(n) => money(n, r.project_id)} />
               </div>))}
           </>
@@ -110,7 +113,7 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
   const settingLine = (s: EquipmentCostingRow) => {
     const bits: string[] = [];
     if (s.basis === 'hire_rate') {
-      bits.push(t('equipment:costing.workRateLine', 'Work {{rate}} per {{unit}}', { rate: formatNumberMax2(Number(s.work_rate ?? 0)), unit: unitLabel(t, s.rate_unit) }));
+      bits.push(t('equipment:costing.workRateLine', 'Work {{rate}} per {{unit}}', { rate: s.work_rate == null ? '—' : formatNumberMax2(Number(s.work_rate)), unit: unitLabel(t, s.rate_unit) }));
       if (s.standby_rate != null) bits.push(t('equipment:costing.standbyRateLine', 'Standby {{rate}} per {{unit}}', { rate: formatNumberMax2(Number(s.standby_rate)), unit: unitLabel(t, s.rate_unit) }));
     }
     if (s.basis === 'actual_cost') {
@@ -121,10 +124,10 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
     return bits.join(' · ');
   };
   const columns: Column<EquipmentCostingRow>[] = [
-    { key: 'from', header: t('equipment:costing.effectiveFrom', 'Effective from'), kind: 'primary', rowHeader: true, cell: (s) => s.effective_from },
-    { key: 'to', header: t('equipment:costing.effectiveTo', 'Effective to'), cell: (s) => s.effective_to ?? '—' },
+    { key: 'from', header: t('equipment:costing.effectiveFrom', 'Effective from'), kind: 'primary', rowHeader: true, cell: (s) => formatDay(s.effective_from) },
+    { key: 'to', header: t('equipment:costing.effectiveTo', 'Effective to'), cell: (s) => s.effective_to ? formatDay(s.effective_to) : null },
     { key: 'basis', header: t('equipment:costing.basis', 'Costing basis'), cell: (s) => basisLabel(t, s.basis) },
-    { key: 'detail', header: t('equipment:costing.detail', 'Detail'), cell: (s) => settingLine(s) || '—' },
+    { key: 'detail', header: t('equipment:costing.detail', 'Detail'), cell: (s) => settingLine(s) || null },
     { key: 'version', header: t('equipment:costing.version', 'Version'), align: 'num', cell: (s) => s.version },
     { key: 'state', header: t('equipment:costing.state', 'State'),
       cell: (s) => s.voided ? <StatusPill variant="lost">{t('equipment:costing.voided', 'Voided')}</StatusPill> : s.is_current ? <StatusPill variant="won">{t('equipment:costing.current', 'Current')}</StatusPill> : <StatusPill variant="superseded">{t('equipment:costing.past', 'Past')}</StatusPill> },
@@ -157,7 +160,7 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
               ? <div className="space-y-1">
                 <p className="text-sm font-semibold">{basisLabel(t, current.basis)}</p>
                 <p className="text-sm text-muted-foreground">{settingLine(current)}</p>
-                <p className="text-xs text-muted-foreground">{t('equipment:costing.since', 'From {{date}} · version {{version}}', { date: current.effective_from, version: current.version })}</p>
+                <p className="text-sm text-muted-foreground">{t('equipment:costing.since', 'From {{date}} · version {{version}}', { date: formatDay(current.effective_from), version: current.version })}</p>
               </div>
               : <p className="text-sm text-muted-foreground">{t('equipment:costing.none', 'No costing set. Usage is recorded and totalled per project, with no amount.')}</p>}
             <div className="mt-3 flex items-center gap-2 text-sm">
@@ -181,20 +184,42 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
 const UsageCard: React.FC<{ assetId: string; today: string; projectName: (id: string) => string }> = ({ assetId, today, projectName }) => {
   const { t } = useTranslation();
   const q = useEquipmentUsageTotals({ assetId, ...rangeFor(today) });
-  const rows = q.data?.rows ?? [];
+  const rows = useMemo(() => q.data?.rows ?? [], [q.data]);
   const columns: Column<EquipmentUsageTotalRow>[] = [
     { key: 'month', header: t('equipment:allocations.month', 'Month'), kind: 'primary', rowHeader: true, cell: (r) => formatMonthYear(fromIso(r.month)) },
     { key: 'project', header: t('equipment:allocations.project', 'Project'), cell: (r) => projectName(r.project_id) },
-    { key: 'work', header: t('equipment:usage.kindWork', 'Work'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(Number(r.work_units ?? 0))} {unitLabel(t, r.unit)}</span> },
-    { key: 'standby', header: t('equipment:usage.kindStandby', 'Standby'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(Number(r.standby_units ?? 0))} {unitLabel(t, r.unit)}</span> },
-    { key: 'fuel', header: t('equipment:usage.fuel', 'Fuel (litres)'), align: 'num', cell: (r) => formatNumberMax2(Number(r.fuel_litres ?? 0)) },
-    { key: 'trips', header: t('equipment:usage.trips', 'Trips'), align: 'num', cell: (r) => Number(r.trips ?? 0) },
-    { key: 'waiting', header: t('equipment:usage.waiting', 'Waiting approval'), align: 'num', cell: (r) => Number(r.submitted_count ?? 0) },
+    { key: 'work', header: t('equipment:usage.kindWork', 'Work'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{r.work_units == null ? '—' : formatNumberMax2(Number(r.work_units))} {unitLabel(t, r.unit)}</span> },
+    { key: 'standby', header: t('equipment:usage.kindStandby', 'Standby'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{r.standby_units == null ? '—' : formatNumberMax2(Number(r.standby_units))} {unitLabel(t, r.unit)}</span> },
+    { key: 'fuel', header: t('equipment:usage.fuel', 'Fuel (litres)'), align: 'num', cell: (r) => r.fuel_litres == null ? '—' : formatNumberMax2(Number(r.fuel_litres)) },
+    { key: 'trips', header: t('equipment:usage.trips', 'Trips'), align: 'num', cell: (r) => r.trips == null ? '—' : Number(r.trips) },
+    { key: 'waiting', header: t('equipment:usage.waiting', 'Waiting approval'), align: 'num', cell: (r) => r.submitted_count == null ? '—' : Number(r.submitted_count) },
   ];
+  // Work units per month: a trend, drawn once there are three months and one unit to add up.
+  const perMonth = useMemo(() => {
+    const byMonth = new Map<string, number | null>();
+    for (const row of rows) {
+      const previous = byMonth.get(row.month);
+      byMonth.set(row.month, row.work_units == null || previous === null ? null : (previous ?? 0) + Number(row.work_units));
+    }
+    return [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, units]) => ({ month: formatMonthYear(fromIso(month)), units: units == null ? null : Math.round(units * 100) / 100 }));
+  }, [rows]);
+  const oneUnit = new Set(rows.map((row) => row.unit)).size === 1;
   return (
     <Card role="region" aria-label={t('equipment:usage.cardTitle', 'Usage')} className="mb-4">
       <CardHead>{t('equipment:usage.cardTitle', 'Usage')}</CardHead>
       <CardPad className="pt-0">
+        {!q.isPending && !q.isError && perMonth.length >= 3 && oneUnit && perMonth.every((month) => month.units != null) && (
+          <div role="img" aria-label={t('equipment:usage.chartLabel', 'Work per month, {{unit}}', { unit: unitLabel(t, rows[0].unit) })} className="mb-3 h-36">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={perMonth} margin={{ top: 16, right: 4, left: 4, bottom: 0 }}>
+                <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: chartTheme.axis, fontSize: 12 }} />
+                <Bar dataKey="units" fill={chartTheme.series.primary} radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                  <LabelList dataKey="units" position="top" fill={chartTheme.axis} fontSize={12} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
         {q.isPending && <ListState variant="loading" rows={3} />}
         {!q.isPending && (q.isError || !q.data) && <ListState variant="error" title={t('equipment:usage.totalsError', "Couldn't load usage totals")}
           sub={t('equipment:usage.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void q.refetch()} retryLabel={t('equipment:usage.retry', 'Retry')} />}
@@ -219,10 +244,12 @@ const EquipmentAssetDetail: React.FC = () => {
   const asset = assets.data?.rows.find((a) => a.id === assetId);
   const byId = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p])), [projects.data]);
   const projectName = (id: string) => { const p = byId.get(id); return p ? projectDisplayName(p) : '—'; };
-  // A project row carries its own currency; a pool with no project (unallocated) has none, so it prints as a plain number.
+  // A project row carries its own currency; an unallocated pool has none, so it reads in the organisation's currency —
+  // a money figure never prints as a bare number.
+  const orgCurrency = useOrgCurrency();
   const money = (amount: number, projectId: string | null) => {
-    const currency = projectId ? byId.get(projectId)?.currency : null;
-    return currency ? formatCurrency(amount, currency) : formatNumberMax2(amount);
+    const currency = (projectId ? byId.get(projectId)?.currency : null) ?? orgCurrency;
+    return formatCurrency(amount, currency);
   };
 
   if (assets.isPending) return <ListState variant="loading" rows={4} />;
@@ -233,7 +260,7 @@ const EquipmentAssetDetail: React.FC = () => {
   return (
     <div>
       <RecordHeader icon="$" name={asset.name}
-        status={<StatusPill variant="progress">{asset.code}</StatusPill>}
+        status={<span className="font-mono text-sm text-muted-foreground">{asset.code}</span>}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{t('equipment:assets.unitLine', 'Logged in {{unit}}', { unit: unitLabel(t, asset.default_unit) })}</span>
           {asset.external_ref && <span>{t('equipment:assets.refLine', 'ERP reference {{ref}}', { ref: asset.external_ref })}</span>}

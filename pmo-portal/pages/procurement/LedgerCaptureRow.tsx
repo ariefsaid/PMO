@@ -173,7 +173,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
   if (status === 'Requested') {
     if (emptyLedger) return null;
     return (
-      <p data-testid="ledger-awaiting-approval" className="mt-3 text-[13px] text-muted-foreground">
+      <p data-testid="ledger-awaiting-approval" className="mt-3 text-sm text-muted-foreground">
         {canApprove
           ? t('procurement:ledger.approveToStart', 'Approve to start recording documents.')
           : t('procurement:ledger.awaitingApproval', 'Waiting for approval. Documents can be recorded once it is approved.')}
@@ -231,12 +231,12 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
               />
             </div>
           ) : paymentRecordInErp ? null : (
-            <span className="text-[13px] text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               {t('procurementLedger.capture.next', '+ Capture {{record}}: the next record for this phase.', { record: label })}
             </span>
           )}
           {paymentRecordInErp ? (
-            <p data-testid="ledger-payment-in-erp" className="ml-auto text-[13px] text-muted-foreground">
+            <p data-testid="ledger-payment-in-erp" className="ml-auto text-sm text-muted-foreground">
               {odooOwnsProcurement()
                 ? t('procurement:ledger.paymentNeedsBillOdoo', 'Record the supplier invoice here first; you can then pay it from here.')
                 : t('procurement:ledger.paymentInErp', 'Record the payment in ERPNext; it links here on the next sync.')}
@@ -248,13 +248,13 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
             onClick={() => setOpen(true)}
             disabled={paymentBlocked}
             aria-describedby={paymentBlocked ? 'ledger-payment-sod-reason' : undefined}
-            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[12.5px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <Icon name="plus" className="size-3.5" />
             {t('procurementLedger.capture.action', 'Capture {{record}}', { record: label })}
           </button>
           {paymentBlocked && (
-            <span id="ledger-payment-sod-reason" className="basis-full text-right text-[12px] text-muted-foreground">
+            <span id="ledger-payment-sod-reason" className="basis-full text-right text-sm text-muted-foreground">
               {t('procurementDetail.paymentApproverCannotPay', 'Separation of duties: the approver cannot pay their own procurement.')}
             </span>
           )}

@@ -1,0 +1,17 @@
+{
+  "pages/activity/EditActivityModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/EfakturModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/InvoiceProjectModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/NewRevisionModal.tsx": {
+    "EntityFormModal-subtitle": 1
+  },
+  "src/components/builder/PanelEditorForm.tsx": {
+    "EntityFormModal-subtitle": 1
+  }
+}

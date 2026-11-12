@@ -540,16 +540,86 @@ values
   -- row here, so its actual is a real, computed 0 — the third state.
 on conflict do nothing;
 
--- Synthetic submitted billing on SP-2402 gives the dashboard one fully known,
--- same-currency billed-work margin while the other projects remain honestly unknown.
+-- Cascade's project milestones sum to the original $7.7m of billed work. Receipts
+-- derive from each invoice's known balance, so their arithmetic stays in sync.
+with milestones as (
+  select * from (values
+    (1, 400000, date '2025-06-15'), (2, 450000, date '2025-07-15'),
+    (3, 500000, date '2025-08-15'), (4, 550000, date '2025-09-15'),
+    (5, 600000, date '2025-10-15'), (6, 650000, date '2026-01-15'),
+    (7, 650000, date '2026-02-15'), (8, 700000, date '2026-03-15'),
+    (9, 650000, date '2026-04-15'), (10, 650000, date '2026-05-15'),
+    (11, 600000, date '2026-06-01'), (12, 550000, date '2026-06-15'),
+    (13, 400000, date '2026-07-01'), (14, 350000, date '2026-07-15')
+  ) as m(k, amount, issued)
+)
 insert into sales_invoices
-  (id, org_id, project_id, customer_id, si_number, invoice_date, amount, tax_amount,
-   tax_treatment, currency, status, erp_docstatus)
-values
-  ('b5000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001',
-   '41000000-0000-0000-0000-000000000002','c0000000-0000-0000-0000-000000000003',
-   'DEMO-SI-2402-001','2026-06-15',7700000,0,'exclusive','USD','Submitted',1)
+  (id, org_id, project_id, customer_id, si_number, invoice_date, erp_due_date,
+   amount, tax_amount, tax_treatment, currency, status, erp_docstatus, erp_outstanding_amount, pmo_native)
+select ('b5000000-0000-0000-0000-' || lpad(k::text,12,'0'))::uuid,
+       '00000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000002',
+       'c0000000-0000-0000-0000-000000000003', 'DEMO-SI-2402-' || lpad(k::text,3,'0'),
+       issued, issued + 45,
+       amount, 0, 'exclusive', 'USD', case when k <= 12 then 'Paid' else 'Unpaid' end, 1,
+       case when k <= 12 then 0 when k = 13 then amount / 2 else amount end, false
+from milestones on conflict (id) do nothing;
+
+insert into incoming_payments
+  (id, org_id, customer_id, sales_invoice_id, ip_number, date, amount, received_amount,
+   withheld_amount, currency, status, erp_docstatus, pmo_native)
+select ('b5010000-0000-0000-0000-' || right(si.id::text,12))::uuid, si.org_id, si.customer_id, si.id,
+       replace(si.si_number, 'DEMO-SI-', 'DEMO-IP-'), si.invoice_date + 45,
+       si.amount - si.erp_outstanding_amount, si.amount - si.erp_outstanding_amount,
+       0, si.currency, 'Paid', 1, false
+from sales_invoices si
+where si.project_id = '41000000-0000-0000-0000-000000000002'
+  and si.si_number like 'DEMO-SI-2402-%' and si.amount > si.erp_outstanding_amount
 on conflict (id) do nothing;
+
+-- The first live ERP ledger refresh replaces the whole snapshot generation, so synthetic actuals vanish on a connected bench.
+insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, as_of, snapshot_id)
+select '00000000-0000-0000-0000-000000000001'::uuid, project_id::uuid, 'Salary - PSC', '2026', amount, 0, amount, now() - interval '1 day', '5a000000-0000-0000-0000-000000000001'::uuid
+from (values ('41000000-0000-0000-0000-000000000004',260000), ('40000000-0000-0000-0000-000000000001',600000), ('41000000-0000-0000-0000-000000000003',2800000)) v(project_id,amount)
+on conflict do nothing;
+
+-- Monthly local-only demonstration facts; the newest invoice is unpaid, the next is partly paid and not due, and one older invoice is overdue.
+with months as (
+  select k, (public.org_current_month(o.default_timezone, now()) - make_interval(months => k))::date + 10 as issued,
+         (330000 + 10000*k - case when k = 1 then 4000 else 0 end)::numeric as total
+  from public.organizations o cross join generate_series(1,12) k
+  where o.id = '00000000-0000-0000-0000-000000000001'
+)
+insert into sales_invoices (id, org_id, project_id, customer_id, si_number, invoice_date, erp_due_date, amount, tax_amount, tax_treatment, currency, status, erp_docstatus, erp_outstanding_amount, pmo_native)
+select ('b5110000-0000-0000-0000-' || lpad(k::text,12,'0'))::uuid, '00000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002',
+       'DEMO-SI-2401-' || lpad(k::text,3,'0'), issued, case when k <= 2 then current_date + 30 when k in (5,9) then issued + 7 else issued + 20 end,
+       total, 0, 'exclusive', 'USD', case when k <= 3 then 'Unpaid' else 'Paid' end, 1,
+       case when k = 1 then total when k = 2 then total / 2 when k = 3 then total / 4 else 0 end, false
+from months on conflict (id) do nothing;
+
+-- Split a small part of the latest Meridian billing into one unknown-balance
+-- invoice; total billed work remains unchanged and the unknown state stays visible.
+insert into sales_invoices (id, org_id, project_id, customer_id, si_number, invoice_date, erp_due_date, amount, tax_amount, tax_treatment, currency, status, erp_docstatus, erp_outstanding_amount, pmo_native)
+select 'b5130000-0000-0000-0000-000000000001', org_id, project_id, customer_id,
+       'DEMO-SI-2401-UNKNOWN', invoice_date, erp_due_date, 330000 + 10000 - amount, 0, 'exclusive', currency, 'Unpaid', 1, null, false
+from sales_invoices where id = 'b5110000-0000-0000-0000-000000000001'
+on conflict (id) do nothing;
+
+with months as (
+  select k, si.invoice_date as issued, si.amount as total
+  from generate_series(1,12) k
+  join sales_invoices si on si.id = ('b5110000-0000-0000-0000-' || lpad(k::text,12,'0'))::uuid
+), receipts as (
+  select k, k as invoice_k, case when extract(month from issued) = 12 then issued + 20
+                                      else (issued + interval '1 month')::date + 12 end as paid_date,
+         case when k = 2 then total / 4 when k = 3 then total * 3 / 4 else total end as paid
+  from months where k >= 2
+  union all
+  select 1, 2, current_date, total / 4 from months where k = 2
+)
+insert into incoming_payments (id, org_id, customer_id, sales_invoice_id, ip_number, date, amount, received_amount, withheld_amount, currency, status, erp_docstatus, pmo_native)
+select ('b5120000-0000-0000-0000-' || lpad(k::text,12,'0'))::uuid, '00000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002',
+       ('b5110000-0000-0000-0000-' || lpad(invoice_k::text,12,'0'))::uuid, 'DEMO-IP-2401-' || lpad(k::text,3,'0'), paid_date, paid, paid, 0, 'USD', 'Paid', 1, false
+from receipts on conflict (id) do nothing;
 
 -- PMO's own forward estimate (FR-BUD-151) — never pushed to ERP (FR-BUD-160).
 insert into budget_projections (org_id, project_id, fiscal_year, category, pmo_etc) values
@@ -966,7 +1036,7 @@ values
   ('61000000-0000-0000-0000-000000000008','SP2402-004',
    'HV Cabling & Grid Connection Kit',
    '41000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a4',
-   'Requested',210000,null,'2025-11-10T00:00:00Z'),
+   'Requested',210000,null,now() - interval '3 days'),
 
   -- SP-2403 Close Out: two Paid
   ('61000000-0000-0000-0000-000000000009','SP2403-001',
@@ -986,7 +1056,7 @@ values
   ('61000000-0000-0000-0000-000000000012','SP2404-002',
    'Preliminary PV Module Order — 200 panels',
    '41000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-0000000000a4',
-   'Requested',56000,null,'2026-06-01T00:00:00Z')
+   'Requested',56000,null,now() - interval '8 days')
 on conflict (id) do nothing;
 
 -- ── procurement_items (solar-themed line items) ───────────────────────────────
@@ -1143,7 +1213,7 @@ insert into procurements (id, code, title, project_id, requested_by_id, status, 
   -- PROC-2026-002: dedicated for AC-IXD-WP-002 (Requested → Approved confirm)
   ('60000000-0000-0000-0000-000000000003','PROC-2026-002','Safety Equipment & PPE',
    '40000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a4',
-   'Requested',22500,null,'2026-01-20T00:00:00Z'),
+   'Requested',22500,null,now() - interval '30 days'),
   ('60000000-0000-0000-0000-000000000004','PROC-2026-003','PV Monitoring & SCADA Software',
    '40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
    'Draft',9800,null,'2026-01-25T00:00:00Z'),
@@ -1159,9 +1229,11 @@ insert into procurements (id, code, title, project_id, requested_by_id, status, 
    '40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
    'Approved',45000,null,'2026-02-22T00:00:00Z'),
   -- PROC-2026-008: dedicated for AC-IXD-WP-002 (Vendor Invoiced → Paid confirm)
+  -- vendor_id = its selected quote's vendor (RMS-PAY-08, RackMount Structures), matching the state
+  -- select_procurement_quote leaves behind — the seed inserts that selection directly (see §J quotations).
   ('60000000-0000-0000-0000-000000000008','PROC-2026-008','Surge Protection Devices & Fusing',
    '40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
-   'Vendor Invoiced',30000,null,'2026-02-24T00:00:00Z'),
+   'Vendor Invoiced',30000,'c0000000-0000-0000-0000-000000000010','2026-02-24T00:00:00Z'),
   -- PROC-2026-009: dedicated for AC-816 (Draft procurement for full procure-to-pay journey)
   ('60000000-0000-0000-0000-000000000009','PROC-2026-009','AC-816 Dedicated Procurement',
    '40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2',
@@ -1212,7 +1284,7 @@ insert into procurement_quotations (procurement_id, vendor_id, reference, total_
 insert into procurement_receipts (procurement_id, gr_number, receipt_date, status) values
   ('60000000-0000-0000-0000-000000000008','GR-2602240001','2026-02-24','Complete');
 insert into procurement_invoices (procurement_id, vi_number, invoice_date, status, amount, tax_treatment, tax_amount) values
-  ('60000000-0000-0000-0000-000000000008','VI-2602240001','2026-02-24','Received',30000,'inclusive',0);
+  ('60000000-0000-0000-0000-000000000008','VI-2602240001',current_date - 12,'Received',30000,'inclusive',0);
 
 update procurements set pr_number='PR-2512010001', po_number='PO-2512010001',
   approved_by_id='00000000-0000-0000-0000-0000000000a3'
@@ -1222,6 +1294,25 @@ insert into procurement_quotations (procurement_id, vendor_id, reference, total_
   ('60000000-0000-0000-0000-000000000005','c0000000-0000-0000-0000-000000000011','CCE-FURN-01',320000,'2025-11-25',true,'VQ-2512010001');
 insert into procurement_invoices (procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount) values
   ('60000000-0000-0000-0000-000000000005','VI-2512010001','2025-12-15','Paid','inclusive',0);
+
+
+-- Additional local-only payable cases exercise a spread of invoice ages.
+insert into procurements (id, code, title, project_id, requested_by_id, status, total_value, vendor_id, created_at, vendor_invoiced_at)
+select ('62000000-0000-0000-0000-' || lpad(k::text,12,'0'))::uuid,
+       'DEMO-PAY-' || lpad(k::text,3,'0'), title, '41000000-0000-0000-0000-000000000001',
+       '00000000-0000-0000-0000-0000000000a2', 'Vendor Invoiced', amount,
+       'c0000000-0000-0000-0000-000000000010', now() - make_interval(days => age + 15),
+       now() - make_interval(days => age)
+from (values (1, 'Site consumables', 18000, 38), (2, 'Electrical installation', 42000, 75),
+             (3, 'Inspection services', 9000, 105)) as v(k, title, amount, age)
+on conflict (id) do nothing;
+
+insert into procurement_invoices (id, procurement_id, vi_number, invoice_date, status, amount, tax_treatment, tax_amount)
+select ('62100000-0000-0000-0000-' || right(p.id::text,12))::uuid, p.id,
+       replace(p.code, 'DEMO-PAY-', 'DEMO-VI-'), p.vendor_invoiced_at::date,
+       'Received', p.total_value, 'inclusive', 0
+from procurements p where p.code like 'DEMO-PAY-%'
+on conflict (id) do nothing;
 
 
 -- ============================================================

@@ -9,7 +9,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
       const call: { table: string; select?: string; ops: string[] } = { table, ops: [] };
       calls.push(call);
       const q: Record<string, unknown> = {};
-      for (const op of ['in', 'is', 'eq', 'order']) q[op] = (...a: unknown[]) => { call.ops.push(`${op}:${a.join(',')}`); return q; };
+      for (const op of ['in', 'is', 'eq', 'order', 'gte', 'lt', 'gt']) q[op] = (...a: unknown[]) => { call.ops.push(`${op}:${a.join(',')}`); return q; };
       q.select = (s: string) => { call.select = s; return q; };
       q.range = () => Promise.resolve({ data: tableRows[table] ?? [], error: null });
       q.limit = (n: unknown) => Promise.resolve({ data: (tableRows[table] ?? []).slice(0, Number(n)), error: null });
@@ -18,7 +18,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
   },
 }));
 
-import { listOverdueInvoiceFacts, listPaidPaymentFacts, hasAnySalesInvoice, hasAnyIncomingPayment } from './revenue';
+import { listOverdueInvoiceFacts, listPaidPaymentFacts, listMonthlyInvoiceFacts, hasAnySalesInvoice, hasAnyIncomingPayment } from './revenue';
 import { selectOverdueInvoices } from '@/src/components/dashboard/restructure/useNeedsYou';
 import { selectCollectedTotals } from '@/src/components/dashboard/restructure/useCompanyFigures';
 
@@ -96,5 +96,14 @@ describe('empty-state existence probes (issue 1973)', () => {
       expect(call.select).toBe('id');
       expect(call.ops.join(' ')).not.toMatch(/status|paired_erp/);
     }
+  });
+});
+
+describe('monthly billed work facts', () => {
+  it('reads the billed-work view with a six-month date bound and invoice status filters', async () => {
+    tableRows.sales_invoice_work_billed = [{ id: 'a', invoice_date: '2026-05-01', currency: 'USD', net: 90, recovery: 10 }];
+    expect(await listMonthlyInvoiceFacts('2026-05-01', '2026-11-01')).toEqual(tableRows.sales_invoice_work_billed);
+    expect(calls[0]).toMatchObject({ table: 'sales_invoice_work_billed', select: 'id,invoice_date,currency,net,recovery' });
+    expect(calls[0].ops).toEqual(expect.arrayContaining(['gte:invoice_date,2026-05-01', 'lt:invoice_date,2026-11-01', 'eq:is_down_payment,false', 'in:status,Submitted,Unpaid,Paid']));
   });
 });

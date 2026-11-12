@@ -62,7 +62,7 @@ export const IntegrationHealthPanel: React.FC<IntegrationHealthPanelProps> = ({ 
         </p>
       ))}
       <p className="flex flex-wrap items-center gap-2 text-muted-foreground">
-        <span>{t('uxs07.liveRecordCheck', 'Not yet verified: review a connected record to confirm the data is usable.')}</span>
+        <span>{t('uxs07.liveRecordCheck', 'Not verified yet. Review a connected record.')}</span>
         <a className="font-medium text-foreground underline underline-offset-4" href={recordsHref}>
           {t('uxs07.reviewRecords', 'Review connected records')}
         </a>

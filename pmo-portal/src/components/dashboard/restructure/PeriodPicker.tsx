@@ -27,7 +27,7 @@ export const PeriodPicker: React.FC<PeriodPickerProps> = ({ period, selectPeriod
         value={period.key}
         options={options}
         onChange={(value) => selectPeriod(value as PeriodKey)}
-        className="h-11 min-w-[10rem] text-[16px] min-[1180px]:h-8 min-[1180px]:text-[13.5px]"
+        className="h-11 min-w-[10rem] text-[16px] min-[1180px]:h-8 min-[1180px]:text-control"
         aria-label={t('period.label', 'Period')}
       />
       {period.key === 'custom' && (
@@ -37,14 +37,14 @@ export const PeriodPicker: React.FC<PeriodPickerProps> = ({ period, selectPeriod
             type="month"
             value={period.from ?? ''}
             onChange={(value) => setCustomMonth('from', value)}
-            className="h-11 min-w-[9.5rem] text-[16px] min-[1180px]:h-8 min-[1180px]:text-[13.5px]"
+            className="h-11 min-w-[9.5rem] text-[16px] min-[1180px]:h-8 min-[1180px]:text-control"
           />
           <TextField
             label={t('period.to', 'To month')}
             type="month"
             value={period.to ?? ''}
             onChange={(value) => setCustomMonth('to', value)}
-            className="h-11 min-w-[9.5rem] text-[16px] min-[1180px]:h-8 min-[1180px]:text-[13.5px]"
+            className="h-11 min-w-[9.5rem] text-[16px] min-[1180px]:h-8 min-[1180px]:text-control"
           />
         </div>
       )}

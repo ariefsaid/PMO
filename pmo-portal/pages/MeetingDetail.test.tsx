@@ -325,9 +325,9 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
     expect(dirtyEvent.defaultPrevented).toBe(true);
 
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
-    expect(dialog).toHaveTextContent(/header or minutes/i);
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    expect(dialog).toHaveTextContent('What you typed here will be lost.');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
     expect(screen.queryByTestId('meetings-index-probe')).not.toBeInTheDocument();
   });
 
@@ -337,10 +337,10 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
     await userEvent.click(screen.getByTestId('stub-type'));
 
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
 
-    expect(screen.queryByRole('dialog', { name: 'Unsaved meeting changes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog', { name: 'Discard your changes?' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('meetings-index-probe')).not.toBeInTheDocument();
     expect(screen.getByTestId('minutes-save')).toBeEnabled();
   });
@@ -359,10 +359,10 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
     await userEvent.click(screen.getByTestId('stub-type'));
 
     await userEvent.click(screen.getByRole('button', { name: /back to meetings/i }));
-    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
     expect(screen.queryByTestId('meetings-index-probe')).not.toBeInTheDocument();
 
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
     expect(await screen.findByTestId('meetings-index-probe')).toHaveTextContent(
       'Meetings index?project=33333333-3333-4333-8333-333333333333',
     );
@@ -407,8 +407,8 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
     await userEvent.click(screen.getByTestId('stub-type'));
 
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
 
     expect(await screen.findByTestId('state-probe')).toHaveTextContent('?project=p1|{"restoreScroll":120}');
   });
@@ -419,8 +419,8 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
     await userEvent.click(screen.getByTestId('stub-type'));
 
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
 
     expect(await screen.findByTestId('meetings-index-probe')).toHaveTextContent('Meetings index');
     expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
@@ -780,9 +780,10 @@ describe('MeetingDetail — states', () => {
     expect(bar.className).toContain('max-[920px]:flex');
   });
 
-  it('Admin header carries Archive + Delete', () => {
+  it('Admin header menu carries Archive + Delete', async () => {
     renderPage('Admin');
-    expect(screen.getByTestId('meeting-archive')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    expect(await screen.findByTestId('meeting-archive')).toBeInTheDocument();
     expect(screen.getByTestId('meeting-delete')).toBeInTheDocument();
   });
 
@@ -843,10 +844,11 @@ describe('MeetingDetail — states', () => {
     expect(screen.queryByTestId('meeting-header-save')).not.toBeInTheDocument();
   });
 
-  it('AC-MTG-029: a non-Admin author gets inline header editing + Archive but not Delete', () => {
+  it('AC-MTG-029: a non-Admin author gets inline header editing + Archive but not Delete', async () => {
     renderPage('Engineer');
     expect(screen.getByLabelText(/Title/)).toBeInTheDocument();
-    expect(screen.getByTestId('meeting-archive')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    expect(await screen.findByTestId('meeting-archive')).toBeInTheDocument();
     expect(screen.queryByTestId('meeting-delete')).not.toBeInTheDocument();
   });
 });
@@ -946,7 +948,8 @@ describe('MeetingDetail — list-return context (AC-LRC-008)', () => {
       },
       'Admin',
     );
-    await userEvent.click(screen.getByTestId('meeting-archive'));
+    await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    await userEvent.click(await screen.findByTestId('meeting-archive'));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /archive meeting/i }));
     await screen.findByTestId('meetings-index-probe');
@@ -961,7 +964,8 @@ describe('MeetingDetail — list-return context (AC-LRC-008)', () => {
       },
       'Admin',
     );
-    await userEvent.click(screen.getByTestId('meeting-delete'));
+    await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    await userEvent.click(await screen.findByTestId('meeting-delete'));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /delete meeting/i }));
     await screen.findByTestId('meetings-index-probe');

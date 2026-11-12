@@ -69,10 +69,10 @@ export const M365OrgApprovalCard: React.FC = () => {
     <Card className="mb-3.5 p-4" data-testid="m365-org-approval">
       <div className="flex items-center gap-2">
         <Icon name="plug" aria-hidden="true" />
-        <h2 className="text-[15px] text-foreground font-semibold">
+        <h2 className="text-group text-foreground font-semibold">
           {t('integrations.m365OrgApproval.heading', 'Microsoft 365')}
         </h2>
-        <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground">
+        <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-control text-muted-foreground">
           {t('integrations.m365OrgApproval.badge', 'Organization approval')}
         </span>
       </div>
@@ -80,7 +80,7 @@ export const M365OrgApprovalCard: React.FC = () => {
       <p className="mt-2 text-sm text-muted-foreground">
         {t(
           'uxs07.m365ApprovalDescription',
-          'Your organization may need to approve the PMO Portal app before team members connect Microsoft 365. Start this only if Microsoft asks for organization approval; an existing approval does not need to be repeated.',
+          'Only if Microsoft asks for organization approval.',
         )}
       </p>
 

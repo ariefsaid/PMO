@@ -1,20 +1,20 @@
+import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
-import { format } from 'date-fns/format';
 import {
   Button,
   Card,
   ConfirmDialog,
-  ErrBanner,
   Icon,
   ListState,
   SelectField,
   StatusPill,
   TimesheetGrid,
   AccessDenied,
+  UnsavedChangesDialog,
   useToast,
 } from '@/src/components/ui';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { TimesheetStatus } from '../types';
@@ -28,18 +28,14 @@ import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { useTimesheetEntryMutations } from '@/src/hooks/useTimesheetEntries';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatNumberExact } from '@/src/lib/format';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
-import { weekStart, datesInWeek, entriesToGridRows, gridDaysForWeek } from './timesheets/timesheetWeekModel';
+import { dayKey, weekStart, datesInWeek, entriesToGridRows, gridDaysForWeek } from './timesheets/timesheetWeekModel';
 import { useTimesheetWeekEditor } from './timesheets/useTimesheetWeekEditor';
 import { TimesheetWeekToolbar } from './timesheets/TimesheetWeekToolbar';
 import { TimesheetWeekActions } from './timesheets/TimesheetWeekActions';
-
-// Timesheet status pill comes from the single status registry (`workflowVariant`):
-// Draft = neutral, Submitted = neutral grey `progress` (NOT the action-blue, per the
-// Freed-Blue Status Rule), Approved = green `won`, Rejected = red `lost`.
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 // RF-061: recognizable code + short title in the picker; the added row shows the full name.
 const PICKER_NAME_MAX = 36;
@@ -65,11 +61,23 @@ const TimesheetsPage: React.FC = () => {
   // Engineer cannot approve timesheets (OD-W2-2), so showing them the cross-link is a RBAC leak.
   const isApprover = may('transition', 'approval');
   const signedInUserId = currentUser?.id;
-  // Pending-approval count for the queue toggle badge (shared cache; cheap).
+  // Pending-approval count for the queue toggle badge (shared cache; cheap). Unknown (not yet
+  // loaded) is null — the badge withholds the count; it never reads as a confirmed zero.
   const { data: awaiting } = useTimesheetsAwaitingApproval();
-  const pendingCount = awaiting?.length ?? 0;
+  const pendingCount = awaiting?.length ?? null;
 
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // R2: the selected week is URL-owned (`?week=YYYY-MM-DD`) so Back/refresh return to it; the
+  // current week is the default and stays out of the URL (empty = default).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentDate = useMemo(() => {
+    const match = searchParams.get('week')?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : new Date();
+  }, [searchParams]);
+  const setCurrentDate = (date: Date) => setSearchParams((current) => {
+    const next = new URLSearchParams(current);
+    next.set('week', dayKey(date));
+    return next;
+  });
 
   const { date: weekStartDate, key: weekStartString } = weekStart(currentDate);
   // Windowed read: current + recent weeks; stepping back past it fetches the older weeks (perf q12).
@@ -93,7 +101,7 @@ const TimesheetsPage: React.FC = () => {
     shifted.setDate(shifted.getDate() - 7);
     return shifted;
   }, [weekStartDate]);
-  const lastWeekStartString = useMemo(() => format(lastWeekStartDate, 'yyyy-MM-dd'), [lastWeekStartDate]);
+  const lastWeekStartString = useMemo(() => dayKey(lastWeekStartDate), [lastWeekStartDate]);
   const lastWeekEntries = useMemo(
     () => (sheets ?? []).find((t) => t.week_start_date === lastWeekStartString)?.entries ?? [],
     [sheets, lastWeekStartString]
@@ -121,26 +129,29 @@ const TimesheetsPage: React.FC = () => {
     allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit,
   });
   const { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
-    editRawHours, rowToDelete, dirty, weeklyTotal, pendingWeekDelta, weekRangeLabel,
+    editRawHours, rowToDelete, dirty, hasUnsavedBuffer, weeklyTotal, pendingWeekDelta, weekRangeLabel,
     isOwner, editBufferHasHours, canSubmit, confirmSubmit, copyPlan } = editor.view;
   const { setCell, setNote, addProject, copyLastWeek, requestDelete, cancelDelete, confirmDeleteRow,
     commitSave, stepWeek, cancelWeekChange, confirmWeekChange, requestSubmit,
     cancelSubmit, commitSubmit } = editor.actions;
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
+  useUnsavedChangesGuard({
+    dirty: hasUnsavedBuffer,
+    guardHistory: true,
+    onBlocked: (leave, stay) => setPendingLeave({ leave, stay }),
+  });
 
-  // ── Copy last week enablement (plain visible reason for every stable disabled state) ──
+  // ── Copy last week enablement ───────────────────────────────────────────────
   // While projects are still loading the reason is deliberately BLANK (transient — the picker's
   // own "Loading projects…" status already reports it; a second copy would break the unique-status
-  // oracle). The stable causes — not-a-draft, empty last week, nothing new — render their reason.
+  // oracle). A non-draft week with eligible source rows explains why copying is unavailable;
+  // when no rows can be added, the action and its sentence are both absent.
   const copyBusy = deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending;
   const copyDisabledReason = projectsPending
     ? null
     : !editable
       ? t('timesheets:copyLastWeek.reasonNotDraft', 'This week is no longer a draft')
-      : copyPlan.addedCount === 0
-        ? copyPlan.lastWeekHasRows
-          ? t('timesheets:copyLastWeek.reasonNothingNew', "Last week's projects are already in this week")
-          : t('timesheets:copyLastWeek.reasonEmpty', 'Nothing to copy — no time was logged last week')
-        : null;
+      : null;
   const copyDisabled = projectsPending || copyDisabledReason !== null || copyBusy;
 
   const actionProps = {
@@ -185,7 +196,7 @@ const TimesheetsPage: React.FC = () => {
 
   const head = <TimesheetWeekToolbar
     weekRangeLabel={weekRangeLabel} isApprover={isApprover} pendingCount={pendingCount}
-    weekStartDate={weekStartDate} busy={deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending}
+    busy={deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending}
     stepWeek={stepWeek} pendingWeekDelta={pendingWeekDelta}
     onCancelDiscard={cancelWeekChange}
     onConfirmDiscard={confirmWeekChange}
@@ -218,12 +229,6 @@ const TimesheetsPage: React.FC = () => {
   }
 
   const status = (currentTimesheet?.status as TimesheetStatus | undefined) ?? null;
-  const statusCopy: Record<TimesheetStatus, string> = {
-    [TimesheetStatus.Draft]: t('timesheets.status.Draft', 'Draft'),
-    [TimesheetStatus.Submitted]: t('timesheets.status.Submitted', 'Submitted'),
-    [TimesheetStatus.Approved]: t('timesheets.status.Approved', 'Approved'),
-    [TimesheetStatus.Rejected]: t('timesheets.status.Rejected', 'Returned for changes'),
-  };
   const returned = status === TimesheetStatus.Rejected;
 
   // AC-W3-B1: "Revise this week" — single-click routine reversible step (OD-UX-1: no confirm).
@@ -255,22 +260,17 @@ const TimesheetsPage: React.FC = () => {
       {head}
 
       {/* Returned-for-changes is an expected, recoverable state (role=status). */}
-      {returned && (
-        <ErrBanner
-          title={t('timesheets.returned.title', 'This week was returned for changes')}
-          sub={t(
-            'timesheets.returned.sub',
-            'Your line manager sent it back. Review the flagged days, correct them, and resubmit.',
-          )}
-          action={
-            canRevise
-              ? {
-                  label: t('timesheets.returned.revise', 'Revise this week'),
-                  onClick: commitReopen,
-                  disabled: reopen.isPending,
-                }
-              : undefined
-          }
+      {(returned || (status === TimesheetStatus.Draft && !!(currentTimesheet?.rejected_at || currentTimesheet?.rejection_reason || currentTimesheet?.rejected_by))) && (
+        <ReturnedBanner
+          record="timesheet"
+          reason={currentTimesheet?.rejection_reason}
+          person={currentTimesheet?.rejecter?.full_name}
+          at={currentTimesheet?.rejected_at}
+          action={canRevise ? {
+            label: t('timesheets.returned.revise', 'Revise this week'),
+            onClick: commitReopen,
+            disabled: reopen.isPending,
+          } : undefined}
         />
       )}
 
@@ -278,99 +278,102 @@ const TimesheetsPage: React.FC = () => {
         clip
         className={editable ? 'pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-0' : undefined}
       >
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3.5 py-2.5">
-          <StatusPill variant={status ? workflowVariant(status) : 'neutral'}>
-            {status === TimesheetStatus.Draft || !status
-              ? t('timesheets.status.draftNotSubmitted', 'Draft: not submitted')
-              : statusCopy[status]}
-          </StatusPill>
-          {/* ⚑ I-16/I-17 (rendered Discover pass, 2026-07-22) — the OWNER'S view of their own ERP
-              push. `timesheet_erp_mirror_select` RLS deliberately grants the sheet's owner this read,
-              and nothing consumed it: the person whose week it is — the one who has to re-do it if
-              the hours never reach payroll costing — was the only one who could not find out. No
-              Retry here: re-driving is the approver's act (`can('push_timesheet', …)`), and this
-              badge is supplementary — a null state renders nothing and never gates the page. */}
-          <PushStateBadge state={ownPushState ?? null} canRetry={false} />
-          {editable && (
-            <div className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
-              <Icon name="plus" aria-hidden />
-              <span>{t('timesheets.addProject', 'Add project')}</span>
-              {/* max-w cap + min-w-0: the closed picker only shows the short placeholder,
-                  so capping its width is safe; options still show in full. Use the shared
-                  DS SelectField so dark mode keeps the tokened field shell. */}
-              <div className="min-w-0 max-w-[160px] flex-1">
-                {projectsPending ? (
-                  <span role="status">{t('timesheets:picker.loading', 'Loading projects…')}</span>
-                ) : projectsError ? (
-                  <span role="alert">
-                    {t('timesheets:picker.error', 'Could not load projects.')}
-                    <Button variant="outline" onClick={() => refetchProjects()}>
-                      {t('timesheets:picker.retry', 'Retry projects')}
-                    </Button>
+        <div className="border-b border-border px-3.5 py-2.5">
+          <div data-testid="timesheets-entry-header" className="flex min-w-0 flex-wrap items-center gap-2">
+            <StatusPill record="timesheet" state={status ?? TimesheetStatus.Draft} />
+            {/* ⚑ I-16/I-17 (rendered Discover pass, 2026-07-22) — the OWNER'S view of their own ERP
+                push. `timesheet_erp_mirror_select` RLS deliberately grants the sheet's owner this read,
+                and nothing consumed it: the person whose week it is — the one who has to re-do it if
+                the hours never reach payroll costing — was the only one who could not find out. No
+                Retry here: re-driving is the approver's act (`can('push_timesheet', …)`), and this
+                badge is supplementary — a null state renders nothing and never gates the page. */}
+            <PushStateBadge state={ownPushState ?? null} canRetry={false} />
+            {editable && (
+              <div
+                data-testid="timesheets-save-status"
+                role="status"
+                className="text-control text-muted-foreground md:ml-auto"
+              >
+                {deleteRow.isPending || isReconciling
+                  ? t('timesheets:reconcile.message', 'Refresh this week before continuing.')
+                  : dirty
+                  ? t('uxs28.save.dirty', 'Unsaved changes')
+                  : currentWeekEntries.length > 0
+                    ? t('uxs28.save.saved', 'All changes saved')
+                    : null}
+              </div>
+            )}
+            <span
+              data-testid="timesheets-weekly-total"
+              className="ml-auto text-control tabular text-muted-foreground max-md:hidden"
+            >
+              {t('timesheets.hoursThisWeek', '{{hours}} hours this week', {
+                hours: formatNumberExact(editable ? editTotals.weekly : weeklyTotal),
+              })}
+            </span>
+          </div>
+          <div data-testid="timesheets-entry-actions" className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+            {editable && (
+              <div
+                data-testid="timesheets-add-project-control"
+                className="inline-flex min-w-0 max-w-full flex-nowrap items-center gap-1.5 text-control font-medium text-muted-foreground"
+              >
+                <Icon name="plus" aria-hidden />
+                <span>{t('timesheets.addProject', 'Add project')}</span>
+                {/* max-w cap + min-w-0: the closed picker only shows the short placeholder,
+                    so capping its width is safe; options still show in full. Use the shared
+                    DS SelectField so dark mode keeps the tokened field shell. */}
+                <div className="min-w-0 max-w-[160px] flex-1">
+                  {projectsPending ? (
+                    <span role="status">{t('timesheets:picker.loading', 'Loading projects…')}</span>
+                  ) : projectsError ? (
+                    <span role="alert">
+                      {t('timesheets:picker.error', 'Could not load projects.')}
+                      <Button variant="outline" onClick={() => refetchProjects()}>
+                        {t('timesheets:picker.retry', 'Retry projects')}
+                      </Button>
+                    </span>
+                  ) : (
+                    <SelectField
+                      id="ts-add-project"
+                      hideLabel
+                      label={t('timesheets.addAProject', 'Add a project')}
+                      value=""
+                      onChange={(value) => {
+                        if (value) addProject(value);
+                      }}
+                      disabled={pickerOptions.length === 0}
+                      options={pickerOptions.map((p) => ({ value: p.id, label: projectCodedPickerLabel(p, PICKER_NAME_MAX) }))}
+                      placeholder={
+                        pickerOptions.length === 0
+                          ? t('timesheets.picker.none', 'No projects to add')
+                          : t('timesheets.picker.select', 'Select a project…')
+                      }
+                      className="touch-target min-w-0 max-w-[160px] text-control"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+            {canEnterTimesheet && (projectsPending || copyPlan.addedCount > 0) && (
+              <div data-testid="timesheets-copy-last-week" className="inline-flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={copyLastWeek}
+                  disabled={copyDisabled}
+                  title={copyDisabledReason ?? undefined}
+                >
+                  <Icon name="clipboard-check" aria-hidden />
+                  {t('timesheets:copyLastWeek.button', 'Copy last week')}
+                </Button>
+                {copyDisabledReason && (
+                  <span data-testid="timesheets-copy-reason" className="text-control text-muted-foreground">
+                    {copyDisabledReason}
                   </span>
-                ) : (
-                  <SelectField
-                    id="ts-add-project"
-                    hideLabel
-                    label={t('timesheets.addAProject', 'Add a project')}
-                    value=""
-                    onChange={(value) => {
-                      if (value) addProject(value);
-                    }}
-                    disabled={pickerOptions.length === 0}
-                    options={pickerOptions.map((p) => ({ value: p.id, label: projectCodedPickerLabel(p, PICKER_NAME_MAX) }))}
-                    placeholder={
-                      pickerOptions.length === 0
-                        ? t('timesheets.picker.none', 'No projects to add')
-                        : t('timesheets.picker.select', 'Select a project…')
-                    }
-                    className="touch-target min-w-0 max-w-[160px] text-[13px]"
-                  />
                 )}
               </div>
-            </div>
-          )}
-          {canEnterTimesheet && (
-            <div data-testid="timesheets-copy-last-week" className="inline-flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={copyLastWeek}
-                disabled={copyDisabled}
-                title={copyDisabledReason ?? undefined}
-              >
-                <Icon name="clipboard-check" aria-hidden />
-                {t('timesheets:copyLastWeek.button', 'Copy last week')}
-              </Button>
-              {copyDisabledReason && (
-                <span data-testid="timesheets-copy-reason" className="text-[13px] text-muted-foreground">
-                  {copyDisabledReason}
-                </span>
-              )}
-            </div>
-          )}
-          {editable && (
-            <span
-              data-testid="timesheets-save-status"
-              role="status"
-              className="text-[13px] text-muted-foreground"
-            >
-              {deleteRow.isPending || isReconciling
-                ? t('timesheets:reconcile.message', 'Refresh this week before continuing.')
-                : dirty
-                ? t('uxs28.save.dirty', 'Unsaved changes')
-                : currentWeekEntries.length > 0
-                  ? t('uxs28.save.saved', 'All changes saved')
-                  : t('uxs28.save.nothing', 'Nothing to save yet')}
-            </span>
-          )}
-          <span
-            data-testid="timesheets-weekly-total"
-            className="ml-auto text-[13px] tabular text-muted-foreground"
-          >
-            {t('timesheets.hoursThisWeek', '{{hours}} hours this week', {
-              hours: formatNumberExact(editable ? editTotals.weekly : weeklyTotal),
-            })}
-          </span>
+            )}
+          </div>
         </div>
 
         {editable ? (
@@ -378,9 +381,6 @@ const TimesheetsPage: React.FC = () => {
             <div data-testid="timesheets-empty" className="px-3.5 py-8 text-center">
               <p className="text-sm font-medium text-foreground">
                 {t('timesheets.emptyEdit.title', 'No hours logged this week')}
-              </p>
-              <p className="mt-1 text-[13px] text-muted-foreground">
-                {t('timesheets.emptyEdit.sub', 'Use “Add a project” above to start logging hours.')}
               </p>
             </div>
           ) : (
@@ -402,20 +402,19 @@ const TimesheetsPage: React.FC = () => {
               variant="empty"
               icon="clock"
               title={t('timesheets.empty.title', 'No hours logged this week')}
-              sub={t(
-                'timesheets.empty.sub',
-                'Add a project to start logging hours, or use the week controls to find another week.',
-              )}
             />
           </div>
         ) : (
           <TimesheetGrid days={gridDays} rows={gridRows} />
         )}
-
-        {editable && isDesktop && <TimesheetWeekActions mode="desktop" {...actionProps} />}
       </Card>
 
-      {editable && !isDesktop && <TimesheetWeekActions mode="mobile" {...actionProps} />}
+      {/* R2-c2c: the week's actions live in ONE place — the shared sticky form footer below the
+          grid (desktop) or the fixed phone strip (mobile); never a copy at the top. Outside the
+          Card because its clipped overflow would otherwise pin the sticky footer to the card. */}
+      {editable && (isDesktop
+        ? <TimesheetWeekActions mode="desktop" {...actionProps} />
+        : <TimesheetWeekActions mode="mobile" {...actionProps} />)}
 
       {/* AC-IXD-TS-004: the per-project + recent-entries rollup panels are removed — the grid's own
           TOTAL column + daily-total row + header weekly total are the single source of truth; the
@@ -430,6 +429,12 @@ const TimesheetsPage: React.FC = () => {
         </div>
       )}
       {submitConfirm}
+
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onKeepEditing={() => { pendingLeave?.stay(); setPendingLeave(null); }}
+        onDiscard={() => { const leave = pendingLeave?.leave; setPendingLeave(null); leave?.(); }}
+      />
 
       {rowToDelete && (
         <ConfirmDialog

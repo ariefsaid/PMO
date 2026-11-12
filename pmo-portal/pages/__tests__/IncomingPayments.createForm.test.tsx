@@ -134,7 +134,7 @@ const renderPage = () =>
   );
 
 async function openForm(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getAllByRole('button', { name: /Receive Payment|Terima Pembayaran/i })[0]);
+  await user.click(screen.getAllByRole('button', { name: /Receive payment|Terima Pembayaran/i })[0]);
 }
 
 async function pick(user: ReturnType<typeof userEvent.setup>, picker: string | RegExp, label: string) {
@@ -147,6 +147,8 @@ beforeEach(async () => {
   hoisted.navigateMock.mockClear();
   hoisted.paymentsState.data = [];
   hoisted.invoicesState.data = [];
+  hoisted.invoicesState.isPending = false;
+  hoisted.invoicesState.isError = false;
   hoisted.ownershipState.data = [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }];
   hoisted.odooUnreachable = false;
   setActiveLocale(EN_LOCALE);
@@ -164,7 +166,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     hoisted.odooUnreachable = true;
     hoisted.paymentsState.data = [receipt()];
     renderPage();
-    expect(screen.queryByRole('button', { name: 'Receive Payment' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Receive payment' })).toBeNull();
     const row = screen.getByText('ODOO-PAY-001').closest('tr');
     expect(row).not.toBeNull();
     expect(within(row!).queryByRole('button', { name: 'Row actions' })).toBeNull();
@@ -497,7 +499,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await screen.findByText('Discard your changes?');
     await user.click(screen.getByRole('button', { name: /^Discard$/ }));
 
-    expect(screen.queryByRole('dialog', { name: /Receive Payment/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /Receive payment/i })).not.toBeInTheDocument();
     await openForm(user);
     const reopenedDisclosure = screen.getByRole('button', { name: 'Tax withheld' });
     expect(reopenedDisclosure).toHaveAttribute('aria-expanded', 'false');
@@ -625,6 +627,99 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     const listbox = await screen.findByRole('listbox');
     expect(within(listbox).getByRole('option', { name: /SI-ACME/ })).toBeInTheDocument();
     expect(within(listbox).queryByRole('option', { name: /SI-BOREALIS/ })).not.toBeInTheDocument();
+  });
+
+  it('searches the selected customer\'s open invoice by customer name and invoice number', async () => {
+    hoisted.invoicesState.data = [invoice({
+      id: 'si-search', si_number: 'SI-CASCADE-001', customer_name: 'Acme Energy', pmo_native: false,
+    })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
+    const search = await screen.findByRole('combobox', { name: 'Search invoices' });
+
+    await user.type(search, 'Acme Energy');
+    expect(await screen.findByRole('option', { name: /SI-CASCADE-001/ })).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'SI-CASCADE-001');
+    expect(await screen.findByRole('option', { name: /SI-CASCADE-001/ })).toBeInTheDocument();
+  });
+
+  it('explains how to pay open invoices recorded in the other ledger', async () => {
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({ id: 'si-erp', si_number: 'SI-ERP-001', pmo_native: false })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
+
+    expect(await screen.findByText('1 open invoice is recorded in the accounting system. A receipt against it cannot be recorded here yet.')).toBeInTheDocument();
+    expect(screen.queryByText('No invoice matches.')).not.toBeInTheDocument();
+  });
+
+  it('R2-P1b #5 names the excluded invoice ledger in both modes and keeps the receipt path in PMO', async () => {
+    const user = userEvent.setup();
+
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({ id: 'si-erp', pmo_native: false })];
+    const nativePage = renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
+    expect(await screen.findByText(
+      '1 open invoice is recorded in the accounting system. A receipt against it cannot be recorded here yet.',
+    )).toBeInTheDocument();
+    nativePage.unmount();
+
+    hoisted.ownershipState.data = [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }];
+    hoisted.invoicesState.data = [invoice({ id: 'si-pmo', pmo_native: true })];
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
+    expect(await screen.findByText(
+      '1 open invoice is recorded in PMO. A receipt against it cannot be recorded here yet.',
+    )).toBeInTheDocument();
+  });
+
+  it('distinguishes invoices that are still loading from an empty eligible list', async () => {
+    hoisted.invoicesState.isPending = true;
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
+
+    expect(await screen.findByTestId('combo-loading')).toHaveTextContent('Loading invoices…');
+    expect(screen.queryByText('No open invoices for this customer.')).not.toBeInTheDocument();
+  });
+
+  it('distinguishes an invoice read error from an empty eligible list and offers retry', async () => {
+    hoisted.invoicesState.isError = true;
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
+
+    expect(await screen.findByText("Couldn't load invoices.")).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(screen.queryByText('No open invoices for this customer.')).not.toBeInTheDocument();
+  });
+
+  it('names a genuinely empty eligible invoice list', async () => {
+    hoisted.invoicesState.data = [];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
+
+    expect(await screen.findByText('No open invoices for this customer.')).toBeInTheDocument();
+    expect(screen.queryByText('No invoice matches.')).not.toBeInTheDocument();
   });
 
   it('clears the invoice and amounts when the customer changes', async () => {

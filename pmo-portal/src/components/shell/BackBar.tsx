@@ -27,7 +27,7 @@ export const BackBar: React.FC<BackBarProps> = ({ label, onBack, className, phon
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex h-[30px] items-center gap-2 rounded-lg border border-input bg-background pl-2 pr-3 text-[13px] font-medium text-foreground transition-colors hover:bg-accent active:translate-y-px [&_svg]:size-[15px]"
+        className="inline-flex h-auto min-h-[30px] max-w-full items-center gap-2 whitespace-normal break-words rounded-lg border border-input bg-background py-1 pl-2 pr-3 text-control font-medium text-foreground transition-colors hover:bg-accent active:translate-y-px [&_svg]:size-[15px]"
       >
         <Icon name="back" />
         {t('shell.backBar.label', 'Back to {{label}}', { label })}

@@ -377,7 +377,7 @@ describe('Administration route-backed shell', () => {
   it('AC-ADMIA-005: an Executive still gets the existing read-only Users directory notice', () => {
     renderShell('/administration/users', 'Executive');
 
-    expect(screen.getByText(/only an Admin can add, edit, or disable users/i)).toBeInTheDocument();
+    expect(screen.getByText(/an Admin adds, edits or disables users/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /invite user/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
   });
@@ -400,7 +400,7 @@ describe('Administration route-backed shell', () => {
       'aria-current',
       'page',
     );
-    expect(screen.getByRole('heading', { name: 'Organization integrations' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Organization integrations' })).toBeInTheDocument();
     // It is never mislabelled as the personal "My integrations" route (that lives at /integrations).
     expect(screen.queryByRole('heading', { name: 'My integrations' })).not.toBeInTheDocument();
   });
@@ -420,28 +420,15 @@ describe('Administration route-backed shell', () => {
     },
   );
 
-  it('UX-074: Accounting setup exposes direct links to its focused setup sections', async () => {
-    renderShell('/administration/accounting');
-    const nav = screen.getByRole('navigation', { name: 'Accounting setup sections' });
-
-    const destinations = [
-      ['Default tax treatment', 'org-tax-default'],
-      ['Spend approvers', 'spend-approvers'],
-      ['Receipt withholding', 'withholding-account-heading'],
-      ['Supplier bill tax accounts', 'vendor-tax-accounts-heading'],
-      ['Down payments', 'down-payment-item-heading'],
-      ['Purchase rules', 'procurement-gates-heading'],
-      ['Budget account map', 'budget-account-map'],
-      ['Expense account map', 'expense-account-map'],
-    ] as const;
-
-    for (const [label, id] of destinations) {
-      const link = within(nav).getByRole('link', { name: label });
-      expect(link).toHaveAttribute('href', `/administration/accounting#${id}`);
-      await userEvent.click(link);
-      expect(screen.getByTestId('location')).toHaveTextContent(`#${id}`);
+  it('UX-074: a link to a setup section of Accounting setup scrolls to and focuses it', async () => {
+    // The page is one stack of headed sections (no second tab row); links from elsewhere keep their anchor.
+    const destinations = ['org-tax-default', 'spend-approvers', 'withholding-account-heading', 'budget-account-map', 'expense-account-map'] as const;
+    for (const id of destinations) {
+      cleanup();
+      renderShell(`/administration/accounting#${id}`);
       await waitFor(() => expect(document.getElementById(id)).toHaveFocus());
     }
+    expect(screen.queryByRole('navigation', { name: 'Accounting setup sections' })).toBeNull();
   });
 
   it('AC-ADMIA-003: an unknown section is replaced with Users', async () => {
@@ -538,7 +525,7 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
   it('DOM order follows heading → section nav → selected panel heading/content', async () => {
     renderShell('/administration/users');
     await waitFor(() => expect(screen.getByTestId('administration-panel-users')).toBeInTheDocument());
-    const heading = screen.getByRole('heading', { level: 1, name: 'Administration' });
+    const heading = screen.getByRole('heading', { level: 1, name: 'Users' });
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const panel = screen.getByTestId('administration-panel-users');
     const follows = (a: Element, b: Element) =>

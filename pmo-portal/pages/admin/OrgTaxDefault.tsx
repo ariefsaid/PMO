@@ -55,7 +55,7 @@ const OrgTaxDefault: React.FC = () => {
         t('admin.taxDefault.toast.saved', 'Default tax treatment updated'),
         t(
           'admin.taxDefault.toast.savedDetail',
-          'New contracts, work orders and invoices will start on this basis. Existing records are unchanged.',
+          'New contracts, work orders and invoices start on this basis. Existing records keep theirs.',
         ),
         'success',
       );
@@ -67,21 +67,9 @@ const OrgTaxDefault: React.FC = () => {
 
   return (
     <section id="org-tax-default" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.taxDefault.title', 'Default tax treatment')}>
-      <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
+      <h2 className="text-group font-semibold tracking-[-0.01em]">
         {t('admin.taxDefault.title', 'Default tax treatment')}
       </h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
-        {t(
-          'admin.taxDefault.description',
-          'The basis a new contract value, work order or invoice starts on. Anyone recording one can change it on the form.',
-        )}
-      </p>
-      <p className="mt-1 text-[13px] text-muted-foreground">
-        {t(
-          'admin.taxDefault.doesNotRestate',
-          'Changing this does not restate any existing figure. Every record keeps the tax treatment it was recorded with.',
-        )}
-      </p>
       <div className="mt-3 max-w-md">
         {loadFailed ? (
           <ListState
@@ -97,6 +85,7 @@ const OrgTaxDefault: React.FC = () => {
           <SelectField
             id="org-tax-default-select"
             label={t('admin.taxDefault.label', 'Default tax treatment')}
+            hideLabel
             value={current}
             onChange={(value) => void onChange(value)}
             options={taxOptions.options}
@@ -106,7 +95,7 @@ const OrgTaxDefault: React.FC = () => {
         ) : (
           // read-only-distinction: a role that cannot change this sees the VALUE, never a dead
           // control. It is org configuration every member's forms already read.
-          <p data-testid="org-tax-default-readonly" className="text-[13px]">
+          <p data-testid="org-tax-default-readonly" className="text-control">
             <span className="font-semibold">
               {current === 'inclusive'
                 ? t('admin.taxDefault.value.inclusive', 'Inclusive: the amount already includes tax')

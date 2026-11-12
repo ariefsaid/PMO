@@ -1,11 +1,15 @@
 import React from 'react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { Link, MemoryRouter, useLocation } from 'react-router';
 
 const keys = vi.hoisted(() => ({
   procurements: vi.fn(() => ['owner-factory', 'procurements'] as const),
+  leanProcurements: vi.fn(() => ['owner-factory', 'procurements-lean'] as const),
   expenses: vi.fn(() => ['owner-factory', 'expenses'] as const),
   timesheets: vi.fn(() => ['owner-factory', 'timesheets'] as const),
   invoices: vi.fn(() => ['owner-factory', 'invoices'] as const),
@@ -20,6 +24,7 @@ const keys = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/approvalsQueryKeys', () => ({
   requestedProcurementsKey: keys.procurements,
+  procurementsKey: keys.leanProcurements,
   expenseClaimsAwaitingKey: keys.expenses,
   awaitingApprovalKey: keys.timesheets,
   nativeDraftInvoicesKey: keys.invoices,
@@ -44,6 +49,8 @@ function makeClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } });
 }
 
+const CurrentPath = () => <span data-testid="current-path">{useLocation().pathname}</span>;
+
 function seedReady(client: QueryClient, ownership: { domain: string; externalTier: string | null }[] = []) {
   client.setQueryData(ownershipKey, ownership);
   client.setQueryData(queueKeys[0], [
@@ -61,11 +68,17 @@ function seedReady(client: QueryClient, ownership: { domain: string; externalTie
 
 function renderCount(client: QueryClient, role: AuthContextValue['role'] = 'Admin') {
   return render(
-    <QueryClientProvider client={client}>
-      <AuthContext.Provider value={authValue(role)}>
-        <ApprovalsNavCount />
-      </AuthContext.Provider>
-    </QueryClientProvider>,
+    <MemoryRouter initialEntries={['/']}>
+      <QueryClientProvider client={client}>
+        <AuthContext.Provider value={authValue(role)}>
+          <ImpersonationProvider realRole={role} demoEligibility="eligible">
+            <Link to="/finance">Finance</Link>
+            <CurrentPath />
+            <ApprovalsNavCount />
+          </ImpersonationProvider>
+        </AuthContext.Provider>
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -88,6 +101,18 @@ describe('ApprovalsNavCount owner cache keys', () => {
     expect(keys.invoices).toHaveBeenCalledWith(orgId);
     expect(keys.ownership).toHaveBeenCalledWith(orgId);
     expect(client.getQueryCache().findAll().every((query) => query.getObserversCount() === 0)).toBe(true);
+  });
+
+  it('AC-FAA-008 counts from the dashboard lean procurement list when the approvals queue is not loaded', () => {
+    const client = makeClient();
+    seedReady(client);
+    const requested = client.getQueryData(queueKeys[0]);
+    client.removeQueries({ queryKey: queueKeys[0], exact: true });
+    client.setQueryData(keys.leanProcurements(), requested);
+
+    renderCount(client);
+
+    expect(screen.getByText('4')).toBeInTheDocument();
   });
 
   it('AC-FAA-008 omits the count when an applicable owner cache is missing', () => {
@@ -154,19 +179,16 @@ describe('ApprovalsNavCount owner cache keys', () => {
     expect(client.getQueryCache().findAll().every((query) => query.getObserversCount() === 0)).toBe(true);
   });
 
-  it('OD-TS-5 counts cached pending timesheet for assigned Finance manager with role-appropriate queues seeded', () => {
+  it('uses the full Finance approvals population, matching the inbox and home count', () => {
     const client = makeClient();
-    // Finance can approve procurement and invoices; seed those applicable queues as empty / ready
-    client.setQueryData(ownershipKey, []);
-    client.setQueryData(queueKeys[0], []);
-    client.setQueryData(queueKeys[1], []);
-    client.setQueryData(queueKeys[2], [{ id: 't1' }]);
-    client.setQueryData(queueKeys[3], []);
+    seedReady(client);
 
     renderCount(client, 'Finance');
 
-    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('4')).toBeInTheDocument();
     expect(keys.timesheets).toHaveBeenCalledWith(orgId, userId, 'Finance');
+    expect(keys.expenses).toHaveBeenCalledWith(orgId);
+    expect(keys.invoices).toHaveBeenCalledWith(orgId);
     expect(client.getQueryCache().findAll().every((query) => query.getObserversCount() === 0)).toBe(true);
   });
 
@@ -223,5 +245,22 @@ describe('ApprovalsNavCount owner cache keys', () => {
     expect(await screen.findByText('5')).toBeInTheDocument();
     expect(screen.queryByText('4')).not.toBeInTheDocument();
     expect(client.getQueryCache().findAll().every((query) => query.getObserversCount() === 0)).toBe(true);
+  });
+
+  it('H5: keeps the last complete count visible across navigation while approval queues refetch', async () => {
+    const client = makeClient();
+    seedReady(client); // 4 complete approvals
+    renderCount(client);
+
+    await userEvent.click(screen.getByRole('link', { name: 'Finance' }));
+    expect(screen.getByTestId('current-path')).toHaveTextContent('/finance');
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: queueKeys[2], exact: true });
+    });
+
+    expect(screen.getByText('4')).toBeInTheDocument();
+    act(() => client.setQueryData(queueKeys[2], [{ id: 't1' }, { id: 't2' }]));
+    expect(await screen.findByText('5')).toBeInTheDocument();
+    expect(screen.queryByText('4')).not.toBeInTheDocument();
   });
 });

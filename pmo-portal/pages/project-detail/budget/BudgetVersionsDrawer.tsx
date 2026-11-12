@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Button, DataTable, Drawer, StatusPill, type Column } from '@/src/components/ui';
 import { BudgetDocumentLinks } from '@/src/components/m365/BudgetDocumentLinks';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
-import { formatCurrency, formatInstantDate, formatNumberMax2 } from '@/src/lib/format';
-import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
+import { formatDay } from '@/src/lib/format';
+import { formatBudgetAmount, formatBudgetExactNumber } from './budgetMoney';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { compareBudgetVersions, type BudgetComparisonRow } from '@/src/lib/budget/budgetModel';
 
@@ -21,15 +21,6 @@ interface BudgetVersionsDrawerProps {
   onClone: (id: string) => void;
   onDeleteDraft: (id: string) => void;
 }
-
-const statusLabel = (status: BudgetVersionWithItems['status'], t: (key: string, fallback: string) => string) => {
-  const labels: Record<BudgetVersionWithItems['status'], string> = {
-    Draft: t('financeCopy.statusDraft', 'Draft'),
-    Active: t('financeCopy.statusActive', 'Active'),
-    Archived: t('financeCopy.statusArchived', 'Archived'),
-  };
-  return labels[status];
-};
 
 export default function BudgetVersionsDrawer({
   open,
@@ -58,11 +49,11 @@ export default function BudgetVersionsDrawer({
   );
   const compareColumns: Column<BudgetComparisonRow>[] = [
     { key: 'category', header: t('financeCopy.category', 'Category'), kind: 'primary', cell: (row) => budgetCategoryLabel(row.category, t) },
-    { key: 'a', header: t('projectDetail.budget.versionMarkerA', 'A'), kind: 'money', align: 'num', cell: (row) => `${a?.currency || fallbackCurrency} ${formatNumberMax2(row.a)}` },
-    { key: 'b', header: t('projectDetail.budget.versionMarkerB', 'B'), kind: 'money', align: 'num', cell: (row) => `${b?.currency || fallbackCurrency} ${formatNumberMax2(row.b)}` },
+    { key: 'a', header: t('projectDetail.budget.versionMarkerA', 'A'), kind: 'money', align: 'num', cell: (row) => `${a?.currency || fallbackCurrency} ${formatBudgetExactNumber(row.a)}` },
+    { key: 'b', header: t('projectDetail.budget.versionMarkerB', 'B'), kind: 'money', align: 'num', cell: (row) => `${b?.currency || fallbackCurrency} ${formatBudgetExactNumber(row.b)}` },
     { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (row) => (a?.currency || fallbackCurrency) !== (b?.currency || fallbackCurrency) ? '—' : (
-      <span className={row.change > 0 ? 'text-destructive-text' : undefined}>
-        {row.change > 0 ? '+' : ''}{a?.currency || fallbackCurrency} {formatNumberMax2(row.change)}
+      <span>
+        {row.change > 0 ? '+' : ''}{a?.currency || fallbackCurrency} {formatBudgetExactNumber(row.change)}
       </span>
     ) },
   ];
@@ -82,16 +73,16 @@ export default function BudgetVersionsDrawer({
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="font-mono text-xs text-muted-foreground">v{version.version}</span>
+                    <span className="font-mono text-sm text-muted-foreground">v{version.version}</span>
                     <span className="font-semibold">{version.name}</span>
-                    <StatusPill variant={budgetVersionVariant(version.status)}>{statusLabel(version.status, t)}</StatusPill>
+                    <StatusPill record="budgetVersion" state={version.status} />
                     {version.activation_basis === 'sole_operator' && (
                       <StatusPill variant="neutral">{t('financeCopy.activatedBySoleOperator', 'Activated by sole member')}</StatusPill>
                     )}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {formatCurrency(version.total, version.currency || fallbackCurrency)}
-                    {' · '}{version.activated_at ? formatInstantDate(version.activated_at) : t('projectDetail.budget.notActivated', 'Not activated')}
+                    {formatBudgetAmount(version.total, version.currency || fallbackCurrency)}
+                    {' · '}{version.activated_at ? formatDay(version.activated_at) : t('projectDetail.budget.notActivated', 'Not activated')}
                   </p>
                 </div>
                 {canWrite && (
@@ -133,13 +124,13 @@ export default function BudgetVersionsDrawer({
             {comparing && (
               <div className="mt-3 space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+                  <label className="flex flex-col gap-1 text-sm font-medium text-muted-foreground">
                     {t('projectDetail.budget.versionA', 'Version A')}
                     <select aria-label={t('projectDetail.budget.versionA', 'Version A')} value={versionAId} onChange={(event) => setVersionA(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
                       {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {version.name}</option>)}
                     </select>
                   </label>
-                  <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+                  <label className="flex flex-col gap-1 text-sm font-medium text-muted-foreground">
                     {t('projectDetail.budget.versionB', 'Version B')}
                     <select aria-label={t('projectDetail.budget.versionB', 'Version B')} value={versionBId} onChange={(event) => setVersionB(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
                       {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {version.name}</option>)}

@@ -28,7 +28,9 @@ describe('AC-DTR-001 InvoicedTrendTile', () => {
     render(<InvoicedTrendTile trend={trendOf([7_700_000_00, 0, 0, 0])} />);
     const tile = screen.getByTestId('invoiced-trend');
     expect(tile).toHaveTextContent('IDR 7.7M');
-    expect(screen.getByTestId('invoiced-trend-summary')).toHaveTextContent(/Falling.*Latest month, Apr 2026: IDR 0/);
+    // A fall to nothing is shown as numbers; the tile gives no verdict word from the data.
+    expect(screen.getByTestId('invoiced-trend-summary')).toHaveTextContent(/Latest month, Apr 2026: IDR 0/);
+    expect(tile).not.toHaveTextContent(/falling|rising|steady/i);
   });
 });
 
@@ -41,13 +43,13 @@ describe('AC-DTR-002 less than three months', () => {
 });
 
 describe('AC-DTR-003 readable without sight or a pointer', () => {
-  it('states first, last and direction as text; the drawing has a concise name', () => {
+  it('states first and last as text; the drawing has a concise name and no verdict', () => {
     const { container } = render(<InvoicedTrendTile trend={trendOf([100_000_000_00, 200_000_000_00, 450_000_000_00])} />);
     const summary = screen.getByTestId('invoiced-trend-summary');
     expect(summary).toHaveTextContent('Latest month, Mar 2026: IDR 450M');
     expect(summary).toHaveTextContent('from Jan 2026: IDR 100M');
-    expect(summary).toHaveTextContent(/rising/i);
-    expect(screen.getByRole('img', { name: 'Invoiced trend, Jan 2026 to Mar 2026: Rising' })).toBeInTheDocument();
+    expect(summary).not.toHaveTextContent(/rising/i);
+    expect(screen.getByRole('img', { name: 'Invoiced trend, Jan 2026 to Mar 2026' })).toBeInTheDocument();
     expect(container.querySelector('svg')).not.toHaveAttribute('focusable', 'true');
   });
 
@@ -67,10 +69,10 @@ describe('AC-DTR-003 readable without sight or a pointer', () => {
     expect(screen.getByTestId('invoiced-trend')).toHaveTextContent(/Agu 2026/);
   });
 
-  it('says falling and steady in words', () => {
+  it('never says rising, falling or steady', () => {
     const { rerender } = render(<InvoicedTrendTile trend={trendOf([900_00, 500_00, 100_00])} />);
-    expect(screen.getByTestId('invoiced-trend-summary')).toHaveTextContent(/falling/i);
+    expect(screen.getByTestId('invoiced-trend')).not.toHaveTextContent(/falling|rising|steady/i);
     rerender(<InvoicedTrendTile trend={trendOf([300_00, 900_00, 300_00])} />);
-    expect(screen.getByTestId('invoiced-trend-summary')).toHaveTextContent(/steady/i);
+    expect(screen.getByTestId('invoiced-trend')).not.toHaveTextContent(/falling|rising|steady/i);
   });
 });

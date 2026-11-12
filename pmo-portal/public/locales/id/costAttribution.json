@@ -1,9 +1,8 @@
 {
   "add": "Tambah aturan",
-  "description": "Menempatkan biaya buku besar yang tidak memiliki proyek ERP ke proyek, misalnya gaji. Ditampilkan sebagai teralokasi, terpisah dari biaya yang ditandai di ERP, dan tidak ada yang ditulis ke ERP.",
   "empty": {
     "readOnly": "Finance dan Admin dapat menambah aturan.",
-    "sub": "Tambahkan aturan untuk menempatkan biaya buku besar tanpa proyek, seperti gaji, ke proyek.",
+    "sub": "Tambahkan aturan untuk menempatkan biaya tanpa tag ke proyek.",
     "title": "Belum ada aturan alokasi biaya"
   },
   "end": {
@@ -55,7 +54,6 @@
     "required": "Wajib diisi.",
     "ruleLegend": "Aturan",
     "save": "Simpan aturan",
-    "subtitle": "Menempatkan biaya buku besar tanpa proyek ERP ke proyek. Tidak ada yang ditulis ke ERP.",
     "targetsLegend": "Dialokasikan ke",
     "to": "Berlaku sampai (opsional)",
     "total": "Persentase harus berjumlah 100.",
@@ -93,7 +91,8 @@
     "stale": "Aturan berubah sejak pratinjau ini. Pratinjau lagi.",
     "total": "Total {{amount}} dari {{lines}} baris buku besar.",
     "unmapped": "Belum dipetakan",
-    "unmappedNote": "Sebagian biaya ini ada di akun yang belum dipetakan ke kategori anggaran, sehingga tidak akan muncul di aktual proyek. Petakan di Peta akun anggaran."
+    "unmappedNote": "Sebagian biaya ini ada di akun yang belum dipetakan ke kategori anggaran, sehingga tidak akan muncul di aktual proyek. Petakan di Peta akun anggaran.",
+    "readOnly": "Tidak ada yang ditulis ke ERP."
   },
   "split": {
     "budget": "Di semua tahun, {{attributed}} dari pengeluaran tercatat dialokasikan oleh aturan biaya, bukan ditandai ke proyek ini di ERP.",

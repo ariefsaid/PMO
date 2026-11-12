@@ -12,6 +12,9 @@ import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useTasks } from '@/src/hooks/useTasks';
 import { buildSCurve, evenAxisTicks, formatSCurveAxisDate } from '@/src/lib/delivery/sCurve';
 
+// Chart ticks are the one place 12px is allowed.
+const sCurveTickStyle = { ...axisTickStyle, fontSize: 12 } as const;
+
 interface ProjectSCurveProps {
   projectId: string;
 }
@@ -117,7 +120,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 domain={['dataMin', 'dataMax']}
                 ticks={axisTicks}
                 tickFormatter={formatSCurveAxisDate}
-                tick={axisTickStyle}
+                tick={sCurveTickStyle}
                 tickLine={false}
                 axisLine={{ stroke: chartTheme.grid }}
                 minTickGap={32}
@@ -126,7 +129,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 domain={[0, 100]}
                 ticks={[0, 25, 50, 75, 100]}
                 tickFormatter={(v: number) => `${v}%`}
-                tick={axisTickStyle}
+                tick={sCurveTickStyle}
                 tickLine={false}
                 axisLine={{ stroke: chartTheme.grid }}
                 width={44}
@@ -164,7 +167,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
             </LineChart>
           </ResponsiveContainer>
 
-          <figcaption className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+          <figcaption className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-control text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span
                 data-testid="legend-dot"
@@ -188,7 +191,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
 
           {/* FR-SCA-014 backfill caveat — shown only when a proxy date (completed_at absent) was used. */}
           {model.usesProxyDates && (
-            <p className="mt-2 text-[11px] text-muted-foreground">
+            <p className="mt-2 text-control text-muted-foreground">
               {t(
                 'projectDetail.scurve.backfillCaveat',
                 'Completion dates before today are estimated; live tracking starts now.',

@@ -23,6 +23,7 @@ type MappingField = (typeof MAPPING_FIELDS)[number];
 
 export interface BudgetPasteRowsDialogProps {
   onClose: () => void;
+  onDirtyChange: (dirty: boolean) => void;
   projectId: string;
   /** The Draft this dialog was opened for; saving writes only here. */
   targetId: string;
@@ -45,7 +46,7 @@ function formatTotal(cents: bigint, currency: string): string {
 }
 
 const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
-  onClose, projectId, targetId, selectedId, isDraft, canCreate, canEdit, currency, versionLabel,
+  onClose, onDirtyChange, projectId, targetId, selectedId, isDraft, canCreate, canEdit, currency, versionLabel,
 }) => {
   const { t } = useTranslation('finance');
   const headerId = useId();
@@ -96,6 +97,9 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
   const ambiguityConfirmed = ambiguousRows.length === 0 || confirmedKey === ambiguousKey;
   const canSave = hasInput && validRows.length > 0 && ambiguityConfirmed && !hasResults && !paste.isSaving;
   const unresolved = results.some((r) => r.status !== 'created');
+  const dirty = (hasInput && !hasResults) || unresolved;
+  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
   // AC-ERR-001: a rejected row is also shown inline and stays; a fresh object per results change re-announces it.
   const firstError = results.find((r) => r.error)?.error;
   const submitError = useMemo(() => (firstError ? { headline: firstError.headline, detail: firstError.detail } : null), [results]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -150,7 +154,6 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
       open
       width="lg"
       title={t('budgetPaste.title', 'Paste rows')}
-      subtitle={t('budgetPaste.target', 'Adding to {{version}} (Draft). Existing lines are kept.', { version: versionLabel })}
       submitLabel={t('budgetPaste.save', 'Save {{count}} valid rows', { count: validRows.length })}
       cancelLabel={hasResults && !unresolved ? t('budgetPaste.done', 'Done') : undefined}
       onSubmit={submit}
@@ -160,7 +163,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
       hideSubmit={hasResults}
       disabledReason={t('budgetPaste.disabledReason', 'Paste rows with a mapped category and amount, with at least one valid row.')}
       loading={paste.isSaving}
-      dirty={(hasInput && !hasResults) || unresolved}
+      dirty={dirty}
       discardCopy={{
         title: t('budgetPaste.discardTitle', 'Close without finishing?'),
         description: t('budgetPaste.discardBody', 'Pasted rows that are not saved, and rows not confirmed, will be dropped. Check the budget lines afterwards.'),
@@ -182,7 +185,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
                 {t('budgetPaste.retry', 'Retry {{count}} failed rows', { count: failedRetryable.length })}
               </Button>
             )}
-            <ul className="space-y-1 text-xs">
+            <ul className="space-y-1 text-sm">
               {results.map((r) => (
                 <li key={r.rowNumber}>
                   {t('budgetPaste.resultRow', 'Row {{row}} · {{category}} · {{amount}}', { row: r.rowNumber, category: budgetCategoryLabel(r.category, t), amount: r.amount })}
@@ -271,13 +274,13 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
 
             {preview.rows.length > 0 && preview.rows.length <= 500 && (
               <div tabIndex={0} role="region" aria-label={t('budgetPaste.previewLabel', 'Preview')} className="max-h-72 overflow-auto rounded-md border border-border">
-                <table className="w-full min-w-[32rem] text-left text-xs">
+                <table className="w-full min-w-[32rem] text-left text-sm">
                   <thead className="sticky top-0 bg-card">
                     <tr>
                       <th scope="col" className="px-2 py-1">{t('budgetPaste.col.row', 'Row')}</th>
                       <th scope="col" className="px-2 py-1">{fieldLabel.category}</th>
                       <th scope="col" className="px-2 py-1">{fieldLabel.description}</th>
-                      <th scope="col" className="px-2 py-1 text-right">{fieldLabel.amount}</th>
+                      <th scope="col" className="px-2 py-1 text-right tabular tabular-nums">{fieldLabel.amount}</th>
                       <th scope="col" className="px-2 py-1">{t('budgetPaste.col.status', 'Check')}</th>
                     </tr>
                   </thead>
@@ -309,6 +312,7 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
 
         </>)}
       </div>
+      <p className="mt-3 text-sm text-muted-foreground">{t('budgetPaste.target', 'Adding to {{version}} (Draft). Existing lines are kept.', { version: versionLabel })}</p>
     </EntityFormModal>
   );
 };

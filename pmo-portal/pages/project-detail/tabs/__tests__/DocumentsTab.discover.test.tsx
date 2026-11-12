@@ -45,6 +45,7 @@ vi.mock('@/src/components/m365/MicrosoftDocumentPicker', () => ({
 }));
 
 import DocumentsTab from '../DocumentsTab';
+import { formatDay } from '@/src/lib/format';
 
 const renderTab = () =>
   render(
@@ -75,7 +76,7 @@ describe('F1: register rows stay short', () => {
     renderTab();
     expect(screen.queryAllByText(ACCESS)).toHaveLength(0);
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    const preview = screen.getByRole('complementary');
+    const preview = screen.getByRole('dialog');
     expect(within(preview).getByRole('button', { name: /^Open in SharePoint:/ })).toBeEnabled();
     expect(within(preview).getAllByText(ACCESS)).toHaveLength(1);
   });
@@ -83,7 +84,7 @@ describe('F1: register rows stay short', () => {
   it('F1: the Date value never wraps mid-date', () => {
     h.docs.data = [makeLinkedDoc()];
     renderTab();
-    expect(screen.getByText('Jun 1, 2026')).toHaveClass('whitespace-nowrap');
+    expect(screen.getByText(formatDay('2026-06-01'))).toHaveClass('whitespace-nowrap');
   });
 });
 
@@ -103,7 +104,7 @@ describe('F3: Bahasa', () => {
   // The real app resolves namespaced keys through the common catalogue (fallbackNS); the bare test instance has none.
   afterEach(async () => { i18n.options.fallbackNS = false; await i18n.changeLanguage('en'); });
 
-  it('F3: in Bahasa the Microsoft cell and the unlink confirmation are Indonesian, and dismissing writes nothing', async () => {
+  it('AC-M365DOC-064: the register and preview localize the Microsoft cell, and dismissing unlink writes nothing', async () => {
     i18n.addResourceBundle('id', 'common', idCatalogue, true, true);
     i18n.options.fallbackNS = ['common'];
     await i18n.changeLanguage('id');
@@ -113,6 +114,12 @@ describe('F3: Bahasa', () => {
     const row = screen.getByText('Foundation GA').closest('tr') as HTMLElement;
     expect(within(row).getByText('File SharePoint')).toBeInTheDocument();
     expect(within(row).queryByText('SharePoint file')).toBeNull();
+    await user.click(within(row).getByText('Foundation GA').closest('button')!);
+    const preview = screen.getByRole('dialog');
+    expect(within(preview).getByText('File SharePoint')).toBeInTheDocument();
+    expect(within(preview).queryByText('SharePoint file')).toBeNull();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
     await user.click(within(row).getByRole('button', { name: 'Tindakan baris' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Lepas tautan item Microsoft' }));

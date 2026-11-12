@@ -93,7 +93,7 @@ export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean 
     >
       <details open={!hasPending} className="rounded-lg border border-border/70 px-3 py-2">
         <summary className="cursor-pointer text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-          {t('approvals.reopen.heading', 'Approved history and corrections')} <span className="tabular text-muted-foreground">{data.length}</span> <span className="text-xs font-normal text-muted-foreground">({t('approvals.reopen.window', 'last {{days}} days', { days: String(REOPENABLE_WINDOW_DAYS) })})</span>
+          {t('approvals.reopen.heading', 'Approved history and corrections')} <span className="tabular text-muted-foreground">{data.length}</span> <span className="text-control font-normal text-muted-foreground">({t('approvals.reopen.window', 'last {{days}} days', { days: String(REOPENABLE_WINDOW_DAYS) })})</span>
         </summary>
         <div className="mt-2 space-y-1.5">
         {data.map((row) => {
@@ -128,17 +128,17 @@ export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean 
                 <div className="text-sm font-medium">
                   {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
                 </div>
-                <div className="mt-0.5 text-[12px] text-muted-foreground">
+                <div className="mt-0.5 text-control text-muted-foreground">
                   {weekLabel(row.week_start_date, t)}
                 </div>
               </div>
               {pushed ? (
-                <span className="text-[12px] text-muted-foreground">
+                <span className="text-control text-muted-foreground">
                   {t('approvals.reopen.alreadyPushed', 'Already pushed to ERP: correction path coming')}
                 </span>
               ) : outcomeUnknown ? (
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  <span className="text-[12px] text-muted-foreground">
+                  <span className="text-control text-muted-foreground">
                     {t(
                       'approvals.reopen.outcomeUnknown',
                       'ERP result unknown: an administrator must confirm what ERPNext holds',
@@ -147,7 +147,7 @@ export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean 
                   {offerAttest && (
                     <button
                       type="button"
-                      className="h-8 rounded-md border border-border px-3 text-[12px] font-medium hover:bg-accent"
+                      className="h-8 rounded-md border border-border px-3 text-control font-medium hover:bg-accent"
                       onClick={() => {
                         setAttestReason('');
                         setAttestFor({
@@ -161,13 +161,13 @@ export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean 
                   )}
                 </div>
               ) : inFlight ? (
-                <span className="text-[12px] text-muted-foreground">
+                <span className="text-control text-muted-foreground">
                   {t('approvals.reopen.pushInProgress', 'Push in progress')}
                 </span>
               ) : (
                 <button
                   type="button"
-                  className="h-8 rounded-md border border-border px-3 text-[12px] font-medium hover:bg-accent disabled:opacity-50"
+                  className="h-8 rounded-md border border-border px-3 text-control font-medium hover:bg-accent disabled:opacity-50"
                   disabled={reopeningId === row.id && reopenApproved.isPending}
                   onClick={() => {
                     setReopeningId(row.id);

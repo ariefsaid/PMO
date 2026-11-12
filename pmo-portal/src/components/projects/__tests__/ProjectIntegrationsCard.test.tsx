@@ -460,9 +460,13 @@ describe('ProjectIntegrationsCard', () => {
       expect(mockUnlinkProject).toHaveBeenCalledTimes(1);
 
       await user.click(screen.getByRole('button', { name: /^Unlink from ClickUp$/i }));
-      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(alert.isConnected).toBe(true);
       const retryDialog = await screen.findByRole('alertdialog');
-      await user.click(within(retryDialog).getByRole('button', { name: /^Unlink from ClickUp$/i }));
+      await user.click(within(retryDialog).getByRole('button', { name: 'Cancel' }));
+      expect(screen.getByRole('alert')).toHaveTextContent(/Could not unlink from ClickUp\. The project is still linked\./);
+      await user.click(screen.getByRole('button', { name: /^Unlink from ClickUp$/i }));
+      const deliberateRetryDialog = await screen.findByRole('alertdialog');
+      await user.click(within(deliberateRetryDialog).getByRole('button', { name: /^Unlink from ClickUp$/i }));
 
       await waitFor(() => expect(mockUnlinkProject).toHaveBeenCalledTimes(2));
       await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
@@ -672,7 +676,7 @@ describe('ProjectIntegrationsCard', () => {
       await user.click(comboboxTrigger);
 
       await waitFor(() => expect(screen.getByRole('listbox')).toBeInTheDocument());
-      expect(screen.getByText(/No list matches/)).toBeInTheDocument();
+      expect(screen.getByText(/Nothing is available to select yet/)).toBeInTheDocument();
     });
   });
 

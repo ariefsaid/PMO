@@ -1,6 +1,7 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, act, waitFor, cleanup } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
@@ -38,6 +39,12 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 import DraggableSalesBoard from '../DraggableSalesBoard';
 
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
+
 const deal = (id: string, status: PipelineProject['status']): PipelineProject => ({
   id, name: `${id} deal`, short_name: null, client_name: 'Acme', status,
   contract_value: 1000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4,
@@ -67,7 +74,7 @@ describe('DraggableSalesBoard', () => {
     await drop('leads', 'stage-PQ Submitted');
     expect(mutateAsync).not.toHaveBeenCalled();
     expect(inColumn('stage-Leads', 'leads')).toBeInTheDocument();
-    expect(await screen.findByText("leads deal can't move from Leads to Pre-Qual.")).toBeInTheDocument();
+    expect(await screen.findByText("leads deal can't move from Leads to PQ submitted.")).toBeInTheDocument();
   });
 
   it('AC-DND-003: Quotation → Pre-Qualification opens the menu confirm; Cancel snaps back with no write; Confirm writes once', async () => {
@@ -92,8 +99,8 @@ describe('DraggableSalesBoard', () => {
     const user = userEvent.setup();
     renderBoard();
     await drop('negotiation', 'stage-Won');
-    expect(await screen.findByText('Win — enter contract details')).toBeInTheDocument();
-    const submit = screen.getByRole('button', { name: 'Confirm' });
+    expect(await screen.findByText('Record the won project')).toBeInTheDocument();
+    const submit = screen.getByRole('button', { name: 'Confirm won' });
     expect(submit).toBeDisabled();
     await user.type(screen.getByLabelText('Customer contract ref'), 'CPO-1');
     await user.type(screen.getByLabelText('Contract date'), '2026-11-01');
@@ -108,7 +115,7 @@ describe('DraggableSalesBoard', () => {
     const user = userEvent.setup();
     renderBoard();
     await drop('negotiation', 'stage-Won');
-    await screen.findByText('Win — enter contract details');
+    await screen.findByText('Record the won project');
     expect(inColumn('stage-Won', 'negotiation')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(inColumn('stage-Negotiation', 'negotiation')).toBeInTheDocument());
@@ -126,7 +133,7 @@ describe('DraggableSalesBoard', () => {
     renderBoard();
     await drop('negotiation', 'stage-Won');
     expect(await screen.findByText(message)).toBeInTheDocument();
-    expect(screen.queryByText('Win — enter contract details')).toBeNull();
+    expect(screen.queryByText('Record the won project')).toBeNull();
     expect(mutateAsync).not.toHaveBeenCalled();
     expect(inColumn('stage-Negotiation', 'negotiation')).toBeInTheDocument();
   });
@@ -219,7 +226,7 @@ describe('DraggableSalesBoard', () => {
     await drop('negotiation', 'stage-Won');
     await user.type(await screen.findByLabelText('Customer contract ref'), 'CPO-1');
     await user.type(screen.getByLabelText('Contract date'), '2026-11-01');
-    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm won' }));
     const form = await screen.findByRole('dialog');
     expect(await within(form).findByRole('alert')).toHaveTextContent('Illegal transition');
     expect(screen.queryByText('Status change failed')).toBeNull();
@@ -229,7 +236,7 @@ describe('DraggableSalesBoard', () => {
     expect(inColumn('stage-Won', 'negotiation')!.closest('[data-drag-state]')).toHaveAttribute('data-drag-state', 'held');
 
     mutateAsync.mockResolvedValueOnce({ erpSetupPending: false });
-    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm won' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(mutateAsync).toHaveBeenCalledTimes(2);
     expect(mutateAsync).toHaveBeenLastCalledWith({
@@ -244,7 +251,7 @@ describe('DraggableSalesBoard', () => {
     await drop('negotiation', 'stage-Won');
     await user.type(await screen.findByLabelText('Customer contract ref'), 'CPO-1');
     await user.type(screen.getByLabelText('Contract date'), '2026-11-01');
-    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm won' }));
     await within(await screen.findByRole('dialog')).findByRole('alert');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await user.click(await screen.findByRole('button', { name: 'Discard' }));
@@ -274,7 +281,7 @@ describe('DraggableSalesBoard', () => {
     expect(screen.queryByText('Move project to PQ Submitted?')).toBeNull();
     expect(inColumn('stage-Quotation Submitted', 'quotation')).toBeInTheDocument();
     await act(async () => { answer('allowed'); });
-    expect(await screen.findByText('Win — enter contract details')).toBeInTheDocument();
+    expect(await screen.findByText('Record the won project')).toBeInTheDocument();
     expect(inColumn('stage-Quotation Submitted', 'quotation')).toBeInTheDocument();
     expect(screen.queryByText('Move project to PQ Submitted?')).toBeNull();
   });
@@ -288,10 +295,14 @@ describe('DraggableSalesBoard', () => {
       await drop(id, 'stage-Won');
       await user.type(await screen.findByLabelText('Customer contract ref'), 'CPO-1');
       await user.type(screen.getByLabelText('Contract date'), '2026-11-01');
-      await user.click(screen.getByRole('button', { name: 'Confirm' }));
+      await user.click(screen.getByRole('button', { name: 'Confirm won' }));
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     }
-    expect(await screen.findAllByText(note)).toHaveLength(2);
+    // Each win surfaces its own stacked note toast; the newest one is what's announced.
+    await waitFor(() => expect(
+      Array.from(document.querySelectorAll('[data-sonner-toast]')).filter((el) => (el.textContent ?? '').includes(note)),
+    ).toHaveLength(2));
+    expect(screen.getByRole('status')).toHaveTextContent(note);
   });
 
   it('AC-DND-012: the home column (and Won for a won deal) is not a drop target cue', () => {
@@ -311,5 +322,45 @@ describe('DraggableSalesBoard', () => {
     expect(disabled('leads')).toHaveAttribute('data-drag-disabled', 'true');
     for (const id of ['tender', 'quotation', 'negotiation'])
       expect(screen.getAllByText(`${id} deal`)[0].closest('[data-drag-disabled]')).toHaveAttribute('data-drag-disabled', 'true');
+  });
+
+  it('AC-DND-017: the card menu "Move to" is the keyboard path and runs the same confirm: no write until Confirm', async () => {
+    const user = userEvent.setup();
+    renderBoard();
+    await user.click(screen.getByRole('button', { name: 'Actions for quotation deal' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Move to PQ submitted' }));
+    expect(await screen.findByText('Move project to PQ Submitted?')).toBeInTheDocument();
+    expect(mutateAsync).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Move to PQ Submitted' }));
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ id: 'quotation', to: 'PQ Submitted', opts: undefined }));
+  });
+
+  it('AC-DND-017: "Move to Won" from the menu cannot bypass the win form: nothing is written until ref and date are entered', async () => {
+    const user = userEvent.setup();
+    renderBoard();
+    await user.click(screen.getAllByRole('button', { name: 'Actions for negotiation deal' })[0]);
+    await user.click(await screen.findByRole('menuitem', { name: 'Move to Won' }));
+    expect(await screen.findByText('Record the won project')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm won' })).toBeDisabled();
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('AC-DND-017: the menu offers only moves the rules allow, and none without the transition permission', async () => {
+    const user = userEvent.setup();
+    renderBoard();
+    await user.click(screen.getByRole('button', { name: 'Actions for leads deal' }));
+    expect(await screen.findByRole('menuitem', { name: 'Move to Quotation submitted' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Move to PQ submitted' })).toBeNull();
+    cleanup();
+    role = 'Viewer';
+    renderBoard();
+    expect(screen.queryByRole('button', { name: /^Actions for/ })).toBeNull();
+  });
+
+  it('AC-DND-017: a card does not repeat its column as a stage chip, but a multi-status column keeps it', () => {
+    renderBoard();
+    const card = (col: string, id: string) => inColumn(col, id)!.closest('[data-testid="project-card"]') as HTMLElement;
+    expect(within(card('stage-Leads', 'leads')).queryByText('Leads')).toBeNull();
+    expect(within(card('stage-Won', 'won')).getByText(/pending kickoff/)).toBeInTheDocument();
   });
 });

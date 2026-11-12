@@ -68,12 +68,12 @@ const PoVariationModal: React.FC<PoVariationModalProps> = ({ row, origin, curren
   return (
     <EntityFormModal open width="lg"
       title={t('subcontract.variations.newTitle', 'Request PO variation')}
-      subtitle={t('subcontract.variations.newSubtitle', '{{item}} · {{unit}} · PO rate {{rate}}', {
-        item: `${row.item_code} — ${row.description}`, unit: row.unit, rate: formatCurrency(Number(row.rate), currency),
-      })}
       submitLabel={submittedId ? t('subcontract.variations.done', 'Done') : t('subcontract.variations.request', 'Request variation')}
       onSubmit={handleSubmit} submitError={saveError} onClose={onClose} loading={busy}
       dirty={!submittedId && (quantity !== '' || reason !== '')}>
+      <p className="mb-3 text-sm text-foreground tabular">{t('subcontract.variations.newSubtitle', '{{item}} · {{unit}} · PO rate {{rate}}', {
+        item: `${row.item_code} — ${row.description}`, unit: row.unit, rate: formatCurrency(Number(row.rate), currency),
+      })}</p>
       {submittedId ? <FormSection legend={t('subcontract.variations.routeLegend', 'Approval route')}>
         <VariationRouteSummary variationId={submittedId} />
       </FormSection> : <>

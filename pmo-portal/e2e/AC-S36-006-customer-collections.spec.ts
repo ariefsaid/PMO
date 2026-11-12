@@ -526,6 +526,10 @@ test('AC-S36-006: Finance follows one customer’s source aging position to its 
     await expect(page).toHaveURL(/\/$/);
 
     const customerLink = page.getByRole('link', { name: fixture.erpCustomerId, exact: true });
+    // ux/1110: the accounting-source ageing table (the customer rows and their links) now lives in the
+    // dashboard's collapsed Analysis section — the redesign keeps these long source tables one
+    // disclosure below the figures. Opening it is a step on the way, not a different goal.
+    await page.getByText('Analysis', { exact: true }).click();
     await expect(customerLink).toBeVisible({ timeout: 20_000 });
     await waitForFonts(page);
     await expect(customerLink).toHaveAttribute('href', `/companies/${fixture.companyId}#collections`);
@@ -555,8 +559,8 @@ test('AC-S36-006: Finance follows one customer’s source aging position to its 
     await waitForFonts(page);
     await expect(overdueInvoice).toContainText(fixture.companyName);
     await expect(overdueInvoice).toContainText(/\$\d/);
-    // #1405 copy: overdue age preserved
-    await expect(overdueInvoice).toContainText(/Overdue · \d+ days/);
+    // overdue age preserved (one age text: "118 days overdue")
+    await expect(overdueInvoice).toContainText(/\d+ days? overdue/);
   } catch (error) {
     journeyFailure = error;
   }

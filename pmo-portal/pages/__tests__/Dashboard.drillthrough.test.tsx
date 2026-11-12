@@ -10,6 +10,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -40,9 +41,23 @@ const dash = {
 };
 
 const procurements = [
-  { id: 'pr1', status: 'Vendor Invoiced', total_value: 250_000, currency: 'USD', requested_by_id: 'u1' },
+  { id: 'pr1', status: 'Vendor Invoiced', total_value: 250_000, currency: 'USD', requested_by_id: 'u1', procurement_invoices: [{ amount: 250_000 }], payments: [] },
   { id: 'pr2', status: 'Paid', total_value: 999_999, currency: 'USD', requested_by_id: 'u1' },
 ];
+
+// One USD contract with its June invoicing: the period figures (Invoiced, Collected, Left to bill) read the
+// management pack, which this org has — an empty pack means "no basis to invoice", not a zero (80f05c77f).
+const pack = {
+  from: '2026-01-01', to: '2026-06-30', timezone: 'UTC', undatedInvoiceCount: 0,
+  months: ['2026-06'],
+  rows: [{
+    key: 'p1|USD|contract', kind: 'contract', projectId: 'p1', projectName: 'Alpha', projectNumber: null,
+    clientName: 'Acme', projectManagerId: null, projectStatus: 'Ongoing Project', currency: 'USD',
+    contractNet: 50_000_000, latestProgress: null,
+    months: [{ month: '2026-06', planned: 0, recognised: 0, invoiced: 30_000_000, invoiceCount: 1, recognisedToDate: 0, invoicedToDate: 30_000_000, invoiceCountToDate: 1, unbilled: 0, backlog: 20_000_000, basis: 'invoiced' }],
+  }],
+  totals: [{ currency: 'USD', months: [{ month: '2026-06', planned: 0, recognised: 0, invoiced: 30_000_000, invoiceCount: 1, recognisedToDate: 0, invoicedToDate: 30_000_000, invoiceCountToDate: 1, unbilled: 0, backlog: 20_000_000 }] }],
+};
 
 // Keep the company-hub data sources deterministic so these checks bind KPI destinations and names.
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
@@ -65,7 +80,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useHasAnyIncomingPayment: () => ({ data: false, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
-  useManagementPack: () => ({ data: { totals: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+  useManagementPack: () => ({ data: pack, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({
   useExpenseClaims: () => ({ data: { rows: [] }, isPending: false, isError: false, refetch: vi.fn() }),
@@ -127,34 +142,33 @@ const renderExec = () =>
 const companyFigureTile = (label: string) => {
   const section = screen.getByRole('region', { name: 'Company figures' });
   const labelElement = within(section).getByText(label, { exact: true });
-  const tile = labelElement.parentElement?.parentElement?.parentElement;
+  // The tile root is the nearest ancestor holding the tile's link.
+  let tile: HTMLElement | null = labelElement;
+  while (tile && !tile.querySelector('a')) tile = tile.parentElement;
   expect(tile).not.toBeNull();
   return tile as HTMLElement;
 };
 
-describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
+describe('AC-IXD-DASH-W5-C2A — Executive dashboard drills', () => {
   // #1461: each href opens exactly the record set its figure sums/counts.
   // - Contract on hand / Margin on billed work sum the ON-HAND projects (Won-Pending-KoM,
   //   Ongoing, On Hold, Close Out) → the `on-hand` list filter, not the narrower Ongoing tab.
-  // - Pipeline is the open-stage set → /sales (the open pipeline board).
-  // - Overdue counts submitted/unpaid invoices past due → the receivables overdue filter.
+  // - Owed by clients is every open client invoice → Receivables.
   // - Supplier payables count Vendor Invoiced procurements → the exact status filter.
-  // - Still to invoice counts work orders, which have no org-wide list — /projects stays (deviation).
+  // - Pipeline is the open-stage set → /sales (the Sales card's link).
   const executiveDrills = [
     ['Contract on hand', '/projects?filter=on-hand'],
-    ['Margin on billed work', '/projects?filter=on-hand'],
-    ['Pipeline (weighted)', '/sales'],
-    ['Owed by clients · overdue', '/finance/receivables?overdue=true'],
+    ['Owed by clients', '/finance/receivables'],
     ['Owed to suppliers', '/procurement?status=Vendor+Invoiced'],
-    ['Still to invoice on work orders', '/projects'],
   ] as const;
 
-  it('AC-IXD-DASH-W5-C2A-EXEC-1: each company KPI with a destination links to its owning page', () => {
+  it('AC-IXD-DASH-W5-C2A-EXEC-1: each company figure with a destination links to its owning page', () => {
     renderExec();
     for (const [label, href] of executiveDrills) {
       const tile = companyFigureTile(label);
       expect(within(tile).getByRole('link')).toHaveAttribute('href', href);
     }
+    expect(screen.getByRole('link', { name: 'Open sales' })).toHaveAttribute('href', '/sales');
   });
 
   it('AC-IXD-DASH-W5-C2A-EXEC-2: a KPI without a destination does not render a drill link', () => {
@@ -162,49 +176,31 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
     expect(within(screen.getByTestId('kpi-without-destination')).queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('AC-UX-017: contract remainder and billed-work margin remain clear with links to their related records', () => {
+  it('AC-UX-017: contract on hand shows its amount with currency; the left-after-spending line is gone from the tile', () => {
     renderExec();
     const contractTile = companyFigureTile('Contract on hand');
     expect(contractTile).toHaveTextContent('$6M');
-    expect(contractTile).toHaveTextContent(/Left after spending:/);
+    expect(contractTile).not.toHaveTextContent(/Left after spending/);
     expect(within(contractTile).getByRole('link')).toHaveAttribute('href', '/projects?filter=on-hand');
-
-    const marginTile = companyFigureTile('Margin on billed work');
-    expect(marginTile).toHaveTextContent('$1M');
-    // C4: the always-empty percent line is not rendered as a value; the help tooltip states why it is unknown.
-    expect(marginTile).not.toHaveTextContent(/Percent of billed work/);
-    expect(within(marginTile).getByRole('link')).toHaveAttribute('href', '/projects?filter=on-hand');
   });
 
-  it('#1461: each period figure drills with its own window to the list holding its counted records', () => {
+  it('#1461: each period figure drills with its own window to the list holding its counted records', async () => {
     renderExec();
     // The harness org day is 2026-06-03, so the default ytd period is 2026-01..2026-06.
     // - Invoiced sums issued invoices dated in the window → receivables invoices in that window.
-    // - Collected sums Paid receipts dated in the window → the payments view, Paid, same window.
-    // - Won counts on-hand projects decided in the window → the won drill filter + window.
-    expect(screen.getByRole('link', { name: /Invoiced · excl\. tax/ }))
+    // - Collected sums Paid receipts dated in the window → the payments view, Paid, same window (billing analysis).
+    expect(within(screen.getByRole('region', { name: 'Company figures' })).getByRole('link', { name: /^Invoiced/ }))
       .toHaveAttribute('href', '/finance/receivables?from=2026-01&to=2026-06');
-    expect(screen.getByRole('link', { name: /^Collected/ }))
+    await userEvent.click(screen.getByText('Analysis'));
+    expect(await screen.findByRole('link', { name: /^Collected/ }))
       .toHaveAttribute('href', '/finance/receivables?view=payments&status=Paid&from=2026-01&to=2026-06');
-    expect(screen.getByRole('link', { name: /^Won/ }))
-      .toHaveAttribute('href', '/projects?filter=won&from=2026-01&to=2026-06');
   });
 
-  it('AC-IXD-DASH-W5-C2A-EXEC-6: pipeline forecast margin is shown as a sub-line, not a separate drill tile', () => {
-    renderExec();
-    const tile = companyFigureTile('Pipeline (weighted)');
-    expect(tile).toHaveTextContent(/Forecast margin: 20\.0%/);
-    expect(within(tile).getAllByRole('link')).toHaveLength(1);
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/sales');
-  });
-
-  it('AC-IXD-DASH-W5-C2A-a11y: each company drill link has a full-sentence accessible name', () => {
+  it('AC-IXD-DASH-W5-C2A-a11y: each company drill link has an accessible name that is its label', () => {
     renderExec();
     for (const [label] of executiveDrills) {
       const link = within(companyFigureTile(label)).getByRole('link');
-      const name = link.getAttribute('aria-label');
-      expect(name, `${label} should have an accessible name`).toMatch(/^Open related records for .+\.$/);
-      expect(name).toContain(label);
+      expect(link.getAttribute('aria-label')).toBe(label);
     }
   });
 });
@@ -278,6 +274,7 @@ vi.mock('@/src/hooks/useProjectStatusLabel', () => ({
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
+  useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }),
 }));
 vi.mock('@/src/components/dashboard/restructure/useNeedsYou', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/dashboard/restructure/useNeedsYou')>();
@@ -296,14 +293,13 @@ const renderPM = () =>
     </QueryClientProvider>,
   );
 
-describe('AC-IXD-DASH-W5-C2A — PM dashboard KPI drills', () => {
+describe('AC-IXD-DASH-W5-C2A — PM dashboard drills', () => {
   // #1461: the PM figures count MY DELIVERY projects (get_pm_dashboard_projects ∩ delivery
   // statuses), so every drill carries the delivery filter scoped to my PM id — never the
   // all-statuses "My Projects" tab nor the org-wide at-risk filter.
-  it('AC-IXD-DASH-W5-C2A-PM-1: "My projects" drills to my delivery projects (#1461)', () => {
+  it('AC-IXD-DASH-W5-C2A-PM-1: "All N projects" drills to my delivery projects (#1461)', () => {
     renderPM();
-    const tile = screen.getByTestId('kpi-my-projects');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=delivery&pm=u1');
+    expect(within(screen.getByTestId('pm-projects')).getByRole('link', { name: 'All 2 projects' })).toHaveAttribute('href', '/projects?filter=delivery&pm=u1');
   });
 
   it('AC-IXD-DASH-W5-C2A-PM-2: "My contract value" drills to my delivery projects (#1461)', () => {
@@ -312,24 +308,11 @@ describe('AC-IXD-DASH-W5-C2A — PM dashboard KPI drills', () => {
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=delivery&pm=u1');
   });
 
-  it('AC-IXD-DASH-W5-C2A-PM-3: "At risk" drills to MY at-risk projects, not the org-wide queue (#1461)', () => {
+  it('AC-IXD-DASH-W5-C2A-PM-3: each project row opens its own project', () => {
     renderPM();
-    const tile = screen.getByTestId('kpi-at-risk');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=at-risk&pm=u1');
-  });
-
-  it('AC-IXD-DASH-W5-C2A-PM-4: "Margin to date" drills to my delivery projects (#1461)', () => {
-    renderPM();
-    const tile = screen.getByTestId('kpi-margin-to-date');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=delivery&pm=u1');
-  });
-
-  it('AC-IXD-DASH-W5-C2A-PM-3: "At risk" tile has a descriptive linkLabel', () => {
-    renderPM();
-    const tile = screen.getByTestId('kpi-at-risk');
-    const label = within(tile).getByRole('link').getAttribute('aria-label');
-    expect(label).toBeTruthy();
-    expect(label!.toLowerCase()).toContain('risk');
+    const list = screen.getByTestId('pm-projects');
+    expect(within(list).getByRole('link', { name: /My Project A/ })).toHaveAttribute('href', '/projects/p1');
+    expect(within(list).getByRole('link', { name: /My Project B/ })).toHaveAttribute('href', '/projects/p2');
   });
 });
 
@@ -350,6 +333,9 @@ vi.mock('@/src/hooks/useTimesheets', () => ({
 }));
 
 import { EngineerDashboard } from '@/src/components/dashboard/EngineerDashboard';
+import { pinHomeLayout } from '@/test/homeLayout';
+
+pinHomeLayout('focused');
 
 const renderEngineer = () =>
   render(
@@ -360,27 +346,15 @@ const renderEngineer = () =>
     </QueryClientProvider>,
   );
 
-describe('AC-IXD-DASH-W5-C2A — Engineer dashboard KPI drills', () => {
-  it('AC-IXD-DASH-W5-C2A-ENG-1: "Hours this week" tile drills to /timesheets', () => {
+describe('AC-IXD-DASH-W5-C2A — Engineer dashboard drills', () => {
+  it('AC-IXD-DASH-W5-C2A-ENG-1: the timesheet card action goes to /timesheets', () => {
     renderEngineer();
-    const tile = screen.getByTestId('kpi-hours-week');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/timesheets');
+    const card = screen.getByTestId('engineer-timesheet');
+    expect(within(card).getByRole('link', { name: 'Submit week' })).toHaveAttribute('href', '/timesheets');
   });
 
-  it('AC-IXD-DASH-W5-C2A-ENG-2: "Timesheet status" tile drills to /timesheets', () => {
+  it('AC-IXD-DASH-W5-C2A-ENG-2: the tasks card links to all tasks', () => {
     renderEngineer();
-    const tile = screen.getByTestId('kpi-timesheet-status');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/timesheets');
-  });
-
-  it('AC-IXD-DASH-W5-C2A-ENG-3: drill tiles have descriptive aria-labels', () => {
-    renderEngineer();
-    for (const [testId, accessibleName] of [
-      ['kpi-hours-week', 'Open timesheets for this week'],
-      ['kpi-timesheet-status', 'Open timesheet status'],
-    ]) {
-      const tile = screen.getByTestId(testId);
-      expect(within(tile).getByRole('link')).toHaveAccessibleName(accessibleName);
-    }
+    expect(within(screen.getByTestId('engineer-tasks')).getByRole('link', { name: 'All tasks' })).toHaveAttribute('href', '/my-tasks');
   });
 });

@@ -1,3 +1,4 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { pickClassification } from '@/src/lib/projectClassification';
 import React, { useCallback, useLayoutEffect, useState } from 'react';
@@ -15,7 +16,7 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useProjectOverviewRead } from '@/src/hooks/useProjectOverviewRead';
-import { completionPct, formatDateOnly, formatInstantDate, formatRelativeTime } from '@/src/lib/format';
+import { completionPct, formatDay, formatDayRange, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import DealBand from '../sales/DealBand';
 import StageHistory from './StageHistory';
@@ -35,23 +36,22 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
     ? completionPct(milestones.reduce((sum, phase) => sum + phase.weight * phase.effective_pct, 0) / totalWeight)
     : null;
   const manager = project.pm?.full_name;
-  const initial = manager?.trim().charAt(0).toUpperCase() || '?';
   const dates = project.start_date || project.end_date
-    ? `${formatDateOnly(project.start_date)} – ${formatDateOnly(project.end_date)}`
+    ? formatDayRange(project.start_date, project.end_date)
     : t('projectDetail.facts.noDates', 'Dates not set');
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
   return (
     <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/70 pb-2 text-control font-normal text-muted-foreground md:mb-6 md:gap-y-2 md:pb-4">
       {manager && (
         <span className="inline-flex min-w-0 items-center gap-2">
-          <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-foreground">{initial}</span>
+          <Avatar name={manager} decorative />
           <span className="truncate">{manager}</span>
         </span>
       )}
       <span>{dates}</span>
       {/* L6: the contract value lives once on the screen — in Money position (Overview) / Contract & billing. */}
       {progress !== null && (
-        <Tooltip content={t('projectDetail.facts.progressTooltip', 'Weighted average of phase completion using each phase weight; source: project phase plan.')}>
+        <Tooltip content={t('projectDetail.facts.progressTooltip', 'Weighted average of phase completion using each phase weight; source: project phase plan. Phase progress is not billable quantity.')}>
           {/* Owner tidy ruling 2026-10-29: the segment is content-sized (compact bar,
               label and value tight) so the meta row keeps ONE consistent gap before
             "Updated" — the old min-w-40 left dead slack that read as a hole. */}
@@ -63,7 +63,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
       )}
       {phases.isPending && <span>{t('projectDetail.facts.progressLoading', 'Progress loading')}</span>}
       {updated && (
-        <Tooltip content={t('projectDetail.facts.updatedTooltip', 'Last updated on {{date}}.', { date: formatInstantDate(project.last_update) })}>
+        <Tooltip content={t('projectDetail.facts.updatedTooltip', 'Last updated on {{date}}.', { date: formatDay(project.last_update) })}>
           <time tabIndex={0} dateTime={project.last_update} className="text-muted-foreground">
             {t('projectDetail.facts.updated', 'Updated {{when}}', { when: updated })}
           </time>

@@ -133,15 +133,25 @@
     "overdue": "Overdue {{days}} days · due {{date}}",
     "budgetLoading": "Budget signal loading",
     "budgetUnavailable": "Couldn't load the project budget",
+    "currencyUnavailable": "Budget comparison unavailable for these currencies",
+    "amountUnavailable": "Budget comparison unavailable for these amounts",
     "noBudget": "No active project budget",
-    "budgetSignal": "Available {{available}} · after this procurement {{after}}",
+    "budgetSignal": "Budget not yet committed {{available}} · {{after}} after this procurement",
     "budgetSignalTooltip": "Available = project budget less committed and reserved spend. “After this procurement” includes it at its current stage. Source: project budget, committed procurement spend, and reserved procurement spend.",
     "unknown": "{{figure}} could not be calculated because a source amount is missing. Source: procurement records and linked accounting-system documents.",
     "unpaidHelp": "Calculated from invoiced less paid amounts, or from linked accounting-system invoice balances. Source: supplier invoices, payments, and linked accounting-system documents.",
     "calculation": "Sum of recorded {{figure}} amounts. Source: procurement records and linked accounting-system documents.",
     "projectBudget": "Project budget tracked",
     "projectBudgetTooltip": "Project budget and reserved-spend data are shown here when available. Full impact is shown while this procurement is in Request.",
-    "financeOnly": "Invoices and payments are handled by Finance."
+    "financeOnly": "Invoices and payments are handled by Finance.",
+    "sourceMissing": "{{figure}} amount not recorded",
+    "source": {
+      "requested": "purchase request",
+      "ordered": "purchase order",
+      "invoiced": "supplier invoice",
+      "paid": "payment",
+      "unpaid": "invoice balance"
+    }
   },
   "timeline": {
     "overdue": "Overdue {{days}} days",

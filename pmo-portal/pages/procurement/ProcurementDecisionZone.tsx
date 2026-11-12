@@ -33,9 +33,12 @@ import {
   FormGrid,
   SelectField,
   Icon,
+  MobileDecisionBar,
   RecordActionZone,
   useMoneyInputMask,
+  type MobileDecisionAction,
 } from '@/src/components/ui';
+import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { RecordCaptureForm, RecordCaptureTrigger, type StagedRecord } from './RecordCaptureForm';
 import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
 import { RECORD_AMOUNT_ERROR, parseRecordAmount } from './recordAmount';
@@ -146,6 +149,10 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   mutations,
 }) => {
   const { t: tProcurement } = useTranslation('procurement');
+  // #2061: on a phone the decision actions move into the sticky bottom bar (same handlers,
+  // same confirm + SoD gates); the in-flow row is not rendered there, so a decision verb
+  // never exists twice in the DOM.
+  const isNarrow = useIsNarrow();
   /** Per-status ready copy teaches the relevant SoD rule without changing enforcement. */
   const readyGateMessage = (status: ProcurementStatus, requester: boolean, approver: boolean) => {
     switch (status) {
@@ -190,7 +197,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   const [notesRevealed, setNotesRevealed] = React.useState(false);
 
   return (
-    <RecordActionZone className="sticky bottom-0 z-10 bg-background/95 backdrop-blur-sm mb-4">
+    <RecordActionZone className="sticky bottom-[var(--phone-nav-height)] z-10 bg-background/95 backdrop-blur-sm mb-4">
       <Card data-testid="decision-card">
         <CardPad className="flex flex-col gap-2.5 py-3">
           {/* D6: SoD / readiness hint — co-located with the (absent or present) action
@@ -199,20 +206,20 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
           {gateMsg ? (
             <p
               data-testid="sod-blocked-hint"
-              className="text-[13px] text-muted-foreground"
+              className="text-sm text-muted-foreground"
             >
               <b className="font-semibold text-foreground">Separation-of-duties gate.</b> {gateMsg}
             </p>
           ) : showReadyHint ? (
             <p
               data-testid="sod-ready-hint"
-              className="text-[13px] text-muted-foreground"
+              className="text-sm text-muted-foreground"
             >
               {readyGateMessage(p.status, isRequester, isApprover)}
             </p>
           ) : null}
           {routeNote && (
-            <p data-testid="approval-route-note" className="text-[13px] text-muted-foreground">
+            <p data-testid="approval-route-note" className="text-sm text-muted-foreground">
               {routeNote}
             </p>
           )}
@@ -226,7 +233,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
           {isDraft && isRequester && (
             <p
               data-testid="sod-pre-announce"
-              className="text-[13px] text-muted-foreground"
+              className="text-sm text-muted-foreground"
             >
               Submitting hands this to another approver — you can&apos;t approve your own procurement case.
             </p>
@@ -240,7 +247,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               type="button"
               data-testid="procurement-notes-reveal"
               onClick={() => setNotesRevealed(true)}
-              className="inline-flex w-fit items-center gap-1 text-[13px] font-medium text-[hsl(var(--nav-active-text))] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="inline-flex w-fit items-center gap-1 text-sm font-medium text-[hsl(var(--nav-active-text))] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               <Icon name="plus" className="size-3.5" />
               Add a note <span className="font-normal text-muted-foreground">(optional)</span>
@@ -249,7 +256,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
 
           {showNotes && notesRevealed && (
             <div className="flex max-w-md flex-col gap-1">
-              <label htmlFor="procurement-notes-input" className="text-[12px] font-semibold text-muted-foreground">
+              <label htmlFor="procurement-notes-input" className="text-sm font-semibold text-muted-foreground">
                 Notes <span className="font-normal">(optional)</span>
               </label>
               <textarea
@@ -260,7 +267,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                 value={notesInput}
                 onChange={(e) => setNotesInput(e.target.value)}
                 placeholder="Add a note for the approval or rejection…"
-                className="rounded-md border border-input bg-background px-2.5 py-1.5 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               />
             </div>
           )}
@@ -276,11 +283,12 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               onSubmit={(capture) => void submitVICapture(capture)}
               onCancel={() => { setShowVICapture(false); setMutationError(null); }}
             />
-          ) : actions.length > 0 ? (
+          ) : actions.length > 0 && !isNarrow ? (
             // D8: actions are pre-sorted (primary → outline/success → destructive) by
             // sortActions() above, so Cancel/Reject always render last in DOM order.
             // The flex-wrap direction preserves this: the destructive action wraps
             // below the primary on narrow layouts, never above it.
+            // #2061: below the phone breakpoint the same actions render in the sticky bar.
             <div className="flex flex-wrap gap-2">
               {actions.map((action) => {
                 // D10 (AC-W3-D10): block Draft → Requested when there are no line items.
@@ -311,7 +319,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
 
           {/* D10 (AC-W3-D10): gate message below the action bar when Draft with no items. */}
           {isDraft && p.items.length === 0 && actions.some((a) => a.to === 'Requested') && (
-            <p className="text-[13px] text-muted-foreground" data-testid="line-items-gate">
+            <p className="text-sm text-muted-foreground" data-testid="line-items-gate">
               Add at least one line item before submitting.
             </p>
           )}
@@ -388,13 +396,27 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
           )}
 
           {mutationError && (
-            <div role="alert" className="flex items-start gap-2 text-[13px] text-destructive">
+            <div role="alert" className="flex items-start gap-2 text-sm text-destructive">
               <Icon name="alert" className="mt-px size-4 shrink-0" />
               <span>{mutationError}</span>
             </div>
           )}
         </CardPad>
       </Card>
+      {/* #2061: sticky decision bar on a phone. It reuses this record's own actions and
+          `onActionClick` (the confirm dialog + SoD gate are unchanged); no actions = no bar. */}
+      <MobileDecisionBar
+        label={tProcurement('procurementDetail.decisionBar', 'Procurement decisions')}
+        context={`${p.title}${p.code ? ` · ${p.code}` : ''}`}
+        actions={showVICapture ? [] : actions.map((action): MobileDecisionAction => ({
+          key: action.to,
+          label: action.label,
+          variant: action.variant,
+          loading: mutations.transition.isPending,
+          disabled: action.to === 'Requested' && isDraft && p.items.length === 0,
+          onSelect: () => onActionClick(action),
+        }))}
+      />
     </RecordActionZone>
   );
 };
@@ -509,11 +531,11 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
 
   return (
     <div data-testid="vi-inline-capture" className="flex flex-col gap-3">
-      <p className="text-[12px] font-semibold text-muted-foreground">
+      <p className="text-sm font-semibold text-muted-foreground">
         {t('procurementDetail.vendorInvoice.enterDetails', 'Enter the supplier invoice details:')}
       </p>
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-muted-foreground">
           {t('procurementDetail.vendorInvoice.invoiceNumber', 'Invoice #')} <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>
           <input
             type="text"
@@ -522,11 +544,11 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             placeholder={t('procurementDetail.vendorInvoice.invoicePlaceholder', 'e.g. INV-2291')}
             maxLength={64}
             data-testid={VI_FIELD_TEST_IDS.ref}
-            className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="h-8 w-36 rounded-md border border-input bg-background px-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </label>
         {showGroupRef && (
-          <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+          <label className="flex flex-col gap-1 text-sm font-semibold text-muted-foreground">
             {t('procurementDetail.groupRef.label', 'Group ref')}{' '}
             <span className="font-normal">{t('procurementDetail.groupRef.optional', '(optional)')}</span>
             <input
@@ -536,11 +558,11 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
               placeholder={t('procurementDetail.groupRef.placeholder', 'e.g. PRQ-0026100001')}
               maxLength={100}
               data-testid="vendor_invoice-group-ref-input"
-              className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="h-8 w-36 rounded-md border border-input bg-background px-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
           </label>
         )}
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-muted-foreground">
           {t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)')}{currency ? ` · ${currency}` : null}
           <input
             type="text"
@@ -553,30 +575,30 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             aria-describedby={amtError ? amtErrorId : undefined}
             placeholder="0.00"
             data-testid={VI_FIELD_TEST_IDS.amount}
-            className="h-8 w-28 rounded-md border border-input bg-background px-2 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-muted-foreground">
           {t('procurementDetail.vendorInvoice.invoiceStatus', 'Invoice status')}
           <select
             value={viStatus}
             onChange={(e) => setViStatus(e.target.value as 'Received' | 'Scheduled')}
             data-testid={VI_FIELD_TEST_IDS.status}
-            className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="h-8 w-40 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <option value="Received">{t('procurementDetail.vendorInvoice.received', 'Received')}</option>
             <option value="Scheduled">{t('procurementDetail.vendorInvoice.scheduled', 'Scheduled')}</option>
             {/* N1 (AC-W3-N1): Paid excluded — Mark as Paid is the sole PR→Paid authority. */}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-muted-foreground">
           {t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date')}
           <input
             type="date"
             value={invoiceDate}
             onChange={(e) => setInvoiceDate(e.target.value)}
             data-testid={VI_FIELD_TEST_IDS.date}
-            className="h-8 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </label>
         {/* #505: the tax treatment — REQUIRED, and deliberately unselected at rest. The recorded
@@ -606,7 +628,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             />
           </FormGrid>
         </div>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-muted-foreground">
           {t('procurementDetail.vendorInvoice.taxAmount', 'Tax amount')}
           <input
             type="text"
@@ -618,7 +640,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             placeholder="0.00"
             data-testid={VI_FIELD_TEST_IDS.taxAmount}
             aria-describedby={nativeTax.vatSuggestion ? 'vi-inline-tax-amount-basis' : undefined}
-            className="h-8 w-28 rounded-md border border-input bg-background px-2 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </label>
         <TaxSuggestedFrom id="vi-inline-tax-amount-basis" suggestion={nativeTax.vatSuggestion} />
@@ -651,12 +673,12 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           state), so this line is the programmatic explanation. */}
       <FieldError id={amtErrorId}>{amtError}</FieldError>
       {pmoAuthorsTax && !amtStr && vendorTax?.pphType && withheldInvalid && (
-        <p role="status" className="text-[12px] text-muted-foreground">
+        <p role="status" className="text-sm text-muted-foreground">
           {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the supplier withholding.')}
         </p>
       )}
       {!tax && (
-        <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-[12px] text-muted-foreground">
+        <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-sm text-muted-foreground">
           {VI_TAX_REQUIRED_HINT}
         </p>
       )}

@@ -285,7 +285,7 @@ describe('EmployeeLinkConfirm deliberate alternate identity (AC-S30-001/002)', (
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm link' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/couldn't confirm this employee link/i);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'PMO user to attribute hours to' })).toHaveTextContent('candidate-a@example.test');
+    expect(screen.getByRole('combobox', { name: 'PMO user to attribute hours to', hidden: true })).toHaveTextContent('candidate-a@example.test');
 
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());

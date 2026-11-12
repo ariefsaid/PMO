@@ -37,7 +37,7 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
   // FIN-S4: a quiet component. Not applicable (other currency pair, no date) or still loading renders nothing;
   // a failure is one short line with no retry control.
   const failure = (
-    <span role="alert" className="block min-w-0 break-words text-xs font-normal text-destructive-text">
+    <span role="alert" className="block min-w-0 break-words text-control font-normal text-destructive-text">
       {t('fx.rateError', 'Could not load JISDOR rate.')}
     </span>
   );
@@ -53,7 +53,7 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
   if (rate.isPending) return null;
   if (!rate.data) {
     return (
-      <span className="block min-w-0 break-words text-xs font-normal tabular text-muted-foreground">
+      <span className="block min-w-0 break-words text-control font-normal tabular text-muted-foreground">
         {t('fx.noRateForDate', 'No JISDOR rate for {{date}}.', { date: requestedDay ?? '' })}
       </span>
     );
@@ -62,7 +62,7 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
     const equivalent = formatFxEquivalent(amount, rate.data);
     if (compact) {
       return (
-        <span className="block min-w-0 text-xs font-normal tabular text-muted-foreground">
+        <span className="block min-w-0 text-control font-normal tabular text-muted-foreground">
           <span aria-hidden="true" title={equivalent} className="block truncate whitespace-nowrap">
             {equivalent}
           </span>
@@ -71,7 +71,7 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
       );
     }
     return (
-      <span className="block min-w-0 break-words text-xs font-normal tabular text-muted-foreground">
+      <span className="block min-w-0 break-words text-control font-normal tabular text-muted-foreground">
         {equivalent}
       </span>
     );

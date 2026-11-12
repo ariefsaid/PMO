@@ -12,6 +12,7 @@
  * NFR-CV-LAYER: imports only from src/lib/viewspec/ and src/components/ui/.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { StatTiles } from '@/src/components/ui/StatTiles';
@@ -50,6 +51,7 @@ export function HydratedPrimitive({
   panel: CompiledPanel;
   data: unknown[];
 }): React.ReactElement | null {
+  const { t } = useTranslation();
   const descriptor = registry.get(panel.primitive);
   if (!descriptor) {
     // Should never happen: compileCompositionSpec already validated the primitive.
@@ -119,9 +121,13 @@ export function HydratedPrimitive({
     }
     case 'StatusBarChart': {
       const { labelCol, valueCol } = categoryMetricCols(panel);
-      const chartData = (data as Record<string, unknown>[]).map((row) => ({
+      const rows = data as Record<string, unknown>[];
+      const known = rows.filter((row) => row[valueCol] != null && row[valueCol] !== '' && Number.isFinite(Number(row[valueCol])));
+      const unknown = rows.length - known.length;
+      if (rows.length === 0) return <span aria-label={t('dashboard.valueUnknown', 'Value unknown')}>—</span>;
+      const chartData = known.map((row) => ({
         status: String(row[labelCol] ?? ''),
-        count: Number(row[valueCol]) || 0,
+        count: Number(row[valueCol]),
       }));
       // Deterministic status→series-token tone — cycles the DESIGN.md chart palette
       // (never a raw hex); the same status maps to the same tone across renders.
@@ -130,19 +136,24 @@ export function HydratedPrimitive({
       const toneFor = (status: string) =>
         seriesTokens[Math.max(0, statuses.indexOf(status)) % seriesTokens.length];
       return (
-        <StatusBarChart
+        <>
+        {chartData.length > 0 && <StatusBarChart
           data={chartData}
           toneFor={toneFor}
           label={(props.label as string | undefined) ?? panel.compiledQuery.entity}
           noun={(props.noun as string | undefined) ?? 'records'}
           height={props.height as number | undefined}
-        />
+        />}
+        {unknown > 0 && <p>{t('dashboard.unknownValues', { defaultValue: '{{count}} values unknown', count: unknown })}</p>}
+        </>
       );
     }
     case 'ProgressBar': {
       const { valueCol } = categoryMetricCols(panel);
       const first = (data as Record<string, unknown>[])[0];
-      const value = first ? Number(first[valueCol]) || 0 : 0;
+      const raw = first?.[valueCol];
+      if (raw == null || raw === '' || !Number.isFinite(Number(raw))) return <span aria-label={t('dashboard.valueUnknown', 'Value unknown')}>—</span>;
+      const value = Number(raw);
       return (
         <ProgressBar
           value={value}

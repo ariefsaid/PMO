@@ -21,6 +21,16 @@ describe('FileCell', () => {
     expect(screen.getByLabelText(/Replace file for Test Doc/)).toBeInTheDocument();
   });
 
+  // #2043: a Draft's uploaded file must be viewable before it is issued.
+  it('AC-DOC-042: Draft, has a previewable file → offers Preview next to Replace', () => {
+    const onPreview = vi.fn();
+    render(
+      <FileCell status="Draft" filePath="org/p/d/foundation-ga.pdf" title="Test Doc" onReplace={noop} onPreview={onPreview} />,
+    );
+    fireEvent.click(screen.getByLabelText(/Preview file for Test Doc/));
+    expect(onPreview).toHaveBeenCalledTimes(1);
+  });
+
   // ── AC-DOC-080: Draft, uploading → progress bar with cancel button ────────
   it('AC-DOC-080: Draft, uploading → shows progress bar with cancel button', () => {
     render(

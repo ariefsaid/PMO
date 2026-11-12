@@ -36,17 +36,22 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
   const { t } = useTranslation('project');
   const own = new Map(allocations.map((row) => [row.boq_item_id, row]));
   const facts = new Map(contractLines.map((row) => [row.boqItemId, row]));
-  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(
+  const initialValues = () => Object.fromEntries(
     allocations.map((row) => [row.boq_item_id, formatMoneyInputValue(Number(row.quantity))]),
-  ));
+  );
+  const [values, setValues] = useState<Record<string, string>>(initialValues);
+  const [persistedValues, setPersistedValues] = useState<Record<string, string>>(initialValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [doneConfirmOpen, setDoneConfirmOpen] = useState(false);
   // A rejected save/remove is shown in the dialog's own persistent error region (focus returns there).
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
   const [removeFor, setRemoveFor] = useState<{ item: BoqItemRow; row: WorkOrderLineRow } | null>(null);
 
   const sourcesReady = sources.every((source) => !source.pending && !source.error);
   const editable = canEdit && (workOrder.status === 'Draft' || workOrder.status === 'Issued');
+  const dirty = [...new Set([...Object.keys(values), ...boqItems.map((item) => item.id)])]
+    .some((id) => (values[id] ?? '') !== (persistedValues[id] ?? ''));
   const woLabel = workOrder.wo_number ? `${workOrder.wo_number} — ${workOrder.title}` : workOrder.title;
   const setError = (id: string, message: string | null) =>
     setErrors((current) => {
@@ -87,9 +92,11 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
     setError(item.id, null);
     setSaveError(null);
     setBusy(item.id);
+    const submittedValue = values[item.id] ?? '';
     try {
       const row = own.get(item.id);
       if (row) await onUpdate(row.id, quantity); else await onCreate(item.id, quantity);
+      setPersistedValues((current) => ({ ...current, [item.id]: submittedValue }));
     } catch (err) {
       fail(item, err);
     } finally {
@@ -105,6 +112,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
     try {
       await onDelete(row.id);
       setValues((current) => { const next = { ...current }; delete next[item.id]; return next; });
+      setPersistedValues((current) => { const next = { ...current }; delete next[item.id]; return next; });
       setError(item.id, null);
     } catch (err) {
       fail(item, err);
@@ -119,25 +127,35 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
       open
       width="lg"
       title={t('projectTabs:contractQuantities.workOrders.contractLines.title', 'Contract lines: {{wo}}', { wo: woLabel })}
-      subtitle={t('projectTabs:contractQuantities.workOrders.contractLines.subtitle', 'Quantities this order takes from the contract. Each line saves on its own; ordering more than the balance is allowed and flagged.')}
       submitLabel={t('projectTabs:contractQuantities.workOrders.contractLines.done', 'Done')}
-      onSubmit={(e) => { e.preventDefault(); onClose(); }}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (dirty) setDoneConfirmOpen(true);
+        else onClose();
+      }}
       submitError={saveError}
       onClose={onClose}
+      dirty={dirty}
+      discardCopy={{
+        title: t('projectTabs:contractQuantities.workOrders.contractLines.discard.title', 'Discard unsaved line changes?'),
+        description: t('projectTabs:contractQuantities.workOrders.contractLines.discard.description', 'Allocation quantities that have not been saved will be lost.'),
+        confirmLabel: t('projectTabs:contractQuantities.workOrders.contractLines.discard.confirm', 'Discard'),
+        cancelLabel: t('projectTabs:contractQuantities.workOrders.contractLines.discard.cancel', 'Keep editing'),
+      }}
     >
       {sources.filter((source) => source.pending || source.error).map((source) => source.error
         ? <ListState key={source.name} variant="error" title={t('projectDetail.billing.sources.error', "Couldn't load {{source}}", { source: source.name })} onRetry={source.retry} />
         : <p key={source.name} role="status" className="text-sm text-muted-foreground">{t('projectDetail.billing.sources.loading', 'Loading {{source}}…', { source: source.name })}</p>)}
       <FormSection legend={t('projectTabs:contractQuantities.workOrders.contractLines.legend', 'Bill of quantities lines')}>
         {!editable && (
-          <p className="mb-3 text-[13px] text-muted-foreground">
+          <p className="mb-3 text-sm text-muted-foreground">
             {workOrder.status === 'Draft' || workOrder.status === 'Issued'
               ? t('projectTabs:contractQuantities.workOrders.contractLines.readOnly', 'You can view these allocations but not change them.')
               : t('projectTabs:contractQuantities.workOrders.contractLines.frozen', 'This work order is {{status}}: its allocations are frozen.', { status: workOrder.status })}
           </p>
         )}
         {boqItems.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.noBoq', 'This project has no bill of quantities lines yet.')}</p>
+          <p className="text-sm text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.noBoq', 'This project has no bill of quantities lines yet.')}</p>
         ) : (
           <ul className="flex flex-col gap-4">
             {boqItems.map((item) => {
@@ -149,7 +167,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
                 ? (milli(typed) - milli(availableTo(item))) / 1000 : null;
               return (
                 <li key={item.id} className="flex flex-col gap-1.5 border-b border-border pb-3 last:border-b-0">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2 text-[12px] text-muted-foreground">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-muted-foreground">
                     <span>{t('projectTabs:contractQuantities.workOrders.contractLines.contractQty', 'Contract {{qty}} {{unit}}', { qty: formatNumberExact(Number(item.quantity)), unit: item.unit })}</span>
                     <span data-testid={`lines-balance-${item.id}`}>
                       {balance === undefined
@@ -179,7 +197,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
                       )}
                     </div>
                   ) : (
-                    <div className="text-[13px]">
+                    <div className="text-sm">
                       <span>{label}</span>{' '}
                       <span className="tabular font-semibold" data-testid={`lines-readonly-${item.id}`}>
                         {row ? formatNumberExact(Number(row.quantity)) : '—'}
@@ -187,7 +205,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
                     </div>
                   )}
                   {over !== null && (
-                    <p className="text-[12px] font-medium text-warning-foreground" data-testid={`lines-over-${item.id}`}>
+                    <p className="text-sm font-medium text-warning-foreground" data-testid={`lines-over-${item.id}`}>
                       {t('projectTabs:contractQuantities.workOrders.contractLines.overOrdered', 'Over-ordered by {{qty}} {{unit}}, more than the contract balance.', { qty: formatNumberExact(over), unit: item.unit })}
                     </p>
                   )}
@@ -211,6 +229,17 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
           onCancel={() => setRemoveFor(null)}
         />
       )}
+      <ConfirmDialog
+        open={doneConfirmOpen}
+        tone="destructive"
+        title={t('projectTabs:contractQuantities.workOrders.contractLines.discard.title', 'Discard unsaved line changes?')}
+        description={t('projectTabs:contractQuantities.workOrders.contractLines.discard.description', 'Allocation quantities that have not been saved will be lost.')}
+        confirmLabel={t('projectTabs:contractQuantities.workOrders.contractLines.discard.confirm', 'Discard')}
+        cancelLabel={t('projectTabs:contractQuantities.workOrders.contractLines.discard.cancel', 'Keep editing')}
+        onConfirm={() => { setDoneConfirmOpen(false); onClose(); }}
+        onCancel={() => setDoneConfirmOpen(false)}
+      />
+      <p className="mt-3 text-sm text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.subtitle', 'Quantities this order takes from the contract. Each line saves on its own; ordering more than the balance is allowed and flagged.')}</p>
     </EntityFormModal>
   );
 };

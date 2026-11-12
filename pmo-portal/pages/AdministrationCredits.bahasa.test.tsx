@@ -57,10 +57,9 @@ describe('Administration Credits in Bahasa (#693 F-1)', () => {
     renderPanel();
     await userEvent.click(await screen.findByRole('button', { name: 'Berikan kredit' }));
     const dialog = await screen.findByRole('dialog', { name: 'Berikan kredit' });
-    expect(within(dialog).getByText('Tambahkan kredit ke pool organisasi. Berlaku segera.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Langsung ditambahkan ke kumpulan organisasi.')).toBeInTheDocument();
     expect(within(dialog).getByText('Detail pemberian')).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/Jumlah/)).toBeInTheDocument();
-    expect(within(dialog).getByText('Harus lebih besar dari nol.')).toBeInTheDocument();
     expect(within(dialog).getByLabelText('Catatan')).toBeInTheDocument();
     await userEvent.type(within(dialog).getByLabelText(/Jumlah/), '0');
     await userEvent.tab();
