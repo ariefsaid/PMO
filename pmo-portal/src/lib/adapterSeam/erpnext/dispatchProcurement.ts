@@ -93,6 +93,16 @@ async function resolveLatestPoPmoId(serviceClient: DispatchServiceClient, procur
   return (data[0] as { id: string }).id;
 }
 
+async function resolveLinkedPoName(serviceClient: DispatchServiceClient, orgId: string, procurementId: string): Promise<string | null> {
+  const { data, error } = await serviceClient.from('procurement_erp_links')
+    .select('erp_purchase_documents!inner(erp_name,erp_doctype,org_id)')
+    .eq('org_id', orgId).eq('procurement_id', procurementId)
+    .eq('erp_purchase_documents.org_id', orgId).eq('erp_purchase_documents.erp_doctype', 'Purchase Order');
+  if (error || !Array.isArray(data)) throw new AppError(error?.message ?? 'linked purchase order is unavailable', error?.code);
+  if (data.length > 1) throw new AppError('More than one linked purchase order is available.', 'commit-rejected');
+  return (data[0] as { erp_purchase_documents?: { erp_name?: string } } | undefined)?.erp_purchase_documents?.erp_name ?? null;
+}
+
 /** `GET` the PO doc and build `item_code -> child-row name` (the `purchase_order_item` GR needs per
  *  row, R9 §4) — the ONE place a PO doc is read for this purpose. */
 async function resolvePoItemChildNames(client: ErpClientDeps, poName: string): Promise<Record<string, string>> {
@@ -166,18 +176,20 @@ export async function resolveProcurementOrderRefs(
       : caseItems;
   }
 
-  if (kind === 'goods-receipt' && resolvedItems) {
+  if (kind === 'goods-receipt' && (resolvedItems || hasOwnItems)) {
     const poPmoId = await resolveLatestPoPmoId(deps.serviceClient, procurementId);
-    if (poPmoId) {
-      const poExternalName = await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', poPmoId);
-      if (poExternalName) {
-        refs.po = poExternalName;
-        const childNames = await resolvePoItemChildNames(
-          { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret, baseUrl: binding.site_url, rateLimiter: deps.rateLimiter },
-          poExternalName,
-        );
-        resolvedItems = resolvedItems.map((item) => ({ ...item, po_item_child_name: childNames[item.item_code] }));
-      }
+    const mappedPo = poPmoId ? await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', poPmoId) : null;
+    const poExternalName = mappedPo ?? await resolveLinkedPoName(deps.serviceClient, deps.orgId, procurementId);
+    if (poExternalName) {
+      refs.po = poExternalName;
+      const childNames = await resolvePoItemChildNames(
+        { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret, baseUrl: binding.site_url, rateLimiter: deps.rateLimiter },
+        poExternalName,
+      );
+      if (resolvedItems) resolvedItems = resolvedItems.map((item) => ({ ...item, po_item_child_name: childNames[item.item_code] }));
+      if (hasOwnItems) record.items = (record.items as Array<Record<string, unknown>>).map((item) => ({
+        ...item, po_item_child_name: typeof item.item_code === 'string' ? childNames[item.item_code] : undefined,
+      }));
     }
   }
 
