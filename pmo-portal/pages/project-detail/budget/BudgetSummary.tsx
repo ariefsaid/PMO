@@ -157,7 +157,7 @@ export default function BudgetSummary({
                   <button type="button" className="touch-target flex w-full flex-wrap items-baseline gap-x-1 py-2 text-left text-sm" aria-expanded={expandedRow} onClick={() => setExpandedCategory((current) => current === row.category ? null : row.category)}>
                     <span className="font-medium">{label(row.category)}</span>
                     {row.spent !== null
-                      ? <span className="tabular-nums">· {t('projectDetail.budget.spent', 'Spent')} {formatNumberWhole(row.spent)} of {formatNumberMax2(row.budget)} before tax</span>
+                      ? <span className="tabular-nums">· {t('projectDetail.budget.spentOf', 'Spent {{spent}} of {{budget}} before tax', { spent: formatNumberWhole(row.spent), budget: formatNumberMax2(row.budget) })}</span>
                       : <span className="tabular-nums">· {t('projectDetail.budget.budgetBeforeTax', 'Budget before tax')} {formatNumberMax2(row.budget)}</span>}
                     {row.committed !== null && row.committed > 0 && <span className="basis-full pl-2 text-sm text-muted-foreground">{t('projectDetail.budget.committed', 'Committed')} {formatNumberWhole(row.committed)}</span>}
                     {remaining !== null && <span className={`tabular-nums ${remaining < 0 ? 'text-destructive-text' : 'text-muted-foreground'}`}>· {positionCell(remaining, totalRemainingIncludesOrders, t)} {remaining >= 0 && (totalRemainingIncludesOrders ? t('projectDetail.budget.leftAfterOrders', 'left after open orders') : t('projectDetail.budget.leftAfterSpending', 'left after spending'))}</span>}

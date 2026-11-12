@@ -560,6 +560,7 @@
       "versionCreated": "Version created {{date}}",
       "budgetSource": "Source: selected budget version line items before tax, grouped by category.",
       "committed": "Committed",
+      "budgetBeforeTax": "Budget before tax",
       "committedSource": "Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.",
       "left": "Left after spend",
       "leftFormula": "Calculated as budget minus spent and open orders, before tax.",

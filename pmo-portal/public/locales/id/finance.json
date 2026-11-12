@@ -560,6 +560,7 @@
       "versionCreated": "Versi dibuat {{date}}",
       "budgetSource": "Sumber: baris versi anggaran yang dipilih sebelum pajak, dikelompokkan menurut kategori.",
       "committed": "Terikat",
+      "budgetBeforeTax": "Anggaran sebelum pajak",
       "committedSource": "Sumber: total pengadaan yang dipesan, diterima, difakturkan pemasok, dan dibayar dalam mata uang proyek, termasuk yang tanpa kategori anggaran.",
       "left": "Sisa setelah belanja",
       "leftFormula": "Anggaran dikurangi pengeluaran dan pesanan terbuka, sebelum pajak.",

@@ -147,7 +147,7 @@ export const PMDashboard: React.FC = () => {
   const budgetUseStatus = budgetPositionsQuery.isError
     ? <span className="inline-flex items-center gap-2" role="status">
       <span>{t('home.budgetUseError', "Budget use couldn't be checked.")}</span>
-      <Button variant="ghost" size="sm" onClick={() => void budgetPositionsQuery.refetch()}>{t('common:retry', 'Retry')}</Button>
+      <Button variant="ghost" size="sm" onClick={() => void budgetPositionsQuery.refetch()}>{t('home.retry', 'Retry')}</Button>
     </span>
     : budgetPositionsPending
       ? t('home.budgetUseChecking', 'Checking budget use…')
