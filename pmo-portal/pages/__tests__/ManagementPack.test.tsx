@@ -223,13 +223,13 @@ describe('AC-MMP-013 honest states', () => {
 describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
   it('AC-1405-REPORT-003 / S02: distinguishes selected-period, cumulative, and opening billed work', () => {
     renderPage();
-    for (const label of ['Done, not yet billed', 'Earned to date', 'Billed work in period', 'Invoiced to date', 'Opening billed work', 'Left to bill']) {
+    for (const label of ['Done, not yet billed', 'Earned to date', 'Invoiced in period', 'Invoiced to date', 'Opening invoiced', 'Left to bill']) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
     // One help control for the page; the four definitions sit inside it.
     expect(screen.queryAllByRole('button', { name: /^How this figure is calculated: / })).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: /About Reports/ }));
-    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/Billed work in period.*Invoiced to date.*Opening billed work/s);
+    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/Invoiced in period.*Invoiced to date.*Opening invoiced/s);
   });
 
   it('AC-1405-REPORT-004: shows PM identity, invoice count and a missing latest-month progress flag', () => {
@@ -260,13 +260,13 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
   it('RF-035 / S02: selected-period, opening, and cumulative scopes are stated alongside the as-at heading', () => {
     renderPage();
     expect(screen.getByRole('heading', { name: /^Projects as at Apr 2026/ })).toBeInTheDocument();
-    expect(screen.getByText('Billed work in period')).toBeInTheDocument();
+    expect(screen.getByText('Invoiced in period')).toBeInTheDocument();
     expect(screen.getAllByText('Invoiced to date').length).toBeGreaterThan(0);
-    expect(screen.getByText('Opening billed work')).toBeInTheDocument();
+    expect(screen.getByText('Opening invoiced')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /About Reports/ }));
-    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/Billed-work value dated inside the selected .* months/);
-    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/Cumulative billed-work value from all history through the as-at month/);
-    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/All-history billed work before the selected from month/);
+    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/Invoice value dated inside the selected months/);
+    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/Cumulative invoice value from all history through the as-at month/);
+    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/Invoice value from all history before the first selected month/);
     expect(screen.queryByText(/Monthly figures · selected period/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Currencies with no activity, contract, or meaningful balance/)).not.toBeInTheDocument();
   });
@@ -284,9 +284,9 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     renderPage();
     const figures = screen.getByRole('region', { name: 'Report figures' });
     const tileForLabel = (label: string) => within(figures).getByText(label).closest<HTMLElement>('div.relative.flex.flex-col')!;
-    expect(tileForLabel('Billed work in period')).toHaveTextContent(/\$0\b/);
+    expect(tileForLabel('Invoiced in period')).toHaveTextContent(/\$0\b/);
     expect(tileForLabel('Invoiced to date')).toHaveTextContent(/\$40\b/);
-    expect(tileForLabel('Opening billed work')).toHaveTextContent(/\$40\b/);
+    expect(tileForLabel('Opening invoiced')).toHaveTextContent(/\$40\b/);
   });
 
   it('FIN-S8: the pack has no current-position section (the project Overview is the one project money summary) and its table stays intact', () => {

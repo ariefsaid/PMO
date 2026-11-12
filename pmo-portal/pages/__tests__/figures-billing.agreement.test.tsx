@@ -47,10 +47,10 @@ describe('S02 billed-work figure agreement on real screens', () => {
     const user = userEvent.setup();
     const { container } = renderFigureAgreementRoute(reportRoute);
     const figures = await screen.findByRole('region', { name: 'Report figures' });
-    await waitFor(() => expect(figures.textContent).toMatch(/Billed work in period\s*\$110/u));
-    expect(figures.textContent).toMatch(/Billed work in period\s*\$110/u);
+    await waitFor(() => expect(figures.textContent).toMatch(/Invoiced in period\s*\$110/u));
+    expect(figures.textContent).toMatch(/Invoiced in period\s*\$110/u);
     expect(figures.textContent).toMatch(/Invoiced to date\s*\$150/u);
-    expect(figures.textContent).toMatch(/Opening billed work\s*\$40/u);
+    expect(figures.textContent).toMatch(/Opening invoiced\s*\$40/u);
     expect(screen.getByRole('columnheader', { name: 'Invoiced' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Show monthly totals/u }));
     await waitFor(() => expect(container.textContent).toContain('Nov 2026'));
@@ -70,8 +70,8 @@ describe('S02 billed-work figure agreement on real screens', () => {
 
     renderFigureAgreementRoute(reportRoute);
     const reportFigures = await screen.findByRole('region', { name: 'Report figures' });
-    await waitFor(() => expect(reportFigures.textContent).toMatch(/Billed work in period\s*\$110/u));
-    const reportAmount = within(reportFigures).getByText('Billed work in period').parentElement?.parentElement?.textContent?.match(/\$[\d,.]+/u)?.[0];
+    await waitFor(() => expect(reportFigures.textContent).toMatch(/Invoiced in period\s*\$110/u));
+    const reportAmount = within(reportFigures).getByText('Invoiced in period').parentElement?.parentElement?.textContent?.match(/\$[\d,.]+/u)?.[0];
 
     expect(homeAmount).toBe('$110');
     expect(reportAmount).toBe(homeAmount);

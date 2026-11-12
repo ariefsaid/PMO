@@ -271,7 +271,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               value={contractInvoiceFigure.amount === null ? '—' : tileMoney(Number(contractInvoiceFigure.amount))}
               percentage={contractInvoiceFigure.percentage}
               caption={contractInvoiceBasis}
-              detail={t('projectDetail.cascade.source.invoiced', 'Source: get_project_finances contract_invoiced, normalized to the recorded signed contract tax basis and currency. The percentage uses the recorded signed contract as its denominator. A currency or tax-basis mismatch makes the amount and percentage unavailable.')}
+              detail={t('projectDetail.cascade.source.invoiced', 'Invoices under the signed contract, in the contract currency and tax basis. Shown as unknown when an invoice currency or tax basis differs from the contract. The percentage is of the signed contract value.')}
             />}
             {canViewMoney && settlement.balancesKnown && !invoices.isPending && !invoices.isError && <>
               <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.paid)} percentage={percent(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />

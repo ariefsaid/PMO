@@ -48,7 +48,7 @@
         "contractFallback": "Sumber: ringkasan penagihan proyek, tidak termasuk pajak.",
         "ordered": "Sumber: kuantitas yang dialokasikan dalam kontrak × tarif kontrak.",
         "delivered": "Sumber: kuantitas yang diterima pada BAST terkonfirmasi × tarif kontrak.",
-        "invoiced": "Sumber: contract_invoiced dari get_project_finances, dinormalisasi ke dasar pajak dan mata uang kontrak yang tercatat. Persentase menggunakan nilai kontrak yang ditandatangani sebagai penyebut. Perbedaan mata uang atau dasar pajak membuat jumlah dan persentase tidak tersedia.",
+        "invoiced": "Faktur berdasarkan kontrak yang ditandatangani, dalam mata uang dan dasar pajak kontrak. Ditampilkan sebagai tidak diketahui jika mata uang atau dasar pajak faktur berbeda dari kontrak. Persentase dihitung dari nilai kontrak yang ditandatangani.",
         "paid": "Sumber: jumlah faktur dikurangi saldo terutang menurut akuntansi.",
         "canInvoice": "Kuantitas diterima yang belum diklaim, dihitung dengan tarif kontrak, ditambah sisa nilai pesanan tanpa rincian kuantitas.",
         "overdue": "Jumlah saldo terutang positif pada faktur yang telah melewati tanggal jatuh tempo.",

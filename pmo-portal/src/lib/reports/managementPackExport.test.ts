@@ -6,7 +6,7 @@ import type { ManagementPackFacts } from '@/src/lib/db/managementPack';
 const labels: ManagementPackExportLabels = {
   period: 'Period', projectNumber: 'Project number', project: 'Project', client: 'Client', currency: 'Currency',
   taxBasis: 'Tax basis', planned: 'Planned', recognised: 'Recognised', invoicedByMonth: 'Invoiced',
-  selectedPeriod: 'Billed work in period', opening: 'Opening billed work', selectedPeriodRow: 'Selected period total', openingRow: 'Opening',
+  selectedPeriod: 'Invoiced in period', opening: 'Opening invoiced', selectedPeriodRow: 'Selected period total', openingRow: 'Opening',
   recognisedToDate: 'Recognised to date', invoicedToDate: 'Invoiced to date', unbilled: 'Done, not yet billed',
   backlog: 'Left to bill', basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
   basisInvoiced: 'Invoiced', basisProgress: 'Progress', basisEarned: 'Earned value',
@@ -75,7 +75,7 @@ describe('AC-MMP-011 management pack export', () => {
 
   it('S02: monthly invoiced work has its own column name beside selected-period and cumulative scopes', () => {
     expect(table.header).toContain('Invoiced');
-    expect(table.header).toContain('Billed work in period');
+    expect(table.header).toContain('Invoiced in period');
     expect(table.header).toContain('Invoiced to date');
     expect(new Set(table.header).size).toBe(table.header.length);
   });
@@ -89,8 +89,8 @@ describe('AC-MMP-011 management pack export', () => {
     const column = (name: string) => exported.header.indexOf(name);
     const periodTotal = exported.body.find((row) => row[column('Period')] === 'Selected period total' && row[column('Currency')] === 'IDR');
     const openingTotal = exported.body.find((row) => row[column('Period')] === 'Opening' && row[column('Currency')] === 'IDR');
-    expect(periodTotal?.[column('Billed work in period')]).toBe(107.5);
-    expect(openingTotal?.[column('Opening billed work')]).toBe(40);
+    expect(periodTotal?.[column('Invoiced in period')]).toBe(107.5);
+    expect(openingTotal?.[column('Opening invoiced')]).toBe(40);
   });
 
   it('RF-036: an unreconciled cross-currency backlog exports as blank, not a contract-sized debt', () => {

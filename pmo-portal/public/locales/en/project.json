@@ -48,7 +48,7 @@
         "contractFallback": "Source: the project billing summary, excluding tax.",
         "ordered": "Source: contract allocation quantities × contract rates.",
         "delivered": "Source: quantities accepted on confirmed BASTs × contract rates.",
-        "invoiced": "Source: get_project_finances contract_invoiced, normalized to the recorded signed contract tax basis and currency. The percentage uses the recorded signed contract as its denominator. A currency or tax-basis mismatch makes the amount and percentage unavailable.",
+        "invoiced": "Invoices under the signed contract, in the contract currency and tax basis. Shown as unknown when an invoice currency or tax basis differs from the contract. The percentage is of the signed contract value.",
         "paid": "Source: invoice amount less the accounting balance outstanding.",
         "canInvoice": "Accepted quantity not yet claimed, priced at contract rates, plus remaining value on money-only orders.",
         "overdue": "Sum of positive outstanding balances on invoices past their due date.",
