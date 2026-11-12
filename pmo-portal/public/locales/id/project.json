@@ -679,7 +679,7 @@
       "overAfterOrders": "Melebihi anggaran setelah pesanan terbuka",
       "canonicalUtilizationFormula": "Anggaran terpakai memakai konsumsi kanonis proyek terhadap anggaran yang dipilih sebelum pajak.",
       "utilizationFormula": "Pengeluaran ditambah pesanan terbuka dibagi anggaran aktif sebelum pajak.",
-      "budgetUsedUnavailable": "Anggaran terpakai tidak diketahui atau tidak tersedia.",
+      "budgetUsedUnavailable": "Anggaran sebelum pajak yang terpakai tidak diketahui atau tidak tersedia.",
       "uncategorizedTotalKnown": "Pengeluaran proyek diketahui; beberapa jumlah kategori belum dipetakan.",
       "leftFormula": "Anggaran dikurangi pengeluaran dan pesanan terbuka, sebelum pajak.",
       "leftAfterSpendingFormula": "Anggaran aktif dikurangi pengeluaran tercatat, sebelum pajak.",

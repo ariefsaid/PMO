@@ -471,8 +471,8 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
     expect(screen.getAllByText(/4,700,000/).length).toBeGreaterThan(0);
-    // Spending is unknown here, so the Spent column remains but its row amounts are blank.
-    expect(within(table).getByRole('columnheader', { name: 'Spent' })).toBeInTheDocument();
+    // Spending is unknown here, so the blank Spent column is omitted.
+    expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Committed' })).toBeInTheDocument();
     expect(within(table).queryByRole('columnheader', { name: 'Left after spend' })).not.toBeInTheDocument();
     expect(within(table).getAllByText(/2,000,000/).length).toBeGreaterThan(0);
@@ -503,11 +503,11 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     renderPage();
 
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    // Unknown spending keeps the column heading, leaves row amounts blank, and says why once.
-    expect(within(table).getByRole('columnheader', { name: 'Spent' })).toBeInTheDocument();
+    // Unknown spending drops its blank column and names what is hidden once.
+    expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
     // One line on the page names what is hidden and why, instead of dashes in every row.
     const hidden = screen.getByTestId('figures-hidden');
-    expect(hidden).toHaveTextContent(/2 figures hidden: spending is not linked/);
+    expect(hidden).toHaveTextContent(/3 figures hidden: Budget used before tax is unknown or unavailable\.; spending is not linked/);
     expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
   });
 

@@ -679,7 +679,7 @@
       "overAfterOrders": "Over after open orders",
       "canonicalUtilizationFormula": "Budget used reads canonical project consumption against the selected budget before tax.",
       "utilizationFormula": "Calculated as spent plus open orders divided by the active budget before tax.",
-      "budgetUsedUnavailable": "Budget used is unknown or unavailable.",
+      "budgetUsedUnavailable": "Budget used before tax is unknown or unavailable.",
       "uncategorizedTotalKnown": "Project spending is known; some category amounts are not mapped.",
       "leftFormula": "Calculated as budget minus spent and open orders, before tax.",
       "leftAfterSpendingFormula": "Calculated as active budget minus recorded spending, before tax.",

@@ -576,7 +576,7 @@
       "overOnSpending": "Over on spending",
       "budgetPositionUnknown": "The canonical project budget position could not be read.",
       "canonicalUtilizationFormula": "Budget used reads canonical project consumption against the selected budget before tax.",
-      "budgetUsedUnavailable": "Budget used is unknown or unavailable.",
+      "budgetUsedUnavailable": "Budget used before tax is unknown or unavailable.",
       "uncategorizedTotalKnown": "Project spending is known; some category amounts are not mapped.",
       "leftAfterSpendingFormula": "Calculated as the category budget minus recorded spending, before tax.",
       "historicalLeftFormula": "Calculated as the selected budget minus canonical project consumption, before tax.",

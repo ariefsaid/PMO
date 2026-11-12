@@ -50,6 +50,7 @@ vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktop
 // budget (Σ Active-version line-items). Default: 4_200_000 (real budget, not the
 // stale stored budget 4_700_000 on the onHand fixture).
 const { budgetBox } = vi.hoisted(() => ({ budgetBox: { data: 4_200_000 as number | undefined, isPending: false, isError: false } }));
+const { budgetPositionsBox } = vi.hoisted(() => ({ budgetPositionsBox: { data: {} as Record<string, unknown> } }));
 const { financeBox } = vi.hoisted(() => ({
   financeBox: {
     isPending: false,
@@ -64,6 +65,9 @@ const { financeBox } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ ...financeBox, isError: false }) }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetBox,
+}));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: budgetPositionsBox.data, isPending: false, isError: false, fetchStatus: 'idle', refetch: vi.fn() }),
 }));
 // VAT editability comes from the scoped server reader, never an invoice list in the UI.
 const { vatBox } = vi.hoisted(() => ({ vatBox: { data: { eligible: true, reason: null as string | null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() } }));
@@ -108,6 +112,16 @@ const onHand = {
 
 const preWin = { ...onHand, status: 'Leads', customer_contract_ref: null } as ProjectWithRefs;
 
+const setBudgetPosition = (input: { budget: number; spent: number; openCommitment: number; usedPercent: number }) => {
+  budgetPositionsBox.data = { p1: {
+    projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD',
+    activeBudgetAmount: `${input.budget}.00`, spent: `${input.spent}.00`, openCommitment: `${input.openCommitment}.00`,
+    consumption: `${input.spent + input.openCommitment}.00`, complete: true,
+    usedRatio: String(input.usedPercent / 100), usedPercent: String(input.usedPercent),
+    consumptionVariance: `${input.spent + input.openCommitment - input.budget}.00`, riskEligible: true, atRisk: input.usedPercent >= 90,
+  } };
+};
+
 const RouteProbe = () => <output data-testid="route-path">{useLocation().pathname}</output>;
 
 const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand, committedSpend = 2_100_000, commitmentSource: 'pmo' | 'not-tracked' | 'unavailable' = 'not-tracked', ledgerBasis: 'pmo' | 'erp' | 'unavailable' = 'erp') => {
@@ -135,6 +149,7 @@ beforeEach(() => {
   budgetBox.data = 4_200_000;
   budgetBox.isPending = false;
   budgetBox.isError = false;
+  budgetPositionsBox.data = {};
   Object.values(projectMutations).forEach((m) => {
     m.mutateAsync.mockReset();
     m.mutateAsync.mockResolvedValue(undefined);
@@ -214,6 +229,7 @@ describe('ProjectDetailHeader — content', () => {
 
   it('UIP-005: phone keeps all financial metrics collapsed by default and discloses them on demand', async () => {
     desktopBox.value = false;
+    setBudgetPosition({ budget: 4_200_000, spent: 1_800_000, openCommitment: 500_000, usedPercent: 55 });
     renderHeader('Finance', onHand, 2_100_000, 'pmo', 'pmo');
     const disclosure = screen.getByText('Financial summary').closest('details');
     expect(disclosure).not.toHaveAttribute('open');
@@ -227,7 +243,8 @@ describe('ProjectDetailHeader — content', () => {
     // #1739: Actual is recorded spend (the project-finances read), not the committed purchase-order total.
     expect(disclosure).toHaveTextContent('Actual$1,800,000');
     expect(disclosure).toHaveTextContent('Contract remaining after cost$3,200,000');
-    expect(disclosure).toHaveTextContent('Spend43%');
+    expect(disclosure).toHaveTextContent('Budget used before tax55%');
+    expect(disclosure).toHaveTextContent('Spent (% of budget before tax)43%');
   });
 
   it('UIP-006: the PM sees the contract value without a lock label; edit remains unavailable', () => {
@@ -712,6 +729,7 @@ describe('ProjectDetailHeader — Spend% uses derived budget (AC-B-0-2)', () => 
     // committedSpend=500_000 → real Spend% = 50%; if dead column used → 0%.
     const zeroStoredBudget = { ...onHand, budget: 0 } as unknown as ProjectWithRefs;
     budgetBox.data = 1_000_000; // derived budget from useProjectBudget
+    setBudgetPosition({ budget: 1_000_000, spent: 500_000, openCommitment: 0, usedPercent: 50 });
     financeBox.data.actuals.total = '500000.00';
     financeBox.data.actuals.categories[0].amount = '500000.00';
 
@@ -1053,8 +1071,9 @@ describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
   });
 
   it('AC-RD-HDR-001: with a budget and complete Actual the strip carries every known figure', () => {
+    setBudgetPosition({ budget: 4_200_000, spent: 1_800_000, openCommitment: 500_000, usedPercent: 55 });
     renderHeader('Finance', onHand, 2_100_000, 'pmo', 'pmo');
-    expect(tileLabels()).toEqual(['Contract', 'PMO purchase orders', 'Actual', 'Contract remaining after cost', 'Spend']);
+    expect(tileLabels()).toEqual(['Contract', 'PMO purchase orders', 'Actual', 'Contract remaining after cost', 'Budget used before tax', 'Spent (% of budget before tax)']);
   });
 
   it('AC-RD-HDR-001: "excl. PPN" lives in the Contract tile; rate/DPP toggle only when DPP is not 1/1 or the rate is missing', () => {

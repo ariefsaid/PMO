@@ -153,7 +153,7 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     // Spent is withheld, never a zero: the page's one hidden-figures line says why.
     expect(figures.textContent).not.toMatch(/Spent/);
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/figures hidden: spending is not linked/i);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/spending is not linked/i);
   });
 });
 

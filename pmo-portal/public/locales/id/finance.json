@@ -576,7 +576,7 @@
       "overOnSpending": "Melebihi anggaran dari pengeluaran",
       "budgetPositionUnknown": "Posisi anggaran proyek kanonis tidak dapat dibaca.",
       "canonicalUtilizationFormula": "Anggaran terpakai memakai konsumsi kanonis proyek terhadap anggaran yang dipilih sebelum pajak.",
-      "budgetUsedUnavailable": "Anggaran terpakai tidak diketahui atau tidak tersedia.",
+      "budgetUsedUnavailable": "Anggaran sebelum pajak yang terpakai tidak diketahui atau tidak tersedia.",
       "uncategorizedTotalKnown": "Pengeluaran proyek diketahui; beberapa jumlah kategori belum dipetakan.",
       "leftAfterSpendingFormula": "Anggaran kategori dikurangi pengeluaran tercatat, sebelum pajak.",
       "historicalLeftFormula": "Anggaran yang dipilih dikurangi konsumsi proyek kanonis, sebelum pajak.",

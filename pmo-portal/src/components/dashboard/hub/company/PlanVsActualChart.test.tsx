@@ -20,6 +20,7 @@ vi.mock('recharts', async () => {
   const actual = await vi.importActual<typeof import('recharts')>('recharts');
   return {
     ...actual,
+    ResponsiveContainer: ({ children }: React.ComponentProps<typeof actual.ResponsiveContainer>) => <div>{children}</div>,
     BarChart: ({ children, ...props }: React.ComponentProps<typeof actual.BarChart>) => {
       React.Children.forEach(children as React.ReactNode, (child) => {
         if (!React.isValidElement(child) || getTypeName(child.type) !== 'Tooltip') return;
@@ -78,6 +79,7 @@ describe('PlanVsActualChart', () => {
   });
 
   it('labels the spent share with the before-tax active budget basis', () => {
+    actualTooltipFormatter = undefined;
     render(<MemoryRouter><PlanVsActualChart projects={[p({
       id: 'a', name: 'Alpha', contract_value: 2000, budget: 1000, spent: 500,
     })]} currency="USD" /></MemoryRouter>);

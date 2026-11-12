@@ -113,8 +113,26 @@ describe('Projects delivery progress + budget used', () => {
       p2: { deliveryPct: null, committedSpend: 0, budget: 900_000 },
     };
     projectMoneyState.data = {
-      p1: { actuals: { currency: 'USD', total: '2000000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '2000000.00' }] }, activeBudgetAmount: '3800000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
-      p2: { actuals: { currency: 'USD', total: null, asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] }, activeBudgetAmount: '900000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+      p1: {
+        actuals: { currency: 'USD', total: '2000000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '2000000.00' }] },
+        activeBudgetAmount: '3800000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+        ledgerBasis: 'erp',
+        budgetPosition: {
+          projectId: 'p1', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '3800000.00',
+          spent: '2000000.00', openCommitment: '0.00', consumption: '2000000.00', complete: true,
+          usedRatio: '0.5263157895', usedPercent: '53', consumptionVariance: '-1800000.00', riskEligible: true, atRisk: false,
+        },
+      },
+      p2: {
+        actuals: { currency: 'USD', total: null, asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] },
+        activeBudgetAmount: '900000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+        ledgerBasis: 'erp',
+        budgetPosition: {
+          projectId: 'p2', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '900000.00',
+          spent: null, openCommitment: '0.00', consumption: null, complete: false,
+          usedRatio: null, usedPercent: null, consumptionVariance: null, riskEligible: true, atRisk: null,
+        },
+      },
     };
   });
 
@@ -126,6 +144,12 @@ describe('Projects delivery progress + budget used', () => {
       actuals: { currency: 'USD', total: `${1_234_567 + index}.00`, asOf: null, complete: index !== 0, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: index !== 0, amount: index === 0 ? null : `${1_234_567 + index}.00` }] },
       activeBudgetAmount: '7654321.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
       ledgerBasis: 'erp',
+      budgetPosition: {
+        projectId: project.id, ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '7654321.00',
+        spent: index === 0 ? null : `${1_234_567 + index}.00`, openCommitment: '0.00', consumption: index === 0 ? null : `${1_234_567 + index}.00`,
+        complete: index !== 0, usedRatio: index === 0 ? null : '0.16', usedPercent: index === 0 ? null : '16',
+        consumptionVariance: index === 0 ? null : '-6419754.00', riskEligible: true, atRisk: false,
+      },
     }]));
 
     renderPage();

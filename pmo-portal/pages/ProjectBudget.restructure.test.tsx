@@ -214,7 +214,7 @@ describe('ProjectBudget Option A', () => {
     expect(screen.getByRole('columnheader', { name: 'Committed' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '% used before tax' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Budget versions' })).toHaveTextContent('Approved plan');
-    expect(screen.getAllByText('Budget').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Budget before tax').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Spent').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Committed').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Left after spending').length).toBeGreaterThan(0);
@@ -523,6 +523,7 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
   });
 
   it('keeps the forecast editor available with a foreign active budget', async () => {
+    state.role = 'Finance';
     state.versions.data = [{ ...active(), currency: 'GBP' }];
     state.projectionRows = [{ category: 'Labor', pmoBudgetAmount: 100, actualsToDate: 35, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 15, projectedFinalCost: 50, projectedVariance: 50, projectedUtilization: 0.5, attributionKnown: true }];
     renderPage(['/projects/p-1/budget?budgetView=forecast']);
@@ -573,6 +574,12 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
   it('C4: an Uncategorized row with commitments and no budget says Not budgeted, never Unavailable; unknown authors are left out', () => {
     state.versions.data = [{ ...active(), created_by: 'someone-gone' } as unknown as BudgetVersionWithItems];
     state.position.ledgerBasis = 'pmo';
+    state.position.spent = 35;
+    state.position.openCommitment = '40';
+    state.position.consumption = '75';
+    state.position.consumptionVariance = '-25';
+    state.position.budgetComparisonKnown = true;
+    state.position.usedPercent = 75;
     state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
     state.procurements.data = [{ status: 'Ordered', budget_category: null, approved_total_value: 40, total_value: 40, currency: 'USD' }];
     renderPage();

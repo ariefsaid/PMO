@@ -13,7 +13,7 @@ import React from 'react';
 
 // ─── Shared mocks (hoisted so vi.mock factories can reference them) ─────────
 
-const { projState, tsState, deliverySummaryState, projectMoneyState } = vi.hoisted(() => ({
+const { projState, tsState, deliverySummaryState, projectMoneyState, budgetPositionsState } = vi.hoisted(() => ({
   projState: {
     data: null as Array<Record<string, unknown>> | null,
     isPending: false,
@@ -33,6 +33,7 @@ const { projState, tsState, deliverySummaryState, projectMoneyState } = vi.hoist
     pl4: { deliveryPct: 92, committedSpend: 555_000, budget: 600_000 },
   },
   projectMoneyState: { data: {} as Record<string, unknown>, isPending: false, isError: false, refetch: vi.fn() },
+  budgetPositionsState: { data: {} as Record<string, unknown>, isPending: false, isError: false, fetchStatus: 'idle' as 'idle' | 'fetching', refetch: vi.fn() },
 }));
 
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
@@ -100,6 +101,7 @@ vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
   useNeedsYou: () => ({ items: [], pmOverdueTasksByProject: {}, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({ useProjectBudgetPositions: () => budgetPositionsState }));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useTimesheets', () => ({
   useTimesheets: () => tsState,
@@ -162,6 +164,16 @@ const otherUser = {
   project_manager_id: 'pm-other', client: null, pm: null,
 };
 
+const canonicalPosition = (projectId: string, budget: number, spent: number, riskEligible = true) => {
+  const usedPercent = String(Math.round(spent / budget * 100));
+  return {
+    projectId, ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: `${budget}.00`,
+    spent: `${spent}.00`, openCommitment: '0.00', consumption: `${spent}.00`, complete: true,
+    usedRatio: String(spent / budget), usedPercent, consumptionVariance: `${spent - budget}.00`, riskEligible,
+    atRisk: riskEligible && Number(usedPercent) >= 90,
+  };
+};
+
 // ─── PMDashboard: risk-sort tests ───────────────────────────────────────────
 
 describe('AC-IXD-DASH-W5-C2C — PMDashboard: attention areas are risk-sorted', () => {
@@ -169,6 +181,12 @@ describe('AC-IXD-DASH-W5-C2C — PMDashboard: attention areas are risk-sorted', 
     projState.data = [...pmFixtures, otherUser];
     projState.isPending = false;
     projState.isError = false;
+    budgetPositionsState.data = Object.fromEntries([
+      canonicalPosition('p1', 1_000_000, 100_000),
+      canonicalPosition('p2', 1_000_000, 950_000),
+      canonicalPosition('p3', 1_000_000, 900_000),
+      canonicalPosition('p4', 500_000, 490_000, false),
+    ].map((position) => [position.projectId, position]));
   });
 
   const rowHrefs = () => within(screen.getByTestId('pm-projects')).getAllByRole('link').map((link) => link.getAttribute('href')).filter((href) => href?.startsWith('/projects/'));
@@ -237,6 +255,7 @@ const setProjectMoney = (projects: Array<{ id: string; spent: number; budget: nu
   projectMoneyState.data = Object.fromEntries(projects.map((project) => [project.id, {
     actuals: { currency: 'USD', total: `${project.spent}.00`, asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: `${project.spent}.00` }] },
     activeBudgetAmount: `${project.budget}.00`, activeBudgetCurrency: 'USD', hasActiveBudget: true,
+    ledgerBasis: 'erp', budgetPosition: canonicalPosition(project.id, project.budget, project.spent),
   }]));
 };
 
