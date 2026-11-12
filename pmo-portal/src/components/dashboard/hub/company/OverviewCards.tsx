@@ -60,8 +60,15 @@ export const SalesOverviewCard: React.FC<{
   wide?: boolean;
   /** Drawn under the win rate (e.g. win and loss by client). */
   aside?: React.ReactNode;
-}> = ({ weighted, forecastMargin, stages, pending, error, retry, currency, period, won, range, className, wide = false, aside }) => {
+  /** The open pipeline before weighting, beside the weighted total. */
+  gross?: string | null;
+}> = ({ weighted, forecastMargin, stages, pending, error, retry, currency, period, won, range, className, wide = false, aside, gross }) => {
   const { t } = useTranslation('dashboard');
+  // The definitions go to the page's one help list (no per-figure "?").
+  useFigureReport([], [
+    { label: t('home.pipelineWeighted', 'Weighted pipeline'), text: `${t('dashboard:hub.company.help.pipeline', 'Weighted pipeline is project value multiplied by stage win probability across open opportunities. The forecast margin is shown when the source can compute it.')} ${t('dashboard:hub.company.help.pipelineStages', 'Each open stage shows its gross project value and the value weighted by its win probability. Won and lost projects are excluded.')}` },
+    { label: t('home.wonThisYear', 'Won'), text: t('dashboard:hub.company.help.won', 'Count and value of projects recorded as won within the selected period.') },
+  ]);
   const navigate = useNavigate();
   const statusLabel = useProjectStatusLabel();
   const open = openPipelineStages(stages);
@@ -77,6 +84,7 @@ export const SalesOverviewCard: React.FC<{
             <div>
               <div className="text-control text-muted-foreground">{t('home.pipelineWeighted', 'Weighted pipeline')}</div>
               <div className="text-[23px] font-bold leading-tight tabular" title={weighted.exact}>{weighted.value}</div>
+              {gross && <div className="text-control text-muted-foreground">{t('home.pipelineGross', 'Gross {{amount}}', { amount: gross })}</div>}
               {forecastMargin != null && <div className="text-control text-muted-foreground">{t('dashboard:hub.company.forecastMargin', 'Forecast margin')}: {(forecastMargin * 100).toFixed(1)}%</div>}
             </div>
           )}
@@ -96,14 +104,16 @@ export const SalesOverviewCard: React.FC<{
                   {open.map((stage) => {
                     const name = `${statusLabel(stage.status as string)} · ${stage.count}`;
                     const value = money(stage.weighted_value, currency);
+                    // The stage's gross project value, after the weighted one it is drawn by.
+                    const stageGross = Number.isFinite(stage.total_value) ? money(stage.total_value, currency) : '';
                     return (
                       <li key={String(stage.status)}>
-                        <Link to={`/sales?status=${encodeURIComponent(stage.status as string)}`} aria-label={`${name}: ${value}`}
+                        <Link to={`/sales?status=${encodeURIComponent(stage.status as string)}`} aria-label={stageGross ? t('home.stageWeightedOfGross', '{{name}}: {{weighted}} weighted of {{gross}} gross', { name, weighted: value, gross: stageGross }) : `${name}: ${value}`}
                           className="grid min-h-11 grid-cols-[minmax(7rem,9.5rem)_minmax(0,1fr)] items-center gap-x-3 text-control text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                           <span className="truncate text-right">{name}</span>
                           <span className="flex min-w-0 items-center gap-2">
                             <span aria-hidden className="h-[18px] min-w-0.5 rounded-r bg-primary" style={{ width: `${Math.max(1, (stage.weighted_value / max) * 75)}%` }} />
-                            <span className="shrink-0 font-semibold tabular">{value}</span>
+                            <span className="shrink-0 font-semibold tabular">{value}{stageGross && <span className="font-normal text-muted-foreground"> {t('home.ofGross', 'of {{amount}}', { amount: stageGross })}</span>}</span>
                           </span>
                         </Link>
                       </li>
@@ -182,12 +192,14 @@ export const PurchasingCard: React.FC<{ counts: Array<{ status: ProcurementStage
   const { t } = useTranslation('dashboard');
   const title = t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage');
   const empty = counts.every((row) => row.count === 0);
+  // The chart's scope, said once in the page's help list.
+  useFigureReport([], [{ label: title, text: t('dashboard:hub.company.help.purchasesScope', 'Purchases made directly in the accounting system are not counted in this PMO procurement view.') }]);
   return (
     <ChartCard title={title} actions={<CardLink to="/procurement">{t('dashboard:hub.company.openProcurements', 'Open procurements')}</CardLink>} pending={pending}
       error={error ? { title: t('dashboard:hub.company.purchasesError', "Couldn't load purchasing stages"), retry } : undefined} testId="chart-purchasing" className={className}>
       {empty
         ? <p className="text-control text-muted-foreground">{t('dashboard:hub.company.noPurchases', 'No procurements to show')}</p>
-        : <StackedBar ariaLabel={title} parts={PROCUREMENT_STAGES.map((stage) => ({ key: stage, label: stageName(stage), value: counts.find((row) => row.status === stage)?.count ?? 0 }))} />}
+        : <StackedBar ariaLabel={title} parts={PROCUREMENT_STAGES.map((stage) => ({ key: stage, label: stageName(stage), value: counts.find((row) => row.status === stage)?.count ?? 0, href: `/procurement?stage=${stage.toLowerCase()}` }))} />}
     </ChartCard>
   );
 };

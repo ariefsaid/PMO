@@ -151,6 +151,7 @@
     "amountsMissing_other": "{{count}} amounts missing"
   },
   "figures": {
+    "stillToInvoice": "Still to invoice on work orders",
     "contractOnHand": "Contract on hand",
     "billedMargin": "Margin on billed work",
     "pipeline": "Pipeline (weighted)",

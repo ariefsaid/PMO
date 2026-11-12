@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { chartTheme } from '@/src/components/ui/chartTheme';
@@ -215,7 +216,8 @@ export const MonthColumns: React.FC<{
   );
 };
 
-export interface Part { key: string; label: string; value: number }
+/** `href`: the part opens its records (each segment and legend entry becomes a link named "label value"). */
+export interface Part { key: string; label: string; value: number; href?: string }
 
 /** One-hue steps in order, darkest first: parts of a whole read as ordered, no rainbow. */
 const STEPS = [
@@ -250,17 +252,23 @@ export const StackedBar: React.FC<{ parts: Part[]; ariaLabel: string }> = ({ par
   const fits = (part: Part) => total > 0 && (part.value / total) * width >= part.label.length * 8.4 + 16;
   const step = (index: number) => STEPS[Math.min(index, STEPS.length - 1)];
   const outside = shown.map((part, index) => ({ part, index })).filter(({ part }) => !fits(part));
+  const linked = shown.some((part) => part.href);
+  const focus = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+  const segmentClass = 'flex min-w-6 items-center justify-center gap-1.5 overflow-hidden whitespace-nowrap px-1 text-control font-semibold tabular';
   return (
     <div>
-      <div ref={ref} role="img" aria-label={`${ariaLabel}. ${shown.map((part) => `${part.label} ${part.value}`).join(', ')}`} className="flex h-11 gap-0.5 overflow-hidden rounded-md">
-        {shown.map((part, index) => (
-          <div key={part.key} title={`${part.label} ${part.value}`} style={{ flex: `${part.value} 1 0`, background: step(index).fill, color: step(index).ink }} className="flex min-w-6 items-center justify-center gap-1.5 overflow-hidden whitespace-nowrap px-1 text-control font-semibold tabular">
-            {fits(part) && <span>{part.label}</span>}<span>{part.value}</span>
-          </div>
-        ))}
+      {/* With links the bar is a list of drills (each named "label value"); without, one image named with every part. */}
+      <div ref={ref} role={linked ? 'list' : 'img'} aria-label={linked ? ariaLabel : `${ariaLabel}. ${shown.map((part) => `${part.label} ${part.value}`).join(', ')}`} className="flex h-11 gap-0.5 overflow-hidden rounded-md">
+        {shown.map((part, index) => {
+          const style = { flex: `${part.value} 1 0`, background: step(index).fill, color: step(index).ink };
+          const body = <>{fits(part) && <span aria-hidden>{part.label}</span>}<span aria-hidden={Boolean(part.href)}>{part.value}</span></>;
+          return part.href
+            ? <Link key={part.key} role="listitem" to={part.href} aria-label={`${part.label} ${part.value}`} title={`${part.label} ${part.value}`} style={style} className={`${segmentClass} hover:opacity-90 ${focus}`}>{body}</Link>
+            : <div key={part.key} title={`${part.label} ${part.value}`} style={style} className={segmentClass}>{body}</div>;
+        })}
       </div>
       {outside.length > 0 && (
-        <ul className="mt-2 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-control text-muted-foreground">
+        <ul aria-hidden={linked} className="mt-2 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-control text-muted-foreground">
           {outside.map(({ part, index }) => (
             <li key={part.key} className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rounded-[3px]" style={{ background: step(index).fill }} />{part.label} <span className="tabular text-foreground">{part.value}</span></li>
           ))}

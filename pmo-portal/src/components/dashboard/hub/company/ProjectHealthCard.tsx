@@ -1,9 +1,10 @@
 import React from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { cn } from '@/src/components/ui/cn';
 import { ListState } from '@/src/components/ui/ListState';
+import { RowMenu } from '@/src/components/ui/RowMenu';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { statusLabel, statusTone, toneVariant } from '@/src/lib/status/statusMap';
 import { formatTileMoney } from '@/src/lib/format';
@@ -11,6 +12,14 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { AttentionProject } from '@/src/lib/db/dashboard';
 import { CardLink } from './OverviewCards';
 import { bulletFor, overBudget, overdueTaskCount, type Bullet, type BulletTone } from './homeHealth';
+
+/**
+ * Share of the contract spent, printed only when the comparison is sound: spending complete and in the contract's
+ * currency, contract above zero (dev's "Spending vs contract" rule). Null otherwise.
+ */
+export const contractShare = (row: AttentionProject): number | null =>
+  row.contract_value != null && row.contract_value > 0 && row.spent != null && row.actual_complete && row.actual_currency === row.currency
+    ? Math.round(row.spent / row.contract_value * 100) : null;
 
 const FILL: Record<BulletTone, string> = { data: 'bg-primary', ahead: 'bg-warning', over: 'bg-destructive' };
 
@@ -33,12 +42,17 @@ export const ProjectHealthCard: React.FC<{
   error: boolean;
   retry: () => void;
   className?: string;
-}> = ({ rows, delivery, pending, error, retry, className }) => {
+  /** Project manager per project id (from the project list); unknown managers are left out of the row. */
+  owners?: Map<string, string | null>;
+  /** How many projects the "All projects" list holds; the link names it once known. */
+  projectCount?: number;
+}> = ({ rows, delivery, pending, error, retry, className, owners, projectCount }) => {
   const { t } = useTranslation('dashboard');
   const { t: ts } = useTranslation('status');
+  const navigate = useNavigate();
   const money = (amount: number, currency: string) => formatTileMoney(amount, currency) ?? '';
-  // The link names no count: the rows are active projects, the list it opens is every project.
-  const allLabel = t('home.allProjectsBare', 'All projects');
+  // The count is the list the link opens (every project), not the rows above it.
+  const allLabel = projectCount ? t('home.allProjects', 'All {{count}} projects', { count: projectCount }) : t('home.allProjectsBare', 'All projects');
   return (
     <Card data-testid="project-health" className={cn('flex flex-col', className)}>
       <CardHead level={2} actions={<CardLink to="/projects">{allLabel}</CardLink>}>{t('home.projectHealth', 'Project health')}</CardHead>
@@ -67,11 +81,17 @@ export const ProjectHealthCard: React.FC<{
                         ? `${t('home.noSpendingRecorded', 'No spending recorded')} · ${t('home.budgetOf', '{{amount}} budget', { amount: money(row.budget as number, currency) })}`
                         : t('home.spentOfBudget', '{{spent}} spent of {{budget}} budget', { spent: money(row.spent as number, currency), budget: money(row.budget as number, currency) });
                     const name = projectDisplayName(row);
+                    const manager = owners?.get(row.id) ?? null;
+                    const share = contractShare(row);
+                    const contractWords = row.contract_value == null ? null : [
+                      t('home.contractShort', 'Contract {{amount}}', { amount: money(row.contract_value, row.currency) }),
+                      share === null ? null : t('home.contractSharePct', '{{percent}}% of contract', { percent: share }),
+                    ].filter(Boolean).join(' · ');
                     return (
-                      <li key={row.id}>
-                        <Link to={`/projects/${row.id}`} title={name !== row.name ? row.name : undefined} className="grid gap-y-1 py-4 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                      <li key={row.id} className="flex items-start gap-1">
+                        <Link to={`/projects/${row.id}`} title={name !== row.name ? row.name : undefined} className="grid min-w-0 flex-1 gap-y-1 py-4 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                           <span className="flex min-w-0 items-center justify-between gap-3">
-                            <span className="min-w-0 truncate text-control font-medium">{name}</span>
+                            <span className="min-w-0 truncate text-control"><span className="font-medium">{name}</span>{manager && <span className="text-muted-foreground"> · {manager}</span>}</span>
                             <StatusPill wrap={false} className="shrink-0" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{statusLabel('project', row.status, ts)}</StatusPill>
                           </span>
                           <span data-testid="health-wrong" className="text-control tabular">
@@ -90,10 +110,17 @@ export const ProjectHealthCard: React.FC<{
                           </span>
                           <span className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3 text-control tabular">
                             <span className={cn(bullet?.spent == null ? 'text-muted-foreground' : 'text-foreground')}>{budgetWords}{bullet ? delivered : ''}</span>
-                            {row.contract_value != null && <span className="text-muted-foreground">{t('home.contractShort', 'Contract {{amount}}', { amount: money(row.contract_value, row.currency) })}</span>}
+                            {contractWords && <span className="text-muted-foreground">{contractWords}</span>}
                           </span>
                           <BulletBar bullet={bullet} />
                         </Link>
+                        <span className="pt-3">
+                          <RowMenu ariaLabel={t('dashboard:hub.company.rowActionsFor', 'Row actions for {{name}}', { name })} items={[
+                            { label: t('dashboard:hub.company.openProject', 'Open project'), onClick: () => navigate(`/projects/${row.id}`) },
+                            { label: t('dashboard:hub.company.openBudget', 'Open budget'), onClick: () => navigate(`/projects/${row.id}/budget`) },
+                            { label: t('dashboard:hub.company.openProcurements', 'Open procurements'), onClick: () => navigate(`/procurement?project=${encodeURIComponent(row.id)}`) },
+                          ]} />
+                        </span>
                       </li>
                     );
                   })}

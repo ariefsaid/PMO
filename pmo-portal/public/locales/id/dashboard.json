@@ -151,6 +151,7 @@
     "amountsMissing_other": "{{count}} jumlah belum ada"
   },
   "figures": {
+    "stillToInvoice": "Perintah kerja belum ditagihkan",
     "contractOnHand": "Kontrak berjalan",
     "billedMargin": "Margin pekerjaan tertagih",
     "pipeline": "Pipeline (tertimbang)",
