@@ -318,18 +318,25 @@ export function validateRecordOnlyGroups(groups) {
   return errors;
 }
 
+/** Retain only the caller's bounded source identity and proposed placement. */
+function recordOnlyContext(group) {
+  const context = Object.fromEntries(['project_id', 'vendor_id', 'reference'].filter((key) => group[key] !== undefined).map((key) => [key, group[key]]));
+  if (Array.isArray(group.journal_lines)) context.journal_lines = group.journal_lines.map((line) => Object.fromEntries(['erp_doctype', 'voucher_no', 'project_id', 'account'].filter((key) => line?.[key] !== undefined).map((key) => [key, line[key]])));
+  return context;
+}
+
 /** Keep each group atomic and preserve identities if the transport outcome is unknown. */
 export async function runRecordOnly(api, groups, { dryRun }) {
   const out = { dry_run: Boolean(dryRun), counts: { create: 0, skip: 0, refused: 0 }, results: [] };
   for (const [index, group] of groups.entries()) {
     try {
       const result = await api.rpc('create_record_only_journal_purchase', { p_group: group, p_dry_run: Boolean(dryRun) });
-      out.results.push({ ...result, row: index + 1, request_id: group.request_id });
+      out.results.push({ ...recordOnlyContext(group), ...result, row: index + 1, request_id: group.request_id });
       if (Object.hasOwn(out.counts, result?.outcome)) out.counts[result.outcome]++;
       else { out.error = { message: 'unknown RPC outcome' }; out.not_saved_request_ids = groups.slice(index).map((g) => g.request_id); break; }
     } catch (error) {
-      if (error?.code === '22023' && error?.status === 400) {
-        out.results.push({ row: index + 1, request_id: group.request_id, outcome: 'refused', reason: error.message, erp_write: false });
+      if (error?.status === 400 || error?.status === 403 || error?.code === '42501') {
+        out.results.push({ ...recordOnlyContext(group), row: index + 1, request_id: group.request_id, outcome: 'refused', reason: error.message, erp_write: false });
         out.counts.refused++;
         continue;
       }

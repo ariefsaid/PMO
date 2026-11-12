@@ -210,7 +210,7 @@ beforeEach(() => {
   fxState.list.mockReset().mockResolvedValue({ rows: [{
     id: 'fx-1', org_id: 'org-1', rate_date: '2026-10-12', rate: 16300, base_currency: 'USD', quote_currency: 'IDR',
     source: 'JISDOR', created_by: null, updated_by: null, created_at: '2026-10-12T00:00:00Z', updated_at: '2026-10-12T00:00:00Z',
-  }], nextCursor: null });
+  }], nextCursor: null, total: 1 });
   fxState.context.mockReset().mockResolvedValue({ currency: 'IDR', timezone: 'Asia/Jakarta' });
   fxState.existing.mockReset().mockResolvedValue([]);
   fxState.upsert.mockReset().mockResolvedValue({ new: 1, changed: 0, unchanged: 0 });

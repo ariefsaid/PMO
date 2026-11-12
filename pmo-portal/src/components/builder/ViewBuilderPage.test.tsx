@@ -30,6 +30,7 @@ const {
   mockToast,
   mockIsFeatureEnabled,
   mockAICompose,
+  previewSpecs,
   roleState,
   // onComposedCallback is a ref that AIComposerModal stub will call when told to compose
   aiComposerModalCallbacks,
@@ -59,6 +60,7 @@ const {
     // Feature flag — default false so existing tests are unaffected
     mockIsFeatureEnabled: vi.fn((key: string) => key === 'userViews' ? false : false),
     mockAICompose: vi.fn(),
+    previewSpecs: [] as unknown[],
     roleState: { realRole: 'Engineer' },
     aiComposerModalCallbacks,
   };
@@ -95,9 +97,10 @@ vi.mock('@/src/components/ui', async (importOriginal) => {
 // component. The real ViewPreview has an async useEffect that can cause OOM in
 // jsdom when rendered inside a complex tree (ACt queue never drains).
 vi.mock('@/src/components/builder/ViewPreview', () => ({
-  default: ({ spec }: { spec: { panels: unknown[] } }) => (
-    <div data-testid="view-preview" data-panels={spec.panels.length} />
-  ),
+  default: ({ spec }: { spec: { panels: unknown[] } }) => {
+    previewSpecs.push(spec);
+    return <div data-testid="view-preview" data-panels={spec.panels.length} />;
+  },
 }));
 
 // Mock feature flags — default all false so existing tests are unaffected
@@ -187,6 +190,7 @@ function renderEdit(viewId = 'v1') {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  previewSpecs.length = 0;
   roleState.realRole = 'Engineer';
   mockCreate.mockResolvedValue({ id: 'new-id', name: 'Test View' });
   mockUpdate.mockResolvedValue(undefined);
@@ -205,6 +209,16 @@ beforeEach(() => {
 });
 
 describe('ViewBuilderPage — guard states', () => {
+  it('C10 ViewBuilderPage.tsx:242: editing view metadata does not rebuild the preview spec', async () => {
+    renderCreate([PANEL_A]);
+    await waitFor(() => expect(screen.getByTestId('view-preview')).toHaveAttribute('data-panels', '1'));
+    const initialSpec = previewSpecs.at(-1);
+
+    await userEvent.type(screen.getByRole('textbox', { name: /view name/i }), 'Updated view');
+
+    expect(previewSpecs.at(-1)).toBe(initialSpec);
+  });
+
   it('AC-VB-001: opens empty (no panels, add-panel button, save disabled, name empty)', () => {
     renderCreate();
     expect(screen.getByRole('textbox', { name: /view name/i })).toHaveValue('');
@@ -421,6 +435,39 @@ describe('ViewBuilderPage — guard states', () => {
 });
 
 describe('ViewBuilderPage — compile-before-save', () => {
+  it('C10 ViewBuilderPage.tsx:233: refuses an oversized composition before calling create', async () => {
+    const tooManyPanels = Array.from({ length: 21 }, (_, index) => ({ ...PANEL_A, id: `panel-${index}` }));
+    renderCreate(tooManyPanels);
+    await userEvent.type(screen.getByRole('textbox', { name: /view name/i }), 'Too many panels');
+    await userEvent.click(screen.getByRole('button', { name: /save view/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/maximum of 20 panels/i);
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it('C10 ViewBuilderPage.tsx:128: a no-op panel edit with different key order does not trigger discard', async () => {
+    const reorderedPanel = {
+      id: 'a',
+      primitive: 'DataTable',
+      querySpec: { select: ['id', 'name'], entity: 'companies' as const },
+    } as PanelSpec;
+    mockUseUserView.mockReturnValue({
+      data: {
+        id: 'v1', name: 'Saved name', description: null, scope: 'private', spec: { version: 1, panels: [reorderedPanel] },
+        archived_at: null, org_id: 'org1', user_id: 'u1', created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-28T00:00:00Z',
+      },
+      isPending: false,
+      isError: false,
+    });
+    renderEdit('v1');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit panel 1' }));
+    await userEvent.click(await screen.findByRole('button', { name: /update panel/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
   it('AC-VB-007b: navigating away from an unmodified edit view does NOT trigger the discard dialog', () => {
     mockUseUserView.mockReturnValue({
       data: {

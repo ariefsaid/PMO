@@ -225,6 +225,9 @@
     "retry": "Coba lagi",
     "previous": "Sebelumnya",
     "next": "Berikutnya",
+    "pager": {
+      "range": "{{from}}–{{to}} dari {{total}}"
+    },
     "overwrite": "Ganti kurs untuk {{date}}?",
     "overwriteValues": "{{old}} → {{new}} IDR per USD",
     "invalidDate": "Masukkan tanggal publikasi yang valid.",
