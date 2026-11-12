@@ -130,7 +130,7 @@ const FinanceHub: React.FC = () => {
       <CardPad>
         <FinanceAttention
         position={finance.position} scope="all" canAct={canAct} isPending={finance.isPending} isError={finance.isError}
-        onRetry={finance.retry} withLayout={(path) => path} orgCurrency={orgCurrency}
+        onRetry={finance.retry} withLayout={(path) => path} orgCurrency={orgCurrency} showOverdueUnknownCount={false}
         projects={new Map((projects.data ?? []).map((project) => [project.id, project]))}
       />
       </CardPad>
