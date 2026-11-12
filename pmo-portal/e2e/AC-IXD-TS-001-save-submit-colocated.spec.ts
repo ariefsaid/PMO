@@ -70,8 +70,8 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
   // (OD-W3-1: Submit auto-saves valid hours, so the disabled state is about hours, not a prior Save).
   const footer = page.getByTestId('timesheets-footer');
   await expect(footer).toBeVisible({ timeout: 10_000 });
-  const saveBtn = footer.getByRole('button', { name: /^save$/i });
-  const submitBtn = footer.getByRole('button', { name: /submit timesheet/i });
+  const saveBtn = footer.getByRole('button', { name: /^save draft$/i });
+  const submitBtn = footer.getByRole('button', { name: /^submit week$/i });
   await expect(saveBtn).toBeVisible();
   await expect(submitBtn).toBeVisible();
   await expect(submitBtn).toBeDisabled();
@@ -109,6 +109,7 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
   // Submit is a consequential state-lock — if the app confirms, click through it.
   const confirmDialog = page.getByRole('dialog');
   if (await confirmDialog.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    // The dialog's confirm label still reads "Submit timesheet" (N02 renamed the footer pair only).
     await confirmDialog.getByRole('button', { name: /submit timesheet/i }).click();
     await expect(confirmDialog).not.toBeVisible({ timeout: 15_000 });
   }
@@ -118,6 +119,6 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
   // No editable hour inputs, no Add project, no Save, no Submit (read-only).
   await expect(page.locator('tbody input[type="text"]')).toHaveCount(0, { timeout: 10_000 });
   await expect(page.getByLabel('Add a project')).not.toBeVisible({ timeout: 5_000 });
-  await expect(page.getByRole('button', { name: /^save$/i })).not.toBeVisible({ timeout: 5_000 });
-  await expect(page.getByRole('button', { name: /submit timesheet/i })).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole('button', { name: /^save draft$/i })).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole('button', { name: /^submit week$/i })).not.toBeVisible({ timeout: 5_000 });
 });

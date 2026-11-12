@@ -3,7 +3,7 @@
   "saveStatus": {
     "invalid": "Perbaiki jam yang ditandai untuk menyimpan",
     "saving": "Menyimpan…",
-    "failed": "Gagal menyimpan — perubahan masih ada"
+    "failed": "Gagal menyimpan. Perubahan masih ada."
   },
   "approvalQueue": {
     "unknownProject": "Proyek tidak diketahui",

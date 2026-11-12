@@ -304,7 +304,7 @@ const TimesheetsPage: React.FC = () => {
                     : saveState === 'saving'
                       ? t('timesheets:saveStatus.saving', 'Saving…')
                       : saveState === 'failed'
-                        ? t('timesheets:saveStatus.failed', 'Save failed — your changes are still here')
+                        ? t('timesheets:saveStatus.failed', 'Save failed. Your changes are still here.')
                         : saveState === 'unsaved'
                           ? t('uxs28.save.dirty', 'Unsaved changes')
                           : saveState === 'saved'

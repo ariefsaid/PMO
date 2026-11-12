@@ -104,7 +104,7 @@ test.describe('AC-911: a dedicated sheet is submitted by its owner, then approve
 
     // The seeded Draft sheet is for the current week. Submit appears once the timesheets query
     // and currentUser profile have both resolved.
-    const submitBtn = page.getByRole('button', { name: /submit timesheet/i });
+    const submitBtn = page.getByRole('button', { name: /^submit week$/i });
     await expect(submitBtn).toBeVisible({ timeout: 20_000 });
     await expect(submitBtn).toBeEnabled();
 
@@ -126,7 +126,7 @@ test.describe('AC-911: a dedicated sheet is submitted by its owner, then approve
     await expect(page.getByText('Submitted', { exact: true })).toBeVisible({ timeout: 15_000 });
 
     // Submit button should no longer be present (status is Submitted, not Draft).
-    await expect(page.getByRole('button', { name: /submit timesheet/i })).not.toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('button', { name: /^submit week$/i })).not.toBeVisible({ timeout: 5_000 });
   });
 
   test('AC-911 line manager approves the submitted sheet and it leaves the approval queue', async ({ page }) => {

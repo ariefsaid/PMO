@@ -55,7 +55,7 @@ it.each([true, false])('reconciles an uncertain deletion before submitting (comm
   await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /delete row/i }));
   const retry = await screen.findByRole('button', { name: /retry week refresh/i });
   expect(screen.getByRole('button', { name: /next week/i })).toBeDisabled();
-  expect(screen.getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^submit week$/i })).toBeDisabled();
   expect(mocks.submit).not.toHaveBeenCalled();
   mocks.offline = false; onlineManager.setOnline(true);
   await user.click(retry);
@@ -68,7 +68,8 @@ it.each([true, false])('reconciles an uncertain deletion before submitting (comm
     expect(screen.getByLabelText('First project, Wed hours')).toHaveValue('4');
   }
   expect(screen.getByLabelText('Other project, Mon hours')).toHaveValue('3');
-  await user.click(screen.getByRole('button', { name: /submit timesheet/i }));
+  // N02/P18: the footer's submit action is "Submit week"; the dialog's confirm keeps "Submit timesheet".
+  await user.click(screen.getByRole('button', { name: /^submit week$/i }));
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /submit timesheet/i }));
   await waitFor(() => expect(mocks.submit).toHaveBeenCalledOnce());
   expect(mocks.save).toHaveBeenCalledTimes(2);
