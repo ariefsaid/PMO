@@ -53,6 +53,7 @@ export const ProjectHealthCard: React.FC<{
   pending: boolean;
   error: boolean;
   retry: () => void;
+  budgetLinkOnOverBudget?: boolean;
   className?: string;
   /** Per-project additions, by project id. */
   extras?: Map<string, HealthExtras>;
@@ -65,7 +66,7 @@ export const ProjectHealthCard: React.FC<{
   quietLabel?: string;
   emptyLabel?: string;
   testId?: string;
-}> = ({ rows, delivery, pending, error, retry, className, extras, projectCount, title, allLink, quietLabel, emptyLabel, testId = 'project-health' }) => {
+}> = ({ rows, delivery, pending, error, retry, budgetLinkOnOverBudget = false, className, extras, projectCount, title, allLink, quietLabel, emptyLabel, testId = 'project-health' }) => {
   const { t } = useTranslation('dashboard');
   const { t: ts } = useTranslation('status');
   const navigate = useNavigate();
@@ -115,6 +116,9 @@ export const ProjectHealthCard: React.FC<{
                         ? `${t('home.noSpendingRecorded', 'No spending recorded')} · ${t('home.budgetOf', '{{amount}} budget', { amount: money(row.budget as number, currency) })}`
                         : t('home.spentOfBudget', '{{spent}} spent of {{budget}} budget', { spent: money(row.spent as number, currency), budget: money(row.budget as number, currency) });
                     const name = projectDisplayName(row);
+                    const href = budgetLinkOnOverBudget && overBudget(row)
+                      ? `/projects/${row.id}/budget`
+                      : `/projects/${row.id}`;
                     const share = contractShare(row);
                     const contractWords = [
                       row.contract_value == null ? null : t('home.contractShort', 'Contract {{amount}}', { amount: money(row.contract_value, row.currency) }),
@@ -123,7 +127,7 @@ export const ProjectHealthCard: React.FC<{
                     ].filter(Boolean).join(' · ');
                     return (
                       <li key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-1">
-                        <Link to={`/projects/${row.id}`} title={name !== row.name ? row.name : undefined} className="grid min-w-0 flex-1 gap-y-1 py-4 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                        <Link to={href} title={name !== row.name ? row.name : undefined} className="grid min-w-0 flex-1 gap-y-1 py-4 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                           <div className="flex min-w-0 items-start justify-between gap-3">
                             <div className="min-w-0 break-words text-control">
                               <span className="font-medium">{name}</span>

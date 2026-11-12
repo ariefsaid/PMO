@@ -382,7 +382,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const healthCard = (
       <ProjectHealthCard className={cn(half, 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
         pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry}
-        extras={owners} projectCount={projects.isPending || projects.isError ? undefined : projects.data?.length} />
+        budgetLinkOnOverBudget={finance} extras={owners} projectCount={projects.isPending || projects.isError ? undefined : projects.data?.length} />
     );
     const approvalsTotal = needs.approvals?.length ?? 0;
     // Each waiting thing appears once: a procurement already among the approvals gets no second row; only the ones

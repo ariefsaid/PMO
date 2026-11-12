@@ -362,6 +362,7 @@
     "is_meeting_attendee(uuid)",
     "issue_po_revision(uuid)",
     "issue_subcontract_po_lines(uuid)",
+    "linked_step_state(uuid,uuid,text)",
     "link_erp_purchase_documents(jsonb,boolean)",
     "link_external_company(uuid,uuid,text,text)",
     "link_external_project(uuid,uuid,uuid,text,jsonb)",

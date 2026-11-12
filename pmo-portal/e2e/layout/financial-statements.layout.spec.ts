@@ -44,6 +44,9 @@ for (const width of [390, 1440] as const) {
     for (const theme of ['light', 'dark'] as const) {
       test(`@layout AC-008 support: company native trial balance fits at ${width}px in ${locale}/${theme}`, async ({ page }) => {
         const routes = await openCompanyStatements(page, locale, theme, 'populated', width);
+        // 5a27079bc (navigation place names): the page title reads the place's nav name, "Statements"
+        // in English ("Laporan keuangan" in Bahasa, unchanged). The oracle is still the one level-1
+        // heading naming the place.
         await expect(page.getByRole('heading', { level: 1, name: locale === 'id' ? 'Laporan keuangan' : 'Statements' })).toBeVisible();
         await expectCompanyAccountLabel(page);
         await expectNoHorizontalOverflow(page);

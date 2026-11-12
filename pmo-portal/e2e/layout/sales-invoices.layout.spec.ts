@@ -82,6 +82,10 @@ const CLEAN_FIT_INVOICE = {
  *  trigger must be up before any geometry is measured. */
 async function openInvoicesTable(page: Page) {
   await signIn(page, 'finance@acme.test');
+  // /sales-invoices is a legacy redirect to the Receivables hub (FinanceLegacyRedirect, ux/1110):
+  // the hub draws its figures and the age strip above the register, so the table arrives BELOW the
+  // 900px fold and the screenshot-based seam oracle (viewport clip) must measure it in view. The
+  // geometry oracles themselves are unchanged.
   await page.goto('/sales-invoices');
   const scrollerLoc = page.getByTestId('dt-table-branch');
   await expect(scrollerLoc).toBeVisible({ timeout: 20_000 });
@@ -90,6 +94,21 @@ async function openInvoicesTable(page: Page) {
   // screenshot-based seam sampling; scrolling the full-height table can center it with a negative top.
   await scrollerLoc.locator('thead').scrollIntoViewIfNeeded();
   await expect(scrollerLoc.locator('tbody button[aria-label="Row actions"]').first()).toBeVisible();
+  // The hub above the register fills in asynchronously: the register's own rows can arrive first,
+  // and then the tiles/ageings land and push the table back under the fold — so wait for the page
+  // above it to settle BEFORE scrolling, and prove the scroll actually holds.
+  await expect(page.getByTestId('kpi-skeleton')).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
+  // The seam oracle screenshots a 1-2px strip from the scroller's top edge down ~92px (header row +
+  // first body row), so THAT BAND must be inside the viewport — scroll for it when the register sits
+  // under the fold, and prove it before measuring instead of letting the clip throw.
+  await scrollerLoc.evaluate((element) => element.scrollIntoView({ block: 'start', behavior: 'instant' }));
+  await expect.poll(async () => scrollerLoc.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const bandBottom = Math.min(box.top + 92, box.bottom - 2);
+    return box.top >= 0 && bandBottom <= window.innerHeight;
+  }), { message: 'the register header band is inside the viewport before geometry is measured' }).toBe(true);
+  await waitForFonts(page);
   return scrollerLoc;
 }
 

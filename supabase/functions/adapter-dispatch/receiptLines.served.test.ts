@@ -133,6 +133,7 @@ interface DispatchOptions {
   outboxLookupError?: boolean;
   /** Skip the synthetic claim stop and drive the real commit + finalize. */
   fullCommit?: boolean;
+  linkedOrder?: boolean;
 }
 
 /**
@@ -157,6 +158,7 @@ async function servedDispatch(opts: DispatchOptions) {
       }
       if (rpc === 'actor_authorization_state') return jsonResponse({ role: opts.role ?? 'Project Manager', active: opts.actorActive ?? true });
       if (rpc === 'pre_cutover_procurement') return jsonResponse(false);
+      if (rpc === 'linked_step_state') return jsonResponse(opts.linkedOrder ? 'new_step' : 'not_applicable');
       if (rpc === 'procurement_gate_violation') return jsonResponse(opts.gateViolation ?? null);
       if (rpc === 'service_feature_enabled') {
         assertEquals(rpcArgs.p_key, 'procurement_full', 'the guard must consult the exact switch key');
@@ -189,6 +191,7 @@ async function servedDispatch(opts: DispatchOptions) {
         if (opts.mappedRecord && eqParam('pmo_record_id') === receipt) return object({ external_record_id: GR_NAME });
         return none();
       }
+      if (table === 'procurement_erp_links') return jsonResponse(opts.linkedOrder ? [{ erp_purchase_documents: { erp_name: 'PO-LINKED', erp_doctype: 'Purchase Order' } }] : []);
       if (table === 'purchase_orders') return jsonResponse(opts.tier === 'odoo' ? [{ id: 'po-pmo-1' }] : []);
       if (table === 'procurement_items') return jsonResponse([{ name: 'Cable', quantity: 10, rate: 5 }, { name: 'Bolt', quantity: 4, rate: 1 }]);
       if (table === 'external_command_outbox') {
@@ -238,6 +241,7 @@ async function servedDispatch(opts: DispatchOptions) {
     }
     if (call.url.host === ERP) {
       const name = decodeURIComponent(path.split('/').at(-1) ?? '');
+      if (call.method === 'GET' && name === 'PO-LINKED') return jsonResponse({ data: { name: 'PO-LINKED', items: [{ item_code: 'Cable', name: 'line-cable' }, { item_code: 'Bolt', name: 'line-bolt' }] } });
       if (call.method === 'GET' && (name === 'Purchase Receipt' || path.includes('filters'))) return jsonResponse({ data: [] });
       if (call.method === 'GET') return jsonResponse({ data: { name: GR_NAME, docstatus: erpDocstatus } });
       if (call.method === 'POST') return jsonResponse({ data: { name: 'GR-REPLACED-2', docstatus: 0 } });
@@ -274,6 +278,24 @@ const storedOutboxPayload = (r: { calls: FetchCall[] }): Record<string, unknown>
 // ── Task 1: the real served Full gate, identity and refusal ─────────────────────────────────────
 
 describe('D17 / FR-PLN-004 a NEW caller-directed receipt line write requires procurement_full (literal true only)', () => {
+  it('sends a new receipt against its linked ERP order', async () => {
+    const r = await servedDispatch({ tier: 'erpnext', command: erpNextCreate(), linkedOrder: true, fullCommit: true });
+    assertEquals(r.status, 200, r.body);
+    const post = erpWrites(r).find((c) => c.method === 'POST');
+    assert(post);
+    const body = post.bodyJson as { items: Array<{ purchase_order: string; purchase_order_item: string }> };
+    assertEquals(body.items.map((i) => [i.purchase_order, i.purchase_order_item]), [['PO-LINKED', 'line-cable'], ['PO-LINKED', 'line-bolt']]);
+  });
+
+  it('sends selected receipt lines against their linked ERP order', async () => {
+    const r = await servedDispatch({ tier: 'erpnext', command: erpNextCreate({ items: [{ item_code: 'Cable', qty: 6 }] }), linkedOrder: true, feature: true, fullCommit: true });
+    assertEquals(r.status, 200, r.body);
+    const post = erpWrites(r).find((c) => c.method === 'POST');
+    assert(post);
+    const body = post.bodyJson as { items: Array<{ purchase_order: string; purchase_order_item: string }> };
+    assertEquals(body.items.map((i) => [i.purchase_order, i.purchase_order_item]), [['PO-LINKED', 'line-cable']]);
+  });
+
   it('Full on lets a new Odoo caller-line receipt reach the shipped money path with the exact plan', async () => {
     const r = await servedDispatch({ tier: 'odoo', command: odooCreate({ receiptLines: [{ itemRef: 'Cable', quantity: 6 }] }), feature: true, fullCommit: true });
     assertEquals(r.status, 200, r.body);

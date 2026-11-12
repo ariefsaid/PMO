@@ -60,7 +60,7 @@ test(
     // item in the in-page section nav to reach the Credits section.
     await page.getByRole('link', { name: /^credits$/i }).click();
     await expect(page).toHaveURL(/\/administration\/credits$/);
-    await expect(page.getByRole('heading', { name: /^Credits$/ })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: /^Credits$/, level: 1 })).toBeVisible({ timeout: 20_000 });
 
     // Read the starting balance BEFORE granting (deterministic across re-runs — balance only grows).
     const startBalance = await readBalance(page);
@@ -90,7 +90,7 @@ test(
     await page.goto('/administration');
     await page.getByRole('link', { name: /^credits$/i }).click();
     await expect(page).toHaveURL(/\/administration\/credits$/);
-    await expect(page.getByRole('heading', { name: /^Credits$/ })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: /^Credits$/, level: 1 })).toBeVisible({ timeout: 20_000 });
 
     // GOAL ORACLE: the grant persists — the Admin's balance readout reflects the Operator's grant.
     // The Admin has NO "Grant credits" affordance (Operator-only); the balance is read-only here.

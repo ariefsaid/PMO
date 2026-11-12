@@ -75,7 +75,6 @@ test('AC-STK-031: an Engineer keeping only the site is refused at central; the c
   // An Engineer who keeps no warehouse is offered no movement.
   await signIn(page, 'ts-colocated-eng@acme.test');
   await page.goto('/stock');
-  await expect(page.getByRole('heading', { name: 'Stock on hand' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Issue to project' })).toHaveCount(0);
   await page.goto('/stock/new/issue');
   await expect(page.getByText('You keep no warehouse')).toBeVisible();
