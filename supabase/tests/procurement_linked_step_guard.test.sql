@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(10);
+select plan(12);
 
 insert into organizations (id, name, default_currency) values
   ('91120000-0000-0000-0000-000000000001', 'W9 ERP Link Verify', 'IDR');
@@ -55,5 +55,14 @@ insert into procurements (id, org_id, code, title, status, requested_by_id, curr
  ('91120000-0000-0000-0000-00000000c005','91120000-0000-0000-0000-000000000001','W9-NONE','Ordinary purchase','Draft','91120000-0000-0000-0000-00000000f001','IDR',100);
 select is(public.linked_step_state('91120000-0000-0000-0000-000000000001','91120000-0000-0000-0000-00000000c005','goods-receipt'),'not_applicable','a purchase without links is unaffected');
 select lives_ok($$ insert into external_command_outbox (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id) values ('91120000-0000-0000-0000-000000000001','procurement','r4','linked-r4','erpnext','create','pending','{"erp_doc_kind":"goods-receipt","procurementId":"91120000-0000-0000-0000-00000000c005"}','91120000-0000-0000-0000-00000000f001') $$, 'ordinary purchase remains allowed');
+select upsert_erp_purchase_documents('91120000-0000-0000-0000-000000000001', $$[
+  {"erp_doctype":"Purchase Receipt","erp_name":"W9-RCP-LATER","supplier":"S-W9","currency":"IDR","grand_total":100,"net_total":100,"erp_docstatus":1,"erp_modified":"2026-11-12T00:00:00Z"}
+]$$::jsonb);
+insert into procurement_erp_links (org_id, procurement_id, erp_purchase_document_id, linked_by)
+select org_id, '91120000-0000-0000-0000-00000000c004', id, '91120000-0000-0000-0000-00000000a001'
+  from erp_purchase_documents where org_id='91120000-0000-0000-0000-000000000001' and erp_name='W9-RCP-LATER';
+select throws_ok($$ select claim_outbox_for_commit((select id from external_command_outbox where idempotency_key='linked-r3')) $$,
+  'P0001', 'procurement-create-refused: step_already_recorded', 'a queued receipt is refused if its step becomes linked before claim');
+select is((select state from external_command_outbox where idempotency_key='linked-r3'),'pending','the refused queued receipt is not claimed');
 select * from finish();
 rollback;
