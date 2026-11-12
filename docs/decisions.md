@@ -3731,3 +3731,10 @@ line, no item code; no re-invoice after a cancel.
 
 ### DD-1413-RESUBMIT — any approver-role member may resubmit a returned budget draft (#1413)
 Resubmit is open to every approver-role member, including the one who returned it. Nothing breaks: activation separation of duties still runs in full on the resubmitted draft.
+
+### DD-TAX-4 — budget used reads budget lines as before-tax cost, interim (#2208)
+Budget lines record no tax basis (DD-TAX-3) and spend against a budget is measured before tax. Until a budget carries its
+own basis (#2208, defaulting from the organisation's default per OD-TAX-1), budget lines are read as before-tax cost,
+consumption stays before tax, and every budget-used figure and its help text says "before tax". Pending owner
+confirmation. What breaks under this interim: an organisation that budgets including recoverable tax sees budget used
+understated by the tax rate.
