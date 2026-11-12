@@ -18,20 +18,20 @@ export const ProjectAttention: React.FC<{
   const { t } = useTranslation('project');
   if (isPending) {
     return (
-      <section aria-labelledby="pd-attention" className={className}>
-        <Card>
+      <section aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
+        <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
           <CardHead id="pd-attention">{t('projectDetail.attention.title', 'Needs attention')}</CardHead>
-          <CardPad><ListState variant="loading" shape="cards" rows={2} /></CardPad>
+          <CardPad className={fillRow ? 'flex flex-1 flex-col' : undefined}><ListState variant="loading" shape="cards" rows={2} /></CardPad>
         </Card>
       </section>
     );
   }
   if (error) {
     return (
-      <section aria-labelledby="pd-attention" className={className}>
-        <Card>
+      <section aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
+        <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
           <CardHead id="pd-attention">{t('projectDetail.attention.title', 'Needs attention')}</CardHead>
-          <CardPad>
+          <CardPad className={fillRow ? 'flex flex-1 flex-col' : undefined}>
             <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
               <span>{t('projectDetail.attention.checkFailed', "Couldn't check {{what}}", { what: error.what })}</span>
               <Button variant="ghost" size="sm" onClick={() => void error.retry()}>{t('common.retry', 'Retry')}</Button>
@@ -45,10 +45,10 @@ export const ProjectAttention: React.FC<{
   if (excludeKeys && visibleItems.length === 0) return null;
   if (visibleItems.length === 0) {
     return (
-      <section aria-labelledby="pd-attention" className={className}>
-        <Card>
+      <section aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
+        <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
           <CardHead id="pd-attention">{t('projectDetail.attention.title', 'Needs attention')}</CardHead>
-          <CardPad>
+          <CardPad className={fillRow ? 'flex flex-1 flex-col' : undefined}>
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Icon name="check" className="size-4 text-success-text" />
               {t('projectDetail.attention.onTrack', 'Nothing needs you on this project right now.')}

@@ -83,9 +83,9 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
     </>
   );
   const title = t('projectDetail.money.positionTitle', 'Money position');
-  if (q.isPending || boq.isPending || billing.isPending) return <Block id="pd-money" title={title} unit={unit}><ListState variant="loading" rows={4} /></Block>;
+  if (q.isPending || boq.isPending || billing.isPending) return <Block id="pd-money" title={title} unit={unit} fillRow={fillRow}><ListState variant="loading" rows={4} /></Block>;
   if (q.isError || !q.data || boq.isError || billing.isError || !billing.data) {
-    return <Block id="pd-money" title={title}><ListState variant="error" title={t('projectDetail.money.error', "Couldn't load the money position")} onRetry={() => { void q.refetch(); void boq.refetch(); void billing.refetch(); }} /></Block>;
+    return <Block id="pd-money" title={title} fillRow={fillRow}><ListState variant="error" title={t('projectDetail.money.error', "Couldn't load the money position")} onRetry={() => { void q.refetch(); void boq.refetch(); void billing.refetch(); }} /></Block>;
   }
 
   const data = q.data;
