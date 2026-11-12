@@ -17,6 +17,7 @@ function fakeClient(opts: { orgRow?: unknown; rowError?: boolean; violation?: st
     }),
     rpc: (fn: string, args: Record<string, unknown>) => {
       calls.push({ fn, args });
+      if (fn === 'record_only_step_refusal') return Promise.resolve({ data: null, error: null });
       return Promise.resolve(opts.rpcError ? { data: null, error: { message: 'boom' } } : { data: opts.violation ?? null, error: null });
     },
   };
@@ -28,7 +29,7 @@ const cmd = (kind: string, operation = 'create') =>
 Deno.test('AC-PFE-003: a gate violation refuses the procurement create before any ERP write', async () => {
   const c = fakeClient({ orgRow: { org_id: 'o1' }, violation: 'gate_approval_before_order' });
   assertEquals(await checkProcurementGate(c as never, 'o1', cmd('purchase-order')), { ok: false, status: 422, message: 'gate_approval_before_order' });
-  assertEquals(c.calls[0], { fn: 'procurement_gate_violation', args: { p_procurement_id: 'p1', p_step: 'Ordered' } });
+  assertEquals(c.calls[1], { fn: 'procurement_gate_violation', args: { p_procurement_id: 'p1', p_step: 'Ordered' } });
 });
 Deno.test('the purchase is read scoped to the caller org before the gate RPC (service role skips the RPC org check)', async () => {
   const c = fakeClient({ orgRow: { org_id: 'o1' } });
@@ -38,20 +39,20 @@ Deno.test('the purchase is read scoped to the caller org before the gate RPC (se
 Deno.test('AC-PFE-010: a create the gates allow passes unchanged', async () => {
   const c = fakeClient({ orgRow: { org_id: 'o1' }, violation: null });
   assertEquals((await checkProcurementGate(c as never, 'o1', cmd('purchase-invoice'))).ok, true);
-  assertEquals(c.calls[0].args.p_step, 'Vendor Invoiced');
+  assertEquals(c.calls[1].args.p_step, 'Vendor Invoiced');
 });
 Deno.test('payment maps to Paid, goods-receipt to Received', async () => {
   const c = fakeClient({ orgRow: { org_id: 'o1' } });
   await checkProcurementGate(c as never, 'o1', cmd('payment'));
   await checkProcurementGate(c as never, 'o1', cmd('goods-receipt'));
-  assertEquals(c.calls.map((x) => x.args.p_step), ['Paid', 'Received']);
+  assertEquals(c.calls.filter((x) => x.fn === 'procurement_gate_violation').map((x) => x.args.p_step), ['Paid', 'Received']);
 });
 Deno.test('other domains, kinds and operations are not this gate', async () => {
-  const c = fakeClient({});
+  const c = fakeClient({ orgRow: { org_id: 'o1' } });
   assertEquals((await checkProcurementGate(c as never, 'o1', { ...cmd('quotation') })).ok, true);
   assertEquals((await checkProcurementGate(c as never, 'o1', cmd('purchase-order', 'transition'))).ok, true);
   assertEquals((await checkProcurementGate(c as never, 'o1', { ...cmd('purchase-order'), domain: 'revenue' })).ok, true);
-  assertEquals(c.calls.length, 0);
+  assertEquals(c.calls.map((call) => call.fn), ['record_only_step_refusal', 'record_only_step_refusal']);
 });
 Deno.test('fails closed: purchase of another org, unreadable row, RPC failure, missing id', async () => {
   assertEquals((await checkProcurementGate(fakeClient({ orgRow: null }) as never, 'o1', cmd('purchase-order'))).message, 'purchase_not_found');

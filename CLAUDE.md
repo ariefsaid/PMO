@@ -361,6 +361,8 @@ suite — **if you ever run the full suite locally, use `npm run verify:locked`,
 runs at a time (shared with MOS via `$HOME/.pmo-test.lock`); under concurrent runs unrelated tests fail on timeout, and *contention moves while a real
 regression stays put*. Bare `verify` stays lock-free because CI is a single dedicated runner). **When a command needs more
 than one, acquire in this order, outermost first: `erpnext → db → test`.** Each is re-entrancy-safe via its own
-`*_LOCK_HELD` var, so a self-wrapping script under an outer hold does not deadlock. Stack wedged under load
+`*_LOCK_HELD` var, so a self-wrapping script under an outer hold does not deadlock. **A database-lock holder
+takes at least two test slots automatically** (`PMO_DB_LOCK_HELD` set ⇒ `max(PMO_TEST_LOCK_SLOTS, 2)`, #2217), so a
+pgTAP/browser/migration job never queues behind a unit run while it holds the shared DB. Stack wedged under load
 (`analytics`/`vector` blocking `db reset`)? `scripts/supabase-start-lean.sh`. Migration-number collision?
 `scripts/renumber-migration.sh <old> <new>` (never hand-roll the `git mv` + reference sweep).

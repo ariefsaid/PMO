@@ -79,7 +79,10 @@ test(
     const outside: string[] = [];
     for (let i = 0; i < 20; i += 1) {
       await page.keyboard.press('Tab');
-      const escaped = await page.evaluate(() => {
+      const escaped = await page.evaluate(async () => {
+        // The dialog library's focus-guard sentinel ([data-base-ui-focus-guard], aria-hidden, outside
+        // [role="dialog"]) holds focus for one frame before returning it inside; read the settled focus.
+        await new Promise<void>((done) => requestAnimationFrame(() => done()));
         const el = document.activeElement as HTMLElement | null;
         if (!el || el === document.body) return null;
         if (el.closest('[role="dialog"]')) return null;
