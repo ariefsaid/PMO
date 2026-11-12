@@ -87,12 +87,12 @@ test('AC-1011: a PM wins a deal — open it from the Pipeline, Mark won, enter c
   // (it satisfies the on-hand partition) with the entered customer contract ref.
   await page.goto('/projects');
   await expect(page.getByTestId('projects-loading')).not.toBeVisible({ timeout: 15_000 });
-  const wonRow = page.getByRole('row').filter({ hasText: DEAL_NAME });
-  await expect(wonRow).toBeVisible({ timeout: 15_000 });
-  await expect(wonRow.getByText('Won, pending kickoff')).toBeVisible({ timeout: 15_000 });
-  // PL-A: the list no longer repeats references per row; the contract ref lives on the record.
-  await expect(wonRow.getByText('More project references')).toHaveCount(0);
-  await wonRow.getByRole('button', { name: DEAL_NAME }).click();
+  const wonProject = page.getByRole('listitem').filter({
+    has: page.getByRole('button', { name: DEAL_NAME, exact: true }),
+  });
+  await expect(wonProject).toBeVisible({ timeout: 15_000 });
+  await expect(wonProject.getByText('Won, pending kickoff')).toBeVisible({ timeout: 15_000 });
+  await wonProject.getByRole('button', { name: DEAL_NAME, exact: true }).click();
   await page.getByRole('button', { name: 'Project details', exact: true }).click();
   await expect(page.getByText('CPO-E2E-1').first()).toBeVisible({ timeout: 10_000 });
 });

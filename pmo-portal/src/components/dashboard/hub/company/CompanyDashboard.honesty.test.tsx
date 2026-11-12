@@ -92,11 +92,12 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiv
 
 import { CompanyDashboard } from './CompanyDashboard';
 
-const renderExec = () => render(
+const renderDashboard = (role: 'Executive' | 'Finance' = 'Executive') => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <MemoryRouter><ToastProvider><CompanyDashboard role="Executive" /></ToastProvider></MemoryRouter>
+    <MemoryRouter><ToastProvider><CompanyDashboard role={role} /></ToastProvider></MemoryRouter>
   </QueryClientProvider>,
 );
+const renderExec = () => renderDashboard('Executive');
 
 const figures = () => screen.getByRole('region', { name: /Company figures|Angka perusahaan/ });
 const tile = (label: string) => {
@@ -120,6 +121,23 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
+  it('Finance opens an over-budget project directly on its Budget tab from Project health', () => {
+    h.dash = {
+      ...base,
+      attention_projects: [attn('p1', 'Over-budget project', {
+        budget: 100,
+        spent: 120,
+        over_budget: true,
+        budget_used_ratio: 1.2,
+      })],
+    };
+
+    renderDashboard('Finance');
+
+    expect(within(screen.getByTestId('project-health')).getByRole('link', { name: /Over-budget project/ }))
+      .toHaveAttribute('href', '/projects/p1/budget');
+  });
+
   it('Project health draws budget against actual spending per project, with the share delivered and the contract as a quiet figure', () => {
     h.dash = {
       ...base,
