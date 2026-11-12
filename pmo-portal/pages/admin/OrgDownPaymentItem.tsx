@@ -111,7 +111,7 @@ export default function OrgDownPaymentItem() {
             {loadedItems?.length === 0 && <p role="status" className="text-control text-muted-foreground">{t('uxs11.downPaymentNoItems', 'No ERPNext sales items were returned.')}</p>}
             {loadedItems && draft && !loadedItems.some((item) => item.value === draft) && <p role="status" className="text-control text-muted-foreground">{t('uxs11.downPaymentItemUnavailable', 'Saved item is not in the current item list; it remains saved until replaced.')}</p>}
             {error && <FieldError>{error}</FieldError>}
-            <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSaveDraft}>{t('uxs11.saveDownPaymentItem', 'Save item')}</Button>
+            <Button type="submit" variant="primary" disabled={mutation.isPending || !dirty || !canSaveDraft}>{t('uxs11.saveDownPaymentItem', 'Save item')}</Button>
           </form> : <p className="text-control">{savedValue}<span className="ml-2 text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</span></p>}
       </div>
     </section>

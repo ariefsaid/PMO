@@ -58,7 +58,7 @@ const PlanLines: React.FC<{ plan: ImprestPlanRow; currency: string; editable: bo
             options={[{ value: '', label: t('imprest:plan.chooseCategory', 'Choose a category') },
               ...Constants.public.Enums.budget_category.map((c) => ({ value: c, label: budgetCategoryLabel(c, t) }))]} />
           <TextField label={t('imprest:plan.plannedAmount', 'Planned amount')} inputMode="decimal" value={amount} onChange={setAmount} />
-          <Button variant="outline" disabled={!category || parsed === null || !(parsed > 0) || save.isPending}
+          <Button variant="primary" disabled={!category || parsed === null || !(parsed > 0) || save.isPending}
             onClick={() => void run(async () => { await save.mutateAsync({ planId: plan.id, category: category as BudgetCategory, amount: parsed as number }); setCategory(''); setAmount(''); })}>
             {t('imprest:plan.saveLine', 'Save line')}
           </Button>
@@ -97,7 +97,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
             <SelectField label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}
               options={[{ value: currentMonth, label: t('imprest:plan.thisMonth', 'This month ({{month}})', { month: monthLabel(currentMonth) }) },
                 { value: nextMonth(currentMonth), label: t('imprest:plan.nextMonth', 'Next month ({{month}})', { month: monthLabel(nextMonth(currentMonth)) }) }]} />
-            <Button variant="outline" disabled={create.isPending}
+            <Button variant="primary" disabled={create.isPending}
               onClick={() => void run(() => create.mutateAsync({ floatId, month }), t('imprest:plan.toast.created', 'Draft plan created'))}>
               {t('imprest:plan.new', 'New plan')}
             </Button>

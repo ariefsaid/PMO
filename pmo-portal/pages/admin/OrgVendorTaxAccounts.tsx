@@ -224,7 +224,7 @@ export default function OrgVendorTaxAccounts() {
               );
             })}
             {error && <FieldError>{error}</FieldError>}
-            <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSave}>
+            <Button type="submit" variant="primary" disabled={mutation.isPending || !dirty || !canSave}>
               {t('uxs11.saveVendorTax', 'Save accounts')}
             </Button>
           </form>

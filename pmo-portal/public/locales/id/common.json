@@ -2890,11 +2890,12 @@
     },
     "clientCode": {
       "label": "Kode Proyek Klien",
-      "placeholder": "Kode opsional yang digunakan organisasi Anda"
+      "helper": "Kode opsional yang digunakan organisasi Anda untuk proyek klien ini."
     },
     "projectNumber": {
       "label": "Nomor Proyek PMO",
       "helper": "PMO menetapkan identitas ini. Anda dapat mengubahnya sebelum membuat proyek.",
+      "assignedOnChooseClient": "Terisi otomatis setelah Anda memilih klien.",
       "duplicate": "Nomor Proyek PMO tersebut sudah digunakan. Pilih nomor lain.",
       "segmentRequired": "Perusahaan yang dipilih memerlukan segmen nomor klien sebelum Nomor Proyek PMO dapat dibuat.",
       "proposalError": "Nomor Proyek PMO tidak dapat diusulkan. Pilih klien lagi untuk mencoba ulang.",
