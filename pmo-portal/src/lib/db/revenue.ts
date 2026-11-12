@@ -262,15 +262,18 @@ export async function getOverdueInvoiceCount(today: string): Promise<number> {
   }).length;
 }
 
-/** What the dashboard's overdue tile reads from an open client invoice; nothing else leaves the database. */
-export type OverdueInvoiceFact = Pick<SalesInvoiceRow, 'id' | 'status' | 'currency' | 'invoice_date' | 'erp_due_date' | 'received_date' | 'erp_outstanding_amount' | 'erp_payment_terms_days'>;
+/**
+ * What the dashboard's overdue tile reads from an open client invoice; nothing else leaves the database.
+ * `amount` is the invoice's own net amount, read so an unknown balance can name what is invoiced behind it.
+ */
+export type OverdueInvoiceFact = Pick<SalesInvoiceRow, 'id' | 'status' | 'currency' | 'invoice_date' | 'erp_due_date' | 'received_date' | 'erp_outstanding_amount' | 'erp_payment_terms_days' | 'amount'>;
 
 /** Open (Submitted/Unpaid) client invoices as narrow facts: the rows `selectOverdueInvoices` keeps from the full list, without the authors/customer-name joins. */
 export async function listOverdueInvoiceFacts(): Promise<OverdueInvoiceFact[]> {
   const rows = await fetchAllPages<Record<string, unknown>>((from, to) =>
     supabase
       .from('sales_invoices')
-      .select('id,status,currency,invoice_date,erp_due_date,received_date,erp_outstanding_amount,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
+      .select('id,status,currency,invoice_date,erp_due_date,received_date,erp_outstanding_amount,amount,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
       .in('status', [...OPEN_CLIENT_INVOICE_STATUSES])
       .is('paired_erp_invoice_id', null)
       .order('id', { ascending: true })

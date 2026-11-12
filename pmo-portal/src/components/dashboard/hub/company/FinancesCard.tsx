@@ -6,6 +6,7 @@ import { ListState } from '@/src/components/ui/ListState';
 import { formatTileMoney } from '@/src/lib/format';
 import { moneyTileValue } from '@/src/components/dashboard/dashMoney';
 import { BarList } from '@/src/components/dashboard/charts';
+import { orderByCurrency } from '@/src/components/dashboard/restructure/currencyOrder';
 import type { OwedSplit } from '@/src/components/dashboard/restructure/useCompanyFigures';
 import { CardLink } from './OverviewCards';
 import { owedShares, owedTotals } from './owedSplit';
@@ -15,7 +16,8 @@ const money = (amount: number, currency: string) => formatTileMoney(amount, curr
 /**
  * One side of what is owed: the known total (one currency per line), one bar split into not yet due and overdue
  * (overdue in the exception colour, widths by share, each part named with its amount), and one line of counts.
- * An unknown balance is named on that line, never drawn and never added as zero.
+ * An unknown balance is named on its own line per currency with the amount invoiced behind it, never drawn and never
+ * added as zero.
  */
 const OwedFigure: React.FC<{
   testId: string;
@@ -52,7 +54,24 @@ const OwedFigure: React.FC<{
                 </div>
               )}
               <p className="text-control text-muted-foreground">{countLine(split)}</p>
-              {split.unknownBalances > 0 && <p className="-mt-2 text-control text-muted-foreground">{t('home.balancesUnknown', { count: split.unknownBalances, defaultValue_one: '{{count}} balance unknown, not in the total', defaultValue_other: '{{count}} balances unknown, not in the total' })}</p>}
+              {/* One line per currency behind an unknown balance, the organisation currency first: the count and what is
+                  invoiced behind it, so a large unknown cannot hide behind a small known total. */}
+              {split.unknownLines.length > 0 && (
+                <div data-testid={`${testId}-unknown`} className="-mt-2 grid gap-0.5 text-control text-muted-foreground">
+                  {orderByCurrency(split.unknownLines, currency).map((line) => (
+                    <p key={line.currency} data-testid={`${testId}-unknown-line`}>
+                      {line.invoiced === null
+                        ? t('home.balancesUnknown', { count: line.count, defaultValue_one: '{{count}} invoice, balance not reported', defaultValue_other: '{{count}} invoices, balance not reported' })
+                        : t('home.balancesUnknownInvoiced', {
+                          count: line.count,
+                          amount: formatTileMoney(line.invoiced, line.currency, { code: line.currency !== currency }) ?? '',
+                          defaultValue_one: '{{count}} invoice, {{amount}} invoiced, balance not reported',
+                          defaultValue_other: '{{count}} invoices, {{amount}} invoiced, balance not reported',
+                        })}
+                    </p>
+                  ))}
+                </div>
+              )}
             </>
           )}
     </section>

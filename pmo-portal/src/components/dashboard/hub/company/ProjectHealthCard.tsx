@@ -15,6 +15,13 @@ import { bulletFor, contractShare, overBudget, overdueTaskCount, type Bullet, ty
 
 const FILL: Record<BulletTone, string> = { data: 'bg-primary', ahead: 'bg-warning', over: 'bg-destructive' };
 
+/** The three bar colours in the order the card reads worst first; the label names the colour, so no legend to decode. */
+const KEY_TONES: Array<{ tone: BulletTone; key: string; fallback: string }> = [
+  { tone: 'over', key: 'home.healthKeyOver', fallback: 'Over budget' },
+  { tone: 'ahead', key: 'home.healthKeyAhead', fallback: 'Spend ahead of delivery' },
+  { tone: 'data', key: 'home.healthKeyOnPlan', fallback: 'On plan' },
+];
+
 /** Budget track with the spent share filled and a tick at the share delivered. The words beside it carry the values. */
 const BulletBar: React.FC<{ bullet: Bullet | null }> = ({ bullet }) => (
   <span aria-hidden data-testid="health-bullet" data-tone={bullet?.tone} className={cn('relative block h-2 w-full rounded-full', bullet?.spent == null ? 'border border-dashed border-input' : 'bg-muted')}>
@@ -65,10 +72,23 @@ export const ProjectHealthCard: React.FC<{
   const money = (amount: number, currency: string) => formatTileMoney(amount, currency) ?? '';
   // The count is the list the link opens (every project), not the rows above it.
   const allLabel = projectCount ? t('home.allProjects', 'All {{count}} projects', { count: projectCount }) : t('home.allProjectsBare', 'All projects');
+  // Each row's bar state, computed once: the key below is drawn only when a bar carries one of its three colours.
+  const bullets = new Map(rows.map((row) => [row.id, bulletFor(row, delivery?.[row.id] ?? null)]));
+  const keyed = [...bullets.values()].some((bullet) => bullet?.spent != null);
   return (
     <Card data-testid={testId} className={cn('flex flex-col', className)}>
       <CardHead level={2} actions={<CardLink to={allLink?.to ?? '/projects'}>{allLink?.label ?? allLabel}</CardLink>}>{title ?? t('home.projectHealth', 'Project health')}</CardHead>
       <div className="flex-1 px-[var(--panel-inset)] pb-2">
+        {!pending && !error && rows.length > 0 && keyed && (
+          <ul data-testid="health-key" aria-label={t('home.healthKey', 'Bar colours')} className="flex flex-wrap gap-x-4 gap-y-1 pb-2 pt-1 text-control text-muted-foreground">
+            {KEY_TONES.map(({ tone, key, fallback }) => (
+              <li key={tone} className="inline-flex items-center gap-1.5">
+                <span aria-hidden className={cn('size-2.5 shrink-0 rounded-[3px]', FILL[tone])} />
+                {t(key, fallback)}
+              </li>
+            ))}
+          </ul>
+        )}
         {pending ? <ListState variant="loading" rows={4} />
           : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={retry} />
             : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{emptyLabel ?? t('home.noActiveProjects', 'No active projects.')}</p>
@@ -86,7 +106,7 @@ export const ProjectHealthCard: React.FC<{
                     ].filter((fact): fact is Fact => fact !== null);
                     const items = extra?.items ?? [];
                     const deliveredPct = delivery?.[row.id] ?? null;
-                    const bullet = bulletFor(row, deliveredPct);
+                    const bullet = bullets.get(row.id) ?? null;
                     const currency = row.budget_currency ?? row.currency;
                     const delivered = deliveredPct === null ? '' : ` · ${t('home.deliveredPct', '{{percent}}% delivered', { percent: Math.round(deliveredPct) })}`;
                     const budgetWords = !bullet

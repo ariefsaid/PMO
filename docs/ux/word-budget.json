@@ -1,6 +1,6 @@
 {
-  "/@390@exec@acme.test": 197,
-  "/@1440@exec@acme.test": 198,
+  "/@390@exec@acme.test": 205,
+  "/@1440@exec@acme.test": 206,
   "/projects@390@exec@acme.test": 24,
   "/projects@1440@exec@acme.test": 25,
   "/projects@768@exec@acme.test": 25,
@@ -18,12 +18,12 @@
   "/timesheets@1440@exec@acme.test": 32,
   "/@390@pm@acme.test": 110,
   "/@1440@pm@acme.test": 111,
-  "/@390@finance@acme.test": 219,
-  "/@1440@finance@acme.test": 229,
+  "/@390@finance@acme.test": 227,
+  "/@1440@finance@acme.test": 237,
   "/@390@engineer@acme.test": 115,
   "/@1440@engineer@acme.test": 116,
-  "/@390@admin@acme.test": 193,
-  "/@1440@admin@acme.test": 194,
+  "/@390@admin@acme.test": 201,
+  "/@1440@admin@acme.test": 202,
   "/projects@390@pm@acme.test": 24,
   "/projects@1440@pm@acme.test": 25,
   "/projects/new@390@pm@acme.test": 17,
@@ -253,7 +253,7 @@
     "/finance": "Chart minimum 3 (exec): 4 was measured on test-leftover IDR rows; base and branch both draw 3 on the clean seed (2026-11-12).",
     "/finance/reports": "Chart minimum 1 (exec): 2 was measured on test-leftover IDR rows (second-currency group); head draws 1 on the clean seed, dev draws 0 (chart sweep, 2026-11-12).",
     "_rebaseline-2026-11-12": "54 word keys re-baselined to the head count: each measured equal (within one word) on the morning build 8d98d2772 and head b2ed4f10e on the same clean DB, so the rise came from data, not code (words proof, 2026-11-12). Home keys unchanged here (ruled content). /@390@pm set 55 -> 58: unchanged since the morning build, so data.",
-    "/": "home: restored floor rows from feature-diff-home (Director ruling: only the owner drops). Exec, admin, finance, PM and engineer raised to the measured counts (2026-11-12)."
+    "/": "home: restored floor rows from feature-diff-home (Director ruling: only the owner drops). Exec, admin, finance, PM and engineer raised to the measured counts; exec/admin/finance +8 for the health key words (counted, re-measured in the UI batch run) (2026-11-12)."
   },
   "charts": {
     "/@390@exec@acme.test": 2,

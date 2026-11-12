@@ -25,7 +25,7 @@ import { orderByCurrency, tileMoneyLines } from './currencyOrder';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import type { OverdueInvoiceFact } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { supplierUnpaid } from '@/src/lib/procurement/procurementMoney';
+import { supplierUnpaid, procurementMoney } from '@/src/lib/procurement/procurementMoney';
 import { calendarAgeDays, isProcurementReadyToPay, supplierInvoiceDate } from '@/src/lib/finance/financePosition';
 
 export interface CompanyFiguresResult {
@@ -85,17 +85,33 @@ export interface OwedSplit {
   overdue: Array<{ currency: string; amount: number }>;
   overdueCount: number;
   unknownBalances: number;
+  /**
+   * The invoices whose balance is unknown, per currency, with how much is invoiced behind them, so a large unknown
+   * cannot hide behind a small known total. `invoiced` is null when an invoice in that currency has no amount either.
+   */
+  unknownLines: Array<{ currency: string; count: number; invoiced: number | null }>;
   oldestDays: number | null;
 }
 
 const addTo = (map: Map<string, number>, currency: string, amount: number) => map.set(currency, (map.get(currency) ?? 0) + amount);
 const listOf = (map: Map<string, number>) => [...map].map(([currency, amount]) => ({ currency, amount }));
 
+/** One line per currency behind an unknown balance; the amount is named only while every invoice on it has one. */
+const unknownLineFor = (lines: Map<string, { count: number; invoiced: number | null }>, currency: string, invoiced: number | null) => {
+  const line = lines.get(currency) ?? { count: 0, invoiced: 0 };
+  line.count += 1;
+  line.invoiced = line.invoiced === null || invoiced === null ? null : line.invoiced + invoiced;
+  lines.set(currency, line);
+};
+const knownAmount = (amount: number | null | undefined): number | null => (typeof amount === 'number' && Number.isFinite(amount) ? amount : null);
+const listOfUnknown = (lines: Map<string, { count: number; invoiced: number | null }>) => [...lines].map(([currency, line]) => ({ currency, ...line }));
+
 /** Client side: overdue is the one shared rule (#1457); the oldest age is the oldest overdue invoice's. */
 export function splitReceivables(rows: OverdueInvoiceFact[] | undefined, organizationToday: string | null): OwedSplit | undefined {
   if (!rows || !organizationToday) return undefined;
   const notDue = new Map<string, number>();
   const overdue = new Map<string, number>();
+  const unknown = new Map<string, { count: number; invoiced: number | null }>();
   let unknownBalances = 0;
   let overdueCount = 0;
   let oldestDays: number | null = null;
@@ -103,10 +119,14 @@ export function splitReceivables(rows: OverdueInvoiceFact[] | undefined, organiz
     const days = clientInvoiceOverdueDays(invoice, organizationToday);
     if (days !== null) { overdueCount += 1; oldestDays = Math.max(oldestDays ?? 0, days); }
     const amount = invoice.erp_outstanding_amount;
-    if (amount === null || amount === undefined || !Number.isFinite(amount)) { unknownBalances += 1; continue; }
+    if (amount === null || amount === undefined || !Number.isFinite(amount)) {
+      unknownBalances += 1;
+      unknownLineFor(unknown, invoice.currency, knownAmount(invoice.amount));
+      continue;
+    }
     addTo(days === null ? notDue : overdue, invoice.currency, amount);
   }
-  return { count: rows.length, notDue: listOf(notDue), overdue: listOf(overdue), overdueCount, unknownBalances, oldestDays };
+  return { count: rows.length, notDue: listOf(notDue), overdue: listOf(overdue), overdueCount, unknownBalances, unknownLines: listOfUnknown(unknown), oldestDays };
 }
 
 /** Supplier side: a supplier invoice is overdue past 90 days since it was recorded (the Payables page's rule). */
@@ -115,6 +135,7 @@ export function splitPayables(rows: ProcurementWithRefs[] | undefined, organizat
   if (!rows || !organizationToday) return undefined;
   const notDue = new Map<string, number>();
   const overdue = new Map<string, number>();
+  const unknown = new Map<string, { count: number; invoiced: number | null }>();
   let count = 0;
   let unknownBalances = 0;
   let overdueCount = 0;
@@ -127,10 +148,16 @@ export function splitPayables(rows: ProcurementWithRefs[] | undefined, organizat
     const late = age !== null && age > SUPPLIER_OVERDUE_DAYS;
     if (late) overdueCount += 1;
     const unpaid = supplierUnpaid(row);
-    if (unpaid.unknown || unpaid.amount === null) { unknownBalances += 1; continue; }
+    if (unpaid.unknown || unpaid.amount === null) {
+      unknownBalances += 1;
+      // The supplier invoice amount is on the same row the balance came from: read it, never guess one.
+      const invoiced = procurementMoney(row).invoiced;
+      unknownLineFor(unknown, row.currency, invoiced.unknown ? null : knownAmount(invoiced.amount));
+      continue;
+    }
     addTo(late ? overdue : notDue, row.currency, unpaid.amount);
   }
-  return { count, notDue: listOf(notDue), overdue: listOf(overdue), overdueCount, unknownBalances, oldestDays };
+  return { count, notDue: listOf(notDue), overdue: listOf(overdue), overdueCount, unknownBalances, unknownLines: listOfUnknown(unknown), oldestDays };
 }
 
 /** Left to bill per contract project at the pack's latest month, in one currency; a row with an unknown contract or snapshot is left out. */
