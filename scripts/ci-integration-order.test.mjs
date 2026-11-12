@@ -21,6 +21,7 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   const scriptTests = readdirSync(new URL('../scripts/', import.meta.url))
     .filter((file) => file.endsWith('.test.mjs'));
   const databaseTests = [
+    '2195-journal-safety-rollback.test.mjs',
     'financial-statements-publication-race.test.mjs',
     'financial-statements-rollback.test.mjs',
     'financial-statements-nightly-intent-race.test.mjs',
@@ -48,6 +49,11 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   assert.ok(integrationRace !== -1, 'integration (PR-to-main release gate) must run the owning nightly-intent race proof');
   assert.ok(integrationReset !== -1 && integrationRace > integrationReset,
     'the race proof needs the released schema: it must run after the reset');
+  const pgtapJob = workflow.slice(workflow.indexOf('\n  pgtap:'), workflow.indexOf('\n  browser-chromium:'));
+  for (const job of [pgtapJob, integrationJob]) {
+    assert.match(job, /run: node --test --test-concurrency=1 [^\n]*scripts\/2195-journal-safety-rollback\.test\.mjs/);
+    assert.ok(job.indexOf('supabase start') < job.indexOf('scripts/2195-journal-safety-rollback.test.mjs'));
+  }
   const verifyJob = workflow.slice(workflow.indexOf('  verify:'), workflow.indexOf('  pgtap:'));
   assert.doesNotMatch(verifyJob, /node --test[^\n]*scripts\/[^ \n]+\.test\.mjs/,
     'script tests must run only through the repository-test glob, not hand-picked duplicates');

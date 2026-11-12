@@ -2240,3 +2240,45 @@ test('AC-ROP-012 purchases record-only preview and undo use authenticated RPCs',
     assert.deepEqual(calls[1].body, { p_procurement_id: group.project_id, p_reason: 'Wrong project', p_dry_run: true });
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
+
+test('AC-ROP-SAFETY-CLI actual record-only command exits 2 for a definite denial', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname === '/rest/v1/rpc/create_record_only_journal_purchase') {
+      send(403, { code: '42501', message: 'not authorized' });
+      return true;
+    }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'history.json');
+    const group = { request_id: '11111111-1111-4111-8111-111111111111', project_id: '22222222-2222-4222-8222-222222222222', vendor_id: '33333333-3333-4333-8333-333333333333', reference: 'R', title: 'Purchase', journal_lines: [{ erp_doctype: 'Journal Entry', voucher_no: 'J1', project_id: '22222222-2222-4222-8222-222222222222', account: 'Cost' }] };
+    fs.writeFileSync(file, JSON.stringify([group]));
+    const result = await runCli(['purchases', 'record-only', file, '--url', fake.url], { configDir });
+    assert.equal(result.code, 2, result.err);
+    const report = JSON.parse(result.out);
+    assert.equal(report.results[0].reference, 'R');
+    assert.deepEqual(report.results[0].journal_lines, group.journal_lines);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-SAFETY-CLI unknown response retains safe retry identity and exits 1', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname === '/rest/v1/rpc/create_record_only_journal_purchase') {
+      send(503, { message: 'temporarily unavailable' });
+      return true;
+    }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'history.json');
+    const group = { request_id: '11111111-1111-4111-8111-111111111111', project_id: '22222222-2222-4222-8222-222222222222', vendor_id: '33333333-3333-4333-8333-333333333333', title: 'Purchase', journal_lines: [{ erp_doctype: 'Journal Entry', voucher_no: 'J1', project_id: '22222222-2222-4222-8222-222222222222', account: 'Cost' }] };
+    fs.writeFileSync(file, JSON.stringify([group]));
+    const result = await runCli(['purchases', 'record-only', file, '--url', fake.url], { configDir });
+    assert.equal(result.code, 1, result.err);
+    assert.deepEqual(JSON.parse(result.out).not_saved_request_ids, [group.request_id]);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});

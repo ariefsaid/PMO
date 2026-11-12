@@ -305,3 +305,37 @@ test('AC-ROP-012 a server validation refusal is reported per group and the next 
   assert.equal(report.results[0].reason, 'line_not_positive_or_cancelled');
   assert.equal(report.results[1].request_id, 'two');
 });
+
+test('AC-ROP-SAFETY-CLI definite permission denials retain row context and continue', async () => {
+  const { runRecordOnly } = await import('./lib/pmo-purchases.mjs');
+  const groups = [{ request_id: 'one', project_id: 'p', vendor_id: 'v', reference: 'R', journal_lines: [{ erp_doctype: 'Journal Entry', voucher_no: 'J1', project_id: 'p', account: 'Cost' }] }, { request_id: 'two' }];
+  const report = await runRecordOnly({ rpc: async (_name, { p_group }) => {
+    if (p_group.request_id === 'one') throw Object.assign(new Error('forbidden'), { code: '42501', status: 403 });
+    return { outcome: 'create' };
+  } }, groups, { dryRun: false });
+  assert.deepEqual(report.counts, { create: 1, skip: 0, refused: 1 });
+  assert.equal(report.results[0].project_id, 'p');
+  assert.equal(report.results[0].vendor_id, 'v');
+  assert.equal(report.results[0].reference, 'R');
+  assert.deepEqual(report.results[0].journal_lines, groups[0].journal_lines);
+  assert.equal(report.results[1].request_id, 'two');
+});
+
+test('AC-ROP-SAFETY-CLI refusals expose only source identity and caller context', async () => {
+  const { runRecordOnly } = await import('./lib/pmo-purchases.mjs');
+  const group = { request_id: 'r', project_id: 'p', vendor_id: 'v', reference: 'R', private_note: 'ignore', journal_lines: [{ erp_doctype: 'Journal Entry', voucher_no: 'J', project_id: 'p', account: 'Cost', private_note: 'ignore' }] };
+  const report = await runRecordOnly({ rpc: async () => { throw Object.assign(new Error('bad request'), { status: 400 }); } }, [group], { dryRun: true });
+  assert.equal(report.results[0].outcome, 'refused');
+  assert.deepEqual(report.results[0].journal_lines, [{ erp_doctype: 'Journal Entry', voucher_no: 'J', project_id: 'p', account: 'Cost' }]);
+  assert.equal(report.results[0].private_note, undefined);
+});
+
+test('AC-ROP-SAFETY-CLI an undone replay is refused with caller context', async () => {
+  const { runRecordOnly } = await import('./lib/pmo-purchases.mjs');
+  const group = { request_id: 'r', project_id: 'p', vendor_id: 'v', reference: 'R', journal_lines: [{ erp_doctype: 'Journal Entry', voucher_no: 'J', project_id: 'p', account: 'Cost' }] };
+  const report = await runRecordOnly({ rpc: async () => ({ outcome: 'refused', reason: 'undone' }) }, [group], { dryRun: false });
+  assert.deepEqual(report.counts, { create: 0, skip: 0, refused: 1 });
+  assert.equal(report.results[0].project_id, 'p');
+  assert.equal(report.results[0].reference, 'R');
+  assert.deepEqual(report.results[0].journal_lines, group.journal_lines);
+});
