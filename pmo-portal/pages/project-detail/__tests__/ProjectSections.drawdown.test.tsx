@@ -115,4 +115,19 @@ describe('Project contract drawdown (#566 / OD-CR-13)', () => {
     fireEvent.click(await screen.findByRole('button', { name: reportButton }));
     expect(screen.getByRole('tab', { name: `${label} ${count}` })).toBeInTheDocument();
   });
+
+  it('R2 restore: the phone section picker carries the loaded count, as the desktop tabs do', async () => {
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter>
+          <ProjectSections project={project} area="tasks" setArea={vi.fn()} isPipeline={false} header={<h1>Alpha</h1>} />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+
+    const picker = screen.getByRole('combobox', { name: 'Project sections' });
+    expect(within(picker).getByRole('option', { name: 'Tasks' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Resolve task count' }));
+    expect(within(picker).getByRole('option', { name: 'Tasks 5' })).toBeInTheDocument();
+  });
 });

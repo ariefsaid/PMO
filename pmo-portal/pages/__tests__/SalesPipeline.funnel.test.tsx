@@ -101,8 +101,8 @@ beforeEach(() => {
   wonState.data = [];
 });
 
-describe('AC-SFA-001: sales pipeline stages use one open-value scale', () => {
-  it('shows open-value bars, keeps weighted values labelled, hides stage chances, and omits an empty-stage bar', () => {
+describe('AC-SFA-001: sales pipeline stages read on the weighted forecast scale', () => {
+  it('shows weighted-value bars, keeps weighted values labelled, hides stage chances, and omits an empty-stage bar', () => {
     renderPage();
     const summary = screen.getByLabelText('Pipeline summary');
     const leads = within(summary).getByRole('button', { name: /Leads/ });
@@ -110,7 +110,7 @@ describe('AC-SFA-001: sales pipeline stages use one open-value scale', () => {
     const leadsBarFill = leads.querySelector('[data-funnel-stage-bar] > span') as HTMLElement;
 
     expect(within(summary).queryByText(/\b\d+%/)).not.toBeInTheDocument();
-    expect(parseFloat(leadsBarFill.style.width)).toBeCloseTo((200_000 / 1_200_000) * 100);
+    expect(parseFloat(leadsBarFill.style.width)).toBeCloseTo((20_000 / 675_000) * 100);
     expect(within(leads).getByText('$20,000 weighted')).toBeInTheDocument();
     expect(within(quotation).getByText('0', { exact: true })).toBeInTheDocument();
     expect(quotation.querySelector('[data-funnel-stage-bar]')).toBeNull();

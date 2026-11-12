@@ -212,6 +212,12 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   const reportTaskCount = useCallback((count: number | null) => updateCount('tasks', count), [updateCount]);
   const reportDocumentCount = useCallback((count: number | null) => updateCount('documents', count), [updateCount]);
   const currentCounts = loadedCounts.projectId === project.id ? loadedCounts.values : {};
+  // R2 restore: on a phone the picker is the only section control, so it carries the same loaded
+  // counts the desktop tabs show ("Tasks 4") instead of a bare label.
+  const optionLabel = (a: Area) => {
+    const count = a === 'procurement' || a === 'tasks' || a === 'documents' ? currentCounts[a] : undefined;
+    return count == null ? labels[a] : `${labels[a]} ${count}`;
+  };
   // A deep link to an area this role or stage doesn't have lands on the Overview (AC-PB-008, SUB-A).
   const panel: Area = (areas as Area[]).includes(area) ? area : 'overview';
   const items: TabItem<Area>[] = areas.map((a) => {
@@ -242,7 +248,7 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
           hideLabel
           value={panel}
           onChange={(next) => setArea(next as Area)}
-          options={areas.map((a) => ({ value: a, label: labels[a] }))}
+          options={areas.map((a) => ({ value: a, label: optionLabel(a) }))}
           className="touch-target w-full"
         />
       </div>

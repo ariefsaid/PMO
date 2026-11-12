@@ -20,23 +20,25 @@ const PipelineFigures: React.FC<{ total: number | null; weighted: number; curren
   if (total === null && scoped) return null;
   const value = total === null ? mixed : '';
   return (
-    <dl className="grid min-w-0 grid-cols-2 gap-x-3">
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-        <dt className="text-control font-medium text-muted-foreground">{t('sales:options.weightedForecast', 'Weighted forecast')}</dt>
-        <dd className="text-group font-semibold tabular">{total === null ? value : (
-          // T5: short on the tile, exact on hover and for screen readers (the home "Contract on
-          // hand" contract, AC-701) — one figure mechanism, not a second money formatter.
-          <span data-testid="pipeline-weighted-total">
-            <FigureContent value={formatTileMoney(weighted, currency)} exactValue={formatTableMoney(weighted, currency) ?? undefined} />
-          </span>
-        )}</dd>
-      </div>
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-        <dt className="text-control font-medium text-muted-foreground">{t('sales:options.openValue', 'Open value')}</dt>
-        <dd className="text-group font-semibold tabular">{total === null ? value : formatTileMoney(total, currency)}</dd>
-        {total !== null && <dd className="text-control text-muted-foreground">{t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}</dd>}
-      </div>
-    </dl>
+    <div role="group" aria-label={t('sales:options.figuresLabel', 'Pipeline figures')}>
+      <dl className="grid min-w-0 grid-cols-2 gap-x-3">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+          <dt className="text-control font-medium text-muted-foreground">{t('sales:options.weightedForecast', 'Weighted forecast')}</dt>
+          <dd className="text-group font-semibold tabular">{total === null ? value : (
+            // T5: short on the tile, exact on hover and for screen readers (the home "Contract on
+            // hand" contract, AC-701) — one figure mechanism, not a second money formatter.
+            <span data-testid="pipeline-weighted-total">
+              <FigureContent value={formatTileMoney(weighted, currency)} exactValue={formatTableMoney(weighted, currency) ?? undefined} />
+            </span>
+          )}</dd>
+        </div>
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+          <dt className="text-control font-medium text-muted-foreground">{t('sales:options.openValue', 'Open value')}</dt>
+          <dd className="text-group font-semibold tabular">{total === null ? value : formatTileMoney(total, currency)}</dd>
+          {total !== null && <dd className="text-control text-muted-foreground">{t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}</dd>}
+        </div>
+      </dl>
+    </div>
   );
 };
 
