@@ -166,7 +166,13 @@ export async function forceBahasa(page: Page) {
 
 export async function openDocuments(page: Page, tabName: string) {
   await page.goto(`/projects/${PROJECT_ID}`);
-  await page.getByRole('tab', { name: tabName }).click();
+  if ((page.viewportSize()?.width ?? 1440) < 768) {
+    await page.getByTestId('mobile-project-area-select')
+      .getByRole('combobox', { name: 'Project sections' })
+      .selectOption('documents');
+  } else {
+    await page.getByRole('tab', { name: tabName }).click();
+  }
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
   await waitForFonts(page);
 }
