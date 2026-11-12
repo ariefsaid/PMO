@@ -7,8 +7,6 @@ import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
-import { useProjectCommittedSpend, useProjectProcurements } from '@/src/hooks/useProcurements';
-import { buildBudgetSummaryRows, committedTotal } from '@/src/lib/budget/budgetModel';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
@@ -22,7 +20,6 @@ import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
 import { summarizeInvoiceSettlement } from './ContractCascade';
 import ProjectProfitLossSection from './ProjectProfitLossSection';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
-import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 
 /** Full whole-unit amount with its currency, right-aligned and tabular where it sits in a column (screen rules, Numbers). */
 const moneyIn = (currency: string) => (value: number) => formatTableMoney(value, currency) ?? String(value);
@@ -272,9 +269,6 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
   const may = usePermission();
   const canFixSetup = may('manage', 'orgAccounting');
   const pos = useBudgetPosition(project);
-  const canReadProcurements = may('view', 'procurement');
-  const committed = useProjectCommittedSpend(canReadProcurements ? project.id : null, canReadProcurements);
-  const procurements = useProjectProcurements(canReadProcurements ? project.id : null);
   const label = (c: string) => budgetCategoryLabel(c, t);
   const title = t('projectDetail.cost.title', 'Budget');
   // No spending to compare: the page's one hidden-figures line says so; the card does not repeat it.
@@ -288,7 +282,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
     : []);
   const action = onOpenBudget && <BlockAction onClick={onOpenBudget}>{t('projectDetail.cost.openBudgetArea', 'Open budget')}</BlockAction>;
 
-  if (pos.isPending) return <Block id="pd-cost" title={title}><ListState variant="loading" rows={4} /></Block>;
+  if (pos.isPending || pos.budgetPositionPending) return <Block id="pd-cost" title={title}><ListState variant="loading" rows={4} /></Block>;
   if (pos.isError) {
     return <Block id="pd-cost" title={title}><ListState variant="error" title={t('projectDetail.cost.error', "Couldn't load the budget")} onRetry={() => void pos.refetch()} /></Block>;
   }
@@ -300,7 +294,9 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
     );
   }
   const worst = pos.overRows[0];
-  const summaryTooltip = t('projectDetail.cost.summaryTooltip', 'Compares mapped actual spending with the active project budget. Source: active budget categories and project finance records.');
+  const summaryTooltip = pos.ledgerBasis === 'pmo'
+    ? t('projectDetail.cost.summaryTooltip', 'Project budget used is spent plus open orders divided by the active budget, before tax. Spent and category detail are shown separately.')
+    : t('projectDetail.cost.summaryTooltipLedger', 'Project budget used is ledger spending divided by the active budget, before tax. Spent and category detail are shown separately.');
   const noActuals = pos.rows.every((row) => row.actual === null);
   const rows = pos.rows.slice().sort((a, b) => {
     // Nothing spent to compare: the rows are a comparison across categories, largest budget first.
@@ -315,77 +311,53 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
     const bUse = b.budget > 0 ? b.actual / b.budget : b.actual > 0 ? Number.POSITIVE_INFINITY : 0;
     return bUse - aUse;
   });
-  // L12: the committed figure comes from the same category rows the Budget tab totals, so the two always agree.
-  const committedFigure = committed.commitmentSource === 'pmo' && !procurements.isPending && !procurements.isError
-    ? committedTotal(buildBudgetSummaryRows({
-      lines: pos.rows.map((row) => ({ category: row.category, description: null, budgeted_amount: row.budget })),
-      actuals: pos.rows,
-      procurements: procurements.data,
-      canReadProcurements,
-      currency: project.currency,
-    }))
-    : null;
-  const hasComparisons = !pos.canSeeActual || pos.rows.length > 0;
+  const committedFigure = pos.openCommitment === null ? null : Number(pos.openCommitment);
   const maxBudget = Math.max(0, ...pos.rows.map((row) => row.budget));
+  const usedPercent = pos.usedPercent;
+  const remaining = !pos.budgetComparisonKnown || pos.consumptionVariance === null ? null : -Number(pos.consumptionVariance);
+  // Spending and open-order consumption can cross the budget at different times; name each measure explicitly.
+  const overOnceCommitted = pos.ledgerBasis === 'pmo' && remaining !== null && remaining < 0 && pos.projectOver === null && !worst;
 
-  // L12: "used" and "remaining" mean what the Budget tab's "% used" and "Left" mean — spent plus committed — whenever
-  // the committed figure is known, so the Overview and the Budget tab never show two different headrooms.
-  const commitmentsUnavailable = canReadProcurements && committed.commitmentSource !== 'not-tracked' && committedFigure === null;
-  const spentAndCommitted = pos.spent === null || commitmentsUnavailable ? null : pos.spent + (committedFigure ?? 0);
-  const usedPercent = pos.budget > 0 && spentAndCommitted !== null ? pctOf(spentAndCommitted, pos.budget) : null;
-  const remaining = spentAndCommitted === null ? null : pos.budget - spentAndCommitted;
-  // Issue 1531: when spend alone sits within the budget but spent plus committed purchase orders exceeds it, the
-  // headline states its basis ("Within budget on spend") and the use line names commitments — one verdict per basis,
-  // never a bare "Within budget" directly above an "over budget" figure.
-  const overOnceCommitted = remaining !== null && remaining < 0 && pos.projectOver === null && !worst;
-
-  const answer = !pos.canSeeActual || pos.spent === null ? (
+  const answer = !pos.canSeeActual || pos.spent === null || !pos.budgetComparisonKnown ? (
     <Headline tooltip={summaryTooltip}>{t('projectDetail.cost.budgetOnly', 'Budget {{budget}}', { budget: whole(pos.budget) })}</Headline>
   ) : pos.projectOver !== null ? (
     <>
-      <Headline tone="danger" tooltip={summaryTooltip}>{t('projectDetail.cost.projectOver', '{{amount}} over budget', { amount: whole(pos.projectOver) })}</Headline>
-      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.projectOverSub', 'Spent {{spent}} of {{budget}}', { spent: whole(pos.spent!), budget: whole(pos.budget) })}
+      <Headline tone="danger" tooltip={summaryTooltip}>{t('projectDetail.cost.projectOver', '{{amount}} over on spending', { amount: whole(pos.projectOver) })}</Headline>
+      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.projectOverSub', 'Spent {{spent}} of {{budget}} before tax', { spent: whole(pos.spent!), budget: whole(pos.budget) })}
         {worst && <> · {t('projectDetail.cost.mostly', 'mostly {{category}}', { category: label(worst.category) })}</>}</Sub>
     </>
   ) : worst ? (
     <>
-      <Headline tone="danger" tooltip={summaryTooltip}>{t('projectDetail.cost.categoryOver', '{{category}} is {{amount}} over budget', { category: label(worst.category), amount: whole(worst.actual! - worst.budget) })}</Headline>
-      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.categoryOverSub', 'Spent {{spent}} of its {{budget}} budget', { spent: whole(worst.actual!), budget: whole(worst.budget) })}</Sub>
+      <Headline tone="danger" tooltip={summaryTooltip}>{t('projectDetail.cost.categoryOver', '{{category}} is {{amount}} over on spending', { category: label(worst.category), amount: whole(worst.actual! - worst.budget) })}</Headline>
+      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.categoryOverSub', 'Spent {{spent}} of its {{budget}} budget before tax', { spent: whole(worst.actual!), budget: whole(worst.budget) })}</Sub>
     </>
   ) : pos.spent !== null ? (
     <>
       <Headline tooltip={summaryTooltip}>{overOnceCommitted
         ? t('projectDetail.cost.withinOnSpend', 'Within budget on spend')
         : t('projectDetail.cost.within', 'Within budget')}</Headline>
-      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.withinSub', 'Spent {{spent}} of {{budget}}', { spent: whole(pos.spent), budget: whole(pos.budget) })}</Sub>
+      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.withinSub', 'Spent {{spent}} of {{budget}} before tax', { spent: whole(pos.spent), budget: whole(pos.budget) })}</Sub>
     </>
   ) : null;
 
-  const atRisk = isMoneyAtRisk({
-    status: project.status as string,
-    budget: pos.budget,
-    budgetCurrency: project.currency,
-    projectCurrency: project.currency,
-    spent: pos.spent,
-    actualCurrency: pos.spent === null ? null : project.currency,
-    actualComplete: pos.spent !== null,
-  });
+  const atRisk = pos.atRisk;
 
   return (
     <Block id="pd-cost" title={title} unit={<CostUnit project={project} />} action={action}>
       {answer}
       {usedPercent !== null && <Sub>
-        {t('projectDetail.cost.snapshotUse', '{{percent}}% used', { percent: usedPercent })}
+        {t('projectDetail.cost.snapshotUse', 'Budget used before tax: {{percent}}%', { percent: usedPercent })}
         {remaining !== null && <> · {remaining < 0
-          ? overOnceCommitted
-            ? t('projectDetail.cost.snapshotOverOnCommitments', '{{amount}} over once committed orders land', { amount: whole(Math.abs(remaining)) })
-            : t('projectDetail.cost.snapshotOver', '{{amount}} over budget', { amount: whole(Math.abs(remaining)) })
+          ? pos.ledgerBasis === 'pmo'
+            ? t('projectDetail.cost.snapshotOverOnCommitments', '{{amount}} over after open orders', { amount: whole(Math.abs(remaining)) })
+            : t('projectDetail.cost.snapshotOverSpend', '{{amount}} over on spending', { amount: whole(Math.abs(remaining)) })
           : t('projectDetail.cost.snapshotRemaining', '{{amount}} remaining', { amount: whole(remaining) })}</>}
         {atRisk && <span className="ml-2 font-semibold text-warning-foreground">{t('projectDetail.cost.atRisk', 'At risk')}</span>}
       </Sub>}
-      {commitmentsUnavailable && procurements.isError && <Note>{t('projectDetail.cost.commitmentsError', "Couldn't check commitments")} <Button variant="ghost" size="sm" onClick={() => void procurements.refetch()}>{t('common.retry', 'Retry')}</Button></Note>}
       {pos.actualsPending && <Note>{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</Note>}
       {pos.actualsError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
+      {pos.budgetPositionError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
+      {pos.unknown > 0 && pos.spent !== null && <Note>{t('projectDetail.budget.uncategorizedTotalKnown', 'Project spending is known; some category amounts are not mapped.')}</Note>}
       {pos.canSeeActual && pos.currencyDiffers && !pos.actualsPending && !pos.actualsError && (
         <Note>{t('projectDetail.cost.currencyDiffers', 'Spending is recorded in {{currency}}, not the project currency, so it is not compared with the budget.', { currency: pos.spendCurrency })}</Note>
       )}
@@ -397,13 +369,13 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
             : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}
         </Note>
       )}
-      {hasComparisons && committedFigure !== null && <Sub tooltip={t('projectDetail.cost.committedTooltip', 'Ordered, received, supplier-invoiced and paid procurements in the project currency, including those with no budget category; the same total as the Budget tab.')}>{t('projectDetail.cost.committed', 'Plus {{amount}} committed in purchase orders', { amount: whole(committedFigure) })}</Sub>}
-      {hasComparisons && rows.length > 0 && (
+      {committedFigure !== null && <Sub tooltip={t('projectDetail.cost.committedTooltip', 'Open purchase orders included once in project budget consumption, before tax.')}>{t('projectDetail.cost.committed', 'Open orders: {{amount}}', { amount: whole(committedFigure) })}</Sub>}
+      {rows.length > 0 && (
         <ul className="mt-6 flex min-w-0 flex-col">
           {rows.map((r) => {
             const over = r.actual !== null && r.actual > r.budget;
             const pct = r.actual === null ? null : r.budget > 0 ? pctOf(r.actual, r.budget) : r.actual > 0 ? 101 : 0;
-            const detail = t('projectDetail.cost.categoryTooltip', 'Active budget and mapped actual spending for this category. Source: the active budget and project finance records.');
+            const detail = t('projectDetail.cost.categoryTooltip', 'Active category budget and mapped spending before tax. Source: the active budget and project finance records.');
             return (
               <li key={r.category} className="border-b border-border/70 last:border-b-0">
                 <Tooltip content={detail} block>
@@ -414,7 +386,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
                     <span className={cn('text-right text-sm tabular-nums sm:order-last', over ? 'font-semibold text-destructive-text' : 'text-muted-foreground')}>
                       {r.actual === null
                         ? whole(r.budget)
-                        : t('projectDetail.cost.rowSpent', '{{spent}} of {{budget}}', { spent: whole(r.actual), budget: whole(r.budget) })}
+                        : t('projectDetail.cost.rowSpent', '{{spent}} of {{budget}} before tax', { spent: whole(r.actual), budget: whole(r.budget) })}
                     </span>
                     {pct === null && maxBudget > 0 && <span aria-hidden="true" data-testid="category-budget-bar" className="col-span-2 h-1.5 w-full rounded-full bg-secondary sm:col-span-1">
                       <span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${Math.round((r.budget / maxBudget) * 100)}%` }} />
@@ -422,7 +394,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
                     {pct !== null && <span className="col-span-2 w-full sm:col-span-1">
                       <ProgressBar value={pct} widthless className="w-full" aria-label={r.budget === 0 && r.actual! > 0
                         ? t('projectDetail.cost.categoryNoBudget', '{{category}} has spending with no budget', { category: label(r.category) })
-                        : t('projectDetail.cost.categoryUse', '{{category}} uses {{percent}}% of budget', { category: label(r.category), percent: pct })} />
+                        : t('projectDetail.cost.categoryUse', '{{category}} uses {{percent}}% of its budget before tax', { category: label(r.category), percent: pct })} />
                     </span>}
                   </Link>
                 </Tooltip>

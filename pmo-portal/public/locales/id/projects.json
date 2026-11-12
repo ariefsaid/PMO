@@ -37,7 +37,7 @@
     "selectRow": "Pilih {{row}}",
     "selectAllRows": "Pilih semua baris"
   },
-  "budgetConsumption": "{{used}} dari anggaran Aktif {{budget}}",
+  "budgetConsumption": "{{used}} dari anggaran Aktif {{budget}} sebelum pajak",
   "filterBuilder": {
     "addFilter": "Tambah filter",
     "clearAll": "Hapus semua",
@@ -85,6 +85,7 @@
     "articleHelper": "Mengisi otomatis penerimaan baru. Setiap penerimaan dapat mengubahnya."
   },
   "columns": {
+    "budgetUsed": "Anggaran terpakai sebelum pajak",
     "contractWithBasis": "Kontrak ({{basis}})"
   },
   "card": {

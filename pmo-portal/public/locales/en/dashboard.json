@@ -701,8 +701,10 @@
     "awaitingApproval_one": "{{count}} awaiting approval",
     "awaitingApproval_other": "{{count}} awaiting approval",
     "billing": "Billing",
-    "budgetNinety": "budget at 90% or more",
-    "colBudget": "Budget used",
+    "budgetNinety": "budget used before tax at 90% or more",
+    "budgetUseChecking": "Checking budget use…",
+    "budgetUseError": "Budget use couldn't be checked.",
+    "colBudget": "Budget used before tax",
     "colClient": "Client",
     "colDelivery": "Delivery",
     "colTasksOverdue": "Tasks overdue",
@@ -776,7 +778,7 @@
     "owedByClients": "Owed by clients",
     "pipelineWeighted": "Weighted pipeline",
     "pm": {
-      "help": "Delivery projects assigned to you. Budget used compares recorded spending with the active budget; it is hidden where spending or budget is incomplete."
+      "help": "Delivery projects assigned to you. Budget used follows each project’s canonical consumption reading against the active budget before tax; incomplete readings are hidden."
     },
     "projectCount_one": "{{count}} project",
     "projectCount_other": "{{count}} projects",
@@ -820,7 +822,7 @@
     "ageingUnknown_other": "{{count}} invoices with unknown balances are not drawn",
     "budgetUsedByProject": "Budget used by project",
     "chartDelivery": "Delivery",
-    "deliveryVsBudget": "Delivery and budget used by project",
+    "deliveryVsBudget": "Delivery and budget used before tax by project",
     "overdueByProject": "Overdue tasks by project",
     "noOverdueTasks": "No overdue tasks.",
     "teamHours": "Team hours to approve",

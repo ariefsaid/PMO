@@ -37,7 +37,7 @@
     "selectRow": "Select {{row}}",
     "selectAllRows": "Select all rows"
   },
-  "budgetConsumption": "{{used}} of {{budget}} Active budget",
+  "budgetConsumption": "{{used}} of {{budget}} Active budget before tax",
   "filterBuilder": {
     "addFilter": "Add filter",
     "clearAll": "Clear all",
@@ -85,6 +85,7 @@
     "articleHelper": "Pre-fills new receipts. Each receipt can change it."
   },
   "columns": {
+    "budgetUsed": "Budget used before tax",
     "contractWithBasis": "Contract ({{basis}})"
   },
   "card": {

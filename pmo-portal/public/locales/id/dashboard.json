@@ -701,8 +701,10 @@
     "awaitingApproval_one": "{{count}} menunggu persetujuan",
     "awaitingApproval_other": "{{count}} menunggu persetujuan",
     "billing": "Penagihan",
-    "budgetNinety": "anggaran 90% atau lebih",
-    "colBudget": "Anggaran terpakai",
+    "budgetNinety": "anggaran terpakai sebelum pajak 90% atau lebih",
+    "budgetUseChecking": "Memeriksa penggunaan anggaran…",
+    "budgetUseError": "Penggunaan anggaran tidak dapat diperiksa.",
+    "colBudget": "Anggaran terpakai sebelum pajak",
     "colClient": "Klien",
     "colDelivery": "Progres",
     "colTasksOverdue": "Tugas terlambat",
@@ -776,7 +778,7 @@
     "owedByClients": "Piutang klien",
     "pipelineWeighted": "Pipeline terbobot",
     "pm": {
-      "help": "Proyek pelaksanaan yang ditugaskan kepada Anda. Anggaran terpakai membandingkan pengeluaran tercatat dengan anggaran aktif; disembunyikan bila pengeluaran atau anggaran belum lengkap."
+      "help": "Anggaran terpakai mengikuti pembacaan konsumsi kanonis tiap proyek terhadap anggaran aktif sebelum pajak; disembunyikan bila pembacaan belum lengkap."
     },
     "projectCount_one": "{{count}} proyek",
     "projectCount_other": "{{count}} proyek",
@@ -820,7 +822,7 @@
     "ageingUnknown_other": "{{count}} faktur dengan saldo tidak diketahui tidak digambar",
     "budgetUsedByProject": "Anggaran terpakai per proyek",
     "chartDelivery": "Progres",
-    "deliveryVsBudget": "Progres dan anggaran terpakai per proyek",
+    "deliveryVsBudget": "Progres dan anggaran terpakai sebelum pajak per proyek",
     "overdueByProject": "Tugas terlambat per proyek",
     "noOverdueTasks": "Tidak ada tugas terlambat.",
     "teamHours": "Jam tim untuk disetujui",
