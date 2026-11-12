@@ -190,6 +190,38 @@ describe('Timesheets states', () => {
     expect(screen.getByTestId('timesheets-empty')).toBeInTheDocument();
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
   });
+
+  // R2-restore (ux1110): dev's empty states carried a "what to do next" line; the redesign
+  // dropped it. A dropped item that carries state/consequence comes back (restructure step 2).
+  it('R2-restore: an empty editable week tells the person how to start logging hours', () => {
+    tsState.data = [];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    expect(
+      screen.getByText('Use “Add a project” above to start logging hours.')
+    ).toBeInTheDocument();
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+  });
+
+  it('R2-restore: a read-only empty week tells the person what to do next', () => {
+    // A non-editable (Submitted) current week with no entries → the read-only empty state.
+    const lockedEmptyWeek = [{
+      id: 'ts-locked', user_id: 'u-alice', week_start_date: '2026-06-01', status: 'Submitted',
+      submitted_at: null, approved_by: null, approved_at: null, org_id: 'org-1', entries: [],
+    }];
+    tsState.data = lockedEmptyWeek as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    expect(screen.getByTestId('timesheets-empty')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Add a project to start logging hours, or use the week controls to find another week.'
+      )
+    ).toBeInTheDocument();
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+  });
 });
 
 describe('CW-6: Timesheets no longer hosts its own approvals queue', () => {
@@ -258,6 +290,25 @@ describe('Timesheets returned-for-changes edge state', () => {
     tsState.isError = false;
     renderPage();
     expect(await findPageAnnouncement('status', /Returned/)).toHaveTextContent('Returned');
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+  });
+
+  // R2-restore (ux1110): dev's returned banner carried the instruction on what the person must
+  // do to resubmit; the redesign swapped in the shared banner and dropped it.
+  it('R2-restore: the returned banner instructs the person to correct and resubmit', () => {
+    const rejectedSheet = [{
+      id: 'ts-rej', user_id: 'u-alice', week_start_date: '2026-06-01', status: 'Rejected',
+      submitted_at: null, approved_by: null, approved_at: null, org_id: 'org-1',
+      rejection_reason: 'Fri hours missing',
+      entries: [],
+    }];
+    tsState.data = rejectedSheet as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    expect(
+      screen.getByText('Review the flagged days, correct them, and resubmit.')
+    ).toBeInTheDocument();
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
   });
 });
@@ -1173,11 +1224,13 @@ describe('S-28: saved / unsaved state and Save (UX-063)', () => {
     projectsState.data = ongoingProjects;
   });
 
-  it('UX-063: an empty week has Save disabled and no status line', () => {
+  it('UX-063: an empty week has Save disabled and says there is nothing to save', () => {
     tsState.data = []; tsState.isPending = false; tsState.isError = false;
     renderPage();
     expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
-    expect(screen.getByTestId('timesheets-save-status')).toBeEmptyDOMElement();
+    // R2-restore (audit row 15): the saved-empty state word came back — the line reports
+    // every state instead of going blank.
+    expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent(/nothing to save/i);
   });
 
   it('UX-063: an unchanged saved week shows "All changes saved" and a disabled Save; Submit stays enabled', () => {
