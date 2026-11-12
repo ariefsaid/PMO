@@ -188,8 +188,8 @@ async function odooTotals(call: OdooCall, companyId: number, cutoff: string, cod
 }
 const addMoney = (a: string, b: string): string => formatCents(nanoToCents(toNano(a)!) + nanoToCents(toNano(b)!));
 
-/** After a caught-up pass and at least an hour since the last check: compare the mirror's per-account sums with Odoo's grouped totals and record the result.
- *  Never throws. ponytail: the mirror side is paged through PostgREST (about 130 calls for 130,000 rows once an hour); a SQL sum is the upgrade if that bites. */
+/** After a caught-up pass and at least an hour since the last check, or when links changed after it: compare mirror sums with Odoo and record the result.
+ *  Never throws. ponytail: the mirror side is paged through PostgREST (about 130 calls per check for 130,000 rows); link changes can trigger one early check, and SQL sum is the upgrade if that cost bites. */
 async function runLedgerCheck(sc: SupabaseClient, orgId: string, call: OdooCall, companyId: number, codes: Map<string, string>, budget: Budget, now: Date): Promise<'matches' | 'differs' | 'not-checked' | undefined> {
   try {
     const last = await sc.from('odoo_ledger_checks').select('checked_at').eq('org_id', orgId).order('checked_at', { ascending: false }).limit(1);
