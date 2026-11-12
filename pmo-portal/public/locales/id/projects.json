@@ -96,6 +96,12 @@
     "client": {
       "nounPlural": "perusahaan"
     },
+    "clientCode": {
+      "helper": "Kode opsional yang digunakan organisasi Anda untuk proyek klien ini."
+    },
+    "projectNumber": {
+      "assignedOnChooseClient": "Terisi otomatis setelah Anda memilih klien."
+    },
     "endCustomer": {
       "nounPlural": "perusahaan"
     }

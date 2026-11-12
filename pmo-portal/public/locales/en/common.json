@@ -2889,13 +2889,11 @@
       "noun": "company"
     },
     "clientCode": {
-      "label": "Client Project Code",
-      "helper": "Optional code your organization uses for this client project."
+      "label": "Client Project Code"
     },
     "projectNumber": {
       "label": "PMO Project Number",
       "helper": "PMO assigns this identifier. You can edit it before creating the project.",
-      "assignedOnChooseClient": "Assigned automatically once you choose a client.",
       "duplicate": "That PMO Project Number is already in use. Choose another number.",
       "segmentRequired": "The selected company needs a Client number segment before a PMO Project Number can be proposed.",
       "proposalError": "A PMO Project Number could not be proposed. Select the client again to retry.",
