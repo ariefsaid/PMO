@@ -19,12 +19,12 @@ describe('fxRatesRepository', () => {
     });
   });
   it('delegates normalized list, existing, lookup, upsert and context contracts', async () => {
-    dal.listFxRates.mockResolvedValue({ rows: [], nextCursor: null });
+    dal.listFxRates.mockResolvedValue({ rows: [], nextCursor: null, total: 0 });
     dal.existingFxRates.mockResolvedValue([]);
     dal.fxRateOn.mockResolvedValue(null);
     dal.upsertFxRates.mockResolvedValue({ new: 1, changed: 0, unchanged: 0 });
     dal.fxContext.mockResolvedValue({ currency: 'IDR', timezone: 'UTC' });
-    expect(await fxRatesRepository.list('2026-10-09')).toEqual({ rows: [], nextCursor: null });
+    expect(await fxRatesRepository.list('2026-10-09')).toEqual({ rows: [], nextCursor: null, total: 0 });
     expect(await fxRatesRepository.existing(['2026-10-09'])).toEqual([]);
     expect(await fxRatesRepository.onDate('USD', 'IDR', '2026-10-10')).toBeNull();
     expect(await fxRatesRepository.upsert([{ rate_date: '2026-10-09', rate: 16234 }])).toEqual({
