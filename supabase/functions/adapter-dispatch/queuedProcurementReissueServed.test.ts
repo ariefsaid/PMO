@@ -82,6 +82,7 @@ function routes(unexpected: FetchCall[], refusal: string | null): MockRoute[] {
     supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(true)),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
     // The foreground gate passed when the user retried; the rule check before the reissue answers `refusal`.
+    supabaseRpc('record_only_step_refusal', () => jsonResponse(null)),
     supabaseRpc('procurement_gate_violation', () => jsonResponse(null)),
     supabaseRpc('procurement_create_refusal', () => jsonResponse(refusal)),
     supabaseRpc('read_vault_secret', () => jsonResponse(null)),

@@ -18,14 +18,18 @@ const STEP_BY_KIND: Record<string, 'Ordered' | 'Received' | 'Vendor Invoiced' | 
 };
 
 export async function checkProcurementGate(client: ProcurementGateClient, orgId: string, command: GateCommand): Promise<ProcurementGateResult> {
-  if (command.domain !== 'procurement' || String(command.operation) !== 'create') return OK;
+  if (command.domain !== 'procurement') return OK;
   const step = STEP_BY_KIND[String(command.record.erp_doc_kind)];
   if (!step) return OK;
   const procurementId = command.record.procurementId;
-  if (typeof procurementId !== 'string' || procurementId === '') return FAILED;
+  if (typeof procurementId !== 'string' || procurementId === '') return String(command.operation) === 'revise' ? OK : FAILED;
   const { data: row, error: rowError } = await client.from('procurements').select('org_id').eq('id', procurementId).eq('org_id', orgId).maybeSingle();
   if (rowError) { console.error('[adapter-dispatch] procurement gate read failed:', rowError); return FAILED; }
   if (!row) return { ok: false, status: 422, message: 'purchase_not_found' };
+  const recordOnly = await client.rpc('record_only_step_refusal', { p_procurement_id: procurementId });
+  if (recordOnly.error) return FAILED;
+  if (recordOnly.data != null) return { ok: false, status: 422, message: String(recordOnly.data) };
+  if (String(command.operation) !== 'create') return OK;
   const { data, error } = await client.rpc('procurement_gate_violation', { p_procurement_id: procurementId, p_step: step });
   if (error) { console.error('[adapter-dispatch] procurement_gate_violation failed:', error); return FAILED; }
   return data === null || data === undefined ? OK : { ok: false, status: 422, message: String(data) };
