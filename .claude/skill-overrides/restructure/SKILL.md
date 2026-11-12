@@ -83,8 +83,10 @@ A drop needs the owner's explicit words naming that item; a word budget or “si
 ### 3. References and moves
 
 Read [references/references-and-moves.md](references/references-and-moves.md) whole before choosing a direction.
-Use the **SCREEN shelf**, `docs/private/references/<screen-kind>/`, for what an analogous business screen shows; collect three references first when the kind has fewer than three verified images.
-Use the **CRAFT shelf**, stageshow's runnable examples, for how a part is built; it cannot answer what a dashboard, approval queue or invoice screen should contain.
+Evidence order: frozen feature floor (content) → the reference design system (pattern floor; private study in `docs/private/design-system/`) → stageshow product studies (structure, interaction) → owner images → public product pages for the rest.
+The reference design system is the FLOOR for tables, filter bars, forms, record headers, status, empty and error states, spacing and density: a PMO screen may not fall below what it does for the same pattern. Where taste or impeccable disagree with it on contrast, accessibility, fonts or icons, they win.
+Use the **SCREEN shelf**, `docs/private/references/<screen-kind>/`, for what an analogous screen's structure and interaction are; collect three references first when the kind has fewer than three verified images.
+Use the **CRAFT shelf**, the same stageshow examples, for how a part is built; PMO contents come from the floor, never from a study.
 Look at real images and renders, group structural directions, take ONE direction whole, and grade each claim: two products = precedent; one = example; none = “my opinion”.
 Write at most five moves, each with the screens showing its exact decision; a longer fix list on one screen returns to whole-screen composition.
 **Done:** chosen direction, rejected direction's reason, evidence grades and move table are saved; no claim relies on memory.

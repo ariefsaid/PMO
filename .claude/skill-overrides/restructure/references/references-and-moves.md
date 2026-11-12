@@ -2,6 +2,12 @@
 
 Read whole at step 3; references are observed evidence for a decision, not permission to change PMO's business job.
 
+## Pattern floor and evidence order
+
+- Evidence order: frozen feature floor (content) → the reference design system (pattern floor) → stageshow product studies (structure, interaction) → owner images → public product pages for the rest.
+- The reference design system (private study in `docs/private/design-system/`) is the floor for tables, filter bars, forms, record headers, status, empty and error states, spacing and density: a composed screen may not fall below what it does for the same pattern. Taste and impeccable win where they disagree on contrast, accessibility, fonts or icons.
+- Each UI brief names the study pattern its screen must meet. Tracked text never names the reference brand.
+
 ## Two shelves
 
 | Shelf | Where | What it answers | What it cannot establish |
