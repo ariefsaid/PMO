@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { billingAgreementRoutes } from '@/src/test/figureAgreementRoutes';
 import { renderFigureAgreementRoute } from '@/src/test/figureAgreementHarness';
+import { setFigureAgreementSingleCurrencyContractCase } from '@/src/test/figureAgreementRepositoryMock';
 
 vi.unmock('@/src/hooks/useProjectsMoneyCollection');
 
@@ -30,6 +31,7 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
 
 const contractRoute = billingAgreementRoutes.find((route) => route.id === 'billing.project.contract')!;
 const reportRoute = billingAgreementRoutes.find((route) => route.id === 'billing.reports')!;
+const homeRoute = billingAgreementRoutes.find((route) => route.id === 'billing.home.executive.overview')!;
 
 for (const route of billingAgreementRoutes) {
   if (route.id === 'billing.project.contract' || route.id === 'billing.reports') continue;
@@ -39,29 +41,57 @@ for (const route of billingAgreementRoutes) {
   });
 }
 
-describe('S01 invoiced figure agreement on real screens', () => {
-  it('smoke: Reports keeps cumulative and selected-period billed work labelled separately', async () => {
+describe('S02 billed-work figure agreement on real screens', () => {
+  afterEach(() => setFigureAgreementSingleCurrencyContractCase(false));
+  it('Reports shows selected-period, cumulative, and opening billed work as distinct figures', async () => {
     const user = userEvent.setup();
     const { container } = renderFigureAgreementRoute(reportRoute);
-    await waitFor(() => expect(container.textContent).toContain('Invoiced to date'));
-    await waitFor(() => expect(container.textContent).toMatch(/150/u));
+    const figures = await screen.findByRole('region', { name: 'Report figures' });
+    await waitFor(() => expect(figures.textContent).toMatch(/Invoiced in period\s*\$110/u));
+    expect(figures.textContent).toMatch(/Invoiced in period\s*\$110/u);
+    expect(figures.textContent).toMatch(/Invoiced to date\s*\$150/u);
+    expect(figures.textContent).toMatch(/Opening invoiced\s*\$40/u);
+    expect(screen.getByRole('columnheader', { name: 'Invoiced' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Show monthly totals/u }));
     await waitFor(() => expect(container.textContent).toContain('Nov 2026'));
     expect(container.textContent).toMatch(/110/u);
-    expect(container.textContent).toContain('Invoiced to date');
+    expect(within(screen.getByRole('table', { name: 'Monthly totals' })).getByRole('columnheader', { name: 'Invoiced' })).toBeInTheDocument();
   });
 
-  // S02 flips this baseline red case after replacing the Contract tab's all-kind, unfiltered invoice sum with the contract-kind,
-  // project-currency reading already exposed by Project finances.
-  it.fails('contract invoiced agrees with the independently pinned USD contract-kind total', async () => {
-    renderFigureAgreementRoute(contractRoute);
-    let observed = '';
-    await waitFor(() => {
-      const invoicedStep = screen.getByRole('listitem', { name: /^Invoiced /u });
-      observed = invoicedStep.getAttribute('aria-label') ?? '';
-      expect(observed).not.toBe('');
+  it('home and Reports agree when both use the same selected month', async () => {
+    const home = renderFigureAgreementRoute({
+      ...homeRoute,
+      location: '/?period=custom&from=2026-11&to=2026-11',
     });
-    console.info(`FIGURE AGREEMENT RED · contract-invoiced · ProjectDetail Contract tab · expected USD $100 · observed ${observed}`);
-    expect(observed).toContain('$100');
+    const homeFigures = await screen.findByRole('region', { name: 'Company figures' });
+    await waitFor(() => expect(homeFigures.textContent).toMatch(/Invoiced\s*\$110/u));
+    const homeAmount = homeFigures.textContent?.match(/Invoiced\s*(\$[\d,.]+)/u)?.[1];
+    home.unmount();
+
+    renderFigureAgreementRoute(reportRoute);
+    const reportFigures = await screen.findByRole('region', { name: 'Report figures' });
+    await waitFor(() => expect(reportFigures.textContent).toMatch(/Invoiced in period\s*\$110/u));
+    const reportAmount = within(reportFigures).getByText('Invoiced in period').parentElement?.parentElement?.textContent?.match(/\$[\d,.]+/u)?.[0];
+
+    expect(homeAmount).toBe('$110');
+    expect(reportAmount).toBe(homeAmount);
+  });
+
+  it('contract invoiced is unavailable when the agreement fixture includes a foreign-currency Contract invoice', async () => {
+    renderFigureAgreementRoute(contractRoute);
+    const invoicedStep = await screen.findByRole('listitem', { name: /^Invoiced /u }, { timeout: 10_000 });
+    expect(invoicedStep).toHaveTextContent('—');
+    expect(invoicedStep).not.toHaveTextContent('$100');
+    expect(invoicedStep).not.toHaveTextContent('$0');
+    expect(invoicedStep).toHaveTextContent('Signed contract · excluding tax');
+  });
+
+  it('contract invoiced is $100 and 10% for a single-currency Contract invoice set', async () => {
+    setFigureAgreementSingleCurrencyContractCase(true);
+    renderFigureAgreementRoute(contractRoute);
+    const invoicedStep = await screen.findByRole('listitem', { name: /^Invoiced /u }, { timeout: 10_000 });
+    expect(invoicedStep).toHaveTextContent('$100');
+    expect(invoicedStep).toHaveTextContent('Signed contract · excluding tax');
+    expect(invoicedStep).toHaveTextContent('10%');
   });
 });

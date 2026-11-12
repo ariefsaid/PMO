@@ -267,3 +267,75 @@ test('NFR-JEC-002: the journals read pages past one page and stops at a short pa
   assert.equal(rows.length, JOURNAL_PAGE + 7);
   assert.deepEqual(calls, [[0, JOURNAL_PAGE - 1], [JOURNAL_PAGE, 2 * JOURNAL_PAGE - 1]]);
 });
+
+test('AC-ROP-012 journal history preview and apply preserve request identities and report each result', async () => {
+  const { validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly } = await import('./lib/pmo-purchases.mjs');
+  const group = { request_id: '11111111-1111-4111-8111-111111111111', project_id: '22222222-2222-4222-8222-222222222222', vendor_id: '33333333-3333-4333-8333-333333333333', title: 'Purchase', vendor_confirmed: true, journal_lines: [{ erp_doctype: 'Journal Entry', voucher_no: 'J1', project_id: '22222222-2222-4222-8222-222222222222', account: 'Cost' }] };
+  assert.deepEqual(validateRecordOnlyGroups([group]), []);
+  const calls = [];
+  const api = { rpc: async (name, body) => { calls.push({ name, body }); return { outcome: 'create', amount: 10, erp_write: false }; } };
+  const preview = await runRecordOnly(api, [group], { dryRun: true });
+  const apply = await runRecordOnly(api, [group], { dryRun: false });
+  assert.equal(calls[0].name, 'create_record_only_journal_purchase');
+  assert.deepEqual(calls[0].body, { p_group: group, p_dry_run: true });
+  assert.deepEqual(calls[1].body, { p_group: group, p_dry_run: false });
+  assert.equal(preview.results[0].request_id, group.request_id);
+  assert.equal(apply.results[0].outcome, 'create');
+  await runUndoRecordOnly(api, group.project_id, 'Wrong project', { dryRun: true });
+  assert.deepEqual(calls[2], { name: 'undo_captured_purchase', body: { p_procurement_id: group.project_id, p_reason: 'Wrong project', p_dry_run: true } });
+});
+
+test('AC-ROP-012 validation and transport failure retain identities for safe retry', async () => {
+  const { validateRecordOnlyGroups, runRecordOnly } = await import('./lib/pmo-purchases.mjs');
+  assert.ok(validateRecordOnlyGroups([]).length);
+  const group = { request_id: '11111111-1111-4111-8111-111111111111', project_id: '22222222-2222-4222-8222-222222222222', vendor_id: '33333333-3333-4333-8333-333333333333', title: 'Purchase', journal_lines: [{ erp_doctype: 'Journal Entry', voucher_no: 'J1', project_id: '22222222-2222-4222-8222-222222222222', account: 'Cost' }] };
+  const report = await runRecordOnly({ rpc: async () => { throw new Error('connection lost'); } }, [group], { dryRun: false });
+  assert.equal(report.error.message, 'connection lost');
+  assert.deepEqual(report.not_saved_request_ids, [group.request_id]);
+});
+
+test('AC-ROP-012 a server validation refusal is reported per group and the next group runs', async () => {
+  const { runRecordOnly } = await import('./lib/pmo-purchases.mjs');
+  const groups = [{ request_id: 'one' }, { request_id: 'two' }];
+  const report = await runRecordOnly({ rpc: async (_name, { p_group }) => {
+    if (p_group.request_id === 'one') throw Object.assign(new Error('line_not_positive_or_cancelled'), { code: '22023', status: 400 });
+    return { outcome: 'create' };
+  } }, groups, { dryRun: true });
+  assert.deepEqual(report.counts, { create: 1, skip: 0, refused: 1 });
+  assert.equal(report.results[0].reason, 'line_not_positive_or_cancelled');
+  assert.equal(report.results[1].request_id, 'two');
+});
+
+test('AC-ROP-SAFETY-CLI definite permission denials retain row context and continue', async () => {
+  const { runRecordOnly } = await import('./lib/pmo-purchases.mjs');
+  const groups = [{ request_id: 'one', project_id: 'p', vendor_id: 'v', reference: 'R', journal_lines: [{ erp_doctype: 'Journal Entry', voucher_no: 'J1', project_id: 'p', account: 'Cost' }] }, { request_id: 'two' }];
+  const report = await runRecordOnly({ rpc: async (_name, { p_group }) => {
+    if (p_group.request_id === 'one') throw Object.assign(new Error('forbidden'), { code: '42501', status: 403 });
+    return { outcome: 'create' };
+  } }, groups, { dryRun: false });
+  assert.deepEqual(report.counts, { create: 1, skip: 0, refused: 1 });
+  assert.equal(report.results[0].project_id, 'p');
+  assert.equal(report.results[0].vendor_id, 'v');
+  assert.equal(report.results[0].reference, 'R');
+  assert.deepEqual(report.results[0].journal_lines, groups[0].journal_lines);
+  assert.equal(report.results[1].request_id, 'two');
+});
+
+test('AC-ROP-SAFETY-CLI refusals expose only source identity and caller context', async () => {
+  const { runRecordOnly } = await import('./lib/pmo-purchases.mjs');
+  const group = { request_id: 'r', project_id: 'p', vendor_id: 'v', reference: 'R', private_note: 'ignore', journal_lines: [{ erp_doctype: 'Journal Entry', voucher_no: 'J', project_id: 'p', account: 'Cost', private_note: 'ignore' }] };
+  const report = await runRecordOnly({ rpc: async () => { throw Object.assign(new Error('bad request'), { status: 400 }); } }, [group], { dryRun: true });
+  assert.equal(report.results[0].outcome, 'refused');
+  assert.deepEqual(report.results[0].journal_lines, [{ erp_doctype: 'Journal Entry', voucher_no: 'J', project_id: 'p', account: 'Cost' }]);
+  assert.equal(report.results[0].private_note, undefined);
+});
+
+test('AC-ROP-SAFETY-CLI an undone replay is refused with caller context', async () => {
+  const { runRecordOnly } = await import('./lib/pmo-purchases.mjs');
+  const group = { request_id: 'r', project_id: 'p', vendor_id: 'v', reference: 'R', journal_lines: [{ erp_doctype: 'Journal Entry', voucher_no: 'J', project_id: 'p', account: 'Cost' }] };
+  const report = await runRecordOnly({ rpc: async () => ({ outcome: 'refused', reason: 'undone' }) }, [group], { dryRun: false });
+  assert.deepEqual(report.counts, { create: 0, skip: 0, refused: 1 });
+  assert.equal(report.results[0].project_id, 'p');
+  assert.equal(report.results[0].reference, 'R');
+  assert.deepEqual(report.results[0].journal_lines, group.journal_lines);
+});

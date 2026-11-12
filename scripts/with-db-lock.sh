@@ -31,14 +31,22 @@
 #   PMO_DB_LOCK_TIMEOUT  seconds to wait before giving up (default: wait forever)
 set -euo pipefail
 
+DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# The wrappers' own tests (temp lock paths only; they never touch the machine locks).
+if [ "${1:-}" = "--self-test" ]; then
+  [ "$#" -eq 1 ] || { echo "usage: $0 --self-test" >&2; exit 2; }
+  exec node --test --test-name-pattern 'lock' "$DIR/parallel-infra.test.mjs"
+fi
+
 LOCK="${PMO_DB_LOCK:-$HOME/.pmo-supabase-db.lock}"
 TIMEOUT="${PMO_DB_LOCK_TIMEOUT:-0}"
 
 if [ "$#" -eq 0 ]; then
   echo "usage: $0 <command...>   (wraps a DB-driving command in the shared lock)" >&2
+  echo "       $0 --self-test    (runs the wrappers' own lock tests on temp paths)" >&2
   exit 2
 fi
 
-DIR="$(cd "$(dirname "$0")" && pwd)"
 exec "$DIR/lib/flock-run.sh" "db-lock" "$LOCK" "$TIMEOUT" "PMO_DB_LOCK_HELD" \
   "the shared local Supabase DB" -- "$@"

@@ -1,5 +1,6 @@
 import { AppError } from '@/src/lib/appError';
 import { supabase } from '@/src/lib/supabase/client';
+import type { ExactMoney } from '@/src/lib/projectFinances';
 
 export interface ProjectMoneyCategory {
   category: string;
@@ -29,6 +30,24 @@ export interface ProjectMoneyRead {
   activeBudgetAmount: string | null;
   activeBudgetCurrency: string | null;
   hasActiveBudget: boolean;
+}
+
+/** Set-based project budget reading from project_budget_positions (0859). */
+export interface CanonicalBudgetReading {
+  projectId: string;
+  ledgerBasis: 'erp' | 'pmo';
+  currency: string | null;
+  budgetCurrency: string | null;
+  activeBudgetAmount: ExactMoney | null;
+  spent: ExactMoney | null;
+  openCommitment: ExactMoney | null;
+  consumption: ExactMoney | null;
+  complete: boolean;
+  usedRatio: string | null;
+  usedPercent: string | null;
+  consumptionVariance: ExactMoney | null;
+  riskEligible: boolean;
+  atRisk: boolean | null;
 }
 
 /** Batched, canonical project Actual + Active-budget read for the visible collection. */
@@ -75,6 +94,35 @@ export async function getProjectsMoneyCollection(ids: string[]): Promise<Record<
       activeBudgetAmount: row.active_budget_amount ?? null,
       activeBudgetCurrency: row.active_budget_currency ?? null,
       hasActiveBudget: row.has_active_budget,
+    };
+  }
+  return result;
+}
+
+/** Batched canonical consumption/risk facts; decimal fields stay strings and category coverage stays separate. */
+export async function getProjectBudgetPositions(ids: string[]): Promise<Record<string, CanonicalBudgetReading>> {
+  if (ids.length === 0) return {};
+  const { data, error } = await supabase.rpc('project_budget_positions', { p_project_ids: ids });
+  if (error) throw new AppError(error.message, error.code);
+
+  const result: Record<string, CanonicalBudgetReading> = {};
+  for (const row of data ?? []) {
+    if (!row.project_id || (row.ledger_basis !== 'erp' && row.ledger_basis !== 'pmo')) continue;
+    result[row.project_id] = {
+      projectId: row.project_id,
+      ledgerBasis: row.ledger_basis,
+      currency: row.currency ?? null,
+      budgetCurrency: row.budget_currency ?? null,
+      activeBudgetAmount: row.active_budget_amount ?? null,
+      spent: row.spent ?? null,
+      openCommitment: row.open_commitment ?? null,
+      consumption: row.consumption ?? null,
+      complete: row.complete === true,
+      usedRatio: row.used_ratio ?? null,
+      usedPercent: row.used_percent ?? null,
+      consumptionVariance: row.consumption_variance ?? null,
+      riskEligible: row.risk_eligible === true,
+      atRisk: row.at_risk === true ? true : row.at_risk === false ? false : null,
     };
   }
   return result;
