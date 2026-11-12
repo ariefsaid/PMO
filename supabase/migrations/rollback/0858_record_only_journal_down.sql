@@ -260,6 +260,7 @@ declare
   v_step public.procurement_status;
   v_proc public.procurements;
   v_refusal text;
+  v_linked_state text;
 begin
   v_step := case p_erp_doc_kind
     when 'purchase-order'   then 'Ordered'::public.procurement_status
@@ -274,9 +275,13 @@ begin
      where id = p_procurement_id and org_id = p_org_id for update;
   end if;
   if v_proc.id is null then return 'purchase_not_found'; end if;
-  if p_erp_doc_kind in ('goods-receipt','purchase-invoice')
-     and public.linked_step_state(p_org_id, p_procurement_id, p_erp_doc_kind) = 'already_in_erp' then
-    return 'step_already_recorded';
+  if p_erp_doc_kind in ('goods-receipt','purchase-invoice') then
+    v_linked_state := public.linked_step_state(p_org_id, p_procurement_id, p_erp_doc_kind);
+    if v_linked_state like 'already_in_erp_unlinked:%' then
+      return 'ERP ' || substr(v_linked_state, 25) || ' already records this; link it instead of sending a new one.';
+    elsif v_linked_state = 'already_in_erp' then
+      return 'step_already_recorded';
+    end if;
   end if;
   if p_erp_doc_kind = 'purchase-invoice' and v_proc.is_subcontract                                       -- 0475
      and exists (select 1 from public.purchase_order_revisions r where r.procurement_id = v_proc.id) then -- 0475

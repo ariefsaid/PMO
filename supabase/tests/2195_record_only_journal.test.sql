@@ -1,6 +1,6 @@
 -- Record-only purchases: journal creation is atomic and never changes project actuals.
 begin;
-select plan(79);
+select plan(87);
 insert into organizations (id, name, default_currency) values
   ('21950000-0000-0000-0000-00000000000a','JEC A','IDR'), ('21950000-0000-0000-0000-00000000000b','JEC B','IDR');
 insert into auth.users (id, email) values
@@ -39,6 +39,8 @@ insert into erp_gl_entry_mirror (org_id, erp_name, company, account, project, vo
   ('21950000-0000-0000-0000-00000000000a','gp','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-PMO','2026-03-10',20,0,false,null,'2026-03-10'),
   ('21950000-0000-0000-0000-00000000000a','gu','Example Co','Cost of Goods - X','ERP-A1','Purchase Invoice','PINV-9','2026-03-11',77,0,false,null,'2026-03-11'),
   ('21950000-0000-0000-0000-00000000000b','gb','Other Co','Project Subcontractors - X','ERP-B1','Journal Entry','JV-B','2026-03-02',30,0,false,null,'2026-03-02');
+insert into public.erp_gl_entry_mirror (org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,erp_modified) values
+ ('21950000-0000-0000-0000-00000000000a','g4','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-4','2026-03-07',10,0,false,'2026-03-07');
 insert into public.erp_gl_entry_mirror (org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,party,erp_modified) values
  ('21950000-0000-0000-0000-00000000000a','gparty','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-PARTY','2026-03-06',20,0,false,'Different supplier','2026-03-06');
 insert into public.erp_gl_entry_mirror (org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,erp_modified) values
@@ -103,6 +105,9 @@ select is((select coalesce(sum(amount),0) from public.project_committed_spend('2
 -- Each request uses a stable source identity and is safe to preview and retry.
 select is(public.create_record_only_journal_purchase(
   '{"request_id":"21950000-0000-0000-0000-000000000991","project_id":"21950000-0000-0000-0000-0000000000d1","vendor_id":"21950000-0000-0000-0000-000000000901","vendor_confirmed":true,"reference":"Reference","title":"Historical purchase","journal_lines":[{"erp_doctype":"Journal Entry","voucher_no":"JV-1","project_id":"21950000-0000-0000-0000-0000000000d1","account":"Project Subcontractors - X"}]}'::jsonb, false)->>'outcome', 'skip', 'AC-ROP-008 retry is idempotent');
+select set_config('rop.retry',public.create_record_only_journal_purchase('{"request_id":"21950000-0000-0000-0000-000000000991","project_id":"21950000-0000-0000-0000-0000000000d1","vendor_id":"21950000-0000-0000-0000-000000000901","vendor_confirmed":true,"reference":"Reference","title":"Historical purchase","journal_lines":[{"erp_doctype":"Journal Entry","voucher_no":"JV-1","project_id":"21950000-0000-0000-0000-0000000000d1","account":"Project Subcontractors - X"}]}'::jsonb,false)::text,true);
+select is(current_setting('rop.retry')::jsonb->>'actuals_delta','0','AC-ROP-008 retry reports unchanged actuals');
+select is(current_setting('rop.retry')::jsonb->>'amount','60.00','AC-ROP-008 retry returns original amount');
 select throws_ok($test$select public.create_record_only_journal_purchase(
   '{"request_id":"21950000-0000-0000-0000-000000000992","project_id":"21950000-0000-0000-0000-0000000000d1","vendor_id":"21950000-0000-0000-0000-000000000901","vendor_confirmed":true,"title":"Refund","journal_lines":[{"erp_doctype":"Journal Entry","voucher_no":"JV-3","project_id":"21950000-0000-0000-0000-0000000000d1","account":"Cost of Goods - X"}]}'::jsonb, false)$test$, '22023', 'line_not_positive_or_cancelled', 'AC-ROP-007 negative journal is refused');
 select throws_ok($test$select public.create_record_only_journal_purchase(
@@ -159,6 +164,9 @@ select throws_ok($test$select public.create_record_only_journal_purchase('{}'::j
 set local request.jwt.claims = '{"sub":"21950000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select throws_ok($test$select public.create_record_only_journal_purchase('{}'::jsonb,true)$test$, '42501', 'not authorized', 'AC-ROP-005 Engineer cannot preview');
 set local request.jwt.claims = '{"sub":"21950000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select set_config('rop.multiline', public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines}',(pg_temp.journal_group()->'journal_lines') || '[{"erp_doctype":"Journal Entry","voucher_no":"JV-4","project_id":"21950000-0000-0000-0000-0000000000d1","account":"Project Subcontractors - X"}]'::jsonb),true)::text,true);
+select is((current_setting('rop.multiline')::jsonb->>'amount')::numeric,60::numeric,'AC-ROP-001 two source lines are summed');
+select is(jsonb_array_length(current_setting('rop.multiline')::jsonb->'source_keys'),2,'AC-ROP-001 preview retains both source keys');
 select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines,0,voucher_no}','"JV-MIX"'),true)$test$, '22023','negative_line_requires_review','AC-ROP-007 negative source rows cannot be silently netted');
 select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines,0,voucher_no}','"JV-PARTY"'),true)$test$, '22023','supplier_mismatch','AC-ROP-007 a conflicting known supplier is refused');
 select ok(not has_function_privilege('anon','public.create_record_only_journal_purchase(jsonb,boolean)','execute'),'AC-ROP-005 anonymous create is revoked');
@@ -193,6 +201,9 @@ reset role;
 delete from public.external_org_bindings where org_id='21950000-0000-0000-0000-00000000000a' and external_tier='odoo';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select set_config('rop.multiline_applied',public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines}',(pg_temp.journal_group()->'journal_lines') || '[{"erp_doctype":"Journal Entry","voucher_no":"JV-4","project_id":"21950000-0000-0000-0000-0000000000d1","account":"Project Subcontractors - X"}]'::jsonb),false)::text,true);
+select is((select total_value from public.procurements where id=(current_setting('rop.multiline_applied')::jsonb->>'procurement_id')::uuid),60::numeric,'AC-ROP-001 multiple lines create one purchase with their sum');
+select is((select count(*)::int from public.erp_journal_line_links where procurement_id=(current_setting('rop.multiline_applied')::jsonb->>'procurement_id')::uuid),2,'AC-ROP-001 both lines attach to that purchase');
 select has_function('public','undo_captured_purchase',array['uuid','text','boolean'], 'AC-ROP-009 undo RPC exists');
 select lives_ok($test$select public.undo_captured_purchase((select id from procurements where title='Historical purchase edited'),'Incorrect link',false)$test$, 'AC-ROP-009 Admin undoes record');
 select is((select status::text from public.procurements where title='Historical purchase edited'),'Cancelled','AC-ROP-009 undo cancels wrapper');
@@ -201,6 +212,8 @@ select is(public.undo_captured_purchase((select id from public.procurements wher
 select is((select coalesce(sum(actuals_to_date),0) from public.project_mapped_actuals('21950000-0000-0000-0000-0000000000d1')),110::numeric,'AC-ROP-009 undo leaves actuals unchanged');
 select is((select count(*)::int from public.erp_journal_line_links where procurement_id=(select id from public.procurements where title='Historical purchase edited')),0,'AC-ROP-009 no journal links remain after undo');
 select is((select count(*)::int from public.external_command_outbox where org_id='21950000-0000-0000-0000-00000000000a'),0,'AC-ROP-009 undo creates no outbox');
+select is((select detail->>'assignment_origin' from public.audit_events where action='procurement.record_only_create' and entity_id=(select id from public.procurements where title='Historical purchase edited')),'erp_project','AC-ROP-032 create audit records assignment origin');
+select is((select detail->>'actuals_delta' from public.audit_events where action='procurement.record_only_undo' and entity_id=(select id from public.procurements where title='Historical purchase edited')),'0','AC-ROP-032 undo audit records unchanged placement');
 select is((select count(*)::int from public.audit_events where action='procurement.record_only_create' and entity_id=(select id from public.procurements where title='Historical purchase edited')),1,'AC-ROP-032 create audit survives undo');
 select is((select count(*)::int from public.audit_events where action='procurement.record_only_undo' and entity_id=(select id from public.procurements where title='Historical purchase edited')),1,'AC-ROP-032 undo is audited once');
 select ok((select undone_at is not null and undo_reason='Incorrect link' from public.erp_purchase_captures where procurement_id=(select id from public.procurements where title='Historical purchase edited')),'AC-ROP-009 shared provenance retains undo reason');

@@ -52,7 +52,7 @@ Deno.test('other domains, kinds and operations are not this gate', async () => {
   assertEquals((await checkProcurementGate(c as never, 'o1', { ...cmd('quotation') })).ok, true);
   assertEquals((await checkProcurementGate(c as never, 'o1', cmd('purchase-order', 'transition'))).ok, true);
   assertEquals((await checkProcurementGate(c as never, 'o1', { ...cmd('purchase-order'), domain: 'revenue' })).ok, true);
-  assertEquals(c.calls.map((call) => call.fn), ['record_only_step_refusal']);
+  assertEquals(c.calls.map((call) => call.fn), ['record_only_step_refusal', 'record_only_step_refusal']);
 });
 Deno.test('fails closed: purchase of another org, unreadable row, RPC failure, missing id', async () => {
   assertEquals((await checkProcurementGate(fakeClient({ orgRow: null }) as never, 'o1', cmd('purchase-order'))).message, 'purchase_not_found');

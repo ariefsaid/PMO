@@ -82,7 +82,11 @@ begin
    where org_id = v_org and request_id = v_request;
   if found then
     if v_old is distinct from p_group then raise exception 'request_payload_changed' using errcode = '22023'; end if;
-    return jsonb_build_object('outcome','skip','reason','already_recorded','procurement_id',v_purchase,'erp_write',false);
+    select total_value, currency, record_only_date into v_total, v_currency, v_date from public.procurements where id=v_purchase and org_id=v_org;
+    return jsonb_build_object('outcome','skip','reason','already_recorded','would_create',false,'procurement_id',v_purchase,
+      'amount',v_total,'currency',v_currency,'erp_write',false,'request_id',v_request,'source_keys',p_group->'journal_lines',
+      'project_id',v_project,'vendor_id',v_vendor,'reference',v_reference,'assignment_origin','erp_project',
+      'actuals_delta',0,'source_date',v_date,'stage','already_settled_in_erp');
   end if;
   if not exists (select 1 from public.projects where id = v_project and org_id = v_org) then
     raise exception 'project_not_found' using errcode = '22023';
@@ -152,7 +156,8 @@ begin
   insert into public.erp_purchase_captures(org_id,binding_id,request_id,procurement_id,payload,kind,stage,captured_by)
   values(v_org,v_binding,v_request,v_purchase,p_group,'journal','paid',v_actor);
   perform public.log_audit('procurement.record_only_create',v_org,v_actor,v_purchase,
-    jsonb_build_object('project_id',v_project,'vendor_id',v_vendor,'sources',v_sources,'reference',v_reference));
+    jsonb_build_object('project_id',v_project,'vendor_id',v_vendor,'sources',v_sources,'reference',v_reference,
+                       'assignment_origin','erp_project','before_project',v_project,'after_project',v_project,'actuals_delta',0));
   return jsonb_build_object('outcome','create','would_create',false,'procurement_id',v_purchase,'amount',v_total,'currency',v_currency,'erp_write',false,'request_id',v_request,'source_keys',v_sources,'project_id',v_project,'vendor_id',v_vendor,'reference',v_reference,'assignment_origin','erp_project','actuals_delta',0,'source_date',v_date,'stage','already_settled_in_erp');
 end $$;
 revoke all on function public.create_record_only_journal_purchase(jsonb,boolean) from public, anon;
@@ -222,7 +227,8 @@ begin
     update public.procurements set status='Cancelled', updated_at=now() where id=p_procurement_id;
     update public.erp_purchase_captures set undone_at=now(), undo_reason=p_reason where procurement_id=p_procurement_id;
     perform public.log_audit('procurement.record_only_undo',v_org,auth.uid(),p_procurement_id,
-      jsonb_build_object('project_id',v_proc.project_id,'vendor_id',v_proc.vendor_id,'sources',v_history->'journal_lines','reason',p_reason));
+      jsonb_build_object('project_id',v_proc.project_id,'vendor_id',v_proc.vendor_id,'sources',v_history->'journal_lines','reason',p_reason,
+                         'assignment_origin','erp_project','before_project',v_proc.project_id,'after_project',v_proc.project_id,'actuals_delta',0));
   end if;
   return jsonb_build_object('outcome','undo','dry_run',p_dry_run,'procurement_id',p_procurement_id,'erp_write',false);
 end $$;
@@ -526,6 +532,7 @@ declare
   v_step public.procurement_status;
   v_proc public.procurements;
   v_refusal text;
+  v_linked_state text;
 begin
   v_step := case p_erp_doc_kind
     when 'purchase-order'   then 'Ordered'::public.procurement_status
@@ -542,9 +549,13 @@ begin
   if v_proc.id is null then return 'purchase_not_found'; end if;
   v_refusal := public.record_only_step_refusal(v_proc.id);
   if v_refusal is not null then return v_refusal; end if;
-  if p_erp_doc_kind in ('goods-receipt','purchase-invoice')
-     and public.linked_step_state(p_org_id, p_procurement_id, p_erp_doc_kind) = 'already_in_erp' then
-    return 'step_already_recorded';
+  if p_erp_doc_kind in ('goods-receipt','purchase-invoice') then
+    v_linked_state := public.linked_step_state(p_org_id, p_procurement_id, p_erp_doc_kind);
+    if v_linked_state like 'already_in_erp_unlinked:%' then
+      return 'ERP ' || substr(v_linked_state, 25) || ' already records this; link it instead of sending a new one.';
+    elsif v_linked_state = 'already_in_erp' then
+      return 'step_already_recorded';
+    end if;
   end if;
   if p_erp_doc_kind = 'purchase-invoice' and v_proc.is_subcontract                                       -- 0475
      and exists (select 1 from public.purchase_order_revisions r where r.procurement_id = v_proc.id) then -- 0475

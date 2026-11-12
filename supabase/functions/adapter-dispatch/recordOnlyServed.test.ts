@@ -78,3 +78,9 @@ Deno.test('AC-ROP-004 a retry for a captured purchase is refused before ERP work
   assert(result.body.includes('record_only_forward_step_refused'), result.body);
   assertEquals(result.calls.filter((call) => call.url.host === 'erp.example.test' && call.method !== 'GET').length, 0);
 });
+Deno.test('AC-ROP-004 a captured purchase cannot dispatch a quotation', async () => {
+  const result = await dispatch({ ...raw, erp_doc_kind: 'quotation' }, false, true);
+  assertEquals(result.status, 422, result.body);
+  assert(result.body.includes('record_only_forward_step_refused'), result.body);
+  assertEquals(result.calls.filter((call) => call.url.host === 'erp.example.test' && call.method !== 'GET').length, 0);
+});
