@@ -182,6 +182,9 @@ describe('ProjectDetailHeader finance query demand', () => {
     expect(document.body).toHaveTextContent('50%');
     expect(h.getProjectFinances).not.toHaveBeenCalled();
     expect(h.getProjectBudget).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-testid="stat-tiles"]')).toBeInTheDocument();
+    const recordHeader = document.querySelector('[data-testid="record-header"]');
+    const budgetFigures = recordHeader?.querySelector('[data-testid="compact-project-budget-figures"]');
+    expect(budgetFigures).toBeInTheDocument();
+    expect(budgetFigures?.querySelector('[data-testid="stat-tiles"]')).toHaveAttribute('data-density', 'compact');
   });
 });

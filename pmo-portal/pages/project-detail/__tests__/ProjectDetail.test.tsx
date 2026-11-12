@@ -25,10 +25,11 @@ const projectProcurementsState = { data: [] as unknown[] };
 const oppState = { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() };
 // CW-7: the role drives RBAC-gated affordances; it is mutable so a test can render the page as a
 // different role (e.g. Engineer) and assert the role-INVARIANT default tab.
-const { roleBox, desktopBox, projectMutations, projectTransition, budgetVersionsBox, committedSpendHook } = vi.hoisted(() => ({
+const { roleBox, desktopBox, projectMutations, projectTransition, budgetVersionsBox, budgetPositionsBox, committedSpendHook } = vi.hoisted(() => ({
   // Records the arguments so a test can prove which project-wide reads a role triggers.
   committedSpendHook: vi.fn(),
   budgetVersionsBox: { value: [] as unknown[] },
+  budgetPositionsBox: { value: {} as Record<string, unknown> },
   roleBox: { value: 'Project Manager' as string },
   desktopBox: { value: true },
   projectMutations: {
@@ -92,6 +93,15 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({
   useProjectFinances: () => ({ data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: 'USD', total: '2350000.00', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '2350000.00' }] } }, isPending: false, isError: false }),
+}));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: (projectIds: string[]) => ({
+    data: projectIds.length ? budgetPositionsBox.value : {},
+    isPending: false,
+    isError: false,
+    fetchStatus: 'idle',
+    refetch: vi.fn(),
+  }),
 }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -230,6 +240,12 @@ describe('ProjectDetail shell (decomposition)', () => {
     committedSpendHook.mockReset();
     committedSpendHook.mockImplementation(() => ({ data: committedSpendState.data, isPending: false, isError: false, commitmentSource: 'pmo', ledgerBasis: 'erp', refetch: vi.fn() }));
     budgetVersionsBox.value = [];
+    budgetPositionsBox.value = {
+      p1: {
+        projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '100.00',
+        spent: '50.00', openCommitment: '40.00', consumption: '90.00', complete: true, usedRatio: '0.9', usedPercent: '90',
+      },
+    };
     roleBox.value = 'Project Manager';
     desktopBox.value = true;
     navigate.mockClear();
@@ -262,6 +278,18 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(details).queryByText(/Move the project through its delivery stages/)).not.toBeInTheDocument();
 
     expect(screen.queryByText('Project information')).not.toBeInTheDocument();
+  });
+
+  it('S04: puts canonical before-tax budget use and separate spending in the desktop project facts row', async () => {
+    await renderAt('/projects/p1');
+    const facts = screen.getByRole('region', { name: 'Project facts' });
+    const figures = within(facts).getByTestId('compact-project-budget-figures');
+
+    expect(within(figures).getByText('Budget used before tax')).toBeVisible();
+    expect(within(figures).getByText('90%')).toBeVisible();
+    expect(within(figures).getByText('Spent (% of budget before tax)')).toBeVisible();
+    expect(within(figures).getByText('50%')).toBeVisible();
+    expect(within(figures).getByText('Spent + open orders, before tax')).toBeVisible();
   });
 
   it('2057: Copy link lives in the More actions menu', async () => {

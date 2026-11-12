@@ -111,6 +111,8 @@ export interface ProjectDetailHeaderProps {
   primaryAction?: React.ReactNode;
   /** Redesign shell: identity only — no money strip (money lives in its own block), quieter actions. */
   compact?: boolean;
+  /** Place compact canonical budget figures beside the desktop project facts when the page owns that row. */
+  budgetFiguresPlacement?: 'header' | 'facts';
   /** Increment to open the contract-value editor from elsewhere on the page. */
   editValueRequest?: number;
   /** Extra quiet action beside Edit (the Activity drawer button). */
@@ -286,7 +288,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
 };
 
 /** Small canonical budget facts stay visible in the compact project record header. */
-const CompactProjectBudgetFigures: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+export const CompactProjectBudgetFigures: React.FC<{ project: ProjectWithRefs; className?: string }> = ({ project, className }) => {
   const { t } = useTranslation('project');
   const positions = useProjectBudgetPositions([project.id]);
   const reading = positions.data?.[project.id];
@@ -309,9 +311,14 @@ const CompactProjectBudgetFigures: React.FC<{ project: ProjectWithRefs }> = ({ p
   ];
   if (tiles.length === 0) return null;
   return (
-    <section aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="mb-3 max-w-3xl">
-      <StatTiles tiles={tiles} columns={tiles.length} variant="bare" className="gap-y-1" />
-    </section>
+    <div
+      data-testid="compact-project-budget-figures"
+      role="group"
+      aria-label={t('projectDetail.budget.figures', 'Budget figures')}
+      className={`min-w-0 max-w-full flex-[2_1_30rem] ${className ?? ''}`}
+    >
+      <StatTiles tiles={tiles} columns={tiles.length} density="compact" variant="bare" className="grid-cols-2 gap-x-3 gap-y-0 [&>div]:py-0" />
+    </div>
   );
 };
 
@@ -339,6 +346,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   onEditProject,
   primaryAction,
   compact = false,
+  budgetFiguresPlacement = 'header',
   editValueRequest = 0,
   secondaryAction,
   menuContent,
@@ -425,7 +433,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
     : null;
   const meta = compact ? (
-    customerName ? <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground max-md:hidden"><span className="inline-flex items-center">{customerName}</span></div> : null
+    <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+      {customerName && <span className="inline-flex items-center max-md:hidden">{customerName}</span>}
+      {isDelivery && isFinanceForward && budgetFiguresPlacement === 'header' && (
+        <CompactProjectBudgetFigures project={project} className="md:hidden" />
+      )}
+    </div>
   ) : (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {customerName && <span className="font-medium text-foreground">{customerName}</span>}
@@ -808,8 +821,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         menuLabel={t('projectDetail.header.more', 'More actions')}
         className="mb-4 max-md:mb-2 max-md:!border-0 max-md:!bg-transparent max-md:!p-0 max-md:[&_[data-testid=record-header-actions]]:gap-1"
       />
-
-      {compact && isDelivery && isFinanceForward && <CompactProjectBudgetFigures project={project} />}
 
       {showCompactContractLock && (
         <div data-testid="contract-value-lock-lane" className="mb-1" hidden={!lockReasonOpen}>

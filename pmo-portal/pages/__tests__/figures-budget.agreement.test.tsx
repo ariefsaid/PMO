@@ -122,6 +122,18 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(laborRow).not.toHaveTextContent('$500');
   });
 
+  it('shows an unknown budget-used reading as unknown, never zero', async () => {
+    setFigureAgreementBudgetPositionOverride({
+      projectId: 'project-figure-primary', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+      spent: null, openCommitment: null, consumption: null, complete: false, usedRatio: null, usedPercent: null,
+      consumptionVariance: null, riskEligible: false, atRisk: null,
+    });
+    const { container } = renderFigureAgreementRoute(projectBudgetRoute);
+    await waitFor(() => expect(container.textContent).toContain('Budget used before tax is unknown or unavailable.'));
+    expect(container.textContent).not.toMatch(/Budget used before tax\s*0%/u);
+    expect(container.textContent).not.toMatch(/Budget used before tax\s*0(?:\.0+)?% of/u);
+  });
+
   it('uses ledger spending only for an ERP Budget used before tax and left position', async () => {
     const erpPosition: CanonicalBudgetReading = {
       projectId: 'project-figure-primary', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
