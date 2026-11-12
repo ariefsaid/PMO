@@ -283,7 +283,8 @@
       "logHoursShort": "Log hours",
       "daysLate_one": "{{count}} day overdue",
       "daysLate_other": "{{count}} days overdue",
-      "noHoursByProject": "No hours to show by project this week."
+      "noHoursByProject": "No hours to show by project this week.",
+      "tasksOverdueOrDue": "Overdue or due this week"
     },
     "pm": {
       "title": "My dashboard",

@@ -7,7 +7,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
 import { recentEntries } from '@/src/lib/timesheet-derive';
-import { formatDateOnly, formatNumberExact } from '@/src/lib/format';
+import { formatDay, formatNumberExact } from '@/src/lib/format';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { useNeedsYou } from './restructure/useNeedsYou';
@@ -169,7 +169,7 @@ export const EngineerDashboard: React.FC = () => {
         label={t('hub.engineer.hoursThisWeek', 'Hours this week')}
         value={weekKnown ? `${formatNumberExact(hoursThisWeek)} ${hourUnit}` : null}
         loading={timeLoading} error={timeError}
-        caption={weekStart ? t('hub.engineer.expectedWeek', 'Week of {{date}}', { date: formatDateOnly(weekStart) }) : undefined}
+        caption={weekStart ? t('hub.engineer.expectedWeek', 'Week of {{date}}', { date: formatDay(weekStart) }) : undefined}
         to="/timesheets" linkLabel={t('hub.engineer.openHours', 'Open timesheets for this week')}
       />
       <KPITile
@@ -177,13 +177,13 @@ export const EngineerDashboard: React.FC = () => {
         label={t('hub.engineer.timesheetStatus', 'Timesheet status')}
         value={!weekKnown ? null : currentStatus ? <StatusPill record="timesheet" state={currentStatus} /> : t('hub.engineer.notStarted', 'Not started')}
         loading={timeLoading} error={timeError}
-        caption={weekStart ? t('hub.engineer.dueDay', 'Due {{day}} · {{date}}', { day: dayLabels[4], date: formatDateOnly(addDays(weekStart, 4)) }) : undefined}
+        caption={weekStart ? t('hub.engineer.dueDay', 'Due {{day}} · {{date}}', { day: dayLabels[4], date: formatDay(addDays(weekStart, 4)) }) : undefined}
         to="/timesheets" linkLabel={t('hub.engineer.openStatus', 'Open timesheet status')}
         help={t('hub.engineer.statusHelp', 'Status comes from this week’s timesheet. If none exists yet, it is marked Not started. Timesheets are due Friday.')}
       />
       <KPITile
         testId="kpi-tasks-due" tone="amber" icon="tasks"
-        label={t('hub.engineer.tasksDue', 'Tasks due')}
+        label={t('hub.engineer.tasksOverdueOrDue', 'Overdue or due this week')}
         value={taskDataError || taskLoading ? null : String(overdueTasks.length + dueTasks.length)}
         loading={taskLoading} error={taskDataError}
         caption={taskDataError || taskLoading ? undefined : t('hub.engineer.tasksSummary', '{{overdue}} overdue · {{due}} due this week', { overdue: overdueTasks.length, due: dueTasks.length })}
@@ -212,7 +212,7 @@ export const EngineerDashboard: React.FC = () => {
       action={<Button variant="outline" size="sm" onClick={refresh} aria-label={t('hub.engineer.refresh', 'Refresh')}><Icon name="refresh" /><span className="hidden sm:inline">{t('hub.engineer.refresh', 'Refresh')}</span></Button>}
     />
   );
-  const waitsEl = <DashboardWaitsOnYou rows={waitRows} pending={needs.isPending} error={needs.isError || (taskReadError && waitRows.length === 0)} onRetry={refresh} />;
+  const waitsEl = <DashboardWaitsOnYou plain className="min-w-0 min-[900px]:col-span-4" rows={waitRows} pending={needs.isPending} error={needs.isError || (taskReadError && waitRows.length === 0)} onRetry={refresh} />;
   const recentEl = (
     <EngineerRecentEntriesPanel
       entries={recent}
@@ -235,16 +235,19 @@ export const EngineerDashboard: React.FC = () => {
       <div className="space-y-[var(--space-panel-gap)]" data-home-layout={overview ? 'overview' : 'focused'}>
         <div>{header}<FigureHiddenLine compact /></div>
         {band}
-        {waitsEl}
+        {/* Own work first: what waits (a third) beside my tasks, then the week, then what was returned. */}
+        <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-12 min-[900px]:items-start">
+          {waitsEl}
+          <div className="min-w-0 min-[900px]:col-span-8">{tasksCard}</div>
+        </div>
         <div className={twoUp}>
           {timesheetCard(overview)}
-          {tasksCard}
-        </div>
-        <div className={twoUp}>
           {projectHours}
-          {returnedEl}
         </div>
-        {recentEl}
+        <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-12 min-[900px]:items-start">
+          {returnedEl && <div className="min-w-0 min-[900px]:col-span-4">{returnedEl}</div>}
+          <div className={returnedEl ? 'min-w-0 min-[900px]:col-span-8' : 'min-w-0 min-[900px]:col-span-12'}>{recentEl}</div>
+        </div>
       </div>
     </FigureScope>
   );

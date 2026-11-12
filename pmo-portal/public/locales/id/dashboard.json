@@ -283,7 +283,8 @@
       "logHoursShort": "Catat jam",
       "daysLate_one": "terlambat {{count}} hari",
       "daysLate_other": "terlambat {{count}} hari",
-      "noHoursByProject": "Belum ada jam untuk ditampilkan per proyek minggu ini."
+      "noHoursByProject": "Belum ada jam untuk ditampilkan per proyek minggu ini.",
+      "tasksOverdueOrDue": "Terlambat atau jatuh tempo minggu ini"
     },
     "pm": {
       "title": "Dasbor saya",

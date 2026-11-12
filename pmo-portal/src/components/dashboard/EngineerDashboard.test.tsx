@@ -191,9 +191,10 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(tile('kpi-timesheet-status')).toHaveTextContent('Returned');
     expect(card).toHaveTextContent('Sent back for correction.');
     expect(band().compareDocumentPosition(screen.getByTestId('waits-on-you')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByTestId('waits-on-you').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(timesheetCard().compareDocumentPosition(tasksCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(tasksCard().compareDocumentPosition(screen.getByTestId('engineer-returned')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Own work first: what waits, then my tasks, then the week's timesheet, then what was returned.
+    expect(screen.getByTestId('waits-on-you').compareDocumentPosition(tasksCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(tasksCard().compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.compareDocumentPosition(screen.getByTestId('engineer-returned')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const text = document.body.textContent ?? '';
     expect(text).not.toMatch(/(?:Rp|USD|IDR|\$|invoice|budget|revenue|spending)/i);
@@ -420,10 +421,11 @@ describe('Engineer home — the floor restored', () => {
   it('opens with the week as four figures: hours with its week, status with its due day, tasks due, claims returned', () => {
     renderDashboard();
     expect(tile('kpi-hours-week')).toHaveTextContent('15.5 h');
-    expect(tile('kpi-hours-week')).toHaveTextContent(/Week of Jun 1, 2026/);
+    expect(tile('kpi-hours-week')).toHaveTextContent(/Week of 1 Jun/);
     expect(tile('kpi-timesheet-status')).toHaveTextContent('Returned');
-    expect(tile('kpi-timesheet-status')).toHaveTextContent(/Due Fri · Jun 5, 2026/);
-    expect(tile('kpi-tasks-due')).toHaveTextContent('2');
+    expect(tile('kpi-timesheet-status')).toHaveTextContent(/Due Fri · 5 Jun/);
+    // Named in the words of its Waits row (the same population: my tasks overdue or due this week).
+    expect(tile('kpi-tasks-due')).toHaveTextContent('Overdue or due this week2');
     expect(tile('kpi-tasks-due')).toHaveTextContent('1 overdue · 1 due this week');
     expect(within(band()).getByRole('link', { name: 'Open tasks due this week' })).toHaveAttribute('href', '/my-tasks?due=week');
     expect(tile('kpi-expenses-returned')).toHaveTextContent('1');
@@ -434,7 +436,7 @@ describe('Engineer home — the floor restored', () => {
     state.tasks.data = [];
     state.expenses.data = { rows: [], truncated: false };
     renderDashboard();
-    expect(tile('kpi-tasks-due')).toHaveTextContent(/^Tasks due0/);
+    expect(tile('kpi-tasks-due')).toHaveTextContent(/^Overdue or due this week0/);
     expect(tile('kpi-expenses-returned')).toHaveTextContent(/^Expense claims returned0/);
   });
 
