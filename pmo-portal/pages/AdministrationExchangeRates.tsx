@@ -278,7 +278,8 @@ const AdministrationExchangeRates: React.FC = () => {
                   ]
                 : undefined
             }
-          tableId="administrationexchangerates-table" />
+            tableId="administrationexchangerates-table"
+            accessibleName={t('admin.nav.exchangeRates', 'Exchange rates')} />
           <div className="mt-3 flex justify-end gap-2">
             <Button
               variant="outline"

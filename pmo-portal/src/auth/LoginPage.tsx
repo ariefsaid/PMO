@@ -176,7 +176,7 @@ const LoginPage: React.FC = () => {
 
   return (
     // Tinted ground (secondary/35%) — DESIGN.md neutral: "main scroll area uses secondary at 35%"
-    <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
+    <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
         {/* Brand lockup — mark + wordmark, then heading + subtext. A subtitle reads more
             considered than a bare heading and sets expectation before the form. */}
@@ -383,7 +383,7 @@ const LoginPage: React.FC = () => {
           <AppVersion />
         </footer>
       </div>
-    </div>
+    </main>
   );
 };
 

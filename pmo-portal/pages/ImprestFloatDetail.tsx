@@ -271,6 +271,14 @@ const ImprestFloatDetail: React.FC = () => {
                   <span className="tabular-nums text-muted-foreground">{t('imprest:counts.book', 'Book {{amount}}', { amount: moneyCents(c.book_amount) })}</span>
                   <span className={toCents(c.variance) !== 0 ? 'tabular-nums text-destructive-text' : 'tabular-nums'}>{t('imprest:counts.variance', 'Variance {{amount}}', { amount: moneyCents(c.variance) })}</span>
                   {c.note && <span className="min-w-0 flex-1 truncate text-muted-foreground" title={c.note}>{c.note}</span>}
+                  {c.note && (
+                    <details className="w-full">
+                      <summary className="cursor-pointer text-control text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                        {t('imprest:note.readFull', 'Read full note')}
+                      </summary>
+                      <p className="break-words pt-1 text-control text-muted-foreground">{c.note}</p>
+                    </details>
+                  )}
                 </li>
               ))}
             </ul>}

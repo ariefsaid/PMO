@@ -21,6 +21,15 @@ vi.mock('../ExecutiveDashboard', () => ({
 }));
 
 describe('AC-W3-F7: NotFound page component', () => {
+  it('exposes the page title as a level one heading', () => {
+    render(
+      <MemoryRouter>
+        <NotFound />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument();
+  });
+
   it('renders "page not found" copy', () => {
     render(
       <MemoryRouter>

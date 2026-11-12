@@ -9,7 +9,7 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
 // ── The single-contact hook + activities + mutations + the companies list are mocked. ──
-const { detailState, activitiesState, mutations, companiesState } = vi.hoisted(() => ({
+const { detailState, activitiesState, mutations, companiesState, companyRefState } = vi.hoisted(() => ({
   detailState: {
     data: undefined as Record<string, unknown> | null | undefined,
     isPending: false,
@@ -34,6 +34,11 @@ const { detailState, activitiesState, mutations, companiesState } = vi.hoisted((
   companiesState: {
     data: [{ id: 'co1', name: 'Cascade Port Authority', type: 'Client' }],
   },
+  companyRefState: {
+    data: undefined as Record<string, unknown> | null | undefined,
+    isPending: false,
+    isError: false,
+  },
 }));
 
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
@@ -47,6 +52,7 @@ vi.mock('@/src/hooks/useContacts', () => ({
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => companiesState,
+  useCompany: () => companyRefState,
 }));
 
 let realRole: Role = 'Admin';
@@ -131,6 +137,10 @@ beforeEach(() => {
   detailState.data = contact;
   detailState.isPending = false;
   detailState.isError = false;
+  companiesState.data = [{ id: 'co1', name: 'Cascade Port Authority', type: 'Client' }];
+  companyRefState.data = undefined;
+  companyRefState.isPending = false;
+  companyRefState.isError = false;
   activitiesState.data = [];
   activitiesState.isPending = false;
   activitiesState.isError = false;
@@ -158,6 +168,14 @@ describe('ContactDetail', () => {
     // Body fields are present.
     expect(screen.getByText('Cascade Port Authority')).toBeInTheDocument();
     expect(screen.getByText('jane@example.com')).toBeInTheDocument();
+  });
+
+  it('explains an unavailable company in visible text', () => {
+    detailState.data = { ...contact, company_id: 'co-missing' };
+    companiesState.data = [];
+    companyRefState.isError = true;
+    renderPage();
+    expect(screen.getByText('This company is not in your company directory.')).toBeVisible();
   });
 
   it('CW-4b: shows the loading skeleton while the record is pending', () => {

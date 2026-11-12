@@ -69,6 +69,14 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(screen.queryByText('Sharing')).not.toBeInTheDocument();
   });
 
+  it('gives each remove attendee button the attendee name', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/External guest/), 'Asha Noor');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    expect(screen.getByRole('button', { name: 'Remove attendee: Asha Noor' })).toBeInTheDocument();
+  });
+
   it('AC-MTG1-002: saves the meeting, attendees and minutes, then replaces the route', async () => {
     renderPage();
     const user = userEvent.setup();
