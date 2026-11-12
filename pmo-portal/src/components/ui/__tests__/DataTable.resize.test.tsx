@@ -182,8 +182,8 @@ describe('DataTable column resizing', () => {
 
   it('renders and remains resizable when localStorage reads or writes throw', () => {
     desktop();
-    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('storage unavailable'); });
-    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+    const getItem = vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+    const setItem = vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('storage unavailable'); });
     renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'throws-test' });
     const separator = screen.getByRole('separator', { name: /Project/i });
     fireEvent.keyDown(separator, { key: 'ArrowRight' });
