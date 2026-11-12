@@ -1,4 +1,4 @@
-import React, { useReducer } from 'react';
+import React, { useEffect, useReducer } from 'react';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { analyticsOptIn, analyticsOptOut, getAnalyticsConfig, getConsentState } from '@/src/lib/analytics';
 
@@ -45,6 +45,13 @@ export const AnalyticsOptOutToggle: React.FC = () => {
   // lifetime except the localStorage-derived part, which `forceRender` re-reads after a toggle.
   const [config] = React.useState(() => getAnalyticsConfig());
   const [, forceRender] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'pmo.analyticsOptOut' || event.key === null) forceRender();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   const state = getConsentState(config);
 
   const checked = state !== 'active';

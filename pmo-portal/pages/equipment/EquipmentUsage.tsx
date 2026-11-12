@@ -160,13 +160,26 @@ const EquipmentUsagePage: React.FC = () => {
   const submitWeek = async () => {
     setProblem(null);
     let sent = 0;
-    try {
-      for (const e of mine) {
+    const failed: string[] = [];
+    for (const e of mine) {
+      if (e.status !== 'Draft' && e.status !== 'Rejected') continue;
+      try {
         if (e.status === 'Rejected') await transition.mutateAsync({ id: e.id, to: 'Draft' });
-        if (e.status === 'Draft' || e.status === 'Rejected') { await transition.mutateAsync({ id: e.id, to: 'Submitted' }); sent += 1; }
+        await transition.mutateAsync({ id: e.id, to: 'Submitted' });
+        sent += 1;
+      } catch {
+        failed.push(`${assetName(e.asset_id)} · ${projectName(e.project_id)} · ${dayLabel(e.work_date)}`);
       }
-      if (sent > 0) toast(t('equipment:usage.submitted', '{{count}} entries submitted for approval', { count: sent }), undefined, 'success');
-    } catch (err) { fail(err); }
+    }
+    if (failed.length > 0) {
+      setProblem(t('equipment:usage.partialSubmit', '{{submitted}} submitted; {{failed}} failed. Failed entries: {{items}}.', {
+        submitted: sent,
+        failed: failed.length,
+        items: failed.join('; '),
+      }));
+    } else if (sent > 0) {
+      toast(t('equipment:usage.submitted', '{{count}} entries submitted for approval', { count: sent }), undefined, 'success');
+    }
   };
   const submittable = canLog && mine.some((e) => e.status === 'Draft' || e.status === 'Rejected');
 
