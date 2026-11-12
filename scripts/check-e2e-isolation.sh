@@ -59,6 +59,15 @@ check_dir() {
       echo "  gates on process.env.CI — gate on the dependency instead (e.g. SUPABASE_FUNCTIONS_URL): $f" >&2; rc=1
     fi
   done < <(find "$root/e2e" -name '*.spec.ts' | sort)
+  # isVisible/isHidden/isEnabled return at once; their `timeout` option is ignored, so a call that
+  # passes one reads as a wait and is not (a test race). Use expect(...).toBeVisible() etc. instead.
+  # Scans specs AND support files.
+  local hits
+  hits=$(grep -rnE '\.(isVisible|isHidden|isEnabled)\([^)]*timeout' "$root/e2e" --include='*.ts' | grep -vE ':[0-9]+:\s*(//|\*)' || true)
+  if [[ -n "$hits" ]]; then
+    echo "  isVisible/isHidden/isEnabled with a timeout never waits — use a web-first expect:" >&2
+    echo "$hits" | sed 's/^/    /' >&2; rc=1
+  fi
   return $rc
 }
 
@@ -79,6 +88,10 @@ if [[ "${1:-}" == "--self-test" ]]; then
   printf '// @e2e-isolation: read-only\nconst SERVED = !process.env.CI;\n' > "$tmp/e2e/cigate.spec.ts"
   if check_dir "$tmp" >/dev/null 2>&1; then echo "self-test FAIL: process.env.CI gate not caught" >&2; exit 1; fi
   rm "$tmp/e2e/cigate.spec.ts"
+  mkdir -p "$tmp/e2e/support"
+  printf 'await page.getByRole("menu").isVisible({ timeout: 2000 });\n' > "$tmp/e2e/support/nowait.ts"
+  if check_dir "$tmp" >/dev/null 2>&1; then echo "self-test FAIL: non-waiting isVisible with timeout not caught" >&2; exit 1; fi
+  rm "$tmp/e2e/support/nowait.ts"
   echo "self-test OK"; exit 0
 fi
 
