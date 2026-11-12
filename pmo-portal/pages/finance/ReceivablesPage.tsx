@@ -199,7 +199,7 @@ export default function ReceivablesPage() {
             help={t('finance:receivables.receivedHelp', 'Cash received on non-cancelled payments dated in this calendar month, compared with the previous calendar month.')}
           />
         </KPIRow>
-        <AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} unknownTotal={unknownBalancesWithoutAge} />
+        <AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={finance.position.receivablesNoDueDateCounts} unknownTotal={unknownBalancesWithoutAge} />
       </div>
 
       {finance.isError && <div role="alert" className="order-4 mb-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-control">

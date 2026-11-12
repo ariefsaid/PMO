@@ -51,7 +51,7 @@ const FinanceHub: React.FC = () => {
 
   const home = orgCurrency ?? 'IDR';
   const receivableValues = Object.fromEntries(Object.entries(finance.position.receivablesAgeing).map(([currency, buckets]) => [
-    currency, buckets.notDue + buckets.d1_30 + buckets.d31_60 + buckets.d61_90 + buckets.over90,
+    currency, buckets.notDue + buckets.noDueDate + buckets.d1_30 + buckets.d31_60 + buckets.d61_90 + buckets.over90,
   ]));
   const pack = figures.data?.pack;
   const unbilled = Object.fromEntries((pack?.unbilled ?? []).map(({ currency, cents }) => [currency, cents]));
@@ -145,7 +145,7 @@ const FinanceHub: React.FC = () => {
       <CardPad>
         {finance.isPending ? <ListState variant="loading" rows={2} /> : finance.isError ? (
         <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} unknownTotal={receivablesUnknownWithoutAge} /><AgeingStrip kind="payables" heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} /></div>}
+        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={finance.position.receivablesNoDueDateCounts} unknownTotal={receivablesUnknownWithoutAge} /><AgeingStrip kind="payables" heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} /></div>}
       </CardPad>
     </Card>
   );

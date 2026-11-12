@@ -10,6 +10,7 @@ export type CurrencyTotals = Record<string, number>;
 
 export interface AgeingBuckets {
   notDue: number;
+  noDueDate: number;
   d1_30: number;
   d31_60: number;
   d61_90: number;
@@ -53,6 +54,7 @@ export interface FinancePosition {
   payablesTotals: CurrencyTotals;
   payablesUnknownCount: number;
   receivablesAgeing: Record<string, AgeingBuckets>;
+  receivablesNoDueDateCounts?: Record<string, number>;
   payablesAgeing: Record<string, PayablesAgeingBuckets>;
 }
 
@@ -103,16 +105,18 @@ export function supplierInvoiceDate(procurement: Pick<ProcurementWithRefs, 'proc
  * "not yet due" column for balances whose due date has not passed; payables start at 0–30 days
  * because their age is never negative.
  */
-export function ageingBucket(days: number, kind: 'receivables'): keyof AgeingBuckets;
+export function ageingBucket(days: number | null, kind: 'receivables'): keyof AgeingBuckets;
 export function ageingBucket(days: number, kind: 'payables'): keyof PayablesAgeingBuckets;
 export function ageingBucket(
-  days: number,
+  days: number | null,
   kind: 'receivables' | 'payables',
 ): keyof AgeingBuckets | keyof PayablesAgeingBuckets {
-  if (kind === 'receivables' && days <= 0) return 'notDue';
-  if (days <= 30) return kind === 'receivables' ? 'd1_30' : 'd0_30';
-  if (days <= 60) return 'd31_60';
-  if (days <= 90) return 'd61_90';
+  if (kind === 'receivables' && days === null) return 'noDueDate';
+  const age = days ?? 0;
+  if (kind === 'receivables' && age <= 0) return 'notDue';
+  if (age <= 30) return kind === 'receivables' ? 'd1_30' : 'd0_30';
+  if (age <= 60) return 'd31_60';
+  if (age <= 90) return 'd61_90';
   return 'over90';
 }
 
@@ -123,6 +127,7 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
   const overdue: FinancePosition['overdue'] = [];
   const overdueTotals: CurrencyTotals = {};
   const receivablesAgeing: Record<string, AgeingBuckets> = {};
+  const receivablesNoDueDateCounts: Record<string, number> = {};
   let overdueUnknownCount = 0;
   let receivablesUnknownCount = 0;
 
@@ -139,8 +144,10 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
     const age = overdueAgeDays(dueDate, today);
 
     if (outstanding != null && Number.isFinite(outstanding)) {
-      const buckets = receivablesAgeing[invoice.currency] ??= { notDue: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 };
-      buckets[ageingBucket(age ?? 0, 'receivables')] += toCents(outstanding);
+      const buckets = receivablesAgeing[invoice.currency] ??= { notDue: 0, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 };
+      const bucket = dueDate === null ? ageingBucket(null, 'receivables') : ageingBucket(age ?? 0, 'receivables');
+      buckets[bucket] += toCents(outstanding);
+      if (dueDate === null) receivablesNoDueDateCounts[invoice.currency] = (receivablesNoDueDateCounts[invoice.currency] ?? 0) + 1;
     }
 
     // #1457: the overdue decision is the one shared rule (status + derived due date + org day).
@@ -219,6 +226,7 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
     payablesTotals,
     payablesUnknownCount,
     receivablesAgeing,
+    receivablesNoDueDateCounts,
     payablesAgeing,
   };
 }
