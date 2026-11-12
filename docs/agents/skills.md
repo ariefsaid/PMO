@@ -48,6 +48,7 @@ adoption by ten days and had no factory on its map at all.
   synthesis path. **spec-miner** owns reverse-engineering. All emit the same spec format.
 - **restructure** owns the screen-design method: read `.claude/skill-overrides/restructure/SKILL.md` before composing or judging a PMO screen; its step-local references combine taste composition with stageshow craft.
 - **taste** supplies the app-screen run and inspector; its page run serves the landing site. PMO tokens and screen rules govern the app.
+- **impeccable** is a standing gate on every UI task: craft floor before editing, `impeccable detect` before done, one critique pass on recomposed screens (restructure steps 5, 7, 8). Telemetry off.
 - **stageshow** supplies runnable craft studies and gold examples, plus the full method for landing-page product shots and demos. It does not decide an ERP screen's contents; real-screen evidence lives privately.
 - `scripts/vendor-skills.sh` sparse-clones stageshow (MIT), retains upstream notices in the generated skill, snapshots it under `skill-original/stageshow`, then applies ordinary overlays. Its kit, examples and brand assets stay generated and untracked.
 
