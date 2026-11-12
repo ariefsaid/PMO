@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Badge, Checkbox, ListState } from '@/src/components/ui';
+import { Badge, Checkbox, ListState, StatusPill } from '@/src/components/ui';
 import { formatTableMoney } from '@/src/lib/format';
 import { ageInDays, urgencyOf } from '@/src/lib/selectors/approvalUrgency';
 import { weekLabel, type BulkController } from '../timesheets/TimesheetBulkApprove';
@@ -48,7 +48,8 @@ export function QueueButton({
       >
         <div className="min-w-0">
           <div className="line-clamp-2 break-words text-sm font-medium" title={row.title}>{row.title}</div>
-          {/* Every row here is awaiting a decision, so no status pill repeats it; only the wait is shown. */}
+          {/* The row's own stored state, beside the wait: a queue row must say what it is, not only that it waits. */}
+          <StatusPill record="procurement" state={row.status} className="mt-1" />
           {waitingDays > 0 && <div className="mt-1"><span className={overdue ? 'text-control font-medium text-destructive-text' : 'text-control text-muted-foreground'}>{t('procurement:approvalQueue.waitingDays', { count: waitingDays, defaultValue_one: '{{count}} day waiting', defaultValue_other: '{{count}} days waiting' })}</span></div>}
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-control text-muted-foreground">
             <span>{row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}</span>
@@ -98,6 +99,7 @@ export function QueueButton({
             <span>{row.entries[0]?.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
           </div>
         </div>
+        <StatusPill record="timesheet" state={row.status} />
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-control text-muted-foreground">
         <span>
@@ -128,6 +130,7 @@ export function QueueGroup({
   isError,
   onRetry,
   emptyTitle,
+  emptySub,
   bulk,
   procurementBulk,
   hideWhenEmpty = false,
@@ -141,6 +144,8 @@ export function QueueGroup({
   isError: boolean;
   onRetry: () => void;
   emptyTitle: string;
+  /** What lands in this queue, so an empty group explains itself instead of reading as a dead end. */
+  emptySub: string;
   bulk?: BulkController;
   procurementBulk?: ProcurementBulkController;
   /** Another group already has rows: an empty group is left out instead of drawing its own box. */
@@ -169,7 +174,10 @@ export function QueueGroup({
           onRetry={onRetry}
         />
       ) : items.length === 0 ? (
-        <p className="py-2 text-control text-muted-foreground">{emptyTitle}</p>
+        <div className="py-2">
+          <p className="text-control font-medium text-foreground">{emptyTitle}</p>
+          <p className="mt-0.5 text-control text-muted-foreground">{emptySub}</p>
+        </div>
       ) : (
         <div className="space-y-1.5">
           {items.map((item) => (

@@ -148,6 +148,11 @@ const ApprovalDecisionConfirm: React.FC<{
         open
         kind="return"
         subject={t('timesheets:approvalQueue.returnSubject', "{{name}}'s timesheet", { name: pending.name })}
+        context={t(
+          'timesheets:approvalQueue.returnDescription',
+          "This sends {{name}}'s week back for changes. They'll need to correct and resubmit it.",
+          { name: pending.name },
+        )}
         loading={loading}
         error={error}
         onConfirm={onConfirm}
@@ -238,6 +243,14 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
               <div className="flex flex-wrap items-center justify-end gap-2">{actionButtons}</div>
             )}
           </div>
+          {/* Why the decision is someone else's: the rule behind a missing Approve/Return on a week
+              that is not yours. The panel states it; the inline copy sits in a queue that already
+              carries the policy, so it is not repeated there. */}
+          {!isInline && (
+            <p className="mt-3 text-control text-muted-foreground">
+              {t('approvals.timesheets.policyHelp', 'Policy: a different person approves each timesheet.')}
+            </p>
+          )}
         </div>
 
         <div className={isInline ? undefined : 'min-h-0 flex-1 overflow-y-auto pt-4'}>

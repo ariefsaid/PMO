@@ -278,7 +278,11 @@ const ApprovalsPage: React.FC = () => {
             {t('approvals.caughtUp.title', 'You’re all caught up')}
           </div>
           <p className="max-w-[60ch] text-control text-muted-foreground">
-            {t('approvals.caughtUp.sub', 'No {{kinds}} waiting in PMO. ERPNext documents are approved in ERPNext.', { kinds: caughtUpKinds })}
+            {t(
+              'approvals.caughtUp.sub',
+              'No {{kinds}} waiting in PMO. New {{kinds}} entered in PMO will appear here. ERPNext documents are approved in ERPNext.',
+              { kinds: caughtUpKinds },
+            )}
           </p>
         </div>
       ) : activeScope === 'expense' || activeScope === 'invoice' ? (
@@ -345,6 +349,10 @@ const ApprovalsPage: React.FC = () => {
                     'approvals.group.procurement.emptyTitle',
                     'No procurement cases awaiting your decision',
                   )}
+                  emptySub={t(
+                    'approvals.group.procurement.emptySub',
+                    'Procurement cases that need your approval will appear here.',
+                  )}
                   hideWhenEmpty={activeScope === 'all' && queueItems.length > 0}
                   procurementBulk={procurementBulk}
                 />
@@ -363,6 +371,10 @@ const ApprovalsPage: React.FC = () => {
                   emptyTitle={t(
                     'approvals.group.timesheets.emptyTitle',
                     'No timesheets awaiting your decision',
+                  )}
+                  emptySub={t(
+                    'approvals.group.timesheets.emptySub',
+                    'Submitted timesheets from your reports will appear here for review.',
                   )}
                   hideWhenEmpty={activeScope === 'all' && queueItems.length > 0}
                   bulk={timesheetBulk}

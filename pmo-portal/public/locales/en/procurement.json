@@ -344,7 +344,8 @@
     "rejectSubject": "purchase request",
     "returnShort": "Return",
     "returned": "Procurement returned",
-    "returnedDetail": "{{title}} has been returned"
+    "returnedDetail": "{{title}} has been returned",
+    "returnConsequence": "The requester will be notified and may revise and resubmit."
   },
   "decisionSupport": {
     "thisProcurement": "Procurement total",

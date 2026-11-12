@@ -239,7 +239,15 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
         open={pending === 'Rejected'}
         kind="return"
         subject={t('approvalRow.rejectSubject', 'purchase request')}
-        context={`${row.title} · ${money(row.total_value)}`}
+        context={
+          <>
+            <span className="block">{`${row.title} · ${money(row.total_value)}`}</span>
+            {/* What the requester can do with the refusal — the consequence, beside the decision. */}
+            <span className="mt-1 block">
+              {t('approvalRow.returnConsequence', 'The requester will be notified and may revise and resubmit.')}
+            </span>
+          </>
+        }
         loading={transition.isPending}
         error={decisionError}
         onConfirm={(reason) => handleConfirm(reason)}
