@@ -11,12 +11,12 @@ const h = vi.hoisted(() => {
   const result = { value: {} as { data: unknown; error: unknown; count?: unknown } };
   const calls = {
     from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], update: [] as unknown[],
-    select: [] as unknown[], eq: [] as unknown[], gte: [] as unknown[], lte: [] as unknown[], is: [] as unknown[],
+    select: [] as unknown[], eq: [] as unknown[], gte: [] as unknown[], lte: [] as unknown[], is: [] as unknown[], range: [] as unknown[],
     in: [] as unknown[], order: [] as unknown[], limit: [] as unknown[], delete: [] as unknown[], single: 0,
   };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...a: unknown[]) => { (calls[name] as unknown[]).push(a.length === 1 ? a[0] : a); return builder; };
-  for (const k of ['select', 'eq', 'gte', 'lte', 'is', 'in', 'order', 'limit', 'insert', 'update', 'delete'] as const) builder[k] = chain(k);
+  for (const k of ['select', 'eq', 'gte', 'lte', 'is', 'in', 'order', 'limit', 'range', 'insert', 'update', 'delete'] as const) builder[k] = chain(k);
   builder.single = () => { calls.single++; return builder; };
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((t: string) => { calls.from.push(t); return builder; });
@@ -101,15 +101,33 @@ describe('AC-EQU-017 usage transitions, week approve and archive', () => {
 });
 
 describe('AC-EQU-017 asset reference reads and writes', () => {
-  it('AC-EQU-017 listAssets reads live assets only, ordered by code, bounded at 200 + 1', async () => {
+  it('AC-EQU-017 listAssets reads live assets only, ordered and bounded at 200 + 1', async () => {
     h.result.value = { data: Array.from({ length: 201 }, (_, i) => ({ id: String(i) })), error: null };
     const out = await dal.listAssets();
     expect(out.rows).toHaveLength(LIST_LIMIT);
     expect(out.truncated).toBe(true);
     expect(h.calls.from).toEqual(['equipment_assets']);
     expect(h.calls.is).toEqual([['archived_at', null]]);
-    expect(h.calls.order).toEqual(['code']);
-    expect(h.calls.limit).toEqual([LIST_LIMIT + 1]);
+    expect(h.calls.order).toEqual(['code', 'id']);
+    expect(h.calls.range).toEqual([[0, LIST_LIMIT]]);
+  });
+
+  it('C8 EquipmentAssets.tsx:117 resumes the bounded register at the next offset', async () => {
+    h.result.value = { data: Array.from({ length: LIST_LIMIT + 1 }, (_, i) => ({ id: String(i + LIST_LIMIT) })), error: null };
+    const out = await dal.listAssets(LIST_LIMIT);
+    expect(out.rows).toHaveLength(LIST_LIMIT);
+    expect(out.truncated).toBe(true);
+    expect(h.calls.range).toEqual([[LIST_LIMIT, LIST_LIMIT * 2]]);
+  });
+
+  it('C8 EquipmentAssets.tsx:117 counts active assets exactly without fetching asset rows', async () => {
+    h.result.value = { data: null, error: null, count: 251 };
+
+    await expect(dal.countAssets()).resolves.toBe(251);
+
+    expect(h.calls.from).toEqual(['equipment_assets']);
+    expect(h.calls.select).toContainEqual(['id', { count: 'exact', head: true }]);
+    expect(h.calls.is).toContainEqual(['archived_at', null]);
   });
 
   it('AC-EQU-017 createAsset sends only the three granted columns', async () => {
@@ -144,17 +162,22 @@ describe('AC-EQU-017 asset delete', () => {
 });
 
 describe('AC-EQU-017 usage reads', () => {
-  it('AC-EQU-017 listUsage filters the range, the optional asset/project/status, and marks truncated at 200 + 1', async () => {
+  it('C8 EquipmentUsage.tsx:83,101 pages a selected asset week through the final matching row', async () => {
     h.result.value = { data: Array.from({ length: LIST_LIMIT + 1 }, (_, i) => ({ id: String(i) })), error: null };
     const out = await dal.listUsage({ from: '2026-09-07', to: '2026-09-13', assetId: 'd1', projectId: 'p1', status: 'Submitted' });
-    expect(out.rows).toHaveLength(LIST_LIMIT);
-    expect(out.truncated).toBe(true);
+    expect(out.rows).toHaveLength(LIST_LIMIT + 1);
+    expect(out.truncated).toBe(false);
     expect(h.calls.from).toEqual(['equipment_usage_entries']);
     expect(h.calls.gte).toEqual([['work_date', '2026-09-07']]);
     expect(h.calls.lte).toEqual([['work_date', '2026-09-13']]);
     expect(h.calls.eq).toEqual([['asset_id', 'd1'], ['project_id', 'p1'], ['status', 'Submitted']]);
     expect(h.calls.is).toEqual([['archived_at', null]]);
-    expect(h.calls.limit).toEqual([LIST_LIMIT + 1]);
+    expect(h.calls.range).toEqual([[0, 999]]);
+    expect(h.calls.order).toEqual([
+      ['work_date', { ascending: false }],
+      ['created_at', { ascending: true }],
+      ['id', { ascending: true }],
+    ]);
   });
 
   it('AC-EQU-017 listUsage without filters sends no equality filter and a short list is not truncated', async () => {

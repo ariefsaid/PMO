@@ -15,7 +15,6 @@ import type {
   ActivityCursor,
   ActivityPage,
 } from '@/src/lib/db/crmActivities';
-import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -160,9 +159,14 @@ export function useContactActivities(contactId: string | null | undefined) {
 export function useContactMeetings(contactId: string | null | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<ContactMeetingRef[]>({
+  return useInfiniteQuery({
     queryKey: ['contact-meetings', orgId, contactId],
-    queryFn: () => repositories.meeting.listForContact(contactId as string),
+    queryFn: ({ pageParam }) => repositories.meeting.listForContact(contactId as string, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, pages) => lastPage.hasMore
+      ? pages.reduce((loaded, page) => loaded + page.rows.length, 0)
+      : undefined,
+    select: (data) => data.pages.flatMap((page) => page.rows),
     enabled: Boolean(orgId && contactId),
   });
 }

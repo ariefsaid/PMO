@@ -77,13 +77,25 @@ export function useStockLedger(f: StockLedgerFilters) {
 }
 export function useStockDocuments(f: Omit<StockDocumentFilters, 'before' | 'limit'>) {
   const orgId = useAuth().currentUser?.org_id;
-  return useInfiniteQuery({
+  const pages = useInfiniteQuery({
     queryKey: ['stock-documents', orgId, f],
     queryFn: ({ pageParam }) => repositories.stock.documents.list({ ...f, limit: DOC_PAGE, before: pageParam }),
     initialPageParam: undefined as { createdAt: string; id: string } | undefined,
     getNextPageParam: (last) => (last.length < DOC_PAGE ? undefined : { createdAt: last[last.length - 1].created_at, id: last[last.length - 1].id }),
     enabled: Boolean(orgId),
   });
+  const count = useQuery({
+    queryKey: ['stock-documents-count', orgId, f],
+    queryFn: async () => {
+      try {
+        return await repositories.stock.documents.count(f);
+      } catch {
+        return undefined;
+      }
+    },
+    enabled: Boolean(orgId),
+  });
+  return { ...pages, total: count.data };
 }
 export function useStockDocumentEntries(documentId: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
@@ -118,7 +130,7 @@ export function useStockDocumentMutations() {
   const orgId = useAuth().currentUser?.org_id;
   const d = repositories.stock.documents;
   const refresh = () => {
-    for (const k of ['stock-on-hand', 'stock-ledger', 'stock-documents', 'stock-document', 'stock-consumption']) void qc.invalidateQueries({ queryKey: [k, orgId] });
+    for (const k of ['stock-on-hand', 'stock-ledger', 'stock-documents', 'stock-documents-count', 'stock-document', 'stock-consumption']) void qc.invalidateQueries({ queryKey: [k, orgId] });
   };
   return {
     create: useMutation({ mutationFn: (a: { input: StockDocumentInput; post: boolean; clientRequestId: string }) => d.create(a.input, a), onSuccess: refresh }),

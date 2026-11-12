@@ -21,6 +21,9 @@
   "filters": {
     "showArchived": "Show archived"
   },
+  "list": {
+    "loadMore": "Load more"
+  },
   "pill": {
     "archived": "Archived"
   },

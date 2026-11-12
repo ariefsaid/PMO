@@ -55,6 +55,41 @@ const columns: Column<Row>[] = [
 ];
 
 describe('DataTable', () => {
+  it('C8 shared table footer shows the true total and loads the rest of a partial list', async () => {
+    const onLoadMore = vi.fn();
+    render(
+      <DataTable
+        rows={rows.slice(0, 1)}
+        columns={columns}
+        rowKey={(row) => row.id}
+        total={3}
+        hasMore
+        onLoadMore={onLoadMore}
+        loadMoreLabel="Load more"
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('Showing 1 of 3');
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(onLoadMore).toHaveBeenCalledOnce();
+  });
+
+  it('C8 partial footer is explicit when the true total is not known yet', () => {
+    render(
+      <DataTable
+        rows={rows.slice(0, 1)}
+        columns={columns}
+        rowKey={(row) => row.id}
+        hasMore
+        onLoadMore={vi.fn()}
+        loadMoreLabel="Load more"
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('1 loaded, more available');
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument();
+  });
+
   it('aligns numeric and money columns, and uses tabular figures without changing text columns', () => {
     const typedColumns: Column<Row>[] = [
       { key: 'name', header: 'Name', kind: 'text', cell: (row) => row.name },

@@ -21,6 +21,9 @@
   "filters": {
     "showArchived": "Tampilkan yang diarsipkan"
   },
+  "list": {
+    "loadMore": "Muat lebih banyak"
+  },
   "pill": {
     "archived": "Diarsipkan"
   },
