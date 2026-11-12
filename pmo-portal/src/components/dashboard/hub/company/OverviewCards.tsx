@@ -10,14 +10,14 @@ import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { PROCUREMENT_STAGES, type ProcurementStage } from '@/src/lib/procurement/stage';
 import { formatMonthShort, formatTileMoney } from '@/src/lib/format';
 import { tileMoneyLines } from '@/src/components/dashboard/restructure/currencyOrder';
-import type { BudgetReviewRow, PipelineStage, TopProject } from '@/src/lib/db/dashboard';
+import type { BudgetReviewRow, PipelineProject, PipelineStage, TopProject } from '@/src/lib/db/dashboard';
 import type { AgeingBuckets } from '@/src/lib/finance/financePosition';
 import { BarList, ChartCard, MonthColumns, SeriesKey, StackedBar, type BarRow, type ChartTone } from '@/src/components/dashboard/charts';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { useLossBreakdown, type WinRateRange } from '@/src/hooks/useDashboard';
 import { budgetSpendKnown } from './financeData';
 import { budgetVsSpentRows } from './overviewData';
-import { openPipelineStages } from './pipelineStages';
+import { openPipelineStages, stageCurrencyState } from './pipelineStages';
 
 const linkClass = 'inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 export const CardLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
@@ -48,6 +48,7 @@ export const SalesOverviewCard: React.FC<{
   weighted: { value: React.ReactNode; exact?: string } | null;
   forecastMargin: number | null | undefined;
   stages: PipelineStage[];
+  projects?: PipelineProject[];
   pending: boolean;
   error: boolean;
   retry: () => void;
@@ -60,13 +61,14 @@ export const SalesOverviewCard: React.FC<{
   wide?: boolean;
   /** Drawn under the win rate (e.g. win and loss by client). */
   aside?: React.ReactNode;
-}> = ({ weighted, forecastMargin, stages, pending, error, retry, currency, period, won, range, className, wide = false, aside }) => {
+}> = ({ weighted, forecastMargin, stages, projects, pending, error, retry, currency, period, won, range, className, wide = false, aside }) => {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const statusLabel = useProjectStatusLabel();
   const open = openPipelineStages(stages);
+  const state = stageCurrencyState(stages, projects);
   const max = Math.max(1, ...open.map((stage) => stage.weighted_value));
-  const wonValue = won ? tileMoneyLines(won.amounts, currency, formatTileMoney).join(' ') : '';
+  const wonValue = won ? tileMoneyLines(won.amounts, currency, formatTileMoney) : [];
   return (
     <Card data-testid="sales-overview" className={cnJoin('flex flex-col', className)}>
       <CardHead level={2} actions={<CardLink to="/sales">{t('dashboard:hub.company.openSales', 'Open sales')}</CardLink>}>{t('home.sales', 'Sales')}</CardHead>
@@ -83,7 +85,7 @@ export const SalesOverviewCard: React.FC<{
           {won && (
             <button type="button" onClick={() => navigate(won.href ?? '/projects?filter=won')} className="min-h-11 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
               <span className="block text-control text-muted-foreground">{t('home.wonThisYear', 'Won')}{period ? ` · ${period}` : ''} · {won.count}</span>
-              <span className="block text-[23px] font-bold leading-tight tabular">{wonValue}</span>
+              <span className="block text-[23px] font-bold leading-tight tabular">{wonValue.map((line) => <span key={line} data-currency-line className="block">{line}</span>)}</span>
             </button>
           )}
         </div>
@@ -95,14 +97,15 @@ export const SalesOverviewCard: React.FC<{
                 <ul aria-label={t('home.pipelineChart', 'Weighted pipeline by stage')} className="flex flex-1 flex-col justify-between gap-1">
                   {open.map((stage) => {
                     const name = `${statusLabel(stage.status as string)} · ${stage.count}`;
-                    const value = money(stage.weighted_value, currency);
+                    const currencies = state.forStage(stage);
+                    const value = state.complete && (currencies.size === 1 || stage.count === 0) ? money(stage.weighted_value, [...currencies][0] ?? currency) : null;
                     return (
                       <li key={String(stage.status)}>
-                        <Link to={`/sales?status=${encodeURIComponent(stage.status as string)}`} aria-label={`${name}: ${value}`}
+                        <Link to={`/sales?status=${encodeURIComponent(stage.status as string)}`} aria-label={value ? `${name}: ${value}` : name}
                           className="grid min-h-11 grid-cols-[minmax(7rem,9.5rem)_minmax(0,1fr)] items-center gap-x-3 text-control text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                           <span className="truncate text-right">{name}</span>
                           <span className="flex min-w-0 items-center gap-2">
-                            <span aria-hidden className="h-[18px] min-w-0.5 rounded-r bg-primary" style={{ width: `${Math.max(1, (stage.weighted_value / max) * 75)}%` }} />
+                            {state.complete && state.currencies.size === 1 && <span aria-hidden className="h-[18px] min-w-0.5 rounded-r bg-primary" style={{ width: `${Math.max(1, (stage.weighted_value / max) * 75)}%` }} />}
                             <span className="shrink-0 font-semibold tabular">{value}</span>
                           </span>
                         </Link>
