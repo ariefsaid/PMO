@@ -16,6 +16,8 @@ removes reading or makes the same thing identical everywhere.
 - A caption is at most 6 words and at most one per figure.
 - Empty state: one line saying what is absent, plus the one control that fixes it. The control it names must exist on that screen.
 - A screen never gains words: `scripts/ux-proof.sh` word budget is the check; update the budget downward only.
+- A word-budget cut never removes a statement of scope, consequence or optionality that a user acts on. Cut decoration first; if nothing else is left, raise the budget and say why.
+- Overdue is for tasks and invoices past their due date ("8 tasks overdue", "5 days overdue"); late is for phases. Never cross them.
 
 ## Numbers
 - Money always carries its currency. Tiles: 2–3 significant digits ("IDR 7.7B"). Tables: full amount, right-aligned, tabular. Read-only money uses the currency symbol and whole units; inputs, exports and editable values keep their exact value. Never show a non-zero amount or difference as zero: show its exact value or “under $1” (in its currency).
