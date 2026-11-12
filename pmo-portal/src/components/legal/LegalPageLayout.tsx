@@ -31,7 +31,11 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
 }) => {
   // C4: the shared legal chrome is translated too (legal catalogue), so the page does not go
   // half-English the moment a reader switches language.
-  const { t } = useTranslation('legal');
+  const { t, i18n } = useTranslation('legal');
+  // C4: the legal BODY is a contract — no machine-translated clause may ship (Director ruling), so
+  // `terms`/`privacy` in the `id` catalogue are verbatim copies of `en`. A reader on Bahasa is told
+  // that once, in Bahasa; the line never renders in English (`en` catalogue carries it for key parity).
+  const englishOnlyBody = i18n.language?.toLowerCase().startsWith('id') ?? false;
   // Auth-aware back link (FR-LEG-005, AC-LEG-030). session===null → unauthed
   // primary audience → /login (RequireAuth bounces / → /login); session present → /.
   // AuthProvider mounts at the App root above the router, so this resolves on both.
@@ -96,6 +100,14 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
         </div>
 
         <hr className="my-6 border-border" />
+
+        {/* One plain line, above the body, Indonesian locale only (C4). Add-only: the body and
+            every control above it keep their existing position. */}
+        {englishOnlyBody && (
+          <p className="mb-6 text-[14px] leading-[1.6] text-muted-foreground">
+            {t('layout.englishOnly', 'The legal text is provided in English.')}
+          </p>
+        )}
 
         {/* Body/prose container (14/1.6 for readability). Children = the <h2> sections. */}
         <div className="space-y-7 text-[14px] leading-[1.6] text-foreground">{children}</div>

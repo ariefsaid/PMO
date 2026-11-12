@@ -7,7 +7,8 @@
     "terms": "Terms",
     "privacy": "Privacy",
     "help": "Help",
-    "helpAria": "Contact support via WhatsApp"
+    "helpAria": "Contact support via WhatsApp",
+    "englishOnly": "The legal text is provided in English."
   },
   "terms": {
     "title": "Terms of Service",

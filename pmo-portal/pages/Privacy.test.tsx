@@ -201,11 +201,13 @@ describe('Privacy page', () => {
   });
 });
 
-describe('C4: the privacy policy reads in Indonesian', () => {
-  async function renderIndonesian() {
+describe('C4: the privacy policy body stays in English under the Indonesian locale', () => {
+  const ID_NOTICE = 'Teks hukum ini tersedia dalam bahasa Inggris.';
+
+  async function renderWithLanguage(language: 'en' | 'id') {
     const i18n = i18next.createInstance();
     await i18n.init({
-      lng: 'id',
+      lng: language,
       fallbackLng: false,
       defaultNS: 'legal',
       resources: { en: { legal: legalEn }, id: { legal: legalId } },
@@ -219,13 +221,35 @@ describe('C4: the privacy policy reads in Indonesian', () => {
     );
   }
 
-  it('title, sections and the hosting location are Indonesian', async () => {
-    await renderIndonesian();
-    expect(screen.getByRole('heading', { level: 1, name: 'Kebijakan Privasi' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: 'Keterbukaan Pemrosesan AI' })).toBeInTheDocument();
-    const location = screen.getByRole('heading', { level: 2, name: 'Lokasi Data' }).closest('section');
+  it('under id: the page shows the English policy body plus the one Indonesian line, above it', async () => {
+    await renderWithLanguage('id');
+
+    // The policy is a contract: English, verbatim — no machine-translated clause ships.
+    expect(screen.getByRole('heading', { level: 1, name: 'Privacy Policy' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'AI Processing Disclosure' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Data Location' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Kebijakan Privasi' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Keterbukaan Pemrosesan AI' })).toBeNull();
+    const location = screen.getByRole('heading', { level: 2, name: 'Data Location' }).closest('section');
     expect(location?.textContent ?? '').toContain('Singapore');
+
+    // The page chrome around the body is still translated.
     expect(screen.getByRole('link', { name: 'Ketentuan' })).toHaveAttribute('href', '/terms');
-    expect(screen.queryByText(/Privacy Policy/)).toBeNull();
+    expect(screen.getByRole('link', { name: 'Kembali ke halaman masuk' })).toHaveAttribute('href', '/login');
+
+    // Exactly one Indonesian line, and it sits above the legal body it explains.
+    const notices = screen.getAllByText(ID_NOTICE);
+    expect(notices).toHaveLength(1);
+    const firstSectionHeading = screen.getAllByRole('heading', { level: 2 })[0];
+    expect(
+      notices[0].compareDocumentPosition(firstSectionHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('under en: the same English body and no Indonesian line', async () => {
+    await renderWithLanguage('en');
+    expect(screen.getByRole('heading', { level: 1, name: 'Privacy Policy' })).toBeInTheDocument();
+    expect(screen.queryByText(ID_NOTICE)).toBeNull();
   });
 });
+

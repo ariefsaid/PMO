@@ -153,11 +153,13 @@ describe('Terms page', () => {
   });
 });
 
-describe('C4: the legal copy reads in Indonesian', () => {
-  async function renderIndonesian() {
+describe('C4: the legal body stays in English under the Indonesian locale', () => {
+  const ID_NOTICE = 'Teks hukum ini tersedia dalam bahasa Inggris.';
+
+  async function renderWithLanguage(language: 'en' | 'id') {
     const i18n = i18next.createInstance();
     await i18n.init({
-      lng: 'id',
+      lng: language,
       fallbackLng: false,
       defaultNS: 'legal',
       resources: { en: { legal: legalEn }, id: { legal: legalId } },
@@ -171,16 +173,38 @@ describe('C4: the legal copy reads in Indonesian', () => {
     );
   }
 
-  it('title, sections, chrome and the interpolated deployment values are all Indonesian', async () => {
-    await renderIndonesian();
-    expect(screen.getByRole('heading', { level: 1, name: 'Ketentuan Layanan' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: 'Penerimaan Ketentuan' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: 'Hukum yang Berlaku' })).toBeInTheDocument();
+  it('under id: the page shows the English legal body plus the one Indonesian line, above it', async () => {
+    await renderWithLanguage('id');
+
+    // The clauses are a contract: English, verbatim — no machine-translated clause ships.
+    expect(screen.getByRole('heading', { level: 1, name: 'Terms of Service' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Acceptance of Terms' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Governing Law' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Ketentuan Layanan' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Penerimaan Ketentuan' })).toBeNull();
+
+    // The page chrome around the body is still translated.
     expect(screen.getByRole('link', { name: 'Kembali ke halaman masuk' })).toHaveAttribute('href', '/login');
     expect(screen.getByRole('link', { name: 'Privasi' })).toHaveAttribute('href', '/privacy');
-    // The catalogue sentence still carries the configured entity, domain and contact address.
+    expect(screen.getByRole('link', { name: 'Lompat ke konten utama' })).toHaveAttribute('href', '#main');
+
+    // Exactly one Indonesian line, and it sits above the legal body it explains.
+    const notices = screen.getAllByText(ID_NOTICE);
+    expect(notices).toHaveLength(1);
+    const firstSectionHeading = screen.getAllByRole('heading', { level: 2 })[0];
+    expect(
+      notices[0].compareDocumentPosition(firstSectionHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // The English catalogue sentences still carry the configured entity, domain and contact address.
     expect(screen.getAllByText(/Acme Legal Test Co/).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: /legal@acme\.test\.example/i })).toBeInTheDocument();
-    expect(screen.queryByText(/Terms of Service/)).toBeNull();
+  });
+
+  it('under en: the same English body and no Indonesian line', async () => {
+    await renderWithLanguage('en');
+    expect(screen.getByRole('heading', { level: 1, name: 'Terms of Service' })).toBeInTheDocument();
+    expect(screen.queryByText(ID_NOTICE)).toBeNull();
   });
 });
+
