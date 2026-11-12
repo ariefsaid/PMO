@@ -139,6 +139,8 @@ export interface DataTableProps<Row> {
    * beside the record panel), where its columns cannot fit and would otherwise scroll sideways inside a clipped box.
    */
   cardBelow?: number;
+  /** Reduce vertical cell padding in the desktop table; the card branch keeps its own spacing. */
+  compactRows?: boolean;
   /** Stable identity for saved column widths. */
   tableId?: string;
   /** Optional grouping key; each distinct group is introduced by an aligned in-table row. */
@@ -220,6 +222,7 @@ export function DataTable<Row>({
   className,
   embedded = false,
   cardBelow,
+  compactRows = false,
   accessibleName,
   mobileCardTitle,
   mobileCardDetails,
@@ -415,6 +418,7 @@ export function DataTable<Row>({
           totals={totals}
           onSort={onSort}
           columnSizing={columnSizing}
+          compactRows={compactRows}
           onOverflowChange={onOverflowChange}
         />
       ) : (

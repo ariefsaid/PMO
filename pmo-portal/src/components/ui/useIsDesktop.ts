@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 
-/** The `md` breakpoint (Tailwind default) — table at/above, cards below. */
-const DESKTOP_QUERY = '(min-width: 768px)';
+/** The `md` breakpoint (Tailwind default) — desktop at/above, mobile below. */
+const DEFAULT_DESKTOP_BREAKPOINT = 768;
 
 /**
- * Reads whether the viewport is at/above the `md` (768px) breakpoint.
+ * Reads whether the viewport is at/above `minWidth` (defaults to `md`, 768px).
  *
  * The DataTable single-renders EITHER the desktop `<table>` OR the mobile card
  * list off this value (never both in the DOM at once), so the initial value MUST
@@ -17,22 +17,23 @@ const DESKTOP_QUERY = '(min-width: 768px)';
  * Guards `typeof window`/`matchMedia` undefined (SSR / non-DOM env) → defaults
  * to desktop (`true`).
  */
-export function useIsDesktop(): boolean {
+export function useIsDesktop(minWidth = DEFAULT_DESKTOP_BREAKPOINT): boolean {
+  const query = `(min-width: ${minWidth}px)`;
   const [isDesktop, setIsDesktop] = useState<boolean>(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return true;
-    return window.matchMedia(DESKTOP_QUERY).matches;
+    return window.matchMedia(query).matches;
   });
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mql = window.matchMedia(DESKTOP_QUERY);
+    const mql = window.matchMedia(query);
     // Re-sync on mount in case the viewport changed between the initializer and
     // the effect (the initializer runs once; the effect runs after commit).
     setIsDesktop(mql.matches);
     const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
     mql.addEventListener('change', onChange);
     return () => mql.removeEventListener('change', onChange);
-  }, []);
+  }, [query]);
 
   return isDesktop;
 }

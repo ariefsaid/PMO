@@ -203,6 +203,7 @@ const Projects: React.FC = () => {
     <ListPage
       title={t('projects.title', 'Projects')}
       primaryAction={primaryAction}
+      mobileToolbarBreakpoint={1280}
       {...toolbar}
     >
       {/* Body */}
@@ -256,8 +257,11 @@ const Projects: React.FC = () => {
           <DataTable<ProjectWithRefs>
             rows={filtered}
             columns={tableColumns}
+            className="[--table-row-min-height:40px]"
+            compactRows
             mobileCardTitle={mobileCardTitle}
             mobileCardDetails={mobileCardDetails}
+            cardBelow={1120}
             rowKey={(p) => p.id}
             rowTarget={(p) => p.id}
             tableId="projects-list"
