@@ -584,6 +584,92 @@ describe('screen rules: approvals waiting hierarchy', () => {
 });
 
 // ---------------------------------------------------------------------------
+// R2-RESTORE (letter a) — state and consequence dev carried on this screen: the queue row's
+// own status pill, the empty queues' "what shows up here" guidance, and the separation-of-duties
+// reason under the timesheet record. Meaning and trigger as dev had them; head's composition.
+// ---------------------------------------------------------------------------
+
+describe('R2 restore: queue-row state', () => {
+  it('a procurement queue row shows its record state as a status pill', () => {
+    procState.data = [{ id: 'pr-1', title: 'Steel beams', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR', created_at: '2026-06-01T00:00:00Z' }];
+    queryState.data = [];
+    renderPage('procurement');
+
+    const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    const row = within(queue).getByRole('button', { name: /Steel beams/i });
+    expect(within(row).getByText('Requested')).toBeInTheDocument();
+  });
+
+  it('a timesheet queue row shows its record state as a status pill', () => {
+    queryState.data = submittedSheets;
+    renderPage('timesheets');
+
+    const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    const row = within(queue).getByRole('button', { name: /Dave Engineer/i });
+    expect(within(row).getByText('Submitted')).toBeInTheDocument();
+  });
+});
+
+describe('R2 restore: empty queues say what will appear there', () => {
+  it('the procurement queue empty state names the cases that land in it', () => {
+    queryState.data = submittedSheets;
+    procState.data = [];
+    renderPage('procurement');
+
+    expect(screen.getByText('Procurement cases that need your approval will appear here.')).toBeInTheDocument();
+  });
+
+  it('the timesheets queue empty state names the sheets that land in it', () => {
+    queryState.data = [];
+    procState.data = [{ id: 'pr-1', title: 'Steel beams', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR', created_at: '2026-06-01T00:00:00Z' }];
+    renderPage('timesheets');
+
+    expect(screen.getByText('Submitted timesheets from your reports will appear here for review.')).toBeInTheDocument();
+  });
+
+  it('the empty approval record keeps its selection title', () => {
+    queryState.data = submittedSheets;
+    procState.data = [];
+    renderPage('procurement');
+
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
+    expect(within(preview).getByText('Select an approval item')).toBeInTheDocument();
+  });
+});
+
+describe('R2 restore: the separation-of-duties reason sits with the timesheet record', () => {
+  it('the approval panel states why a different person approves each timesheet', () => {
+    queryState.data = submittedSheets;
+    renderPage('timesheets');
+
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
+    expect(within(preview).getByText('Policy: a different person approves each timesheet.')).toBeInTheDocument();
+  });
+});
+
+describe('R2 restore: consequences the decision writes carry', () => {
+  it('the caught-up state says new approvals will land here', () => {
+    queryState.data = [];
+    procState.data = [];
+    renderPage('all');
+
+    const caughtUp = screen.getByTestId('approvals-caught-up');
+    expect(caughtUp).toHaveTextContent(/entered in PMO will appear here/i);
+  });
+
+  it('returning a timesheet says the week comes back for correction', async () => {
+    queryState.data = submittedSheets;
+    renderPage('timesheets');
+
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
+    await userEvent.click(within(preview).getByRole('button', { name: /return/i }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/This sends Dave Engineer's week back for changes\. They'll need to correct and resubmit it\./)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // S-18 / RF-042 — the empty inbox explains PMO scope: documents entered directly in ERP are
 // approved in ERP, so "all caught up" must never claim no approvals exist anywhere.
 // ---------------------------------------------------------------------------

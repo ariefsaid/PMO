@@ -144,7 +144,7 @@ beforeEach(() => {
 });
 
 describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
-  it('UIP-008: desktop queue reserves two lines for request identity ahead of the metadata; no status pill repeats on every row', async () => {
+  it('UIP-008: desktop queue reserves two lines for request identity ahead of the metadata; the row carries its own state pill', async () => {
     const title = 'Cable supply for extended commissioning — northern distribution boards';
     procState.data = [{ ...procRows[0], title }];
     renderAs('Finance');
@@ -152,7 +152,8 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const identity = within(button).getByText(title);
     expect(identity.className).toContain('line-clamp-2');
     expect(identity.className).not.toContain('truncate');
-    expect(within(button).queryByText('Requested')).toBeNull();
+    // R2-restore (a): the row states what it is, not only that it waits.
+    expect(within(button).getByText('Requested')).toBeInTheDocument();
     expect(button).toHaveAccessibleName(/Cable supply.*Apollo/);
     await userEvent.tab();
     await userEvent.click(button);
@@ -181,7 +182,8 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
       expect(within(preview).queryByText('North hall switchgear evidence')).toBeNull();
       expect(within(preview).getByRole('button', { name: 'Approve' })).toBeVisible();
       expect(within(preview).getByRole('button', { name: 'Return' })).toBeVisible();
-      expect(control).not.toHaveTextContent('Requested');
+      // R2-restore (a): the row keeps its state pill at both widths.
+      expect(control).toHaveTextContent('Requested');
       expect(navigateMock).not.toHaveBeenCalled();
     } finally {
       window.matchMedia = realMatchMedia;
@@ -286,7 +288,8 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveAttribute('aria-selected', 'true');
     expect(within(preview).getByText(/Anita Rao/i)).toBeInTheDocument();
-    expect(within(preview).queryByText('Policy: a different person approves each timesheet.')).not.toBeInTheDocument();
+    // R2-restore (a): the record states the separation-of-duties rule it was approved under.
+    expect(within(preview).getByText('Policy: a different person approves each timesheet.')).toBeInTheDocument();
     expect(screen.queryByText(/Steel beams/i)).not.toBeInTheDocument();
   });
 
