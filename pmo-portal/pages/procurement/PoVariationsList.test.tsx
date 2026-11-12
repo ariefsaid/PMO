@@ -61,6 +61,18 @@ beforeEach(() => {
 });
 
 describe('PoVariationsList', () => {
+  it('R2: the reject dialog says the variation will not increase the PO', async () => {
+    const user = userEvent.setup();
+    h.variations = { data: [variation({ requested_by: 'u2', approved_by: null })], isPending: false, isError: false, refetch: vi.fn() };
+    h.route = { data: { route: 'project', reason: 'project route', approver_ids: ['u1'], line_budget: 100, line_used: 0 }, isPending: false, isError: false, refetch: vi.fn() };
+    renderList();
+    const row = await screen.findByTestId('po-variation-var-1');
+    await user.click(within(row).getByRole('button', { name: /reject/i }));
+    // Reject is the destructive tone, so the confirm is an alertdialog.
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('This variation will be rejected or disputed and will not increase the PO.');
+  });
+
   it('FR-SCA-036 hides Approve and Reject from the requester', async () => {
     renderList();
     expect(await screen.findByText('VAR-1')).toBeInTheDocument();

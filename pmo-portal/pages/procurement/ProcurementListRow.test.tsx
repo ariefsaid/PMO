@@ -35,6 +35,17 @@ describe('AC-S19-002: procurement daily row', () => {
     detailQuery.refetch.mockClear();
   });
 
+  it('R2: a row with no code falls back to its id, so two same-titled records are still told apart', () => {
+    render(
+      <BahasaProvider locale="en">
+        <MemoryRouter>
+          <ProcurementListRow row={{ ...row, code: null, id: 'p-abcdef123456' } as ProcurementWithRefs} />
+        </MemoryRouter>
+      </BahasaProvider>,
+    );
+    expect(screen.getByText('p-abcdef')).toBeInTheDocument();
+  });
+
   it('shows the localized state and useful next step while leaving the full lifecycle to detail', () => {
     render(
       <BahasaProvider locale="id">

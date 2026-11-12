@@ -558,8 +558,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       minSize: 126,
       cell: (row) => {
         const money = derivationFor(row).money;
-        // Nothing invoiced yet is an empty cell, so a list with no invoices drops the whole column.
-        if (money.invoiced.unknown || money.paid.unknown || !money.invoiced.amount) return null;
+        // A source amount that could not be read is "not recorded", never blank: a blank cell reads as
+        // nothing here, which is a different fact. Nothing invoiced yet stays blank, so a list with no
+        // invoices drops the whole column.
+        if (money.invoiced.unknown || money.paid.unknown) {
+          return <span data-testid="settlement-unknown" className="text-sm text-muted-foreground"><span aria-hidden="true">—</span><span className="sr-only">{t('procurement.moneyUnknown', 'Not recorded')}</span></span>;
+        }
+        if (!money.invoiced.amount) return null;
         const paid = money.paid.amount ?? 0;
         const percent = Math.max(0, Math.min(100, (paid / money.invoiced.amount) * 100));
         return (
@@ -602,11 +607,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               {row.title}
             </button>
-            {(row.code || row.vendor?.name) && (
-              <span className="block line-clamp-2 break-words text-sm text-muted-foreground">
-                {row.code && <span className="font-mono">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
-              </span>
-            )}
+            {/* The record's identity line is never blank: a missing code falls back to the id, a missing
+                supplier says so (the person needs to know the value is absent, not unloaded). */}
+            <span className="block line-clamp-2 break-words text-sm text-muted-foreground">
+              <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span> · {row.vendor?.name ?? t('projectDetail.procurement.noSupplier', 'No supplier')}
+            </span>
           </div>
         ),
         exportValue: (row) => row.title,
@@ -1024,7 +1029,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       <Drawer
         open={selected !== null}
         title={selected?.title ?? t('projectDetail.procurement.detail.title', 'Procurement details')}
-        subtitle={selected ? [selected.code, selected.vendor?.name].filter(Boolean).join(' · ') || undefined : undefined}
+        subtitle={selected ? `${selected.code ?? selected.id.slice(0, 8)} · ${selected.vendor?.name ?? t('projectDetail.procurement.noSupplier', 'No supplier')}` : undefined}
         status={selected ? <ProcurementStatusPill status={selected.status} /> : undefined}
         width="lg"
         loading={transition.isPending}

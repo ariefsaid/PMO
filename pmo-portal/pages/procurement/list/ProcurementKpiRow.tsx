@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { StatTiles, type StatTile } from '@/src/components/ui';
+import { StatTiles, Tooltip, type StatTile } from '@/src/components/ui';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -46,15 +46,20 @@ export const ProcurementKpiRow = React.memo(function ProcurementKpiRow({ rows, r
     .filter((value): value is string => Boolean(value))
     .sort()[0];
   const orderedRows = rows.filter((row) => row.status === 'Ordered' || row.status === 'Received');
+  const unpaidAge = calendarAgeDays(oldestInvoice, organizationDay.day);
 
-  const tile = (label: string, count: number, totals: CurrencyTotal[], caption: string | undefined, testId: string, basis: string): StatTile => {
+  const tile = (label: string, count: number, totals: CurrencyTotal[], caption: React.ReactNode, testId: string, basis: string): StatTile => {
     const { lines, exact, unrecorded } = figureLines(totals, home);
+    // An incomplete total says so instead of the tile's own caption; a whole one keeps the caption.
+    const partial = unrecorded > 0 && lines !== null
+      ? t('kpi.partial', { count: unrecorded, defaultValue: '{{count}} not recorded' })
+      : caption;
     return {
       label,
       value: lines === null ? null : <span data-testid={`summary-total-${testId}`} title={basis} aria-label={`${exact}. ${basis}`} tabIndex={0} className="block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{lines.map((line) => <span key={line} className="block">{line}</span>)}</span>,
       unavailableReason: lines === null ? t('kpi.notRecorded', 'amounts are not recorded') : undefined,
-      // The caption counts the same procurements as the figure; an incomplete total says so.
-      sub: [t('count.procurements', { count, defaultValue_one: '{{count}} procurement', defaultValue_other: '{{count}} procurements' }), unrecorded > 0 && lines !== null ? t('kpi.partial', { count: unrecorded, defaultValue: '{{count}} not recorded' }) : caption].filter(Boolean).join(' · '),
+      // The caption counts the same procurements as the figure.
+      sub: <>{t('count.procurements', { count, defaultValue_one: '{{count}} procurement', defaultValue_other: '{{count}} procurements' })}{partial ? <> · {partial}</> : null}</>,
     };
   };
 
@@ -64,11 +69,20 @@ export const ProcurementKpiRow = React.memo(function ProcurementKpiRow({ rows, r
       t('kpi.unpaid', 'Supplier invoices unpaid'),
       unpaidRows.length,
       totalsByCurrency(unpaidRows, role, 'pay'),
-      calendarAgeDays(oldestInvoice, organizationDay.day) === null ? undefined : t('kpi.invoiceAge', { count: calendarAgeDays(oldestInvoice, organizationDay.day)!, defaultValue_one: 'Invoice age {{count}} day', defaultValue_other: 'Invoice age {{count}} days' }),
+      // With nothing unpaid the caption says so (a bare "0 procurements" would read as a figure not shown);
+      // with an age it says what the age counts from, so the figure reconciles against a supplier statement.
+      unpaidAge !== null
+        ? <Tooltip content={t('kpi.invoiceAgeBasis', 'Oldest unpaid supplier invoice date')}>
+          <span tabIndex={0} className="rounded-sm underline decoration-dotted underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+            {t('kpi.invoiceAge', { count: unpaidAge, defaultValue_one: 'Invoice age {{count}} day', defaultValue_other: 'Invoice age {{count}} days' })}
+          </span>
+        </Tooltip>
+        : unpaidRows.length === 0 ? t('kpi.noneUnpaid', 'Nothing waiting for payment') : undefined,
       'unpaid',
       t('money.pay', 'Supplier invoices use the unpaid balance; paid procurements contribute zero. Kept in each procurement currency.'),
     )]),
-    tile(t('kpi.ordered', 'Ordered, not invoiced'), orderedRows.length, totalsByCurrency(orderedRows, role, 'most-real'), undefined, 'ordered',
+    // "Ordered, not invoiced" says what its amount leaves out: anything already invoiced is in the unpaid tile instead.
+    tile(t('kpi.ordered', 'Ordered, not invoiced'), orderedRows.length, totalsByCurrency(orderedRows, role, 'most-real'), t('kpi.orderedMeaning', 'Committed with suppliers, no invoice yet'), 'ordered',
       engineer ? t('money.engineer', 'Request amount only. Supplier invoice and payment amounts are not shown.') : t('money.mostReal', 'Most real amount per procurement: paid, then supplier invoice, then purchase order, then request. Summed by currency.')),
   ];
 

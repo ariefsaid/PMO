@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { axe } from 'jest-axe';
 import { describe, expect, it, vi, afterEach } from 'vitest';
@@ -43,6 +43,18 @@ describe('FilterBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
     expect(screen.getByRole('dialog', { name: 'Filters' })).toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: 'Search records' })).toBeInTheDocument();
+  });
+  it('R2: the phone Filters trigger carries the number of filters in force, and no badge at rest', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    setup('/?q=bridge&status=open&project=one');
+    const trigger = screen.getByRole('button', { name: /^Filters/ });
+    // The search box is not a filter: two selects/segments are in force, the typed query is not counted.
+    expect(within(trigger).getByTestId('filter-bar-count')).toHaveTextContent('2');
+  });
+  it('R2: nothing in force means no badge, so the trigger reads plainly as Filters', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    setup('/?other=keep');
+    expect(screen.getByRole('button', { name: 'Filters' })).not.toHaveTextContent(/\d/);
   });
   it('has no accessibility violations', async () => {
     const { container } = setup();

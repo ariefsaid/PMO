@@ -194,4 +194,14 @@ describe('SubcontractLinesSection', () => {
     expect(screen.queryByRole('button', { name: /pre-work/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /post-work/i })).toBeNull();
   });
+
+  it('R2: Attribute lines says what the fields are for — the bill\'s content at the PO rate', async () => {
+    const user = userEvent.setup();
+    h.exceptions = { data: [{ invoice_id: 'i1', number: 'INV-9', amount: 5000000, erp_purchase_document_id: 'PI-1', reason: 'no_lines' }], isError: false };
+    renderSection();
+    const note = await screen.findByTestId('subcontract-cap-exceptions');
+    await user.click(within(note).getByRole('button', { name: /attribute lines/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('State what it covers, at the PO rate.');
+  });
 });
