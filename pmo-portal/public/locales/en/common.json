@@ -3564,6 +3564,7 @@
       "effective": "Effective language: {{value}}"
     },
     "loading": "Loading profile…",
+    "noChanges": "No changes to save",
     "number": {
       "label": "Number format",
       "help": "Preview: {{value}}",
@@ -3577,7 +3578,7 @@
     },
     "refreshRetry": "Retry refresh",
     "save": "Save",
-    "saved": "Language, number format, and timezone preferences saved.",
+    "saved": "Preferences saved",
     "saving": "Saving your preference…",
     "staleRefresh": "Refreshing this session failed — your choices are stored and will apply on your next sign-in.",
     "timezone": {

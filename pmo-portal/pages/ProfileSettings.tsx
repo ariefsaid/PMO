@@ -34,6 +34,9 @@ function toTimezoneChoice(timezone: string | null | undefined): TimezoneChoice {
 
 const NUMBER_EXAMPLE = 1234567.89;
 
+/** Id of the muted note that explains a disabled Save; the button points at it. */
+const SAVE_NO_CHANGES_ID = 'profile-save-no-changes';
+
 /** The number convention shown as its own example (`1.234.567,89`), never as a bare tag like `id`. */
 function numberExample(numberLocale: string): string {
   return formatMoneyInputValue(NUMBER_EXAMPLE, numberLocale);
@@ -299,16 +302,23 @@ const ProfileSettings: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-6">
+        <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1">
           <Button
             type="button"
             variant="primary"
             onClick={handleSave}
             disabled={isSaving || !dirty}
             loading={isSaving}
+            aria-describedby={!dirty ? SAVE_NO_CHANGES_ID : undefined}
           >
             {t('profileSettings.save', 'Save')}
           </Button>
+          {/* A disabled control says why: the reason sits beside Save and leaves with the first change. */}
+          {!dirty && (
+            <p id={SAVE_NO_CHANGES_ID} className="text-control text-muted-foreground">
+              {t('profileSettings.noChanges', 'No changes to save')}
+            </p>
+          )}
         </div>
 
         {status === 'saving' && (
@@ -318,13 +328,13 @@ const ProfileSettings: React.FC = () => {
         )}
         {status === 'saved' && (
           <p role="status" className="mt-3 text-control font-medium text-foreground">
-            {t('profileSettings.saved', 'Language, number format, and timezone preferences saved.')}
+            {t('profileSettings.saved', 'Preferences saved')}
           </p>
         )}
         {status === 'stale' && (
           <div className="mt-3 space-y-2">
             <p role="status" className="text-control font-medium text-foreground">
-              {t('profileSettings.saved', 'Language, number format, and timezone preferences saved.')}
+              {t('profileSettings.saved', 'Preferences saved')}
             </p>
             <p role="alert" className="text-control leading-[1.5] text-muted-foreground">
               {t(

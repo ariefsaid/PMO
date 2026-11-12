@@ -113,6 +113,22 @@ describe('ProfileSettings (profile language settings slice)', () => {
     expect(save).toBeEnabled();
   });
 
+  it('C10 ProfileSettings.tsx:307: a disabled Save says why, and the reason leaves with the first change', () => {
+    renderPage();
+    const save = screen.getByRole('button', { name: /^save$/i });
+
+    // Clean: the button is disabled AND describes itself, so the why is not colour-only.
+    expect(save).toBeDisabled();
+    expect(save).toHaveAccessibleDescription('No changes to save');
+    expect(screen.getByText('No changes to save')).toBeVisible();
+
+    // Touching a stored preference both enables Save and retires the note.
+    fireEvent.change(languageSelect(), { target: { value: 'id' } });
+    expect(save).toBeEnabled();
+    expect(save).not.toHaveAccessibleDescription('No changes to save');
+    expect(screen.queryByText('No changes to save')).not.toBeInTheDocument();
+  });
+
   it('asks before leaving changed profile preferences and Stay keeps the selection', async () => {
     currentUserState = { ...currentUserState, locale: 'en' };
     renderPage();
@@ -152,7 +168,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
     expect(languageSelect()).toHaveValue('en');
   });
 
-  it('C10 ProfileSettings.tsx:321-327: the saved status names the three stored preferences', async () => {
+  it('C10 ProfileSettings.tsx:321-327: the saved status appears only once the profile refresh completes', async () => {
     currentUserState = { ...currentUserState, locale: 'en' };
     setLocalePreferences.mockResolvedValue(undefined);
     let resolveRefresh!: (value: { error: null }) => void;
@@ -170,7 +186,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
     await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
     expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
     await act(async () => resolveRefresh({ error: null }));
-    expect(await screen.findByRole('status')).toHaveTextContent('Language, number format, and timezone preferences saved.');
+    expect(await screen.findByRole('status')).toHaveTextContent('Preferences saved');
   });
 
   it('disables the select and save button and shows a saving status while the write is pending', async () => {
