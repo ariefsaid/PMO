@@ -169,7 +169,7 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(cell('2026-09-10')).toBeEnabled();
   });
 
-  it('AC-EQU-017 an approver approves the asset-week and the toast says what was skipped', async () => {
+  it('C2 EquipmentUsage.tsx:243,356 (AC-EQU-017) confirms which submitted week will be approved', async () => {
     h.userId = 'u-pm';
     h.entries = [
       entry({ id: 'e5', status: 'Submitted', author_id: 'u-eng' }),
@@ -179,6 +179,12 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     renderPage('Project Manager');
     await user.click(screen.getByRole('tab', { name: 'Approvals' }));
     await user.click(screen.getByRole('button', { name: 'Approve week' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Approve equipment usage week?' });
+    expect(dialog).toHaveTextContent(/Loader 1/);
+    expect(dialog).toHaveTextContent(/1 submitted entry/);
+    expect(dialog).toHaveTextContent(/own entries.*skipped/i);
+    expect(h.approveWeek).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Approve week' }));
     await waitFor(() => expect(h.approveWeek).toHaveBeenCalledWith({ assetId: 'a1', weekStart: '2026-09-07' }));
     expect((await screen.findAllByText('1 approved · 1 skipped (your own)')).length).toBeGreaterThan(0);
   });

@@ -176,6 +176,8 @@
     "cardTitle": "Usage",
     "confirmApproveBody": "This will approve the logged equipment usage entry.",
     "confirmApproveTitle": "Approve usage entry?",
+    "confirmApproveWeekTitle": "Approve equipment usage week?",
+    "confirmApproveWeekBody": "Approve {{count}} submitted {{entries}} for {{asset}} during {{from}} – {{to}}. Their status will change to Approved. Your own entries and any entry you cannot approve are skipped and stay unchanged.",
     "columns": {
       "date": "Date",
       "decision": "Decision",

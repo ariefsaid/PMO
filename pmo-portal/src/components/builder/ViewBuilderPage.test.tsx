@@ -6,7 +6,7 @@
  * (AC-VB-002 is owned by PanelEditorForm.test.tsx — entity-change reset is panel-editor behavior.)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act, waitFor } from '@testing-library/react';
+import { render, screen, act, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
@@ -390,7 +390,7 @@ describe('ViewBuilderPage — guard states', () => {
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
   });
 
-  it('PGA06-009: a newer server version keeps the draft and offers reload or continue editing', async () => {
+  it('C2 ViewBuilderPage.tsx:432 (PGA06-009) protects an unsaved edit before reloading the remote version', async () => {
     const view = {
       id: 'v1', name: 'Saved name', description: 'Saved description', scope: 'private',
       spec: { version: 1, panels: [PANEL_A] }, archived_at: null, org_id: 'org1', user_id: 'u1',
@@ -413,11 +413,30 @@ describe('ViewBuilderPage — guard states', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('textbox', { name: /view name/i })).toHaveValue('My unsaved draft');
+    const nameField = screen.getByRole('textbox', { name: /view name/i });
+    expect(nameField).toHaveValue('My unsaved draft');
     expect(screen.getByRole('alert')).toHaveTextContent(/saved view changed/i);
     await userEvent.click(screen.getByRole('button', { name: /reload saved view/i }));
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    expect(discard).toHaveTextContent(/what you typed here will be lost/i);
+    expect(nameField).toHaveValue('My unsaved draft');
+    await userEvent.click(within(discard).getByRole('button', { name: 'Discard' }));
     expect(screen.getByRole('textbox', { name: /view name/i })).toHaveValue('Remote version');
     expect(screen.queryByText(/saved view changed/i)).not.toBeInTheDocument();
+  });
+
+  it('C2 ViewBuilderPage.tsx:197 confirms removing a panel from the unsaved view', async () => {
+    renderCreate([PANEL_A]);
+    await waitFor(() => expect(screen.getByTestId('view-preview')).toHaveAttribute('data-panels', '1'));
+
+    await userEvent.click(screen.getByRole('button', { name: /remove panel 1/i }));
+
+    const dialog = await screen.findByRole('alertdialog', { name: 'Remove this panel?' });
+    expect(dialog).toHaveTextContent(/DataTable.*companies/);
+    expect(dialog).toHaveTextContent(/removed from this view/i);
+    expect(screen.getByTestId('view-preview')).toHaveAttribute('data-panels', '1');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove panel' }));
+    expect(screen.getByTestId('view-preview')).toHaveAttribute('data-panels', '0');
   });
 
   it('PGA06-007: an internal app link holds a dirty draft until the user confirms leaving', async () => {
@@ -593,6 +612,8 @@ describe('ViewBuilderPage — panel reorder and remove', () => {
     const user = userEvent.setup();
     renderCreate([PANEL_A, PANEL_B]);
     await user.click(screen.getByRole('button', { name: 'Remove panel 1' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Remove this panel?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Remove panel' }));
     // Only B should remain
     const items = screen.getAllByRole('listitem');
     expect(items).toHaveLength(1);
