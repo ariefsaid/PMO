@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import i18next from 'i18next';
@@ -167,13 +167,18 @@ describe('UpdatePasswordPage', () => {
     expect(screen.queryByLabelText(/new password/i)).toBeNull();
   });
 
-  it('an authenticated session still opens the form after Supabase consumes recovery URL params', async () => {
+  it('a signed-in session without recovery params or invite_pending does not open the form', async () => {
     window.history.replaceState({}, '', '/update-password');
-    auth.getSession.mockResolvedValue({
-      data: { session: { user: { id: 'u1', user_metadata: {} } } },
-    });
+    let resolveSession!: (value: { data: { session: { user: { id: string; user_metadata: Record<string, unknown> } } } }) => void;
+    auth.getSession.mockReturnValue(new Promise((resolve) => { resolveSession = resolve; }));
     renderPage();
-    await waitFor(() => expect(screen.getByLabelText(/new password/i)).toBeVisible());
+    await waitFor(() => expect(auth.getSession).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      resolveSession({ data: { session: { user: { id: 'u1', user_metadata: {} } } } });
+    });
+    expect(screen.getByText(/invalid or expired/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/new password/i)).toBeNull();
+    expect(screen.queryByLabelText(/confirm password/i)).toBeNull();
   });
 
   it('AC-AUTHF-015: params + no session (invalid/expired token) renders the expired state', async () => {

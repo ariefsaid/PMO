@@ -46,11 +46,14 @@ const classifyUpdateError = (message: string): AuthFailureReason => {
   return 'auth_error';
 };
 
-const UpdatePasswordPage: React.FC = () => {
-  const { t } = useTranslation('auth');
-  // A raw GoTrue message ("Password should be at least 6 characters") never reaches the screen:
-  // the kind decides the sentence, in the reader's language (row C4: update-password).
+const TranslatedUpdateError: React.FC<{ message: string; fallback: string }> = ({ message, fallback }) => {
   const serviceText = useServiceMessageText();
+  return <ErrorBanner message={serviceText(message, fallback)} />;
+};
+
+const UpdatePasswordPage: React.FC = () => {
+  const { t: translated, ready } = useTranslation('auth', { useSuspense: false });
+  const t = (key: string, fallback: string) => ready ? translated(key, fallback) : fallback;
   const navigate = useNavigate();
   const { session, updatePassword } = useAuth();
 
@@ -74,14 +77,19 @@ const UpdatePasswordPage: React.FC = () => {
       setPhase('active');
       window.history.replaceState({}, '', '/update-password'); // FR-AUTHF-027
     };
-    // Supabase may consume a recovery URL fragment before this route finishes loading its auth
-    // catalogue, then expose the verified session without URL params. A current session is enough
-    // authority to set that user's password; RequireInviteAccepted also reaches this route with an
-    // authenticated invite_pending session.
+    // RequireInviteAccepted redirects an already-signed-in invite_pending user to /update-password
+    // via <Navigate>, which carries no recovery URL params. That session is still a valid trigger
+    // for the set-password form, so it's checked alongside hasRecoveryParams (spec-conformance fix).
+    const checkSession = ({ session }: { session: { user?: { user_metadata?: Record<string, unknown> } } | null }) => {
+      if (session?.user?.user_metadata?.invite_pending === true) {
+        activate();
+        return true;
+      }
+      return false;
+    };
     if (!hasRecoveryParams) {
       void supabase.auth.getSession().then(({ data }) => {
-        if (data.session) activate();
-        else if (!settled) {
+        if (!checkSession(data) && !settled) {
           settled = true;
           setPhase('expired');
         }
@@ -189,9 +197,12 @@ const UpdatePasswordPage: React.FC = () => {
         <Card>
           <CardPad className="space-y-4">
             {error && (
-              <ErrorBanner
-                message={serviceText(error, t('update.failed', 'The password was not changed. Try again.'))}
-              />
+              <React.Suspense fallback={<ErrorBanner message={t('update.failed', 'The password was not changed. Try again.')} />}>
+                <TranslatedUpdateError
+                  message={error}
+                  fallback={t('update.failed', 'The password was not changed. Try again.')}
+                />
+              </React.Suspense>
             )}
             <form onSubmit={onSubmit} className="space-y-4" noValidate>
               <AuthInput

@@ -895,7 +895,7 @@ export const createAppRouter = (): DataRouter => createBrowserRouter([
       { path: '/terms', element: <Suspense fallback={<LoadingFallback />}><TermsPage /></Suspense> },
       { path: '/privacy', element: <Suspense fallback={<LoadingFallback />}><PrivacyPage /></Suspense> },
       { path: '/reset-password', element: <Suspense fallback={<LoadingFallback />}><ResetPasswordPage /></Suspense> },
-      { path: '/update-password', element: <Suspense fallback={<LoadingFallback />}><UpdatePasswordPage /></Suspense> },
+      { path: '/update-password', element: <UpdatePasswordPage /> },
       {
         element: <RequireAuth />,
         children: [
