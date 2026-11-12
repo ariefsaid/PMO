@@ -33,7 +33,6 @@ let financeId = '';
 let weekStart = '';
 let today = '';
 let workdayLabel = '';
-let fixedNow = new Date();
 let timesheetSlotReserved = false;
 let itemCode = '';
 
@@ -122,15 +121,14 @@ test.beforeEach(async () => {
     const candidateWeek = candidate.toISOString().slice(0, 10);
     if (occupiedWeeks.has(candidateWeek)) continue;
     weekStart = candidateWeek;
-    fixedNow = new Date(Date.UTC(
-      candidate.getUTCFullYear(), candidate.getUTCMonth(), candidate.getUTCDate(),
-      now.getUTCHours(), now.getUTCMinutes(),
-    ));
     break;
   }
   if (!weekStart) throw new Error('AC-TM-018 could not find an empty engineer week within the next year.');
-  today = fixedNow.toISOString().slice(0, 10);
-  workdayLabel = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][fixedNow.getUTCDay()] ?? 'Mon';
+  // The journey is driven to the fixture week through the app's own week deep link
+  // (pages/Timesheets.tsx owns the selected week in `?week=YYYY-MM-DD`), so the test never fakes the
+  // browser clock: hours go into the week's Monday cell and the claim period is that same Monday.
+  today = weekStart;
+  workdayLabel = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(`${weekStart}T00:00:00.000Z`).getUTCDay()] ?? 'Mon';
   timesheetSlotReserved = true;
 
   const company = await admin
@@ -287,7 +285,6 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
 
   const billingUrl = `/projects/${projectId}/billing`;
   await login(page, FINANCE_EMAIL);
-  await page.clock.setFixedTime(fixedNow);
   await page.goto(billingUrl);
   await expect(page.getByRole('heading', { name: 'Time and materials' })).toBeVisible({ timeout: 20_000 });
 
@@ -317,11 +314,8 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await expect(assignmentDialog).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(ENGINEER_NAME, { exact: true })).toBeVisible();
 
-  // Restore wall-clock time while replaying the captured auth fixture, then pin the business date again.
-  await page.clock.setFixedTime(new Date());
   await login(page, ENGINEER_EMAIL);
-  await page.clock.setFixedTime(fixedNow);
-  await page.goto('/timesheets');
+  await page.goto(`/timesheets?week=${weekStart}`);
   await expect(page.getByTestId('timesheets-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByLabel('Add a project')).toBeVisible({ timeout: 10_000 });
   await page.getByLabel('Add a project').selectOption(projectId);
@@ -347,9 +341,7 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   if (submitted.error) throw new Error(`AC-TM-018 submitted week: ${submitted.error.message}`);
   expect(submitted.data.status).toBe('Submitted');
 
-  await page.clock.setFixedTime(new Date());
   await login(page, MANAGER_EMAIL);
-  await page.clock.setFixedTime(fixedNow);
   await page.goto('/approvals?scope=timesheets');
   await expect(page.getByTestId('approvals-loading')).not.toBeVisible({ timeout: 15_000 });
   const approvalQueue = page.getByRole('region', { name: 'Approvals queue' });
@@ -449,9 +441,7 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await expect(claimDrawer.getByText('A different user must confirm this sign-off.')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Confirm sign-off' })).toHaveCount(0);
 
-  await page.clock.setFixedTime(new Date());
   await login(page, FINANCE_EMAIL);
-  await page.clock.setFixedTime(fixedNow);
   await page.goto(billingUrl);
   const financeClaims = page.locator('section[aria-labelledby="tm-claims-heading"]');
   await expect(financeClaims.getByText('Awaiting confirmation', { exact: true })).toBeVisible({ timeout: 20_000 });
@@ -519,9 +509,7 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
 
   // A second person approves it from the Approvals queue, after reading the lines; the claim row then shows the invoice number.
   const clientName = `${projectName.replace('Time materials ', '')} Client`;
-  await page.clock.setFixedTime(new Date());
   await login(page, 'admin@acme.test');
-  await page.clock.setFixedTime(fixedNow);
   await page.goto('/approvals');
   const invoiceQueue = page.getByRole('region', { name: 'Customer invoices awaiting you' });
   const invoiceItem = invoiceQueue.getByRole('listitem').filter({ hasText: clientName });
