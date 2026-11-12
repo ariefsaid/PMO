@@ -36,7 +36,7 @@ and the DoD in `docs/product-expectations.md` are unchanged and binding.
 | Who | Keeps |
 |---|---|
 | **pi dispatches** | Spec/plan authoring, implementation slices, mockup HTML builds, code-level reviews & audits — i.e. the role-agent work of playbook §2 steps 2–7 · **rendered UI/UX/FE verification via the `agent-browser` CLI** (§3a below) |
-| **Director (you)** | Dispatch briefs · verification of every claim (§5 below) · the **final rendered visual-taste lens** + owner-facing screenshots (design-workflow §2.3 lens (a) sign-off quality needs vision; pi text models work from the a11y tree) · merge + git hygiene (playbook §6) · prod operations (`docs/environments.md`) |
+| **Director (you)** | Dispatch briefs · verification of every claim (§5 below) · the **final rendered visual-taste lens** + owner-facing screenshots (docs/archive/design-workflow-lens-battery.md §2.3 lens (a) sign-off quality needs vision; pi text models work from the a11y tree) · merge + git hygiene (playbook §6) · prod operations (`docs/environments.md`) |
 | **Owner** | Spec sign-off, mockup approval, production/irreversible approvals — exactly as in CLAUDE.md "Quality gates & checkpoints" |
 
 pi agents may **commit on the issue branch** (implementer discipline) but never push, open PRs,
@@ -232,16 +232,16 @@ Use it in design-review / qa-style dispatches and in ui-implementer self-checks:
   `npm i -g agent-browser && agent-browser install`, then `scripts/vendor-skills.sh` copies the stub.
 - **For a structured exploratory pass / bug-hunt**, brief the agent to load
   `agent-browser skills get dogfood` — it produces a reproducible defect report with screenshots,
-  matching the design-workflow §2.3 lens (b)/(c) walk.
+  matching the docs/archive/design-workflow-lens-battery.md §2.3 lens (b)/(c) walk.
 - Core verbs: `open <url>` · `click/fill/type/press` · `wait <sel|ms>` · `screenshot [path]` ·
   snapshot/refs per the core skill. Serve static mockups with `python3 -m http.server <port>`
   from the mockup directory; the app via `npm run dev` from `pmo-portal/`.
 - **Text models verify against the accessibility tree / DOM assertions** (snapshot + selector
-  checks: states, labels, focus order, counts) — that covers design-workflow §2.3 lens (b)/(c)
+  checks: states, labels, focus order, counts) — that covers docs/archive/design-workflow-lens-battery.md §2.3 lens (b)/(c)
   walks and functional FE verification. **Screenshots are for vision-capable reviewers** — have
   the pi agent save them to a known path and the Director (or a vision model) judges lens (a)
   pixel/taste quality from the files.
-- The owner-approval artifact (design-workflow §2.5, §3) is still produced/curated by the
+- The owner-approval artifact (docs/archive/design-workflow-lens-battery.md §2.5, §3) is still produced/curated by the
   Director — pi screenshots feed it, they don't replace the gate.
 
 ### 3b. Dispatch mechanics — background, never block or poll (Claude Code harness)
@@ -343,7 +343,7 @@ ignored skill payloads to `.agents/skills/` and optional `.pi/skills/`.
 
 pi agents see NOTHING of your session. The brief must stand alone:
 
-1. **Task in one line**, naming the phase and the binding role rules ("per docs/design-workflow.md §1a").
+1. **Task in one line**, naming the phase and the binding role rules ("per docs/archive/design-workflow-lens-battery.md §1a").
 2. **READ FIRST list** — exact paths: the locked `OD-*` decisions (`docs/decisions.md`), glossary,
    spec/plan, the reference slice (`pages/Companies.tsx` per CLAUDE.md), relevant ADRs. The agent
    reads them itself; don't paste content.
@@ -367,7 +367,7 @@ Never accept a pi completion report. Minimum per dispatch:
 - **Structure-check HTML edits** — glm-4.7 once broke tag nesting mid-file (a lost `<section>` +
   unclosed `<div>`s silently swallowed every later section). Balance-count tags or parse before
   trusting any HTML/JSX bulk edit.
-- **Render UI work yourself** (playwright/preview MCP) — this is design-workflow §2.3 lens (a),
+- **Render UI work yourself** (playwright/preview MCP) — this is docs/archive/design-workflow-lens-battery.md §2.3 lens (a),
   and it catches what source review can't.
 - **Read the builder's gate evidence**; re-run only a targeted check you doubt (the touched test,
   the touched pgTAP file) — never a full re-verify; CI runs the full suite on the PR.
@@ -392,7 +392,7 @@ their ACs, an org_id seam violation) — while the Director's own read caught 2 
 
 - Sequencing + status: `docs/backlog.md` → "ACTIVE PROGRAM — KANNA gap-closing series".
 - The loop being executed: `docs/director-playbook.md` §2; UI issues additionally
-  `docs/design-workflow.md` §1a (pre-spec mockup gate) + §2 (per-UI-issue loop + 3-lens battery).
+  `docs/archive/design-workflow-lens-battery.md` §1a (pre-spec mockup gate) + §2 (per-UI-issue loop + 3-lens battery).
 - Grading: playbook §10 rubric applies to pi-produced work unchanged.
 - If pi/the providers are unavailable, fall back to the standard Claude role agents
   (`.claude/agents/`, playbook §3) — the loop is substrate-agnostic by design.

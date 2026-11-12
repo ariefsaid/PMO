@@ -292,6 +292,7 @@ test('AC-732 whole-project Draft authoring: distribution saves, goes stale on a 
 
   // Close/reopen to reload only persisted by-days inputs before the stale and error scenarios.
   await draftEditor.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('alertdialog', { name: 'Discard your changes?' }).getByRole('button', { name: 'Discard', exact: true }).click();
   await draftBanner.getByRole('button', { name: 'Edit draft', exact: true }).click();
   const refreshedEditor = page.getByRole('region', { name: 'Draft budget editor' });
   const refreshedDistribution = refreshedEditor.getByTestId('budget-distribution-grid');

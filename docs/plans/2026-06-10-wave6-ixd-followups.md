@@ -4,7 +4,7 @@
 - **Author:** design-architect (Opus 4.8)
 - **Skills discipline:** `impeccable shape` (plan UX before code) + `ui-ux-pro-max plan` (layout + 99-guideline checklist) + `taste` required-states / a11y / anti-slop fold.
 - **Authority:** `DESIGN.md` (repo root) is the single source of truth. **No new aesthetic.** Every visual decision below names a `DESIGN.md` token, never a literal. Where a literal is currently in code (e.g. `text-[13.5px]`) it is the existing system idiom and is preserved verbatim.
-- **Scope:** read-only on prod code by the planner; this plan is what `ui-implementer` builds to and `design-reviewer` audits (3-lens RENDERED per `docs/design-workflow.md`).
+- **Scope:** read-only on prod code by the planner; this plan is what `ui-implementer` builds to and `design-reviewer` audits (3-lens RENDERED per `docs/archive/design-workflow-lens-battery.md`).
 - **Inputs:** confirmed rendered-review IxD triage + two locked owner decisions (baked in below, not re-litigated).
 - **Test layering:** ADR-0010. Each `AC-###` is owned at the lowest sufficient layer; mostly Unit/RTL, with **render-position** assertions where layout/order matters (per the durable Wave-5-C3 lesson: assert DOM order vs landmarks, not component existence in isolation).
 
