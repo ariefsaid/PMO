@@ -85,6 +85,7 @@
     "lostCountShort": "Lost {{n}}",
     "idleReasonShort": "Idle {{days}}d",
     "staleReasonShort": "Stage {{days}}d",
-    "showAllAttention": "Show all {{n}}"
+    "showAllAttention": "Show all {{n}}",
+    "openAttentionScope": "View in table"
   }
 }

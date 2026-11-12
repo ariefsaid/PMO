@@ -98,6 +98,17 @@ export function useSalesModel() {
     }));
   const selectStage = (status: OpenFunnelStage | '') =>
     setWorkingSet((ws) => ({ ...ws, status: ws.status === status ? '' : status }));
+  // R2 restore: the Needs-attention card keeps a way into its table scope even when every stale
+  // deal already fits in the list. Scope is table-only, so one update sets both (two updates would
+  // serialize the first one away before the view changes); the chosen view is remembered.
+  const openAttentionScope = () => {
+    if (isDesktop) writePipelineView('table');
+    setWorkingSet((ws) => ({
+      ...ws,
+      scope: 'Needs attention',
+      ...(ws.view !== 'table' ? { view: 'table' as const } : {}),
+    }));
+  };
 
   const state: 'loading' | 'empty' | 'error' | undefined =
     open.isPending || wonQ.isPending || lostQ.isPending ? 'loading'
@@ -120,7 +131,7 @@ export function useSalesModel() {
     open, lostQ, wonQ, state,
     workingSet, setWorkingSet, search, setSearch, openRecord,
     scope, setScope, scopeLabels, DEAL_SCOPES, view, setView,
-    selectedStatus, stageIndex, selectStage,
+    selectedStatus, stageIndex, selectStage, openAttentionScope,
     openProjects, won, lost, allDeals, stages,
     scopeRows, filtered, boardRows, funnel,
     tableColumns, exportColumns, stageLabel, stageName,

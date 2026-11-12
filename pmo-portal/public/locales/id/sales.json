@@ -81,6 +81,7 @@
     "outcomesNote": "Proyek yang sudah diputuskan di papan ini",
     "quickView": "Tinjauan cepat",
     "showAllAttention": "Tampilkan semua {{n}}",
+    "openAttentionScope": "Lihat di tabel",
     "stageNav": "Tahap pipeline",
     "staleReason": "Di {{stage}} selama {{days}} hari",
     "viewByStage": "Per tahap",

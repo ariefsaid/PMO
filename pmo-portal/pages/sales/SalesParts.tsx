@@ -134,13 +134,18 @@ export const PhoneFigures: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => {
 export const NeedsAttentionCard: React.FC<{ m: SalesModel; onOpen: (p: PipelineProject) => void; compact?: boolean }> = ({ m, onOpen, compact = false, m: { t } }) => {
   const deals = attentionDeals(m);
   const shown = deals.slice(0, 5);
+  // R2 restore: dev's "Needs attention" figure was always a way into the scope; the card must keep
+  // offering it even when every stale deal already fits in the list (≤5).
+  const hasMore = deals.length > shown.length;
   return (
     <section aria-label={t('sales:options.needsYou', 'Needs attention')} className="panel-card p-[var(--panel-inset)]">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-group font-semibold">{t('sales:options.needsYouHeading', 'Needs you · {{n}}', { n: deals.length })}</h2>
-        {deals.length > shown.length && (
-          <button type="button" className="text-control font-medium text-primary-text hover:underline" onClick={() => m.setScope('Needs attention')}>
-            {t('sales:options.showAllAttention', 'Show all {{n}}', { n: deals.length })}
+        <h2 className="text-group font-semibold" title={t('sales:options.needsYouNote', 'Untouched 30+ days or 90+ days in one stage')}>{t('sales:options.needsYouHeading', 'Needs you · {{n}}', { n: deals.length })}</h2>
+        {deals.length > 0 && (
+          <button type="button" className="text-control font-medium text-primary-text hover:underline" onClick={m.openAttentionScope}>
+            {hasMore
+              ? t('sales:options.showAllAttention', 'Show all {{n}}', { n: deals.length })
+              : t('sales:options.openAttentionScope', 'View in table')}
           </button>
         )}
       </div>
@@ -163,10 +168,10 @@ export const NeedsAttentionCard: React.FC<{ m: SalesModel; onOpen: (p: PipelineP
         </ul>
       )}
       <div className={`${compact ? 'mt-2 flex gap-4 border-t border-border pt-2' : 'mt-2 grid grid-cols-1 divide-y divide-border/70 border-t border-border pt-2'} text-control`}>
-        <button type="button" className={`font-medium text-primary-text hover:underline ${compact ? '' : 'flex min-h-8 items-center text-left'}`} onClick={() => m.setScope('Won')}>
+        <button type="button" title={t('sales:options.outcomesNote', 'Decided projects on this board')} className={`font-medium text-primary-text hover:underline ${compact ? '' : 'flex min-h-8 items-center text-left'}`} onClick={() => m.setScope('Won')}>
           {compact ? t('sales:options.wonCountShort', 'Won {{n}}', { n: m.won.length }) : t('sales:options.wonCount', 'Won {{n}} all time', { n: m.won.length })}
         </button>
-        <button type="button" className={`font-medium text-primary-text hover:underline ${compact ? '' : 'flex min-h-8 items-center text-left'}`} onClick={() => m.setScope('Lost')}>
+        <button type="button" title={t('sales:options.outcomesNote', 'Decided projects on this board')} className={`font-medium text-primary-text hover:underline ${compact ? '' : 'flex min-h-8 items-center text-left'}`} onClick={() => m.setScope('Lost')}>
           {compact ? t('sales:options.lostCountShort', 'Lost {{n}}', { n: m.lost.length }) : t('sales:options.lostCount', 'Lost {{n}} all time', { n: m.lost.length })}
         </button>
       </div>

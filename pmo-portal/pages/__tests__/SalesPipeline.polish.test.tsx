@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 // Harness: the board now mounts DraggableSalesBoard (useQueryClient), so the page renders under a QueryClientProvider (#1637).
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import userEvent from '@testing-library/user-event';
@@ -17,12 +17,19 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => state, useLostDeals: () => ({ data: [] }), useWonDeals: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectMutations: () => ({ create: {} }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ role: 'Project Manager', currentUser: { id: 'pm' } }) }));
+const baseProjects = state.data.projects;
+const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+const staleProject = (id: string, name: string) => ({
+  id, name, status: 'Leads', pmo_project_number: `PMO-${id}`, currency: 'USD',
+  contract_value: 100000, win_probability: 0.1, last_update: daysAgo(40), stage_started_at: daysAgo(40),
+  service_line: 'Engineering', sector: 'Energy', location: 'Java',
+});
 function Probe() { const location = useLocation(); return <output data-testid="url">{location.search}</output>; }
 function page(path = '/sales?view=kanban') {
   return render(<ImpersonationProvider realRole="Project Manager"><MemoryRouter initialEntries={[path]}><Probe /><ToastProvider><SalesPipeline /></ToastProvider></MemoryRouter></ImpersonationProvider>);
 }
 beforeEach(() => {
-  sessionStorage.clear(); state.isPending = false; state.isError = false;
+  sessionStorage.clear(); state.isPending = false; state.isError = false; state.data.projects = baseProjects;
   vi.stubGlobal('matchMedia', vi.fn((media: string) => ({ matches: true, media, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
 });
 
@@ -97,4 +104,34 @@ it.each(['loading', 'error'])('UIP-004 Pipeline preserves its explicit %s state'
   state.isPending = kind === 'loading'; state.isError = kind === 'error'; page();
   if (kind === 'loading') expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
   else expect(screen.getByText("Couldn't load the sales pipeline")).toBeVisible();
+});
+
+it('R2 restore: the desktop figures band is a named "Pipeline figures" landmark', () => {
+  page();
+  expect(screen.getByLabelText('Pipeline figures')).toBeInTheDocument();
+});
+
+it('R2 restore: a short stale list still offers a way into the Needs attention scope', async () => {
+  state.data.projects = [staleProject('s1', 'Stale One'), staleProject('s2', 'Stale Two')] as typeof state.data.projects;
+  page();
+  const user = userEvent.setup();
+
+  expect(screen.getByRole('heading', { name: 'Needs you · 2' })).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'View in table' }));
+
+  const table = await screen.findByRole('table');
+  expect(within(table).getByText('Stale One')).toBeInTheDocument();
+  expect(within(table).getByText('Stale Two')).toBeInTheDocument();
+  expect(screen.getByTestId('url')).toHaveTextContent('scope=Needs+attention');
+  expect(screen.getByTestId('url')).toHaveTextContent('view=table');
+});
+
+it('R2 restore: the DECIDE captions that define each count survive as tooltips', () => {
+  page();
+  expect(screen.getByRole('heading', { name: 'Needs you · 0' }))
+    .toHaveAttribute('title', 'Untouched 30+ days or 90+ days in one stage');
+  expect(screen.getByRole('button', { name: 'Won 0 all time' }))
+    .toHaveAttribute('title', 'Decided projects on this board');
+  expect(screen.getByRole('button', { name: 'Lost 0 all time' }))
+    .toHaveAttribute('title', 'Decided projects on this board');
 });

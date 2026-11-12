@@ -24,7 +24,7 @@ export interface FunnelProjection {
   pipelineCurrencies: Set<string>;
   mixedPipeline: boolean;
   totalWeighted: number;
-  maxTotalValue: number;
+  maxWeighted: number;
   stageProjections: StageProjection[];
   effectiveCurrency: string;
 }
@@ -52,9 +52,9 @@ export function projectFunnelModel(
     0,
   );
 
-  const maxTotalValue = Math.max(
+  const maxWeighted = Math.max(
     0,
-    ...OPEN_COLUMNS.map((c) => stageByStatus.get(c.statuses[0])?.total_value ?? 0),
+    ...OPEN_COLUMNS.map((c) => stageByStatus.get(c.statuses[0])?.weighted_value ?? 0),
   );
 
   const stageProjections: StageProjection[] = OPEN_COLUMNS.map((col) => {
@@ -75,8 +75,8 @@ export function projectFunnelModel(
       weightedValue: weighted,
       barPct: mixedPipeline || !s || s.count === 0
         ? undefined
-        : maxTotalValue > 0
-          ? (s.total_value / maxTotalValue) * 100
+        : maxWeighted > 0
+          ? (weighted / maxWeighted) * 100
           : 0,
     };
   });
@@ -88,7 +88,7 @@ export function projectFunnelModel(
     pipelineCurrencies,
     mixedPipeline,
     totalWeighted,
-    maxTotalValue,
+    maxWeighted,
     stageProjections,
     effectiveCurrency,
   };
