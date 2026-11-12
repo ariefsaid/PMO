@@ -5,5 +5,6 @@
   "denied": "Anda tidak memiliki izin untuk membuat rapat.",
   "minutesFailed": "Notulen tidak dapat disimpan.",
   "partialSaveFailed": "Rapat tersimpan, tetapi beberapa rincian belum tersimpan. Simpan lagi untuk mencoba kembali.",
+  "duplicateGuest": "Tamu ini sudah ada di daftar.",
   "save": "Simpan"
 }
