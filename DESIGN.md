@@ -206,6 +206,7 @@ Colors use bare HSL triplets so Tailwind slash-alpha utilities continue to work.
 | `--chart-7` | `83.913 80.2326% 33.7255%` | `83.7805 80.3922% 40%` |
 | `--chart-8` | `292.2581 68.8889% 55.8824%` | `291.9018 84.456% 62.1569%` |
 | `--chart-status-fill-tint` | `100%` | `100%` | solid chart status marks, adapted to meet 3:1 non-text contrast |
+| `--chart-neutral-mid` | `217.5 13.1148% 44%` | `218.5714 13.0841% 56%` | second neutral data-mark step (stacked bars); opaque so its label ink is measurable — `--background` ink at 4.79:1 light / 5.08:1 dark |
 
 ## 3. Typography
 
@@ -525,6 +526,7 @@ Text uses at least 4.5:1 contrast (3:1 for large text); interactive control boun
 `--input` is the strong standalone control boundary. `--border` and `--input-subtle` are quiet separators only and must not be the sole cue for an interactive control. Status text uses its matching status surface. `--warning-icon` is the legible marker role; `--warning-foreground` pairs with `--status-warning-surface`. The `--primary-text` role is for canvas/card text, while active navigation uses `--nav-active-text` against `--nav-selected-surface`.
 
 Primary and destructive fills pair with their theme-specific foreground tokens. The eight chart channels are checked against both card and canvas surfaces in both themes. Chart status fills use solid marks so the data graphics retain at least 3:1 contrast. Detailed text, boundary, status, and chart pair measurements are kept in the private token verification report.
+A data mark that carries its own label (a stacked bar segment) uses an **opaque** token fill, never an alpha tint: a translucent segment composites to the surface behind it, so the label's contrast cannot be measured or proved. The neutral ramp's second step is `--chart-neutral-mid` for that reason, and its ink is the theme's `--background` token.
 
 **Focus:** single source of truth — global `:focus-visible` = `2px solid hsl(var(--ring))` at 2px offset.
 **Semantics:** `aria-current="page"` on active nav, `role="tablist"/"tab"/"aria-selected"` on segmented filters, `role="checkbox"/"aria-checked"/tabindex` on custom checkboxes, `aria-label` on icon-only buttons and landmarks. **Keyboard:** tab order follows DOM; overlays add focus management + `Esc`-to-close.

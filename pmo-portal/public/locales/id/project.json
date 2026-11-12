@@ -917,6 +917,7 @@
         "countHelp": "Jelaskan jumlah menurut status"
       },
       "openTask": "Buka tugas {{name}}",
+      "daysOverdueCount": "Terlambat {{count}} hari",
       "daysLateCount": "Terlambat {{count}} hari",
       "listAriaLabel": "Tugas proyek",
       "phaseDatesTooltip": "Rentang dari tanggal mulai tugas paling awal hingga tenggat tugas paling akhir dalam cakupan tugas saat ini. Sumber: catatan tugas pada tahap.",

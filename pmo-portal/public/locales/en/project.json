@@ -551,7 +551,7 @@
       "deliveryStatusKey": {
         "label": "Delivery phase status key",
         "completed": "Completed",
-        "overdue": "Overdue",
+        "overdue": "Late",
         "currentOrPlanned": "Current / planned"
       }
     },
@@ -886,8 +886,8 @@
       "prioritySource": "Source: task priority field",
       "commentsOpenHint": "Open the task to read or add comments",
       "dueTooltip": "Due date from the task record. Overdue days compare the due date with today in the organization timezone.",
-      "dayLate": "day late",
-      "daysLate": "days late",
+      "dayLate": "day overdue",
+      "daysLate": "days overdue",
       "column": {
         "progress": "Progress"
       },
@@ -917,6 +917,7 @@
         "countHelp": "Explain status count"
       },
       "openTask": "Open task {{name}}",
+      "daysOverdueCount": "{{count}}d overdue",
       "daysLateCount": "{{count}}d late",
       "listAriaLabel": "Project tasks",
       "phaseDatesTooltip": "Range from the earliest task start date to the latest task due date in the current task scope. Source: phase task records.",

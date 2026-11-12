@@ -332,7 +332,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const chartsRow = finance ? (
       <div className={cn(panelGrid, 'min-[900px]:grid-cols-2 max-[899px]:grid-cols-1')}>
         <div className={columns}>
-          <ReceivablesAgeCard className={ORDER[1]} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />
+          <ReceivablesAgeCard className={ORDER[1]} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />
           <div className={ORDER[3]}>{readyCard}</div>
         </div>
         <div className={columns}>

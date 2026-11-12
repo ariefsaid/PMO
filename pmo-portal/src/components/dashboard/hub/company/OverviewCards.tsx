@@ -204,15 +204,16 @@ export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string
   );
 };
 
-const AGE_TONE: Record<keyof AgeingBuckets, ChartTone> = { notDue: 'accent', d1_30: 'accent', d31_60: 'accent', d61_90: 'bad', over90: 'bad' };
-const AGE_KEYS = ['notDue', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
+const AGE_TONE: Record<keyof AgeingBuckets, ChartTone> = { notDue: 'accent', noDueDate: 'neutral', d1_30: 'accent', d31_60: 'accent', d61_90: 'bad', over90: 'bad' };
+const AGE_KEYS = ['notDue', 'noDueDate', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
 
 /** What clients owe, by how long it has been due (known balances only, in the organisation currency). */
-export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets>; unknownCount: number; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string }> = ({ ageing, unknownCount, currency, pending, error, retry, className }) => {
+export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets>; unknownCount: number; noDueDateCount?: number; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string }> = ({ ageing, unknownCount, noDueDateCount = 0, currency, pending, error, retry, className }) => {
   const { t } = useTranslation();
   const buckets = ageing[currency];
   const labels: Record<keyof AgeingBuckets, string> = {
     notDue: t('finance:area.notDue', 'Not yet due'),
+    noDueDate: t('finance:area.noDueDate', 'No due date'),
     d1_30: t('finance:area.days1to30', '1–30 days'),
     d31_60: t('finance:area.days31to60', '31–60 days'),
     d61_90: t('finance:area.days61to90', '61–90 days'),
@@ -222,9 +223,10 @@ export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets
   const title = t('dashboard:home.receivablesByAge', 'Owed by clients, by age');
   return (
     <ChartCard title={title} actions={<CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
-      known={Boolean(buckets) && rows.some((row) => (row.value ?? 0) > 0)} hiddenReason={t('dashboard:home.reasonAgeing', 'no client balance is known')}
+      known={Boolean(buckets) && (noDueDateCount > 0 || rows.some((row) => (row.value ?? 0) > 0))} hiddenReason={t('dashboard:home.reasonAgeing', 'no client balance is known')}
       pending={pending} error={error ? { title: t('dashboard:home.overdueError', "Couldn't load overdue invoices"), retry } : undefined} testId="chart-receivables-age" className={className}>
       <BarList rows={rows} ariaLabel={title} />
+      {noDueDateCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('finance:area.ageingNoDueDateSummary', { count: noDueDateCount, defaultValue_one: '{{count}} invoice with no due date', defaultValue_other: '{{count}} invoices with no due date' })}</p>}
       {unknownCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('dashboard:home.ageingUnknown', { count: unknownCount, defaultValue_one: '{{count}} invoice with an unknown balance is not drawn', defaultValue_other: '{{count}} invoices with unknown balances are not drawn' })}</p>}
     </ChartCard>
   );

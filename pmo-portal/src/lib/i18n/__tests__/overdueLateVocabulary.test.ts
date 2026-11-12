@@ -8,10 +8,12 @@ import { describe, expect, it } from 'vitest';
  * Never cross them. This suite locks the en and id catalogues to that split.
  *
  * Scope: keys are classified by their namespace + path into task / invoice / phase sets below.
- * The known crossings that still exist OUTSIDE these sets (out-of-scope test pins and one
- * shared task+phase key) are inventoried with file:line in
- * docs/private/ux-1110/shots/r2-overdue-words/notes.md (R2-OVERDUE-WORDS) — they get their own
- * slices; they are deliberately NOT allow-listed here.
+ * The crossings inventoried in docs/private/ux-1110/shots/r2-overdue-words/notes.md (R2-OVERDUE-WORDS)
+ * and its follow-up docs/private/ux-1110/shots/r2-overdue-words2/notes.md (R2-OVERDUE-WORDS2 —
+ * engineer task rows, TaskList rows, the daysLateCount task/phase key split, the phase keys that
+ * said "Overdue", the deleted formatDaysLate/LateTranslate) are closed and covered here.
+ * Still deliberately NOT allow-listed: the agent-chat overdue digest
+ * (supabase/functions/agent-chat) renders task/invoice ages as "N days late" — its own slice.
  *
  * The id pair, decided from the existing catalogue: Indonesian has ONE word for both concepts —
  * "terlambat" — so the en late/overdue distinction collapses in id: overdue AND late both render
@@ -54,9 +56,9 @@ const TASK_KEYS = [
   'common:myTasks.overdue',
   'status:age.overdue_one',
   'status:age.overdue_other',
-  // status.age.late_* is the legacy plain-row wording consumed only by formatDaysLate; its only
-  // caller was the MyTasks rows, which now use formatDaysOverdue. Re-worded to the overdue
-  // vocabulary so the catalogue keeps no task-side "late" (see notes.md for the format.ts note).
+  // status.age.late_* was the legacy plain-row wording consumed only by formatDaysLate; that
+  // formatter is now deleted (R2-OVERDUE-WORDS2). The keys stay re-worded to the overdue
+  // vocabulary so the catalogue keeps no task-side "late".
   'status:age.late_one',
   'status:age.late_other',
   'project:projectDetail.myTasks.overdue',
@@ -64,6 +66,10 @@ const TASK_KEYS = [
   'project:projectDetail.attention.taskOverdue',
   'project:projectDetail.attention.taskBlockedOverdue',
   'project:projectDetail.attention.taskOverdueSize',
+  // TaskList due-date cells (" · N day(s) overdue") and TaskBoard overdue cards ("{{count}}d overdue").
+  'project:projectDetail.tasks.dayLate',
+  'project:projectDetail.tasks.daysLate',
+  'project:projectDetail.tasks.daysOverdueCount',
   'dashboard:needs.myTaskOverdueOne',
   'dashboard:needs.myTaskOverdueOther',
   'dashboard:needs.engineerTasks_one',
@@ -71,6 +77,9 @@ const TASK_KEYS = [
   'dashboard:needs.pmTasks_one',
   'dashboard:needs.pmTasks_other',
   'dashboard:hub.engineer.overdue',
+  // Key NAME keeps "daysLate" (historical); the rows are TASKS so the string must say overdue.
+  'dashboard:hub.engineer.daysLate_one',
+  'dashboard:hub.engineer.daysLate_other',
   'dashboard:hub.engineer.noTasksDue',
   'dashboard:hub.pm.overdueTasks_one',
   'dashboard:home.colTasksOverdue',
@@ -131,6 +140,15 @@ const PHASE_KEYS = [
   'project:projectDetail.attention.phaseSize',
   'dashboard:home.colPhasesLate',
   'dashboard:home.mobilePhasesLate_one',
+  // MilestoneGroupedList phase header: the task-card half of the old shared daysLateCount key
+  // split off to tasks.daysOverdueCount (R2-OVERDUE-WORDS2); the key lives under `tasks` for
+  // catalogue history but its only consumer is now the phase header.
+  'project:projectDetail.tasks.daysLateCount',
+  // Key NAME keeps "overdue" (the delivery-status discriminator); the rendered string says "Late".
+  // overdue/overduePhase live in the common catalogue (projectDetail.milestones there).
+  'common:projectDetail.milestones.overdue',
+  'common:projectDetail.milestones.overduePhase',
+  'project:projectDetail.milestones.deliveryStatusKey.overdue',
 ] as const;
 
 /**

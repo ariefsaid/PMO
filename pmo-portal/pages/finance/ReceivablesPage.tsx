@@ -11,7 +11,7 @@ import { useSalesInvoices, useIncomingPayments } from '@/src/hooks/useRevenue';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
-import type { CurrencyTotals } from '@/src/lib/finance/financePosition';
+import { groupUnknownOverdueReceivablesByAge, type CurrencyTotals } from '@/src/lib/finance/financePosition';
 import { formatDay, formatTileMoney } from '@/src/lib/format';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { isOpenClientInvoiceStatus } from '@/src/lib/revenue/clientInvoiceStatus';
@@ -87,6 +87,8 @@ export default function ReceivablesPage() {
   const owed = useMemo(() => owedTotals(finance.position), [finance.position]);
   const openInvoices = useMemo(() => invoices.filter((invoice) => isOpenClientInvoiceStatus(invoice.status) && (invoice.erp_outstanding_amount == null || invoice.erp_outstanding_amount > 0)), [invoices]);
   const owedUnknown = finance.position.receivablesUnknownCount;
+  const receivablesUnknownAgeing = groupUnknownOverdueReceivablesByAge(finance.position.overdue);
+  const unknownBalancesWithoutAge = Math.max(0, owedUnknown - receivablesUnknownAgeing.total);
   const overdueUnknown = finance.position.overdueUnknownCount;
   const overduePercent = owedUnknown || overdueUnknown ? null : owed[orgCurrency] ? Math.round(((finance.position.overdueTotals[orgCurrency] ?? 0) / owed[orgCurrency]) * 100) : 0;
   const today = finance.today;
@@ -197,7 +199,7 @@ export default function ReceivablesPage() {
             help={t('finance:receivables.receivedHelp', 'Cash received on non-cancelled payments dated in this calendar month, compared with the previous calendar month.')}
           />
         </KPIRow>
-        <AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} unknownTotal={owedUnknown} />
+        <AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={finance.position.receivablesNoDueDateCounts} unknownTotal={unknownBalancesWithoutAge} />
       </div>
 
       {finance.isError && <div role="alert" className="order-4 mb-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-control">
