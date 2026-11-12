@@ -213,7 +213,6 @@
   },
   "documents": {
     "title": "Documents",
-    "showingSoFar": "Showing {{count}} so far",
     "columns": {
       "number": "Document",
       "status": "Status",
@@ -280,7 +279,6 @@
   },
   "ledger": {
     "title": "Ledger",
-    "showingSoFar": "Showing {{count}} so far",
     "columns": {
       "when": "Posted",
       "occurred": "Date",

@@ -24,7 +24,7 @@ const StockDocuments: React.FC = () => {
   const setStatus = (value: string) => setFilter('status', value);
   const q = useStockDocuments({ ...(kind ? { kind: kind as StockDocumentKind } : {}), ...(status ? { status: status as StockDocumentStatus } : {}) });
   const rows = useMemo(() => (q.data?.pages ?? []).flat(), [q.data]);
-  const total = q.data && !q.hasNextPage ? rows.length : undefined;
+  const total = q.total;
 
   const columns: Column<StockDocumentListRow>[] = useMemo(() => [
     {
@@ -76,7 +76,6 @@ const StockDocuments: React.FC = () => {
             hasMore={Boolean(q.hasNextPage)}
             isLoadingMore={q.isFetchingNextPage}
             onLoadMore={() => void q.fetchNextPage()}
-            partialLabel={t('documents.showingSoFar', { count: rows.length, defaultValue: 'Showing {{count}} so far' })}
             loadMoreLabel={t('documents.loadMore')} />
         </>
       )}

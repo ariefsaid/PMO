@@ -19,8 +19,7 @@
     "showArchived": "Show archived"
   },
   "list": {
-    "loadMore": "Load more",
-    "showingSoFar": "Showing {{count}} so far"
+    "loadMore": "Load more"
   },
   "pill": {
     "archived": "Archived"

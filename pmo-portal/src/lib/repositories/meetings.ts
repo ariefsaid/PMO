@@ -2,6 +2,7 @@
 import {
   listMeetings,
   listMeetingsPage,
+  countMeetings,
   listMeetingsForContact,
   getMeeting,
   createMeeting,
@@ -22,7 +23,8 @@ import type { MeetingRepository } from './contracts/meetings';
 export const meetingRepository: MeetingRepository = {
   list: (params) => wrap(() => listMeetings(params)),
   listPage: (params, offset) => wrap(() => listMeetingsPage(params, offset)),
-  listForContact: (contactId) => wrap(() => listMeetingsForContact(contactId)),
+  count: (params) => wrap(() => countMeetings(params)),
+  listForContact: (contactId, offset) => wrap(() => listMeetingsForContact(contactId, offset)),
   get: (id) => wrap(() => getMeeting(id)),
   create: (input) => wrap(() => createMeeting(input)),
   update: (id, patch) => wrap(() => updateMeeting(id, patch)),

@@ -213,7 +213,6 @@
   },
   "documents": {
     "title": "Dokumen",
-    "showingSoFar": "Menampilkan {{count}} sejauh ini",
     "columns": {
       "number": "Dokumen",
       "status": "Status",
@@ -280,7 +279,6 @@
   },
   "ledger": {
     "title": "Buku stok",
-    "showingSoFar": "Menampilkan {{count}} sejauh ini",
     "columns": {
       "when": "Diposting",
       "occurred": "Tanggal",

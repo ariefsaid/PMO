@@ -172,6 +172,27 @@ function buildMeetingListQuery(params: MeetingListParams | undefined, leg: 'fts'
   return query.order('occurred_at', { ascending: false }).order('id', { ascending: true }).range(from, to);
 }
 
+function quoteWebsearchFilter(term: string): string {
+  const escaped = term.replace(/[\\"]/g, (character) => `\\${character}`);
+  return `notes_search.wfts(simple)."${escaped}"`;
+}
+
+/** Exact count query for the same RLS-scoped filters as the Meetings index; PostgREST returns no row body. */
+export async function countMeetings(params?: MeetingListParams): Promise<number | undefined> {
+  const q = params?.search?.trim();
+  let query = supabase.from('meetings').select('id', { count: 'exact', head: true }).eq('is_template', false);
+  if (!params?.includeArchived) query = query.is('archived_at', null);
+  if (params?.projectId) query = query.eq('project_id', params.projectId);
+  if (q && substringText(q)) {
+    query = query.or(`${quoteWebsearchFilter(q)},${ilikeAnyOf(['title', 'notes_text'], q)}`);
+  } else if (q) {
+    query = query.textSearch('notes_search', q, { type: 'websearch', config: 'simple' });
+  }
+  const { count, error } = await query;
+  if (error) throwWrite(error);
+  return count ?? undefined;
+}
+
 function sortMeetingRows(rows: MeetingListItem[]): MeetingListItem[] {
   return rows.sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at)
     || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -224,15 +245,9 @@ export async function listMeetingsPage(params: MeetingListParams | undefined, of
   return { rows: page.slice(0, MEETING_PAGE_SIZE), hasMore: page.length > MEETING_PAGE_SIZE };
 }
 
-/** Fully read the meetings collection for non-paged repository callers. */
-export async function listMeetings(params?: MeetingListParams): Promise<MeetingListItem[]> {
-  const rows: MeetingListItem[] = [];
-  for (let offset = 0; ; ) {
-    const page = await listMeetingsPage(params, offset);
-    rows.push(...page.rows);
-    if (!page.hasMore) return rows;
-    offset += page.rows.length;
-  }
+/** Bounded first-page summary/search read; `hasMore` keeps callers from treating its limit as a total. */
+export async function listMeetings(params?: MeetingListParams): Promise<MeetingListPage> {
+  return listMeetingsPage(params, 0);
 }
 
 /**
@@ -328,6 +343,11 @@ export interface ContactMeetingRef {
   occurred_at: string;
 }
 
+export interface ContactMeetingPage {
+  rows: ContactMeetingRef[];
+  hasMore: boolean;
+}
+
 /**
  * Meetings a contact attended (`meeting_attendees.contact_id`) — the contact timeline's union
  * source (DD-MTG-6: the CRM 'Meeting' kind is the touchpoint log; minuted meetings live here and
@@ -335,8 +355,8 @@ export interface ContactMeetingRef {
  * read a meeting (FR-MTG-031) simply gets no row — most viewers see none, and that is a normal
  * state, not an error. The reverse embed is constraint-qualified per the house rule.
  */
-export async function listMeetingsForContact(contactId: string): Promise<ContactMeetingRef[]> {
-  const data = await fetchAllPages((from, to) => supabase
+export async function listMeetingsForContact(contactId: string, offset: number): Promise<ContactMeetingPage> {
+  const { data, error } = await supabase
     .from('meetings')
     .select(
       'id, title, occurred_at, attendees:meeting_attendees!meeting_attendees_meeting_id_fkey!inner(contact_id)',
@@ -345,12 +365,14 @@ export async function listMeetingsForContact(contactId: string): Promise<Contact
     .is('archived_at', null)
     .order('occurred_at', { ascending: false })
     .order('id', { ascending: true })
-    .range(from, to));
-  return (data ?? []).map((m) => ({
+    .range(offset, offset + MEETING_PAGE_SIZE);
+  if (error) throwWrite(error);
+  const rows = (data ?? []).map((m) => ({
     id: (m as { id: string }).id,
     title: (m as { title: string }).title,
     occurred_at: (m as { occurred_at: string }).occurred_at,
   }));
+  return { rows: rows.slice(0, MEETING_PAGE_SIZE), hasMore: rows.length > MEETING_PAGE_SIZE };
 }
 
 // ── Attendees ──────────────────────────────────────────────────────────────────────────────────
@@ -362,7 +384,7 @@ export interface MeetingAttendeeInput {
   display_name?: string | null;
 }
 
-/** List a meeting's attendees (visible iff the meeting is), oldest-first (insertion order). */
+/** A single meeting's attendee roster is a small detail collection; the editor needs the full roster. */
 export async function listMeetingAttendees(meetingId: string): Promise<MeetingAttendeeWithRefs[]> {
   const data = await fetchAllPages((from, to) => supabase
     .from('meeting_attendees')
@@ -411,7 +433,7 @@ export async function removeMeetingAttendee(id: string): Promise<void> {
 
 // ── Access grants (OD-MTG-2 / FR-MTG-032..034) ─────────────────────────────────────────────────
 
-/** List a meeting's grants — see MeetingGrantWithRefs for why the embeds are qualified. */
+/** A single meeting's named grants are a small detail collection; its sharing controls need the full list. */
 export async function listMeetingGrants(meetingId: string): Promise<MeetingGrantWithRefs[]> {
   const data = await fetchAllPages((from, to) => supabase
     .from('meeting_access_grants')

@@ -28,7 +28,7 @@ export function useEquipmentAssets() {
 /** The register screen pages through every asset instead of treating its 200-row sentinel as the whole list. */
 export function useEquipmentAssetPages() {
   const orgId = useOrgId();
-  return useInfiniteQuery({
+  const pages = useInfiniteQuery({
     queryKey: ['equipment-assets', orgId, 'pages'],
     queryFn: ({ pageParam }) => repositories.equipment.listAssets(pageParam),
     initialPageParam: 0,
@@ -37,6 +37,18 @@ export function useEquipmentAssetPages() {
       : undefined,
     enabled: Boolean(orgId),
   });
+  const count = useQuery({
+    queryKey: ['equipment-assets', orgId, 'count'],
+    queryFn: async () => {
+      try {
+        return await repositories.equipment.countAssets();
+      } catch {
+        return undefined;
+      }
+    },
+    enabled: Boolean(orgId),
+  });
+  return { ...pages, total: count.data };
 }
 
 export function useEquipmentUsage(range: { from: string; to: string; assetId?: string; projectId?: string; status?: UsageStatus }) {

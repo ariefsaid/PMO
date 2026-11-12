@@ -19,8 +19,7 @@
     "showArchived": "Tampilkan yang diarsipkan"
   },
   "list": {
-    "loadMore": "Muat lebih banyak",
-    "showingSoFar": "Menampilkan {{count}} sejauh ini"
+    "loadMore": "Muat lebih banyak"
   },
   "pill": {
     "archived": "Diarsipkan"

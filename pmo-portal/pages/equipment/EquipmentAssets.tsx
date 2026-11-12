@@ -63,7 +63,7 @@ const EquipmentAssetsPage: React.FC = () => {
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
   const writeCtx = { record: { viewOnly: realRole !== effectiveRole } }; // view-as is read-only
-  const { data, isPending, isError, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = useEquipmentAssetPages();
+  const { data, total: exactTotal, isPending, isError, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = useEquipmentAssetPages();
   const update = useUpdateAsset();
   const del = useDeleteAsset();
   const [creating, setCreating] = useState(false);
@@ -71,7 +71,7 @@ const EquipmentAssetsPage: React.FC = () => {
   const [problem, setProblem] = useState<string | null>(null);
   const pages = data?.pages ?? [];
   const rows = pages.flatMap((page) => page.rows);
-  const total = data && !hasNextPage ? rows.length : undefined;
+  const total = exactTotal;
 
   const run = async () => {
     const p = pending;
@@ -129,7 +129,6 @@ const EquipmentAssetsPage: React.FC = () => {
             hasMore={Boolean(hasNextPage)}
             isLoadingMore={isFetchingNextPage}
             onLoadMore={() => void fetchNextPage()}
-            partialLabel={t('assets.showingSoFar', { ns: 'equipment', count: rows.length, defaultValue: 'Showing {{count}} so far' })}
             loadMoreLabel={t('equipment:assets.loadMore', 'Load more')}
             state={rows.length === 0 ? 'empty' : undefined}
             emptyTitle={t('equipment:assets.empty', 'No equipment yet')}

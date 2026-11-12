@@ -16,13 +16,13 @@ describe('ListState', () => {
     render(
       <ListState
         variant="partial"
-        title="Showing 50 so far"
+        title="50 loaded, more available"
         sub="Load more to see the rest."
         action={{ label: 'Load more', onClick: onLoadMore }}
       />,
     );
 
-    expect(screen.getByRole('status')).toHaveTextContent('Showing 50 so far');
+    expect(screen.getByRole('status')).toHaveTextContent('50 loaded, more available');
     expect(screen.getByText('Load more to see the rest.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
     expect(onLoadMore).toHaveBeenCalledOnce();

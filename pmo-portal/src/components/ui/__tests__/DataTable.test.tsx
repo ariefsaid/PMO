@@ -65,7 +65,6 @@ describe('DataTable', () => {
         total={3}
         hasMore
         onLoadMore={onLoadMore}
-        partialLabel="Showing 1 so far"
         loadMoreLabel="Load more"
       />,
     );
@@ -83,12 +82,11 @@ describe('DataTable', () => {
         rowKey={(row) => row.id}
         hasMore
         onLoadMore={vi.fn()}
-        partialLabel="Showing 1 so far"
         loadMoreLabel="Load more"
       />,
     );
 
-    expect(screen.getByRole('status')).toHaveTextContent('Showing 1 so far');
+    expect(screen.getByRole('status')).toHaveTextContent('1 loaded, more available');
     expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument();
   });
 

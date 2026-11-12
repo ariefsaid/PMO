@@ -95,7 +95,6 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
             hasMore={Boolean(ledger.hasNextPage)}
             isLoadingMore={ledger.isFetchingNextPage}
             onLoadMore={() => void ledger.fetchNextPage()}
-            partialLabel={t('ledger.showingSoFar', { count: rows.length, defaultValue: 'Showing {{count}} so far' })}
             loadMoreLabel={t('ledger.loadMore')} />
           {!ledger.hasNextPage && <p className="mt-3 text-center text-sm text-muted-foreground">{t('ledger.end', { count: total })}</p>}
         </>

@@ -3,6 +3,7 @@ import type * as dal from '@/src/lib/db/equipment';
 
 export interface EquipmentRepository {
   listAssets: typeof dal.listAssets;
+  countAssets: typeof dal.countAssets;
   createAsset: typeof dal.createAsset;
   updateAsset: typeof dal.updateAsset;
   deleteAsset: typeof dal.deleteAsset;

@@ -120,6 +120,16 @@ describe('AC-EQU-017 asset reference reads and writes', () => {
     expect(h.calls.range).toEqual([[LIST_LIMIT, LIST_LIMIT * 2]]);
   });
 
+  it('C8 EquipmentAssets.tsx:117 counts active assets exactly without fetching asset rows', async () => {
+    h.result.value = { data: null, error: null, count: 251 };
+
+    await expect(dal.countAssets()).resolves.toBe(251);
+
+    expect(h.calls.from).toEqual(['equipment_assets']);
+    expect(h.calls.select).toContainEqual(['id', { count: 'exact', head: true }]);
+    expect(h.calls.is).toContainEqual(['archived_at', null]);
+  });
+
   it('AC-EQU-017 createAsset sends only the three granted columns', async () => {
     h.result.value = { data: { id: 'a1', code: 'EQP-1', name: 'Loader 1', default_unit: 'hours' }, error: null };
     await expect(dal.createAsset({ code: 'EQP-1', name: 'Loader 1', default_unit: 'hours' })).resolves.toMatchObject({ id: 'a1' });

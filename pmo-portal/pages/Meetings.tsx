@@ -53,13 +53,13 @@ const Meetings: React.FC = () => {
   const search = values.q;
   const deferredSearch = useDeferredValue(search);
 
-  const { data, isPending, isError, isPlaceholderData, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = useMeetingsPages({
+  const { data, total: exactTotal, isPending, isError, isPlaceholderData, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = useMeetingsPages({
     projectId: !projectFilter || projectFilter === 'All' ? undefined : projectFilter,
     search: deferredSearch.trim() || undefined,
     includeArchived: showArchived,
   });
   const rows = useMemo(() => data?.pages.flatMap((page) => page.rows) ?? [], [data]);
-  const total = data && !hasNextPage && !isPlaceholderData ? rows.length : undefined;
+  const total = !isPlaceholderData ? exactTotal : undefined;
   // A filter/search change keeps the PREVIOUS query's rows on screen (placeholderData in the
   // hook). A kept-previous EMPTY result says nothing about the new query — e.g. right after Clear
   // filters it would read as "No meetings yet" — so the body shows loading until it lands.
@@ -326,7 +326,6 @@ const Meetings: React.FC = () => {
           hasMore={Boolean(hasNextPage && !isPlaceholderData)}
           isLoadingMore={isFetchingNextPage}
           onLoadMore={() => void fetchNextPage()}
-          partialLabel={t('list.showingSoFar', { ns: 'meetings', count: rows.length, defaultValue: 'Showing {{count}} so far' })}
           loadMoreLabel={t('list.loadMore', { ns: 'meetings', defaultValue: 'Load more' })}
           state={rows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('meetings.table.emptyTitle', 'No meetings match')}

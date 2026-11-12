@@ -5,7 +5,7 @@ import React from 'react';
 
 const { equipment, externalDomainOwnership } = vi.hoisted(() => ({
   equipment: {
-    listAssets: vi.fn(), createAsset: vi.fn(), updateAsset: vi.fn(), listUsage: vi.fn(), saveUsage: vi.fn(),
+    listAssets: vi.fn(), countAssets: vi.fn(), createAsset: vi.fn(), updateAsset: vi.fn(), listUsage: vi.fn(), saveUsage: vi.fn(),
     transitionUsage: vi.fn(), approveWeek: vi.fn(), archiveUsage: vi.fn(), listUsageTotals: vi.fn(), listCosting: vi.fn(),
     saveCosting: vi.fn(), endCosting: vi.fn(), previewCosting: vi.fn(), listAllocations: vi.fn(),
     listRegister: vi.fn(), listMaintenance: vi.fn(), listPickers: vi.fn(), listPendingChanges: vi.fn(),
@@ -35,6 +35,7 @@ beforeEach(() => {
   for (const fn of [...Object.values(equipment), externalDomainOwnership.listOwn] as Array<ReturnType<typeof vi.fn>>) fn.mockReset().mockResolvedValue([]);
   equipment.listUsageTotals.mockResolvedValue({ rows: [], truncated: false });
   equipment.listAssets.mockResolvedValue({ rows: [], truncated: false });
+  equipment.countAssets.mockResolvedValue(undefined);
   equipment.listRegister.mockResolvedValue({ rows: [], truncated: false });
   equipment.listMaintenance.mockResolvedValue({ rows: [], truncated: false, total: 0 });
   equipment.listPendingChanges.mockResolvedValue([]);
@@ -54,6 +55,17 @@ describe('AC-EQU-017 equipment hooks', () => {
     await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
     expect(equipment.listAssets).toHaveBeenNthCalledWith(2, 1);
     expect(result.current.data?.pages.flatMap((page) => page.rows.map((row) => row.id))).toEqual(['a1', 'a2']);
+    expect(result.current.total).toBeUndefined();
+    expect(equipment.countAssets).toHaveBeenCalledOnce();
+  });
+
+  it('uses the server count for the asset register total while pages are still loading', async () => {
+    equipment.listAssets.mockResolvedValue({ rows: [{ id: 'a1' }], truncated: true });
+    equipment.countAssets.mockResolvedValue(201);
+    const { result } = renderHook(() => useEquipmentAssetPages(), { wrapper: wrap(fresh()) });
+
+    await waitFor(() => expect(result.current.total).toBe(201));
+    expect(result.current.hasNextPage).toBe(true);
   });
 
   it('AC-EQU-017 every query key carries the org id', async () => {

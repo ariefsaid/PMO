@@ -9,7 +9,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 import stockEn from '@/public/locales/en/stock.json';
 
-const { documents } = vi.hoisted(() => ({ documents: { list: vi.fn() } }));
+const { documents } = vi.hoisted(() => ({ documents: { list: vi.fn(), count: vi.fn() } }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { documents } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer', effectiveRole: 'Engineer' }) }));
@@ -27,7 +27,7 @@ const renderPage = () => {
 };
 
 beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true); });
-beforeEach(() => { vi.clearAllMocks(); documents.list.mockResolvedValue([doc(1)]); });
+beforeEach(() => { vi.clearAllMocks(); documents.list.mockResolvedValue([doc(1)]); documents.count.mockResolvedValue(1); });
 
 describe('StockDocuments (AC-STK-032)', () => {
   it('AC-STK-032 loading, then a populated document with number, status, warehouse, project and author', async () => {
@@ -67,10 +67,12 @@ describe('StockDocuments (AC-STK-032)', () => {
     const page = Array.from({ length: 50 }, (_, i) => doc(i + 1, { id: `d${i + 1}`, number: `ISS-${i + 1}`, created_at: `2026-10-01T00:00:${String(i).padStart(2, '0')}Z` }));
     documents.list.mockResolvedValueOnce(page);
     documents.list.mockResolvedValueOnce([doc(51, { number: 'ISS-51' })]);
+    documents.count.mockResolvedValueOnce(51);
     renderPage();
     await screen.findByText('ISS-1');
 
-    expect(screen.getByText('Showing 50 so far')).toBeInTheDocument();
+    expect(screen.getByText('Showing 50 of 51')).toBeInTheDocument();
+    expect(documents.count).toHaveBeenCalledWith({});
     expect(screen.queryByText('Documents 50')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
     expect(await screen.findByText('ISS-51')).toBeInTheDocument();

@@ -161,8 +161,6 @@ export interface DataTableProps<Row> {
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
-  /** Localized partial-result copy supplied by the owning feature screen. */
-  partialLabel?: string;
   loadMoreLabel?: string;
   /** Optional controlled multi-row selection. */
   selection?: DataTableSelection<Row>;
@@ -246,7 +244,6 @@ export function DataTable<Row>({
   hasMore = false,
   onLoadMore,
   isLoadingMore = false,
-  partialLabel,
   loadMoreLabel,
   selection,
   onOverflowChange,
@@ -473,7 +470,7 @@ export function DataTable<Row>({
           className="border-t border-border/70 px-3 py-2.5"
           title={total !== undefined
             ? t('ui.listPage.showingOf', { ns: 'common', defaultValue: 'Showing {{count}} of {{total}}', count: rows.length, total })
-            : partialLabel ?? `Showing ${rows.length} so far`}
+            : t('listPage.loadedMoreAvailable', { defaultValue: '{{count}} loaded, more available', count: rows.length })}
           action={hasMore && onLoadMore ? {
             label: loadMoreLabel ?? 'Load more',
             onClick: onLoadMore,

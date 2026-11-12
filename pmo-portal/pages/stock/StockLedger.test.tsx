@@ -116,7 +116,7 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     renderPage();
     await screen.findByText('ISS-9');
 
-    expect(screen.getByText('Showing 1 so far')).toBeInTheDocument();
+    expect(screen.getByText('1 loaded, more available')).toBeInTheDocument();
     expect(screen.queryByText('Ledger 1')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
     expect(await screen.findByText('ISS-8')).toBeInTheDocument();

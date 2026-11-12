@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // meetings-specific terminals: textSearch / or / limit). Each awaited chain resolves the next
 // queued result (or the last one), so the search-fallback path can see error-then-success.
 const h = vi.hoisted(() => {
-  const queue: { data: unknown; error: unknown }[] = [];
+  const queue: { data: unknown; error: unknown; count?: number | null }[] = [];
   const calls = {
     from: [] as unknown[],
     select: [] as unknown[],
@@ -13,6 +13,7 @@ const h = vi.hoisted(() => {
     not: [] as unknown[],
     or: [] as unknown[],
     textSearch: [] as unknown[],
+    selectArgs: [] as unknown[],
     order: [] as unknown[],
     limit: [] as unknown[],
     range: [] as unknown[],
@@ -23,7 +24,7 @@ const h = vi.hoisted(() => {
     maybeSingle: 0,
   };
   const makeBuilder = () => {
-    const state: { range?: [number, number]; result?: { data: unknown; error: unknown } } = {};
+    const state: { range?: [number, number]; result?: { data: unknown; error: unknown; count?: number | null } } = {};
     const builder: Record<string, unknown> = {};
     const chain = (name: keyof typeof calls) => (...args: unknown[]) => {
       if (name === 'delete' || name === 'single' || name === 'maybeSingle') {
@@ -31,6 +32,7 @@ const h = vi.hoisted(() => {
       } else {
         (calls[name] as unknown[]).push(args.length === 1 ? args[0] : args);
       }
+      if (name === 'select') calls.selectArgs.push(args);
       if (name === 'textSearch') state.result = queue[0];
       if (name === 'or') state.result = queue.length > 1 ? queue[1] : queue[0];
       return builder;
@@ -65,6 +67,7 @@ import {
   MEETING_PAGE_SIZE,
   listMeetingsPage,
   listMeetings,
+  countMeetings,
   listMeetingsForContact,
   getMeeting,
   createMeeting,
@@ -92,6 +95,31 @@ beforeEach(() => {
 });
 
 describe('listMeetings (FR-MTG-028/029/035)', () => {
+  it('C8 meetings.ts:84,168,196 bounds non-paged reads to one page', async () => {
+    h.queue[0] = { data: Array.from({ length: MEETING_PAGE_SIZE + 1 }, (_, i) => ({ id: `m${i}`, title: `Meeting ${i}` })), error: null };
+
+    const page = await listMeetings();
+
+    expect(page.rows).toHaveLength(MEETING_PAGE_SIZE);
+    expect(page.hasMore).toBe(true);
+    expect(h.calls.range).toEqual([[0, MEETING_PAGE_SIZE]]);
+  });
+
+  it('C8 meetings.ts:84,168,196 counts the exact RLS-scoped project and search result without a row body', async () => {
+    h.queue[0] = { data: null, error: null, count: 73 };
+
+    const total = await countMeetings({ projectId: 'p1', search: 'site meeting' });
+
+    expect(total).toBe(73);
+    expect(h.calls.selectArgs[0]).toEqual(['id', { count: 'exact', head: true }]);
+    expect(h.calls.eq).toContainEqual(['is_template', false]);
+    expect(h.calls.eq).toContainEqual(['project_id', 'p1']);
+    expect(h.calls.is).toContainEqual(['archived_at', null]);
+    expect(String(h.calls.or[0])).toContain('notes_search.wfts(simple).');
+    expect(String(h.calls.or[0])).toContain('title.ilike.');
+    expect(String(h.calls.or[0])).toContain('notes_text.ilike.');
+  });
+
   it('C8 meetings.ts:84,168,196 returns an explicit page and indicates whether more rows exist', async () => {
     h.queue[0] = { data: Array.from({ length: MEETING_PAGE_SIZE + 1 }, (_, i) => ({ id: `m${i}`, title: `Meeting ${i}` })), error: null };
     const page = await listMeetingsPage(undefined, 0);
@@ -102,7 +130,7 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
 
   it('excludes templates + archived, orders occurred_at DESC, and fetches an explicit sentinel page', async () => {
     h.queue[0] = { data: [{ id: 'm1', title: 'Kickoff' }], error: null };
-    const rows = await listMeetings();
+    const rows = (await listMeetings()).rows;
     expect(h.calls.from).toEqual(['meetings']);
     expect(h.calls.eq).toContainEqual(['is_template', false]);
     expect(h.calls.is).toContainEqual(['archived_at', null]);
@@ -165,7 +193,7 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
       h.queue.length = 0;
       h.queue.push({ data: [], error: null }); // full-text: no whole-word match for "coord"
       h.queue.push({ data: [row('m1', '2026-09-01T10:00:00Z', 'Site coordination')], error: null });
-      const rows = await listMeetings({ search: 'coord' });
+      const rows = (await listMeetings({ search: 'coord' })).rows;
       expect(h.calls.textSearch).toHaveLength(1);
       expect(String(h.calls.or[0])).toContain('title.ilike."%coord%"');
       expect(rows.map((r) => r.id)).toEqual(['m1']);
@@ -174,7 +202,7 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
     it('#708: a search of only wildcard/escape symbols runs no substring leg (never "%%" = every row)', async () => {
       h.queue.length = 0;
       h.queue.push({ data: [], error: null }); // full-text only
-      const rows = await listMeetings({ search: ' %_*\\ ' });
+      const rows = (await listMeetings({ search: ' %_*\\ ' })).rows;
       expect(h.calls.textSearch).toHaveLength(1);
       expect(h.calls.or).toEqual([]);
       expect(rows).toEqual([]);
@@ -190,11 +218,11 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
         data: [row('b', '2026-09-01T00:00:00Z'), row('c', '2026-09-03T00:00:00Z')],
         error: null,
       });
-      const rows = await listMeetings({ search: 'plan' });
+      const rows = (await listMeetings({ search: 'plan' })).rows;
       expect(rows.map((r) => r.id)).toEqual(['c', 'a', 'b']);
     });
 
-    it('#708: the complete merged result continues beyond the first page', async () => {
+    it('#708: the merged search result exposes a continuation after the first page', async () => {
       const at = (i: number) => new Date(Date.UTC(2026, 0, 1) + i * 60_000).toISOString();
       h.queue.length = 0;
       h.queue.push({
@@ -205,19 +233,17 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
         data: Array.from({ length: 150 }, (_, i) => row(`s${149 - i}`, at(1000 + 149 - i))),
         error: null,
       });
-      const rows = await listMeetings({ search: 'plan' });
-      expect(rows).toHaveLength(300);
-      expect(rows[0].id).toBe('s149');
-      // Both complete result legs survive the union instead of stopping at the old 200-row cap.
-      expect(rows.filter((r) => r.id.startsWith('s'))).toHaveLength(150);
-      expect(rows.filter((r) => r.id.startsWith('f'))).toHaveLength(150);
+      const page = await listMeetingsPage({ search: 'plan' }, 0);
+      expect(page.rows).toHaveLength(MEETING_PAGE_SIZE);
+      expect(page.rows[0].id).toBe('s149');
+      expect(page.hasMore).toBe(true);
     });
 
     it('#708: a full-text error returns the substring leg alone', async () => {
       h.queue.length = 0;
       h.queue.push({ data: null, error: { message: 'fts unavailable' } });
       h.queue.push({ data: [row('s1', '2026-09-01T00:00:00Z')], error: null });
-      const rows = await listMeetings({ search: 'plan' });
+      const rows = (await listMeetings({ search: 'plan' })).rows;
       expect(rows.map((r) => r.id)).toEqual(['s1']);
     });
 
@@ -236,7 +262,7 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
     h.queue.length = 0;
     h.queue.push({ data: null, error: { message: 'index "meetings_notes_search_idx" is not available' } });
     h.queue.push({ data: [{ id: 'm2', title: 'Fallback hit' }], error: null });
-    const rows = await listMeetings({ search: 'pipeline' });
+    const rows = (await listMeetings({ search: 'pipeline' })).rows;
     expect(h.calls.or.length).toBe(1);
     expect(String(h.calls.or[0])).toContain('title.ilike.');
     expect(String(h.calls.or[0])).toContain('notes_text.ilike.');
@@ -321,20 +347,41 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
   });
 });
 
+describe('listMeetingsForContact (DD-MTG-6)', () => {
+  it('bounds the contact timeline page and signals when older meetings remain', async () => {
+    h.queue[0] = {
+      data: Array.from({ length: MEETING_PAGE_SIZE * 2 + 1 }, (_, i) => ({
+        id: `m${i}`, title: `Meeting ${i}`, occurred_at: new Date(Date.UTC(2026, 5, 30 - i)).toISOString(),
+      })),
+      error: null,
+    };
+
+    const page = await listMeetingsForContact('ct1', 25);
+
+    expect(page.rows).toHaveLength(MEETING_PAGE_SIZE);
+    expect(page.hasMore).toBe(true);
+    expect(h.calls.eq).toContainEqual(['attendees.contact_id', 'ct1']);
+    expect(h.calls.range).toEqual([[25, 50]]);
+  });
+});
+
 describe('listMeetingsForContact (DD-MTG-6 — the contact-timeline union source)', () => {
   it('inner-joins attendees by contact_id via a CONSTRAINT-QUALIFIED embed, newest-first, unarchived', async () => {
     h.queue[0] = {
       data: [{ id: 'm1', title: 'Kickoff', occurred_at: '2026-08-01T00:00:00Z', attendees: [{ contact_id: 'ct1' }] }],
       error: null,
     };
-    const rows = await listMeetingsForContact('ct1');
+    const page = await listMeetingsForContact('ct1', 0);
     const sel = String(h.calls.select[0]);
     expect(sel).toContain('meeting_attendees!meeting_attendees_meeting_id_fkey!inner');
     expect(h.calls.eq).toContainEqual(['attendees.contact_id', 'ct1']);
     expect(h.calls.is).toContainEqual(['archived_at', null]);
     expect(h.calls.order).toContainEqual(['occurred_at', { ascending: false }]);
     // The slim ref shape only — the embed ride-along never leaks to the timeline.
-    expect(rows).toEqual([{ id: 'm1', title: 'Kickoff', occurred_at: '2026-08-01T00:00:00Z' }]);
+    expect(page).toEqual({
+      rows: [{ id: 'm1', title: 'Kickoff', occurred_at: '2026-08-01T00:00:00Z' }],
+      hasMore: false,
+    });
   });
 });
 

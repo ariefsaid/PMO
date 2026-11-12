@@ -15,6 +15,7 @@ const { listState, mutations, useMeetingsSpy } = vi.hoisted(() => ({
     isPending: false,
     isError: false,
     isPlaceholderData: false,
+    total: 2 as number | undefined,
     hasNextPage: false,
     isFetchingNextPage: false,
     fetchNextPage: vi.fn(),
@@ -177,6 +178,7 @@ beforeEach(() => {
   listState.isPending = false;
   listState.isError = false;
   listState.isPlaceholderData = false;
+  listState.total = 2;
   listState.hasNextPage = false;
   listState.isFetchingNextPage = false;
   listState.fetchNextPage.mockClear();
@@ -206,8 +208,9 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
   it('C8 meetings.ts:84,168,196 labels a capped list as partial and offers Load more', async () => {
     listState.data = Array.from({ length: 200 }, (_, i) => ({ ...(seed[0] as object), id: `m${i}`, title: `Meeting ${i}` }));
     listState.hasNextPage = true;
+    listState.total = 250;
     renderPage();
-    expect(screen.getByText('Showing 200 so far')).toBeInTheDocument();
+    expect(screen.getAllByText('Showing 200 of 250')).toHaveLength(2);
     await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
     expect(listState.fetchNextPage).toHaveBeenCalledOnce();
   });

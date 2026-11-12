@@ -79,6 +79,13 @@ export async function listAssets(offset = 0): Promise<Bounded<EquipmentAssetRow>
   fail(error);
   return bounded(data);
 }
+/** Exact count for the same active-asset filter as the paged register; no asset rows are fetched. */
+export async function countAssets(): Promise<number | undefined> {
+  const { count, error } = await supabase.from('equipment_assets')
+    .select('id', { count: 'exact', head: true }).is('archived_at', null);
+  fail(error);
+  return count ?? undefined;
+}
 export async function createAsset(input: { code: string; name: string; default_unit: 'hours' | 'days' }): Promise<EquipmentAssetRow> {
   const { data, error } = await supabase.from('equipment_assets')
     .insert({ code: input.code, name: input.name, default_unit: input.default_unit } as never)
