@@ -87,7 +87,7 @@ function renderRail(onNavigate = vi.fn(), role = 'Admin', queues: QueueSeeds = {
 }
 
 describe('Rail — persistent approvals access (UX-001)', () => {
-  it('keeps counted Approvals in the ordered destination list and retains Sales', () => {
+  it('keeps counted Approvals outside the scrollable destination list and retains Sales', () => {
     renderRail();
 
     const rail = screen.getByRole('complementary');
@@ -96,7 +96,7 @@ describe('Rail — persistent approvals access (UX-001)', () => {
     const scrollableDestinations = nav.querySelector('[data-rail-scroll-region]');
 
     expect(approvals).toHaveAttribute('href', '/approvals');
-    expect(scrollableDestinations).toContainElement(approvals);
+    expect(scrollableDestinations).not.toContainElement(approvals);
     expect(scrollableDestinations).toContainElement(within(nav).getByRole('link', { name: 'Sales Pipeline' }));
     expect(screen.getByRole('link', { name: /Approvals,.*5 pending/i })).toBeInTheDocument();
   });
@@ -111,20 +111,21 @@ describe('Rail — persistent approvals access (UX-001)', () => {
     expect(approvalLink).toHaveAttribute('href', '/approvals');
   });
 
-  it('does not render an Approvals destination for an Engineer without an assigned queue', () => {
+  it('does not render an empty pinned strip for Engineer', () => {
     renderRail(vi.fn(), 'Engineer', { pending: [], corrections: [] });
 
     const rail = screen.getByRole('complementary');
+    expect(rail.querySelector('[data-rail-pinned-approvals]')).not.toBeInTheDocument();
     expect(within(rail).queryByRole('link', { name: /Approvals/i })).not.toBeInTheDocument();
   });
 
-  it('shows Approvals in the ordered destination list with its pending count for an Engineer with an assigned queue', () => {
+  it('shows the pinned Approvals strip and pending count for an Engineer with an assigned queue', () => {
     renderRail(vi.fn(), 'Engineer', { pending: approvalsData.timesheets, corrections: [] });
 
     const rail = screen.getByRole('complementary');
     const approvals = within(rail).getByRole('link', { name: /Approvals,.*2 pending/i });
+    expect(rail.querySelector('[data-rail-pinned-approvals]')).toContainElement(approvals);
     expect(approvals).toHaveAttribute('href', '/approvals');
-    expect(rail.querySelector('[data-rail-scroll-region]')).toContainElement(approvals);
   });
 
   it('does not present an unknown count as zero when a queue source is unavailable', async () => {
