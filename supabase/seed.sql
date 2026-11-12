@@ -2479,3 +2479,252 @@ begin
   perform public.set_stock_reorder_level((c||'000000002002')::uuid, (c||'000000001003')::uuid, 200, 400);
   perform set_config('request.jwt.claims', '', true);
 end $$;
+
+-- ============================================================
+-- §W  record-surface fixtures — one sample record for each record screen / state that had none.
+--     The rendered-screen sweep (docs/private/ux-1110/all-screens/scorecard.md + render-results.md) could
+--     not measure five record routes because the seed held no row to address — /expenses/:claimId,
+--     /imprest/:floatId, /equipment/assets/:assetId, /stock/documents/:documentId and /views/:viewId —
+--     and could not reach a handful of states for the same reason (archived warehouse and company, a draft
+--     count, a shared vs owned saved view, the M365 entitlement). Each record below is the smallest honest
+--     fixture for that cell: written through the real RPC wherever an RPC is the product's only writer.
+--     Every id is FIXED (5eed0000-…) so a measuring cell can cite the record it shot.
+--     LOCAL-ONLY file; nothing here runs against prod. Rows follow the neighbouring sections:
+--     org 00000000-…0001, Engineer a4 (Tomas), PM a2 (Diego), Finance a3 (Priya), Admin a5 (Erin),
+--     project P001 40000000-…0001, the USD org default, and the §"stock master data" items/warehouses.
+-- ============================================================
+
+-- W.1 — expense claim (/expenses/:claimId). Money: filed by the seeded ENGINEER (a4) on P001 and LEFT
+-- SUBMITTED, because the record's approval surface is the point — Finance (a3) and the PM read it in the
+-- approver queue, while the claimant sees the Engineer's own edit/withdraw surface. Created as a Draft with
+-- its lines, then moved by the REAL RPC (transition_expense_claim): the amount is the sum of the lines and
+-- the claim number is minted at submit, exactly as the app does it (no forged Submitted row, no hand-set
+-- amount — 0247 §2/§3 would refuse both from a client).
+insert into expense_claims (id, org_id, kind, claimant_id, project_id, budget_category, title, purpose)
+values ('5eed0000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001','claim',
+        '00000000-0000-0000-0000-0000000000a4','40000000-0000-0000-0000-000000000001',
+        'Travel & accommodation','Site survey — Meridian switchgear room',
+        'Two-day survey of the Meridian switchgear room ahead of string testing.')
+on conflict (id) do nothing;
+
+insert into expense_claim_lines (id, claim_id, expense_date, expense_type, description, amount) values
+  ('5eed0000-0000-0000-0000-000000000011','5eed0000-0000-0000-0000-000000000001',
+   current_date - 9,'Travel','Rail fare to site and back',148.50),
+  ('5eed0000-0000-0000-0000-000000000012','5eed0000-0000-0000-0000-000000000001',
+   current_date - 9,'Local transport','Taxi from the station to the switchgear room',96.00)
+on conflict (id) do nothing;
+
+do $$
+begin
+  -- Re-run safe: only a claim still in Draft is submitted (a second run is a no-op).
+  if exists (select 1 from public.expense_claims
+              where id = '5eed0000-0000-0000-0000-000000000001' and status = 'Draft') then
+    perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a4","role":"authenticated"}', true);
+    perform public.transition_expense_claim('5eed0000-0000-0000-0000-000000000001', 'Submitted');
+    perform set_config('request.jwt.claims', '', true);
+  end if;
+end $$;
+
+-- W.2 — imprest float (/imprest/:floatId). Site cash established on P001 by Finance (a3), held by the
+-- project's own manager (a2 — imprest_custodian_eligible: Finance or the project's PM), with the amount
+-- decided by the Admin (a5) so proposer ≠ custodian ≠ decider (0422 §3/DD-IMP-7). The org procurement
+-- limit is the precondition establish_imprest_float() asserts, so it is seeded with the float.
+insert into org_imprest_settings (org_id, procurement_limit, updated_by)
+values ('00000000-0000-0000-0000-000000000001', 25000, '00000000-0000-0000-0000-0000000000a5')
+on conflict (org_id) do nothing;
+
+insert into imprest_floats (id, org_id, project_id, custodian_id, float_amount, currency, created_by)
+values ('5eed0000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000001',
+        '40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2',
+        12000,'USD','00000000-0000-0000-0000-0000000000a3')
+on conflict (id) do nothing;
+
+insert into imprest_float_changes
+  (id, org_id, float_id, proposed_amount, status, proposed_by, proposed_at, decided_by, decided_at, notes)
+values ('5eed0000-0000-0000-0000-000000000021','00000000-0000-0000-0000-000000000001',
+        '5eed0000-0000-0000-0000-000000000002',12000,'Approved',
+        '00000000-0000-0000-0000-0000000000a3', now() - interval '20 days',
+        '00000000-0000-0000-0000-0000000000a5', now() - interval '19 days',
+        'Site cash for the Meridian fit-out; reviewed against the month''s plan.')
+on conflict (id) do nothing;
+
+-- W.3 — equipment asset (/equipment/assets/:assetId). The thin asset reference an Admin/PM keeps by hand
+-- (FR-EQU-022), plus a short history so the record is not an empty shell: three APPROVED usage entries over
+-- two months and one hire-rate costing setting (NR-GLM-14/15 need "≥1 asset and a week of usage").
+-- SoD as the RPCs enforce it: the Engineer (a4) logs the days, the project's PM (a2) approves them —
+-- approver ≠ author (0447 equipment_usage_sod). The amounts then come from the real read: the costing
+-- setting is written through save_equipment_costing (0460: Admin/Finance only) and list_equipment_allocations
+-- charges approved hours at the hire rate, so the allocations card has two months of rows.
+insert into equipment_assets (id, org_id, code, name, default_unit, created_by)
+values ('5eed0000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000001',
+        'EQ-EXC-01','Excavator 20t — Meridian civil works','hours','00000000-0000-0000-0000-0000000000a5')
+on conflict (id) do nothing;
+
+insert into equipment_usage_entries
+  (id, org_id, asset_id, project_id, work_date, quantity, unit, kind, note, status, author_id, approver_id, approved_at)
+values
+  ('5eed0000-0000-0000-0000-000000000031','00000000-0000-0000-0000-000000000001',
+   '5eed0000-0000-0000-0000-000000000003','40000000-0000-0000-0000-000000000001',
+   (date_trunc('month', current_date - interval '2 months') + interval '11 days')::date,7.5,'hours','work',
+   'Pile caps and earthworks','Approved','00000000-0000-0000-0000-0000000000a4',
+   '00000000-0000-0000-0000-0000000000a2', now() - interval '58 days'),
+  ('5eed0000-0000-0000-0000-000000000032','00000000-0000-0000-0000-000000000001',
+   '5eed0000-0000-0000-0000-000000000003','40000000-0000-0000-0000-000000000001',
+   (date_trunc('month', current_date - interval '1 month') + interval '2 days')::date,8,'hours','work',
+   'Trenching for the cable route','Approved','00000000-0000-0000-0000-0000000000a4',
+   '00000000-0000-0000-0000-0000000000a2', now() - interval '30 days'),
+  ('5eed0000-0000-0000-0000-000000000033','00000000-0000-0000-0000-000000000001',
+   '5eed0000-0000-0000-0000-000000000003','40000000-0000-0000-0000-000000000004',
+   (date_trunc('month', current_date - interval '1 month') + interval '16 days')::date,6,'hours','work',
+   'Internal platform yard works','Approved','00000000-0000-0000-0000-0000000000a4',
+   '00000000-0000-0000-0000-0000000000a2', now() - interval '17 days')
+on conflict (id) do nothing;
+
+do $$
+begin
+  if not exists (select 1 from public.equipment_costing_settings
+                  where asset_id = '5eed0000-0000-0000-0000-000000000003' and is_current) then
+    perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a5","role":"authenticated"}', true);
+    perform public.save_equipment_costing(jsonb_build_object(
+      'asset_id','5eed0000-0000-0000-0000-000000000003','basis','hire_rate','work_rate',95,
+      'rate_unit','hours','charge_category','Equipment',
+      'effective_from',(date_trunc('month', current_date - interval '2 months'))::date::text));
+    perform set_config('request.jwt.claims', '', true);
+  end if;
+end $$;
+
+-- W.4 — stock receive document (/stock/documents/:documentId and …/:documentId/edit). One line, DRAFT.
+-- The seed's other receipts are POSTED through create_stock_document() (§"opening stock"), which mints its own
+-- random id — unusable as a citable seed record. A DRAFT is written directly and deliberately: a draft owns
+-- NO ledger row and NO balance, so the single-writer invariant (0413/FR-STK-072: only stock_write_entry writes
+-- the ledger) still holds, and the record page renders its real Draft state (Post action, one line, no
+-- entries). Authored by the SITE-A keeper (a4 — §"stock master data" keepers), so the row is one the RPCs
+-- would themselves accept (PQ-1: a receive is authored by the warehouse's keeper or an Admin). Posting it is
+-- the storekeeper's action, not the seed's.
+insert into stock_documents (id, org_id, number, kind, status, warehouse_id, note, occurred_on, created_by)
+values ('5eed0000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000001',
+        'RCV-SEED-0001','receive','Draft','15121000-0000-0000-0000-000000002002',
+        'Site delivery awaiting the storekeeper''s count', current_date - 3,
+        '00000000-0000-0000-0000-0000000000a4')
+on conflict (id) do nothing;
+
+insert into stock_document_lines (id, org_id, document_id, line_no, item_id, quantity, unit_cost)
+values ('5eed0000-0000-0000-0000-000000000041','00000000-0000-0000-0000-000000000001',
+        '5eed0000-0000-0000-0000-000000000004',1,
+        '15121000-0000-0000-0000-00000000100c',24,28.00)
+on conflict (id) do nothing;
+
+-- W.4b — DRAFT STOCK COUNT (/stock/documents/:documentId/edit). NR-DS-19 asks for a draft count authored by
+-- one keeper and viewed by another: SITE-A's keeper (a4) drafted it, so a4 sees the editable post count and
+-- a2 (SITE-B's keeper, a PM) sees it read-only. Same reasoning as W.4 for writing a Draft directly: no ledger
+-- row, so the single-writer invariant holds; a count line carries counted_quantity (never quantity) and the
+-- expected quantity it was drawn against (0413 §1 shape check).
+insert into stock_documents (id, org_id, number, kind, status, warehouse_id, note, occurred_on, created_by)
+values ('5eed0000-0000-0000-0000-000000000006','00000000-0000-0000-0000-000000000001',
+        'CNT-SEED-0001','count','Draft','15121000-0000-0000-0000-000000002002',
+        'Month-end count of the SITE-A store', current_date,
+        '00000000-0000-0000-0000-0000000000a4')
+on conflict (id) do nothing;
+
+insert into stock_document_lines (id, org_id, document_id, line_no, item_id, counted_quantity, expected_quantity)
+values ('5eed0000-0000-0000-0000-000000000061','00000000-0000-0000-0000-000000000001',
+        '5eed0000-0000-0000-0000-000000000006',1,
+        '15121000-0000-0000-0000-000000001001',21,22)
+on conflict (id) do nothing;
+
+-- W.4c — ARCHIVED WAREHOUSE (/stock, /stock/ledger, /stock/setup). NR-DS-17: every seeded warehouse is active,
+-- so the archived case never rendered. The archive guard refuses a warehouse that still holds stock (0413
+-- guard_stock_archive), and stock_validate_payload refuses to post INTO an archived warehouse (STK_ARCHIVED) —
+-- "an archived warehouse with a positive balance" is a state the product cannot reach at all. What IS reachable
+-- is a retired store that keeps its HISTORY: a receipt and a write-off that nets to zero, then the archive.
+-- Both postings go through create_stock_document (single writer); the write-off is posted by the PM, not its
+-- Admin author (0416/FR-STK-062), and the archive is a plain column update made once the balance is zero.
+insert into stock_warehouses (id, org_id, code, name, kind, project_id) values
+  ('5eed0000-0000-0000-0000-000000000005','00000000-0000-0000-0000-000000000001',
+   'SITE-OLD','Retired site store','site','40000000-0000-0000-0000-000000000001')
+on conflict (id) do nothing;
+
+insert into stock_warehouse_keepers (org_id, warehouse_id, user_id) values
+  ('00000000-0000-0000-0000-000000000001','5eed0000-0000-0000-0000-000000000005',
+   '00000000-0000-0000-0000-0000000000a4')
+on conflict do nothing;
+
+do $$
+declare c text := '15121000-0000-0000-0000-'; w uuid := '5eed0000-0000-0000-0000-000000000005'; v_doc uuid; v_rev int;
+begin
+  if not exists (select 1 from public.stock_documents where org_id = '00000000-0000-0000-0000-000000000001'
+                    and warehouse_id = w and kind = 'receive') then
+    -- The Admin receives 10 bags for the retiring store (Admin author override is audited by the RPC).
+    perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a5","role":"authenticated"}', true);
+    perform public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id',w,
+        'note','Final delivery to the retiring store'), jsonb_build_array(jsonb_build_object(
+        'item_id',c||'000000001001','quantity',10,'unit_cost',8.50)), true, (c||'0000000f0901')::uuid);
+    -- …then writes the 10 bags off (draft), and the PM posts the write-off (author ≠ poster; pin the draft's
+    -- revision, which the post RPC compares or refuses with STK_STALE).
+    v_doc := public.create_stock_document(jsonb_build_object('kind','adjustment','warehouse_id',w,
+        'reason','Damaged bags written off as the store was retired'), jsonb_build_array(jsonb_build_object(
+        'item_id',c||'000000001001','quantity',10,'direction','out')), false, (c||'0000000f0902')::uuid);
+    select revision into v_rev from public.stock_documents where id = v_doc;
+    perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
+    perform public.post_stock_document(v_doc, v_rev);
+    perform set_config('request.jwt.claims', '', true);
+  end if;
+  -- Zero on hand now, so the archive guard allows the retire (it is an update, not an insert: the guard has a say).
+  -- Stamped after the movements, so the store's history reads in order.
+  update public.stock_warehouses set archived_at = now()
+   where id = w and archived_at is null;
+end $$;
+
+-- W.5 — saved views (/views/:viewId and …/:viewId/edit). TWO rows, because the cells need both sides of
+-- ownership (0045: read = owner OR shared_org, edit = owner OR Admin):
+--   A. owned by the ADMIN (a5) and SHARED with the org  → the owner's renderer/edit cells (129–132) and the
+--      D12 "You cannot edit this view" state for any non-owner non-Admin, and NR-GLM-08's "shared view whose
+--      author is not the viewer" for the PM and the Executive;
+--   B. owned by the PROJECT MANAGER (a2), PRIVATE       → the PM's own view, so /views/:viewId/edit opens in
+--      EDIT mode for its author (NR-GLM-05/06; NR-GLM-07 needs a second session archiving it).
+-- Panels are the shape ViewBuilderPage writes, over the view DSL's whitelisted entities, so the renderer
+-- compiles them and returns rows.
+insert into user_views (id, org_id, user_id, name, description, scope, spec, created_at, updated_at) values
+  ('5eed0000-0000-0000-0000-000000000007','00000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-0000000000a5','Delivery projects',
+   'Projects in delivery with their code, name and status.',
+   'shared_org',
+   '{"version":1,"panels":[{"id":"p1","primitive":"DataTable","querySpec":{"entity":"projects","select":["code","name","status"],"filters":[{"column":"status","op":"in","value":["Ongoing Project","Close Out","Won, Pending KoM"]}],"orderBy":{"column":"code","dir":"asc"},"limit":20}}]}'::jsonb,
+   now() - interval '12 days', now() - interval '12 days'),
+  ('5eed0000-0000-0000-0000-000000000008','00000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-0000000000a2','Projects by status',
+   'How the portfolio splits across pipeline and delivery stages.',
+   'private',
+   '{"version":1,"panels":[{"id":"p1","primitive":"StatTiles","querySpec":{"entity":"projects","select":["id"],"groupBy":"status","aggregate":{"fn":"count","column":"id","alias":"projects"},"limit":50}}]}'::jsonb,
+   now() - interval '9 days', now() - interval '9 days')
+on conflict (id) do nothing;
+
+-- W.6 — ARCHIVED COMPANY + a contact still pointing at it (/contacts/:id, /companies/:id). NR-DS-04's
+-- "archived company" half, and the state ContactDetail renders when the company is outside the live
+-- directory: the fact row resolves the archived row through the single-company read and labels it
+-- "Archived". The directory filters archived rows out (0012), so nothing else in the demo changes.
+insert into companies (id, org_id, name, type, archived_at) values
+  ('5eed0000-0000-0000-0000-000000000009','00000000-0000-0000-0000-000000000001',
+   'Helio Partners (retired)','Client', now() - interval '4 months')
+on conflict (id) do nothing;
+
+insert into contacts (id, org_id, company_id, full_name, title, email, phone) values
+  ('5eed0000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-000000000001',
+   '5eed0000-0000-0000-0000-000000000009','Ruth Calder','Former Programme Director',
+   'ruth.calder@heliopartners.example','+44 7700 900042')
+on conflict (id) do nothing;
+
+-- W.7 — ENTITLEMENT: the Microsoft 365 integration switch, ON for the demo org (flag only — no
+-- connection row, no token, no secret; nothing is linked). Without the row the /integrations page renders
+-- the unentitled state and the M365 surfaces cannot be measured at all. Written through the Operator RPC
+-- (0070/0532: the Operator is the sole writer) as the seeded platform operator (0…ff, §U).
+do $$
+begin
+  if not exists (select 1 from public.org_features
+                  where org_id = '00000000-0000-0000-0000-000000000001'
+                    and feature_key = 'm365_integration' and enabled) then
+    perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000ff","role":"authenticated"}', true);
+    perform public.operator_toggle_feature('00000000-0000-0000-0000-000000000001', 'm365_integration', true);
+    perform set_config('request.jwt.claims', '', true);
+  end if;
+end $$;
