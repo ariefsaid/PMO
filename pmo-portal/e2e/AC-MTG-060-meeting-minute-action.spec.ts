@@ -85,7 +85,7 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     await page.waitForURL('**/meetings/new');
     // The visible label carries the required marker; the textbox's accessible name is Title.
     await page.getByRole('textbox', { name: 'Title', exact: true }).fill(meetingTitle);
-    await page.getByRole('button', { name: 'Save meeting' }).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
 
     // Creation lands on the detail route — capture the id for cleanup.
     await page.waitForURL(/\/meetings\/[0-9a-f-]{36}/);

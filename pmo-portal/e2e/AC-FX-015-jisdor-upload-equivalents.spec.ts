@@ -77,7 +77,7 @@ test('AC-FX-015 Finance uploads isolated JISDOR rates, sees equivalents, and can
   await expect(page).toHaveURL(/\/$/);
   await page.goto('/administration/exchange-rates');
   await expect(page.getByTestId('administration-panel-exchange-rates')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Exchange rates' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Exchange rates', level: 1 })).toBeVisible();
 
   const csv = Buffer.from('date,rate\n2026-10-09,16234.56\n2026-10-12,16300');
   const uploadFile = async (name: string) => {
