@@ -18,7 +18,10 @@ vi.mock('@/src/lib/db/orgs', () => ({
 vi.mock('@/src/lib/db/agentEvents', () => ({ listRunEvents: vi.fn(), rateAgentEvent: vi.fn() }));
 vi.mock('@/src/lib/db/agentThreads', () => ({ listAgentThreads: vi.fn() }));
 vi.mock('@/src/lib/db/agentRuns', () => ({ getRunHeartbeat: vi.fn() }));
-vi.mock('@/src/lib/db/projectMoney', () => ({ getProjectsMoneyCollection: vi.fn() }));
+vi.mock('@/src/lib/db/projectMoney', () => ({
+  getProjectsMoneyCollection: vi.fn(),
+  getProjectBudgetPositions: vi.fn(),
+}));
 vi.mock('@/src/lib/db/procurements', () => ({
   listProcurements: vi.fn(),
   listProcurementsByProject: vi.fn(),
@@ -115,6 +118,17 @@ describe('projectMoney repository (composed)', () => {
     vi.mocked(projectMoneyDal.getProjectsMoneyCollection).mockResolvedValue({ a: {} } as never);
     await expect(repositories.projectMoney.collection(['a'])).resolves.toEqual({ a: {} });
     expect(projectMoneyDal.getProjectsMoneyCollection).toHaveBeenCalledWith(['a']);
+  });
+
+  it('delegates canonical budget positions and normalizes read errors', async () => {
+    const positions = { p1: { projectId: 'p1' } };
+    vi.mocked(projectMoneyDal.getProjectBudgetPositions).mockResolvedValue(positions as never);
+    await expect(repositories.projectMoney.budgetPositions(['p1'])).resolves.toEqual(positions);
+    expect(projectMoneyDal.getProjectBudgetPositions).toHaveBeenCalledWith(['p1']);
+
+    vi.mocked(projectMoneyDal.getProjectBudgetPositions).mockRejectedValue(coded);
+    await expect(repositories.projectMoney.budgetPositions(['p1'])).rejects.toBeInstanceOf(AppError);
+    await expect(repositories.projectMoney.budgetPositions(['p1'])).rejects.toMatchObject({ code: '42501' });
   });
 });
 
