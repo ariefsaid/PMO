@@ -679,7 +679,11 @@ describe('company home — Overview layout (the default: one page, charts carry 
       { status: 'Leads', count: 8, total_value: 2_000, weighted_value: 1_000, win_probability: 0.5 },
       { status: 'Negotiation', count: 2, total_value: 8_000, weighted_value: 4_000, win_probability: 0.5 },
       { status: 'Ongoing Project', count: 5, total_value: 9, weighted_value: 9, win_probability: 1 },
-    ], projects: [] };
+    ], // The read returns every open deal with its currency; amounts show only once each stage's currencies are known.
+    projects: [
+      ...Array.from({ length: 8 }, () => ({ status: 'Leads', currency: 'USD' })),
+      ...Array.from({ length: 2 }, () => ({ status: 'Negotiation', currency: 'USD' })),
+    ] as never };
     renderPage();
     // AC-1117: each open stage is a bar that links to the pipeline filtered to that stage.
     const stages = within(screen.getByRole('list', { name: 'Weighted pipeline by stage' })).getAllByRole('link');
