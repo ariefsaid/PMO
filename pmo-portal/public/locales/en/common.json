@@ -3319,10 +3319,12 @@
       "title": "Delete this project row?"
     },
     "empty": {
-      "title": "No hours logged this week"
+      "title": "No hours logged this week",
+      "sub": "Add a project to start logging hours, or use the week controls to find another week."
     },
     "emptyEdit": {
-      "title": "No hours logged this week"
+      "title": "No hours logged this week",
+      "sub": "Use “Add a project” above to start logging hours."
     },
     "enterHoursToSubmit": "Enter hours to submit",
     "error": {
@@ -3351,7 +3353,8 @@
     },
     "previousWeek": "Previous week",
     "returned": {
-      "revise": "Revise this week"
+      "revise": "Revise this week",
+      "sub": "Review the flagged days, correct them, and resubmit."
     },
     "save": "Save",
     "status": {},
@@ -4345,7 +4348,8 @@
     },
     "save": {
       "dirty": "Unsaved changes",
-      "saved": "All changes saved"
+      "saved": "All changes saved",
+      "nothing": "Nothing to save yet"
     },
     "push": {
       "pending": "Accounting update waiting",

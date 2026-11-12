@@ -144,14 +144,19 @@ const TimesheetsPage: React.FC = () => {
   // ── Copy last week enablement ───────────────────────────────────────────────
   // While projects are still loading the reason is deliberately BLANK (transient — the picker's
   // own "Loading projects…" status already reports it; a second copy would break the unique-status
-  // oracle). A non-draft week with eligible source rows explains why copying is unavailable;
-  // when no rows can be added, the action and its sentence are both absent.
+  // oracle). The stable causes — not-a-draft, empty last week, nothing new — render their reason
+  // (R2-restore: a disabled control must say why; ux1110 dropped two of the three reasons and
+  // hid the whole block when nothing could be copied).
   const copyBusy = deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending;
   const copyDisabledReason = projectsPending
     ? null
     : !editable
       ? t('timesheets:copyLastWeek.reasonNotDraft', 'This week is no longer a draft')
-      : null;
+      : copyPlan.addedCount === 0
+        ? copyPlan.lastWeekHasRows
+          ? t('timesheets:copyLastWeek.reasonNothingNew', "Last week's projects are already in this week")
+          : t('timesheets:copyLastWeek.reasonEmpty', 'Nothing to copy — no time was logged last week')
+        : null;
   const copyDisabled = projectsPending || copyDisabledReason !== null || copyBusy;
 
   const actionProps = {
@@ -266,6 +271,10 @@ const TimesheetsPage: React.FC = () => {
           reason={currentTimesheet?.rejection_reason}
           person={currentTimesheet?.rejecter?.full_name}
           at={currentTimesheet?.rejected_at}
+          instruction={t(
+            'timesheets.returned.sub',
+            'Review the flagged days, correct them, and resubmit.',
+          )}
           action={canRevise ? {
             label: t('timesheets.returned.revise', 'Revise this week'),
             onClick: commitReopen,
@@ -300,7 +309,7 @@ const TimesheetsPage: React.FC = () => {
                   ? t('uxs28.save.dirty', 'Unsaved changes')
                   : currentWeekEntries.length > 0
                     ? t('uxs28.save.saved', 'All changes saved')
-                    : null}
+                    : t('uxs28.save.nothing', 'Nothing to save yet')}
               </div>
             )}
             <span
@@ -355,7 +364,7 @@ const TimesheetsPage: React.FC = () => {
                 </div>
               </div>
             )}
-            {canEnterTimesheet && (projectsPending || copyPlan.addedCount > 0) && (
+            {canEnterTimesheet && (
               <div data-testid="timesheets-copy-last-week" className="inline-flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -382,6 +391,10 @@ const TimesheetsPage: React.FC = () => {
               <p className="text-sm font-medium text-foreground">
                 {t('timesheets.emptyEdit.title', 'No hours logged this week')}
               </p>
+              {/* R2-restore: the "what to do next" line dev's empty state carried. */}
+              <p className="mt-1 text-control text-muted-foreground">
+                {t('timesheets.emptyEdit.sub', 'Use “Add a project” above to start logging hours.')}
+              </p>
             </div>
           ) : (
             <TimesheetGrid
@@ -402,6 +415,10 @@ const TimesheetsPage: React.FC = () => {
               variant="empty"
               icon="clock"
               title={t('timesheets.empty.title', 'No hours logged this week')}
+              sub={t(
+                'timesheets.empty.sub',
+                'Add a project to start logging hours, or use the week controls to find another week.',
+              )}
             />
           </div>
         ) : (

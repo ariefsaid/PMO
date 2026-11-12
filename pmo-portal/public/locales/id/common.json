@@ -3319,10 +3319,12 @@
       "title": "Hapus baris proyek ini?"
     },
     "empty": {
-      "title": "Belum ada jam tercatat minggu ini"
+      "title": "Belum ada jam tercatat minggu ini",
+      "sub": "Tambahkan proyek untuk mulai mencatat jam, atau gunakan navigasi minggu untuk membuka minggu lain."
     },
     "emptyEdit": {
-      "title": "Belum ada jam tercatat minggu ini"
+      "title": "Belum ada jam tercatat minggu ini",
+      "sub": "Gunakan “Tambah proyek” di atas untuk mulai mencatat jam."
     },
     "enterHoursToSubmit": "Isi jam untuk mengajukan",
     "error": {
@@ -3351,7 +3353,8 @@
     },
     "previousWeek": "Minggu sebelumnya",
     "returned": {
-      "revise": "Revisi minggu ini"
+      "revise": "Revisi minggu ini",
+      "sub": "Periksa hari yang ditandai, perbaiki, lalu ajukan ulang."
     },
     "save": "Simpan",
     "status": {},
@@ -4345,7 +4348,8 @@
     },
     "save": {
       "dirty": "Perubahan belum disimpan",
-      "saved": "Semua perubahan tersimpan"
+      "saved": "Semua perubahan tersimpan",
+      "nothing": "Belum ada yang perlu disimpan"
     },
     "push": {
       "pending": "Pembaruan akuntansi menunggu",

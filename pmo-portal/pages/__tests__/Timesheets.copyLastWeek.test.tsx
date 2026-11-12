@@ -207,7 +207,12 @@ describe('Timesheets — Copy last week (draft weeks)', () => {
     // …and nothing was written: the copy is buffer state awaiting the explicit Save.
     expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent('Unsaved changes');
     expect(await screen.findByText('Rows copied from last week')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Copy last week' })).not.toBeInTheDocument();
+    // R2-restore: with everything already copied the action stays visible but disabled,
+    // and the plain reason explains why (dev's stable-disabled-state oracle).
+    expect(copyButton()).toBeDisabled();
+    expect(screen.getByTestId('timesheets-copy-reason')).toHaveTextContent(
+      'already in this week'
+    );
   });
 
   it('keeps the status in the entry header and the project picker together in the action row', () => {
@@ -274,15 +279,17 @@ describe('Timesheets — Copy last week (draft weeks)', () => {
     );
   });
 
-  it('hides the copy action and its reason when last week has no logged time', () => {
+  it('is disabled with a plain reason when last week has no logged time', () => {
     sheetsState.data = [];
     renderAtUrl();
 
-    expect(screen.queryByRole('button', { name: 'Copy last week' })).not.toBeInTheDocument();
-    expect(screen.queryByTestId('timesheets-copy-reason')).not.toBeInTheDocument();
+    expect(copyButton()).toBeDisabled();
+    expect(screen.getByTestId('timesheets-copy-reason')).toHaveTextContent(
+      'Nothing to copy — no time was logged last week'
+    );
   });
 
-  it('hides the copy action and its reason when last week\u2019s projects are all already in this week', () => {
+  it('is disabled with a plain reason when last week\u2019s projects are all already in this week', () => {
     const currentWeek = currentWeekStr();
     const lastWeek = lastWeekStr();
     sheetsState.data = [
@@ -295,8 +302,10 @@ describe('Timesheets — Copy last week (draft weeks)', () => {
     ];
     renderAtUrl();
 
-    expect(screen.queryByRole('button', { name: 'Copy last week' })).not.toBeInTheDocument();
-    expect(screen.queryByTestId('timesheets-copy-reason')).not.toBeInTheDocument();
+    expect(copyButton()).toBeDisabled();
+    expect(screen.getByTestId('timesheets-copy-reason')).toHaveTextContent(
+      'already in this week'
+    );
   });
 });
 
