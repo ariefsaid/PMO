@@ -182,6 +182,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-4">
       <h1 className="text-page font-semibold">{heading}</h1>
+      {draft && <p className="mt-1 mb-4 text-control text-muted-foreground">{t('count.editingDraft', 'Editing a saved draft: nothing changes in stock until you post it.')}</p>}
       <StockTabs />
 
       {pending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}

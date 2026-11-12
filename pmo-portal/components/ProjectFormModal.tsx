@@ -491,6 +491,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               lists the org's companies; clearable back to null. Sits directly after Client. */}
           <Combobox
             label={t('projectForm.endCustomer.label', 'End customer')}
+            helper={t('projects:projectForm.endCustomer.helper', 'Optional. The company the work is finally for; leave empty when it is the client.')}
             value={form.values.endClientId}
             selectedOption={
               form.values.endClientId && endClientLabel

@@ -148,6 +148,7 @@ const StockReorder: React.FC = () => {
 
       <section aria-labelledby="reorder-panel-title" className="mt-6 rounded-lg border border-border bg-card p-4">
         <h2 id="reorder-panel-title" className="mb-3 text-base font-semibold">{t('reorder.panel.title')}</h2>
+        {(!itemId || !warehouseId) && <p className="mb-3 text-control text-muted-foreground">{t('reorder.panel.pick')}</p>}
         <div className="grid gap-3 sm:grid-cols-2">
           <ItemPicker label={t('reorder.panel.item')} value={itemId || null} onChange={(v) => pick(v, warehouseId)} />
           <SelectField
@@ -168,7 +169,7 @@ const StockReorder: React.FC = () => {
           <div className="mt-4 space-y-3">
             <p className="text-sm" data-testid="current-level">
               {s.current
-                ? <>{t('reorder.panel.current', { level: q(s.current.reorderLevel), unit: unitCode }).trim()}{s.current.reorderQuantity ? `, ${t('reorder.panel.currentQuantity', { quantity: q(s.current.reorderQuantity), unit: unitCode }).trim()}` : ''}</>
+                ? <>{t('reorder.panel.current', { label: t('reorder.worklist.columns.level'), level: q(s.current.reorderLevel), unit: unitCode }).trim()}{s.current.reorderQuantity ? ` ${t('reorder.panel.currentQuantity', { label: t('reorder.worklist.columns.orderQuantity'), quantity: q(s.current.reorderQuantity), unit: unitCode }).trim()}` : ''}</>
                 : <span className="text-muted-foreground">{t('reorder.panel.noCurrent')}</span>}
             </p>
             {s.status === 'ok' && s.suggestion ? (

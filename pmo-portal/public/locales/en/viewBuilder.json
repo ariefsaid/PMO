@@ -9,5 +9,6 @@
   "serverVersionChanged": "The saved view changed while you were editing.",
   "reloadSavedView": "Reload saved view",
   "continueEditing": "Continue editing",
-  "invalidProjectFilter": "Enter a valid project ID."
+  "invalidProjectFilter": "Enter a valid project ID.",
+  "serverVersionChangedHelp": "Reload drops the edits you have not saved; continue keeps them."
 }
