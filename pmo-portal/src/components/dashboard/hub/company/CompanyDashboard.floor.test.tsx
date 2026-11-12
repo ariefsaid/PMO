@@ -38,6 +38,7 @@ const h = vi.hoisted(() => ({
   role: 'Executive' as string,
   dash: null as unknown,
   items: [] as unknown[],
+  approvals: [] as unknown[],
   overdue: undefined as unknown,
   projects: [] as unknown[],
   procurements: [] as unknown[],
@@ -71,7 +72,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 }));
 vi.mock('@/src/components/dashboard/restructure/useNeedsYou', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/components/dashboard/restructure/useNeedsYou')>()),
-  useNeedsYou: () => ({ items: h.items, areaItems: h.items, approvals: [], overdueInvoices: h.overdue, approvalsPending: false, approvalsError: false, isPending: false, isError: false, refetch: vi.fn() }),
+  useNeedsYou: () => ({ items: h.items, areaItems: h.items, approvals: h.approvals, overdueInvoices: h.overdue, approvalsPending: false, approvalsError: false, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {}, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: h.procurements, isPending: false, isError: false, refetch: vi.fn() }) }));
@@ -113,6 +114,7 @@ beforeEach(() => {
   localStorage.removeItem('home-layout');
   h.dash = { ...base };
   h.items = [];
+  h.approvals = [];
   h.overdue = undefined;
   h.projects = [];
   h.procurements = [];
@@ -192,6 +194,63 @@ describe('HOME4 floor: Waits on you', () => {
     const waits = screen.getByTestId('waits-on-you');
     expect(within(waits).getByRole('link', { name: /supplier invoices to pay/ })).toHaveTextContent('$40K');
     expect(within(waits).getByRole('link', { name: /2\s*budgets running over/ })).toHaveAttribute('href', '/projects');
+  });
+});
+
+describe('HOME4 fix: each waiting thing appears once', () => {
+  const approval = (id: string, title: string) => ({
+    key: `procurement:${id}`, kind: 'procurement', createdAt: '2026-11-01T00:00:00Z',
+    row: { id, title, total_value: 56_000, currency: 'USD', requested_by: { full_name: 'Tomas Beck' } },
+  });
+  const badge = () => Number(within(screen.getByTestId('waits-on-you')).getByRole('heading', { name: /^Waits on you/ }).textContent?.replace(/\D/g, '') || 0);
+
+  it('procurements already listed as approvals get no second row; badge, header link and finding line agree', () => {
+    h.approvals = [approval('a', 'Module order'), approval('b', 'Cabling kit')];
+    h.items = [
+      item('procurement-approvals', 2, 'procurements awaiting approval', '/procurement?status=Requested'),
+      item('budgets-over', 1, 'budget running over', '/projects', { tone: 'lost' }),
+    ];
+    renderHome();
+    const waits = screen.getByTestId('waits-on-you');
+    expect(within(waits).getAllByTestId('approval-item')).toHaveLength(2);
+    expect(within(waits).queryByRole('link', { name: /procurements? awaiting approval/ })).not.toBeInTheDocument();
+    // One list: the two approvals and the one budget over.
+    expect(badge()).toBe(3);
+    expect(within(waits).getByRole('link', { name: 'All 2 approvals' })).toHaveAttribute('href', '/approvals');
+    expect(screen.getByText(/2 approvals wait on you/)).toBeInTheDocument();
+  });
+
+  it('procurements beyond the listed approvals read "N more", and count once in the badge', () => {
+    h.approvals = [approval('a', 'Module order'), approval('b', 'Cabling kit')];
+    h.items = [
+      item('procurement-approvals', 5, 'procurements awaiting approval', '/procurement?status=Requested'),
+      item('budgets-over', 1, 'budget running over', '/projects', { tone: 'lost' }),
+    ];
+    renderHome();
+    const waits = screen.getByTestId('waits-on-you');
+    expect(within(waits).getByRole('link', { name: /3\s*more procurements awaiting approval/ })).toHaveAttribute('href', '/procurement?status=Requested');
+    expect(badge()).toBe(2 + 3 + 1);
+  });
+});
+
+describe('HOME4 fix: every health row has one shape', () => {
+  it('reasons wrap with no separator to lead a line, and the money line is built the same in a long-reason and a short-reason row', () => {
+    h.dash = { ...base, attention_projects: [
+      attn('p1', 'River project', { overdue_tasks: 6, overdue_milestones: 2, overdue_invoices: 2, waiting_approvals: 1, over_budget: true }),
+      attn('p2', 'Quiet project'),
+    ] };
+    renderHome();
+    const card = screen.getByTestId('project-health');
+    const reasons = within(card).getAllByTestId('health-wrong');
+    expect(reasons[0]).toHaveTextContent('1 awaiting approval');
+    for (const line of reasons) expect(line.textContent).not.toContain('·');
+    const money = within(card).getAllByTestId('health-money');
+    expect(money).toHaveLength(2);
+    expect(money[0].className).toBe(money[1].className);
+    for (const line of money) {
+      expect(within(line).getByTestId('health-spend')).toBeInTheDocument();
+      expect(within(line).getByTestId('health-contract')).toHaveTextContent(/^Contract/);
+    }
   });
 });
 

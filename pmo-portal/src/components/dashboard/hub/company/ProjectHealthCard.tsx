@@ -53,7 +53,7 @@ export const ProjectHealthCard: React.FC<{
           : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={retry} />
             : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('home.noActiveProjects', 'No active projects.')}</p>
               : (
-                <ul className="divide-y divide-border">
+                <ul className="@container divide-y divide-border">
                   {rows.map((row) => {
                     const tasks = overdueTaskCount(row);
                     const wrong = [
@@ -86,23 +86,16 @@ export const ProjectHealthCard: React.FC<{
                             <span className="min-w-0 truncate text-control"><span className="font-medium">{name}</span>{manager && <span className="text-muted-foreground"> · {manager}</span>}</span>
                             <StatusPill wrap={false} className="shrink-0" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{statusLabel('project', row.status, ts)}</StatusPill>
                           </span>
-                          <span data-testid="health-wrong" className="text-control tabular">
+                          {/* Reasons wrap as separate phrases: no separator can start a line. */}
+                          <span data-testid="health-wrong" className="flex flex-wrap gap-x-3 text-control tabular">
                             {wrong.length === 0
                               ? <span className="text-muted-foreground">{t('home.nothingOverdue', 'Nothing overdue')}</span>
-                              : wrong.map((fact, index) => (
-                                // The dot travels with the phrase after it, so a wrapped line never ends on a separator.
-                                <React.Fragment key={fact.key}>
-                                  {index > 0 && ' '}
-                                  <span className="whitespace-nowrap">
-                                    {index > 0 && <span aria-hidden className="text-muted-foreground">·&nbsp;</span>}
-                                    <span className={fact.red ? 'text-destructive-text' : 'text-foreground'}>{fact.text}</span>
-                                  </span>
-                                </React.Fragment>
-                              ))}
+                              : wrong.map((fact) => <span key={fact.key} className={cn('whitespace-nowrap', fact.red ? 'text-destructive-text' : 'text-foreground')}>{fact.text}</span>)}
                           </span>
-                          <span className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3 text-control tabular">
-                            <span className={cn(bullet?.spent == null ? 'text-muted-foreground' : 'text-foreground')}>{budgetWords}{bullet ? delivered : ''}</span>
-                            {contractWords && <span className="text-muted-foreground">{contractWords}</span>}
+                          {/* One shape in every row: spend left, contract right where the card is wide enough for any row, else both on their own line. */}
+                          <span data-testid="health-money" className="mt-1 grid gap-x-3 text-control tabular @[36rem]:grid-cols-[minmax(0,1fr)_auto]">
+                            <span data-testid="health-spend" className={cn(bullet?.spent == null ? 'text-muted-foreground' : 'text-foreground')}>{budgetWords}{bullet ? delivered : ''}</span>
+                            {contractWords && <span data-testid="health-contract" className="text-muted-foreground @[36rem]:text-right">{contractWords}</span>}
                           </span>
                           <BulletBar bullet={bullet} />
                         </Link>

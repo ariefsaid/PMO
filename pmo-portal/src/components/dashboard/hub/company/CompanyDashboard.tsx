@@ -379,11 +379,17 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         owners={owners} projectCount={projects.isPending || projects.isError ? undefined : projects.data?.length} />
     );
     const approvalsTotal = needs.approvals?.length ?? 0;
-    const otherWaits = waitRows.filter((row) => row.id !== 'approvals');
+    // Each waiting thing appears once: a procurement already among the approvals gets no second row; only the ones
+    // beyond them keep the scoped row, as "N more".
+    const listedProcurements = (needs.approvals ?? []).filter((entry) => entry.kind === 'procurement').length;
+    const otherWaits = waitRows.filter((row) => row.id !== 'approvals').flatMap((row) => {
+      if (row.id !== 'procurement-approvals' || listedProcurements === 0 || typeof row.count !== 'number') return [row];
+      const more = row.count - listedProcurements;
+      return more > 0 ? [{ ...row, count: more, label: t('home.moreProcurements', { count: more, defaultValue_one: 'more procurement awaiting approval', defaultValue_other: 'more procurements awaiting approval' }) }] : [];
+    });
     const nothingYet = otherWaits.length === 0 && approvalsTotal === 0;
-    // The badge counts the items themselves (each approval, each invoice in a row), never the number of rows. The
-    // procurement approvals are already among the approvals, so their row is not counted twice.
-    const waitingTotal = approvalsTotal + otherWaits.filter((row) => row.id !== 'procurement-approvals').reduce((sum, row) => sum + (typeof row.count === 'number' ? row.count : 0), 0);
+    // The badge counts the distinct things waiting (each approval, each item in a row), never the number of rows.
+    const waitingTotal = approvalsTotal + otherWaits.reduce((sum, row) => sum + (typeof row.count === 'number' ? row.count : 0), 0);
     const waits = (
       <DashboardWaitsOnYou plain count={waitingTotal || undefined} className={cn(third, 'max-[899px]:order-3')} rows={otherWaits}
         pending={needs.approvalsPending || (nothingYet && needs.isPending)} error={needs.approvalsError || (nothingYet && needs.isError)} onRetry={needs.refetch}

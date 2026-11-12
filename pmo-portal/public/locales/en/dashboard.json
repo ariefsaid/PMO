@@ -905,6 +905,8 @@
     "approvalTimesheetWeek": "Timesheet, week of {{week}}",
     "waitingSinceToday": "waiting since today",
     "retry": "Retry",
-    "findingNoneCheckedOffTrack": "No checked project is off track"
+    "findingNoneCheckedOffTrack": "No checked project is off track",
+    "moreProcurements_one": "more procurement awaiting approval",
+    "moreProcurements_other": "more procurements awaiting approval"
   }
 }

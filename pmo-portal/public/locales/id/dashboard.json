@@ -905,6 +905,8 @@
     "approvalTimesheetWeek": "Lembar waktu, minggu {{week}}",
     "waitingSinceToday": "menunggu sejak hari ini",
     "retry": "Coba lagi",
-    "findingNoneCheckedOffTrack": "Tidak ada proyek terperiksa yang melenceng"
+    "findingNoneCheckedOffTrack": "Tidak ada proyek terperiksa yang melenceng",
+    "moreProcurements_one": "pengadaan lain menunggu persetujuan",
+    "moreProcurements_other": "pengadaan lain menunggu persetujuan"
   }
 }
