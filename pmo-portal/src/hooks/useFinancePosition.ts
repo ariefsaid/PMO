@@ -31,6 +31,14 @@ export function useFinancePosition(enabled = true, opts?: { withRoutes?: boolean
   return {
     position,
     today: orgDay.day,
+    invoicesPending: invoices.isPending,
+    invoicesError: invoices.isError,
+    paymentsPending: payments.isPending,
+    paymentsError: payments.isError,
+    procurementsPending: procurements.isPending,
+    procurementsError: procurements.isError,
+    orgDayPending: orgDay.isPending,
+    orgDayError: orgDay.isError,
     isPending: invoices.isPending || payments.isPending || procurements.isPending || orgDay.isPending,
     isError: invoices.isError || payments.isError || procurements.isError || orgDay.isError,
     retry: () => {
