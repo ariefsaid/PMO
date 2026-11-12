@@ -11,7 +11,8 @@ const clauseClass = 'text-foreground underline decoration-border underline-offse
  * links to its place; a clause whose fact is not known yet is left out (never a guessed zero).
  */
 export const FindingLine: React.FC<{
-  offTrack?: { count: number; atLeast: boolean; total: number | undefined };
+  /** `unchecked`: active projects whose budget cannot be checked, so none off track is not an all-clear. */
+  offTrack?: { count: number; atLeast: boolean; total: number | undefined; unchecked?: number };
   overdue?: OverdueInvoiceNeeds;
   approvals?: number;
 }> = ({ offTrack, overdue, approvals }) => {
@@ -19,9 +20,9 @@ export const FindingLine: React.FC<{
   const clauses: Array<{ key: string; to: string; text: string }> = [];
   if (offTrack) {
     const text = offTrack.count === 0
-      ? t('home.findingNoneOffTrack', 'No project is off track')
+      ? (offTrack.unchecked ? t('home.findingNoneCheckedOffTrack', 'No checked project is off track') : t('home.findingNoneOffTrack', 'No project is off track'))
       : offTrack.total !== undefined && !offTrack.atLeast
-        ? t('home.findingOffTrackOf', { count: offTrack.count, total: offTrack.total, defaultValue_one: '{{count}} of {{total}} projects off track', defaultValue_other: '{{count}} of {{total}} projects off track' })
+        ? t('home.findingOffTrackOf', { count: offTrack.count, total: offTrack.total, defaultValue_one: '{{count}} of {{total}} active projects off track', defaultValue_other: '{{count}} of {{total}} active projects off track' })
         : t('home.findingOffTrackAtLeast', { count: offTrack.count, defaultValue_one: 'At least {{count}} project off track', defaultValue_other: 'At least {{count}} projects off track' });
     clauses.push({ key: 'ops', to: '/projects', text });
   }

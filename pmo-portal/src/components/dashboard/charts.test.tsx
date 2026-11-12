@@ -30,3 +30,12 @@ describe('MonthColumns series labels', () => {
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });
 });
+
+describe('MonthColumns value-axis labels', () => {
+  it('labels only the tallest column and the latest month (first series)', async () => {
+    const { peakLabelIndexes } = await import('./chartLabels');
+    const data = [{ a: 10, b: 5 }, { a: 30, b: 80 }, { a: 20, b: 0 }, { a: 15, b: 12 }, { a: 0, b: 0 }];
+    expect(peakLabelIndexes(data)).toEqual({ peak: { index: 1, series: 'b' }, last: 3 });
+    expect(peakLabelIndexes([{ a: 0, b: 0 }])).toEqual({ peak: null, last: -1 });
+  });
+});

@@ -1,4 +1,4 @@
-import { formatTileMoney } from '@/src/lib/format';
+import { formatDay, formatTileMoney } from '@/src/lib/format';
 import { invoiceGross } from '@/src/lib/revenue/nativeInvoice';
 import type { ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -34,7 +34,12 @@ export function approvalItem(entry: ApprovalPopulationEntry, t: (key: string, fa
     }
     default: {
       const row = entry.row as TimesheetAwaitingApproval;
-      return { key: entry.key, what: t('home.approvalTimesheet', 'Timesheet'), who: row.owner?.full_name ?? null, amount: null, days, href: '/approvals?scope=timesheets' };
+      // Whose timesheet and which week, so two rows from one person are told apart.
+      const owner = row.owner?.full_name;
+      const what = owner
+        ? t('home.approvalTimesheetOf', "{{name}}'s timesheet, week of {{week}}", { name: owner, week: formatDay(row.week_start_date) })
+        : t('home.approvalTimesheetWeek', 'Timesheet, week of {{week}}', { week: formatDay(row.week_start_date) });
+      return { key: entry.key, what, who: null, amount: null, days, href: '/approvals?scope=timesheets' };
     }
   }
 }

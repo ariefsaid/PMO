@@ -51,13 +51,15 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   await expect(salesHeading).toBeVisible();
   const salesCard = page.getByText('Weighted pipeline', { exact: true }).locator('xpath=..');
   await expect(salesCard).toContainText('$');
-  // #2055: the pipeline reads as a funnel of open stages (count on each), not a stage table.
-  await expect(page.getByRole('button', { name: /Tender Submitted/ })).toBeVisible();
+  // #2055: the pipeline reads as a funnel of open stages (count on each), not a stage table; each stage bar is a
+  // link to the pipeline filtered to that stage.
+  const tenderStage = page.getByRole('link', { name: /Tender Submitted/ });
+  await expect(tenderStage).toBeVisible();
+  await expect(tenderStage).toHaveAttribute('href', '/sales?status=Tender%20Submitted');
   const forecastMargin = page.getByText(/Forecast margin/);
   if (await forecastMargin.count() > 0) await expect(forecastMargin).toContainText('%');
 
-  // ── Exec Dashboard: win rate lives in the Analysis disclosure (default count mode) ──────────────────
-  await page.getByText('Analysis', { exact: true }).click();
+  // ── Exec Dashboard: win rate sits in the Sales card beside the pipeline (default count mode) ─────────
   const winRateTile = page.getByTestId('kpi-win-rate');
   await expect(winRateTile).toBeVisible();
   await expect(winRateTile).toContainText('%');

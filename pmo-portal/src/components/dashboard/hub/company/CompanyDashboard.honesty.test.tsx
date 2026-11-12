@@ -32,7 +32,7 @@ const base = {
   procurements_by_status: [],
   top_projects: [],
 };
-const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: null as unknown, loss: null as unknown, delivery: {} as Record<string, number>, projectsPending: false }));
+const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: null as unknown, loss: null as unknown, delivery: {} as Record<string, number>, projectsPending: false, invoices: [] as unknown[] }));
 const attn = (id: string, name: string, over: Record<string, unknown> = {}) => ({
   id, name, short_name: null, client_name: null, contract_value: 100, currency: 'USD', budget: null, spent: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD',
   status: 'Ongoing Project', attention_signals: 0, overdue_items: 0, overdue_tasks: 0, overdue_milestones: 0, overdue_invoices: 0, waiting_approvals: 0, over_budget: false, budget_used_ratio: null, ...over,
@@ -50,7 +50,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useOverdueInvoiceFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useOverdueInvoiceFacts: () => ({ data: h.invoices, isPending: false, isError: false, refetch: vi.fn() }),
   useIncomingPayments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   usePaidPaymentFacts: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useHasAnySalesInvoice: () => ({ data: false, isPending: false, isError: false, refetch: vi.fn() }),
@@ -110,6 +110,7 @@ beforeEach(() => {
   h.loss = null;
   h.delivery = {};
   h.projectsPending = false;
+  h.invoices = [];
   localStorage.removeItem('home-layout');
 });
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
@@ -173,7 +174,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
   it('AC-IXD-DASH-W5-C2A: Contract on hand counts the same on-hand projects it sums, and opens them', () => {
     h.dash = { ...base };
     renderExec();
-    expect(tile('Contract on hand')).toHaveTextContent('2 projects');
+    expect(tile('Contract on hand')).toHaveTextContent('2 with a signed contract');
     expect(within(figures()).getByRole('link', { name: /Contract on hand/ })).toHaveAttribute('href', '/projects?filter=on-hand');
   });
 
@@ -182,7 +183,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
       { status: 'Ongoing Project', count: 1 }, { status: 'Close Out', count: 2 }, { status: 'On Hold', count: 1 }, { status: 'Won, Pending KoM', count: 1 }, { status: 'Leads', count: 9 },
     ] };
     renderExec();
-    expect(tile('Contract on hand')).toHaveTextContent('5 projects');
+    expect(tile('Contract on hand')).toHaveTextContent('5 with a signed contract');
   });
 
   it('AC-UXA-003: labels the Ongoing project count in Bahasa and links to that set', async () => {
@@ -190,7 +191,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     await act(async () => { await i18next.changeLanguage('id'); });
     h.dash = { ...base, active_projects: 2 };
     renderExec();
-    expect(tile('Kontrak berjalan')).toHaveTextContent('2 proyek');
+    expect(tile('Kontrak berjalan')).toHaveTextContent('2 dengan kontrak ditandatangani');
     expect(within(figures()).getByRole('link', { name: /Kontrak berjalan/ })).toHaveAttribute('href', '/projects?filter=on-hand');
   });
 
@@ -246,7 +247,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     h.dash = { ...base, active_delivery_projects: 11, attention_projects: [attn('p1', 'Late project', { attention_signals: 1, overdue_items: 1, overdue_milestones: 1 }), attn('p2', 'Calm project')] };
     renderExec();
     const finding = screen.getByTestId('home-finding');
-    expect(within(finding).getByRole('link', { name: '1 of 11 projects off track' })).toHaveAttribute('href', '/projects');
+    expect(within(finding).getByRole('link', { name: '1 of 11 active projects off track' })).toHaveAttribute('href', '/projects');
     expect(await within(finding).findByRole('link', { name: 'No client invoice overdue' })).toHaveAttribute('href', '/finance/receivables?overdue=true');
   });
 
@@ -291,5 +292,39 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     const lines = within(invoiced).getAllByText(/115M|11\.8M/).filter((line) => line.children.length === 0);
     expect(lines.map((line) => line.textContent?.replace(/\u00a0/g, ' '))).toEqual(['$11.8M', 'IDR 115M']);
     expect(invoiced.querySelector('[title="$11,800,000; IDR\u00a0114,700,000"]')).not.toBeNull();
+  });
+
+  it('Finances: owed to us is the known total split into not yet due and overdue, with one line of counts; an unknown balance is named there, never added', () => {
+    h.invoices = [
+      { id: 'i1', status: 'Unpaid', currency: 'USD', invoice_date: '2026-10-20', erp_due_date: '2026-11-19', received_date: null, erp_outstanding_amount: 300_000, erp_payment_terms_days: 30 },
+      { id: 'i2', status: 'Unpaid', currency: 'USD', invoice_date: '2026-06-01', erp_due_date: '2026-06-29', received_date: null, erp_outstanding_amount: 100_000, erp_payment_terms_days: 30 },
+      { id: 'i3', status: 'Unpaid', currency: 'USD', invoice_date: '2026-09-01', erp_due_date: '2026-09-30', received_date: null, erp_outstanding_amount: null, erp_payment_terms_days: 30 },
+    ];
+    renderExec();
+    const owed = screen.getByTestId('owed-to-us');
+    expect(owed).toHaveTextContent('$400K');
+    expect(owed).toHaveTextContent('Not yet due $300K');
+    expect(owed).toHaveTextContent('Overdue $100K');
+    // 2026-06-29 to the org day 2026-10-27 is 120 days.
+    expect(owed).toHaveTextContent('3 invoices · oldest 120 days overdue · 1 balance unknown, not in the total');
+    const notDue = within(owed).getByTestId('owed-to-us-not-due');
+    const late = within(owed).getByTestId('owed-to-us-overdue');
+    expect(notDue.style.flexGrow).toBe('0.75');
+    expect(late.style.flexGrow).toBe('0.25');
+    expect(within(owed).getByRole('link', { name: /Open receivables/ })).toHaveAttribute('href', '/finance/receivables');
+  });
+
+  it('AC-1461: Owed to suppliers carries its payables link, and an empty side reads as a known zero', () => {
+    renderExec();
+    const suppliers = screen.getByTestId('owed-to-suppliers');
+    expect(within(suppliers).getByRole('link', { name: /Open payables/ })).toHaveAttribute('href', '/finance/payables');
+    expect(suppliers).toHaveTextContent('$0');
+    expect(suppliers).toHaveTextContent('No supplier invoice to pay');
+  });
+
+  it('Project health links to all projects without restating a count it does not share', () => {
+    renderExec();
+    const link = within(screen.getByTestId('project-health')).getByRole('link', { name: /All projects/ });
+    expect(link).toHaveTextContent(/^All projects$/);
   });
 });

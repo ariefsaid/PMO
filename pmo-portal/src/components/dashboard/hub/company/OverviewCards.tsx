@@ -65,7 +65,7 @@ export const SalesOverviewCard: React.FC<{
   const navigate = useNavigate();
   const statusLabel = useProjectStatusLabel();
   const open = openPipelineStages(stages);
-  const rows: BarRow[] = open.map((stage) => ({ id: String(stage.status), name: `${statusLabel(stage.status as string)} · ${stage.count}`, value: stage.weighted_value, label: money(stage.weighted_value, currency), tone: 'accent' }));
+  const max = Math.max(1, ...open.map((stage) => stage.weighted_value));
   const wonValue = won ? tileMoneyLines(won.amounts, currency, formatTileMoney).join(' ') : '';
   return (
     <Card data-testid="sales-overview" className={className}>
@@ -89,8 +89,28 @@ export const SalesOverviewCard: React.FC<{
         </div>
         {pending ? <ListState variant="loading" shape="chart" rows={2} />
           : error ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={retry} />
-            : rows.length === 0 ? <ListState variant="empty" icon="pipe" title={t('hub.company.noPipeline', 'No open pipeline stages')} />
-              : <BarList rows={rows} ariaLabel={t('home.pipelineChart', 'Weighted pipeline by stage')} />}
+            : open.length === 0 ? <ListState variant="empty" icon="pipe" title={t('hub.company.noPipeline', 'No open pipeline stages')} />
+              : (
+                // AC-1117: each stage bar is a link to the pipeline filtered to that stage (one scale, weighted value).
+                <ul aria-label={t('home.pipelineChart', 'Weighted pipeline by stage')} className="grid gap-1">
+                  {open.map((stage) => {
+                    const name = `${statusLabel(stage.status as string)} · ${stage.count}`;
+                    const value = money(stage.weighted_value, currency);
+                    return (
+                      <li key={String(stage.status)}>
+                        <Link to={`/sales?status=${encodeURIComponent(stage.status as string)}`} aria-label={`${name}: ${value}`}
+                          className="grid min-h-11 grid-cols-[minmax(7rem,9.5rem)_minmax(0,1fr)] items-center gap-x-3 text-control text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                          <span className="truncate text-right">{name}</span>
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span aria-hidden className="h-[18px] min-w-0.5 rounded-r bg-primary" style={{ width: `${Math.max(1, (stage.weighted_value / max) * 75)}%` }} />
+                            <span className="shrink-0 font-semibold tabular">{value}</span>
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
         </div>
         <div className={wide ? 'grid content-start gap-4' : 'contents'}>
           <WinRateCard currency={currency} range={range} hidePeriodControl embedded helpInPage />
@@ -113,7 +133,7 @@ export const InvoicedCollectedCard: React.FC<{
   retry: () => void;
   currency: string;
   className?: string;
-  /** Inside the Finances card: no frame, no link of its own, a taller plot. */
+  /** Inside the Finances card: no frame, no link of its own, a value axis with faint lines. */
   embedded?: boolean;
   chartHeight?: number;
 }> = ({ months, periodMonths = [], collectedByMonth, collectedUnsynced, pending, error, retry, currency, className, embedded = false, chartHeight }) => {
@@ -147,10 +167,11 @@ export const InvoicedCollectedCard: React.FC<{
     : null;
   const gap = [invoiceGap, collectionGap].filter(Boolean).join(' ');
   return (
-    <ChartCard title={title} embedded={embedded} className={embedded ? cnJoin('flex flex-1 flex-col', className) : className} actions={embedded ? undefined : <CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
+    <ChartCard title={title} embedded={embedded} className={className} actions={embedded ? undefined : <CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
       known={activeMonths >= 3} hiddenReason={t('home.reasonTrend', 'fewer than three months have invoiced or collected amounts')}
       pending={pending} error={error ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry } : undefined} testId="chart-invoiced-collected">
-      <MonthColumns points={points} ariaLabel={collectionsPrimary ? `${title} · ${collectedName}` : title} seriesNames={collectionsPrimary ? [collectedName] : [invoicedName, collectedName]} tickInterval={points.length > 8 ? 1 : 0} height={chartHeight} fill={embedded} />
+      <MonthColumns points={points} ariaLabel={collectionsPrimary ? `${title} · ${collectedName}` : title} seriesNames={collectionsPrimary ? [collectedName] : [invoicedName, collectedName]} tickInterval={points.length > 8 ? 1 : 0} height={chartHeight}
+        valueAxis={embedded ? (value) => (value === 0 ? '0' : money(value, currency)) : undefined} />
       {gap && <p data-testid="invoiced-collected-gap" className="mt-2 text-control text-muted-foreground">{gap}</p>}
     </ChartCard>
   );

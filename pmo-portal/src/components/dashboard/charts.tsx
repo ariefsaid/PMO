@@ -1,11 +1,12 @@
 import React from 'react';
-import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { ListState } from '@/src/components/ui/ListState';
 import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
+import { peakLabelIndexes } from './chartLabels';
 
 /**
  * Home graphics (screen-rules "Graphics"): bars carry their value as a direct label, one neutral series colour,
@@ -111,6 +112,29 @@ export interface ColumnPoint {
   labelB?: string;
 }
 
+/**
+ * Axis ticks drawn as plain SVG text. Recharts' default tick measures its text in an off-screen span appended to the
+ * body, which stays in the page as a stray "Sep" at the screen edge; a plain tick needs no measuring.
+ */
+const PlainTick: React.FC<{ x?: number; y?: number; payload?: { value: string | number }; anchor: 'middle' | 'end'; format?: (value: number) => string; dy?: number }> = ({ x = 0, y = 0, payload, anchor, format, dy = 0 }) => (
+  <text x={anchor === 'end' ? x - 6 : x} y={y} dy={dy} textAnchor={anchor} style={TICK_STYLE}>
+    {format ? format(Number(payload?.value ?? 0)) : String(payload?.value ?? '')}
+  </text>
+);
+
+/** `peak` mode: one label on the tallest column and one on the latest month's first series, nothing else. */
+const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b') => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
+  const { x = 0, y = 0, width = 0, index = 0, value } = props;
+  const { peak, last } = peakLabelIndexes(data);
+  const isPeak = peak?.index === index && peak.series === series;
+  const isLast = series === 'a' && index === last && !(peak?.index === index && peak.series === 'b');
+  if (value == null || value === '' || !(isPeak || isLast)) return null;
+  // Near the right edge the label ends at the column so it never leaves the plot.
+  const anchor = index >= data.length - 2 ? 'end' : 'middle';
+  const anchorX = anchor === 'end' ? Number(x) + Number(width) : Number(x) + Number(width) / 2;
+  return <text x={anchorX} y={Number(y) - 5} textAnchor={anchor} style={LABEL_STYLE}>{String(value)}</text>;
+};
+
 /** A value label above a column: every non-zero column, or only the latest (`lastOnly`). Zero columns carry no label. */
 const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', lastOnly: boolean, side: 'middle' | 'end' | 'start' = 'middle', paired = false) => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
   const { x = 0, y = 0, width = 0, index = 0, value } = props;
@@ -142,7 +166,9 @@ export const MonthColumns: React.FC<{
   tickInterval?: number;
   /** Fill the parent's remaining height (a flex column) instead of a fixed height; `height` is then the minimum. */
   fill?: boolean;
-}> = ({ points, ariaLabel, seriesNames, labelAll = false, height = 168, minWidth, tickInterval = 0, fill = false }) => {
+  /** Draw a value axis with a few faint horizontal lines (values on the left), and label only the tallest and latest columns. */
+  valueAxis?: (value: number) => string;
+}> = ({ points, ariaLabel, seriesNames, labelAll = false, height = 168, minWidth, tickInterval = 0, fill = false, valueAxis }) => {
   const reduced = usePrefersReducedMotion();
   const two = points.some((point) => point.b !== undefined);
   const data = points.map((point) => ({ ...point }));
@@ -158,16 +184,19 @@ export const MonthColumns: React.FC<{
       <div className={[minWidth ? 'overflow-x-auto' : '', fill ? 'flex flex-1 flex-col' : ''].join(' ').trim() || undefined} role={minWidth ? 'region' : undefined} aria-label={minWidth ? ariaLabel : undefined} tabIndex={minWidth ? 0 : undefined}>
         <div role="img" className={fill ? 'flex-1' : undefined} aria-label={`${ariaLabel}. ${points.map((point) => `${point.tick}: ${[point.labelA && `${two && seriesNames?.[0] ? `${seriesNames[0]} ` : ''}${point.labelA}`, point.labelB && `${seriesNames?.[1] ? `${seriesNames[1]} ` : ''}${point.labelB}`].filter(Boolean).join(', ')}`).join('; ')}`} style={fill ? { minHeight: height, minWidth } : { height, minWidth }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 22, right: two ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
-              <XAxis dataKey="tick" tick={TICK_STYLE} tickLine={false} stroke={chartTheme.grid} interval={tickInterval} />
-              <YAxis hide domain={[0, 'auto']} />
+            <BarChart data={data} margin={{ top: 22, right: two && !valueAxis ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
+              {valueAxis && <CartesianGrid vertical={false} stroke={chartTheme.grid} strokeOpacity={0.6} />}
+              <XAxis dataKey="tick" tick={<PlainTick anchor="middle" dy={14} />} tickLine={false} stroke={chartTheme.grid} interval={tickInterval} />
+              {valueAxis
+                ? <YAxis width={52} tickCount={4} axisLine={false} tickLine={false} domain={[0, 'auto']} tick={<PlainTick anchor="end" dy={4} format={valueAxis} />} />
+                : <YAxis hide domain={[0, 'auto']} />}
               <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.labelA : item.payload.labelB) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
               <Bar dataKey="a" fill={toneFill.accent} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
-                <LabelList dataKey="labelA" content={columnLabel(data, 'a', !labelAll, two ? 'end' : 'middle', two)} />
+                <LabelList dataKey="labelA" content={valueAxis ? peakLabel(data, 'a') : columnLabel(data, 'a', !labelAll, two ? 'end' : 'middle', two)} />
               </Bar>
               {two && (
                 <Bar dataKey="b" fill={toneFill.neutral} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
-                  <LabelList dataKey="labelB" content={columnLabel(data, 'b', !labelAll || points.length > 6, 'start', true)} />
+                  <LabelList dataKey="labelB" content={valueAxis ? peakLabel(data, 'b') : columnLabel(data, 'b', !labelAll || points.length > 6, 'start', true)} />
                 </Bar>
               )}
             </BarChart>

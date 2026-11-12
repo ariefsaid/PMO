@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
+import { openHiddenReasons } from '../../test/homeLayout';
 import { getDashboardHarness, renderCompanyDashboard, resetCompanyDashboardHarness } from '../../test/companyDashboardHarness';
 
 const dashboardHarness = getDashboardHarness();
@@ -19,24 +20,26 @@ describe('AC-MOBILE-1 and AC-MOBILE-3 responsive dashboard reading order', () =>
   it('puts the off-track projects and the contract figure before the passive sales card', () => {
     dashboardHarness.pipeline = { stages: [{ status: 'Leads', count: 1, weighted_value: 500, total_value: 1_000 }], projects: [] };
     renderCompanyDashboard();
-    const offTrack = screen.getByRole('heading', { name: 'Projects off track' });
+    const offTrack = screen.getByRole('heading', { name: 'Project health' });
     const contractBook = screen.getByRole('link', { name: /Contract on hand/ });
     const sales = screen.getByRole('heading', { name: 'Sales' });
     expect(offTrack.compareDocumentPosition(sales) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(contractBook.compareDocumentPosition(sales) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('never claims a clear result while risk was unchecked: names the unchecked projects, and says "No project is off track" only when all were checked', () => {
+  it('never claims a clear result while risk was unchecked: names the unchecked projects, and says "No project is off track" only when all were checked', async () => {
     dashboardHarness.dashboard!.attention_projects = [];
     const unchecked = renderCompanyDashboard();
-    expect(screen.getByRole('link', { name: 'Budget check unavailable for 5 projects' })).toBeInTheDocument();
-    expect(screen.queryByText('No project is off track.')).not.toBeInTheDocument();
-    expect(screen.getByText('No checked project is off track.')).toBeInTheDocument();
+    const finding = () => screen.getByTestId('home-finding');
+    expect(within(finding()).getByRole('link', { name: 'No checked project is off track' })).toBeInTheDocument();
+    expect(within(finding()).queryByText('No project is off track')).not.toBeInTheDocument();
+    await openHiddenReasons();
+    expect(await screen.findByText('Budget check unavailable for 5 projects')).toBeInTheDocument();
     unchecked.unmount();
 
     dashboardHarness.dashboard!.risk_unchecked_projects = 0;
     renderCompanyDashboard();
-    expect(screen.getByText('No project is off track.')).toBeInTheDocument();
-    expect(screen.queryByText(/can’t be checked/)).not.toBeInTheDocument();
+    expect(within(finding()).getByRole('link', { name: 'No project is off track' })).toBeInTheDocument();
+    expect(screen.queryByText(/Budget check unavailable/)).not.toBeInTheDocument();
   });
 });

@@ -52,11 +52,18 @@ export const WaitsOnYou: React.FC<{
   /** Header link ("All approvals"). */
   actions?: React.ReactNode;
   className?: string;
-}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId = 'waits-on-you', lead, actions, className }) => {
+  /** A plain card with the waiting tone on its count only (the company home), instead of the tinted surface. */
+  plain?: boolean;
+  /** How many items wait, drawn beside the title in the waiting tone. */
+  count?: number;
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId = 'waits-on-you', lead, actions, className, plain = false, count }) => {
   const { t } = useTranslation('dashboard');
   return (
-    <Card data-testid={testId} aria-label={title ?? t('home.waits', 'Waits on you')} className={cn('bg-waiting-surface', className)}>
-      <CardHead level={2} actions={actions}>{title ?? t('home.waits', 'Waits on you')}</CardHead>
+    <Card data-testid={testId} aria-label={title ?? t('home.waits', 'Waits on you')} className={cn(!plain && 'bg-waiting-surface', className)}>
+      <CardHead level={2} actions={actions}>
+        {title ?? t('home.waits', 'Waits on you')}
+        {count ? <span data-testid="waits-count" className="ml-2 inline-grid min-w-6 place-items-center rounded-full bg-waiting-surface px-2 align-middle text-control font-semibold leading-6 text-warning-foreground tabular">{count}</span> : null}
+      </CardHead>
       {pending ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="loading" rows={1} className="h-11 overflow-hidden" /></div>
         : error ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="error" title={t('home.waitsError', "Couldn't load what waits on you")} onRetry={onRetry} /></div>
           : rows.length === 0 && !lead ? <p className="px-[var(--panel-inset)] pb-4 text-control text-muted-foreground">{emptyLabel ?? t('home.waitsNone', 'Nothing waits on you.')}</p>
@@ -97,7 +104,9 @@ export const DashboardWaitsOnYou: React.FC<{
   lead?: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
-}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId, lead, actions, className }) => {
+  plain?: boolean;
+  count?: number;
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId, lead, actions, className, plain, count }) => {
   const { t } = useTranslation('dashboard');
   const tasks = useMyTasks();
   const today = useOrgToday();
@@ -138,8 +147,9 @@ export const DashboardWaitsOnYou: React.FC<{
   return (
     <WaitsOnYou
       rows={rowsWithTasks}
-      pending={pending || (tasks.isPending && rows.length === 0)}
-      error={error || (tasks.isError && rows.length === 0)}
+      // A15: the person's own task rows never hold back rows (or lead items) that are already here.
+      pending={pending || (tasks.isPending && rows.length === 0 && !lead)}
+      error={error || (tasks.isError && rows.length === 0 && !lead)}
       onRetry={retry}
       title={title}
       emptyLabel={emptyLabel}
@@ -147,6 +157,8 @@ export const DashboardWaitsOnYou: React.FC<{
       lead={lead}
       actions={actions}
       className={className}
+      plain={plain}
+      count={count}
     />
   );
 };

@@ -29,16 +29,16 @@ const BulletBar: React.FC<{ bullet: Bullet | null }> = ({ bullet }) => (
 export const ProjectHealthCard: React.FC<{
   rows: AttentionProject[];
   delivery: Record<string, number> | undefined;
-  allCount: number | undefined;
   pending: boolean;
   error: boolean;
   retry: () => void;
   className?: string;
-}> = ({ rows, delivery, allCount, pending, error, retry, className }) => {
+}> = ({ rows, delivery, pending, error, retry, className }) => {
   const { t } = useTranslation('dashboard');
   const { t: ts } = useTranslation('status');
   const money = (amount: number, currency: string) => formatTileMoney(amount, currency) ?? '';
-  const allLabel = allCount === undefined ? t('home.allProjectsBare', 'All projects') : t('home.allProjects', 'All {{count}} projects', { count: allCount });
+  // The link names no count: the rows are active projects, the list it opens is every project.
+  const allLabel = t('home.allProjectsBare', 'All projects');
   return (
     <Card data-testid="project-health" className={cn('flex flex-col', className)}>
       <CardHead level={2} actions={<CardLink to="/projects">{allLabel}</CardLink>}>{t('home.projectHealth', 'Project health')}</CardHead>
@@ -74,10 +74,15 @@ export const ProjectHealthCard: React.FC<{
                             <span className="min-w-0 truncate text-control font-medium">{name}</span>
                             <StatusPill wrap={false} className="shrink-0" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{statusLabel('project', row.status, ts)}</StatusPill>
                           </span>
-                          <span data-testid="health-wrong" className="flex flex-wrap gap-x-4 text-control tabular">
+                          <span data-testid="health-wrong" className="text-control tabular">
                             {wrong.length === 0
                               ? <span className="text-muted-foreground">{t('home.nothingOverdue', 'Nothing overdue')}</span>
-                              : wrong.map((fact) => <span key={fact.key} className={fact.red ? 'text-destructive-text' : 'text-foreground'}>{fact.text}</span>)}
+                              : wrong.map((fact, index) => (
+                                <React.Fragment key={fact.key}>
+                                  {index > 0 && <span aria-hidden className="text-muted-foreground"> · </span>}
+                                  <span className={fact.red ? 'text-destructive-text' : 'text-foreground'}>{fact.text}</span>
+                                </React.Fragment>
+                              ))}
                           </span>
                           <span className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3 text-control tabular">
                             <span className={cn(bullet?.spent == null ? 'text-muted-foreground' : 'text-foreground')}>{budgetWords}{bullet ? delivered : ''}</span>

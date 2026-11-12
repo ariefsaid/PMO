@@ -49,6 +49,7 @@ import { InvoicedCollectedCard, LossReasonsCard, PurchasingCard, ReceivablesAgeC
 import { ApprovalItems } from './ApprovalItems';
 import { FindingLine, UncheckedReport } from './FindingLine';
 import { ProjectHealthCard } from './ProjectHealthCard';
+import { FinancesCard } from './FinancesCard';
 import { healthOrder, isOffTrack, overBudget, overdueTaskCount } from './homeHealth';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
@@ -120,8 +121,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     delivery: deliveryQuery.data?.[row.id] ?? null,
     budgetUsed: row.budget_used_ratio === null ? null : row.budget_used_ratio * 100,
   }; });
-  const projectsPending = figures.dashboardPending || projects.isPending;
-  const projectsError = figures.dashboardError || projects.isError;
+  // A7: project rows and the plan chart are drawn from the dashboard read alone; the project list only names the link.
+  const projectsPending = figures.dashboardPending;
+  const projectsError = figures.dashboardError;
   const unchecked = data?.risk_unchecked_projects ?? 0;
 
   const refresh = () => {
@@ -162,7 +164,18 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const money = opts.hide ? null : moneyTileValue(figure.amounts, orgCurrency);
     const label = opts.label ?? figure.label;
     const caption = opts.caption ?? (typeof figure.subline === 'string' ? figure.subline : undefined);
-    return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={caption} to={figure.href} linkLabel={label} loading={figures.todayPending} help={helpText[figure.id]} />;
+    // A1/A4: a tile waits on (and fails with) the one read it is made of; a failed read says so, never blank, never 0.
+    const status = figures.figureStatus(figure.id);
+    if (status.error) {
+      return (
+        <div key={figure.id} data-testid={`figure-error-${figure.id}`} className="flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4">
+          <span className="text-control font-medium text-foreground">{label}</span>
+          <span className="text-control text-muted-foreground">{t('home.figureError', "Couldn't load")}</span>
+          {status.retry && <button type="button" onClick={status.retry} className="mt-auto self-start text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('home.retry', 'Retry')}</button>}
+        </div>
+      );
+    }
+    return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={caption} to={figure.href} linkLabel={label} loading={status.pending} help={helpText[figure.id]} />;
   };
 
   const supplier = todayFigure('supplier-payables');
@@ -175,9 +188,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   // Collected: no receipts recorded is not evidence of "nothing collected" while client balances are not synced.
   const collectedUnsynced = (collected?.amounts ?? []).every((row) => row.amount === 0) && todayFigure('owed-clients')?.amounts == null;
   const collectedOpts = { label: t('home.collected', 'Collected'), caption: periodLabel, hide: collectedUnsynced, reason: t('home.reasonCollected', 'incoming payments are not synced'), link: setUp };
-  const positionTiles = figures.todayPending || figures.periodPending
-    ? Array.from({ length: 4 }, (_, i) => <KPITile key={i} loading icon="grid" tone="blue" label="" value="" className="min-h-[96px]" />)
-    : (finance
+  // A1: each tile fills in on its own read (no shared skeleton row).
+  const positionTiles = (finance
     ? [
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
@@ -301,9 +313,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <FigureHiddenLine compact />
     </div>
   );
-  const tilesRow = (cols: string, tileList: React.ReactNode[]) => figures.todayError
-    ? <ListState variant="error" title={t('dashboard:hub.company.figuresError', "Couldn't load company position figures")} onRetry={figures.todayRetry} />
-    : <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className={cols}>{tileList}</KPIRow>;
+  // Each tile carries its own error, so one failed read never hides the healthy figures beside it.
+  const tilesRow = (cols: string, tileList: React.ReactNode[]) => <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className={cols}>{tileList}</KPIRow>;
 
   if (overview) {
     // One grid: 12 columns, one gutter (--space-panel-gap, 24px desktop). At 1440 the canvas is 1168px:
@@ -317,49 +328,38 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const trendMonths = trendRange.from && trendRange.to ? monthsBetween(trendRange.from, trendRange.to).map((month) => month.slice(0, 7)) : [];
     const half = 'min-w-0 min-[900px]:col-span-6';
     const third = 'min-w-0 min-[900px]:col-span-4';
-    const bandTiles = figures.todayPending || figures.periodPending
-      ? Array.from({ length: 4 }, (_, i) => <KPITile key={i} loading icon="grid" tone="blue" label="" value="" className="min-h-[96px]" />)
-      : [
-        moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.projectCount', { count: onHandCount, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }), reason: t('home.reasonContract', 'contract values are missing') }),
-        moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
-        moneyTile(collected, collectedOpts),
-        moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' }),
-        margin?.amounts ? moneyTile(margin, { caption: '' }) : null,
-      ].filter((tile) => tile !== null);
+    // A1: every tile fills in on its own read; there is no band-wide skeleton or band-wide error.
+    // Each tile carries a secondary line so their captions end together at the band's foot.
+    const bandTiles = [
+      moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.signedContractCount', { count: onHandCount, defaultValue_one: '{{count}} with a signed contract', defaultValue_other: '{{count}} with a signed contract' }), reason: t('home.reasonContract', 'contract values are missing') }),
+      moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
+      moneyTile(collected, collectedOpts),
+      moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: t('home.onSignedContracts', 'On signed contracts') }),
+      figures.figureStatus('billed-margin').pending || margin?.amounts ? moneyTile(margin, { caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,
+    ].filter((tile) => tile !== null);
     const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);
 
-    // Finances: what is owed to us (and how much of it is late), what we owe suppliers, and money in by month.
+    // Finances: what is owed each way (not yet due | overdue), money in by month, then what is left to bill.
     const overdue = needs.overdueInvoices;
-    const overdueKnown = overdue && overdue.unknownBalances === 0 ? moneyTileValue(overdue.knownTotals, orgCurrency) : null;
-    const vendorInvoiced = (procurements.data ?? []).filter((row) => row.status === 'Vendor Invoiced');
-    const oldestSupplierDays = vendorInvoiced.length === 0 ? null
-      : Math.max(...vendorInvoiced.map((row) => Math.max(0, Math.floor((Date.now() - new Date(row.vendor_invoiced_at ?? row.updated_at).getTime()) / 86400000))));
-    const supplierCaption = oldestSupplierDays === null ? toPay
-      : t('home.toPayOldest', { count: vendorInvoiced.length, days: oldestSupplierDays, defaultValue_one: '{{count}} to pay · oldest {{days}} days', defaultValue_other: '{{count}} to pay · oldest {{days}} days' });
     const financesCard = (
-      <Card data-testid="finances" className={cn(half, 'flex flex-col max-[899px]:order-5')}>
-        <CardHead level={2} actions={cardLink('/finance/receivables', t('home.openReceivables', 'Open receivables'))}>{t('home.finances', 'Finances')}</CardHead>
-        <KPIRow aria-label={t('home.finances', 'Finances')} className="rounded-none border-x-0 grid-cols-1 min-[480px]:grid-flow-col min-[480px]:auto-cols-fr [&>*]:px-[var(--panel-inset)]">
-          {moneyTile(todayFigure('owed-clients'), { label: t('home.owedToUs', 'Owed to us'), link: setUp })}
-          <KPITile icon="grid" tone="red" label={t('home.overdueLabel', 'Overdue')} value={overdueKnown?.value ?? null} exactValue={overdueKnown?.exact} negative={(overdue?.count ?? 0) > 0}
-            unavailableReason={overdue ? t('home.reasonOverdueBalance', 'some overdue balances are unknown') : t('home.reasonOverdueUnknown', 'overdue invoices could not be read')}
-            caption={overdue && overdue.count > 0 && overdue.oldestDays !== null ? t('home.oldestDays', 'oldest {{days}} days', { days: overdue.oldestDays }) : undefined}
-            to="/finance/receivables?overdue=true" linkLabel={t('home.overdueLabel', 'Overdue')} loading={needs.isPending} />
-          {moneyTile(supplier, { label: t('home.owedToSuppliers', 'Owed to suppliers'), caption: supplierCaption })}
-        </KPIRow>
-        <div className="flex flex-1 flex-col gap-4 px-[var(--panel-inset)] pb-4 pt-4">
-          {finance && <ReceivablesAgeCard embedded ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />}
-          <InvoicedCollectedCard embedded chartHeight={finance ? 120 : 180} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.todayPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />
-        </div>
-      </Card>
+      <FinancesCard className={cn(half, 'max-[899px]:order-5')} currency={orgCurrency}
+        receivables={figures.receivables} receivablesPending={figures.receivablesPending} receivablesError={figures.receivablesError}
+        payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError}
+        retry={() => { figures.todayRetry(); figures.periodRetry(); }}
+        chart={<InvoicedCollectedCard embedded chartHeight={220} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />}
+        extra={finance ? <ReceivablesAgeCard embedded ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} /> : undefined}
+        leftToBill={finance ? undefined : { rows: figures.leftToBillByProject, pending: figures.figureStatus('left-to-bill').pending, error: figures.figureStatus('left-to-bill').error }} />
     );
     const healthCard = (
-      <ProjectHealthCard className={cn(half, 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data} allCount={projects.isPending || projects.isError ? undefined : projects.data?.length}
-        pending={projectsPending} error={projectsError} retry={() => { figures.dashboardRetry(); void projects.refetch(); }} />
+      <ProjectHealthCard className={cn(half, 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
+        pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
     );
     const approvalsTotal = needs.approvals?.length ?? 0;
+    const otherWaits = waitRows.filter((row) => row.id !== 'approvals');
+    const nothingYet = otherWaits.length === 0 && approvalsTotal === 0;
     const waits = (
-      <DashboardWaitsOnYou className={cn(third, 'max-[899px]:order-3')} rows={waitRows.filter((row) => row.id !== 'approvals')} pending={needs.isPending} error={needs.isError} onRetry={needs.refetch}
+      <DashboardWaitsOnYou plain count={approvalsTotal + otherWaits.length || undefined} className={cn(third, 'max-[899px]:order-3')} rows={otherWaits}
+        pending={needs.approvalsPending || (nothingYet && needs.isPending)} error={needs.approvalsError || (nothingYet && needs.isError)} onRetry={needs.refetch}
         lead={needs.approvals && needs.approvals.length > 0 ? <ApprovalItems entries={needs.approvals} /> : undefined}
         actions={approvalsTotal > 0 ? cardLink('/approvals', t('home.allApprovals', { count: approvalsTotal, defaultValue_one: 'All {{count}} approvals', defaultValue_other: 'All {{count}} approvals' })) : undefined} />
     );
@@ -392,7 +392,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
               action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
             />
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-              <FindingLine offTrack={projectsPending || projectsError ? undefined : { count: offTrackCount, atLeast: offTrackSaturated, total: activeProjectCount }} overdue={needs.isPending ? undefined : overdue} approvals={needs.approvals?.length} />
+              <FindingLine offTrack={figures.dashboardPending || figures.dashboardError ? undefined : { count: offTrackCount, atLeast: offTrackSaturated, total: activeProjectCount, unchecked }} overdue={needs.isPending ? undefined : overdue} approvals={needs.approvals?.length} />
               <FigureHiddenLine compact />
             </div>
           </div>

@@ -13,7 +13,8 @@ export const ApprovalItems: React.FC<{ entries: ApprovalPopulationEntry[]; limit
     <>
       {entries.slice(0, limit).map((entry) => {
         const item = approvalItem(entry, translate);
-        const waited = item.days === null ? null : t('home.waitingDays', { count: item.days, defaultValue_one: 'waiting {{count}} day', defaultValue_other: 'waiting {{count}} days' });
+        const waited = item.days === null ? null : item.days === 0 ? t('home.waitingSinceToday', 'waiting since today')
+          : t('home.waitingDays', { count: item.days, defaultValue_one: 'waiting {{count}} day', defaultValue_other: 'waiting {{count}} days' });
         return (
           <li key={item.key} data-testid="approval-item">
             <Link to={item.href} className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto_1rem] items-center gap-x-3 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">

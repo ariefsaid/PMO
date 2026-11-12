@@ -78,7 +78,7 @@ export interface KPITileProps {
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
 /** The tile's one caption: a single truncated line. */
 const Caption: React.FC<{ children: string }> = ({ children }) => (
-  <div className="truncate text-control text-muted-foreground" title={children}>{children}</div>
+  <div className="mt-auto truncate text-control text-muted-foreground" title={children}>{children}</div>
 );
 
 const KPIRowContext = React.createContext(false);
@@ -184,7 +184,7 @@ export function KPITile({
           aria-label={linkLabel ?? label}
           className={cn('absolute inset-0 z-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring', inRow ? 'focus-visible:-outline-offset-2' : 'rounded-lg focus-visible:outline-offset-2')}
         />
-        <div className="relative z-10 flex min-w-0 flex-col gap-2.5 pointer-events-none">
+        <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 pointer-events-none">
           {head}
           {loading ? (
             <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />

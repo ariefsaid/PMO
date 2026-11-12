@@ -22,6 +22,11 @@ import { selectOverdueInvoices, selectSupplierInvoices } from './useNeedsYou';
 import { withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { orderByCurrency, tileMoneyLines } from './currencyOrder';
+import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
+import type { OverdueInvoiceFact } from '@/src/lib/db/revenue';
+import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
+import { supplierUnpaid } from '@/src/lib/procurement/procurementMoney';
+import { calendarAgeDays, isProcurementReadyToPay, supplierInvoiceDate } from '@/src/lib/finance/financePosition';
 
 export interface CompanyFiguresResult {
   today: DashboardFigure[];
@@ -57,6 +62,91 @@ export interface CompanyFiguresResult {
   collectedByMonth: Map<string, number> | undefined;
   /** Invoiced (excl. tax) for every month of the selected period in the organisation currency; undefined while unknown. */
   invoicedByMonth: Array<{ month: string; amount: number }> | undefined;
+  /** Each figure's own read: a tile waits on (and fails with) only the source it is made of, never its neighbours'. */
+  figureStatus: (id: string) => FigureStatus;
+  /** Open client invoices and supplier invoices split by due state, for the Finances block. */
+  receivables: OwedSplit | undefined;
+  payables: OwedSplit | undefined;
+  receivablesPending: boolean;
+  receivablesError: boolean;
+  payablesPending: boolean;
+  payablesError: boolean;
+  /** Left to bill per signed-contract project at the latest pack month (org currency, known rows only), largest first. */
+  leftToBillByProject: Array<{ id: string; name: string; amount: number }> | undefined;
+  collectedPending: boolean;
+}
+
+export interface FigureStatus { pending: boolean; error: boolean; retry?: () => void }
+
+/** What is owed one way: known balances split into not yet due and overdue, per currency; unknown balances counted, never summed. */
+export interface OwedSplit {
+  count: number;
+  notDue: Array<{ currency: string; amount: number }>;
+  overdue: Array<{ currency: string; amount: number }>;
+  overdueCount: number;
+  unknownBalances: number;
+  oldestDays: number | null;
+}
+
+const addTo = (map: Map<string, number>, currency: string, amount: number) => map.set(currency, (map.get(currency) ?? 0) + amount);
+const listOf = (map: Map<string, number>) => [...map].map(([currency, amount]) => ({ currency, amount }));
+
+/** Client side: overdue is the one shared rule (#1457); the oldest age is the oldest overdue invoice's. */
+export function splitReceivables(rows: OverdueInvoiceFact[] | undefined, organizationToday: string | null): OwedSplit | undefined {
+  if (!rows || !organizationToday) return undefined;
+  const notDue = new Map<string, number>();
+  const overdue = new Map<string, number>();
+  let unknownBalances = 0;
+  let overdueCount = 0;
+  let oldestDays: number | null = null;
+  for (const invoice of rows) {
+    const days = clientInvoiceOverdueDays(invoice, organizationToday);
+    if (days !== null) { overdueCount += 1; oldestDays = Math.max(oldestDays ?? 0, days); }
+    const amount = invoice.erp_outstanding_amount;
+    if (amount === null || amount === undefined || !Number.isFinite(amount)) { unknownBalances += 1; continue; }
+    addTo(days === null ? notDue : overdue, invoice.currency, amount);
+  }
+  return { count: rows.length, notDue: listOf(notDue), overdue: listOf(overdue), overdueCount, unknownBalances, oldestDays };
+}
+
+/** Supplier side: a supplier invoice is overdue past 90 days since it was recorded (the Payables page's rule). */
+export const SUPPLIER_OVERDUE_DAYS = 90;
+export function splitPayables(rows: ProcurementWithRefs[] | undefined, organizationToday: string | null): OwedSplit | undefined {
+  if (!rows || !organizationToday) return undefined;
+  const notDue = new Map<string, number>();
+  const overdue = new Map<string, number>();
+  let count = 0;
+  let unknownBalances = 0;
+  let overdueCount = 0;
+  let oldestDays: number | null = null;
+  for (const row of rows) {
+    if (!isProcurementReadyToPay(row)) continue;
+    count += 1;
+    const age = calendarAgeDays(supplierInvoiceDate(row), organizationToday);
+    if (age !== null) oldestDays = Math.max(oldestDays ?? 0, age);
+    const late = age !== null && age > SUPPLIER_OVERDUE_DAYS;
+    if (late) overdueCount += 1;
+    const unpaid = supplierUnpaid(row);
+    if (unpaid.unknown || unpaid.amount === null) { unknownBalances += 1; continue; }
+    addTo(late ? overdue : notDue, row.currency, unpaid.amount);
+  }
+  return { count, notDue: listOf(notDue), overdue: listOf(overdue), overdueCount, unknownBalances, oldestDays };
+}
+
+/** Left to bill per contract project at the pack's latest month, in one currency; a row with an unknown contract or snapshot is left out. */
+export function selectLeftToBillByProject(pack: ManagementPack | undefined, currency: string): Array<{ id: string; name: string; amount: number }> | undefined {
+  if (!pack) return undefined;
+  const month = pack.months[pack.months.length - 1];
+  if (!month) return [];
+  return pack.rows
+    .filter((row) => row.kind === 'contract' && row.currency === currency && row.contractNet !== null)
+    .flatMap((row) => {
+      const snapshot = row.months.find((entry) => entry.month === month);
+      if (!snapshot || snapshot.backlog === null) return [];
+      const amount = ((row.contractNet as number) - snapshot.invoicedToDate) / 100;
+      return amount > 0 ? [{ id: row.projectId ?? row.key, name: row.projectName ?? row.projectNumber ?? row.key, amount }] : [];
+    })
+    .sort((a, b) => b.amount - a.amount);
 }
 
 export function selectInvoicedTotals(pack: ManagementPack | undefined, from: string | null, to: string | null) {
@@ -225,7 +315,11 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const overdue = useMemo(() => selectOverdueInvoices(invoices.data, orgDay.day), [invoices.data, orgDay.day]);
   // L12: the supplier total reads linked accounting documents, the same amount as Payables and the record.
   const linkedDocuments = useErpPurchases();
-  const suppliers = useMemo(() => selectSupplierInvoices(withLinkedDocuments(procurements.data, linkedDocuments.data)), [procurements.data, linkedDocuments.data]);
+  const linkedProcurements = useMemo(() => withLinkedDocuments(procurements.data, linkedDocuments.data), [procurements.data, linkedDocuments.data]);
+  const suppliers = useMemo(() => selectSupplierInvoices(linkedProcurements), [linkedProcurements]);
+  const receivables = useMemo(() => splitReceivables(invoices.data, orgDay.day), [invoices.data, orgDay.day]);
+  const payables = useMemo(() => splitPayables(linkedProcurements, orgDay.day), [linkedProcurements, orgDay.day]);
+  const leftToBillByProject = useMemo(() => selectLeftToBillByProject(pack.data, orgCurrency), [pack.data, orgCurrency]);
   const invoiced = useMemo(() => selectInvoicedTotals(pack.data, period.from, period.to), [pack.data, period.from, period.to]);
   const collected = useMemo(() => selectCollectedTotals(payments.data, period.from, period.to), [payments.data, period.from, period.to]);
   const invoicedByMonth = useMemo(() => selectInvoicedByMonth(pack.data, period.from, period.to, orgCurrency), [pack.data, period.from, period.to, orgCurrency]);
@@ -397,7 +491,32 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     && !invoices.data?.length && !procurements.data?.length && !payments.data?.length && !pipeline.data?.projects?.length && !hasWorkOrderEvidence
     && !pack.data?.totals.length && anyInvoice.data === false && anyPayment.data === false);
 
+  // A1–A5 (loading gates): each figure is drawn from its own source, so it waits on and fails with that read only.
+  const source: Record<string, FigureStatus> = {
+    dashboard: { pending: dashboard.isPending, error: dashboard.isError, retry: () => { void dashboard.refetch(); } },
+    invoices: { pending: invoices.isPending || orgDay.isPending, error: invoices.isError || orgDay.isError, retry: () => { void invoices.refetch(); orgDay.retry(); } },
+    procurements: { pending: procurements.isPending, error: procurements.isError, retry: () => { void procurements.refetch(); } },
+    pack: { pending: pack.isPending, error: pack.isError, retry: () => { void pack.refetch(); } },
+    payments: { pending: payments.isPending, error: payments.isError, retry: () => { void payments.refetch(); } },
+    winRate: { pending: winRate.isPending, error: winRate.isError, retry: () => { void winRate.refetch(); } },
+  };
+  const FIGURE_SOURCE: Record<string, string> = {
+    'contract-on-hand': 'dashboard', 'billed-margin': 'dashboard', pipeline: 'dashboard',
+    'owed-clients': 'invoices', 'client-overdue': 'invoices', 'supplier-payables': 'procurements',
+    'left-to-bill': 'pack', invoiced: 'pack', collected: 'payments', won: 'winRate', 'win-rate': 'winRate',
+  };
+  const figureStatus = (id: string): FigureStatus => source[FIGURE_SOURCE[id]] ?? { pending: false, error: false };
+
   return {
+    figureStatus,
+    receivables,
+    payables,
+    receivablesPending: source.invoices.pending,
+    receivablesError: source.invoices.error,
+    payablesPending: procurements.isPending || orgDay.isPending,
+    payablesError: procurements.isError || orgDay.isError,
+    leftToBillByProject,
+    collectedPending: payments.isPending,
     today, period: periodFigures,
     todayPending: dashboard.isPending || invoices.isPending || procurements.isPending || workOrders.isPending || pack.isPending || orgDay.isPending || anyInvoice.isLoading || anyPayment.isLoading,
     todayError: dashboard.isError || invoices.isError || procurements.isError || workOrders.isError || pack.isError || orgDay.isError,
