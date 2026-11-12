@@ -117,7 +117,7 @@ export function EngineerTasksCard({
                             <span className="block truncate text-control text-muted-foreground">{task.project_name ?? t('hub.engineer.noProject', 'No project')}</span>
                           </span>
                           {late !== null
-                            ? <LateText className="shrink-0 whitespace-nowrap" emphasis={isUrgent}>{t('hub.engineer.daysLate', { count: late, defaultValue_one: '{{count}} day late', defaultValue_other: '{{count}} days late' })}</LateText>
+                            ? <LateText className="shrink-0 whitespace-nowrap" emphasis={isUrgent}>{t('hub.engineer.daysLate', { count: late, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</LateText>
                             : <span className="shrink-0 whitespace-nowrap text-control text-muted-foreground">{t('hub.engineer.dueDate', 'Due {{date}}', { date: formatDay(task.end_date) })}</span>}
                         </Link>
                       </li>
