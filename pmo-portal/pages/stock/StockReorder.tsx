@@ -11,6 +11,7 @@ import { useBelowReorder, useReorderSuggestion, useSetReorderLevel, useStockItem
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
+import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 import type { BelowReorderRow } from '@/src/lib/db/stockReorder';
 
 // A level is 0 or more, a quantity above 0; 3 decimals at most (the storage scale). The server re-checks both.
@@ -29,8 +30,9 @@ const StockReorder: React.FC = () => {
   const loc = getNumberLocale();
   const canEdit = may('edit', 'reorderLevel', { record: { viewOnly: realRole !== effectiveRole } });
 
-  const [itemId, setItemId] = useState('');
-  const [warehouseId, setWarehouseId] = useState('');
+  const { values: filters, setFilters } = useUrlFilters(['item', 'warehouse']);
+  const itemId = filters.item;
+  const warehouseId = filters.warehouse;
   const [editing, setEditing] = useState(false);
   const [level, setLevel] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -57,7 +59,7 @@ const StockReorder: React.FC = () => {
   const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
   const pick = (nextItem: string, nextWarehouse: string, after?: () => void) => {
-    const apply = () => { setItemId(nextItem); setWarehouseId(nextWarehouse); setEditing(false); setEditBaseline(null); setSubmitError(null); setFormErrors({}); after?.(); };
+    const apply = () => { setFilters({ item: nextItem, warehouse: nextWarehouse }); setEditing(false); setEditBaseline(null); setSubmitError(null); setFormErrors({}); after?.(); };
     if (dirty && (after !== undefined || nextItem !== itemId || nextWarehouse !== warehouseId)) guardLeave(apply);
     else apply();
   };
@@ -148,6 +150,7 @@ const StockReorder: React.FC = () => {
 
       <section aria-labelledby="reorder-panel-title" className="mt-6 rounded-lg border border-border bg-card p-4">
         <h2 id="reorder-panel-title" className="mb-3 text-base font-semibold">{t('reorder.panel.title')}</h2>
+        {(!itemId || !warehouseId) && <p className="mb-3 text-control text-muted-foreground">{t('reorder.panel.pick')}</p>}
         <div className="grid gap-3 sm:grid-cols-2">
           <ItemPicker label={t('reorder.panel.item')} value={itemId || null} onChange={(v) => pick(v, warehouseId)} />
           <SelectField
@@ -168,7 +171,7 @@ const StockReorder: React.FC = () => {
           <div className="mt-4 space-y-3">
             <p className="text-sm" data-testid="current-level">
               {s.current
-                ? <>{t('reorder.panel.current', { level: q(s.current.reorderLevel), unit: unitCode }).trim()}{s.current.reorderQuantity ? `, ${t('reorder.panel.currentQuantity', { quantity: q(s.current.reorderQuantity), unit: unitCode }).trim()}` : ''}</>
+                ? <>{t('reorder.panel.current', { label: t('reorder.worklist.columns.level'), level: q(s.current.reorderLevel), unit: unitCode }).trim()}{s.current.reorderQuantity ? ` ${t('reorder.panel.currentQuantity', { label: t('reorder.worklist.columns.orderQuantity'), quantity: q(s.current.reorderQuantity), unit: unitCode }).trim()}` : ''}</>
                 : <span className="text-muted-foreground">{t('reorder.panel.noCurrent')}</span>}
             </p>
             {s.status === 'ok' && s.suggestion ? (

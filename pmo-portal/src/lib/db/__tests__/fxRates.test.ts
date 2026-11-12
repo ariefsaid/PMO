@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const harness = vi.hoisted(() => {
   const calls: { method: string; args: unknown[] }[] = [];
-  const state: { data: unknown; error: unknown } = { data: [], error: null };
+  const state: { data: unknown; error: unknown; count?: number } = { data: [], error: null };
   const builder: Record<string, unknown> = {};
   for (const method of ['select', 'order', 'limit', 'lt', 'in', 'eq', 'single']) {
     builder[method] = (...args: unknown[]) => {
@@ -26,6 +26,7 @@ describe('fxRates DAL', () => {
     harness.calls.length = 0;
     harness.state.data = [];
     harness.state.error = null;
+    harness.state.count = undefined;
     harness.rpc.mockClear();
     harness.from.mockClear();
   });
@@ -44,6 +45,19 @@ describe('fxRates DAL', () => {
     expect(harness.calls).toContainEqual({ method: 'lt', args: ['rate_date', '2026-09-01'] });
     expect(page.rows).toHaveLength(50);
     expect(page.nextCursor).toBe('2026-09-12');
+  });
+
+  it('C18 reads the history total so the pager can state a position, not only a cursor', async () => {
+    harness.state.data = [{ rate_date: '2026-10-31' }];
+    harness.state.count = 120;
+    const page = await listFxRates();
+    expect(page.total).toBe(120);
+    // The total is the whole history, not the leftover page: the count read carries no cursor bound.
+    expect(harness.from).toHaveBeenCalledTimes(2);
+    expect(harness.calls).toContainEqual({
+      method: 'select',
+      args: ['rate_date', { count: 'exact', head: true }],
+    });
   });
 
   it('does not request history for an empty preview and scopes date lookups through the RPC', async () => {
