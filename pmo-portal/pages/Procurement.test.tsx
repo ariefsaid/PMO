@@ -316,6 +316,67 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
   });
 
+  it('project and supplier filters narrow the list and can be cleared', async () => {
+    refs.project.data = [
+      { value: 'pr1', label: 'Innovate Corp HQ Fit-Out' },
+      { value: 'pr2', label: 'Skyline Bridge' },
+    ];
+    refs.vendor.data = [
+      { value: 'v1', label: 'Northstar Supplies' },
+      { value: 'v2', label: 'Eastline Equipment' },
+    ];
+    procState.data = [
+      { ...seed[0], vendor_id: 'v1', vendor: { name: 'Northstar Supplies' } },
+      { ...seed[1], vendor_id: 'v2', vendor: { name: 'Eastline Equipment' } },
+    ];
+    renderPage('/procurement?tab=all&view=table');
+
+    const project = screen.getByLabelText('Project');
+    await userEvent.selectOptions(project, 'pr2');
+    expect(screen.getByRole('button', { name: 'Open Crane hire — 6 weeks' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Workstations & AV' })).not.toBeInTheDocument();
+    await userEvent.selectOptions(project, '');
+    expect(screen.getByRole('button', { name: 'Open Workstations & AV' })).toBeInTheDocument();
+
+    const supplier = screen.getByLabelText('Supplier');
+    await userEvent.selectOptions(supplier, 'v1');
+    expect(screen.getByRole('button', { name: 'Open Workstations & AV' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Crane hire — 6 weeks' })).not.toBeInTheDocument();
+    await userEvent.selectOptions(supplier, '');
+    expect(screen.getByRole('button', { name: 'Open Crane hire — 6 weeks' })).toBeInTheDocument();
+  });
+
+  it('an active raised-by filter can be changed to another requester', async () => {
+    procState.data = [
+      { ...seed[0], requested_by_id: 'u-alice' },
+      { ...seed[1], requested_by_id: 'u-bob' },
+    ];
+    renderPage('/procurement?tab=all&view=table&raisedBy=u-alice');
+
+    const raisedBy = screen.getByRole('combobox', { name: 'Raised by' });
+    expect(screen.getByRole('button', { name: 'Open Workstations & AV' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Crane hire — 6 weeks' })).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(raisedBy, 'u-bob');
+
+    expect(screen.getByRole('button', { name: 'Open Crane hire — 6 weeks' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Workstations & AV' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('route-path')).toHaveTextContent('raisedBy=u-bob');
+  });
+
+  it('a deep-linked active stage can be cleared from the grouped list', async () => {
+    renderPage('/procurement?tab=all&view=grouped&stage=pay');
+
+    expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
+    expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
+    expect(screen.getByText('Pay stage')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
+
+    expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
+    expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
+    expect(screen.getByTestId('route-path')).not.toHaveTextContent('stage=pay');
+  });
+
   it('filter round-trips through the URL and Back restores it', async () => {
     const user = userEvent.setup();
     renderPage('/procurement?tab=all&view=grouped');

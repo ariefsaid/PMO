@@ -1,5 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -72,4 +73,49 @@ describe('ProcurementBlock craft rulings', () => {
     expect(identity).toHaveTextContent('PROC-2026-001 · RackMount Systems International');
     expect(identity.className).not.toMatch(/\btruncate\b/);
   });
+
+  it('the phone Filters control opens category and owner filters that narrow the list', async () => {
+    procState.data = [
+      { ...row('a', 'Requested'), title: 'Materials request', budget_category: 'Materials', requested_by_id: 'u-a', requested_by: { full_name: 'Alice' } },
+      { ...row('b', 'Ordered'), title: 'Travel order', budget_category: 'Travel', requested_by_id: 'u-b', requested_by: { full_name: 'Bob' } },
+    ];
+    renderBlock();
+
+    const filters = screen.getByRole('button', { name: 'Filters' });
+    expect(filters).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(filters);
+    expect(filters).toHaveAttribute('aria-expanded', 'true');
+
+    const category = screen.getByLabelText('Filter by category');
+    await userEvent.selectOptions(category, 'Travel');
+    expect(screen.getByRole('button', { name: 'Open Travel order' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Materials request' })).not.toBeInTheDocument();
+    await userEvent.selectOptions(category, '');
+
+    const owner = screen.getByLabelText('Filter by owner');
+    await userEvent.selectOptions(owner, 'u-a');
+    expect(screen.getByRole('button', { name: 'Open Materials request' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Travel order' })).not.toBeInTheDocument();
+  });
+
+  it('the selection bar selects visible rows and clears individual or all selections', async () => {
+    procState.data = [row('a', 'Requested'), row('b', 'Ordered')];
+    renderBlock();
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Row a' }));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Select visible' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Return' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Select visible' }));
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear visible' }));
+    expect(screen.queryByText('2 selected')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Row a' }));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
+    expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+  });
+
 });
