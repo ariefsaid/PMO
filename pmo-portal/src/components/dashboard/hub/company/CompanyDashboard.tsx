@@ -143,8 +143,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   }
 
   // "Waits on you": one row per kind, each a link to the fix.
-  // areaItems: the role's own rows plus the company rows (budgets over) every company home carries.
-  const waitRows: WaitRow[] = WAIT_ORDER[role].flatMap((id) => needs.areaItems.filter((item) => item.id === id)).map((item) => ({
+  // The role's own rows, then the company rows (budgets over) every company home carries.
+  const waitPool = [...needs.items, ...needs.areaItems.filter((item) => !needs.items.some((own) => own.id === item.id))];
+  const waitRows: WaitRow[] = WAIT_ORDER[role].flatMap((id) => waitPool.filter((item) => item.id === id)).map((item) => ({
     id: item.id,
     count: item.countLabel ?? item.count,
     label: item.id === 'approvals' ? t('home.approvalsCompact', 'Approvals') : item.label,
