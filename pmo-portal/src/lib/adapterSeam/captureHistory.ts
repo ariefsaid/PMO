@@ -147,8 +147,13 @@ export function proposeCapture(sources: CaptureSource[], projectId: string | nul
 export type CaptureSourcePage =
   | { supported: true; sources: CaptureSource[]; nextCursor: string | null; revision: string }
   | { supported: false; missing: string[] };
+export interface CaptureLedgerFact { projectId: string | null; line: CaptureLedgerLine; reason?: string }
+export type CaptureLedgerPage =
+  | { supported: true; lines: CaptureLedgerFact[]; nextCursor: string | null; revision: string }
+  | { supported: false; missing: string[] };
 export interface CaptureAdapter {
   listSources(cursor: string | null): Promise<CaptureSourcePage>;
+  listLedger?(cursor: string | null): Promise<CaptureLedgerPage>;
 }
 export interface CaptureSourceCensus { complete: boolean; sources: CaptureSource[]; missing: string[]; revision?: string }
 
@@ -203,4 +208,31 @@ export function verifyCaptureRevision(
     seen.add(source.id);
   }
   return true;
+}
+
+/** A ledger page must belong to the same source generation as the document census. */
+export async function collectCaptureLedger(adapter: CaptureAdapter, revision: string): Promise<{ complete: boolean; lines: CaptureLedgerFact[]; missing: string[] }> {
+  const lines: CaptureLedgerFact[] = [];
+  const cursors = new Set<string>();
+  const ids = new Set<string>();
+  let cursor: string | null = null;
+  if (!adapter.listLedger) return { complete: false, lines, missing: ['ledger source unsupported'] };
+  try {
+    do {
+      const page = await adapter.listLedger(cursor);
+      if (!page.supported) return { complete: false, lines, missing: page.missing };
+      if (!page.revision || page.revision !== revision) return { complete: false, lines, missing: ['source generation changed'] };
+      for (const fact of page.lines) {
+        if (!fact.line.id || ids.has(fact.line.id)) return { complete: false, lines, missing: ['duplicate ledger identity'] };
+        ids.add(fact.line.id);
+        lines.push(fact);
+      }
+      cursor = page.nextCursor;
+      if (cursor !== null && cursors.has(cursor)) return { complete: false, lines, missing: ['repeated ledger cursor'] };
+      if (cursor !== null) cursors.add(cursor);
+    } while (cursor !== null);
+    return { complete: true, lines, missing: [] };
+  } catch {
+    return { complete: false, lines, missing: ['ledger read failed'] };
+  }
 }

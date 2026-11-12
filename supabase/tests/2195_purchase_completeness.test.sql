@@ -56,6 +56,8 @@ insert into budget_category_account_map (org_id, category, erp_account) values (
 insert into erp_gl_entry_mirror (org_id, erp_name, company, account, project, voucher_type, voucher_no, posting_date, debit, credit, is_cancelled, erp_modified) values
  ('21950001-0000-0000-0000-00000000000a','gl-capture-1','Example Co','Cost','ERP-A','Purchase Invoice','PINV-1','2026-02-01',30,0,false,'2026-02-01'),
  ('21950001-0000-0000-0000-00000000000a','gl-capture-2','Example Co','Cost','ERP-A','Journal Entry','JV-1','2026-02-01',20,0,false,'2026-02-01');
+insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, net, as_of, snapshot_id, created_at) values
+  ('21950001-0000-0000-0000-00000000000a','21950001-0000-0000-0000-0000000000d1','Cost','2026',50,now(),'21950001-0000-0000-0000-0000000000f1',now());
 update procurements set project_id='21950001-0000-0000-0000-0000000000d1' where id='21950001-0000-0000-0000-0000000000f8';
 insert into procurement_erp_links (org_id, procurement_id, erp_purchase_document_id)
 select org_id, '21950001-0000-0000-0000-0000000000f8', id from erp_purchase_documents where erp_name='PINV-1' and org_id='21950001-0000-0000-0000-00000000000a';

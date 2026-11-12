@@ -68,3 +68,34 @@ it('AC-ROP-018 classifies capital invoices distinctly and refuses an unknown acc
   expect(normalisePurchaseMirror({ ...base, account_class: 'expense' }).kind).toBe('supplier_invoice');
   expect(normalisePurchaseMirror({ ...base, account_class: 'mixed' })).toMatchObject({ kind: 'supplier_invoice', accountClass: 'mixed' });
 });
+
+it('AC-ROP-018 normalizes ledger money exactly and links invoice cost to its opaque source', async () => {
+  const { normaliseCaptureLedger } = await import('./captureHistory');
+  const result = normaliseCaptureLedger({ id: 'gl-1', project: 'ERP-A', voucher_type: 'Purchase Invoice', voucher_no: 'PINV-1',
+    debit: '90071992547409.91', credit: '0.01', mapped: true }, { p1: 'ERP-A' }, [
+    { id: 'doc', erp_doctype: 'Purchase Invoice', erp_name: 'PINV-1' },
+  ]);
+  expect(result).toEqual({ projectId: 'p1', line: { id: 'gl-1', documentId: 'doc', amountCents: '9007199254740990', kind: 'supplier_invoice' } });
+});
+
+it('AC-ROP-018 refuses an ambiguous project map instead of assigning a ledger line by guess', async () => {
+  const { normaliseCaptureLedger } = await import('./captureHistory');
+  expect(normaliseCaptureLedger({ id: 'gl-2', project: 'ERP-A', voucher_type: 'Journal Entry', voucher_no: 'JV', debit: '1.00', credit: '0.00', mapped: true },
+    { p1: 'ERP-A', p2: 'ERP-A' }, [])).toMatchObject({ projectId: null, reason: 'project_unmapped' });
+});
+
+it('AC-ROP-018 identifies the capital portion of a mixed invoice separately from overhead', async () => {
+  const { normaliseCaptureLedger } = await import('./captureHistory');
+  expect(normaliseCaptureLedger({ id: 'gl-cap', project: 'ERP-A', voucher_type: 'Purchase Invoice', voucher_no: 'PINV-M',
+    debit: '15.00', credit: '0.00', mapped: false }, { p1: 'ERP-A' }, [
+    { id: 'doc', erp_doctype: 'Purchase Invoice', erp_name: 'PINV-M', account_class: 'mixed' },
+  ])).toMatchObject({ projectId: 'p1', line: { kind: 'capital_spending', amountCents: '1500' } });
+});
+
+it('AC-ROP-018 does not present a closed order as an open commitment', () => {
+  const source = normalisePurchaseMirror({ id: 'closed-po', erp_doctype: 'Purchase Order', erp_name: 'PO-C', erp_docstatus: 1,
+    erp_status: 'Closed', erp_modified: 'rev', project_ids: ['p'], procurement_id: 'purchase',
+    supplier: null, supplier_name: null, doc_date: null, currency: 'USD', net_total: '12.00',
+    is_return: false, purchase_orders: [] });
+  expect(source.state).not.toBe('ordered');
+});

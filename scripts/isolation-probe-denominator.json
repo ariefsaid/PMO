@@ -1,5 +1,7 @@
 {
   "tables": [
+    {"table":"erp_purchase_capture_feed_state","has_org":true,"pk":"binding_id","columns":"*","b_read":"none","by_id":"applicable"},
+    {"table":"erp_capture_sources","has_org":true,"pk":"org_id","columns":"*","b_read":"none","by_id":"n/a: service-only staging"},
     {"table":"agent_attachments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"agent_automation_fires","has_org":false,"pk":"automation_id","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
     {"table":"agent_automations","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
@@ -190,6 +192,14 @@
     {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
   ],
   "definer_functions": [
+    "capture_existing_purchases(jsonb,boolean)",
+    "record_purchase_capture_feed_completion(uuid,uuid,timestamp with time zone)",
+    "purchase_capture_feed_health()",
+    "purchase_capture_actuals_witness(uuid)",
+    "classify_capture_invoice(uuid)",
+    "capture_history_link_internal(jsonb,boolean)",
+    "purchase_capture_source_page(uuid,uuid,integer)",
+    "purchase_capture_ledger_page(uuid,integer)",
     "_erp_ack_statement_dirty_dates(uuid,text,bigint)",
     "_erp_statement_change_context(uuid,uuid,uuid,timestamp with time zone)",
     "_erp_statement_change_lease_check(uuid,uuid)",
@@ -660,6 +670,7 @@
     "imprest-cash-account",
     "m365-token-custody",
     "odoo-sweep",
+    "purchase-capture",
     "telegram-notify"
   ],
   "buckets": [

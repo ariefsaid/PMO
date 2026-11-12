@@ -1,6 +1,7 @@
 /** ERPNext mirror translation at the adapter boundary; no source-specific names escape it. */
 import type { CaptureKind, CaptureSource, CaptureState } from '../captureHistory.ts';
 import type { PurchaseDoctype } from './purchaseMirrorFeed.ts';
+import { invertProjectMap } from './projectMap.ts';
 
 export interface CaptureMirrorRow {
   id: string;
@@ -49,9 +50,59 @@ export function normalisePurchaseMirror(row: CaptureMirrorRow): CaptureSource {
 /** The caller supplies the paged, organization-scoped mirror reader. */
 export function createPurchaseCaptureAdapter(
   readPage: (cursor: string | null) => Promise<{ rows: CaptureMirrorRow[]; nextCursor: string | null; revision: string }>,
+  ledger?: { projectMap: Readonly<Record<string, unknown>>; readPage: (cursor: string | null) => Promise<{ rows: CaptureMirrorLedgerLine[]; nextCursor: string | null; revision: string }> },
 ): import('../captureHistory.ts').CaptureAdapter {
-  return { async listSources(cursor) {
-    const page = await readPage(cursor);
-    return { supported: true, sources: page.rows.map(normalisePurchaseMirror), nextCursor: page.nextCursor, revision: page.revision };
-  } };
+  const identities: CaptureMirrorIdentity[] = [];
+  return {
+    async listSources(cursor) {
+      const page = await readPage(cursor);
+      identities.push(...page.rows);
+      return { supported: true, sources: page.rows.map(normalisePurchaseMirror), nextCursor: page.nextCursor, revision: page.revision };
+    },
+    async listLedger(cursor) {
+      if (!ledger) return { supported: false, missing: ['ledger source unsupported'] };
+      const page = await ledger.readPage(cursor);
+      return { supported: true, lines: page.rows.map((row) => normaliseCaptureLedger(row, ledger.projectMap, identities)),
+        nextCursor: page.nextCursor, revision: page.revision };
+    },
+  };
+}
+
+export interface CaptureMirrorLedgerLine {
+  id: string;
+  project: string | null;
+  voucher_type: string | null;
+  voucher_no: string | null;
+  debit: string | null;
+  credit: string | null;
+  mapped: boolean;
+}
+export interface CaptureMirrorIdentity { id: string; erp_doctype: string; erp_name: string; account_class?: string }
+
+function minorUnits(value: string | null): bigint {
+  if (value === null || !/^-?\d+(?:\.\d{1,2})?$/.test(value)) throw new Error('ledger amount is unavailable or not exact');
+  const negative = value.startsWith('-');
+  const [whole, fraction = ''] = (negative ? value.slice(1) : value).split('.');
+  const result = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
+  return negative ? -result : result;
+}
+
+/** The binding map is inverted with the same ambiguity rule as the actuals snapshot. */
+export function normaliseCaptureLedger(
+  row: CaptureMirrorLedgerLine,
+  projectMap: Readonly<Record<string, unknown>>,
+  documents: CaptureMirrorIdentity[],
+): { projectId: string | null; line: import('../captureHistory.ts').CaptureLedgerLine; reason?: string } {
+  const projectId = row.project === null ? null : invertProjectMap(projectMap).get(row.project) ?? null;
+  const docs = documents.filter((doc) => doc.erp_name === row.voucher_no && doc.erp_doctype === row.voucher_type);
+  const document = docs.length === 1 ? docs[0] : undefined;
+  let kind: CaptureKind = row.voucher_type === 'Journal Entry' ? 'journal'
+    : row.voucher_type === 'Purchase Invoice' ? 'supplier_invoice'
+    : row.voucher_type === 'Payment Entry' ? 'supplier_payment' : 'other';
+  if (!row.mapped && (document?.account_class === 'capital_spending' || document?.account_class === 'mixed')) kind = 'capital_spending';
+  const line = { id: row.id, documentId: document?.id ?? null,
+    amountCents: (minorUnits(row.debit) - minorUnits(row.credit)).toString(), kind };
+  return { projectId, line, ...(projectId === null ? { reason: 'project_unmapped' }
+    : docs.length > 1 ? { reason: 'document_ambiguous' }
+    : !row.mapped && kind !== 'capital_spending' ? { reason: 'account_unmapped' } : {}) };
 }
