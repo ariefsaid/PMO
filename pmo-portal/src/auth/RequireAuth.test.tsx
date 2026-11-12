@@ -1,12 +1,13 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router';
 
 // Mutable session/profile-error the mocked client returns; reset per test group.
 const state = vi.hoisted(() => ({
   session: null as unknown,
   profileError: null as { code?: string; message: string } | null,
+  profile: null as unknown,
 }));
 
 const mockedSignOut = vi.hoisted(() => vi.fn().mockResolvedValue({ error: null }));
@@ -24,7 +25,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
     },
     from: vi.fn(() => ({
       select: () => ({
-        eq: () => ({ single: vi.fn(() => Promise.resolve({ data: null, error: state.profileError })) }),
+        eq: () => ({ single: vi.fn(() => Promise.resolve({ data: state.profile, error: state.profileError })) }),
       }),
     })),
   },
@@ -53,6 +54,7 @@ function tree(initial: string) {
           <Route element={<RequireAuth />}>
             <Route path="/" element={<div>PROTECTED HOME</div>} />
             <Route path="/oauth/consent" element={<div>CONSENT</div>} />
+            <Route path="/settings/profile" element={<div>PROFILE SETTINGS</div>} />
           </Route>
         </Routes>
       </AuthProvider>
@@ -99,6 +101,21 @@ describe('RequireAuth loading state (AC-AUTH-RESKIN-008)', () => {
 });
 
 describe('RequireAuth profile-error states (AC-MSAUTH-010/011)', () => {
+  it('C1: a profile read failure retries that read and returns to profile settings', async () => {
+    state.session = { user: { id: 'u-profile' } };
+    state.profileError = { code: '57014', message: 'network timeout' };
+    state.profile = null;
+
+    render(tree('/settings/profile'));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Unable to load your profile/);
+    expect(screen.getByText('network timeout')).toBeInTheDocument();
+
+    state.profileError = null;
+    state.profile = { id: 'u-profile', org_id: 'org-1', role: 'Admin', status: 'active' };
+    fireEvent.click(await screen.findByRole('button', { name: /retry profile/i }));
+    await waitFor(() => expect(screen.getByText('PROFILE SETTINGS')).toBeInTheDocument());
+  });
+
   it('AC-MSAUTH-010: a PGRST116 profile-fetch error renders the not-provisioned state — Sign out present, Retry absent', async () => {
     state.session = { user: { id: 'u-not-provisioned' } };
     state.profileError = {

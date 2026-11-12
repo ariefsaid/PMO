@@ -159,6 +159,27 @@ describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
     expect(await screen.findByText(/Some proposals were not saved \(Materials\)/)).toHaveAttribute('role', 'alert');
   });
 
+  it('C1: a failed proposal write keeps its confirm dialog open with the error beside Confirm', async () => {
+    createMock.mockRejectedValueOnce(new Error('offline'));
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Review 1 proposal' }));
+    let confirm = await screen.findByRole('dialog', { name: 'Confirm proposed posting accounts?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Confirm proposals' }));
+
+    confirm = await screen.findByRole('dialog', { name: 'Confirm proposed posting accounts?' });
+    expect(within(confirm).getByRole('alert')).toHaveTextContent(/Some proposals were not saved/);
+    expect(within(confirm).getByRole('button', { name: 'Confirm proposals' })).toBeEnabled();
+    await user.click(within(confirm).getByRole('button', { name: 'Confirm proposals' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Confirm proposed posting accounts?' })).not.toBeInTheDocument());
+  });
+
+  it('C1: a read-only viewer is told that only an Admin can change the budget account map', async () => {
+    renderPage('Engineer');
+    expect(await screen.findByText('Budget account map')).toBeInTheDocument();
+    expect(screen.getByText('Only an Admin can change this.')).toBeInTheDocument();
+  });
+
   it('keeps the account chart loading state distinct from a loaded empty proposal set', async () => {
     catalogueMock.mockReturnValue(new Promise(() => {}));
     renderPage();

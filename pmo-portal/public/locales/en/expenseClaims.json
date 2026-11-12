@@ -7,7 +7,8 @@
     "discardLeave": "Leave",
     "discardStay": "Stay",
     "saving": "Saving…",
-    "required": "Required"
+    "required": "Required",
+    "amountInvalid": "Enter an amount greater than zero."
   },
   "postings": {
     "recordedBeforeConnection": "Recorded before the ERP connection"

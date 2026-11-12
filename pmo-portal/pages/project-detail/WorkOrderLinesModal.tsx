@@ -188,12 +188,15 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
                         {t('projectTabs:contractQuantities.workOrders.contractLines.save', 'Save')}
                       </Button>
                       {row && (
-                        <Button type="button" variant="ghost" size="sm" disabled={busy !== null || !sourcesReady || acceptedOn(item) !== null}
-                          className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
-                          aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.removeRow', 'Remove {{item}}', { item: item.item_code })}
-                          onClick={() => setRemoveFor({ item, row })}>
-                          {t('projectTabs:contractQuantities.workOrders.contractLines.remove', 'Remove')}
-                        </Button>
+                        <span className="flex min-w-0 flex-col items-start gap-1">
+                          <Button type="button" variant="ghost" size="sm" disabled={busy !== null || !sourcesReady || acceptedOn(item) !== null}
+                            className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+                            aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.removeRow', 'Remove {{item}}', { item: item.item_code })}
+                            onClick={() => setRemoveFor({ item, row })}>
+                            {t('projectTabs:contractQuantities.workOrders.contractLines.remove', 'Remove')}
+                          </Button>
+                          {acceptedOn(item) !== null && <FieldError>{t('projectTabs:contractQuantities.workOrders.contractLines.errors.removeAccepted', 'A confirmed BAST already accepted {{qty}} {{unit}}, so this allocation cannot be removed.', { qty: formatNumberExact(acceptedOn(item) ?? 0), unit: item.unit })}</FieldError>}
+                        </span>
                       )}
                     </div>
                   ) : (

@@ -178,15 +178,31 @@ const ExpenseClaimNew: React.FC = () => {
         </FormGrid>
       </FormSection>
       <FormSection legend={t('expenses.lines.title', 'Lines')}>
-        {lines.map((line, index) => <div key={index} className="mb-3 border-b border-border pb-3">
-          <FormGrid>
-            <TextField label={t('expenses.lines.date', 'Date')} required error={submitted && lineStarted(line) && !line.date ? t('expenseClaims:new.required', 'Required') : undefined} type="date" value={line.date} onChange={(value) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, date: value } : row))} />
-            <SelectField label={t('expenses.lines.type', 'Type')} required error={submitted && lineStarted(line) && !line.type ? t('expenseClaims:new.required', 'Required') : undefined} value={line.type} onChange={(value) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, type: value } : row))} options={[{ value: '', label: t('uxs29.expenseCapture.expenseTypePlaceholder', 'Choose a type') }, ...Constants.public.Enums.expense_type.map((value) => ({ value, label: expenseTypeLabel(value, t) }))]} />
-            <TextField label={t('expenses.lines.description', 'Description')} required error={submitted && lineStarted(line) && !line.description.trim() ? t('expenseClaims:new.required', 'Required') : undefined} value={line.description} onChange={(value) => { setLines((rows) => rows.map((row, i) => i === index ? { ...row, description: value } : row)); if (index === 0 && !titleEdited) setTitle(value); }} fullWidth />
-            <TextField label={t('expenses.lines.amount', 'Amount')} required error={submitted && lineStarted(line) && !(parseMoneyInputAtScale(line.amount, 2) ?? 0) ? t('expenseClaims:new.required', 'Required') : undefined} inputMode="decimal" value={line.amount} onChange={(value) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, amount: value } : row))} />
-          </FormGrid>
-          {lines.length > 1 && <Button type="button" variant="ghost" size="sm" onClick={() => setLines((rows) => rows.filter((_, i) => i !== index))}>{t('expenses.lines.remove', 'Remove')}</Button>}
-        </div>)}
+        {lines.map((line, index) => {
+          const amount = parseMoneyInputAtScale(line.amount, 2);
+          return (
+            <div key={index} className="mb-3 border-b border-border pb-3">
+              <FormGrid>
+                <TextField label={t('expenses.lines.date', 'Date')} required error={submitted && lineStarted(line) && !line.date ? t('expenseClaims:new.required', 'Required') : undefined} type="date" value={line.date} onChange={(value) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, date: value } : row))} />
+                <SelectField label={t('expenses.lines.type', 'Type')} required error={submitted && lineStarted(line) && !line.type ? t('expenseClaims:new.required', 'Required') : undefined} value={line.type} onChange={(value) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, type: value } : row))} options={[{ value: '', label: t('uxs29.expenseCapture.expenseTypePlaceholder', 'Choose a type') }, ...Constants.public.Enums.expense_type.map((value) => ({ value, label: expenseTypeLabel(value, t) }))]} />
+                <TextField label={t('expenses.lines.description', 'Description')} required error={submitted && lineStarted(line) && !line.description.trim() ? t('expenseClaims:new.required', 'Required') : undefined} value={line.description} onChange={(value) => { setLines((rows) => rows.map((row, i) => i === index ? { ...row, description: value } : row)); if (index === 0 && !titleEdited) setTitle(value); }} fullWidth />
+                <TextField
+                  label={t('expenses.lines.amount', 'Amount')}
+                  required
+                  error={submitted && lineStarted(line) && !(amount !== null && amount > 0)
+                    ? line.amount.trim()
+                      ? t('expenseClaims:new.amountInvalid', 'Enter an amount greater than zero.')
+                      : t('expenseClaims:new.required', 'Required')
+                    : undefined}
+                  inputMode="decimal"
+                  value={line.amount}
+                  onChange={(value) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, amount: value } : row))}
+                />
+              </FormGrid>
+              {lines.length > 1 && <Button type="button" variant="ghost" size="sm" onClick={() => setLines((rows) => rows.filter((_, i) => i !== index))}>{t('expenses.lines.remove', 'Remove')}</Button>}
+            </div>
+          );
+        })}
         <Button type="button" variant="outline" onClick={() => setLines((rows) => [...rows, blankLine()])}>{t('expenses.lines.add', 'Add line')}</Button>
         <div className="mt-3 flex flex-wrap items-center gap-2"><label className="text-sm font-medium" htmlFor="new-expense-receipt">{t('uxs29.expenseCapture.receipt', 'Receipt (optional)')}</label><input id="new-expense-receipt" type="file" accept={RECEIPT_INPUT_ACCEPT} onChange={(event) => { const file = event.target.files?.[0] ?? null; setReceipt(file); if (file && !titleEdited && !lines[0]?.description.trim()) setTitle(file.name.replace(/\.[^.]+$/, '')); }} />{receipt && <span className="text-sm text-muted-foreground">{receipt.name}</span>}</div>
       </FormSection>

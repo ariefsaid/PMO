@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   list: vi.fn<(before?: string) => Promise<FxRatePage>>(),
   orgDay: vi.fn(),
   role: 'Admin',
+  effectiveRole: 'Admin',
   context: vi.fn(),
   upsert: vi.fn(),
   existing: vi.fn(),
@@ -16,12 +17,12 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'user-1', org_id: 'org-1', role: h.role }, role: h.role }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }),
+  useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.effectiveRole }),
 }));
 vi.mock('@/src/auth/usePermission', () => ({
-  usePermission: () => (action: string, entity: string) => {
+  usePermission: () => (action: string, entity: string, context?: { record?: { viewOnly?: boolean } }) => {
     if (entity !== 'fxRate') return false;
-    if (action === 'view' || action === 'upload') return h.role === 'Admin' || h.role === 'Finance';
+    if (action === 'view' || action === 'upload') return (h.role === 'Admin' || h.role === 'Finance') && context?.record?.viewOnly !== true;
     return h.role === 'Admin';
   },
 }));
@@ -63,6 +64,7 @@ function renderPage() {
 
 beforeEach(() => {
   h.role = 'Admin';
+  h.effectiveRole = 'Admin';
   h.list.mockReset();
   h.orgDay.mockReset();
   h.orgDay.mockReturnValue({ day: '2026-10-31', isPending: false, isError: false, retry: vi.fn() });
@@ -88,6 +90,19 @@ afterEach(() => {
 });
 
 describe('AC-FX-008 Administration exchange-rate list', () => {
+  it('C1: header actions explain why they are unavailable while organization currency is loading', () => {
+    h.orgDay.mockReturnValue({ day: null, isPending: true, isError: false, retry: vi.fn() });
+    renderPage();
+
+    expect(screen.getByText(/Wait for the organization currency to load before using these actions/)).toBeInTheDocument();
+    const upload = screen.getByRole('button', { name: 'Upload rates' });
+    const newRate = screen.getByRole('button', { name: 'New rate' });
+    expect(upload).toBeDisabled();
+    expect(newRate).toBeDisabled();
+    expect(upload).toHaveAttribute('aria-describedby', 'fx-actions-unavailable');
+    expect(newRate).toHaveAttribute('aria-describedby', 'fx-actions-unavailable');
+  });
+
   it('shows 50 newest rows, keys the next page by the last shown date, and returns via Previous', async () => {
     renderPage();
     const table = await screen.findByRole('table');
@@ -225,6 +240,16 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
 });
 
 describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup path', () => {
+  it('C1: a view-as Admin is told to stop viewing as another role before uploading', async () => {
+    h.effectiveRole = 'Engineer';
+    h.list.mockResolvedValue({ rows: [], nextCursor: null });
+    renderPage();
+
+    expect(await screen.findByText('No JISDOR rates yet')).toBeInTheDocument();
+    expect(screen.getByText(/Stop viewing as another role to upload rates\./)).toBeInTheDocument();
+    expect(screen.queryByText('Admin or Finance can upload them.')).not.toBeInTheDocument();
+  });
+
   it('offers the reviewed setup path: consequence copy, reference-vs-accounting scope, and one Upload action that opens the dialog', async () => {
     h.role = 'Finance';
     h.list.mockResolvedValue({ rows: [], nextCursor: null });

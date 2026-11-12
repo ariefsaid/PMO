@@ -161,6 +161,13 @@ describe('StockReorder', () => {
     expect(await screen.findByRole('table', { name: 'Below reorder level' })).toBeInTheDocument();
   });
 
+  it('C1: explains why a read-only role has no reorder actions', async () => {
+    renderPage('Engineer');
+    await pickPair();
+    await screen.findByText('Suggested level');
+    expect(screen.getByText('Only Finance, Project Managers, Executives, and Admins can change reorder levels.')).toBeInTheDocument();
+  });
+
   it('FR-STK-064 view-as is view-only: an Admin viewing as an Engineer gets no actions', async () => {
     renderPage('Admin', 'Engineer');
     await pickPair();

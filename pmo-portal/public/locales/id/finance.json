@@ -724,7 +724,11 @@
       "askAdmin": "Administrator dapat menyelesaikan penyiapan."
     }
   },
+  "financialStatements": {
+    "selectedProjectNameUnavailable": "Nama proyek yang dipilih tidak tersedia"
+  },
   "financeCopy": {
+    "invoiceNumbersLoadFailed": "Nomor faktur tidak dapat dimuat",
     "budget": "Anggaran",
     "activateEditorBlocked": "Anda menyusun atau mengedit versi ini, jadi orang lain harus mengaktifkannya.",
     "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat. Minta Admin atau Finance untuk mengaktifkannya.",

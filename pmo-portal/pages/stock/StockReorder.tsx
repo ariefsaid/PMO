@@ -129,6 +129,7 @@ const StockReorder: React.FC = () => {
   return (
     <ListPage title={t('reorder.title')} count={state === undefined ? rows.length : undefined}>
       <StockTabs />
+      {!canEdit && <p className="mb-3 text-control text-muted-foreground">{t('reorder.readOnlyHint')}</p>}
 
       <h2 className="mb-2 text-base font-semibold">{t('reorder.worklist.title')}</h2>
       {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}

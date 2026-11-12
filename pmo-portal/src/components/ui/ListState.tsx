@@ -12,8 +12,7 @@ interface ActionSpec {
 /** Loading silhouettes shaped like the content they stand in for. */
 export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'chart';
 
-export interface ListStateProps {
-  variant: 'loading' | 'empty' | 'error';
+interface ListStateBaseProps {
   /** Empty/error heading. */
   title?: string;
   /** Render the empty-state title as the page's h1 (a whole-page state such as no access). */
@@ -24,8 +23,6 @@ export interface ListStateProps {
   icon?: IconName;
   /** Empty-state populating action (empty-states guideline). */
   action?: ActionSpec;
-  /** Error-state retry handler (error-recovery: cause + fix + retry). */
-  onRetry?: () => void;
   /** Override the retry label for the current locale. */
   retryLabel?: string;
   /** Number of skeleton rows for the loading variant. */
@@ -55,6 +52,12 @@ export interface ListStateProps {
   /** See `stateId`. The module this empty state belongs to (e.g. 'companies'). */
   module?: string;
 }
+
+/** A failed read must always be recoverable from the state that explains it. */
+export type ListStateProps = ListStateBaseProps & (
+  | { variant: 'error'; onRetry: () => void }
+  | { variant: 'loading' | 'empty'; onRetry?: never }
+);
 
 /**
  * The loading silhouette. Every block is the shared `.skel` shimmer utility — the
@@ -231,12 +234,10 @@ export const ListState: React.FC<ListStateProps> = ({
             : <div className="text-control font-semibold text-destructive-text">{title}</div>)}
           {sub && <div className="mt-px text-control text-muted-foreground">{sub}</div>}
         </div>
-        {onRetry && (
-          <Button variant="outline" size="sm" onClick={onRetry}>
-            <Icon name="refresh" />
-            {resolvedRetryLabel}
-          </Button>
-        )}
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <Icon name="refresh" />
+          {resolvedRetryLabel}
+        </Button>
       </div>
     );
   }

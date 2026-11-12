@@ -81,6 +81,14 @@ beforeEach(() => {
 });
 
 describe('StockCount', () => {
+  it('C1: tells a keeper who owns a colleague draft before they try to save it', async () => {
+    documents.get.mockResolvedValue(draft({ created_by: 'author-2', author: { full_name: 'Alex' } }));
+    renderAt('/stock/documents/d1/edit', 'Project Manager');
+
+    expect(await screen.findByText('This draft was created by Alex. Only its author can save changes.')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Save draft' })).toBeEnabled();
+  });
+
   it('FR-STK-025 the count sheet shows the system quantity next to each counted quantity and the variance preview', async () => {
     const { container } = renderAt('/stock/new/count');
     await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');

@@ -14,6 +14,7 @@
       "code": "Code",
       "name": "Name",
       "unit": "Unit",
+      "onHand": "On hand",
       "wholeOnly": "Quantities",
       "leadTime": "Lead time",
       "kind": "Kind",
@@ -107,7 +108,7 @@
         "sub": "Add a central store and your site stores.",
         "action": "Add the first warehouse"
       },
-      "readOnlyHint": "You can view stock setup. Project Managers and above can change it."
+      "readOnlyHint": "You can view stock setup. Finance, Project Managers, Executives, and Admins can change it."
     },
     "confirm": {
       "archiveTitle": "Archive this record?",
@@ -246,6 +247,7 @@
       "sub": "It may belong to another organisation or no longer exist."
     },
     "backToList": "Back to documents",
+    "keepersError": "Could not load stock keepers, so Post is unavailable.",
     "fields": {
       "warehouse": "Warehouse",
       "project": "Project",
@@ -391,6 +393,8 @@
     "in": "Add stock",
     "costDefault": "Leave empty to use the average cost.",
     "anotherPerson": "Another person must post this: a Project Manager or above who did not write it.",
+    "otherAuthorDraft": "This draft was created by {{name}}. Only its author can save changes.",
+    "anotherPersonName": "another person",
     "saveDraft": "Save draft",
     "post": "Post count",
     "saved": "Draft saved",
@@ -469,6 +473,7 @@
   "issueOverAllowance": "Over allowance: {{workItem}} has now used {{used}} of {{planned}} {{unit}} planned. The issue is posted; this is a flag, not a block.",
   "reorder": {
     "title": "Reorder",
+    "readOnlyHint": "Only Finance, Project Managers, Executives, and Admins can change reorder levels.",
     "panel": {
       "title": "Set a reorder level",
       "item": "Item",

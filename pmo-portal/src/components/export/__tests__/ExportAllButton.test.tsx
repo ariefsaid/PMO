@@ -70,4 +70,28 @@ describe('ExportAllButton', () => {
     await user.click(screen.getByRole('button', { name: /export/i }));
     await waitFor(() => expect(h.exportXlsx).not.toHaveBeenCalled());
   });
+
+  it('C1: a failed full-set read is reported beside Export and can be retried', async () => {
+    const user = userEvent.setup();
+    const rows = [{ id: 'c1', name: 'Atlas' }];
+    const fetchRows = vi.fn()
+      .mockRejectedValueOnce(new Error('network offline'))
+      .mockResolvedValueOnce(rows);
+    render(
+      <ExportAllButton
+        entity="Companies"
+        columns={columns}
+        hasRows
+        fetchRows={fetchRows}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /export/i }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/could not load|export failed|try again/i);
+    expect(h.exportXlsx).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /export/i }));
+    await waitFor(() => expect(h.exportXlsx).toHaveBeenCalledWith(rows, columns, 'Companies'));
+  });
 });

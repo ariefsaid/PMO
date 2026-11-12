@@ -1141,7 +1141,12 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               {detailQuery.isPending ? (
                 <p className="text-sm text-muted-foreground">{t('common.loading', 'Loading…')}</p>
               ) : detailQuery.isError ? (
-                <p className="text-sm text-muted-foreground">{t('procurement.lineItemsUnavailable', 'Line items could not be loaded.')}</p>
+                <ListState
+                  variant="error"
+                  title={t('procurement.lineItemsUnavailable', 'Line items could not be loaded.')}
+                  retryLabel={t('common.retry', 'Retry')}
+                  onRetry={() => { void detailQuery.refetch(); }}
+                />
               ) : (drawerDetails?.items?.length ?? 0) > 0 ? (
                 <ul className="divide-y divide-border">
                   {drawerDetails!.items.map((item) => (

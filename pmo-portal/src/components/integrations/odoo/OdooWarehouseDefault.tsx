@@ -29,9 +29,20 @@ export function OdooWarehouseDefault() {
   const value = picked ?? (savedId && !savedState ? savedId : '');
 
   if (!may.setValue) {
-    return savedId && !savedState && savedRow ? (
-      <p className="text-sm text-muted-foreground" data-testid="odoo-warehouse-default">{t('administration:odoo.warehouse.current', 'Default receiving warehouse')}: <span className="font-medium text-foreground">{savedRow.name}</span></p>
-    ) : null;
+    if (!savedId) return null;
+    return (
+      <div className="space-y-1.5 text-sm text-muted-foreground" data-testid="odoo-warehouse-default">
+        {!savedState && savedRow && <p>{t('administration:odoo.warehouse.current', 'Default receiving warehouse')}: <span className="font-medium text-foreground">{savedRow.name}</span></p>}
+        {savedState && (
+          <p className="flex flex-wrap items-center gap-1.5">
+            <StatusPill variant="warn">{t('administration:odoo.mapOnce.attention', 'Needs attention')}</StatusPill>
+            <span>{savedState === 'archived'
+              ? t('administration:odoo.warehouse.archivedReadOnly', 'The default warehouse was archived in Odoo. An administrator needs to choose another.')
+              : t('administration:odoo.warehouse.deletedReadOnly', 'The default warehouse was deleted in Odoo. An administrator needs to choose another.')}</span>
+          </p>
+        )}
+      </div>
+    );
   }
   const submit = async () => {
     setError(null);

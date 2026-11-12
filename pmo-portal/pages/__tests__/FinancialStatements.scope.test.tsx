@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Session } from '@supabase/supabase-js';
 import { MemoryRouter } from 'react-router';
@@ -177,6 +177,30 @@ function expectBothTrialBalancePeriods() {
 }
 
 describe('Financial statements company scope (AC-007)', () => {
+  it('C1: a failed project-name read preserves the selected scope and retries that read', async () => {
+    const { client } = renderPage();
+    await screen.findByText('Current native row');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Statement' }), { target: { value: 'profit_and_loss' } });
+    await screen.findByRole('option', { name: /PRJ-42 · North Terminal/ });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), { target: { value: projectId } });
+    await waitFor(() => expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ projectId, statement: 'profit_and_loss' })));
+
+    projectGetSpy.mockRejectedValueOnce(new Error('private project lookup failure'));
+    await client.invalidateQueries({ queryKey: ['financial-statements', 'mapped-project-name'] });
+
+    await waitFor(() => expect(projectGetSpy).toHaveBeenCalledTimes(2));
+    const errorTitle = await screen.findByText("Couldn't load financial statements");
+    const error = errorTitle.closest('[role="alert"]');
+    expect(error).not.toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue(projectId);
+    projectGetSpy.mockResolvedValue([{ id: projectId, name: 'Named delivery project', short_name: 'North Terminal', code: 'PRJ-42' } as never]);
+    await userEvent.click(within(error!).getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Current native row')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue(projectId);
+    expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ projectId, statement: 'profit_and_loss' }));
+    expect(projectGetSpy).toHaveBeenCalledTimes(3);
+  });
+
   it('AC-007: uses the safe read context, mapped PMO names, and the supplied current/prior month pair', async () => {
     renderPage();
 
@@ -201,7 +225,7 @@ describe('Financial statements company scope (AC-007)', () => {
     expect(screen.getAllByText(/2026/).length).toBeGreaterThan(0);
   });
 
-  it('AC-007 support: a failed mapped-name refresh retires the project choice while Company remains usable', async () => {
+  it('AC-007 support: a failed mapped-name refresh keeps the project scope and Company remains usable', async () => {
     const { client } = renderPage();
     await screen.findByText('Current native row');
     fireEvent.change(screen.getByRole('combobox', { name: 'Statement' }), { target: { value: 'profit_and_loss' } });
@@ -217,7 +241,8 @@ describe('Financial statements company scope (AC-007)', () => {
     await waitFor(() => expect(screen.queryByRole('option', { name: /Named delivery project/ })).not.toBeInTheDocument());
     expect(screen.queryByText('Current native row')).not.toBeInTheDocument();
     expect(screen.queryByText('private project lookup failure')).not.toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue(projectId);
+    expect(screen.getByRole('alert')).toHaveTextContent(/Couldn't load the selected project's name/);
     expect(requestedInputs().filter((input) => input.projectId === projectId)).toHaveLength(1);
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), { target: { value: 'company' } });

@@ -68,6 +68,31 @@ beforeEach(() => {
 });
 
 describe('UpdatePasswordPage', () => {
+  it('C1: an empty password gets an empty-field explanation, not a mismatch explanation', async () => {
+    window.history.replaceState({}, '', '/update-password?type=recovery&token=abc');
+    auth.getSession.mockResolvedValueOnce({ data: { session: { user: { id: 'u1', user_metadata: {} } } } });
+    renderPage();
+    await waitFor(() => expect(screen.getByLabelText(/new password/i)).toBeVisible());
+    await userEvent.click(screen.getByRole('button', { name: /set new password/i }));
+    expect(await screen.findByText(/Enter a password to continue/)).toBeInTheDocument();
+    expect(screen.queryByText(/Passwords do not match/i)).not.toBeInTheDocument();
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('C1: a rejected session read offers an in-page retry that can activate the form', async () => {
+    window.history.replaceState({}, '', '/update-password?type=recovery&token=abc');
+    auth.getSession
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce({ data: { session: { user: { id: 'u1', user_metadata: {} } } } })
+      .mockResolvedValueOnce({ data: { session: { user: { id: 'u1', user_metadata: {} } } } });
+    renderPage();
+    const retry = await screen.findByRole('button', { name: /retry verification/i });
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not verify/i);
+    await userEvent.click(retry);
+    expect(await screen.findByLabelText(/new password/i)).toBeVisible();
+    expect(auth.getSession).toHaveBeenCalledTimes(3);
+  });
+
   it('AC-AUTHF-010: an active recovery session renders new-password + confirm + Set new password', async () => {
     window.history.replaceState({}, '', '/update-password?type=recovery&token=abc&refresh_token=xyz');
     auth.getSession.mockResolvedValueOnce({

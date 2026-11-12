@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import StageHistory from '../StageHistory';
 
 const entries = [
@@ -14,8 +14,11 @@ const entries = [
     recorded_at: '2026-08-01T03:00:00Z', redated_at: null, recorder: null },
 ] as const;
 
+const { queryState } = vi.hoisted(() => ({
+  queryState: { data: null as unknown, isLoading: false, error: null as unknown, refetch: vi.fn() },
+}));
 vi.mock('@/src/hooks/useProjectStageEntries', () => ({
-  useProjectStageEntries: () => ({ data: entries, isLoading: false, error: null }),
+  useProjectStageEntries: () => ({ ...queryState, data: queryState.data ?? entries }),
   useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),
 }));
 // usePermission returns the predicate itself: (action, entity, ctx?) => boolean (src/auth/usePermission.tsx:20).
@@ -24,6 +27,25 @@ vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => canEdit }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-11-01' }));
 
 describe('StageHistory (#1638)', () => {
+  beforeEach(() => {
+    queryState.data = null;
+    queryState.isLoading = false;
+    queryState.error = null;
+    queryState.refetch.mockClear();
+    canEdit.mockReturnValue(true);
+  });
+
+  it('C1: a failed stage-history read retries that read from its error state', async () => {
+    queryState.data = [];
+    queryState.error = new Error('offline');
+    queryState.refetch.mockClear();
+    canEdit.mockReturnValue(false);
+    render(<StageHistory projectId="p1" />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(queryState.refetch).toHaveBeenCalledTimes(1);
+  });
+
   it('AC-PSH-013: lists every entry newest-first, including the re-quote, with date and recorder', () => {
     canEdit.mockReturnValue(true);
     render(<StageHistory projectId="p1" />);

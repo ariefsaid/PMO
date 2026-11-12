@@ -32,28 +32,17 @@ const AuthLoading: React.FC = () => (
   </div>
 );
 
-/** Full-page profile-error state — destructive tinted banner + retry */
-const ProfileErrorPage: React.FC<{ message: string }> = ({ message }) => (
+/** Full-page profile error — retry the failed profile read through the shared auth context. */
+const ProfileErrorPage: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
   <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
-    <div className="w-full max-w-sm rounded-lg border border-destructive/30 bg-destructive/[0.07] p-5">
-      <p
-        className="text-[14px] font-semibold"
-        style={{ color: 'hsl(0 72% 42%)' }}
-        role="alert"
-        aria-live="assertive"
-      >
-        Unable to load your profile.
-      </p>
-      <p className="mt-1 text-[12.5px] text-muted-foreground">{message}</p>
-      <Button
-        variant="outline"
-        size="sm"
-        className="mt-4"
-        onClick={() => window.location.reload()}
-      >
-        Retry
-      </Button>
-    </div>
+    <ListState
+      variant="error"
+      title="Unable to load your profile."
+      sub={message}
+      retryLabel="Retry profile"
+      onRetry={onRetry}
+      className="w-full max-w-sm"
+    />
   </div>
 );
 
@@ -88,14 +77,14 @@ const NotProvisionedPage: React.FC = () => {
 };
 
 export const RequireAuth: React.FC = () => {
-  const { session, loading, profileError, profileErrorKind } = useAuth();
+  const { session, loading, profileError, profileErrorKind, refreshCurrentUser } = useAuth();
   const location = useLocation();
 
   if (loading) return <AuthLoading />;
   // AC-CLI-012: carry the page being visited so sign-in can return to it (router state, not URL).
   if (!session) return <Navigate to="/login" replace state={returnToState(location)} />;
   if (profileErrorKind === 'not_provisioned') return <NotProvisionedPage />;
-  if (profileError) return <ProfileErrorPage message={profileError} />;
+  if (profileError) return <ProfileErrorPage message={profileError} onRetry={() => { void refreshCurrentUser(); }} />;
 
   return <Outlet />;
 };

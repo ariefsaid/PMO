@@ -111,12 +111,33 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     expect(screen.queryByRole('button', { name: 'Request replenishment' })).toBeNull();
   });
 
-  it('AC-IMP-082 a failed position read shows the error state, not zeros', () => {
-    h.position = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+  it('AC-IMP-082 a failed position read shows its cause and retries that read, not zeros', async () => {
+    const retry = vi.fn();
+    h.position = { data: undefined, isPending: false, isError: true, refetch: retry };
     renderPage();
-    expect(screen.getByText("Couldn't load this float's position")).toBeInTheDocument();
+    const errorTitle = screen.getByText("Couldn't load this float's position");
+    const error = errorTitle.closest('[role="alert"]');
+    expect(error).not.toBeNull();
+    expect(within(error!).getByText(/No figure is shown/)).toBeInTheDocument();
     expect(screen.queryByText(/Books do not balance/)).toBeNull();
     expect(screen.queryByRole('row', { name: /Vehicle/ })).toBeNull();
+    await userEvent.click(within(error!).getByRole('button', { name: 'Retry' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('C1: failed receipts and counts reads each have their own retry', async () => {
+    const receiptsRetry = vi.fn();
+    const countsRetry = vi.fn();
+    h.claims = { data: undefined, isPending: false, isError: true, refetch: receiptsRetry };
+    h.counts = { data: undefined, isPending: false, isError: true, refetch: countsRetry };
+    renderPage();
+
+    const receiptsError = await screen.findByText("Couldn't load the float's records");
+    const countsError = await screen.findByText("Couldn't load counts");
+    await userEvent.click(within(receiptsError.closest('[role="alert"]')!).getByRole('button', { name: 'Retry' }));
+    await userEvent.click(within(countsError.closest('[role="alert"]')!).getByRole('button', { name: 'Retry' }));
+    expect(receiptsRetry).toHaveBeenCalledTimes(1);
+    expect(countsRetry).toHaveBeenCalledTimes(1);
   });
 
   it('AC-IMP-082 receipts already in an open replenishment request cannot be requested again', () => {
