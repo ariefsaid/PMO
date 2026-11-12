@@ -209,6 +209,7 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
 
   it('keeps one primary Upload action when Finance sees an empty list', async () => {
     h.role = 'Finance';
+    h.effectiveRole = 'Finance';
     h.list.mockResolvedValueOnce({ rows: [], nextCursor: null });
     renderPage();
 
@@ -252,6 +253,7 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
 
   it('offers the reviewed setup path: consequence copy, reference-vs-accounting scope, and one Upload action that opens the dialog', async () => {
     h.role = 'Finance';
+    h.effectiveRole = 'Finance';
     h.list.mockResolvedValue({ rows: [], nextCursor: null });
     renderPage();
 
@@ -275,6 +277,7 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
 
   it('without upload permission the path names who can act and renders no dead control', async () => {
     h.role = 'PM';
+    h.effectiveRole = 'PM';
     h.list.mockResolvedValue({ rows: [], nextCursor: null });
     renderPage();
 

@@ -44,6 +44,12 @@ const expenseState = { data: [] as unknown[], isPending: false, isError: false, 
 const invoiceState = { rows: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 const reopenableState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 
+function retryForError(message: RegExp) {
+  const alert = screen.getAllByRole('alert').find((node) => message.test(node.textContent ?? ''));
+  if (!alert) throw new Error(`Expected an error alert matching ${message}`);
+  return within(alert).getByRole('button', { name: /retry/i });
+}
+
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ ...procState, refetch: vi.fn() }),
 }));
@@ -336,7 +342,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     procState.isError = true;
     procState.data = [];
     renderAs('Project Manager', '/approvals?scope=procurement');
-    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    expect(retryForError(/couldn't load procurement cases/i)).toBeInTheDocument();
   });
 });
 
@@ -382,7 +388,7 @@ describe('timesheet eligibility availability', () => {
     renderAs(role);
     expect(screen.queryByTestId('approvals-caught-up')).not.toBeInTheDocument();
     expect(screen.getByText(/couldn't load approved history/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    await userEvent.click(retryForError(/couldn't load approved history/i));
     expect(reopenableState.refetch).toHaveBeenCalled();
   });
 });
@@ -394,7 +400,7 @@ it.each(['Engineer', 'Finance'] as const)('%s can retry a failed pending read ev
   const view = renderAs(role);
   expect(screen.getByText(/couldn't load timesheets/i)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /^approve$/i })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  await userEvent.click(retryForError(/couldn't load timesheets/i));
   expect(tsRefetch).toHaveBeenCalled();
   tsState.isError = false;
   view.rerender(pageAs(role));
@@ -419,7 +425,7 @@ it.each(['Engineer', 'Finance'] as const)('%s recovers eligibility after retry a
   const view = renderAs(role);
   expect(screen.queryByRole('button', { name: /re-open for correction/i })).not.toBeInTheDocument();
   expect(screen.getByText(/couldn't load approved history/i)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  await userEvent.click(retryForError(/couldn't load approved history/i));
   expect(reopenableState.refetch).toHaveBeenCalled();
   reopenableState.isError = false;
   view.rerender(pageAs(role));
@@ -433,6 +439,6 @@ it.each(['Engineer', 'Finance'] as const)('%s can retry an initial pending eligi
   renderAs(role);
   expect(screen.queryByTestId('approvals-caught-up')).not.toBeInTheDocument();
   expect(screen.getByText(/couldn't load timesheets/i)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  await userEvent.click(retryForError(/couldn't load timesheets/i));
   expect(tsRefetch).toHaveBeenCalled();
 });
