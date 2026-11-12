@@ -4,8 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
-const { mutations, permission } = vi.hoisted(() => ({
+const { mutations, permission, projectsState } = vi.hoisted(() => ({
   permission: { allowed: true },
+  /** The picker read's rows, in whatever order the reader returns them (C18 order is the page's). */
+  projectsState: {
+    data: [] as Array<{ id: string; name: string; short_name?: string | null }>,
+  },
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -21,7 +25,7 @@ const { mutations, permission } = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/useMeetings', () => ({ useMeetingMutations: () => mutations }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => permission.allowed }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: projectsState.data }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Admin', effectiveRole: 'Admin' }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { profile: { listOrgProfiles: vi.fn().mockResolvedValue([{ id: 'u2', full_name: 'Sam Member' }]) } } }));
@@ -48,6 +52,7 @@ const Probe = () => {
 const renderPage = (path = '/meetings/new') => render(<ToastProvider><MemoryRouter initialEntries={[path]}><Probe /><Link to="/meetings">Meetings</Link><MeetingCreate /></MemoryRouter></ToastProvider>);
 
 beforeEach(() => {
+  projectsState.data = [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }];
   Object.values(mutations).forEach((mutation) => { mutation.mutateAsync.mockReset().mockResolvedValue(undefined); mutation.isPending = false; });
   mutations.create.mutateAsync.mockResolvedValue({ id: 'meeting-new' });
   permission.allowed = true;
@@ -57,6 +62,19 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
   it('AC-002 #1325: new meeting project option shows the short name only on its stable UUID', () => {
     renderPage();
     expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
+  });
+
+  it('C18 #1325: the new-meeting project select lists projects by the name a person reads, not the picker UUID order', () => {
+    projectsState.data = [
+      { id: '90000000-0000-4000-8000-000000000001', name: 'Zulu Refinery Upgrade', short_name: null },
+      { id: '10000000-0000-4000-8000-000000000002', name: 'Legal Title', short_name: 'Arun Terminal' },
+    ];
+    renderPage();
+    const select = screen.getByLabelText('Project', { selector: 'select' });
+    expect([...select.querySelectorAll('option')].slice(1).map((option) => option.textContent)).toEqual([
+      'Arun Terminal',
+      'Zulu Refinery Upgrade',
+    ]);
   });
 
   it('AC-MTG1-001: shows inline header, minutes and attendees, but no saved-only sections', () => {
