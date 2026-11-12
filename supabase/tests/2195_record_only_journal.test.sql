@@ -1,6 +1,6 @@
 -- Record-only purchases: journal creation is atomic and never changes project actuals.
 begin;
-select plan(91);
+select plan(101);
 insert into organizations (id, name, default_currency) values
   ('21950000-0000-0000-0000-00000000000a','JEC A','IDR'), ('21950000-0000-0000-0000-00000000000b','JEC B','IDR');
 insert into auth.users (id, email) values
@@ -49,6 +49,10 @@ insert into public.erp_gl_entry_mirror (org_id,erp_name,company,account,project,
  ('21950000-0000-0000-0000-00000000000a','gmixp2','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-MIXPARTY','2026-03-06',10,0,false,'Different supplier','2026-03-06');
 insert into public.erp_gl_entry_mirror (org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,party,erp_modified) values
  ('21950000-0000-0000-0000-00000000000a','gparty','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-PARTY','2026-03-06',20,0,false,'Different supplier','2026-03-06');
+insert into public.erp_gl_entry_mirror (org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,party,erp_modified) values
+ ('21950000-0000-0000-0000-00000000000a','gcancelparty','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-PARTY','2026-03-06',20,0,true,'Example vendor','2026-03-06'),
+ ('21950000-0000-0000-0000-00000000000a','gblankparty1','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-BLANKPARTY','2026-03-06',20,0,false,'Different supplier','2026-03-06'),
+ ('21950000-0000-0000-0000-00000000000a','gblankparty2','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-BLANKPARTY','2026-03-06',1,0,false,'','2026-03-06');
 insert into public.erp_gl_entry_mirror (org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,erp_modified) values
  ('21950000-0000-0000-0000-00000000000a','gm1','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-MIX','2026-03-06',100,0,false,'2026-03-06'),
  ('21950000-0000-0000-0000-00000000000a','gm2','Example Co','Project Subcontractors - X','ERP-A1','Journal Entry','JV-MIX','2026-03-06',0,20,false,'2026-03-06');
@@ -93,6 +97,19 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select set_config('rop.before_actuals',(select coalesce(sum(actuals_to_date),0)::text from public.project_mapped_actuals('21950000-0000-0000-0000-0000000000d1')),true);
 select set_config('rop.before_committed',(select coalesce(sum(amount),0)::text from public.project_committed_spend('21950000-0000-0000-0000-0000000000d1') where currency='IDR'),true);
+select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines,0,voucher_no}',to_jsonb('JV-PARTY'::text)),true)$test$, '22023','supplier_mismatch','AC-ROP-022 cancelled-party companion cannot mask active supplier on preview');
+select throws_ok($test$do $body$ begin perform public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines,0,voucher_no}',to_jsonb('JV-PARTY'::text)),false); raise exception 'unexpected_success' using errcode='P0002'; end $body$$test$, '22023','supplier_mismatch','AC-ROP-022 cancelled-party companion cannot mask active supplier on apply');
+select throws_ok($test$select public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines,0,voucher_no}',to_jsonb('JV-BLANKPARTY'::text)),true)$test$, '22023','supplier_mismatch','AC-ROP-022 blank-party companion cannot mask active supplier on preview');
+select throws_ok($test$do $body$ begin perform public.create_record_only_journal_purchase(jsonb_set(pg_temp.journal_group(),'{journal_lines,0,voucher_no}',to_jsonb('JV-BLANKPARTY'::text)),false); raise exception 'unexpected_success' using errcode='P0002'; end $body$$test$, '22023','supplier_mismatch','AC-ROP-022 blank-party companion cannot mask active supplier on apply');
+select throws_ok($test$select public.create_record_only_journal_purchase(pg_temp.journal_group() || '{"erp_documents":[{"id":"x"}]}'::jsonb,true)$test$, '22023','unsupported_source_kind','AC-ROP-022 mixed sources refused in preview');
+select throws_ok($test$do $body$ begin perform public.create_record_only_journal_purchase(pg_temp.journal_group() || '{"erp_documents":[{"id":"x"}]}'::jsonb,false); raise exception 'unexpected_success' using errcode='P0002'; end $body$$test$, '22023','unsupported_source_kind','AC-ROP-022 mixed sources refused on apply');
+reset role;
+insert into public.org_features(org_id,feature_key,enabled) values ('21950000-0000-0000-0000-00000000000a','procurement',false) on conflict (org_id,feature_key) do update set enabled=false;
+set local role authenticated;
+select throws_ok($test$select public.create_record_only_journal_purchase(pg_temp.journal_group(),true)$test$, 'P0001','feature_off','AC-ROP-020 disabled procurement refuses capture');
+reset role;
+update public.org_features set enabled=true where org_id='21950000-0000-0000-0000-00000000000a' and feature_key='procurement';
+set local role authenticated;
 select has_function('public', 'create_record_only_journal_purchase', array['jsonb', 'boolean'], 'AC-ROP-001 record-only journal RPC exists');
 select lives_ok($test$select public.create_record_only_journal_purchase(
   '{"request_id":"21950000-0000-0000-0000-000000000991","project_id":"21950000-0000-0000-0000-0000000000d1","vendor_id":"21950000-0000-0000-0000-000000000901","vendor_confirmed":true,"reference":"Reference","title":"Historical purchase","journal_lines":[{"erp_doctype":"Journal Entry","voucher_no":"JV-1","project_id":"21950000-0000-0000-0000-0000000000d1","account":"Project Subcontractors - X"}]}'::jsonb, false)$test$, 'AC-ROP-001 Admin records journal purchase');
@@ -233,10 +250,23 @@ insert into public.profiles(id,org_id,full_name,email,role,status) values ('2195
 update public.external_org_bindings set external_tier='odoo',config='{"ledger_basis_at":"2026-01-01"}'::jsonb where org_id='21950000-0000-0000-0000-00000000000b';
 insert into public.external_project_bindings(org_id,project_id,external_tier,external_container_id) values ('21950000-0000-0000-0000-00000000000b','21950000-0000-0000-0000-0000000000d3','odoo','ERP-B1');
 update public.erp_gl_entry_mirror set voucher_type='account.move',party='Unmapped partner' where org_id='21950000-0000-0000-0000-00000000000b' and voucher_no='JV-B';
+insert into public.external_master_records(org_id,external_tier,kind,external_id,name,active,attrs,source_write_date) values ('21950000-0000-0000-0000-00000000000b','odoo','company','1','Company B',true,'{"currency":"EUR"}',now());
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950000-0000-0000-0000-0000000000b2","role":"authenticated"}';
+select throws_ok($test$select public.create_record_only_journal_purchase('{"request_id":"21950000-0000-0000-0000-000000000997","project_id":"21950000-0000-0000-0000-0000000000d3","vendor_id":"21950000-0000-0000-0000-000000000902","vendor_confirmed":true,"title":"Odoo journal","journal_lines":[{"erp_doctype":"account.move","voucher_no":"JV-B","project_id":"21950000-0000-0000-0000-0000000000d3","account":"Project Subcontractors - X"}]}'::jsonb,true)$test$, '22023','currency_mismatch','AC-ROP-024 mismatched company currency refused on preview');
+select throws_ok($test$do $body$ begin perform public.create_record_only_journal_purchase('{"request_id":"21950000-0000-0000-0000-000000000997","project_id":"21950000-0000-0000-0000-0000000000d3","vendor_id":"21950000-0000-0000-0000-000000000902","vendor_confirmed":true,"title":"Odoo journal","journal_lines":[{"erp_doctype":"account.move","voucher_no":"JV-B","project_id":"21950000-0000-0000-0000-0000000000d3","account":"Project Subcontractors - X"}]}'::jsonb,false); raise exception 'unexpected_success' using errcode='P0002'; end $body$$test$, '22023','currency_mismatch','AC-ROP-024 mismatched company currency refused on apply');
+reset role;
+update public.external_master_records set attrs='{"currency":"IDR"}' where org_id='21950000-0000-0000-0000-00000000000b' and kind='company';
+set local role authenticated;
 select throws_ok($test$select public.create_record_only_journal_purchase('{"request_id":"21950000-0000-0000-0000-000000000997","project_id":"21950000-0000-0000-0000-0000000000d3","vendor_id":"21950000-0000-0000-0000-000000000902","vendor_confirmed":false,"title":"Odoo journal","journal_lines":[{"erp_doctype":"account.move","voucher_no":"JV-B","project_id":"21950000-0000-0000-0000-0000000000d3","account":"Project Subcontractors - X"}]}'::jsonb,true)$test$, '22023','vendor_confirmation_required','AC-ROP-007 unresolved ledger party needs vendor confirmation');
 select is(public.create_record_only_journal_purchase('{"request_id":"21950000-0000-0000-0000-000000000997","project_id":"21950000-0000-0000-0000-0000000000d3","vendor_id":"21950000-0000-0000-0000-000000000902","vendor_confirmed":true,"title":"Odoo journal","journal_lines":[{"erp_doctype":"account.move","voucher_no":"JV-B","project_id":"21950000-0000-0000-0000-0000000000d3","account":"Project Subcontractors - X"}]}'::jsonb,false)->>'outcome','create','AC-ROP-010 Odoo ledger journal is recorded');
+reset role;
+update public.external_master_records set attrs='{"currency":"EUR"}' where org_id='21950000-0000-0000-0000-00000000000b' and kind='company';
+set local role authenticated;
+select throws_ok($test$select public.create_record_only_journal_purchase('{"request_id":"21950000-0000-0000-0000-000000000997","project_id":"21950000-0000-0000-0000-0000000000d3","vendor_id":"21950000-0000-0000-0000-000000000902","vendor_confirmed":true,"title":"Odoo journal","journal_lines":[{"erp_doctype":"account.move","voucher_no":"JV-B","project_id":"21950000-0000-0000-0000-0000000000d3","account":"Project Subcontractors - X"}]}'::jsonb,false)$test$, '22023','currency_mismatch','AC-ROP-024 mismatched company currency refused on retry');
+reset role;
+update public.external_master_records set attrs='{"currency":"IDR"}' where org_id='21950000-0000-0000-0000-00000000000b' and kind='company';
+set local role authenticated;
 select is((select total_value from public.procurements where title='Odoo journal'),30::numeric,'AC-ROP-010 Odoo amount comes from ledger');
 select is((select count(*)::int from public.project_erp_journal_lines('21950000-0000-0000-0000-0000000000d3') where voucher_no='JV-B' and procurement_id is not null),1,'AC-ROP-001 Odoo journal read shows purchase');
 reset role;

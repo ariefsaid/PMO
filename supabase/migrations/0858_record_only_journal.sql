@@ -54,7 +54,7 @@ revoke all on function public.assert_record_only_rollback_safe() from public, an
 
 -- Adapter bridge for source-line facts: the caller supplies the neutral 0687 key.
 create function public.journal_source_line_facts(p_org uuid, p_project uuid, p_doctype text, p_voucher text, p_account text)
-returns table(has_negative boolean, party_count bigint) language sql stable security definer
+returns table(has_negative boolean, party_count bigint, active_party text) language sql stable security definer
 set search_path = public, pg_catalog as $$
   with mapped_project as (
     select m.value as source_project from public.external_org_bindings b, jsonb_each_text(coalesce(b.config->'project_map','{}'::jsonb)) m
@@ -64,7 +64,7 @@ set search_path = public, pg_catalog as $$
      where pb.org_id=p_org and pb.project_id=p_project and pb.external_tier='odoo'
        and exists (select 1 from public.external_org_bindings b where b.org_id=p_org and b.external_tier='odoo' and b.activated_at is not null)
   )
-  select coalesce(bool_or(coalesce(g.debit,0)-coalesce(g.credit,0)<0),false), count(distinct nullif(btrim(g.party),''))
+  select coalesce(bool_or(coalesce(g.debit,0)-coalesce(g.credit,0)<0),false), count(distinct nullif(btrim(g.party),'')), min(nullif(btrim(g.party),''))
     from public.erp_gl_entry_mirror g
    where g.org_id=p_org and g.voucher_type=p_doctype and g.voucher_no=p_voucher and g.account=p_account
      and not g.is_cancelled and g.project in (select source_project from mapped_project)
@@ -77,13 +77,14 @@ returns jsonb language plpgsql security definer set search_path = public, pg_cat
 declare
   v_org uuid := public.auth_org_id(); v_actor uuid := auth.uid();
   v_request uuid; v_project uuid; v_vendor uuid; v_purchase uuid; v_old jsonb;
-  v_currency text; v_binding uuid; v_bindings integer; v_title text; v_reference text; v_line jsonb; v_source record;
+  v_currency text; v_ledger_currency text; v_binding uuid; v_bindings integer; v_title text; v_reference text; v_line jsonb; v_source record;
   v_total numeric := 0; v_date date; v_sources jsonb := '[]'::jsonb; v_party uuid; v_key text; v_seen text[] := '{}'; v_facts record; v_group_party text;
 begin
   perform public.assert_is_active_member();
   if public.auth_role()::text is distinct from 'Admin' then
     raise exception 'not authorized' using errcode = '42501';
   end if;
+  perform public.assert_feature_on(v_org,'procurement');
   v_request := (p_group->>'request_id')::uuid;
   v_project := (p_group->>'project_id')::uuid;
   v_vendor := (p_group->>'vendor_id')::uuid;
@@ -92,9 +93,26 @@ begin
   if v_request is null or v_project is null or v_vendor is null or v_title is null then
     raise exception 'required_field_missing' using errcode = '22023';
   end if;
+  if p_group ? 'erp_documents' or (p_group ? 'source_kind' and p_group->>'source_kind' is distinct from 'journal') then
+    raise exception 'unsupported_source_kind' using errcode='22023';
+  end if;
   if jsonb_typeof(p_group->'journal_lines') is distinct from 'array'
      or jsonb_array_length(p_group->'journal_lines') not between 1 and 500 then
     raise exception 'invalid_lines' using errcode = '22023';
+  end if;
+  select count(*), (array_agg(id))[1] into v_bindings, v_binding from public.external_org_bindings where org_id=v_org and activated_at is not null;
+  if v_bindings <> 1 then raise exception 'ambiguous_binding' using errcode='22023'; end if;
+  select default_currency into v_currency from public.organizations where id = v_org;
+  if v_currency is null or btrim(v_currency) = '' then raise exception 'currency_missing' using errcode = '22023'; end if;
+  select m.attrs->>'currency' into v_ledger_currency
+    from public.external_org_bindings b join public.external_master_records m
+      on m.org_id=b.org_id and m.external_tier=b.external_tier and m.kind='company'
+   where b.id=v_binding and b.external_tier='odoo' and m.tombstoned_at is null
+     and m.attrs->>'currency' ~ '^[A-Z]{3}$'
+     and (nullif(b.config->>'odoo_company_id','') is null or m.external_id=b.config->>'odoo_company_id')
+   order by m.active desc, m.external_id limit 1;
+  if v_ledger_currency is not null and v_ledger_currency <> v_currency then
+    raise exception 'currency_mismatch' using errcode='22023';
   end if;
   perform pg_advisory_xact_lock(hashtextextended(v_org::text || ':journal-request:' || v_request::text, 0));
   select procurement_id, payload into v_purchase, v_old from public.erp_purchase_captures
@@ -114,10 +132,6 @@ begin
     raise exception 'vendor_not_found' using errcode = '22023';
   end if;
   if not public.org_reads_erp_ledger() then raise exception 'ledger_basis_missing' using errcode = '22023'; end if;
-  select count(*), (array_agg(id))[1] into v_bindings, v_binding from public.external_org_bindings where org_id=v_org and activated_at is not null;
-  if v_bindings <> 1 then raise exception 'ambiguous_binding' using errcode='22023'; end if;
-  select default_currency into v_currency from public.organizations where id = v_org;
-  if v_currency is null or btrim(v_currency) = '' then raise exception 'currency_missing' using errcode = '22023'; end if;
   -- Serialize source groups in deterministic key order, including groups that do not yet have a link row.
   for v_line in select value from jsonb_array_elements(p_group->'journal_lines')
     order by jsonb_build_array(value->>'erp_doctype',value->>'voucher_no',value->>'project_id',value->>'account')::text loop
@@ -136,22 +150,22 @@ begin
     select * into v_facts from public.journal_source_line_facts(v_org,v_project,v_source.erp_doctype,v_source.voucher_no,v_source.account);
     if v_facts.has_negative then raise exception 'negative_line_requires_review' using errcode='22023'; end if;
     if v_facts.party_count > 1 then raise exception 'supplier_mismatch' using errcode='22023'; end if;
-    if nullif(btrim(v_source.party),'') is not null then
-      if v_group_party is not null and v_group_party is distinct from v_source.party then
+    if nullif(btrim(v_facts.active_party),'') is not null then
+      if v_group_party is not null and v_group_party is distinct from v_facts.active_party then
         raise exception 'supplier_mismatch' using errcode='22023';
       end if;
-      v_group_party := v_source.party;
+      v_group_party := v_facts.active_party;
     end if;
     if exists (select 1 from public.erp_journal_line_links where org_id=v_org and erp_doctype=v_source.erp_doctype
        and voucher_no=v_source.voucher_no and project_id=v_project and account=v_source.account) then
       raise exception 'line_already_attached' using errcode = '22023';
     end if;
-    if v_source.party is null or btrim(v_source.party) = '' then
+    if v_facts.active_party is null or btrim(v_facts.active_party) = '' then
       if coalesce((p_group->>'vendor_confirmed')::boolean,false) is not true then
         raise exception 'vendor_confirmation_required' using errcode = '22023';
       end if;
     else
-      v_party := public.erp_supplier_company(v_org, v_source.party, v_source.party);
+      v_party := public.erp_supplier_company(v_org, v_facts.active_party, v_facts.active_party);
       if v_party is null then
         if coalesce((p_group->>'vendor_confirmed')::boolean,false) is not true then
           raise exception 'vendor_confirmation_required' using errcode = '22023';
