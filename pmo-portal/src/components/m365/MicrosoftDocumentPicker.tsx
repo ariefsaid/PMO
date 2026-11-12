@@ -431,7 +431,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
               <ul aria-label={t('m365Documents.picker.libraries', 'Libraries')} className="max-h-72 overflow-auto">
                 {libraries.value.map((lib) => (
                   <li key={lib.id} className="border-b border-border last:border-b-0">
-                    <Button variant="ghost" className={`${ROW_BUTTON} w-full`} onClick={() => openItems(lib, [])}><Icon name="folder" />{lib.name}</Button>
+                    <Button variant="ghost" className={ROW_BUTTON} title={lib.name} onClick={() => openItems(lib, [])}><Icon name="folder" className="shrink-0" /><span className={`min-w-0 flex-1 text-left ${WRAP}`}>{lib.name}</span></Button>
                   </li>
                 ))}
               </ul>
@@ -468,13 +468,15 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
             <div className="flex items-center gap-2">{heading(t('m365Documents.picker.chooseItem', 'Choose a file or folder'))}{changeLocation}</div>
             <nav aria-label={t('m365Documents.picker.locationNav', 'Microsoft location')}>
               <ol className="flex min-w-0 flex-wrap items-center gap-1 text-control">
-                <li className="flex items-center gap-1">
-                  <Button variant="ghost" className={ROW_BUTTON} title={drive.name} onClick={() => openItems(drive, [], origin ?? 'manual')}>{drive.name}</Button>
+                <li className="flex min-w-0 items-center gap-1">
+                  <Button variant="ghost" className={ROW_BUTTON} title={drive.name} onClick={() => openItems(drive, [], origin ?? 'manual')}><span className={`min-w-0 ${WRAP}`}>{drive.name}</span></Button>
                 </li>
                 {path.map((part, index) => (
-                  <li key={part.item_id} className="flex items-center gap-1">
-                    <Icon name="chev" className="text-muted-foreground" />
-                    <Button variant="ghost" className={ROW_BUTTON} title={part.name} onClick={() => openItems(drive, path.slice(0, index + 1))}>{part.name}</Button>
+                  <li key={part.item_id} className="flex min-w-0 items-center gap-1">
+                    <Icon name="chev" className="shrink-0 text-muted-foreground" />
+                    {/* A folder name can be one unbroken token: give the breadcrumb button a shrinkable,
+                        break-anywhere label so a long name wraps inside the dialog instead of running past it. */}
+                    <Button variant="ghost" className={ROW_BUTTON} title={part.name} onClick={() => openItems(drive, path.slice(0, index + 1))}><span className={`min-w-0 ${WRAP}`}>{part.name}</span></Button>
                   </li>
                 ))}
               </ol>
@@ -505,7 +507,11 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
                       <div className="min-w-0 flex-1">
                         {item.item_kind === 'folder' ? (
                           <Button variant="ghost" className={ROW_BUTTON} title={item.name} aria-label={t('m365Documents.picker.browseNamed', 'Browse {{name}}', { name: item.name })} onClick={() => openItems(drive, [...path, item])}>
-                            <Icon name="folder" className="shrink-0" />{item.name}
+                            <Icon name="folder" className="shrink-0" />
+                            {/* min-w-0 + overflow-wrap:anywhere on the LABEL span: the button is a flex
+                                box, so a bare text node would be an anonymous item that refuses to shrink
+                                and a single unbroken folder name would run past the dialog at 390px. */}
+                            <span className={`min-w-0 flex-1 text-left ${WRAP}`}>{item.name}</span>
                             <Icon name="chev" aria-hidden className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
                           </Button>
                         ) : (

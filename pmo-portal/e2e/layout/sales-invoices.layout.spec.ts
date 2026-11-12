@@ -91,7 +91,20 @@ async function openInvoicesTable(page: Page) {
   await expect(scrollerLoc).toBeVisible({ timeout: 20_000 });
   await expect(scrollerLoc.locator('tbody tr').first()).toBeVisible({ timeout: 20_000 });
   await expect(scrollerLoc.locator('tbody button[aria-label="Row actions"]').first()).toBeVisible();
-  await scrollerLoc.scrollIntoViewIfNeeded();
+  // The hub above the register fills in asynchronously: the register's own rows can arrive first,
+  // and then the tiles/ageings land and push the table back under the fold — so wait for the page
+  // above it to settle BEFORE scrolling, and prove the scroll actually holds.
+  await expect(page.getByTestId('kpi-skeleton')).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
+  // The seam oracle screenshots a 1-2px strip from the scroller's top edge down ~92px (header row +
+  // first body row), so THAT BAND must be inside the viewport — scroll for it when the register sits
+  // under the fold, and prove it before measuring instead of letting the clip throw.
+  await scrollerLoc.evaluate((element) => element.scrollIntoView({ block: 'start', behavior: 'instant' }));
+  await expect.poll(async () => scrollerLoc.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const bandBottom = Math.min(box.top + 92, box.bottom - 2);
+    return box.top >= 0 && bandBottom <= window.innerHeight;
+  }), { message: 'the register header band is inside the viewport before geometry is measured' }).toBe(true);
   await waitForFonts(page);
   return scrollerLoc;
 }

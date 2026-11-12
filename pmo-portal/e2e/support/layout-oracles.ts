@@ -580,11 +580,10 @@ export async function assertProjectsTableLayout(page: Page) {
   expect(scrollerBox).not.toBeNull();
   const projectHeader = scroller.getByRole('columnheader', { name: 'Project', exact: true });
   const handle = page.getByRole('separator', { name: 'Resize Project column' });
-  // 56fc1f7ca moved Projects' table→cards reflow to `cardBelow={1120}` (pages/Projects.tsx): below
-  // 1120px the DataTable renders the phone card branch and there is no column to resize. Resize is
-  // measured at the two widths where the desktop table actually exists; the 1024 case is now the
-  // card branch, asserted at 390 below.
-  for (const width of [1440, 1200] as const) {
+  // 56fc1f7ca reflows Projects to cards once the TABLE CONTAINER is under 1120px, so at this page
+  // width only 1440 renders the desktop table (rail + padding leave ~940px at a 1200px viewport).
+  // The card branch is asserted at 390 below; the resize geometry is measured where the table is.
+  for (const width of [1440] as const) {
     await page.setViewportSize({ width, height: 900 });
     const headerBox = await projectHeader.boundingBox();
     const indicator = handle.locator('.datatable-resize-indicator');
