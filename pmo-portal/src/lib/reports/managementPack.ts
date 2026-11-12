@@ -54,7 +54,7 @@ export interface PackRow {
 
 export interface PackTotalsMonth {
   month: string;
-  planned: Cents;
+  planned: Cents | null;
   recognised: Cents;
   invoiced: Cents;
   invoiceCount: number;
@@ -224,11 +224,12 @@ function totalsByCurrency(rows: PackRow[], months: string[], invoiceCurrencies: 
   const byCurrency = new Map<string, PackTotalsMonth[]>();
   for (const row of includedRows) {
     const series = byCurrency.get(row.currency) ?? months.map((month) => ({
-      month, planned: 0, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0 as Cents | null,
+      month, planned: 0 as Cents | null, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0 as Cents | null,
     }));
     row.months.forEach((m, i) => {
       const t = series[i];
-      t.planned += m.planned ?? 0;
+      if (row.kind === 'contract' && m.planned === null) t.planned = null;
+      else if (t.planned !== null) t.planned += m.planned ?? 0;
       t.recognised += m.recognised;
       t.invoiced += m.invoiced;
       t.invoiceCount += m.invoiceCount;

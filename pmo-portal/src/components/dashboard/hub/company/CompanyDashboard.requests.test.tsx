@@ -30,7 +30,15 @@ const base = {
   procurements_by_status: [],
   top_projects: [],
 };
-const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: { months: [] as unknown[], totals: [] as unknown[] }, procurementList: vi.fn() }));
+// One contract-less month of the pack: the period figures read it, so "Invoiced $0" is a known zero from
+// real pack data rather than the home-currency zero the shared formatter no longer invents (80f05c77f).
+const pack = {
+  from: '2026-01-01', to: '2026-10-31', timezone: 'UTC', undatedInvoiceCount: 0,
+  months: ['2026-10'],
+  rows: [],
+  totals: [{ currency: 'USD', months: [{ month: '2026-10', planned: 0, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0 }] }],
+};
+const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: { months: [] as string[], rows: [] as unknown[], totals: [] as unknown[] }, procurementList: vi.fn() }));
 
 // Ready to pay / payables ageing read linked accounting documents (L12); none linked here.
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
@@ -91,7 +99,7 @@ const renderExec = () => render(
   </QueryClientProvider>,
 );
 
-beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = { months: [], totals: [] }; h.procurementList.mockReset().mockResolvedValue([]); });
+beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = pack; h.procurementList.mockReset().mockResolvedValue([]); });
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('company dashboard procurement reads (PERF-FIN-1)', () => {

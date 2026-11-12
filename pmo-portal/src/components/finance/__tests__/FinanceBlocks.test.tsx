@@ -161,6 +161,16 @@ describe('Finance blocks', () => {
     expect(row).not.toHaveTextContent(/Balance unknown|—|\$0\b/);
   });
 
+  it('F6 omits unknown supplier age but retains known zero days', () => {
+    const row = { procurement: { id: 'proc-1' } as never, ageDays: null, amount: null };
+    const props = { scope: 'all' as const, isPending: false, isError: false, onRetry: () => {}, withLayout: (path: string) => path, orgCurrency: 'IDR', canAct: true };
+    const view = render(<MemoryRouter><FinanceAttention {...props} position={{ ...emptyPosition, payables: [row], payablesUnknownCount: 1 }} /></MemoryRouter>);
+    expect(screen.getByText('Balance unknown')).toBeInTheDocument();
+    expect(screen.queryByText(/oldest 0 days/i)).not.toBeInTheDocument();
+    view.rerender(<MemoryRouter><FinanceAttention {...props} position={{ ...emptyPosition, payables: [{ ...row, ageDays: 0, amount: 0 }], payablesTotals: { IDR: 0 } }} /></MemoryRouter>);
+    expect(screen.getByText('Oldest 0 days')).toBeInTheDocument();
+  });
+
   it('SEC-RS-2: a waiting supplier invoice with an unknown balance reads as unknown, not as a blank amount', () => {
     const position: FinancePosition = {
       ...emptyPosition,
