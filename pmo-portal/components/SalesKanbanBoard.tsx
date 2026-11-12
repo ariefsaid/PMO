@@ -133,7 +133,7 @@ const DealCard: React.FC<{
                 <Avatar name={project.pm_name} size="xs" decorative fallback="" />
                 <span className="truncate">{project.pm_name}</span>
               </span>
-            ) : <span aria-label={t('projectDetail.pipeline.notSet', 'Not set')}>—</span>}
+            ) : <span>—</span>}
           </div>
           <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">

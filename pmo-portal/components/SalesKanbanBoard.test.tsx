@@ -150,7 +150,10 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
   it('AC-SP-204: a deal with no customer renders an em-dash, never blank', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     const card = screen.getByText('Tender Deal Bravo').closest('[role="button"]')!;
-    expect(within(card as HTMLElement).getByText('—')).toBeInTheDocument();
+    const customerPlaceholder = within(card as HTMLElement).getAllByText('—')[0];
+    const value = within(card as HTMLElement).getByText(formatCurrency(projects[1].contract_value, projects[1].currency));
+    expect(customerPlaceholder).toBeVisible();
+    expect(customerPlaceholder.compareDocumentPosition(value) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('keeps stage context and the assigned project manager ahead of the deal value', () => {
