@@ -50,9 +50,6 @@ const PO_NAME = 'PUR-ORD-2026-00373';
 function objectResponse(body: unknown): Response {
   return jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
 }
-function nullObjectResponse(): Response {
-  return new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
-}
 
 function orderCreateCommand(): Record<string, unknown> {
   return {
@@ -82,6 +79,7 @@ function routes(unexpected: FetchCall[], refusal: string | null): MockRoute[] {
     supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(true)),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
     // The foreground gate passed when the user retried; the rule check before the reissue answers `refusal`.
+    supabaseRpc('record_only_step_refusal', () => jsonResponse(null)),
     supabaseRpc('procurement_gate_violation', () => jsonResponse(null)),
     supabaseRpc('procurement_create_refusal', () => jsonResponse(refusal)),
     supabaseRpc('read_vault_secret', () => jsonResponse(null)),

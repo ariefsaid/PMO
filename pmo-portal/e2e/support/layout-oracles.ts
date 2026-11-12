@@ -426,6 +426,8 @@ export async function assertShortAccountMenu(page: Page) {
     const original = await trigger.boundingBox();
     await trigger.click();
     await page.getByRole('menuitemradio', { name: 'Larger' }).click();
+    // Wait for the size change itself before reading any box: the click returns before the re-render.
+    await expect(page.locator('html')).toHaveAttribute('data-text-size', 'larger');
     const enlarged = await trigger.boundingBox();
     expect(enlarged!.height / original!.height).toBeCloseTo(1.25, 1);
     const menu = page.getByRole('menu');

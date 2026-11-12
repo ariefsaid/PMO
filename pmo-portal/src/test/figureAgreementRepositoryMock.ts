@@ -1,5 +1,11 @@
 import { figureAgreementFixture as fixture } from './fixtures/figureAgreement';
 
+let singleCurrencyContractCase = false;
+
+export function setFigureAgreementSingleCurrencyContractCase(enabled: boolean): void {
+  singleCurrencyContractCase = enabled;
+}
+
 /** Repository-boundary wire responses for the synthetic records; figure code remains shipped code. */
 export function createFigureAgreementRepositoryModule<T extends { repositories: Record<string, unknown> }>(actual: T): T {
   const base = actual.repositories as Record<string, Record<string, unknown>>;
@@ -44,6 +50,9 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
     },
     cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '70.00' }], receipt_count: 1 },
   };
+  const contractFinanceReading = () => singleCurrencyContractCase
+    ? finances
+    : { ...finances, contract_invoiced: null, remaining_to_invoice: null };
   const billing = { contractNet: 1000, contractLines: [], workOrders: [], claims: [], figuresComplete: true };
   const committedSpend = { amount: fixture.budget.openPurchaseOrder.total_value, otherCurrencies: [] };
   const moneyRead = {
@@ -85,7 +94,7 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
     }),
     projectMoney: override('projectMoney', { collection: async (ids: string[]) => mapFor(ids, () => moneyRead) }),
     projectOverview: override('projectOverview', {
-      read: async () => ({ finances, billing, boqItems: [], budgetVersions: [budgetVersion], committedSpend, externalDomainOwnership: [], readsErpLedger: false, milestones: [], commentCount: 0, fxContext: { currency: 'USD', timezone: 'UTC' } }),
+      read: async () => ({ finances: contractFinanceReading(), billing, boqItems: [], budgetVersions: [budgetVersion], committedSpend, externalDomainOwnership: [], readsErpLedger: false, milestones: [], commentCount: 0, fxContext: { currency: 'USD', timezone: 'UTC' } }),
     }),
     milestone: override('milestone', {
       list: async () => [],
@@ -107,9 +116,9 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
       getProjectReservedSpend: async () => ({ amount: '50.00', projectCurrency: 'USD', budgetCurrency: 'USD', otherCurrencies: [] }),
     }),
     revenue: override('revenue', {
-      getProjectFinances: async () => finances,
+      getProjectFinances: async () => contractFinanceReading(),
       getOrgReadsErpLedger: async () => false,
-      listInvoices: async () => invoices,
+      listInvoices: async () => singleCurrencyContractCase ? invoices.filter((invoice) => invoice.currency === 'USD') : invoices,
       getRevenueByProject: async () => [{ project_id: primary.id, currency: 'USD', invoice_count: 5 }],
       listMonthlyInvoiceFacts: async () => [],
       listPaidPaymentFacts: async () => [],
@@ -122,7 +131,7 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
       listClaims: async () => [],
       summary: async () => billing,
     }),
-    workOrder: override('workOrder', { list: async () => [], drawdown: async () => null, billing: async () => [], acceptanceAge: async () => [], unbilled: async () => [] }),
+    workOrder: override('workOrder', { list: async () => [], drawdown: async () => null, billing: async () => [], acceptanceAge: async () => [], unbilled: async () => ({ totals: [], incompleteCount: 0 }) }),
     company: override('company', { list: async () => [], listClients: async () => [] }),
     profile: override('profile', { listProjectManagers: async () => [fixture.users.projectManager] }),
     orgFeature: override('orgFeature', { listOwn: async () => [] }),

@@ -249,6 +249,17 @@ node scripts/pmo.mjs purchases attach-journals <rows.json>
 
 Each row names one line returned by `journals` plus the purchase: `{"voucher_no":"<journal number>","project_id":"<project-uuid>","account":"<ledger account>","procurement_id":"<purchase-uuid>"}`. The dry run reports `attach`, `skip` (already on that purchase) or `refused` with a reason per row and writes nothing.
 
+An active Admin can create a historical purchase directly from journal cost lines. Preview first, then apply the identical file. A title and vendor are required; reference is optional. If the ledger does not identify a vendor, explicitly confirm the selected vendor with `vendor_confirmed: true`. The server computes the ledger-currency amount. Negative and cancelled lines are refused; no accounting-system write occurs and existing project actuals stay unchanged.
+
+```bash
+node scripts/pmo.mjs purchases record-only <history.json> --dry-run
+node scripts/pmo.mjs purchases record-only <history.json>
+node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "Incorrect link" --dry-run
+node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "Incorrect link"
+```
+
+`history.json` is an array of groups, each with a stable `request_id` UUID, `project_id`, `vendor_id`, `title`, optional `reference`, and `journal_lines`. Each line carries the `erp_doctype`, `voucher_no`, `project_id`, and `account` returned by `purchases journals`. A file may contain at most 500 lines. Keep the same request IDs and payloads on retries, including when the response is unknown. The report identifies created, skipped, and refused groups. Undo unlinks the source and cancels the historical wrapper; it does not delete the purchase or change the ERP ledger.
+
 Record a goods receipt for a purchase (same command the app sends; connected organisations send the app's accounting-system command; a PMO-only organisation, with no accounting system, records it through the app's own receipt function). Roles: Admin, Executive, Project Manager, Finance on a connected organisation; **Admin and Project Manager only** on a PMO-only one.
 
 ```bash
@@ -346,6 +357,6 @@ After the app correction, rerun the original load with `--dry-run`; verify it pl
 
 ## Command scope and current constraints
 
-The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases receive`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
+The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases receive`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
 
 The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, upload a document, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), [document register and upload](https://github.com/ariefsaid/PMO/issues/1857), [purchase history import](https://github.com/ariefsaid/PMO/issues/1855), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).
