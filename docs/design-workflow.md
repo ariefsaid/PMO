@@ -11,6 +11,7 @@ For screen composition and rendered judgement, read and follow [restructure](../
 ## Engineering and acceptance
 
 - Keep the signed business spec, repository/permission patterns and code-side gates in `CLAUDE.md`; visual acceptance does not replace them.
+- `docs/qa-portfolio.md` owns the review-mode switch; its `4-lens`/`3-lens` fallback remains runnable in [the archived lens battery](archive/design-workflow-lens-battery.md) §1a/§2.3.
 - `docs/qa-portfolio.md` owns the QA portfolio and deterministic correctness layers; retain behaviour, money, dates, permissions and a11y proofs through a recompose.
 - Tests encode the user's natural journey and goal at the lowest sufficient layer. For an approved UX change, update the steps while preserving the goal oracle.
 - Remove obsolete look-pinning assertions when recomposing; distinguish them from assertions that protect an action, a figure or retained work.

@@ -5,8 +5,8 @@ Read whole at step 4, after the floor and reference direction are frozen; taste'
 ## Write before markup
 
 - **Job and question:** write the person's decision in one line, because the screen needs an order the old cards cannot supply.
-- **Finding:** write one line computed from today's data, with a link to the next action, because a total without a consequence does not orient the reader.
-- **Placement:** put that finding in the leading answer block; screen-rules forbids an explanatory subtitle under the page title, so a finding is not permission for one.
+- **Finding:** allow ONE line of today's facts computed from the data, each clause linking to its place ("3 of 11 projects off track · 1 invoice 120 days overdue"), because a total without a consequence does not orient the reader.
+- **Placement:** put it directly under the title or directly under the figures band and omit it when there is nothing to report; it never describes the page or how to use it, because explanatory page subtitles remain banned.
 - **Owner direction:** preserve an explicit paired operations/finance brief at equal visual rank under its umbrella question, because the method must not demote half the owner's job.
 - **Dominant answer:** name the biggest block and largest figure that answer the question, because a row of equally loud tiles supplies no first glance.
 - **Next questions:** name every remaining block by the question it answers, because a block without a job spends space without helping a decision.

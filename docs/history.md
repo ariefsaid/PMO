@@ -28,7 +28,7 @@ Timeline (each program is merged to `main`; cited PRs + key migrations/decisions
 6. **ADR-0020 → ADR-0021 unified detail** (PRs #37/#38) — one canonical `/projects/:id` stage-adaptive
    detail page (full delivery layout at every lifecycle stage; pre-win gets the PipelineLens banner).
 7. **UX-naturalness program, Waves 1–6** (PRs #36–#65, 2026-06-08/10) — added two standing review lenses
-   (IxD task-flow + IA structure) to the 3-lens battery (`docs/design-workflow.md` §2.3). Wave 1 (Model B
+   (IxD task-flow + IA structure) to the 3-lens battery (`docs/archive/design-workflow-lens-battery.md` §2.3). Wave 1 (Model B
    + write policy + honest dashboard), Wave 2 (RBAC view-gating), Wave 3 (correctness/integrity/authz;
    migration 0018, OD-PROC-8), Wave 5 (detail/dashboard IxD; migrations 0019/0020), Wave 4 (mobile —
    DataTable table↔cards single-render), Wave 6 (a11y + DS-hygiene subset; H2/H4 normalization deferred),
@@ -663,7 +663,7 @@ pgTAP/e2e — `docs/environments.md` local-stack hygiene).**
 > Authoritative self-contained handoff: **this block + `docs/qa-portfolio.md` (QA model) + `docs/adr/0032-scurve-actual-series.md`**. Everything below the "⟨SHIPPED & SUPERSEDED⟩" header is HISTORY.
 
 **Shipped to `main` this session (all gated PRs, `verify`+`integration` green except docs-only=admin):**
-- **#122 ADR-0030 — QA portfolio** (`docs/adr/0030-…`, `docs/qa-portfolio.md`): the review model is now **Discover → Graduate → Cover** (open-ended Discover finds unknown-unknowns → every finding *graduates* into a test + a `routes×oracles` matrix cell + a DESIGN/decision note → enumerated sweeps + deterministic L1 gate-tests *cover* it). A **`review mode` switch** (`portfolio` default | `4-lens` | `3-lens`) at the top of `qa-portfolio.md` makes it **reversible** — the legacy 4-lens battery + `design-reviewer` agent + `design-workflow.md` §1a/§2.3 are kept intact. **Vendoring policy "buy-the-engine/build-the-skin"** (headless-first, MIT/permissive, supply-chain hygiene; 3rd outcome = build-and-own referencing MIT source).
+- **#122 ADR-0030 — QA portfolio** (`docs/adr/0030-…`, `docs/qa-portfolio.md`): the review model is now **Discover → Graduate → Cover** (open-ended Discover finds unknown-unknowns → every finding *graduates* into a test + a `routes×oracles` matrix cell + a DESIGN/decision note → enumerated sweeps + deterministic L1 gate-tests *cover* it). A **`review mode` switch** (`portfolio` default | `4-lens` | `3-lens`) at the top of `qa-portfolio.md` makes it **reversible** — the legacy 4-lens battery + `design-reviewer` agent + `docs/archive/design-workflow-lens-battery.md` §1a/§2.3 are kept intact. **Vendoring policy "buy-the-engine/build-the-skin"** (headless-first, MIT/permissive, supply-chain hygiene; 3rd outcome = build-and-own referencing MIT source).
 - **#123 S-curve** time-axis fix (was categorical → today plotted far-right) — the *worked example*: graduated into a position test + a DESIGN.md "charts use a time axis" rule.
 - **#124** process docs synced to the portfolio loop (`director-playbook`/`design-workflow`/`product-expectations`/`CLAUDE.md`).
 - **#125 Gantt v2 (ADR-0031, BUILD-AND-OWN not vendored):** on-axis milestone diamonds + dependency connector lines (frappe-MIT blueprint) + MS-Project split table/timeline + day/week/month/quarter zoom + pixel-aware geometry/edge model + D1 mobile fallback (`useIsNarrow` 640px → List/Board notice). Vendor spike killed SVAR (GPLv3+R19-crash) & Frappe (no-a11y).

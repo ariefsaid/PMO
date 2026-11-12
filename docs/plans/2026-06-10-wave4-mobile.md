@@ -182,7 +182,7 @@ For each: the narrow-viewport (375px) layout, the states, and the tokens. "Alrea
 
 ## 5. PR breakdown (ordered by reach / risk)
 
-Big surface; split into 3 PRs, each independently shippable, each getting a **375px rendered design-review** before merge (the 3-lens battery, `docs/design-workflow.md` §2.3).
+Big surface; split into 3 PRs, each independently shippable, each getting a **375px rendered design-review** before merge (the 3-lens battery, `docs/archive/design-workflow-lens-battery.md` §2.3).
 
 ### PR-1 — DataTable→card reflow + touch-target sweep (HIGHEST REACH)
 - The `DataTable` dual-render (Option A): `<table>` `hidden md:block` + a `md:hidden` card list reusing `columns`/`rowKey`/`rowLabel`/`rowMenu`/`state`. (§1.2)

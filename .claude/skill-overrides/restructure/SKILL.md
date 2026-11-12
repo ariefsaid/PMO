@@ -130,6 +130,7 @@ Show the owner the before/after image, screenshot set and local URL with a short
 | Work | Executor |
 |---|---|
 | Whole-screen composition and rendered judgement | Design-grade model: Opus `ui-implementer` / `design-reviewer` |
+| Reference collection for a screen kind, before composition (open public product pages, save screenshots and index) | Cheap model; the composer chooses the direction |
 | Measured audits, class sweeps, test repair, copy and i18n | Cheapest model that can run the script and preserve its oracle |
 | Money, dates and permissions | Terra or above; use the applicable subsystem and review gates |
 
