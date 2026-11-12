@@ -233,7 +233,7 @@ const CostAttributionRuleForm: React.FC<Props> = ({ rule, projects, currency, on
                     <th scope="col" className="px-2 py-1.5 font-medium">{t('costAttribution:preview.month', 'Month')}</th>
                     <th scope="col" className="px-2 py-1.5 font-medium">{t('costAttribution:preview.project', 'Project')}</th>
                     <th scope="col" className="px-2 py-1.5 font-medium">{t('costAttribution:preview.category', 'Category')}</th>
-                    <th scope="col" className="px-2 py-1.5 text-right font-medium">{t('costAttribution:preview.amount', 'Amount')}</th>
+                    <th scope="col" className="px-2 py-1.5 text-right font-medium tabular tabular-nums">{t('costAttribution:preview.amount', 'Amount')}</th>
                   </tr>
                 </thead>
                 <tbody>

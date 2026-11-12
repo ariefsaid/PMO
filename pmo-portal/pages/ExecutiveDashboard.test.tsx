@@ -29,7 +29,7 @@ const budgetReviewState = vi.hoisted(() => ({ data: [] as unknown[], isPending: 
 const pipelineState = vi.hoisted(() => ({ data: { stages: [] as unknown[], projects: [] as unknown[] }, isPending: false, isError: false, refetch: vi.fn() }));
 const arAgingState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
 const financePositionState = vi.hoisted(() => ({
-  position: { receivablesAgeing: {} as Record<string, unknown>, payablesAgeing: {} as Record<string, unknown>, overdue: [] as unknown[] },
+  position: { receivablesAgeing: {} as Record<string, unknown>, receivablesNoDueDateCounts: {} as Record<string, number>, payablesAgeing: {} as Record<string, unknown>, overdue: [] as unknown[] },
   isPending: false, isError: false, retry: vi.fn(),
 }));
 const defaultToday = [
@@ -129,7 +129,7 @@ beforeEach(() => {
   budgetReviewState.data = [];
   pipelineState.data = { stages: [], projects: [] };
   arAgingState.data = [];
-  financePositionState.position = { receivablesAgeing: {}, payablesAgeing: {}, overdue: [] };
+  financePositionState.position = { receivablesAgeing: {}, receivablesNoDueDateCounts: {}, payablesAgeing: {}, overdue: [] };
   needsState.areaItems = [
     { id: 'at-risk', count: 2, label: 'projects at risk', href: '/projects?filter=at-risk', tone: 'warn' },
     { id: 'ready-to-bill', count: 1, label: 'work order still to invoice', href: '/projects', tone: 'neutral' },
@@ -533,7 +533,8 @@ describe('company home — finance (one question: what must I collect, pay and i
   it('L12: with no accounting ageing synced, the analysis shows the same PMO client and supplier ageing as the finance hub', async () => {
     financePositionState.position = {
       ...financePositionState.position,
-      receivablesAgeing: { USD: { notDue: 100_00, d1_30: 50_00, d31_60: 0, d61_90: 0, over90: 0 } },
+      receivablesAgeing: { USD: { notDue: 100_00, noDueDate: 25_00, d1_30: 50_00, d31_60: 0, d61_90: 0, over90: 0 } },
+      receivablesNoDueDateCounts: { USD: 1 },
       payablesAgeing: { USD: { d0_30: 70_00, d31_60: 0, d61_90: 0, over90: 0 } },
     };
     renderPage();
@@ -541,6 +542,8 @@ describe('company home — finance (one question: what must I collect, pay and i
     await openAnalysis();
     const clientAgeing = await screen.findByRole('region', { name: 'Client balances by age' });
     expect(within(clientAgeing).getByText('$100')).toBeInTheDocument();
+    expect(within(clientAgeing).getByTestId('ageing-bucket-USD-noDueDate')).toHaveTextContent('1 invoice');
+    expect(within(clientAgeing).getByTestId('ageing-bucket-USD-noDueDate')).toHaveTextContent('$25');
     expect(screen.getByRole('region', { name: 'Invoice age, by days' })).toBeInTheDocument();
   });
 });
@@ -715,13 +718,27 @@ describe('company home — Overview layout (the default: one page, charts carry 
 
   it('finance: client overdue beside waits, receivables by age, and an unknown balance counted, not drawn', () => {
     state.role = 'Finance';
-    financePositionState.position = { receivablesAgeing: { USD: { notDue: 100_000, d1_30: 50_000, d31_60: 0, d61_90: 0, over90: 25_000 } }, payablesAgeing: {}, overdue: [], receivablesUnknownCount: 2 } as never;
+    financePositionState.position = { receivablesAgeing: { USD: { notDue: 100_000, noDueDate: 25_000, d1_30: 50_000, d31_60: 0, d61_90: 0, over90: 25_000 } }, receivablesNoDueDateCounts: { USD: 1 }, payablesAgeing: {}, overdue: [], receivablesUnknownCount: 2 } as never;
     renderPage();
     for (const name of ['Waits on you', 'Client overdue', 'Ready to pay']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
     const rows = tableCells('Owed by clients, by age');
-    expect(rows).toHaveLength(5);
+    expect(rows).toHaveLength(6);
     expect(rows[0]).toContain('$1K');
-    expect(rows[4]).toContain('Over 90 days');
+    expect(rows[5]).toContain('Over 90 days');
+    expect(rows[1]).toContain('No due date');
+    expect(screen.getByText('1 invoice with no due date')).toBeInTheDocument();
     expect(screen.getByText('2 invoices with unknown balances are not drawn')).toBeInTheDocument();
+  });
+
+  it('F8: keeps a known zero balance without a due date counted on the home ageing card', () => {
+    state.role = 'Finance';
+    financePositionState.position = {
+      receivablesAgeing: { USD: { notDue: 0, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
+      receivablesNoDueDateCounts: { USD: 1 }, payablesAgeing: {}, overdue: [], receivablesUnknownCount: 0,
+    } as never;
+    renderPage();
+
+    expect(screen.getByTestId('chart-receivables-age')).toHaveTextContent('1 invoice with no due date');
+    expect(screen.getByRole('img', { name: /No due date: \$0/ })).toBeInTheDocument();
   });
 });

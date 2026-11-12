@@ -89,21 +89,21 @@ export function StatusBarChart<S extends string>({
       <thead>
         <tr>
           <th scope="col">{t('dashboard:executive.chartTableStatus', 'Status')}</th>
-          <th scope="col">{t('dashboard:executive.chartTableCount', 'Count')}</th>
+          <th scope="col" className="text-right tabular tabular-nums">{t('dashboard:executive.chartTableCount', 'Count')}</th>
         </tr>
       </thead>
       <tbody>
         {data.map((datum) => (
           <tr key={datum.status}>
             <th scope="row">{labelFor?.(datum.status) ?? datum.status}</th>
-            <td>{datum.count}</td>
+            <td className="text-right tabular tabular-nums">{datum.count}</td>
           </tr>
         ))}
       </tbody>
       <tfoot>
         <tr>
           <th scope="row">{t('dashboard:executive.chartTableTotal', 'Total')}</th>
-          <td>{total}</td>
+          <td className="text-right tabular tabular-nums">{total}</td>
         </tr>
       </tfoot>
     </table>

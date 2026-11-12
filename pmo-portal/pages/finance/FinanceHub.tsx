@@ -21,6 +21,7 @@ import { useFinanceHubFigures } from '@/src/hooks/useFinanceHubFigures';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { useProjects } from '@/src/hooks/useProjects';
 import { formatMonthYearShort } from '@/src/lib/format';
+import { groupUnknownOverdueReceivablesByAge } from '@/src/lib/finance/financePosition';
 import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
 
 const FinanceHub: React.FC = () => {
@@ -50,7 +51,7 @@ const FinanceHub: React.FC = () => {
 
   const home = orgCurrency ?? 'IDR';
   const receivableValues = Object.fromEntries(Object.entries(finance.position.receivablesAgeing).map(([currency, buckets]) => [
-    currency, buckets.notDue + buckets.d1_30 + buckets.d31_60 + buckets.d61_90 + buckets.over90,
+    currency, buckets.notDue + buckets.noDueDate + buckets.d1_30 + buckets.d31_60 + buckets.d61_90 + buckets.over90,
   ]));
   const pack = figures.data?.pack;
   const unbilled = Object.fromEntries((pack?.unbilled ?? []).map(({ currency, cents }) => [currency, cents]));
@@ -130,19 +131,21 @@ const FinanceHub: React.FC = () => {
       <CardPad>
         <FinanceAttention
         position={finance.position} scope="all" canAct={canAct} isPending={finance.isPending} isError={finance.isError}
-        onRetry={finance.retry} withLayout={(path) => path} orgCurrency={orgCurrency}
+        onRetry={finance.retry} withLayout={(path) => path} orgCurrency={orgCurrency} showOverdueUnknownCount={false}
         projects={new Map((projects.data ?? []).map((project) => [project.id, project]))}
       />
       </CardPad>
     </Card>
   );
+  const receivablesUnknownAgeing = groupUnknownOverdueReceivablesByAge(finance.position.overdue);
+  const receivablesUnknownWithoutAge = Math.max(0, finance.position.receivablesUnknownCount - receivablesUnknownAgeing.total);
   const ageings = (
     <Card role="region" aria-labelledby="finance-hub-ageings">
       <CardHead id="finance-hub-ageings">{t('financeHub:hub.ageing', 'Ageing')}</CardHead>
       <CardPad>
         {finance.isPending ? <ListState variant="loading" rows={2} /> : finance.isError ? (
         <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownTotal={finance.position.receivablesUnknownCount} /><AgeingStrip kind="payables" heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} /></div>}
+        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={finance.position.receivablesNoDueDateCounts} unknownTotal={receivablesUnknownWithoutAge} /><AgeingStrip kind="payables" heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} /></div>}
       </CardPad>
     </Card>
   );
