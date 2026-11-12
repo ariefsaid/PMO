@@ -32,8 +32,9 @@ export const ProjectHealthCard: React.FC<{
   pending: boolean;
   error: boolean;
   retry: () => void;
+  budgetLinkOnOverBudget?: boolean;
   className?: string;
-}> = ({ rows, delivery, pending, error, retry, className }) => {
+}> = ({ rows, delivery, pending, error, retry, budgetLinkOnOverBudget = false, className }) => {
   const { t } = useTranslation('dashboard');
   const { t: ts } = useTranslation('status');
   const money = (amount: number, currency: string) => formatTileMoney(amount, currency) ?? '';
@@ -59,6 +60,9 @@ export const ProjectHealthCard: React.FC<{
                     ].filter((fact): fact is { key: string; red: boolean; text: string } => fact !== null);
                     const deliveredPct = delivery?.[row.id] ?? null;
                     const bullet = bulletFor(row, deliveredPct);
+                    const href = budgetLinkOnOverBudget && overBudget(row)
+                      ? `/projects/${row.id}/budget`
+                      : `/projects/${row.id}`;
                     const currency = row.budget_currency ?? row.currency;
                     const delivered = deliveredPct === null ? '' : ` · ${t('home.deliveredPct', '{{percent}}% delivered', { percent: Math.round(deliveredPct) })}`;
                     const budgetWords = !bullet
@@ -69,7 +73,7 @@ export const ProjectHealthCard: React.FC<{
                     const name = projectDisplayName(row);
                     return (
                       <li key={row.id}>
-                        <Link to={`/projects/${row.id}`} title={name !== row.name ? row.name : undefined} className="grid gap-y-1 py-4 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                        <Link to={href} title={name !== row.name ? row.name : undefined} className="grid gap-y-1 py-4 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                           <span className="flex min-w-0 items-center justify-between gap-3">
                             <span className="min-w-0 truncate text-control font-medium">{name}</span>
                             <StatusPill wrap={false} className="shrink-0" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{statusLabel('project', row.status, ts)}</StatusPill>

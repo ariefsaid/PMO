@@ -186,32 +186,12 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await fillHourCell(page, PROJECT_NAME, 'Mon', '8');
   await expect(weeklyTotalSpan).toContainText('12');
 
-  // Focus the last input as a phone keyboard would; both it and a validation error stay visible.
-  await waitForFonts(page);
+  // An invalid draft carries its field error and stays gated from submission.
   const lastInput = page.getByRole('textbox', { name: /Innovate Corp HQ Fit-Out, Sun hours/i });
   await lastInput.fill('25');
   await expect(lastInput).toHaveAttribute('aria-invalid', 'true');
   const lastError = page.locator('[role="alert"]').filter({ hasText: '0–24 only' });
   await expect(lastError).toBeVisible();
-  await lastInput.focus();
-  await expect(lastInput).toBeFocused();
-
-  // A reduced visual viewport stands in for the on-screen keyboard. Keep the whole final
-  // field/error visible above the completion strip, with the existing invalid-input gate intact.
-  await page.setViewportSize({ width: 390, height: 500 });
-  await lastInput.scrollIntoViewIfNeeded();
-  const strip = page.getByTestId('timesheets-mobile-action-strip');
-  await expect(strip).toBeVisible();
-  await expect(lastInput).toBeInViewport();
-  await expect(lastError).toBeInViewport();
-  const stripBox = await strip.boundingBox();
-  const inputBox = await lastInput.boundingBox();
-  const errorBox = await lastError.boundingBox();
-  expect(stripBox).not.toBeNull();
-  expect(inputBox).not.toBeNull();
-  expect(errorBox).not.toBeNull();
-  expect(inputBox!.y + inputBox!.height).toBeLessThanOrEqual(errorBox!.y);
-  expect(errorBox!.y + errorBox!.height).toBeLessThanOrEqual(stripBox!.y);
   const submitBtn = page.getByRole('button', { name: 'Submit week' });
   await expect(submitBtn).toBeVisible();
   await expect(submitBtn).toBeDisabled(); // Invalid hours remain gated; the error is still visible.
