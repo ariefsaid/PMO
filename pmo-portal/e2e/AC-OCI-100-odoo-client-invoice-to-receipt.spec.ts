@@ -282,7 +282,8 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
       await expect(submitConfirmation).toBeHidden({ timeout: 60_000 });
       const { data } = await admin.from('sales_invoices').select('si_number,status,erp_docstatus,amount,erp_outstanding_amount,project_id')
         .eq('org_id', fixture.orgId).eq('id', invoice.id).single();
-      expect(data).toMatchObject({ status: 'Unpaid', erp_docstatus: 1, amount: 100000, erp_outstanding_amount: 100000, project_id: fixture.projectId });
+      // Odoo rows: 100,000 net + 11,000 VAT = 111,000 gross; withholding leaves 109,000 cash.
+      expect(data).toMatchObject({ status: 'Unpaid', erp_docstatus: 1, amount: 111000, erp_outstanding_amount: 111000, project_id: fixture.projectId });
       invoice.si_number = data?.si_number ?? null;
       const submittedRow = approverPage.getByRole('row').filter({ hasText: invoice.si_number ?? '' }).first();
       await expect(submittedRow).toContainText('Unpaid');
@@ -319,12 +320,14 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
       await approverPage.getByRole('button', { name: 'Receive Payment', exact: true }).click();
       await choose(approverPage, 'Customer', fixture.clientName);
       await choose(approverPage, 'Sales Invoice', invoices[index].si_number ?? '');
-      await approverPage.getByLabel('Amount settled').fill('100000');
+      // Odoo rows: 100,000 net + 11,000 VAT = 111,000 gross; withholding leaves 109,000 cash.
+      await approverPage.getByLabel('Amount settled').fill('111000');
       if (index === 1) {
         await approverPage.getByRole('button', { name: 'Tax withheld', exact: true }).click();
         await approverPage.getByLabel('Withheld tax amount').fill('2000');
         await approverPage.getByLabel('Withholding-slip number').fill(`${stamp}-SLIP`);
-        await approverPage.getByLabel('Cash received').fill('98000');
+        // Odoo rows: 100,000 net + 11,000 VAT = 111,000 gross; withholding leaves 109,000 cash.
+        await approverPage.getByLabel('Cash received').fill('109000');
       }
       await approverPage.getByRole('button', { name: 'Record payment', exact: true }).first().click();
       const receiptConfirmation = approverPage.getByRole('dialog', { name: 'Record this receipt in Odoo?' });
@@ -336,37 +339,47 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
 
     const { data: finalInvoices } = await admin.from('sales_invoices').select('id,si_number,project_id,amount,status,erp_docstatus,erp_outstanding_amount,efaktur_number,efaktur_date').eq('org_id', fixture.orgId).order('created_at');
     expect(finalInvoices).toHaveLength(2);
-    expect(finalInvoices?.[0]).toMatchObject({ id: invoices[0].id, project_id: fixture.projectId, amount: 100000, erp_docstatus: 1 });
+    // Odoo rows: 100,000 net + 11,000 VAT = 111,000 gross; withholding leaves 109,000 cash.
+    expect(finalInvoices?.[0]).toMatchObject({ id: invoices[0].id, project_id: fixture.projectId, amount: 111000, erp_docstatus: 1 });
     expect(['Unpaid', 'Paid']).toContain(finalInvoices?.[0]?.status);
-    expect(finalInvoices?.[0]?.erp_outstanding_amount).toBe(finalInvoices?.[0]?.status === 'Paid' ? 0 : 100000);
+    // Odoo rows: 100,000 net + 11,000 VAT = 111,000 gross; withholding leaves 109,000 cash.
+    expect(finalInvoices?.[0]?.erp_outstanding_amount).toBe(finalInvoices?.[0]?.status === 'Paid' ? 0 : 111000);
     expect(finalInvoices?.[0]?.efaktur_number).toMatch(/^010\.000-26\./);
     expect(finalInvoices?.[0]?.efaktur_date).toBe(new Date().toISOString().slice(0, 10));
-    expect(finalInvoices?.[1]).toMatchObject({ id: invoices[1].id, project_id: fixture.projectId, amount: 100000, erp_docstatus: 1 });
+    // Odoo rows: 100,000 net + 11,000 VAT = 111,000 gross; withholding leaves 109,000 cash.
+    expect(finalInvoices?.[1]).toMatchObject({ id: invoices[1].id, project_id: fixture.projectId, amount: 111000, erp_docstatus: 1 });
     expect(['Unpaid', 'Paid']).toContain(finalInvoices?.[1]?.status);
-    expect(finalInvoices?.[1]?.erp_outstanding_amount).toBe(finalInvoices?.[1]?.status === 'Paid' ? 0 : 100000);
+    // Odoo rows: 100,000 net + 11,000 VAT = 111,000 gross; withholding leaves 109,000 cash.
+    expect(finalInvoices?.[1]?.erp_outstanding_amount).toBe(finalInvoices?.[1]?.status === 'Paid' ? 0 : 111000);
 
     for (const invoice of finalInvoices ?? []) {
       await approverPage.goto(`/sales-invoices/${invoice.id}`);
       const collection = approverPage.getByRole('region', { name: 'Invoice collection details' });
       await expect(collection).toContainText(invoice.status === 'Paid' ? 'Paid' : 'Receipt sent, awaiting Odoo');
-      if (invoice.status !== 'Paid') await expect(collection).toContainText(/100[,.]000/);
+      // Odoo rows: 100,000 net + 11,000 VAT = 111,000 gross; withholding leaves 109,000 cash.
+      if (invoice.status !== 'Paid') await expect(collection).toContainText(/111[,.]000/);
     }
 
     const { data: receipts } = await admin.from('incoming_payments').select('id,amount,received_amount,withheld_amount,withholding_slip_number,status,sales_invoice_id').eq('org_id', fixture.orgId).order('created_at');
     expect(receipts).toHaveLength(2);
-    expect(receipts?.[0]).toMatchObject({ amount: 100000, received_amount: 100000, withheld_amount: 0, status: 'Paid', sales_invoice_id: invoices[0].id });
-    expect(receipts?.[1]).toMatchObject({ amount: 100000, received_amount: 98000, withheld_amount: 2000, withholding_slip_number: `${stamp}-SLIP`, status: 'Paid', sales_invoice_id: invoices[1].id });
+    // Odoo rows: 100,000 net + 11,000 VAT = 111,000 gross; withholding leaves 109,000 cash.
+    expect(receipts?.[0]).toMatchObject({ amount: 111000, received_amount: 111000, withheld_amount: 0, status: 'Paid', sales_invoice_id: invoices[0].id });
+    // Odoo rows: 100,000 net + 11,000 VAT = 111,000 gross; withholding leaves 109,000 cash.
+    expect(receipts?.[1]).toMatchObject({ amount: 111000, received_amount: 109000, withheld_amount: 2000, withholding_slip_number: `${stamp}-SLIP`, status: 'Paid', sales_invoice_id: invoices[1].id });
 
     await approverPage.goto('/incoming-payments');
     const plainReceiptRow = approverPage.getByRole('row').filter({ hasText: invoices[0].si_number ?? '' }).first();
     await expect(plainReceiptRow).toContainText('Paid');
-    await expect(plainReceiptRow).toContainText(/100[,.]000/);
+    // Odoo rows: 100,000 net + 11,000 VAT = 111,000 gross; withholding leaves 109,000 cash.
+    await expect(plainReceiptRow).toContainText(/111[,.]000/);
     const withheldReceiptRow = approverPage.getByRole('row').filter({ hasText: invoices[1].si_number ?? '' }).first();
     await expect(withheldReceiptRow).toContainText('Paid');
-    await expect(withheldReceiptRow).toContainText(/100[,.]000/);
+    // Odoo rows: 100,000 net + 11,000 VAT = 111,000 gross; withholding leaves 109,000 cash.
+    await expect(withheldReceiptRow).toContainText(/111[,.]000/);
     await withheldReceiptRow.click();
     const paymentDrawer = approverPage.getByRole('dialog');
-    await expect(paymentDrawer).toContainText(/98[,.]000/);
+    // Odoo rows: 100,000 net + 11,000 VAT = 111,000 gross; withholding leaves 109,000 cash.
+    await expect(paymentDrawer).toContainText(/109[,.]000/);
     await expect(paymentDrawer).toContainText('Tax withheld');
     await expect(paymentDrawer).toContainText(/2[,.]000/);
     await expect(paymentDrawer).toContainText(`${stamp}-SLIP`);
