@@ -45,18 +45,36 @@ beforeEach(() => { roleState.role = 'Executive'; });
 describe('Rail navigation groups', () => {
   beforeEach(() => localStorage.removeItem('shell.navigation.collapsedGroups'));
 
-  it('shows the fixed ordered destinations and all groups expanded by default', () => {
+  it.each([
+    ['Executive', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/timesheets', '/expenses', '/imprest']],
+    ['Project Manager', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest', '/my-tasks']],
+    ['Finance', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/expenses', '/imprest', '/my-tasks']],
+    ['Engineer', ['/', '/projects', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/my-tasks']],
+    ['Admin', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/timesheets', '/expenses', '/imprest', '/my-tasks']],
+  ] as const)('%s keeps the pre-redesign destination set and restored order', (role, expectedHrefs) => {
+    roleState.role = role;
     renderRail();
-    for (const name of ['Dashboard', 'Approvals', 'Projects', 'Procurement', 'Finance', 'Receivables', 'Payables']) {
-      expect(screen.getByRole('link', { name })).toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: 'Primary navigation' });
+    const pinned = nav.querySelector('[data-rail-pinned-approvals]');
+    const scrollRegion = nav.querySelector('[data-rail-scroll-region]');
+    const hrefs = [...nav.querySelectorAll('a[href]')].map((link) => link.getAttribute('href'));
+
+    // Exact href membership is the pre-redesign destination-set baseline; sequence asserts the
+    // requested order while also proving the role and feature gates did not add or remove items.
+    expect(new Set(hrefs)).toEqual(new Set(expectedHrefs));
+    expect(hrefs).toEqual(expectedHrefs);
+    if (expectedHrefs.some((href) => href === '/approvals')) {
+      expect(pinned).not.toBeNull();
+      expect([...pinned!.querySelectorAll('a[href]')].map((link) => link.getAttribute('href'))).toEqual(['/approvals']);
+      expect(nav.firstElementChild).toBe(pinned);
+    } else {
+      expect(pinned).toBeNull();
     }
+    expect(scrollRegion).not.toBeNull();
     for (const group of ['My work', 'Delivery', 'Sales', 'Finance']) {
-      expect(screen.getByRole('button', { name: group })).toHaveAttribute('aria-expanded', 'true');
+      const heading = screen.queryByRole('button', { name: group });
+      if (heading) expect(heading).toHaveAttribute('aria-expanded', 'true');
     }
-    expect(screen.getByRole('link', { name: 'Contacts' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('button', { name: 'Delivery' })).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('opens the current group and scrolls its active item into view', () => {
