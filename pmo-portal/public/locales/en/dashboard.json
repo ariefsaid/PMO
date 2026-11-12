@@ -357,7 +357,9 @@
       "overNinety": "Over 90% of budget",
       "riskUncheckedCaption_one": "{{count}} without a checkable budget",
       "riskUncheckedCaption_other": "{{count}} without a checkable budget",
-      "tasksOverdueInProjects": "Tasks overdue in my projects"
+      "tasksOverdueInProjects": "Tasks overdue in my projects",
+      "marginUnknownProjects_one": "{{count}} project with incomplete spending or billing",
+      "marginUnknownProjects_other": "{{count}} projects with incomplete spending or billing"
     },
     "company": {
       "topAttentionProjects": "The 5 projects that most need attention",

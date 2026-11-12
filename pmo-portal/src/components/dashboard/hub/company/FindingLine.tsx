@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { useFigureReport, type FigureHelpEntry } from '@/src/components/ui/useFigureScope';
+import { useFigureReport, type FigureHelpEntry, type HiddenFigure } from '@/src/components/ui/useFigureScope';
 import type { OverdueInvoiceNeeds } from '@/src/components/dashboard/restructure/useNeedsYou';
 import { tileMoneyLines } from '@/src/components/dashboard/restructure/currencyOrder';
 import { formatTileMoney } from '@/src/lib/format';
@@ -67,6 +67,12 @@ export const UncheckedReport: React.FC<{ count: number }> = ({ count }) => {
     reason: t('home.uncheckedProjectsShort', { count, defaultValue_one: 'Budget check unavailable for {{count}} project', defaultValue_other: 'Budget check unavailable for {{count}} projects' }),
     link: { to: '/projects', label: t('dashboard:hub.company.openProjects', 'Open projects') },
   }] : []);
+  return null;
+};
+
+/** Figures left out of a total, counted in the page's "N figures hidden · Why" line. Renders nothing itself. */
+export const HiddenReport: React.FC<{ entries: HiddenFigure[] }> = ({ entries }) => {
+  useFigureReport(entries);
   return null;
 };
 

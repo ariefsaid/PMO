@@ -29,7 +29,7 @@ import { CardLink } from './hub/company/OverviewCards';
 import { moneyTileValue } from './dashMoney';
 import { DashboardWaitsOnYou, type ProjectRow, type WaitRow } from './DashParts';
 import { PlanVsActualChart } from './hub/company/PlanVsActualChart';
-import { FindingLine, PageHelp } from './hub/company/FindingLine';
+import { FindingLine, HiddenReport, PageHelp } from './hub/company/FindingLine';
 import { ProjectHealthCard, type HealthExtras } from './hub/company/ProjectHealthCard';
 import { formatTileMoney } from '@/src/lib/format';
 import type { AttentionProject } from '@/src/lib/db/dashboard';
@@ -175,12 +175,15 @@ export const PMDashboard: React.FC = () => {
   // Margin on billed work: unknown while any project's spending or billing is incomplete; otherwise the sum over the
   // projects with billed work (the company figure's rule), hidden when none has billed anything yet.
   const billedProjects = projects.filter((project) => projectBilledMargin(project) !== null);
-  const marginTile = projects.length === 0 || moneyReason('realized_margin') || billedProjects.length === 0 ? null : (() => {
+  // Like the company figure: the known subtotal, with the projects whose spending or billing is incomplete left out
+  // and counted in the hidden line.
+  const marginUnknown = projects.filter((project) => project.realized_margin == null || !Number.isFinite(project.realized_margin)).length;
+  const marginTile = billedProjects.length === 0 ? null : (() => {
     const totals = new Map<string, number>();
     for (const project of billedProjects) totals.set(project.currency, (totals.get(project.currency) ?? 0) + (projectBilledMargin(project) as number));
     return moneyTileValue([...totals].map(([currency, amount]) => ({ currency, amount })), orgCurrency);
   })();
-  const marginKnown = marginTile !== null || (projects.length > 0 && !moneyReason('realized_margin'));
+  const marginKnown = marginTile !== null && marginUnknown === 0;
   const atRisk = atRiskCount(projects);
   const spendingIncomplete = projects.length > 0 && (!marginKnown || contractLeftTile === null || projects.some((project) => projectSpendOfContractPct(project) === null));
 
@@ -302,6 +305,7 @@ export const PMDashboard: React.FC = () => {
     return (
       <FigureScope>
         <PageHelp entries={pageHelp} />
+        {marginTile && marginUnknown > 0 && <HiddenReport entries={[{ label: t('figures.billedMargin', 'Margin on billed work'), reason: t('hub.pm.marginUnknownProjects', { count: marginUnknown, defaultValue_one: '{{count}} project with incomplete spending or billing', defaultValue_other: '{{count}} projects with incomplete spending or billing' }) }]} />}
         <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
           {header}
           <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col">
@@ -340,10 +344,10 @@ export const PMDashboard: React.FC = () => {
                 testId="kpi-margin-to-date"
                 tone="blue"
                 icon="grid"
-                label={t('figures.billedMargin', 'Margin on billed work')}
+                label={marginUnknown > 0 ? t('dashboard:hub.company.knownMarginOnBilledWork', 'Known margin on billed work') : t('figures.billedMargin', 'Margin on billed work')}
                 value={marginTile?.value ?? null}
                 exactValue={marginTile?.exact}
-                unavailableReason={marginTile ? undefined : moneyReason('realized_margin') ? t('hub.pm.reasonMoneyIncomplete', 'a project has incomplete spending or contract data') : t('home.reasonNothingBilled', 'nothing is billed yet')}
+                unavailableReason={marginTile ? undefined : marginUnknown > 0 ? t('hub.pm.reasonMoneyIncomplete', 'a project has incomplete spending or contract data') : t('home.reasonNothingBilled', 'nothing is billed yet')}
                 loading={projectsPending}
                 to={projectsHref(userId)}
                 linkLabel={t('hub.pm.openMarginProjects', 'Open projects with billed-work margin')}

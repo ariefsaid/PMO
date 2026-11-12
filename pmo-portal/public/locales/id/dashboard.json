@@ -357,7 +357,9 @@
       "overNinety": "Di atas 90% anggaran",
       "riskUncheckedCaption_one": "{{count}} tanpa anggaran yang dapat diperiksa",
       "riskUncheckedCaption_other": "{{count}} tanpa anggaran yang dapat diperiksa",
-      "tasksOverdueInProjects": "Tugas terlambat di proyek saya"
+      "tasksOverdueInProjects": "Tugas terlambat di proyek saya",
+      "marginUnknownProjects_one": "{{count}} proyek dengan data belanja atau tagihan belum lengkap",
+      "marginUnknownProjects_other": "{{count}} proyek dengan data belanja atau tagihan belum lengkap"
     },
     "company": {
       "topAttentionProjects": "5 proyek yang paling perlu perhatian",
