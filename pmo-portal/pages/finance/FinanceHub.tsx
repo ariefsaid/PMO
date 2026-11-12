@@ -21,6 +21,7 @@ import { useFinanceHubFigures } from '@/src/hooks/useFinanceHubFigures';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { useProjects } from '@/src/hooks/useProjects';
 import { formatMonthYearShort } from '@/src/lib/format';
+import { ageingBucket, type AgeingBuckets } from '@/src/lib/finance/financePosition';
 import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
 
 const FinanceHub: React.FC = () => {
@@ -136,13 +137,23 @@ const FinanceHub: React.FC = () => {
       </CardPad>
     </Card>
   );
+  const receivablesUnknownAgeing: Record<string, Partial<Record<keyof AgeingBuckets, number>>> = {};
+  for (const row of finance.position.overdue) {
+    if (row.outstanding !== null) continue;
+    const currencyBuckets = receivablesUnknownAgeing[row.invoice.currency] ??= {};
+    const bucket = ageingBucket(row.daysOverdue, 'receivables');
+    currencyBuckets[bucket] = (currencyBuckets[bucket] ?? 0) + 1;
+  }
+  const receivablesUnknownByAge = Object.values(receivablesUnknownAgeing)
+    .reduce((sum, buckets) => sum + Object.values(buckets).reduce((currencySum, count) => currencySum + (count ?? 0), 0), 0);
+  const receivablesUnknownWithoutAge = Math.max(0, finance.position.receivablesUnknownCount - receivablesUnknownByAge);
   const ageings = (
     <Card role="region" aria-labelledby="finance-hub-ageings">
       <CardHead id="finance-hub-ageings">{t('financeHub:hub.ageing', 'Ageing')}</CardHead>
       <CardPad>
         {finance.isPending ? <ListState variant="loading" rows={2} /> : finance.isError ? (
         <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownTotal={finance.position.receivablesUnknownCount} /><AgeingStrip kind="payables" heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} /></div>}
+        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing} unknownTotal={receivablesUnknownWithoutAge} /><AgeingStrip kind="payables" heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} /></div>}
       </CardPad>
     </Card>
   );

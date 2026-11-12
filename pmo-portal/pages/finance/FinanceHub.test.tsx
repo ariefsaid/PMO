@@ -284,6 +284,29 @@ describe('Finance hub', () => {
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('+ 1 balance unknown');
   });
 
+  it('G1c/F7: places an unknown overdue receivable in its due-date bucket without inventing a value', () => {
+    const position = positionFixture();
+    position.receivablesCount = 2;
+    position.receivablesUnknownCount = 1;
+    position.receivablesAgeing = { IDR: { notDue: 40_000_000, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } };
+    position.overdueUnknownCount = 1;
+    position.overdue = [{
+      invoice: { ...position.overdue[0]!.invoice, id: 'unknown-overdue', erp_outstanding_amount: null } as never,
+      daysOverdue: 120,
+      outstanding: null,
+    }];
+    state.position = position;
+    state.role = 'Executive';
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    const receivables = screen.getByRole('region', { name: 'Receivables' });
+    expect(within(receivables).getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent('IDR 400,000');
+    const over90 = within(receivables).getByTestId('ageing-bucket-IDR-over90');
+    expect(over90).toHaveTextContent('1 balance unknown');
+    expect(over90).not.toHaveTextContent('IDR 0');
+    expect(within(receivables).queryByText(/no balance reported by the accounting system/i)).not.toBeInTheDocument();
+  });
+
   it('F6: each ageing chart uses its own currency total and zero buckets recede visually', () => {
     const position = positionFixture();
     position.receivablesAgeing = { IDR: { notDue: 100, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } };
