@@ -1,6 +1,6 @@
 {
-  "/@390@exec@acme.test": 186,
-  "/@1440@exec@acme.test": 187,
+  "/@390@exec@acme.test": 197,
+  "/@1440@exec@acme.test": 198,
   "/projects@390@exec@acme.test": 24,
   "/projects@1440@exec@acme.test": 25,
   "/projects@768@exec@acme.test": 25,
@@ -18,12 +18,12 @@
   "/timesheets@1440@exec@acme.test": 32,
   "/@390@pm@acme.test": 55,
   "/@1440@pm@acme.test": 60,
-  "/@390@finance@acme.test": 151,
-  "/@1440@finance@acme.test": 160,
+  "/@390@finance@acme.test": 219,
+  "/@1440@finance@acme.test": 229,
   "/@390@engineer@acme.test": 88,
   "/@1440@engineer@acme.test": 89,
-  "/@390@admin@acme.test": 186,
-  "/@1440@admin@acme.test": 187,
+  "/@390@admin@acme.test": 193,
+  "/@1440@admin@acme.test": 194,
   "/projects@390@pm@acme.test": 24,
   "/projects@1440@pm@acme.test": 25,
   "/projects/new@390@pm@acme.test": 17,
@@ -251,7 +251,8 @@
   "notes": {
     "/projects/41000000-0000-0000-0000-000000000002": "The old @1440 exec budget of 4 words came from a blank render, not a real baseline; the screen renders 116 words once loaded. Every budget here is measured chrome-only (record rows excluded).",
     "/finance": "Chart minimum 3 (exec): 4 was measured on test-leftover IDR rows; base and branch both draw 3 on the clean seed (2026-11-12).",
-    "/finance/reports": "Chart minimum 1 (exec): 2 was measured on test-leftover IDR rows (second-currency group); head draws 1 on the clean seed, dev draws 0 (chart sweep, 2026-11-12)."
+    "/finance/reports": "Chart minimum 1 (exec): 2 was measured on test-leftover IDR rows (second-currency group); head draws 1 on the clean seed, dev draws 0 (chart sweep, 2026-11-12).",
+    "/": "home: restored floor rows from feature-diff-home (Director ruling: only the owner drops). Exec, admin and finance raised to the measured counts (2026-11-12)."
   },
   "charts": {
     "/@390@exec@acme.test": 2,
