@@ -250,6 +250,33 @@ describe('Procurement list restructure', () => {
     await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent(`Requested by ${requesterName}`));
   });
 
+  it('filters the list when a stage chip is pressed and clears when pressed again', async () => {
+    roleState.role = 'Admin';
+    procState.data = [
+      row({ id: 'request-chip', title: 'Request purchase', status: 'Requested' }),
+      row({ id: 'order-chip', title: 'Order purchase', status: 'Ordered' }),
+      row({ id: 'invoice-chip', title: 'Invoice purchase', status: 'Vendor Invoiced', procurement_invoices: [{ amount: 500, erp_outstanding_amount: 250 }] }),
+    ];
+    renderPage('/procurement?tab=all');
+
+    const stageGroup = screen.getByRole('group', { name: 'Procurement stages' });
+    const orderStage = within(stageGroup).getByRole('button', { name: /Order/ });
+
+    await userEvent.click(orderStage);
+
+    expect(orderStage).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Open Order purchase' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Request purchase' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Invoice purchase' })).not.toBeInTheDocument();
+
+    await userEvent.click(orderStage);
+
+    expect(orderStage).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Open Order purchase' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Request purchase' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Invoice purchase' })).toBeInTheDocument();
+  });
+
   it('Project Managers see procurements only for projects they manage', () => {
     procState.data = [
       row({ id: 'managed', title: 'Managed project work' }),
