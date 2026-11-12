@@ -8,7 +8,7 @@ try {
   // The missing driver is the expected RED state while this test is introduced first.
 }
 
-const { parseScorecard, formatFindingCount, materializeRoute, markdownTable, detectorOutcome, walkFrameFindings } = api;
+const { parseScorecard, formatFindingCount, materializeRoute, markdownTable, detectorOutcome, walkFrameFindings, cellListSignature, checkExistingResults } = api;
 
 test('parses measured rows, expands role and denial rows, and excludes redirects', () => {
   assert.equal(typeof parseScorecard, 'function');
@@ -142,4 +142,36 @@ test('the scroll walk catches text covered in every frame it is seen in', () => 
   assert.deepEqual(walkFrameFindings(unread, 390, 844).map((finding) => finding.id), ['never-readable']);
   const readableLater = [0, 900].map((y, index) => ({ ...cleanFrame(y), seen: [['a caption that gets its turn', index === 0 ? 0 : 1]] }));
   assert.deepEqual(walkFrameFindings(readableLater, 390, 844), []);
+});
+
+// The results file is keyed on the measured CELL LIST, not on the scorecard bytes: the scorecard is a
+// working document (a Verdict column is rewritten while a run is in flight) and a reworded column must
+// not refuse a merge. A cell that appeared, disappeared or changed its key still refuses.
+const twoCellTable = `
+## Section 1 — base cells
+| # | route | kind | role | width | seeded id |
+|---|---|---|---|---|---|
+| 1 | \`/records\` | list | Admin | 1440 | n/a |
+| 2 | \`/records\` | list | Admin | 390 | n/a |
+`;
+
+test('a reworded scorecard column (Verdict added) still merges the existing results', () => {
+  assert.equal(typeof checkExistingResults, 'function');
+  const before = parseScorecard(twoCellTable);
+  const reworded = parseScorecard(twoCellTable.replace('| # | route | kind | role | width | seeded id |', '| # | route | kind | role | width | seeded id | verdict |').replace('|---|---|---|---|---|---|', '|---|---|---|---|---|---|---|').replace('| 1 | `/records` | list | Admin | 1440 | n/a |', '| 1 | `/records` | list | Admin | 1440 | n/a | REPAIR |').replace('| 2 | `/records` | list | Admin | 390 | n/a |', '| 2 | `/records` | list | Admin | 390 | n/a | not judged yet |'));
+  const existing = { cellsDigest: 'sha-of-the-old-file', cellCount: 2, results: [{ cellKey: '1@1440' }, { cellKey: '2@390' }] };
+  assert.equal(cellListSignature(before.cells), cellListSignature(reworded.cells));
+  assert.deepEqual(checkExistingResults(existing, reworded.cells).map((row) => row.cellKey), ['1@1440', '2@390']);
+});
+
+test('existing results holding a cell that is not in the scorecard are refused', () => {
+  assert.equal(typeof checkExistingResults, 'function');
+  const cells = parseScorecard(twoCellTable).cells;
+  assert.throws(() => checkExistingResults({ cellCount: 2, results: [{ cellKey: '9@1440' }] }, cells), /not in this scorecard/);
+});
+
+test('existing results for a different cell count are refused', () => {
+  assert.equal(typeof checkExistingResults, 'function');
+  const cells = parseScorecard(twoCellTable).cells;
+  assert.throws(() => checkExistingResults({ cellCount: 3, results: [] }, cells), /holds results for 3 cells/);
 });

@@ -30,11 +30,14 @@ class MissingSeedError extends Error {
   }
 }
 
-const usage = `usage: node scripts/measure-screens.mjs --cells <private-scorecard.md> [--out <private-results-dir>] [--base <52xx-url>] [--from <1-based-cell>] [--limit 1..10] [--impeccable <script>]
+const usage = `usage: node scripts/measure-screens.mjs --cells <private-scorecard.md> [--out <private-results-dir>] [--base <52xx-url>] [--from <1-based-cell>] [--limit 1..10] [--impeccable <script>] [--merge-only]
        node scripts/measure-screens.mjs --self-test [--impeccable <script>]
 
 Each invocation is one browser batch of at most 10 cells. Re-run with the next --from value after the lock pair releases.
-The loaded page runs ux-proof metrics, taste app checks, and stageshow layout-core in-page; impeccable detect attaches to that same page over CDP.`;
+The loaded page runs ux-proof metrics, taste app checks (including taste's per-screen scroll walk), and stageshow
+layout-core in-page; impeccable detect attaches to that same page over CDP.
+--merge-only rebuilds the summary rows from the findings and captures already on disk, without a browser (use it
+after a merge refused on a scorecard edit; the guard keys on the measured cell list, not the file bytes).`;
 
 function cleanCell(value) {
   return String(value ?? '').replace(/\*\*/g, '').replace(/`/g, '').trim();
@@ -255,7 +258,6 @@ export function materializeRoute(routeText, seededId = '') {
     let value;
     if (param === 'tab') value = tab ?? 'overview';
     else if (param === 'kind') value = firstKind(seededId);
-    else if (param === 'section') value = 'unknown';
     else value = seedToken;
     if (!value && /not[ -]?found/i.test(seededId)) value = NOT_FOUND_ID;
     if (!value) throw new MissingSeedError(routeTemplate(routeText), param);
@@ -383,11 +385,12 @@ function resolveDetector(explicitPath) {
 }
 
 function parseArgs(argv) {
-  const options = { cells: null, out: DEFAULT_RESULTS, base: DEFAULT_BASE, from: 1, limit: 10, impeccable: null, selfTest: false, help: false };
+  const options = { cells: null, out: DEFAULT_RESULTS, base: DEFAULT_BASE, from: 1, limit: 10, impeccable: null, selfTest: false, mergeOnly: false, help: false };
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (arg === '--help' || arg === '-h') { options.help = true; continue; }
     if (arg === '--self-test') { options.selfTest = true; continue; }
+    if (arg === '--merge-only') { options.mergeOnly = true; continue; }
     if (!['--cells', '--out', '--base', '--from', '--limit', '--impeccable'].includes(arg) || !argv[index + 1] || argv[index + 1].startsWith('--')) {
       throw new Error(`unexpected argument ${arg}; use --help`);
     }
@@ -810,7 +813,8 @@ export function markdownTable(results, metadata) {
   const lines = [
     '# Screen measurements',
     '',
-    `Scorecard SHA-256: \`${metadata.cellsDigest}\``,
+    `Cell-list signature: \`${metadata.cellsDigest}\``,
+    ...(metadata.scorecardDigest ? [`Scorecard file SHA-256: \`${metadata.scorecardDigest}\``] : []),
     `Cells in scorecard: ${metadata.cellCount}; redirect rows excluded: ${metadata.excludedRedirects}.`,
     '',
     '| Cell | Route | Role | Width | Status | ms | ux-proof | taste | stageshow | impeccable | findings file | capture | Reason |',
@@ -835,11 +839,30 @@ function atomicWrite(file, contents) {
   renameSync(temporary, file);
 }
 
-function readExistingResults(resultsPath, digest) {
+// The guard exists so two different scorecards cannot be mixed in one results file. It keys on the
+// measured CELL LIST (keys and count), not the file bytes: the scorecard is a working document whose
+// Verdict column is rewritten while a run is in flight, and a reworded column must not refuse a merge.
+// A cell that appeared, disappeared or changed its key still refuses.
+export function cellListSignature(cells) {
+  return createHash('sha256').update(cells.map((cell) => [cell.section, cell.scorecardId, cell.width, cell.role, cell.route ?? ''].join('|')).join('\n')).digest('hex');
+}
+
+export function checkExistingResults(existing, cells) {
+  const rows = Array.isArray(existing?.results) ? existing.results : [];
+  const known = new Set(cells.map((cell) => stableKey(cell)));
+  const foreign = rows.filter((row) => !known.has(row.cellKey));
+  if (foreign.length) {
+    throw new Error(`the output directory holds ${foreign.length} cell(s) that are not in this scorecard (${foreign.slice(0, 3).map((row) => row.cellKey).join(', ')}); choose a fresh private output directory`);
+  }
+  if (existing?.cellCount !== undefined && existing.cellCount !== cells.length) {
+    throw new Error(`the output directory holds results for ${existing.cellCount} cells; this scorecard has ${cells.length}; choose a fresh private output directory`);
+  }
+  return rows;
+}
+
+function readExistingResults(resultsPath, cells) {
   if (!existsSync(resultsPath)) return [];
-  const existing = JSON.parse(readFileSync(resultsPath, 'utf8'));
-  if (existing.cellsDigest !== digest) throw new Error('the output directory contains results for a different scorecard; choose a fresh private output directory');
-  return Array.isArray(existing.results) ? existing.results : [];
+  return checkExistingResults(JSON.parse(readFileSync(resultsPath, 'utf8')), cells);
 }
 
 function makeSummaryRow(result) {
@@ -866,11 +889,44 @@ function makeSummaryRow(result) {
   };
 }
 
-function makeUnmeasuredSeedRow(cell, route, role, outputDir) {
+function summaryFromStoredReport(cell, role, outputDir) {
+  const slug = safeName(`${cell.scorecardId}-${cell.width}`);
+  const findingsRelative = path.join('findings', `${slug}.json`);
+  const captureRelative = path.join('captures', `${slug}.png`);
+  if (!existsSync(path.join(outputDir, findingsRelative)) || !existsSync(path.join(outputDir, captureRelative))) return null;
+  let stored;
+  try { stored = JSON.parse(readFileSync(path.join(outputDir, findingsRelative), 'utf8')); } catch { return null; }
+  if (stored.status === 'NOT MEASURED') return null;
+  const tools = stored.tools ?? {};
+  const complete = ['uxProof', 'taste', 'stageshow'].some((name) => tools[name]?.status === 'complete');
+  const status = stored.status && stored.status !== 'measured' ? stored.status : stored.error ? 'incomplete-load' : complete ? 'measured' : 'incomplete';
+  return {
+    cellKey: stableKey(cell),
+    scorecardId: cell.scorecardId,
+    section: cell.section,
+    route: stored.route,
+    role: stored.role ?? role,
+    width: cell.width,
+    landedOn: stored.landedOn ?? null,
+    status,
+    reason: stored.error ?? null,
+    recordKindNeeded: null,
+    durationMs: typeof stored.durationMs === 'number' ? stored.durationMs : null,
+    counts: {
+      uxProof: formatFindingCount(tools.uxProof),
+      taste: formatFindingCount(tools.taste),
+      stageshow: formatFindingCount(tools.stageshow),
+      impeccable: formatFindingCount(tools.impeccable),
+    },
+    findingsFile: findingsRelative,
+    captureFile: captureRelative,
+  };
+}
+
+function makeUnmeasuredSeedRow(cell, route, role, outputDir, reason = 'no seed record for this route') {
   const slug = safeName(`${cell.scorecardId}-${cell.width}`);
   const findingsRelative = path.join('findings', `${slug}.json`);
   const findingsPath = path.join(outputDir, findingsRelative);
-  const reason = 'no seed record for this route';
   const recordKind = recordKindNeeded(cell, route);
   const unknown = unknownResult(new Error(reason));
   const tools = { uxProof: unknown, taste: unknown, stageshow: unknown, impeccable: unknown };
@@ -972,7 +1028,7 @@ async function runDetectorAndChecks(browser, cell, route, role, statePath, budge
   } finally {
     if (context) await context.close().catch(() => {});
   }
-  atomicWrite(findingsPath, `${JSON.stringify({ cell: result.cell, route: result.route, role, tools: result.tools, pageErrors: result.pageErrors ?? [], error: result.error ?? null }, null, 2)}\n`);
+  atomicWrite(findingsPath, `${JSON.stringify({ cell: result.cell, route: result.route, role, landedOn: result.landedOn ?? null, status: result.status, durationMs: result.durationMs ?? null, tools: result.tools, pageErrors: result.pageErrors ?? [], error: result.error ?? null }, null, 2)}\n`);
   return result;
 }
 
@@ -981,8 +1037,9 @@ async function runCells(options) {
   const cellFile = path.resolve(options.cells);
   if (!existsSync(cellFile)) throw new Error(`no scorecard at ${cellFile}`);
   const scorecard = readFileSync(cellFile, 'utf8');
-  const cellsDigest = createHash('sha256').update(scorecard).digest('hex');
+  const scorecardDigest = createHash('sha256').update(scorecard).digest('hex');
   const parsed = parseScorecard(scorecard);
+  const cellsDigest = cellListSignature(parsed.cells);
   const startIndex = options.from - 1;
   const selected = parsed.cells.slice(startIndex, startIndex + options.limit);
   if (!selected.length) throw new Error(`no cells at --from ${options.from}; scorecard has ${parsed.cells.length} measurable cells`);
@@ -994,20 +1051,38 @@ async function runCells(options) {
     try { return { cell, route: resolveCellPath(cell, parsed.cells, appSource), role, status: 'ready' }; }
     catch (error) {
       if (error.code !== 'NO_SEED_RECORD') throw error;
+      const section = error.parameter === 'section';
       return {
         cell,
         route: error.route ?? routeTemplate(cell.route),
         role,
         status: 'NOT MEASURED',
-        reason: 'no seed record for this route',
+        reason: section
+          ? 'no section is named in the route; the app redirects to its default section (users), which has its own cell'
+          : 'no seed record for this route',
         recordKindNeeded: recordKindNeeded(cell, error.route ?? cell.route),
       };
     }
   });
   const selectedPlans = plans.slice(startIndex, startIndex + options.limit);
   const resolved = selectedPlans.filter((item) => item.status === 'ready');
-  const seedRows = plans.filter((item) => item.status === 'NOT MEASURED').map((item) => makeUnmeasuredSeedRow(item.cell, item.route, item.role, options.out));
+  const seedRows = plans.filter((item) => item.status === 'NOT MEASURED').map((item) => makeUnmeasuredSeedRow(item.cell, item.route, item.role, options.out, item.reason));
   const started = Date.now();
+
+  // --merge-only: rebuild the summary rows from the findings and captures already on disk (a merge
+  // refused by an earlier guard must not cost another browser pass).
+  if (options.mergeOnly) {
+    const stored = [];
+    for (const item of plans) {
+      if (item.status !== 'ready') continue;
+      const row = summaryFromStoredReport(item.cell, item.role, options.out);
+      if (row) stored.push(row);
+    }
+    writeResults({ resultsPath: path.join(options.out, 'results.json'), out: options.out, parsed, allResults: readExistingResults(path.join(options.out, 'results.json'), parsed.cells), seedRows, currentResults: [], stored, metadata: { cellsDigest, scorecardDigest, cellFile, cellCount: parsed.cells.length, excludedRedirects: parsed.excludedRedirects, at: new Date().toISOString(), batch: { from: options.from, limit: options.limit, elapsedMs: Date.now() - started, mergeOnly: true } } });
+    console.log(`merge-only: ${stored.length} stored cell summaries rebuilt from findings and captures`);
+    return;
+  }
+
   const authSource = readFileSync(AUTH_SETUP, 'utf8');
   const states = new Map();
   for (const item of resolved) {
@@ -1037,14 +1112,28 @@ async function runCells(options) {
   }
 
   const resultsPath = path.join(options.out, 'results.json');
-  const allResults = readExistingResults(resultsPath, cellsDigest);
+  const allResults = readExistingResults(resultsPath, parsed.cells);
+  writeResults({
+    resultsPath,
+    out: options.out,
+    parsed,
+    allResults,
+    seedRows,
+    currentResults,
+    stored: [],
+    metadata: { cellsDigest, scorecardDigest, cellFile, cellCount: parsed.cells.length, excludedRedirects: parsed.excludedRedirects, at: new Date().toISOString(), batch: { from: options.from, limit: options.limit, elapsedMs: Date.now() - started } },
+  });
+}
+
+function writeResults({ resultsPath, out, parsed, allResults, seedRows, currentResults, stored, metadata }) {
   const byKey = new Map(allResults.map((result) => [result.cellKey, result]));
-  for (const result of seedRows) byKey.set(result.cellKey, result);
+  for (const result of stored) byKey.set(result.cellKey, result);
   for (const result of currentResults) byKey.set(result.cellKey, makeSummaryRow(result));
+  // A cell that cannot be resolved wins over any older measured row left on disk.
+  for (const result of seedRows) byKey.set(result.cellKey, result);
   const merged = [...byKey.values()].sort((a, b) => parsed.cells.findIndex((cell) => stableKey(cell) === a.cellKey) - parsed.cells.findIndex((cell) => stableKey(cell) === b.cellKey));
-  const metadata = { cellsDigest, cellFile, cellCount: parsed.cells.length, excludedRedirects: parsed.excludedRedirects, at: new Date().toISOString(), batch: { from: options.from, limit: options.limit, elapsedMs: Date.now() - started } };
   atomicWrite(resultsPath, `${JSON.stringify({ ...metadata, results: merged }, null, 2)}\n`);
-  atomicWrite(path.join(options.out, 'results.md'), markdownTable(merged, metadata));
+  atomicWrite(path.join(out, 'results.md'), markdownTable(merged, metadata));
 
   const firstTen = merged.filter((result) => result.status !== 'NOT MEASURED' && Number.isFinite(result.durationMs) && parsed.cells.findIndex((cell) => stableKey(cell) === result.cellKey) < 10).sort((a, b) => parsed.cells.findIndex((cell) => stableKey(cell) === a.cellKey) - parsed.cells.findIndex((cell) => stableKey(cell) === b.cellKey));
   if (firstTen.length) console.log(`first ${firstTen.length} measured scorecard cell time ms: ${firstTen.map((result) => `${result.cellKey}=${result.durationMs}`).join(', ')}`);
@@ -1054,7 +1143,7 @@ async function runCells(options) {
     for (const result of allSeedRows) console.log(`${result.route} | ${result.role} | ${result.width} | ${result.recordKindNeeded}`);
   }
   console.log(`results: ${resultsPath}`);
-  console.log(`captures: ${path.join(options.out, 'captures')}`);
+  console.log(`captures: ${path.join(out, 'captures')}`);
   console.log(`elapsed batch ms: ${metadata.batch.elapsedMs}`);
 }
 
