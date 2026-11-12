@@ -148,7 +148,9 @@
     "balancesNotSynced_one": "{{count}} saldo tidak tersinkron",
     "balancesNotSynced_other": "{{count}} saldo tidak tersinkron",
     "amountsMissing_one": "{{count}} jumlah belum ada",
-    "amountsMissing_other": "{{count}} jumlah belum ada"
+    "amountsMissing_other": "{{count}} jumlah belum ada",
+    "yourTasksOverdue": "tugas Anda terlambat",
+    "yourTasksDueToday": "tugas Anda jatuh tempo hari ini"
   },
   "figures": {
     "stillToInvoice": "Perintah kerja belum ditagihkan",
@@ -281,7 +283,8 @@
       "logHoursShort": "Catat jam",
       "daysLate_one": "terlambat {{count}} hari",
       "daysLate_other": "terlambat {{count}} hari",
-      "noHoursByProject": "Belum ada jam untuk ditampilkan per proyek minggu ini."
+      "noHoursByProject": "Belum ada jam untuk ditampilkan per proyek minggu ini.",
+      "tasksOverdueOrDue": "Terlambat atau jatuh tempo minggu ini"
     },
     "pm": {
       "title": "Dasbor saya",
@@ -293,6 +296,7 @@
       "openMyProjects": "Buka proyek saya",
       "myProjectsHelp": "Proyek pelaksanaan yang ditugaskan kepada Anda sebagai manajer proyek.",
       "myContractValue": "Nilai kontrak saya",
+      "leftAfterSpending": "Sisa setelah pengeluaran",
       "contractLeft": "{{value}} tersisa setelah pengeluaran",
       "contractLeftUnavailable": "Sisa kontrak belum tersedia karena pengeluaran proyek belum lengkap.",
       "contractUnavailable": "Nilai kontrak satu atau beberapa proyek tidak tersedia.",
@@ -349,7 +353,15 @@
       "procurementApprovalHelp": "Buka pengadaan ini untuk meninjau permintaan persetujuannya.",
       "atRiskAtLeast": "Setidaknya {{count}}",
       "riskPartial": "Pada 90% atau lebih dari anggaran; proyek lain memiliki data anggaran atau pengeluaran yang belum lengkap",
-      "spendingIncompleteNote": "Sebagian proyek memiliki pengeluaran yang belum lengkap, sehingga margin, sisa kontrak, dan kontrak terpakai hanya ditampilkan jika diketahui."
+      "spendingIncompleteNote": "Sebagian proyek memiliki pengeluaran yang belum lengkap, sehingga margin, sisa kontrak, dan kontrak terpakai hanya ditampilkan jika diketahui.",
+      "reasonMoneyIncomplete": "ada proyek dengan data belanja atau kontrak yang belum lengkap",
+      "overNinety": "Di atas 90% anggaran",
+      "riskUncheckedCaption_one": "{{count}} tanpa anggaran yang dapat diperiksa",
+      "riskUncheckedCaption_other": "{{count}} tanpa anggaran yang dapat diperiksa",
+      "tasksOverdueInProjects": "Tugas terlambat di proyek saya",
+      "marginUnknownProjects_one": "{{count}} proyek dengan data belanja atau tagihan belum lengkap",
+      "marginUnknownProjects_other": "{{count}} proyek dengan data belanja atau tagihan belum lengkap",
+      "overBudgetFlag": "Melebihi anggaran"
     },
     "company": {
       "topAttentionProjects": "5 proyek yang paling perlu perhatian",
@@ -695,6 +707,9 @@
     "label": "Tentang {{subject}}"
   },
   "home": {
+    "budgetAtNinety": "Anggaran 90% atau lebih",
+    "approvePurchase": "Setujui {{name}}",
+    "marginShort": "Margin hingga kini {{amount}}",
     "findingAllOnTrack": "Semua {{count}} proyek aktif sesuai rencana",
     "contractSharePct": "{{percent}}% dari kontrak",
     "pipelineGross": "Bruto {{amount}}",
@@ -907,6 +922,9 @@
     "retry": "Coba lagi",
     "findingNoneCheckedOffTrack": "Tidak ada proyek terperiksa yang melenceng",
     "moreProcurements_one": "pengadaan lain menunggu persetujuan",
-    "moreProcurements_other": "pengadaan lain menunggu persetujuan"
+    "moreProcurements_other": "pengadaan lain menunggu persetujuan",
+    "marginBilledShort": "Margin pekerjaan yang ditagih {{amount}}",
+    "nothingBilledYet": "Belum ada yang ditagih",
+    "reasonNothingBilled": "belum ada yang ditagih"
   }
 }

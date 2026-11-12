@@ -27,8 +27,8 @@ const CardLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, chi
 );
 
 /**
- * This week's timesheet: its state, the hours so far, the week as one strip (Mon–Sun) and the ONE filled action
- * ("Log time", or "Submit week" once there are hours to submit).
+ * This week's timesheet: the week as one strip (Mon–Sun) and the ONE filled action ("Log time", or "Submit week" once
+ * there are hours to submit). The hours and the status are figures in the page's "Your week" band.
  */
 export function EngineerTimesheetCard({
   loading,
@@ -37,30 +37,35 @@ export function EngineerTimesheetCard({
   status,
   days,
   hours,
+  clear = false,
   chart = false,
+  children,
 }: PanelState & {
   /** The stored timesheet status of this week; null when no sheet exists yet. */
   status: string | null;
   days: Array<{ date: string; label: string; hours: number }>;
   hours: number;
+  /** The needs read found no timesheet waiting on this person. */
+  clear?: boolean;
   /** Overview: the week as a column chart instead of the strip. */
   chart?: boolean;
+  /** The week's hours by project, under the week. */
+  children?: React.ReactNode;
 }) {
   const { t } = useTranslation('dashboard');
   const open = status === 'Submitted' || status === 'Approved';
   const action = open ? null : hours > 0 ? t('home.eng.submitWeek', 'Submit week') : t('home.eng.logTime', 'Log time');
   return (
     <Card data-testid="engineer-timesheet">
-      <CardHead level={2} actions={status ? <StatusPill record="timesheet" state={status} /> : undefined}>{t('home.eng.thisWeek', 'This week’s timesheet')}</CardHead>
+      <CardHead level={2}>{t('home.eng.thisWeek', 'This week’s timesheet')}</CardHead>
       <CardPad className="grid gap-4">
         {loading ? <ListState variant="loading" rows={3} />
           : error ? <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} />
             : (
               <>
-                <div className="text-[23px] font-bold leading-none tabular">{formatNumberExact(hours)} {t('hub.engineer.hourUnit', 'h')}</div>
                 {status === 'Rejected' && <p className="text-control text-destructive-text">{t('home.eng.returnedLine', 'Sent back for correction.')}</p>}
                 {chart
-                  ? <MonthColumns labelAll height={150} ariaLabel={t('home.eng.weekStrip', 'Hours by day this week')} points={days.map((day) => ({ key: day.date, tick: day.label, a: day.hours, labelA: day.hours > 0 ? formatNumberExact(day.hours) : undefined }))} />
+                  ? <MonthColumns labelAll height={110} ariaLabel={t('home.eng.weekStrip', 'Hours by day this week')} points={days.map((day) => ({ key: day.date, tick: day.label, a: day.hours, labelA: day.hours > 0 ? formatNumberExact(day.hours) : undefined }))} />
                   : (
                   <ol aria-label={t('home.eng.weekStrip', 'Hours by day this week')} className="grid grid-cols-7 gap-1 text-center text-control">
                     {days.map((day) => (
@@ -71,8 +76,10 @@ export function EngineerTimesheetCard({
                     ))}
                   </ol>
                   )}
+                {clear && <p className="text-control text-muted-foreground">{t('hub.engineer.noTimeAttention', 'No timesheet needs your attention.')}</p>}
               </>
             )}
+        {children}
         {/* The way into the timesheet stays whatever state the data is in. */}
         {action
           ? <Link to="/timesheets" className={buttonClasses('primary', 'default', 'w-full sm:w-fit pointer-coarse:min-h-11')}>{action}</Link>
@@ -130,13 +137,13 @@ export function EngineerTasksCard({
   );
 }
 
-/** Returned to me: expense claims sent back. Drawn only when there are some. */
+/** Returned to me: expense claims sent back, and the way into Expenses whether or not there are any. */
 export function EngineerReturnedCard({ claims }: { claims: ExpenseClaimWithRefs[] }) {
   const { t } = useTranslation('dashboard');
-  if (claims.length === 0) return null;
   return (
     <Card data-testid="engineer-returned">
-      <CardHead level={2} actions={<CardLink to="/expenses?status=Rejected">{t('home.eng.allReturned', 'All returned')}</CardLink>}>{t('home.eng.returnedToMe', 'Returned to me')}</CardHead>
+      <CardHead level={2} actions={<CardLink to="/expenses">{t('hub.engineer.openExpenses', 'Open Expenses')}</CardLink>}>{t('home.eng.returnedToMe', 'Returned to me')}</CardHead>
+      {claims.length === 0 && <p className="px-[var(--panel-inset)] pb-4 text-control text-muted-foreground">{t('hub.engineer.noReturnedClaims', 'No expense claims have been returned to you.')}</p>}
       <ul className="divide-y divide-border px-[var(--panel-inset)] pb-2">
         {claims.slice(0, 5).map((claim) => (
           <li key={claim.id}>

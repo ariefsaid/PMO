@@ -148,7 +148,9 @@
     "balancesNotSynced_one": "{{count}} unsynced balance",
     "balancesNotSynced_other": "{{count}} unsynced balances",
     "amountsMissing_one": "{{count}} amount missing",
-    "amountsMissing_other": "{{count}} amounts missing"
+    "amountsMissing_other": "{{count}} amounts missing",
+    "yourTasksOverdue": "of your tasks overdue",
+    "yourTasksDueToday": "of your tasks due today"
   },
   "figures": {
     "stillToInvoice": "Still to invoice on work orders",
@@ -281,7 +283,8 @@
       "logHoursShort": "Log hours",
       "daysLate_one": "{{count}} day overdue",
       "daysLate_other": "{{count}} days overdue",
-      "noHoursByProject": "No hours to show by project this week."
+      "noHoursByProject": "No hours to show by project this week.",
+      "tasksOverdueOrDue": "Overdue or due this week"
     },
     "pm": {
       "title": "My dashboard",
@@ -293,6 +296,7 @@
       "openMyProjects": "Open my projects",
       "myProjectsHelp": "Delivery projects assigned to you as the project manager.",
       "myContractValue": "My contract value",
+      "leftAfterSpending": "Left after spending",
       "contractLeft": "{{value}} left after spending",
       "contractLeftUnavailable": "Contract remaining is unavailable until project spending is complete.",
       "contractUnavailable": "One or more project contract values are unavailable.",
@@ -349,7 +353,15 @@
       "procurementApprovalHelp": "Open this procurement to review its approval request.",
       "atRiskAtLeast": "At least {{count}}",
       "riskPartial": "At 90% or more of budget; other projects have incomplete budget or spending data",
-      "spendingIncompleteNote": "Some projects have incomplete spending, so margin, contract left and contract spent are shown only where they are known."
+      "spendingIncompleteNote": "Some projects have incomplete spending, so margin, contract left and contract spent are shown only where they are known.",
+      "reasonMoneyIncomplete": "a project has incomplete spending or contract data",
+      "overNinety": "Over 90% of budget",
+      "riskUncheckedCaption_one": "{{count}} without a checkable budget",
+      "riskUncheckedCaption_other": "{{count}} without a checkable budget",
+      "tasksOverdueInProjects": "Tasks overdue in my projects",
+      "marginUnknownProjects_one": "{{count}} project with incomplete spending or billing",
+      "marginUnknownProjects_other": "{{count}} projects with incomplete spending or billing",
+      "overBudgetFlag": "Over budget"
     },
     "company": {
       "topAttentionProjects": "The 5 projects that most need attention",
@@ -695,6 +707,9 @@
     "label": "About {{subject}}"
   },
   "home": {
+    "budgetAtNinety": "Budget at 90% or more",
+    "approvePurchase": "Approve {{name}}",
+    "marginShort": "Margin to date {{amount}}",
     "findingAllOnTrack": "All {{count}} active projects on track",
     "contractSharePct": "{{percent}}% of contract",
     "pipelineGross": "Gross {{amount}}",
@@ -907,6 +922,9 @@
     "retry": "Retry",
     "findingNoneCheckedOffTrack": "No checked project is off track",
     "moreProcurements_one": "more procurement awaiting approval",
-    "moreProcurements_other": "more procurements awaiting approval"
+    "moreProcurements_other": "more procurements awaiting approval",
+    "marginBilledShort": "Margin on billed work {{amount}}",
+    "nothingBilledYet": "Nothing billed yet",
+    "reasonNothingBilled": "nothing is billed yet"
   }
 }

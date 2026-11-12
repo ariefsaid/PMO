@@ -48,7 +48,7 @@ import { useSupplierUnpaid } from './financeData';
 import { InvoicedCollectedCard, LossReasonsCard, PurchasingCard, ReceivablesAgeCard, SalesOverviewCard } from './OverviewCards';
 import { ApprovalItems } from './ApprovalItems';
 import { FindingLine, PageHelp, PipelineCurrencyReport, UncheckedReport } from './FindingLine';
-import { ProjectHealthCard } from './ProjectHealthCard';
+import { ProjectHealthCard, type HealthExtras } from './ProjectHealthCard';
 import { tileMoneyLines } from '@/src/components/dashboard/restructure/currencyOrder';
 import { FinancesCard } from './FinancesCard';
 import { contractShare, healthOrder, isOffTrack, overBudget, overdueTaskCount } from './homeHealth';
@@ -126,7 +126,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   // A7: project rows and the plan chart are drawn from the dashboard read alone; the project list only names the link.
   const projectsPending = figures.dashboardPending;
   // Project manager per project, from the project list the page already reads (unknown stays out of the row).
-  const owners = React.useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, project.pm?.full_name ?? null])), [projects.data]);
+  const owners = React.useMemo(() => new Map((projects.data ?? []).flatMap((project): Array<[string, HealthExtras]> => (project.pm?.full_name ? [[project.id, { meta: project.pm.full_name }]] : []))), [projects.data]);
   const projectsError = figures.dashboardError;
   const unchecked = data?.risk_unchecked_projects ?? 0;
 
@@ -382,7 +382,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const healthCard = (
       <ProjectHealthCard className={cn(half, 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
         pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry}
-        owners={owners} projectCount={projects.isPending || projects.isError ? undefined : projects.data?.length} />
+        extras={owners} projectCount={projects.isPending || projects.isError ? undefined : projects.data?.length} />
     );
     const approvalsTotal = needs.approvals?.length ?? 0;
     // Each waiting thing appears once: a procurement already among the approvals gets no second row; only the ones
