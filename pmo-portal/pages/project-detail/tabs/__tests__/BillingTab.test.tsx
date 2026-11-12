@@ -292,7 +292,9 @@ describe('BillingTab', () => {
     expect(within(drawer).getByRole('link', { name: 'Progress report' }))
       .toHaveAttribute('href', '/projects/p1/documents?open=doc-1');
     expect(within(drawer).getByText('rev A')).toBeInTheDocument();
-    expect(within(drawer).getByText('Issued')).toBeInTheDocument();
+    const evidenceStatus = within(drawer).getByText('Issued');
+    expect(evidenceStatus).toBeInTheDocument();
+    expect(evidenceStatus).toHaveClass('whitespace-nowrap');
     // The stored row is machinery: a UUID and a status code are not words a person reads.
     expect(within(drawer).queryByText('doc-1')).toBeNull();
   });

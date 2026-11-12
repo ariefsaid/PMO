@@ -891,11 +891,11 @@ export const createAppRouter = (): DataRouter => createBrowserRouter([
   {
     element: <AnalyticsProvider><Outlet /></AnalyticsProvider>,
     children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/terms', element: <TermsPage /> },
-      { path: '/privacy', element: <PrivacyPage /> },
-      { path: '/reset-password', element: <ResetPasswordPage /> },
-      { path: '/update-password', element: <UpdatePasswordPage /> },
+      { path: '/login', element: <Suspense fallback={<LoadingFallback />}><LoginPage /></Suspense> },
+      { path: '/terms', element: <Suspense fallback={<LoadingFallback />}><TermsPage /></Suspense> },
+      { path: '/privacy', element: <Suspense fallback={<LoadingFallback />}><PrivacyPage /></Suspense> },
+      { path: '/reset-password', element: <Suspense fallback={<LoadingFallback />}><ResetPasswordPage /></Suspense> },
+      { path: '/update-password', element: <Suspense fallback={<LoadingFallback />}><UpdatePasswordPage /></Suspense> },
       {
         element: <RequireAuth />,
         children: [

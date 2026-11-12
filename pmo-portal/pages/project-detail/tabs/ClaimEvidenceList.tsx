@@ -51,7 +51,7 @@ export const ClaimEvidenceList: React.FC<ClaimEvidenceListProps> = ({
                 </span>
               )}
             </span>
-            <StatusPill variant={statusVariantOf('document', item.document_status)}>
+            <StatusPill variant={statusVariantOf('document', item.document_status)} wrap={false}>
               {statusLabel('document', item.document_status, t)}
             </StatusPill>
           </li>

@@ -167,6 +167,15 @@ describe('UpdatePasswordPage', () => {
     expect(screen.queryByLabelText(/new password/i)).toBeNull();
   });
 
+  it('an authenticated session still opens the form after Supabase consumes recovery URL params', async () => {
+    window.history.replaceState({}, '', '/update-password');
+    auth.getSession.mockResolvedValue({
+      data: { session: { user: { id: 'u1', user_metadata: {} } } },
+    });
+    renderPage();
+    await waitFor(() => expect(screen.getByLabelText(/new password/i)).toBeVisible());
+  });
+
   it('AC-AUTHF-015: params + no session (invalid/expired token) renders the expired state', async () => {
     window.history.replaceState({}, '', '/update-password?type=recovery&token=stale');
     auth.getSession.mockResolvedValueOnce({ data: { session: null } });
