@@ -293,6 +293,7 @@
       "openMyProjects": "Buka proyek saya",
       "myProjectsHelp": "Proyek pelaksanaan yang ditugaskan kepada Anda sebagai manajer proyek.",
       "myContractValue": "Nilai kontrak saya",
+      "leftAfterSpending": "Sisa setelah pengeluaran",
       "contractLeft": "{{value}} tersisa setelah pengeluaran",
       "contractLeftUnavailable": "Sisa kontrak belum tersedia karena pengeluaran proyek belum lengkap.",
       "contractUnavailable": "Nilai kontrak satu atau beberapa proyek tidak tersedia.",

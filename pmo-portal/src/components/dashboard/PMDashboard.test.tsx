@@ -431,11 +431,22 @@ describe('Project Manager home — the floor restored (overnight recompose)', ()
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=at-risk&pm=pm-1');
   });
 
-  it('Margin to date sums my projects per currency; contract value says what is left after spending', () => {
+  it('Margin to date sums my projects per currency; left after spending is its own figure', () => {
     renderDashboard();
     // 12,500 + 40,000 + 30,000 margin; 5,000 + 200,000 + 140,000 contract remaining.
     expect(screen.getByTestId('kpi-margin-to-date')).toHaveTextContent('$82.5K');
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$345K left after spending');
+    expect(screen.getByTestId('kpi-contract-left')).toHaveTextContent('Left after spending$345K');
+  });
+
+  it('contract left after spending in two currencies puts the second currency on its own line', () => {
+    state.projects.data = [
+      makeProject({ id: 'p1', name: 'Project One', status: 'Ongoing Project', contract_remaining: 5_000 }),
+      makeProject({ id: 'p2', name: 'Project Two', status: 'Ongoing Project', currency: 'IDR', budget_currency: 'IDR', actual_currency: 'IDR', contract_value: 2_000_000_000, contract_remaining: 1_000_000_000 }),
+    ];
+    renderDashboard();
+    const tile = screen.getByTestId('kpi-contract-left');
+    expect(tile).toHaveTextContent('$5K');
+    expect(within(tile).getByText('IDR 1B')).toHaveClass('block');
   });
 
   it('Waits on you carries projects over 90% of budget and projects whose budget cannot be checked', () => {

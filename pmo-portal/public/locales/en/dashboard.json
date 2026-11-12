@@ -293,6 +293,7 @@
       "openMyProjects": "Open my projects",
       "myProjectsHelp": "Delivery projects assigned to you as the project manager.",
       "myContractValue": "My contract value",
+      "leftAfterSpending": "Left after spending",
       "contractLeft": "{{value}} left after spending",
       "contractLeftUnavailable": "Contract remaining is unavailable until project spending is complete.",
       "contractUnavailable": "One or more project contract values are unavailable.",

@@ -162,13 +162,19 @@ export const PMDashboard: React.FC = () => {
   const contract = moneyTileValue(projects.length === 0 ? null : contractTotals, orgCurrency);
   const approvedHours = sumAwaitingTimesheetHours(timesheetsQuery.data);
   // Restored figures (dev's PM band), each from the PM projects read: contract left, at risk, margin to date.
-  const contractLeft = projectMoneyFigure(projects, 'contract_remaining', orgCurrency, t('hub.pm.contractLeftUnavailable', 'Contract remaining is unavailable until project spending is complete.'));
-  const margin = projectMoneyFigure(projects, 'realized_margin', orgCurrency, t('hub.pm.marginUnavailable', 'Billed-work margin is unavailable for one or more projects.'));
-  const marginKnown = margin.unavailableReason === undefined && projects.length > 0;
-  // The tile draws the margin the company home's way: the organisation currency first, another currency on its own line.
-  const marginTile = marginKnown ? moneyTileValue([...projects.reduce((totals, project) => totals.set(project.currency, (totals.get(project.currency) ?? 0) + (project.realized_margin as number)), new Map<string, number>())].map(([currency, amount]) => ({ currency, amount })), orgCurrency) : null;
+  // Summed per currency the dev way (any project unknown makes the figure unknown); drawn the company home's way:
+  // the organisation currency first, another currency on its own line.
+  const perCurrency = (field: 'contract_remaining' | 'realized_margin') => {
+    if (projects.length === 0 || projectMoneyFigure(projects, field, orgCurrency, 'unknown').unavailableReason) return null;
+    const totals = new Map<string, number>();
+    for (const project of projects) totals.set(project.currency, (totals.get(project.currency) ?? 0) + (project[field] as number));
+    return moneyTileValue([...totals].map(([currency, amount]) => ({ currency, amount })), orgCurrency);
+  };
+  const contractLeftTile = perCurrency('contract_remaining');
+  const marginTile = perCurrency('realized_margin');
+  const marginKnown = marginTile !== null;
   const atRisk = atRiskCount(projects);
-  const spendingIncomplete = projects.length > 0 && (!marginKnown || contractLeft.value === '—' || projects.some((project) => projectSpendOfContractPct(project) === null));
+  const spendingIncomplete = projects.length > 0 && (!marginKnown || contractLeftTile === null || projects.some((project) => projectSpendOfContractPct(project) === null));
 
   const refresh = useCallback(() => {
     void projectsQuery.refetch();
@@ -251,11 +257,7 @@ export const PMDashboard: React.FC = () => {
       value={contract?.value ?? null}
       exactValue={contract?.exact}
       unavailableReason={contract ? undefined : projectsError || projectsQuery.isError ? t('hub.pm.projectsFigureUnavailable', 'Project data could not be loaded. Retry to refresh this figure.') : t('home.reasonMyContract', 'a project contract value is missing')}
-      // The count it sums, then what is left of it after recorded spending (when every project's remainder is known).
-      caption={contract ? [
-        t('home.projectCount', { count: projects.length, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }),
-        contractLeft.value !== '—' ? t('hub.pm.contractLeft', '{{value}} left after spending', { value: contractLeft.value }) : null,
-      ].filter(Boolean).join(' · ') : undefined}
+      caption={contract ? t('home.projectCount', { count: projects.length, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }) : undefined}
       loading={projectsQuery.isPending}
       to={projectsHref(userId)}
       linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
@@ -296,6 +298,20 @@ export const PMDashboard: React.FC = () => {
           {header}
           <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col">
             {contractTile}
+            {/* What is left of the contract after recorded spending: drawn only when every project's remainder is known. */}
+            {(contractLeftTile || projectsPending) && (
+              <KPITile
+                testId="kpi-contract-left"
+                tone="green"
+                icon="dollar"
+                label={t('hub.pm.leftAfterSpending', 'Left after spending')}
+                value={contractLeftTile?.value ?? null}
+                exactValue={contractLeftTile?.exact}
+                loading={projectsPending}
+                to={projectsHref(userId)}
+                linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
+              />
+            )}
             <KPITile
               testId="kpi-at-risk"
               tone="amber"
