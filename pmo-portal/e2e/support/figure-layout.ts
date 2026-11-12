@@ -84,26 +84,36 @@ const companyReady: Route['ready'] = async (page, _width, language) => {
 };
 const financeReady: Route['ready'] = async (page, _width, language) => {
   const areas = page.getByRole('region', { name: language === 'id' ? 'Area keuangan' : 'Finance areas' });
-  for (const [href, minimum] of [
+  // ux/1110 recomposed the hub's area cards into one KPI row: each area is a whole-surface link
+  // ("Open Receivables") whose tile carries the figure in `.tabular` with the exact amount as the
+  // figure's title. The three doorway figures are the readiness signal; the statement tile is
+  // deliberately hidden (the IDR fixture answers `statement.unpublished`, so the page reports it in
+  // the "N figures hidden" line instead of drawing a tile).
+  for (const [href, amount] of [
     ['/finance/receivables', FINANCE_FIXTURE.receivable],
     ['/finance/payables', FINANCE_FIXTURE.payable],
     ['/finance/reports', FINANCE_FIXTURE.contract - FINANCE_FIXTURE.receivable],
   ] as const) {
-    const area = areas.locator('article').filter({ has: page.locator(`a[href="${href}"]`) });
-    await expect(area.getByRole('status')).toHaveCount(0);
-    await expectFixtureAmount(area.locator('.tabular').first(), minimum, language);
+    const tile = areas.locator(`a[href="${href}"]`).locator('xpath=..');
+    await expect(tile.getByRole('status')).toHaveCount(0);
+    await expectFixtureAmount(tile.locator('.tabular').first(), amount, language);
   }
-  const statements = areas.locator('article').filter({ has: page.locator('a[href="/finance/statements"]') });
-  await expect(statements).toBeVisible();
-  await expect(statements.getByRole('status')).toHaveCount(0);
-  // This live statement read may legitimately have no period; preserve that state.
-  await expect(statements).toContainText(language === 'id' ? /Laba bersih/i : /net profit/i);
+  await expect(areas.locator('.tabular')).toHaveCount(3);
+  // The statement tile is deliberately absent (the IDR fixture answers `statement.unpublished`);
+  // the page says so once, in its hidden-figures line, instead of drawing an empty tile.
+  await expect(page.getByTestId('figures-hidden').first()).toContainText(
+    language === 'id' ? /angka disembunyikan/ : /figure hidden/,
+  );
 };
 const reportReady: Route['ready'] = async (page, _width, language) => {
   const figures = page.getByRole('region', { name: language === 'id' ? 'Angka laporan' : 'Report figures' });
   await expect(figures.getByTestId('kpi-skeleton')).toHaveCount(0);
-  const idr = figures.getByRole('region', { name: 'IDR' });
-  await expectFixtureAmount(idr.locator('.tabular').nth(1), FINANCE_FIXTURE.contract, language);
+  // ux/1110 flattened the per-currency figure groups into one tile row: "Earned to date" carries the
+  // contract total (the fixture recognises 100% of it) with the exact amount as the figure's title.
+  const earned = figures
+    .getByText(language === 'id' ? 'Pendapatan sampai saat ini' : 'Earned to date', { exact: true })
+    .locator('xpath=../..');
+  await expectFixtureAmount(earned.locator('.tabular').first(), FINANCE_FIXTURE.contract, language);
 };
 const ROUTES: Route[] = [
   { name: 'executive', user: 'exec@acme.test', path: '/', ready: companyReady, widths: WIDTHS, bahasaWidths: [1440, 390] },

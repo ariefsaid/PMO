@@ -35,8 +35,8 @@ async function waitProjectsReady(page: Page) {
   await expect(page.getByTestId('projects-loading')).not.toBeVisible({ timeout: 20_000 });
 }
 
-function projectRow(page: Page, name: string) {
-  return page.locator('table tbody tr').filter({ has: page.getByRole('button', { name, exact: true }) });
+function projectButton(page: Page, name: string) {
+  return page.getByTestId('projects-table-container').getByRole('button', { name, exact: true });
 }
 
 test(
@@ -64,7 +64,7 @@ test(
     // ── AC-IXD-PROJ-001a: the new Lead is ABSENT from the active Projects list … ──
     await page.goto('/projects');
     await waitProjectsReady(page);
-    await expect(projectRow(page, dealName)).toHaveCount(0);
+    await expect(projectButton(page, dealName)).toHaveCount(0);
 
     // … and PRESENT in the Sales Pipeline (the pre-win partition).
     await page.goto('/sales');
@@ -100,7 +100,7 @@ test(
     // P003 "Acme Internal Platform" — a READ-ONLY on-hand seed project no spec mutates (see header
     // note). Kept on P003 so this half remains independent of P001's money and locale journeys.
     const onHandName = 'Acme Internal Platform';
-    await projectRow(page, onHandName).getByRole('button', { name: onHandName, exact: true }).click();
+    await projectButton(page, onHandName).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/);
     await expect(page.getByRole('heading', { name: onHandName })).toBeVisible({ timeout: 15_000 });
     // delivery lens markers: section tabs + the explicit contract-value lock control.

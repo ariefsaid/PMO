@@ -87,7 +87,7 @@ test(
     await expect(page).not.toHaveURL(/\/procurement\//);
 
     // Goal oracle 2: preview + actions render in the right pane for the selected item.
-    const previewTitle = preview.getByRole('heading', { level: 2 });
+    const previewTitle = preview.getByRole('heading', { level: 2, name: approvedName, exact: true });
     await expect(previewTitle).toBeVisible({ timeout: 15_000 });
     const title = (await previewTitle.textContent())?.trim() ?? 'request';
     await expect(preview.getByRole('button', { name: /^approve$/i })).toBeVisible();
