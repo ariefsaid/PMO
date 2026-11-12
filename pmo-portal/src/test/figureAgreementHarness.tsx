@@ -20,7 +20,11 @@ function profileForRole(role: Role): Profile {
   const profile = Object.values(figureAgreementFixture.users).find((user) => user.role === role);
   if (!profile) throw new Error(`No figure-agreement profile for role ${role}`);
   return {
+    full_name: `Synthetic ${role}`,
     ...profile,
+    email: `${profile.id}@figure-agreement.test`,
+    manager_id: null,
+    status: 'active',
     company_id: null,
     avatar_url: null,
     title: null,
@@ -29,7 +33,7 @@ function profileForRole(role: Role): Profile {
     utilization: null,
     created_at: '2026-01-01T00:00:00.000Z',
     updated_at: '2026-01-01T00:00:00.000Z',
-  } as Profile;
+  };
 }
 
 export function selectFigureAgreementIdentity(role: Role): void {
