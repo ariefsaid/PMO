@@ -164,7 +164,7 @@ function AmountCell({ row, column, presentation, notProvided, className }: {
       )
       : amount.text;
   }
-  return <td className={cn('whitespace-nowrap px-3 text-right tabular', className)}>{content}</td>;
+  return <td className={cn('whitespace-nowrap px-3 text-right tabular tabular-nums', className)}>{content}</td>;
 }
 
 interface ValueColumn {
@@ -286,7 +286,7 @@ function StatementTable({ headingId, lines, account, valueColumns, presentation,
           <tr>
             <th scope="col" className={cn(HEADER_CELL, 'left-0 z-[3] text-left')}>{account}</th>
             {valueColumns.map(({ key, header }) => (
-              <th key={key} scope="col" className={cn(HEADER_CELL, 'whitespace-nowrap text-right')}>{header}</th>
+              <th key={key} scope="col" className={cn(HEADER_CELL, 'whitespace-nowrap text-right tabular tabular-nums')}>{header}</th>
             ))}
           </tr>
         </thead>

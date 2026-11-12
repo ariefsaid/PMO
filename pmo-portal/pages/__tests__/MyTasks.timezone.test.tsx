@@ -80,9 +80,9 @@ describe('MyTasks timezone day rollover and overdue determination (PGA03-008)', 
 
     renderMyTasks();
 
-    // Must show the lateness flag because local date is 2026-10-29: exactly 1 day late
+    // Must show the overdue flag because local date is 2026-10-29: exactly 1 day overdue
     // (in UTC it would still be due today, so no flag at all).
-    expect(screen.getByTestId('my-task-late-status-t-due-28')).toHaveTextContent(/^1 day late$/i);
+    expect(screen.getByTestId('my-task-late-status-t-due-28')).toHaveTextContent(/^1 day overdue$/i);
   });
 
   it('PGA03-008: updates overdue badges and sort order when midnight rolls over in user timezone', () => {
@@ -112,16 +112,16 @@ describe('MyTasks timezone day rollover and overdue determination (PGA03-008)', 
 
     renderMyTasks();
 
-    // Before midnight: Task due Oct 28 is due today, so not late yet
-    expect(screen.queryByText(/^[\d,]+ days? late$/i)).not.toBeInTheDocument();
+    // Before midnight: Task due Oct 28 is due today, so not overdue yet
+    expect(screen.queryByText(/^[\d,]+ days? overdue$/i)).not.toBeInTheDocument();
 
     // Advance time by 2 minutes: now 2026-10-29 00:01:00 in Asia/Jakarta
     act(() => {
       vi.advanceTimersByTime(2 * 60 * 1000);
     });
 
-    // After midnight: Task due Oct 28 is now late
-    expect(screen.getByText(/^[\d,]+ days? late$/i)).toBeInTheDocument();
+    // After midnight: Task due Oct 28 is now overdue
+    expect(screen.getByText(/^[\d,]+ days? overdue$/i)).toBeInTheDocument();
 
     // And it must sort first in urgency
     const overdueEl = screen.getByText('Task due Oct 28');
@@ -147,12 +147,12 @@ describe('MyTasks timezone day rollover and overdue determination (PGA03-008)', 
     ];
 
     renderMyTasks();
-    expect(screen.queryByText(/^[\d,]+ days? late$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^[\d,]+ days? overdue$/i)).not.toBeInTheDocument();
 
     act(() => {
       vi.advanceTimersByTime(61 * 1000);
     });
 
-    expect(screen.getByTestId('my-task-late-status-t-due-yesterday')).toHaveTextContent(/^1 day late$/i);
+    expect(screen.getByTestId('my-task-late-status-t-due-yesterday')).toHaveTextContent(/^1 day overdue$/i);
   });
 });

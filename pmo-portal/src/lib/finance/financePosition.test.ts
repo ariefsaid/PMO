@@ -158,11 +158,30 @@ describe('buildFinancePosition', () => {
     expect(position.overdue.some((row) => row.invoice.id === 'due-today')).toBe(false);
     expect(position.receivablesAgeing.IDR).toEqual({
       notDue: 10_000,
+      noDueDate: 0,
       d1_30: 10_000,
       d31_60: 20_000,
       d61_90: 20_000,
       over90: 10_000,
     });
+  });
+
+  it('F8: keeps a known receivable without a derivable due date out of not-yet-due without changing the total', () => {
+    const amountCents = 10_000;
+    const position = calculate([invoice('no-due-date', today, {
+      invoice_date: null,
+      erp_payment_terms_days: null,
+      erp_due_date: null,
+      received_date: null,
+      erp_outstanding_amount: amountCents / 100,
+    })]);
+    const buckets = position.receivablesAgeing.IDR!;
+    const bucketTotal = Object.values(buckets).reduce((sum, cents) => sum + cents, 0);
+
+    expect(buckets.notDue).toBe(0);
+    expect(buckets.noDueDate).toBe(amountCents);
+    expect(bucketTotal).toBe(amountCents);
+    expect(position.receivablesNoDueDateCounts).toEqual({ IDR: 1 });
   });
 
   it('shares the dashboard Vendor Invoiced predicate and bins payable ages at 30/31, 60/61 and 90/91 days', () => {

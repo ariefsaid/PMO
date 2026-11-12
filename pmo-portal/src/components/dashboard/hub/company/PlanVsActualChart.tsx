@@ -110,10 +110,10 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
         </p>
       )}
       <table aria-label={name} className="sr-only table-fixed">
-        <thead><tr><th>{t('hub.company.project', 'Project')}</th><th>{planLabel}</th><th>{budgetLabel}</th><th>{actualLabel}</th><th>{t('hub.company.planVsActual.share', 'Spent of contract')}</th></tr></thead>
+        <thead><tr><th>{t('hub.company.project', 'Project')}</th><th className="text-right tabular tabular-nums">{planLabel}</th><th className="text-right tabular tabular-nums">{budgetLabel}</th><th className="text-right tabular tabular-nums">{actualLabel}</th><th className="text-right tabular tabular-nums">{t('hub.company.planVsActual.share', 'Spent of contract')}</th></tr></thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.id}><th scope="row">{row.name}</th><td>{formatCurrency(row.plan, currency)}</td><td>{row.budget == null ? t('dashboard:executive.noActiveBudget', 'No active budget') : formatCurrency(row.budget, currency)}</td><td>{row.actual == null ? '—' : formatCurrency(row.actual, currency)}</td><td>{row.percent == null ? '—' : `${row.percent}%`}</td></tr>
+            <tr key={row.id}><th scope="row">{row.name}</th><td className="text-right tabular tabular-nums">{formatCurrency(row.plan, currency)}</td><td className="text-right tabular tabular-nums">{row.budget == null ? t('dashboard:executive.noActiveBudget', 'No active budget') : formatCurrency(row.budget, currency)}</td><td className="text-right tabular tabular-nums">{row.actual == null ? '—' : formatCurrency(row.actual, currency)}</td><td className="text-right tabular tabular-nums">{row.percent == null ? '—' : `${row.percent}%`}</td></tr>
           ))}
         </tbody>
       </table>

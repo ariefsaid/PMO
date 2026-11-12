@@ -348,7 +348,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           {moneyTile(supplier, { label: t('home.owedToSuppliers', 'Owed to suppliers'), caption: supplierCaption })}
         </KPIRow>
         <div className="flex flex-1 flex-col gap-4 px-[var(--panel-inset)] pb-4 pt-4">
-          {finance && <ReceivablesAgeCard embedded ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />}
+          {finance && <ReceivablesAgeCard embedded ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />}
           <InvoicedCollectedCard embedded chartHeight={finance ? 120 : 180} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.todayPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />
         </div>
       </Card>

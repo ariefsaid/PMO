@@ -278,8 +278,8 @@
       "explain": "Explain {{label}}",
       "noHoursWeek": "No hours this week",
       "logHoursShort": "Log hours",
-      "daysLate_one": "{{count}} day late",
-      "daysLate_other": "{{count}} days late",
+      "daysLate_one": "{{count}} day overdue",
+      "daysLate_other": "{{count}} days overdue",
       "noHoursByProject": "No hours to show by project this week."
     },
     "pm": {

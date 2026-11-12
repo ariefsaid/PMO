@@ -78,7 +78,7 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
               DESIGN.md accessibility posture). text-primary-text is the AA on-canvas variant, same
               token the "Back to Sales Pipeline" link (DealBand) already uses for blue text. */}
           {isCurrent && <span className="text-sm font-semibold text-primary-text">{t('projectDetail.milestones.current', 'Current')}</span>}
-          {isOverdue && <StatusPill variant="overdue">{t('projectDetail.milestones.overdue', 'Overdue')}</StatusPill>}
+          {isOverdue && <StatusPill variant="overdue">{t('projectDetail.milestones.overdue', 'Late')}</StatusPill>}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
           {weightShare != null && (

@@ -354,7 +354,7 @@ describe('TasksTab — list (AC-TASK-001)', () => {
     const overdueDate = screen.getByText((_, element) =>
       element?.tagName === 'SPAN'
       && element.classList.contains('text-destructive-text')
-      && element.textContent?.trim() === `${formatDay('2026-06-20')} · 2 days late`,
+      && element.textContent?.trim() === `${formatDay('2026-06-20')} · 2 days overdue`,
     );
     expect(overdueDate).toHaveClass('text-destructive-text');
     expect(screen.queryByText('2026-06-20')).not.toBeInTheDocument();

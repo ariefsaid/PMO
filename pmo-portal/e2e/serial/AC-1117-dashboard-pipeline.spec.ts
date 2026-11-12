@@ -39,8 +39,8 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   const contractOnHandAmount = contractOnHandTile.locator('div.tabular > span[aria-hidden="true"]');
   await expect(billedMarginTile).toBeVisible();
   await expect(contractOnHandTile).toBeVisible();
-  await expect(billedMarginAmount).toHaveText('$940K');
-  await expect(billedMarginAmount).toHaveAttribute('title', '$940,000');
+  await expect(billedMarginAmount).toHaveText('$3.46M');
+  await expect(billedMarginAmount).toHaveAttribute('title', '$3,460,000');
   await expect(contractOnHandAmount).toHaveText('$33.1M');
   await expect(contractOnHandAmount).toHaveAttribute('title', '$33,050,000');
 

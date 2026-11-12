@@ -5,7 +5,7 @@ import { LateText, ListState, PageHeader, SearchMini, StatusPill, SelectField, u
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
-import { formatDay, formatCalendarDayInTimeZone, formatDaysLate } from '@/src/lib/format';
+import { formatDay, formatCalendarDayInTimeZone, formatDaysOverdue } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskStatus } from '@/src/lib/db/tasks';
@@ -327,13 +327,15 @@ const MyTasks: React.FC = () => {
                             {task.name}
                           </span>
                         )}
-                        {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA). */}
+                        {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA).
+                            Words (docs/ux/screen-rules.md): a task past its due date is "overdue"
+                            everywhere — rows read "N days overdue"; "late" is reserved for phases. */}
                         {isOverdueTask(task, today) && (
                           <LateText
                             data-testid={`my-task-late-status-${task.id}`}
                             emphasis={isMostUrgentLateRow(lateTasks, task)}
                           >
-                            {formatDaysLate(task.end_date, tStatus) ?? t('myTasks.overdue', 'Overdue')}
+                            {formatDaysOverdue(task.end_date, tStatus) ?? t('myTasks.overdue', 'Overdue')}
                           </LateText>
                         )}
                       </div>

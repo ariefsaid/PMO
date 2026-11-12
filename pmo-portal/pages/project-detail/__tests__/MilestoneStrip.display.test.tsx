@@ -159,7 +159,7 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     const overdue = render$('p1', true);
 
     expect(screen.getByText('Current: Procurement')).toBeInTheDocument();
-    const overdueState = screen.getByText('Overdue');
+    const overdueState = screen.getByText('Late');
     expect(overdueState).toBeInTheDocument();
     expect(overdueState.className).toContain('text-warning-foreground');
 
@@ -178,7 +178,7 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     ];
     render$('p1', true);
     expect(screen.getByText('Current: Design')).toBeInTheDocument();
-    expect(screen.getByText('Overdue: Construction')).toBeInTheDocument();
+    expect(screen.getByText('Late: Construction')).toBeInTheDocument();
   });
 
   it('AC-UXP-004: task-derived progress is effective when input_pct is null and typed input_pct remains effective', () => {
@@ -227,7 +227,7 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     }];
     render$('p1', true);
     expect(screen.getByText('Current: Procurement')).toBeInTheDocument();
-    expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
+    expect(screen.queryByText('Late')).not.toBeInTheDocument();
   });
   it('UX-031: names the year for overdue phase targets outside the current year', () => {
     vi.useFakeTimers();
@@ -475,7 +475,7 @@ describe('continuous desktop delivery track (no rounded per-segment fills)', () 
 
     const statusKey = screen.getByRole('list', { name: 'Delivery phase status key' });
     expect(statusKey).toHaveTextContent('Completed');
-    expect(statusKey).toHaveTextContent('Overdue');
+    expect(statusKey).toHaveTextContent('Late');
     expect(statusKey).toHaveTextContent('Current / planned');
   });
 });
