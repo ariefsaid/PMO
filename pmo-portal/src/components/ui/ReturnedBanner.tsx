@@ -14,12 +14,14 @@ export interface ReturnedBannerProps {
   /** Resolved from the record's existing profile foreign-key embed, like procurement history. */
   person?: string | null;
   at?: string | null;
+  /** What the person must do next (e.g. the resubmit instruction); rendered under the reason. */
+  instruction?: string | null;
   action?: { label: string; onClick: () => void; disabled?: boolean };
   className?: string;
 }
 
 /** One decision summary for reversible returns and terminal rejections. */
-export const ReturnedBanner: React.FC<ReturnedBannerProps> = ({ record, reason, person, at, action, className }) => {
+export const ReturnedBanner: React.FC<ReturnedBannerProps> = ({ record, reason, person, at, instruction, action, className }) => {
   const { t } = useTranslation(['common', 'status']);
   const stateName = statusLabel(record, 'Rejected', t);
   const isWaiting = statusTone(record, 'Rejected') === 'waiting';
@@ -45,6 +47,9 @@ export const ReturnedBanner: React.FC<ReturnedBannerProps> = ({ record, reason, 
       <div className="min-w-0 flex-1">
         <div className={cn('break-words text-control font-semibold', isWaiting ? 'text-warning-foreground' : 'text-destructive-text')}>{title}</div>
         <div className="break-words text-control text-foreground">{decisionReason}</div>
+        {instruction?.trim() ? (
+          <div className="break-words text-control text-muted-foreground">{instruction}</div>
+        ) : null}
       </div>
       {action && (
         <Button variant="primary" size="sm" onClick={action.onClick} disabled={action.disabled} className="touch-target shrink-0">
