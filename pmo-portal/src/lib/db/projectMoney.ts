@@ -30,6 +30,8 @@ export interface ProjectMoneyRead {
   activeBudgetAmount: string | null;
   activeBudgetCurrency: string | null;
   hasActiveBudget: boolean;
+  /** Canonical S03 project budget position, joined by the repository for shared list consumers. */
+  budgetPosition?: CanonicalBudgetReading;
 }
 
 /** Set-based project budget reading from project_budget_positions (0857). */

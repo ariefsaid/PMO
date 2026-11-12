@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   canViewFinance: true,
   getProjectFinances: vi.fn(),
   getProjectBudget: vi.fn(),
+  getProjectBudgetPositions: vi.fn(),
   mutations: {
     archive: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
@@ -34,7 +35,10 @@ vi.mock('@/src/auth/impersonation', () => ({
   }),
 }));
 vi.mock('@/src/lib/repositories', () => ({
-  repositories: { revenue: { getProjectFinances: h.getProjectFinances } },
+  repositories: {
+    revenue: { getProjectFinances: h.getProjectFinances },
+    projectMoney: { budgetPositions: h.getProjectBudgetPositions },
+  },
 }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
 vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
@@ -116,6 +120,11 @@ beforeEach(() => {
   h.realRole = 'Finance';
   h.canViewFinance = true;
   h.getProjectBudget.mockReset().mockReturnValue({ data: 0, isPending: false, isError: false });
+  h.getProjectBudgetPositions.mockReset().mockImplementation(async (ids: string[]) => Object.fromEntries(ids.map((id) => [id, {
+    projectId: id, ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '100.00',
+    spent: '50.00', openCommitment: '40.00', consumption: '90.00', complete: true, usedRatio: '0.9', usedPercent: '90',
+    consumptionVariance: '-10.00', riskEligible: true, atRisk: true,
+  }])));
   h.getProjectFinances.mockReset().mockImplementation(async (projectId: string) => ({
     project_id: projectId,
     contract_invoiced: '0.00',
@@ -163,10 +172,16 @@ describe('ProjectDetailHeader finance query demand', () => {
     expect(h.getProjectFinances).not.toHaveBeenCalled();
   });
 
-  it('AC-PMP-004 compact detail header does not fetch or derive money-strip data', () => {
+  it('compact detail header reads canonical budget figures without the full finance strip', async () => {
+    const project = projectForStatus('Ongoing Project');
     renderCompactHeader('Ongoing Project');
+    await waitFor(() => expect(h.getProjectBudgetPositions).toHaveBeenCalledExactlyOnceWith([project.id]));
+    await waitFor(() => expect(document.body).toHaveTextContent('Budget used before tax'));
+    expect(document.body).toHaveTextContent('90%');
+    expect(document.body).toHaveTextContent('Spent (% of budget before tax)');
+    expect(document.body).toHaveTextContent('50%');
     expect(h.getProjectFinances).not.toHaveBeenCalled();
     expect(h.getProjectBudget).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-testid="stat-tiles"]')).not.toBeInTheDocument();
+    expect(document.querySelector('[data-testid="stat-tiles"]')).toBeInTheDocument();
   });
 });

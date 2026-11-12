@@ -198,13 +198,13 @@
     "operatorRecovery": "Buka pengaturan ERP organisasi"
   },
   "uxs02": {
-    "activeBudget": "Anggaran Aktif",
+    "activeBudget": "Anggaran Aktif sebelum pajak",
     "noActiveBudget": "Tidak ada anggaran aktif",
-    "zeroActiveBudget": "Anggaran Aktif {{budget}}; pemakaian tidak tersedia",
+    "zeroActiveBudget": "Anggaran Aktif {{budget}} sebelum pajak; pemakaian tidak tersedia",
     "riskUnavailableTitle": "Risiko anggaran proyek tidak dapat diperiksa",
     "riskUnavailableSub": "Informasi pengeluaran proyek dan anggaran Aktif tidak dapat diperiksa.",
-    "budgetUsed": "{{percent}}% dari anggaran Aktif",
-    "currencyMismatch": "Mata uang anggaran berbeda dari Aktual",
+    "budgetUsed": "{{percent}}% dari anggaran Aktif sebelum pajak",
+    "currencyMismatch": "Mata uang anggaran berbeda dari mata uang proyek",
     "atRisk": "Berisiko"
   },
   "fx": {
@@ -2389,8 +2389,7 @@
       "taxTreatment": "Perlakuan pajak",
       "tile": {
         "actual": "Realisasi",
-        "contract": "Kontrak",
-        "spend": "Pengeluaran"
+        "contract": "Kontrak"
       },
       "toast": {
         "archived": "Proyek diarsipkan",
@@ -2910,7 +2909,7 @@
     "atRiskPill": "Berisiko",
     "columns": {
       "actual": "Realisasi",
-      "budgetUsed": "Anggaran terpakai",
+      "budgetUsed": "Anggaran terpakai sebelum pajak",
       "contract": "Kontrak",
       "pm": "PM",
       "progress": "Progres",

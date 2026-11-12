@@ -1,4 +1,11 @@
 import { figureAgreementFixture as fixture } from './fixtures/figureAgreement';
+import type { CanonicalBudgetReading } from '@/src/lib/db/projectMoney';
+
+let budgetPositionOverride: CanonicalBudgetReading | undefined;
+
+export function setFigureAgreementBudgetPositionOverride(reading: CanonicalBudgetReading | undefined): void {
+  budgetPositionOverride = reading;
+}
 
 /** Repository-boundary wire responses for the synthetic records; figure code remains shipped code. */
 export function createFigureAgreementRepositoryModule<T extends { repositories: Record<string, unknown> }>(actual: T): T {
@@ -40,7 +47,7 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
     budget: { id: fixture.budget.activeVersion.id, name: 'Active budget', version: 1, status: 'Active', currency: 'USD', amount: '1000.00' },
     actuals: {
       currency: 'USD', as_of: '2026-11-12T00:00:00.000Z', total: '500.00', tagged_total: null, attributed_total: null,
-      excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '500.00' }],
+      excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: false, amount: null }],
     },
     cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '70.00' }], receipt_count: 1 },
   };
@@ -51,10 +58,32 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
     actuals: {
       currency: 'USD', total: paidSpend, asOf: '2026-11-12T00:00:00.000Z', excludesRestrictedRows: false,
       complete: true, committedTotal: openCommitment, committedComplete: true,
-      categories: [{ category: 'Labor', mapped: true, amount: paidSpend }],
+      categories: [{ category: 'Labor', mapped: false, amount: null }],
     },
     activeBudgetAmount: activeBudget, activeBudgetCurrency: 'USD', hasActiveBudget: true,
+    budgetPosition: {
+      projectId: primary.id, ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: activeBudget,
+      spent: paidSpend, openCommitment, consumption: '900.00', complete: true, usedRatio: '0.9', usedPercent: '90',
+      consumptionVariance: '-100.00', riskEligible: true, atRisk: true,
+    },
   };
+  const currentBudgetPosition = () => budgetPositionOverride ?? moneyRead.budgetPosition;
+  const currentMoneyRead = () => {
+    const reading = currentBudgetPosition();
+    return {
+      ...moneyRead,
+      actuals: {
+        ...moneyRead.actuals,
+        total: reading.spent,
+        committedTotal: reading.openCommitment,
+      },
+      budgetPosition: reading,
+    };
+  };
+  const currentFinances = () => ({
+    ...finances,
+    actuals: { ...finances.actuals, total: currentBudgetPosition().spent },
+  });
   const invoices = [...fixture.billing.invoices, fixture.variations.unknownAndMixedCurrency.foreignInvoice].map((invoice) => ({
     ...invoice,
     project_id: primary.id,
@@ -83,9 +112,19 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
       listPickerOptions: async () => projects.map(({ id, name, code, status, project_manager_id }) => ({ id, name, code, status, project_manager_id })),
       listNumbers: async (ids: string[]) => ids.map((id) => ({ id, pmo_project_number: 'S01-001' })),
     }),
-    projectMoney: override('projectMoney', { collection: async (ids: string[]) => mapFor(ids, () => moneyRead) }),
+    projectMoney: override('projectMoney', {
+      collection: async (ids: string[]) => mapFor(ids, () => currentMoneyRead()),
+      budgetPositions: async (ids: string[]) => mapFor(ids, () => currentBudgetPosition()),
+    }),
+    dashboard: override('dashboard', {
+      pmProjects: async () => [{
+        id: primary.id, name: primary.name, client_name: 'Synthetic Client', contract_value: 1000, currency: 'USD',
+        budget: 1000, spent: Number(currentBudgetPosition().spent), committed: Number(currentBudgetPosition().openCommitment), actual_currency: 'USD', actual_complete: true,
+        budget_currency: 'USD', status: 'Ongoing Project', contract_remaining: 500, realized_margin_pct: null,
+      }],
+    }),
     projectOverview: override('projectOverview', {
-      read: async () => ({ finances, billing, boqItems: [], budgetVersions: [budgetVersion], committedSpend, externalDomainOwnership: [], readsErpLedger: false, milestones: [], commentCount: 0, fxContext: { currency: 'USD', timezone: 'UTC' } }),
+      read: async () => ({ finances: currentFinances(), billing, boqItems: [], budgetVersions: [budgetVersion], committedSpend, externalDomainOwnership: [], readsErpLedger: false, milestones: [], commentCount: 0, fxContext: { currency: 'USD', timezone: 'UTC' } }),
     }),
     milestone: override('milestone', {
       list: async () => [],
@@ -107,7 +146,7 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
       getProjectReservedSpend: async () => ({ amount: '50.00', projectCurrency: 'USD', budgetCurrency: 'USD', otherCurrencies: [] }),
     }),
     revenue: override('revenue', {
-      getProjectFinances: async () => finances,
+      getProjectFinances: async () => currentFinances(),
       getOrgReadsErpLedger: async () => false,
       listInvoices: async () => invoices,
       getRevenueByProject: async () => [{ project_id: primary.id, currency: 'USD', invoice_count: 5 }],

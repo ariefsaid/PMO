@@ -3,8 +3,8 @@ import { moneyFigure } from '@/src/lib/dashboardMoney';
 import { formatNumberMax2 } from '@/src/lib/format';
 import type { PMDashboardProject } from '@/src/lib/db/dashboard';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
-import { isActualComplete } from '@/src/lib/projectFinances';
-import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
+import { isActualComplete, projectBudgetUsedPercent } from '@/src/lib/projectFinances';
+import type { CanonicalBudgetReading } from '@/src/lib/db/projectMoney';
 import { orderByCurrency } from '../../restructure/currencyOrder';
 
 export type ProjectMoneyField = 'contract_value' | 'contract_remaining' | 'realized_margin';
@@ -70,27 +70,14 @@ export function projectActualComplete(project: PMDashboardProject): boolean {
   });
 }
 
-export function projectRiskBasisKnown(project: PMDashboardProject): boolean {
-  return project.budget !== null
-    && Number.isFinite(project.budget)
-    && project.budget > 0
-    && project.budget_currency === project.currency
-    && projectActualComplete(project)
-    && project.spent !== null
-    && Number.isFinite(project.spent)
-    && (project.actual_currency ?? project.currency) === project.currency;
+export function projectRiskBasisKnown(reading: CanonicalBudgetReading | undefined, projectCurrency?: string | null): boolean {
+  if (!reading || reading.currency === null || reading.currency !== reading.budgetCurrency
+    || (projectCurrency != null && reading.currency !== projectCurrency)) return false;
+  return !reading.riskEligible || reading.atRisk !== null;
 }
 
-export function projectAtRisk(project: PMDashboardProject): boolean {
-  return isMoneyAtRisk({
-    status: project.status,
-    budget: project.budget,
-    budgetCurrency: project.budget_currency ?? project.currency,
-    projectCurrency: project.currency,
-    spent: project.spent,
-    actualCurrency: project.actual_currency ?? project.currency,
-    actualComplete: projectActualComplete(project),
-  });
+export function projectAtRisk(reading: CanonicalBudgetReading | undefined, projectCurrency?: string | null): boolean {
+  return projectRiskBasisKnown(reading, projectCurrency) && reading?.atRisk === true;
 }
 
 export function projectSpendOfContractPct(project: PMDashboardProject): number | null {
@@ -105,19 +92,20 @@ export function projectSpendOfContractPct(project: PMDashboardProject): number |
   return Math.round((project.spent / project.contract_value) * 100);
 }
 
-export function projectBudgetUsagePct(project: PMDashboardProject): number | null {
-  if (!projectRiskBasisKnown(project) || project.budget === null || project.spent === null) return null;
-  return Math.round((project.spent / project.budget) * 100);
+export function projectBudgetUsagePct(reading: CanonicalBudgetReading | undefined, projectCurrency?: string | null): number | null {
+  return projectBudgetUsedPercent(reading, projectCurrency);
 }
 
 /**
  * At-risk projects. Unknown budget data never hides a project already known to be at risk:
  * then the count is a floor ("at least N"). Null only when nothing is known at risk and some are unknown.
  */
-export function atRiskCount(projects: readonly PMDashboardProject[]): { count: number; partial: boolean } | null {
-  const known = projects.filter(projectRiskBasisKnown);
-  const count = known.filter(projectAtRisk).length;
-  const partial = known.length < projects.length;
+export function atRiskCount(
+  projects: readonly PMDashboardProject[],
+  positions: Readonly<Record<string, CanonicalBudgetReading>>,
+): { count: number; partial: boolean } | null {
+  const count = projects.filter((project) => projectAtRisk(positions[project.id], project.currency)).length;
+  const partial = projects.some((project) => !projectRiskBasisKnown(positions[project.id], project.currency));
   if (partial && count === 0) return null;
   return { count, partial };
 }

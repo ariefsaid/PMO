@@ -27,10 +27,10 @@ import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectMutations } from '@/src/hooks/useProjects';
-import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
+import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
 import type { CommitmentSource, CommittedOtherCurrencies } from '@/src/hooks/useProcurements';
-import { attributedSplit, buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney } from '@/src/lib/projectFinances';
+import { attributedSplit, buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney, projectBudgetSpentPercent, projectBudgetUsedPercent } from '@/src/lib/projectFinances';
 import { useProjectVatEditability } from '@/src/hooks/useProjectVatEditability';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { Checkbox } from '@/src/components/ui/Checkbox';
@@ -69,8 +69,8 @@ export function hasFinanceView(role: Role | null): boolean {
 }
 
 // Static class maps (Tailwind JIT): the strip is Contract + N other figures, N = 1..4.
-const STRIP_COLS: Record<number, string> = { 2: 'md:grid-cols-2', 3: 'md:grid-cols-3', 4: 'md:grid-cols-4', 5: 'md:grid-cols-5' };
-const REST_SPAN: Record<number, string> = { 1: 'md:col-span-1', 2: 'md:col-span-2', 3: 'md:col-span-3', 4: 'md:col-span-4' };
+const STRIP_COLS: Record<number, string> = { 2: 'md:grid-cols-2', 3: 'md:grid-cols-3', 4: 'md:grid-cols-4', 5: 'md:grid-cols-5', 6: 'md:grid-cols-3 xl:grid-cols-6' };
+const REST_SPAN: Record<number, string> = { 1: 'md:col-span-1', 2: 'md:col-span-2', 3: 'md:col-span-3', 4: 'md:col-span-4', 5: 'md:col-span-2 xl:col-span-5' };
 
 /** The staged contract-value change held by the SoD audit confirm — value AND the basis it is on. */
 interface PendingContractValue {
@@ -151,9 +151,9 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
 }) => {
   const { t } = useTranslation('project');
   const isDesktop = useIsDesktop();
-  const { data: derivedBudget, isPending: budgetPending, isError: budgetError } = useProjectBudget(project.id);
-  const activeBudget = derivedBudget ?? 0;
   const financeQuery = useProjectFinances(project.id, { enabled: true });
+  const budgetPositionsQuery = useProjectBudgetPositions(canViewActual ? [project.id] : []);
+  const budgetPosition = budgetPositionsQuery.data?.[project.id];
   const actuals = financeQuery.data?.actuals;
   const authorizedActuals = ledgerBasis === 'erp' && !canViewActual ? undefined : actuals;
   // #1739 / 0700: a PMO-basis Actual is recorded spend — the same project-finances read the Budget tab's Spent uses;
@@ -162,7 +162,8 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   const moneyPosition = buildProjectMoneyPosition({ ledgerBasis,
     pmoSpent, pmoSpentPending: financeQuery.isPending, pmoSpentError: financeQuery.isError,
     pmoSpentComplete: authorizedActuals?.total != null,
-    projectCurrency: project.currency, actuals: authorizedActuals, contractValue: project.contract_value, activeBudget });
+    projectCurrency: project.currency, actuals: authorizedActuals, contractValue: project.contract_value,
+    activeBudget: Number(budgetPosition?.activeBudgetAmount ?? 0) });
   const actualPosition = moneyPosition.actual;
   const actualUnavailable = t('uxs01.actualUnavailable', 'Actual spending is still being confirmed.');
   const actualFigure: React.ReactNode = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
@@ -187,10 +188,15 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   const contractAfterCostLabel = contractAfterCost === null
     ? null
     : formatSignedExactMoney(contractAfterCost, project.currency, getNumberLocale());
-  const spendPct = moneyPosition.spendPercent;
+  const spendPct = projectBudgetSpentPercent(budgetPosition, project.currency);
+  const budgetUsedPct = projectBudgetUsedPercent(budgetPosition, project.currency);
+  const budgetUsedBasis = budgetPosition?.ledgerBasis === 'pmo'
+    ? t('projectDetail.cost.budgetUsedBasis', 'Spent + open orders, before tax')
+    : t('projectDetail.cost.budgetUsedBasisLedger', 'Ledger spending, before tax');
   const taxDetailsNeeded = project.tax_rate == null
     || (project.tax_base_numerator ?? 1) !== 1 || (project.tax_base_denominator ?? 1) !== 1;
-  const spendTileValue: string | null = budgetPending || budgetError || activeBudget <= 0 || spendPct === null ? null : `${spendPct}%`;
+  const spendTileValue: string | null = budgetPositionsQuery.isPending || budgetPositionsQuery.isError || spendPct === null ? null : `${spendPct}%`;
+  const budgetUsedTileValue = budgetUsedPct === null ? null : `${budgetUsedPct}%`;
   const tiles: StatTile[] = [
     {
       label: t('projectDetail.header.tile.contract', 'Contract'),
@@ -251,7 +257,15 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
       value: contractAfterCostLabel,
       ...(contractAfterCostTone === undefined ? {} : { tone: contractAfterCostTone }),
     }]),
-    ...(spendTileValue === null ? [] : [{ label: t('projectDetail.header.tile.spend', 'Spend'), value: spendTileValue }]),
+    ...(budgetUsedTileValue === null ? [] : [{
+      label: t('projects:columns.budgetUsed', 'Budget used before tax'),
+      value: budgetUsedTileValue,
+      sub: budgetUsedBasis,
+    }]),
+    ...(spendTileValue === null ? [] : [{
+      label: t('projectDetail.header.tile.spent', 'Spent (% of budget before tax)'), value: spendTileValue,
+      sub: t('projectDetail.cost.spentBasis', 'Spending share of budget, before tax'),
+    }]),
   ];
 
   return (
@@ -268,6 +282,36 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
         </div>
       </details>
     </div>
+  );
+};
+
+/** Small canonical budget facts stay visible in the compact project record header. */
+const CompactProjectBudgetFigures: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+  const { t } = useTranslation('project');
+  const positions = useProjectBudgetPositions([project.id]);
+  const reading = positions.data?.[project.id];
+  const usedPercent = projectBudgetUsedPercent(reading, project.currency);
+  const spentPercent = projectBudgetSpentPercent(reading, project.currency);
+  const budgetUsedBasis = reading?.ledgerBasis === 'pmo'
+    ? t('projectDetail.cost.budgetUsedBasis', 'Spent + open orders, before tax')
+    : t('projectDetail.cost.budgetUsedBasisLedger', 'Ledger spending, before tax');
+  const tiles: StatTile[] = [
+    ...(usedPercent === null ? [] : [{
+      label: t('projects:columns.budgetUsed', 'Budget used before tax'),
+      value: `${usedPercent}%`,
+      sub: budgetUsedBasis,
+    }]),
+    ...(spentPercent === null ? [] : [{
+      label: t('projectDetail.header.tile.spent', 'Spent (% of budget before tax)'),
+      value: `${spentPercent}%`,
+      sub: t('projectDetail.cost.spentBasis', 'Spending share of budget, before tax'),
+    }]),
+  ];
+  if (tiles.length === 0) return null;
+  return (
+    <section aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="mb-3 max-w-3xl">
+      <StatTiles tiles={tiles} columns={tiles.length} variant="bare" className="gap-y-1" />
+    </section>
   );
 };
 
@@ -764,6 +808,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         menuLabel={t('projectDetail.header.more', 'More actions')}
         className="mb-4 max-md:mb-2 max-md:!border-0 max-md:!bg-transparent max-md:!p-0 max-md:[&_[data-testid=record-header-actions]]:gap-1"
       />
+
+      {compact && isDelivery && isFinanceForward && <CompactProjectBudgetFigures project={project} />}
 
       {showCompactContractLock && (
         <div data-testid="contract-value-lock-lane" className="mb-1" hidden={!lockReasonOpen}>

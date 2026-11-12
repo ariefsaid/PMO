@@ -198,13 +198,13 @@
     "operatorRecovery": "Open organization ERP setup"
   },
   "uxs02": {
-    "activeBudget": "Active budget",
+    "activeBudget": "Active budget before tax",
     "noActiveBudget": "No active budget",
-    "zeroActiveBudget": "{{budget}} Active budget; usage unavailable",
+    "zeroActiveBudget": "{{budget}} Active budget before tax; usage unavailable",
     "riskUnavailableTitle": "Couldn't check project budget risk",
     "riskUnavailableSub": "Project spending and Active budget information could not be checked.",
-    "budgetUsed": "{{percent}}% of Active budget",
-    "currencyMismatch": "Budget currency differs from Actual",
+    "budgetUsed": "{{percent}}% of Active budget before tax",
+    "currencyMismatch": "Budget currency differs from project currency",
     "atRisk": "At risk"
   },
   "fx": {
@@ -2389,8 +2389,7 @@
       "taxTreatment": "Tax treatment",
       "tile": {
         "actual": "Actual",
-        "contract": "Contract",
-        "spend": "Spend"
+        "contract": "Contract"
       },
       "toast": {
         "archived": "Project archived",
@@ -2910,7 +2909,7 @@
     "atRiskPill": "At risk",
     "columns": {
       "actual": "Actual",
-      "budgetUsed": "Budget used",
+      "budgetUsed": "Budget used before tax",
       "contract": "Contract",
       "pm": "PM",
       "progress": "Progress",

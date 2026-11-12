@@ -7,8 +7,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
-import { deriveCollectionActual } from '@/src/lib/projectFinances';
-import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
+import { deriveCollectionActual, projectBudgetUsedPercent } from '@/src/lib/projectFinances';
 import ProjectCardShell from './ProjectCardShell';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
@@ -50,7 +49,6 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   // #2060: the ONE Actual derivation, shared with the Projects table, so the two views can never
   // disagree about the figure or about whether there is one.
   const actualPosition = deriveCollectionActual({ projectCurrency: currency, money: projectMoney, moneyPending, moneyError });
-  const actual = actualPosition.amount === null ? null : Number(actualPosition.amount);
   const activeBudget = moneyAvailable && projectMoney?.hasActiveBudget && projectMoney.activeBudgetAmount != null
     ? Number(projectMoney.activeBudgetAmount)
     : null;
@@ -60,15 +58,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
     : projectMoney.hasActiveBudget
       ? formatCurrency(activeBudget!, projectMoney.activeBudgetCurrency ?? currency)
       : t('uxs02.noActiveBudget', 'No active budget');
-  const budgetCurrencyMatches = projectMoney?.activeBudgetCurrency === projectMoney?.actuals.currency
-    && projectMoney?.actuals.currency === project.currency;
-  const actualIsComplete = actualPosition.state === 'available';
-  const budgetUsedPct = actual != null && actualIsComplete && activeBudget != null && activeBudget > 0 && budgetCurrencyMatches
-    ? Math.round((actual / activeBudget) * 100)
-    : null;
-  const atRisk = isMoneyAtRisk({ status: project.status as string, budget: activeBudget,
-    budgetCurrency: projectMoney?.activeBudgetCurrency ?? null, projectCurrency: project.currency, spent: actual,
-    actualCurrency: projectMoney?.actuals.currency ?? null, actualComplete: actualIsComplete });
+  const budgetUsedPct = projectBudgetUsedPercent(projectMoney?.budgetPosition, project.currency);
+  const atRisk = budgetUsedPct !== null && projectMoney?.budgetPosition?.atRisk === true;
   // FR-PRJUX-004/005: the footer label reads from the manager ID, so an assigned blank-name
   // profile shows `Unnamed user · <short ID>` and a null ID shows `Unassigned` — never the
   // same label for both states.
@@ -125,13 +116,13 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
         )}
         {budgetUsedPct != null && (
           <div className="contents">
-            <dt className="text-muted-foreground">{t('projects.columns.budgetUsed', 'Budget used')}</dt>
+            <dt className="text-muted-foreground">{t('projects.columns.budgetUsed', 'Budget used before tax')}</dt>
             <dd>
               <ProgressBar
                 value={budgetUsedPct}
                 showValue
                 tone={atRisk ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined}
-                aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: budgetUsedPct })}
+                aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget before tax', { percent: budgetUsedPct })}
               />
             </dd>
           </div>

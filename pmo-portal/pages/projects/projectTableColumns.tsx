@@ -4,7 +4,7 @@ import { withCurrencyColumn } from '@/src/components/export';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { formatCurrency } from '@/src/lib/format';
-import { deriveBudgetConsumption, deriveCollectionActual, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
+import { deriveBudgetConsumption, deriveCollectionActual, formatExactMoney, projectBudgetUsedPercent } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
@@ -109,21 +109,11 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     return { text: position.text ?? '', exportText: exact ? `${exact} ${position.currency}` : '' };
   };
   /**
-   * #1739 / 0700: a "budget used" figure is budget CONSUMPTION, not spend. A PMO org consumes spent + open
-   * commitment (the whole order total, once — the Budget tab's Spent + Committed); a ledger org consumes its
-   * ledger Actual, unchanged. Unknown is never printed as a partial sum.
+   * S03 owns the project consumption and completeness rule; this is a display/export projection only.
    */
   const consumptionOf = (p: ProjectWithRefs): { amount: string | null; complete: boolean } => {
     const money = projectMoney?.[p.id];
-    if (!money) return { amount: null, complete: false };
-    return deriveBudgetConsumption({
-      ledgerBasis: money.ledgerBasis ?? 'erp',
-      spent: money.actuals.total,
-      committed: money.actuals.committedTotal,
-      spentComplete: isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
-        categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows }),
-      committedComplete: money.actuals.committedComplete,
-    });
+    return deriveBudgetConsumption(money?.budgetPosition);
   };
   const budgetExport = (p: ProjectWithRefs): string | number => {
     const money = projectMoney?.[p.id];
@@ -133,15 +123,14 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       return t('uxs02.noActiveBudget', 'No active budget');
     }
     if (activeBudget === 0) {
-      const reason = t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) });
+      const reason = t('uxs02.zeroActiveBudget', '{{budget}} Active budget before tax; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) });
       return reason;
     }
-    if (money.activeBudgetCurrency !== money.actuals.currency || money.actuals.currency !== p.currency) {
-      return t('uxs02.currencyMismatch', 'Budget currency differs from Actual');
+    if (money.budgetPosition?.budgetCurrency !== p.currency || money.budgetPosition?.currency !== p.currency) {
+      return t('uxs02.currencyMismatch', 'Budget currency differs from project currency');
     }
-    const consumption = consumptionOf(p);
-    if (!consumption.complete || consumption.amount === null) return '';
-    return Math.round((Number(consumption.amount) / activeBudget) * 100);
+    const percent = projectBudgetUsedPercent(money.budgetPosition, p.currency);
+    return percent ?? '';
   };
   const columns: Column<ProjectWithRefs>[] = [
     {
@@ -307,8 +296,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     {
       key: 'budget-used',
       exportValue: budgetExport,
-      header: t('projects.columns.budgetUsed', 'Budget used'),
-      kind: 'money',
+      header: t('projects.columns.budgetUsed', 'Budget used before tax'),
+      kind: 'percent',
       size: 136,
       minSize: 128,
       maxSize: 320,
@@ -318,9 +307,10 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         if (typeof percent === 'string') return percent ? <span className="text-muted-foreground">{percent}</span> : null;
         const money = projectMoney![p.id]!;
         const atRisk = isAtRiskActual(p);
+        const consumption = consumptionOf(p);
         return (
-          <div title={t('projects:budgetConsumption', '{{used}} of {{budget}} Active budget', { used: formatExactMoney(consumptionOf(p).amount, money.actuals.currency || p.currency, getNumberLocale(), { wholeUnits: true }), budget: formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? p.currency, getNumberLocale(), { wholeUnits: true }) })}>
-            <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent })} />
+          <div title={t('projects:budgetConsumption', '{{used}} of {{budget}} Active budget before tax', { used: formatExactMoney(consumption.amount, money.actuals.currency || p.currency, getNumberLocale(), { wholeUnits: true }), budget: formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? p.currency, getNumberLocale(), { wholeUnits: true }) })}>
+            <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget before tax', { percent })} />
           </div>
         );
       },

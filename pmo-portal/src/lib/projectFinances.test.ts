@@ -1,8 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { deriveActualPosition, deriveCollectionActual, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseContractExcess, parseProjectReceiptCash } from './projectFinances';
+import { deriveActualPosition, deriveBudgetConsumption, deriveCollectionActual, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseContractExcess, parseProjectReceiptCash, projectBudgetUsedPercent } from './projectFinances';
 import type { ProjectMoneyRead } from './db/projectMoney';
+import type { CanonicalBudgetReading } from './db/projectMoney';
 import { getNumberLocale } from './locale/activeLocale';
 import { isMoneyAtRisk } from './dashboardConstants';
+
+describe('S03 canonical project budget consumption', () => {
+  const reading: CanonicalBudgetReading = {
+    projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+    spent: '500.00', openCommitment: '400.00', consumption: '900.00', complete: true,
+    usedRatio: '0.9', usedPercent: '90', consumptionVariance: '-100.00', riskEligible: true, atRisk: true,
+  };
+
+  it('AC-FT-S04-001 takes Budget used and consumption from the canonical project position', () => {
+    expect(projectBudgetUsedPercent(reading, 'USD')).toBe(90);
+    expect(deriveBudgetConsumption(reading)).toEqual({ amount: '900.00', complete: true });
+  });
+
+  it('withholds the percentage when the canonical position is incomplete or in another currency', () => {
+    expect(projectBudgetUsedPercent({ ...reading, complete: false }, 'USD')).toBeNull();
+    expect(projectBudgetUsedPercent(reading, 'IDR')).toBeNull();
+    expect(projectBudgetUsedPercent({ ...reading, budgetCurrency: 'IDR' }, 'USD')).toBeNull();
+  });
+});
 
 // #2060: the collection Actual is the same derivation for the Cards view, the Table view and any
 // other list surface. Its coverage verdict is the collection read's own `complete`; the category
