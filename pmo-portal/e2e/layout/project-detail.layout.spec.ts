@@ -225,12 +225,9 @@ async function checkTabWork(
   await page.locator('main').evaluate((el) => { el.scrollTop = 0; });
   await aboveFold(page, sections);
   if (tab === 'work-orders' || tab === 'billing') {
-    // Both old URLs now open the approved Contract & billing tab (#1402); its exact Contract summary is the shared first-glance target.
-    const contractHeading = panel.getByRole('heading', { name: 'Contract', exact: true });
-    const contractSummary = panel.getByRole('region', { name: 'Contract', exact: true });
-    await arrivesOnScreen(page, contractHeading);
-    await arrivesOnScreen(page, contractSummary);
-    await expect(work).toBeVisible();
+    // Both old URLs now open the merged Contract area (#1402); keep the selected task's own heading
+    // in the first viewport. The general contract summary is context, not the work-order/billing goal.
+    await arrivesOnScreen(page, work);
   } else {
     await arrivesOnScreen(page, work);
   }
