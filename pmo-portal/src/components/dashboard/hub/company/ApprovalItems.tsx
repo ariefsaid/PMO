@@ -6,7 +6,7 @@ import type { ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
 import { approvalItem } from './approvalItem';
 
 /** The first approvals as rows inside "Waits on you" (they render as list items of its list). */
-export const ApprovalItems: React.FC<{ entries: ApprovalPopulationEntry[]; limit?: number }> = ({ entries, limit = 5 }) => {
+export const ApprovalItems: React.FC<{ entries: ApprovalPopulationEntry[]; limit?: number }> = ({ entries, limit = 4 }) => {
   const { t } = useTranslation('dashboard');
   const translate = (key: string, fallback: string, options?: Record<string, unknown>) => t(key, { defaultValue: fallback, ...(options ?? {}) });
   return (

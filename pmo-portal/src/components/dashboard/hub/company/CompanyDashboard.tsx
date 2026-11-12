@@ -326,7 +326,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' }),
         margin?.amounts ? moneyTile(margin, { caption: '' }) : null,
       ].filter((tile) => tile !== null);
-    const band = tilesRow('grid-cols-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);
+    const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);
 
     // Finances: what is owed to us (and how much of it is late), what we owe suppliers, and money in by month.
     const overdue = needs.overdueInvoices;
