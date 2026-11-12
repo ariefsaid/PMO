@@ -135,3 +135,36 @@ export function proposeCapture(sources: CaptureSource[], projectId: string | nul
   }
   return proposals;
 }
+
+export type CaptureSourcePage =
+  | { supported: true; sources: CaptureSource[]; nextCursor: string | null; revision: string }
+  | { supported: false; missing: string[] };
+export interface CaptureAdapter {
+  listSources(cursor: string | null): Promise<CaptureSourcePage>;
+}
+export interface CaptureSourceCensus { complete: boolean; sources: CaptureSource[]; missing: string[]; revision?: string }
+
+/** Reads every page; an unavailable, failed or cyclic feed remains explicitly incomplete. */
+export async function collectCaptureSources(adapter: CaptureAdapter): Promise<CaptureSourceCensus> {
+  const sources: CaptureSource[] = [];
+  const seen = new Set<string>();
+  let cursor: string | null = null;
+  let revision: string | undefined;
+  try {
+    do {
+      const page = await adapter.listSources(cursor);
+      if (!page.supported) return { complete: false, sources, missing: page.missing };
+      if (!page.revision || (revision !== undefined && page.revision !== revision)) {
+        return { complete: false, sources, missing: ['source generation changed'] };
+      }
+      revision = page.revision;
+      sources.push(...page.sources);
+      cursor = page.nextCursor;
+      if (cursor !== null && seen.has(cursor)) return { complete: false, sources, missing: ['repeated source cursor'] };
+      if (cursor !== null) seen.add(cursor);
+    } while (cursor !== null);
+    return { complete: true, sources, missing: [], revision };
+  } catch {
+    return { complete: false, sources, missing: ['source read failed'] };
+  }
+}

@@ -40,3 +40,13 @@ export function normalisePurchaseMirror(row: CaptureMirrorRow): CaptureSource {
     supplierName: row.supplier_name, date: row.doc_date, currency: row.currency,
     amount: row.net_total, parentIds: row.purchase_orders };
 }
+
+/** The caller supplies the paged, organization-scoped mirror reader. */
+export function createPurchaseCaptureAdapter(
+  readPage: (cursor: string | null) => Promise<{ rows: CaptureMirrorRow[]; nextCursor: string | null; revision: string }>,
+): import('../captureHistory.ts').CaptureAdapter {
+  return { async listSources(cursor) {
+    const page = await readPage(cursor);
+    return { supported: true, sources: page.rows.map(normalisePurchaseMirror), nextCursor: page.nextCursor, revision: page.revision };
+  } };
+}

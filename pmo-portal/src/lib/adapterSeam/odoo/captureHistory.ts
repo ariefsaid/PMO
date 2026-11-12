@@ -2,3 +2,7 @@
 export function purchaseCaptureCapability(): { supported: false; missing: string[] } {
   return { supported: false, missing: ['purchase capture source evidence'] };
 }
+
+export function createPurchaseCaptureAdapter(): import('../captureHistory.ts').CaptureAdapter {
+  return { listSources: async () => purchaseCaptureCapability() };
+}
