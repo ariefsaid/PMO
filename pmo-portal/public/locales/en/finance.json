@@ -78,10 +78,10 @@
     "latestStatement": "Latest period {{period}}",
     "back": "Back",
     "payablesAgeingBasis": "Invoice age, by days",
-    "ageingUnknown_one": "{{count}} invoice has no balance reported by the accounting system",
-    "ageingUnknown_other": "{{count}} invoices have no balance reported by the accounting system",
-    "ageingUnknownCount_one": "{{count}} invoice has no balance reported by the accounting system",
-    "ageingUnknownCount_other": "{{count}} invoices have no balance reported by the accounting system",
+    "ageingUnknown_one": "{{count}} balance unknown",
+    "ageingUnknown_other": "{{count}} balances unknown",
+    "ageingUnknownCount_one": "{{count}} balance unknown",
+    "ageingUnknownCount_other": "{{count}} balances unknown",
     "ageingEmpty": "No balances to group by age"
   },
   "table": {

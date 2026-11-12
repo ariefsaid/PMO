@@ -231,7 +231,7 @@ describe('Finance hub', () => {
     expect(receivables).toHaveTextContent('IDR 400K');
     expect(receivables).toHaveTextContent('1 balance unknown');
     expect(receivables).not.toHaveTextContent('$0');
-    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/no balance reported by the accounting system/i);
+    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent('1 balance unknown');
   });
 
   it('CV Phase 2: keeps unknown receivable balances on the tile and ageing, not the Waiting on Finance header', () => {
@@ -251,7 +251,7 @@ describe('Finance hub', () => {
     expect(screen.getByRole('heading', { name: 'Waiting on Finance' })).toBeInTheDocument();
     const receivables = screen.getByRole('link', { name: 'Open Receivables' }).parentElement as HTMLElement;
     expect(receivables).toHaveTextContent('1 balance unknown');
-    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/1 balance unknown|1 invoice has no balance reported by the accounting system/i);
+    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent('1 balance unknown');
 
     const attention = screen.getByRole('region', { name: 'Finance attention' });
     expect(within(attention).getByRole('heading', { name: /Overdue/ })).not.toHaveTextContent('balance unknown');
@@ -272,7 +272,7 @@ describe('Finance hub', () => {
     expect(screen.queryByRole('link', { name: 'Open Receivables' })).not.toBeInTheDocument();
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('invoice balances unknown');
     expect(screen.getByRole('link', { name: 'See invoices' })).toHaveAttribute('href', '/finance/receivables');
-    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent(/no balance reported by the accounting system/i);
+    expect(screen.getByRole('region', { name: /Receivables/ })).toHaveTextContent('1 balance unknown');
     const unbilled = screen.getByRole('link', { name: 'Open Reports' }).parentElement as HTMLElement;
     expect(unbilled).toHaveTextContent('Done, not yet billed');
     expect(unbilled).toHaveTextContent('$0');
@@ -418,7 +418,7 @@ describe('Finance hub', () => {
     const over90 = within(receivables).getByTestId('ageing-bucket-IDR-over90');
     expect(over90).toHaveTextContent('1 balance unknown');
     expect(over90).not.toHaveTextContent('IDR 0');
-    expect(within(receivables).queryByText(/no balance reported by the accounting system/i)).not.toBeInTheDocument();
+    expect(within(receivables).getAllByText('1 balance unknown')).toHaveLength(1);
   });
 
   it('F8: keeps a known balance with no due date in its own counted bucket and preserves the receivable total', () => {
