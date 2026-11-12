@@ -452,5 +452,8 @@
       "whoNow": "Who can approve now",
       "helpRule": "With nobody listed, {{roles}} can approve another person's case."
     }
+  },
+  "exchangeRates": {
+    "displayOnly": "Display equivalents only"
   }
 }

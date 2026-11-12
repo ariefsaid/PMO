@@ -57,7 +57,7 @@ describe('Rail — Finance Reports destination', () => {
     effectiveRole = 'Executive';
     renderRail();
     expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/finance/reports');
-    expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/finance');
+    expect(screen.getByRole('link', { name: 'Finance' })).toHaveAttribute('href', '/finance');
   });
 
   it('Finance sees Reports as a child destination', () => {

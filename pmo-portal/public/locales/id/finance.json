@@ -743,7 +743,9 @@
     "excludedAccountingInvoiceSingular": "1 faktur terbuka ada di sistem akuntansi. Penerimaan pembayaran untuk faktur ini belum dapat dicatat di sini.",
     "excludedAccountingInvoicesPlural": "{{count}} faktur terbuka ada di sistem akuntansi. Penerimaan pembayaran untuk faktur-faktur ini belum dapat dicatat di sini.",
     "excludedPmoInvoiceSingular": "1 faktur terbuka ada di PMO. Penerimaan pembayaran untuk faktur ini belum dapat dicatat di sini.",
-    "excludedPmoInvoicesPlural": "{{count}} faktur terbuka ada di PMO. Penerimaan pembayaran untuk faktur-faktur ini belum dapat dicatat di sini."
+    "excludedPmoInvoicesPlural": "{{count}} faktur terbuka ada di PMO. Penerimaan pembayaran untuk faktur-faktur ini belum dapat dicatat di sini.",
+    "clearAll": "Hapus semua",
+    "clearAttribution": "Hapus atribusi"
   },
   "odooOutcome": {
     "confirmed": "Ada di Odoo",

@@ -47,7 +47,7 @@ describe('Rail navigation groups', () => {
 
   it('shows the fixed ordered destinations and all groups expanded by default', () => {
     renderRail();
-    for (const name of ['Dashboard', 'Approvals', 'Projects', 'Procurement', 'Overview', 'Receivables', 'Payables']) {
+    for (const name of ['Dashboard', 'Approvals', 'Projects', 'Procurement', 'Finance', 'Receivables', 'Payables']) {
       expect(screen.getByRole('link', { name })).toBeInTheDocument();
     }
     for (const group of ['My work', 'Delivery', 'Sales', 'Finance']) {

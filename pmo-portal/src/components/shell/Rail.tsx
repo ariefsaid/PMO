@@ -6,7 +6,9 @@ import { useIsOperator } from '@/src/auth/useIsOperator';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
+import { Badge } from '@/src/components/ui/StatusPill';
 import { usePermission } from '@/src/auth/usePermission';
+import { useOverdueInvoiceCount } from '@/src/hooks/useOverdueInvoiceCount';
 import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useFeature } from '@/src/auth/useFeature';
@@ -93,7 +95,7 @@ export const ALL_ITEMS: NavItem[] = [
   // entitlement follows revenue ownership — ON when no ERP owns revenue (PMO-native invoicing is
   // the default), OFF once an ERP owns it; an explicit row still wins, so an Operator can turn it
   // off. Resolution lives in useOrgFeatures (one place). Shown to Finance, Executive and Admin.
-  { to: '/finance', text: 'Overview', icon: 'dollar', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance', text: 'Finance', icon: 'dollar', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/receivables', text: 'Receivables', icon: 'download', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/payables', text: 'Payables', icon: 'payments', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/reports', text: 'Reports', icon: 'reports', group: 'Finance', feature: 'management_pack', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
@@ -139,6 +141,35 @@ const NAV_LINK_BASE =
 
 /** The two items that get stage-aware active-state overrides on `/projects/:id`. */
 const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);
+
+/**
+ * G2: the Finance destination carries its overdue-invoice count again (a plain number badge,
+ * named "N overdue invoices"). Sourced from the existing lean overdue read — no new query.
+ * Rail unit harnesses can render without an AuthProvider; in the application the provider is
+ * always present. Keep the data query behind that boundary so such shell-only renders stay pure.
+ */
+const FinanceOverdueCount: React.FC = () => {
+  const auth = useContext(AuthContext);
+  if (!auth) return null;
+  return <FinanceOverdueCountValue />;
+};
+
+const FinanceOverdueCountValue: React.FC = () => {
+  const { t } = useTranslation();
+  const { data: count, isPending, isError } = useOverdueInvoiceCount();
+  // Unknown is not zero: while the read is pending or failed there is no badge at all, and a
+  // genuine zero prints nothing rather than a "0" that would read like work waiting.
+  if (isPending || isError || count === undefined || count <= 0) return null;
+  return (
+    <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
+      <Badge aria-hidden="true">{count}</Badge>
+      {/* Same shape as the Approvals count: the link reads "Finance, 3 overdue invoices". */}
+      <span className="sr-only">
+        , {t('financeHub:hub.overdueCount', '{{count}} overdue invoices', { count })}
+      </span>
+    </span>
+  );
+};
 
 export interface RailProps {
   onNavigate?: () => void;
@@ -285,7 +316,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     '/expenses': t('shell.nav.expenses', 'Expenses'),
     '/imprest': t('imprest:nav.siteCash', 'Site cash'),
     '/equipment': t('equipment:nav.equipment', 'Equipment'),
-    '/finance': t('financeHub:nav.overview', 'Overview'),
+    '/finance': t('financeHub:nav.finance', 'Finance'),
     '/finance/receivables': t('financeHub:hub.receivables', 'Receivables'),
     '/finance/payables': t('financeHub:hub.payables', 'Payables'),
     '/finance/reports': t('financeHub:hub.reports', 'Reports'),
@@ -333,6 +364,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         </>
       );
     }
+    if (item.to === '/finance') return <><span>{label}</span><FinanceOverdueCount /></>;
     return <span>{label}</span>;
   };
 

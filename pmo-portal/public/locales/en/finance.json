@@ -743,7 +743,9 @@
     "excludedAccountingInvoiceSingular": "1 open invoice is in the accounting system. A receipt against it cannot be recorded here yet.",
     "excludedAccountingInvoicesPlural": "{{count}} open invoices are in the accounting system. Receipts against them cannot be recorded here yet.",
     "excludedPmoInvoiceSingular": "1 open invoice is in PMO. A receipt against it cannot be recorded here yet.",
-    "excludedPmoInvoicesPlural": "{{count}} open invoices are in PMO. Receipts against them cannot be recorded here yet."
+    "excludedPmoInvoicesPlural": "{{count}} open invoices are in PMO. Receipts against them cannot be recorded here yet.",
+    "clearAll": "Clear all",
+    "clearAttribution": "Clear attribution"
   },
   "odooOutcome": {
     "confirmed": "In Odoo",
