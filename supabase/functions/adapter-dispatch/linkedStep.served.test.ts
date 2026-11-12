@@ -39,6 +39,7 @@ async function dispatch(kind: keyof typeof RECORDS | 'purchase-order', answer: (
   const routes = [
     supabaseSelect('profiles', () => jsonResponse({ org_id: ORG_ID })),
     supabaseSelect('procurements', () => jsonResponse({ org_id: ORG_ID })),
+    supabaseRpc('record_only_step_refusal', () => jsonResponse(null)),
     supabaseRpc('procurement_gate_violation', () => jsonResponse(null)),
     supabaseRpc('domain_owned_by_tier', () => jsonResponse(true)),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),

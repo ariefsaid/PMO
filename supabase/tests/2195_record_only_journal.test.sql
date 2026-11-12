@@ -1,6 +1,6 @@
 -- Record-only purchases: journal creation is atomic and never changes project actuals.
 begin;
-select plan(78);
+select plan(79);
 insert into organizations (id, name, default_currency) values
   ('21950000-0000-0000-0000-00000000000a','JEC A','IDR'), ('21950000-0000-0000-0000-00000000000b','JEC B','IDR');
 insert into auth.users (id, email) values
@@ -133,6 +133,7 @@ select throws_ok($test$select public.detach_erp_journal_line((select link_id fro
 select is((select coalesce(sum(actuals_to_date),0) from public.project_mapped_actuals('21950000-0000-0000-0000-0000000000d1')), 110::numeric, 'AC-ROP-001 actuals stay ledger-derived');
 set local request.jwt.claims = '{"sub":"21950000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok($test$select public.create_record_only_journal_purchase('{}'::jsonb,true)$test$, '42501', 'not authorized', 'AC-ROP-005 Finance cannot preview');
+select throws_ok($test$insert into public.procurements(org_id,title,requested_by_id,record_only) values ('21950000-0000-0000-0000-00000000000a','Forged','21950000-0000-0000-0000-0000000000a1',true)$test$, '42501','permission denied for table procurements','AC-ROP-005 direct insert cannot forge record-only provenance');
 select throws_ok($test$select public.undo_captured_purchase('21950000-0000-0000-0000-0000000000e1','reason',false)$test$, '42501', 'not authorized', 'AC-ROP-005 Finance cannot undo');
 set local request.jwt.claims = '{"sub":"21950000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($test$select public.create_record_only_journal_purchase(

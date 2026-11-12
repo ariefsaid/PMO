@@ -50,9 +50,6 @@ const PO_NAME = 'PUR-ORD-2026-00373';
 function objectResponse(body: unknown): Response {
   return jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
 }
-function nullObjectResponse(): Response {
-  return new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
-}
 
 function orderCreateCommand(): Record<string, unknown> {
   return {

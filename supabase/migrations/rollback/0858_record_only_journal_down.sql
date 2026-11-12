@@ -274,6 +274,10 @@ begin
      where id = p_procurement_id and org_id = p_org_id for update;
   end if;
   if v_proc.id is null then return 'purchase_not_found'; end if;
+  if p_erp_doc_kind in ('goods-receipt','purchase-invoice')
+     and public.linked_step_state(p_org_id, p_procurement_id, p_erp_doc_kind) = 'already_in_erp' then
+    return 'step_already_recorded';
+  end if;
   if p_erp_doc_kind = 'purchase-invoice' and v_proc.is_subcontract                                       -- 0475
      and exists (select 1 from public.purchase_order_revisions r where r.procurement_id = v_proc.id) then -- 0475
     return 'subcontract_bill_lines_required';  -- PQ-9: #1505 replaces this with the cap over the payload  -- 0475
