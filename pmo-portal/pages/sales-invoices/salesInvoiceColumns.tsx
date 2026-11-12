@@ -118,7 +118,10 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
       const legacyLabel = status.partlySettled
         ? t('financeCopy.statusPartlyPaid', 'Partly paid')
         : salesInvoiceStatusLabel(inv.status, t);
-      const pill = <StatusPill className={embedded ? 'max-w-full whitespace-normal!' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
+      // Embedded (the receivables list): the desktop table's coloured pill needs its own 8px vertical
+      // inset, or the label sits flush against the tint (impeccable cramped-padding). The shared pill
+      // keeps DESIGN.md's 20px spec elsewhere; the desktop row has room for the taller chip.
+      const pill = <StatusPill className={embedded ? 'max-w-full whitespace-normal! py-2' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
       // The invoice keeps its own status; Odoo's word is added only while something is unsettled (a settled invoice is the normal case).
       if (!status.odooOutcome || status.odooOutcome.cls === 'confirmed') return pill;
       return <span className="flex min-w-0 flex-col items-start gap-1">{pill}<OdooOutcome outcome={status.odooOutcome} unreachable={status.odooOffline} compact /></span>;
