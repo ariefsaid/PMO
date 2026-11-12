@@ -379,7 +379,7 @@ export const PMDashboard: React.FC = () => {
             />
           </KPIRow>
           {/* Row one: my projects beside what waits on me and the overdue tasks by project (both short, stacked).
-              Row two: delivery and budget used beside plan vs actual. */}
+              Then delivery and budget used, and plan vs actual, each full width (side by side they end 136px apart). */}
           <div className="grid items-start gap-[var(--space-panel-gap)] max-[899px]:grid-cols-1 min-[900px]:grid-cols-12">
             <div className="min-w-0 max-[899px]:order-2 min-[900px]:col-span-8">{projectsEl}</div>
             <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)] max-[899px]:contents min-[900px]:col-span-4">
@@ -394,7 +394,7 @@ export const PMDashboard: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="grid items-start gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2">
+          <div className="grid gap-[var(--space-panel-gap)]">
             <ChartCard title={t('home.deliveryVsBudget', 'Delivery and budget used by project')} actions={<CardLink to={projectsHref(userId)}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink>}
               known={pctBars.length > 0} hiddenReason={t('home.reasonDeliveryBudget', 'delivery and budget are not recorded')} pending={projectsPending}
               error={projectsError ? { title: t('home.projectsError', "Couldn't load projects"), retry: refresh } : undefined} testId="chart-delivery-budget">
