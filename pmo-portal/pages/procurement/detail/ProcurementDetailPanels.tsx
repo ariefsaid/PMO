@@ -5,6 +5,7 @@ import { Card, CardHead, CardPad, Icon, useFigureReport, type HiddenFigure } fro
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
+import { buildProgressionTimeline } from '@/src/lib/db/procurementHistory';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
@@ -95,24 +96,43 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
             const partial = stage.key === 'receive' && partialReceive;
             const date = dates[stage.key];
             const stageLabel = t(`stage.${stage.key}`, stage.label);
+            const partialOrderCount = Math.max(orderCount, receivedCount);
             const state = partial
-              ? t('stage.partialReceipt', { defaultValue: '{{received}} of {{orders}} orders received', received: receivedCount, orders: Math.max(orderCount, receivedCount) })
+              ? t('stage.partialReceipt', {
+                  count: partialOrderCount,
+                  defaultValue_one: '{{received}} of {{orders}} order received',
+                  defaultValue_other: '{{received}} of {{orders}} orders received',
+                  received: receivedCount,
+                  orders: partialOrderCount,
+                })
               : count > 0
                 ? (() => {
-                    const document = stage.key === 'request'
-                      ? count === 1 ? t('stage.purchaseRequest', 'purchase request') : t('stage.purchaseRequests', 'purchase requests')
-                      : stage.key === 'order'
-                        ? count === 1 ? t('stage.purchaseOrder', 'order') : t('stage.purchaseOrders', 'orders')
-                        : stage.key === 'receive'
-                          ? count === 1 ? t('stage.receipt', 'receipt') : t('stage.receipts', 'receipts')
-                          : invoices.length > 0
-                            ? invoices.length === 1 ? t('stage.invoice', 'invoice') : t('stage.invoices', 'invoices')
-                            : count === 1 ? t('stage.payment', 'payment') : t('stage.payments', 'payments');
                     const amount = amountByStage[stage.key];
-                    const countLabel = `${count} ${document}`;
+                    if (stage.key === 'pay' && invoices.length > 0 && payments.length > 0) {
+                      return t('stage.mixedCount', {
+                        defaultValue: '{{invoiceCount}} {{invoices}} · {{paymentCount}} {{payments}}',
+                        invoiceCount: invoices.length,
+                        invoices: t('stage.invoice', { count: invoices.length, defaultValue_one: 'invoice', defaultValue_other: 'invoices' }),
+                        paymentCount: payments.length,
+                        payments: t('stage.payment', { count: payments.length, defaultValue_one: 'payment', defaultValue_other: 'payments' }),
+                      });
+                    }
+                    const documentKey = stage.key === 'request' ? 'purchaseRequest'
+                      : stage.key === 'order' ? 'purchaseOrder'
+                        : stage.key === 'receive' ? 'receipt'
+                          : invoices.length > 0 ? 'invoice' : 'payment';
+                    const defaultDocument = documentKey === 'purchaseRequest' ? 'purchase request'
+                      : documentKey === 'purchaseOrder' ? 'order'
+                        : documentKey === 'receipt' ? 'receipt'
+                          : documentKey === 'invoice' ? 'invoice' : 'payment';
+                    const pluralDocument = t(`stage.${documentKey}`, {
+                      count,
+                      defaultValue_one: defaultDocument,
+                      defaultValue_other: `${defaultDocument}s`,
+                    });
                     return amount == null
-                      ? countLabel
-                      : t('stage.countAndAmount', { defaultValue: '{{count}} {{document}} · {{amount}}', count, document, amount: formatCurrency(amount, procurement.currency) });
+                      ? `${count} ${pluralDocument}`
+                      : t('stage.countAndAmount', { defaultValue: '{{count}} {{document}} · {{amount}}', count, document: pluralDocument, amount: formatCurrency(amount, procurement.currency) });
                   })()
                 : index < current && stage.key === 'request'
                   ? t('money.noPurchaseRequest', 'No purchase request: started at the order')
@@ -340,7 +360,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
           : event.to_status === 'Cancelled' ? t('timeline.cancelled', 'Cancelled')
             : event.to_status === 'Requested' ? t('timeline.submitted', 'Submitted for approval')
               : event.to_status === 'Paid' ? t('timeline.paid', 'Paid')
-                : String(event.to_status);
+                  : String(event.to_status);
       const icon: TimelineIcon = event.to_status === 'Approved' ? 'check'
         : event.to_status === 'Requested' ? 'up'
           : event.to_status === 'Paid' ? 'dollar'
@@ -352,14 +372,44 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
         approval: event.to_status === 'Approved',
       };
     });
+    const consumedStatusIds = new Set<string>();
+    const statusByLedgerId = new Map<string, TimelineEntry>();
+    const transitionRefByEvent = new Map<string, string | null>();
+    const ambiguousTransitions = new Set<string>();
+    const transitionKey = (status: string, at: string, actor: string | null) => JSON.stringify([status, at, actor]);
+    for (const transition of buildProgressionTimeline(procurement, procurement.id).filter((event) => event.kind === 'transition')) {
+      const key = transitionKey(transition.label, transition.at, transition.actor);
+      if (transitionRefByEvent.has(key)) ambiguousTransitions.add(key);
+      else transitionRefByEvent.set(key, transition.docRef);
+    }
+    procurement.statusEvents.forEach((event, index) => {
+      const key = transitionKey(event.to_status, event.created_at, event.actor_id);
+      if (ambiguousTransitions.has(key)) return;
+      const documentRef = transitionRefByEvent.get(key);
+      if (!documentRef) return;
+      const candidates = ledgerRows.filter((row) => row.systemNumber === documentRef && !statusByLedgerId.has(row.id));
+      if (candidates.length !== 1) return;
+      const row = candidates[0];
+      const statusEntry = statusEntries[index];
+      if (!statusEntry) return;
+      statusByLedgerId.set(row.id, statusEntry);
+      consumedStatusIds.add(event.id);
+    });
     const recordEntries: TimelineEntry[] = ledgerRows
-      .map((row) => ({
-        id: row.id, date: row.date, label: t(`timeline.record.${row.type}`, typeLabel[row.type]), number: row.systemNumber,
-        facts: [row.status, row.externalRef, row.groupRef, row.fileCount ? `${row.fileCount} ${t('timeline.files', 'files')}` : null].filter((fact): fact is string => Boolean(fact)),
-        amount: isEngineer && (row.type === 'Invoice' || row.type === 'Payment') ? null : row.amount,
-        currency: row.currency, source: 'procurement', ledger: row,
-        icon: row.type === 'PO' ? 'cart' : row.type === 'GR' ? 'inbox' : row.type === 'Invoice' ? 'invoices' : row.type === 'Payment' ? 'payments' : 'doc',
-      }));
+      .map((row) => {
+        const status = statusByLedgerId.get(row.id);
+        const documentDate = status && row.date.slice(0, 10) !== status.date?.slice(0, 10)
+          ? t('timeline.documentDate', { defaultValue: 'Document date {{date}}', date: showDate(row.date, t('timeline.dateMissing', 'Date not recorded')) })
+          : null;
+        return {
+          id: row.id, date: status?.date ?? row.date, label: t(`timeline.record.${row.type}`, typeLabel[row.type]), number: row.systemNumber,
+          facts: [status?.label, documentDate, row.status, row.externalRef, row.groupRef, row.fileCount ? t('timeline.files', { count: row.fileCount, defaultValue_one: '{{count}} file', defaultValue_other: '{{count}} files' }) : null].filter((fact): fact is string => Boolean(fact)),
+          amount: isEngineer && (row.type === 'Invoice' || row.type === 'Payment') ? null : row.amount,
+          currency: row.currency, source: 'procurement', ledger: row, actor: status?.actor ?? null, note: status?.note ?? null,
+          icon: row.type === 'PO' ? 'cart' : row.type === 'GR' ? 'inbox' : row.type === 'Invoice' ? 'invoices' : row.type === 'Payment' ? 'payments' : 'doc',
+        };
+      });
+    const unpairedStatusEntries = statusEntries.filter((entry) => !consumedStatusIds.has(entry.id.slice('status-'.length)));
     const erpEntries: TimelineEntry[] = linkedDocuments
       .filter((doc) => !(isEngineer && (doc.doctype === 'Purchase Invoice' || doc.doctype === 'Payment Entry')))
       .map((doc) => ({
@@ -369,9 +419,9 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
         currency: doc.currency, source: 'accounting-system', erp: doc, overdueDays: (doc.outstanding ?? 0) > 0 ? overdueDays(doc.dueDate) : 0,
         icon: doc.doctype === 'Purchase Order' ? 'cart' : doc.doctype === 'Purchase Receipt' ? 'inbox' : doc.doctype === 'Purchase Invoice' ? 'invoices' : 'payments',
       }));
-    return [raisedEntry, ...statusEntries, ...recordEntries, ...erpEntries]
+    return [raisedEntry, ...unpairedStatusEntries, ...recordEntries, ...erpEntries]
       .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.id.localeCompare(b.id));
-  }, [procurement.created_at, procurement.id, procurement.requested_by?.full_name, procurement.statusEvents, ledgerRows, linkedDocuments, isEngineer, t]);
+  }, [procurement, ledgerRows, linkedDocuments, isEngineer, t]);
   const visible = entries.filter((entry) => filter === 'all'
     || (filter === 'financial' ? Boolean(entry.ledger?.financial || entry.erp) : (entry.ledger?.fileCount ?? 0) > 0));
 
