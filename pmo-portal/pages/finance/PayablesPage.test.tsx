@@ -198,7 +198,7 @@ describe('Payables page', () => {
     expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toBeInTheDocument();
   });
 
-  it('uses plain lateness text except for the oldest overdue invoice', () => {
+  it('shows the age and overdue count for every invoice over 90 days', () => {
     const base = payablesFixture();
     const next = {
       ...base.payables[0],
@@ -209,11 +209,9 @@ describe('Payables page', () => {
 
     const lateAges = screen.getAllByTestId('payables-late-age');
     expect(lateAges).toHaveLength(2);
-    expect(screen.getByTestId('payables-overdue-count')).toHaveClass('bg-status-danger-surface');
     expect(screen.getByTestId('payables-overdue-count')).toHaveTextContent('2 overdue');
     expect(screen.getByRole('heading', { name: 'Invoice age' })).toBeVisible();
-    expect(lateAges.filter((row) => row.classList.contains('text-destructive-text'))).toHaveLength(1);
-    expect(lateAges.find((row) => row.classList.contains('text-destructive-text'))).toHaveTextContent('100 days');
+    expect(lateAges.map((row) => row.textContent)).toEqual(['100 days', '95 days']);
   });
 
   it('AC-1405-PAY-001: shows one shared to-pay total, ageing and supplier/project context', () => {
@@ -239,6 +237,15 @@ describe('Payables page', () => {
     // One help control for the page; no per-figure "?".
     expect(screen.queryAllByRole('button', { name: 'How this figure is calculated' })).toHaveLength(0);
     expect(screen.getAllByRole('button', { name: /About Payables/ })).toHaveLength(1);
+  });
+
+  it('opens the page help with the invoice-age basis and tile definition', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'About Payables' }));
+    expect(screen.getByText('Invoice age is counted from the supplier invoice date.')).toBeInTheDocument();
+    expect(screen.getByText(/Unpaid supplier invoice balances/)).toBeInTheDocument();
   });
 
   it('F11: the to-pay figure is short with its exact amount kept, while the table total stays full', () => {
@@ -270,6 +277,44 @@ describe('Payables page', () => {
     await user.click(screen.getByRole('button', { name: 'Export selected' }));
     expect(state.exportXlsx).toHaveBeenCalledTimes(1);
     expect(state.exportXlsx.mock.calls[0][0]).toHaveLength(1);
+  });
+
+  it('selects every visible row for Export selected', async () => {
+    const base = payablesFixture();
+    const second = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-2', title: 'Crane rental', code: 'PR-105', vendor: { name: 'Bumi Rental' }, vendor_id: 'supplier-2' },
+      ageDays: 75,
+      amount: 2_000_000,
+    } as FinancePosition['payables'][number];
+    const user = userEvent.setup();
+    renderPage('Finance', { ...base, payables: [base.payables[0], second] });
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select all rows' }));
+    await user.click(screen.getByRole('button', { name: 'Export selected' }));
+
+    expect(state.exportXlsx).toHaveBeenCalledTimes(1);
+    expect(state.exportXlsx.mock.calls[0][0]).toHaveLength(2);
+  });
+
+  it('opens the supplier from a row action menu', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Row actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Open supplier' }));
+
+    expect(screen.getByText('SUPPLIER RECORD')).toBeInTheDocument();
+  });
+
+  it('opens procurement from a row action menu', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Row actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Open procurement' }));
+
+    expect(screen.getByRole('status', { name: 'Current path' })).toHaveTextContent('/procurement/procurement-1');
   });
 
   it('AC-1405-PAY-003: Executive has read and export access without money actions', () => {

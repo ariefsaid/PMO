@@ -1,6 +1,7 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
 
@@ -102,11 +103,19 @@ function LocationProbe() {
   return <div data-testid="location-probe" data-search={useLocation().search} />;
 }
 
+function ReturnToPayables() {
+  const navigate = useNavigate();
+  return <button type="button" onClick={() => navigate(-1)}>Back to Payables</button>;
+}
+
 function renderPage(initialEntry = '/finance/payables') {
   state.position = payablesFixture();
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
-      <PayablesPage />
+      <Routes>
+        <Route path="/finance/payables" element={<PayablesPage />} />
+        <Route path="/procurement/:id" element={<ReturnToPayables />} />
+      </Routes>
       <LocationProbe />
     </MemoryRouter>,
   );
@@ -135,5 +144,17 @@ describe('R2 — payables search lives in the URL', () => {
     const search = screen.getByRole('searchbox', { name: 'Search payables' });
     fireEvent.change(search, { target: { value: 'sinar' } });
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?q=sinar');
+  });
+
+  it('keeps the URL search when opening procurement and returning with Back', async () => {
+    const user = userEvent.setup();
+    renderPage('/finance/payables?q=inspection');
+
+    await user.click(screen.getByRole('button', { name: 'Open supplier invoice for Sinar Supplier' }));
+    expect(screen.getByRole('button', { name: 'Back to Payables' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back to Payables' }));
+
+    expect(screen.getByRole('searchbox', { name: 'Search payables' })).toHaveValue('inspection');
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?q=inspection');
   });
 });
