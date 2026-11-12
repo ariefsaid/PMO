@@ -42,10 +42,12 @@ test('AC-ODC-093: an Odoo with none of the data receives every PMO vendor, clien
   const client = { id: crypto.randomUUID(), name: `${stamp} Client` };
   await must('vendors', admin.from('companies').insert(vendors.map((v) => ({ id: v.id, org_id: orgId, name: v.name, type: 'Vendor' as const }))).select('id'));
   await must('client', admin.from('companies').insert({ id: client.id, org_id: orgId, name: client.name, type: 'Client' }).select('id'));
-  const projects = [1, 2].map((n) => ({ id: crypto.randomUUID(), code: `${stamp}-P${n}`.toUpperCase(), name: `${stamp} project ${n}`, number: '' }));
-  const seededProjects = await must('projects', admin.from('projects').insert(projects.map((p) => ({ id: p.id, org_id: orgId, code: p.code, name: p.name, client_id: client.id, status: 'Ongoing Project' as const }))).select('id,pmo_project_number'));
-  // An Odoo send codes each analytic account with the PMO project number (FR-ODC-072), not the client code.
-  for (const p of projects) p.number = seededProjects.find((s) => s.id === p.id)!.pmo_project_number;
+  // The minted project number is per-org (every fresh org's first project numbers the same), so seed
+  // run-stamped numbers explicitly: the sends code the analytic accounts with them, and the bed-wide
+  // searches below must only ever match this run's records on the shared bed.
+  const projects = [1, 2].map((n) => ({ id: crypto.randomUUID(), number: `${stamp}-P${n}`, code: `${stamp}-P${n}`.toUpperCase(), name: `${stamp} project ${n}`, client_id: client.id }));
+  const seededProjects = await must('projects', admin.from('projects').insert(projects.map((p) => ({ id: p.id, org_id: orgId, code: p.code, name: p.name, pmo_project_number: p.number, client_id: p.client_id, status: 'Ongoing Project' as const }))).select('id,pmo_project_number'));
+  expect(new Set(seededProjects.map((s) => s.pmo_project_number)), 'the fixture holds its own stamped numbers').toEqual(new Set(projects.map((p) => p.number)));
   const purchases = projects.map((p, i) => ({ id: crypto.randomUUID(), project: p, item: `${stamp} item ${i + 1}` }));
   await must('purchases', admin.from('procurements').insert(purchases.map((x, i) => ({
     id: x.id, org_id: orgId, code: `${stamp}-PO${i + 1}`, title: `${stamp} purchase ${i + 1}`, project_id: x.project.id, vendor_id: vendors[i].id,
@@ -60,11 +62,13 @@ test('AC-ODC-093: an Odoo with none of the data receives every PMO vendor, clien
   await setup(token, { setupAction: 'set-analytic-plan', planId: String(scenario.planId) });
   const before = await bedCounts(call);
 
-  // Census: 3 vendors + 1 client in PMO, none in Odoo.
+  // Census: 3 vendors + 1 client in PMO, none of them in Odoo. The census's erp side counts the whole
+  // shared bed, so the "Odoo has none of it" half is asserted on this run's own stamped records.
   const { census } = await setup<Census>(token, { setupAction: 'census' });
   const party = census.find((r) => r.kind === 'party');
   expect(party && num(party, 'pmo')).toBe(4);
-  expect.soft(party && num(party, 'erp'), 'census: an empty Odoo holds 0 of the PMO kinds').toBe(0);
+  const onBedAlready = await call<number>('res.partner', 'search_count', { domain: [['name', 'in', [...vendors.map((v) => v.name), client.name]]], context: { active_test: false } });
+  expect.soft(onBedAlready, 'census: the connected Odoo holds none of the PMO parties (run-stamped names)').toBe(0);
 
   // Accept all: one call applies the whole proposal set; the sends then drain over sweep ticks.
   await sweepUntil(

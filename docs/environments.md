@@ -521,6 +521,46 @@ Seeded modules (Community only): `purchase stock account project analytic hr_tim
 `l10n_id`; demo data off. A bot user's API key goes to `.env.odoo.local`. The first `up` takes several minutes
 (image about 3.5 GB, module install about 2 min); later runs reuse the volumes.
 
+**Shared bed env (one bed password per machine).** Since #2177 the bed credentials live in a machine-global
+`~/.pmo-odoo-bed.env`; a worktree's `.env.odoo.local` is a SYMLINK to it (`odoo-dev-bed.sh` creates the shared
+file on first `up` and moves an existing worktree file there; two pre-existing files must be reconciled by
+hand, the script refuses to guess). Every worktree therefore talks to the same bed database with the same bot
+key instead of minting its own. `scripts/odoo-dev-bed.sh --self-test` proves the symlink contract.
+
+**Bed context for a run (`scripts/odoo-bed/make-context.mjs`).** `node scripts/odoo-bed/make-context.mjs`
+(read from the repo root, after the bed is up and the local Supabase stack is running) writes
+`~/.pmo-odoo-bed-context.json` (mode 0600, never committed, never printed) with `odooUrl`, `odooDatabase`,
+`odooKey`, `supabaseUrl`, `serviceRoleKey`, sourced from the bed env and `supabase status -o env`. It is the
+hand-off file a bed acceptance runner consumes to launch the served-functions lane and to export the spec
+environment; scripts read it, people don't.
+
+**Running the Odoo bed acceptance suite.** The browser journeys and the in-process bed tests need, in the
+shell environment: `ODOO_BED_URL`, `ODOO_BED_DB`, `ODOO_BED_KEY` (the bed, as the test process reaches it),
+`ODOO_SWEEP_SECRET` (the odoo-sweep authorization secret: the same per-environment value the Vault keeps as
+`odoo_sweep_secret` for the scheduler — migration 0421 — and the served runtime receives as its env secret;
+name the mechanism, never paste the value), plus the local Supabase credentials (`SUPABASE_URL`,
+`VITE_SUPABASE_ANON_KEY`, the service-role key) and `SUPABASE_FUNCTIONS_URL` pointing at a served lane. One
+wrap serves the functions and runs the suite; locks outermost first (odoo → db → test), browser lane one
+worker:
+
+```bash
+scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- bash -c '
+  cd pmo-portal && ODOO_SWEEP_SECRET="$ODOO_SWEEP_SECRET" \
+  scripts/e2e-local.sh AC-ODC-080 AC-ODC-091 AC-ODC-094 AC-ODC-093 AC-ODC-014 AC-OCI-100 AC-OPP-090 AC-ODA-022'
+scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/with-test-lock.sh bash -c '
+  set -a; . ./.env.odoo.local; set +a; export SUPABASE_URL=http://127.0.0.1:54321 ODOO_BED_URL="http://127.0.0.1:$ODOO_PORT" \
+  ODOO_BED_DB="$ODOO_DB" ODOO_BED_KEY="$ODOO_API_KEY" \
+  deno test --allow-env --allow-net --allow-read supabase/functions/odoo-sweep/odooSweep.bed.test.ts \
+  supabase/functions/_shared/odooLedgerFeed.bed.test.ts supabase/functions/_shared/odooRevenueFeed.bed.test.ts \
+  supabase/functions/_shared/odooPurchaseFeed.bed.test.ts supabase/functions/adapter-dispatch/*.bed.test.ts \
+  supabase/functions/external-connect/connect.odoo.bed.test.ts supabase/functions/external-set-company/*.bed.test.ts'
+```
+
+The served lane must expose the sweep secret to the runtime and the specs alike (a runner wrapper that
+merges `ODOO_SWEEP_SECRET` into the served env file, as `scripts/serve-functions.sh`'s pass-through list
+does for its own variables). Skips stay allow-listed per the e2e-skips guard: run only under the locks with
+the bed up, never gate on `CI`.
+
 **Lock order, machine-global, outermost first: `odoo -> erpnext -> db -> test`.** `scripts/with-odoo-lock.sh`
 (`PMO_ODOO_LOCK`, default `~/.pmo-odoo.lock`) shares the core in `scripts/lib/flock-run.sh`. Wrap `up`, `reset`
 and any probe run (it creates and deletes records). The ERPNext example above lists db before erpnext; the

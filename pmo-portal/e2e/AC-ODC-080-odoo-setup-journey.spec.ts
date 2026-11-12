@@ -34,9 +34,12 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
   const vendor = crypto.randomUUID(), project = crypto.randomUUID();
   const code = `${stamp}-P1`.toUpperCase();
   await must('vendor', admin.from('companies').insert({ id: vendor, org_id: orgId, name: `${stamp} PT Sinar Baja`, type: 'Vendor' }).select('id'));
-  // The database-assigned PMO project number is what an Odoo send codes the analytic account with (FR-ODC-072); the client code is not.
-  const seeded = await must('project', admin.from('projects').insert({ id: project, org_id: orgId, code, name: `${stamp} pilot`, status: 'Ongoing Project' }).select('id,pmo_project_number').single());
+  // The PMO project number is what an Odoo send codes the analytic account with (FR-ODC-072), not the client code.
+  // The minted number is per-org (every fresh org numbers its first project alike), so seed this run's stamped
+  // number explicitly: on the shared bed the whole-bed `code =` searches below match only this run's account.
+  const seeded = await must('project', admin.from('projects').insert({ id: project, org_id: orgId, code, name: `${stamp} pilot`, pmo_project_number: `${stamp}-P1`, status: 'Ongoing Project' }).select('id,pmo_project_number').single());
   const projectNumber = seeded.pmo_project_number;
+  expect(projectNumber).toBe(`${stamp}-P1`);
   sentCodes = [projectNumber];
   // A unit PMO uses (a BOQ line), so Map once has a unit to match.
   await must('boq', admin.from('boq_items').insert({ org_id: orgId, project_id: project, item_code: `${stamp}-1`, description: `${stamp} line`, quantity: 1, rate: 1000, unit: 'Units' }).select('id'));
