@@ -124,10 +124,13 @@ export const ProjectHealthCard: React.FC<{
                     return (
                       <li key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-1">
                         <Link to={`/projects/${row.id}`} title={name !== row.name ? row.name : undefined} className="grid min-w-0 flex-1 gap-y-1 py-4 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                          <span className="flex min-w-0 items-center justify-between gap-3">
-                            <span className="min-w-0 truncate text-control"><span className="font-medium">{name}</span>{extra?.meta && <span className="text-muted-foreground"> · {extra.meta}</span>}</span>
+                          <div className="flex min-w-0 items-start justify-between gap-3">
+                            <div className="min-w-0 break-words text-control">
+                              <span className="font-medium">{name}</span>
+                              {extra?.meta && <span className="block text-muted-foreground @[36rem]:inline"><span className="hidden @[36rem]:inline"> · </span>{extra.meta}</span>}
+                            </div>
                             <StatusPill wrap={false} className="shrink-0" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{statusLabel('project', row.status, ts)}</StatusPill>
-                          </span>
+                          </div>
                           {/* Reasons wrap as separate phrases: no separator can start a line. */}
                           {(wrong.length > 0 || items.length === 0) && <span data-testid="health-wrong" className="flex flex-wrap gap-x-3 text-control tabular">
                             {wrong.length === 0

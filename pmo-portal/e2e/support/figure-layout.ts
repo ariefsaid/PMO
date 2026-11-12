@@ -89,15 +89,22 @@ const financeReady: Route['ready'] = async (page, _width, language) => {
     ['/finance/payables', FINANCE_FIXTURE.payable],
     ['/finance/reports', FINANCE_FIXTURE.contract - FINANCE_FIXTURE.receivable],
   ] as const) {
-    const area = areas.locator('article').filter({ has: page.locator(`a[href="${href}"]`) });
+    // Finance areas are now joined KPI tiles; the tile link, not an article wrapper, identifies
+    // each figure while keeping the geometry oracle pinned to the displayed amount.
+    const area = areas.locator(`a[href="${href}"]`).locator('xpath=..');
+    await expect(area).toBeVisible();
     await expect(area.getByRole('status')).toHaveCount(0);
     await expectFixtureAmount(area.locator('.tabular').first(), minimum, language);
   }
-  const statements = areas.locator('article').filter({ has: page.locator('a[href="/finance/statements"]') });
-  await expect(statements).toBeVisible();
-  await expect(statements.getByRole('status')).toHaveCount(0);
-  // This live statement read may legitimately have no period; preserve that state.
-  await expect(statements).toContainText(language === 'id' ? /Laba bersih/i : /net profit/i);
+  const statements = areas.locator('a[href="/finance/statements"]');
+  // Unknown figures are omitted from the tile row and described once in the hidden-figures line.
+  // This fixture has no statement period, so preserve the honest unavailable state.
+  await expect(statements).toHaveCount(0);
+  await expect(page.getByTestId('figures-hidden')).toContainText(
+    language === 'id'
+      ? 'Laporan keuangan berasal dari sistem akuntansi; Admin mengaturnya di Integrasi.'
+      : 'Statements come from the accounting system; an Admin sets this up in Integrations.',
+  );
 };
 const reportReady: Route['ready'] = async (page, _width, language) => {
   const figures = page.getByRole('region', { name: language === 'id' ? 'Angka laporan' : 'Report figures' });

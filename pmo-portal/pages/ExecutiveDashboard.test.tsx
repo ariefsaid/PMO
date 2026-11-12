@@ -146,8 +146,8 @@ beforeEach(() => {
     orgCurrency: 'USD', currencyPending: false, organizationToday: '2026-10-27', organizationDayPending: false,
     isEmpty: false,
     figureStatus: () => ({ pending: false, error: false }),
-    receivables: { count: 0, notDue: [], overdue: [], overdueCount: 0, unknownBalances: 0, oldestDays: null },
-    payables: { count: 0, notDue: [], overdue: [], overdueCount: 0, unknownBalances: 0, oldestDays: null },
+    receivables: { count: 0, notDue: [], overdue: [], overdueCount: 0, unknownBalances: 0, unknownLines: [], oldestDays: null },
+    payables: { count: 0, notDue: [], overdue: [], overdueCount: 0, unknownBalances: 0, unknownLines: [], oldestDays: null },
     receivablesPending: false, receivablesError: false, payablesPending: false, payablesError: false,
     leftToBillByProject: [], collectedPending: false,
   };

@@ -75,18 +75,17 @@ test(
     await waitReady(page);
     await expect(page.getByRole('tab', { name: /^Ongoing$/i })).toHaveAttribute('aria-selected', 'true');
     await expect(search).toHaveValue('Innovate');
-    // The narrowed SET came back, not just the URL: the searched-out and filtered-out rows stay
-    // out. Scoped to the desktop table so the locator can't transiently match the breadcrumb of
-    // the just-departed detail page during the return transition (strict-mode ambiguity).
-    const table = page.getByRole('table');
-    await expect(table.getByText('Innovate Corp HQ Fit-Out')).toBeVisible();
-    await expect(table.getByText('Acme Internal Platform')).not.toBeVisible();
-    await expect(table.getByText('Northwind ERP Rollout')).not.toBeVisible();
+    // The narrowed set came back, not just the URL: the searched-out and filtered-out project
+    // entries stay out. Scope to the result container so the locator can't match the breadcrumb.
+    const results = page.getByTestId('projects-table-container');
+    await expect(results.getByRole('button', { name: 'Innovate Corp HQ Fit-Out', exact: true })).toBeVisible();
+    await expect(results.getByRole('button', { name: 'Acme Internal Platform', exact: true })).toHaveCount(0);
+    await expect(results.getByRole('button', { name: 'Northwind ERP Rollout', exact: true })).toHaveCount(0);
     await expectScrollRestored(main, scrolledTop);
 
     // ── Mobile BackBar return ────────────────────────────────────────────────────────────────
-    // Resize FIRST: below `md` the table reflows into a mobile card list (a different DOM
-    // subtree), which discards any scrollTop set before the resize.
+    // Resize FIRST: the result card layout uses a separate narrow DOM branch and discards any
+    // scrollTop set before the resize.
     await page.setViewportSize({ width: 390, height: 420 });
     await waitReady(page);
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
@@ -98,11 +97,12 @@ test(
     await expect(page).toHaveURL(/[?&]filter=Ongoing/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=Innovate/);
     await waitReady(page);
-    // Below `md` a row's title renders as a card `<button>` (not plain text like the desktop
-    // table); scope to that role so the locator can't transiently match the breadcrumb/heading
-    // of the just-departed detail page during the return transition (strict-mode ambiguity).
-    await expect(page.getByRole('button', { name: 'Innovate Corp HQ Fit-Out' })).toBeVisible();
-    await expect(page.getByText('Acme Internal Platform')).not.toBeVisible();
+    // Project entries are title buttons in this result view; scope them to the results so the
+    // locator can't transiently match the breadcrumb/heading during the return transition.
+    const mobileResults = page.getByTestId('projects-table-container');
+    await expect(mobileResults.getByRole('button', { name: 'Innovate Corp HQ Fit-Out', exact: true })).toBeVisible();
+    await expect(mobileResults.getByRole('button', { name: 'Acme Internal Platform', exact: true })).toHaveCount(0);
+    await expect(mobileResults.getByRole('button', { name: 'Northwind ERP Rollout', exact: true })).toHaveCount(0);
     await expectScrollRestored(main, mobileScrolledTop);
 
     // ── A direct/copied record link carries no captured list context — Back falls back to the

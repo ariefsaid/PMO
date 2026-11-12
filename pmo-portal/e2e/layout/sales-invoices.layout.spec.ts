@@ -86,6 +86,9 @@ async function openInvoicesTable(page: Page) {
   const scrollerLoc = page.getByTestId('dt-table-branch');
   await expect(scrollerLoc).toBeVisible({ timeout: 20_000 });
   await expect(scrollerLoc.locator('tbody tr').first()).toBeVisible({ timeout: 20_000 });
+  // Receivables places this long table below the age summaries. Bring its header into view before
+  // screenshot-based seam sampling; scrolling the full-height table can center it with a negative top.
+  await scrollerLoc.locator('thead').scrollIntoViewIfNeeded();
   await expect(scrollerLoc.locator('tbody button[aria-label="Row actions"]').first()).toBeVisible();
   return scrollerLoc;
 }

@@ -44,7 +44,7 @@ for (const width of [390, 1440] as const) {
     for (const theme of ['light', 'dark'] as const) {
       test(`@layout AC-008 support: company native trial balance fits at ${width}px in ${locale}/${theme}`, async ({ page }) => {
         const routes = await openCompanyStatements(page, locale, theme, 'populated', width);
-        await expect(page.getByRole('heading', { level: 1, name: locale === 'id' ? 'Laporan keuangan' : 'Financial statements' })).toBeVisible();
+        await expect(page.getByRole('heading', { level: 1, name: locale === 'id' ? 'Laporan keuangan' : 'Statements' })).toBeVisible();
         await expectCompanyAccountLabel(page);
         await expectNoHorizontalOverflow(page);
         await expect.poll(routes.readCount).toBeGreaterThan(0);

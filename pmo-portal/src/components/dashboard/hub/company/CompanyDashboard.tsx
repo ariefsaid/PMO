@@ -367,7 +367,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       figures.figureStatus('billed-margin').pending || margin?.amounts ? moneyTile(margin, { caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,
       moneyTile(todayFigure('still-to-invoice')),
     ].filter((tile) => tile !== null);
-    const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);
+    const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]', bandTiles);
 
     // Finances: what is owed each way (not yet due | overdue), money in by month, then what is left to bill.
     const overdue = needs.overdueInvoices;
