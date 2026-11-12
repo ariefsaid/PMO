@@ -679,15 +679,15 @@
     "chartTableTotal": "Total"
   },
   "trend": {
-    "label": "Ditagihkan, {{months}} bulan terakhir yang selesai · di luar pajak",
+    "label": "Pekerjaan tertagih, {{months}} bulan penuh terakhir · sebelum pajak",
     "latest": "Bulan terakhir, {{month}}: {{amount}}",
     "since": "dari {{month}}: {{amount}}",
     "rising": "Naik",
     "falling": "Turun",
-    "chartName": "Tren tagihan, {{first}} sampai {{last}}",
+    "chartName": "Tren pekerjaan tertagih, {{first}} sampai {{last}}",
     "steady": "Stabil",
-    "error": "Tren penagihan tidak dapat dimuat",
-    "compactLabel": "Ditagih, {{months}} bulan terakhir"
+    "error": "Tren pekerjaan tertagih tidak dapat dimuat",
+    "compactLabel": "Pekerjaan tertagih · {{months}} bulan penuh terakhir"
   },
   "helpPopover": {
     "label": "Tentang {{subject}}"

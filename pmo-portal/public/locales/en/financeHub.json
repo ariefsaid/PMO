@@ -216,11 +216,17 @@
       "reconcile": "Open invoices"
     },
     "col": {
+      "period": "Period",
+      "billedWorkByMonth": "Billed work by month",
       "progress": "Progress",
       "earned": "Earned",
       "invoices": "Invoices",
       "doneNotYetBilled": "Done, not yet billed",
       "leftToBill": "Left to bill"
+    },
+    "export": {
+      "selectedPeriodTotal": "Selected period total",
+      "opening": "Opening"
     },
     "noProgressNote": "Without progress assessments, earned revenue follows invoiced revenue.",
     "leftToBillUnknownNote": "Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.",

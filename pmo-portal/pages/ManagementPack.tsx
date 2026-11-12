@@ -169,7 +169,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   };
 
   const exportLabels: ManagementPackExportLabels = {
-    month: t('managementPack.col.month', 'Month'),
+    period: t('financeHub:managementPack.col.period', 'Period'),
     projectNumber: t('managementPack.col.projectNumber', 'Project number'),
     project: t('managementPack.col.project', 'Project'),
     client: t('managementPack.col.client', 'Client'),
@@ -177,7 +177,11 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     taxBasis: t('managementPack.col.taxBasis', 'Tax basis'),
     planned: label.planned,
     recognised: label.recognised,
-    invoiced: label.invoiced,
+    invoicedByMonth: t('financeHub:managementPack.col.billedWorkByMonth', 'Billed work by month'),
+    selectedPeriod: t('financeHub:managementPack.figures.billedWorkInPeriod', 'Billed work in period'),
+    opening: t('financeHub:managementPack.figures.openingBilledWork', 'Opening billed work'),
+    selectedPeriodRow: t('financeHub:managementPack.export.selectedPeriodTotal', 'Selected period total'),
+    openingRow: t('financeHub:managementPack.export.opening', 'Opening'),
     recognisedToDate: label.recognisedToDate,
     invoicedToDate: label.invoicedToDate,
     unbilled: label.unbilled,

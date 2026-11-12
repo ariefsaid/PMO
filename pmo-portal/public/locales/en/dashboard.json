@@ -679,15 +679,15 @@
     "chartTableTotal": "Total"
   },
   "trend": {
-    "label": "Invoiced, last {{months}} completed months · excl. tax",
+    "label": "Billed work, last {{months}} completed months · excl. tax",
     "latest": "Latest month, {{month}}: {{amount}}",
     "since": "from {{month}}: {{amount}}",
     "rising": "Rising",
     "falling": "Falling",
-    "chartName": "Invoiced trend, {{first}} to {{last}}",
+    "chartName": "Billed work trend, {{first}} to {{last}}",
     "steady": "Steady",
-    "error": "Couldn't load the invoiced trend",
-    "compactLabel": "Invoiced, last {{months}} months"
+    "error": "Couldn't load the billed-work trend",
+    "compactLabel": "Billed work · last {{months}} completed months"
   },
   "helpPopover": {
     "label": "About {{subject}}"

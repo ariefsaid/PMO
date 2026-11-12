@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { billingAgreementRoutes } from '@/src/test/figureAgreementRoutes';
 import { renderFigureAgreementRoute } from '@/src/test/figureAgreementHarness';
+import { setFigureAgreementSingleCurrencyContractCase } from '@/src/test/figureAgreementRepositoryMock';
 
 vi.unmock('@/src/hooks/useProjectsMoneyCollection');
 
@@ -41,6 +42,7 @@ for (const route of billingAgreementRoutes) {
 }
 
 describe('S02 billed-work figure agreement on real screens', () => {
+  afterEach(() => setFigureAgreementSingleCurrencyContractCase(false));
   it('Reports shows selected-period, cumulative, and opening billed work as distinct figures', async () => {
     const user = userEvent.setup();
     const { container } = renderFigureAgreementRoute(reportRoute);
@@ -75,15 +77,21 @@ describe('S02 billed-work figure agreement on real screens', () => {
     expect(reportAmount).toBe(homeAmount);
   });
 
-  it('contract invoiced agrees with the independently pinned USD contract-kind total', async () => {
+  it('contract invoiced is unavailable when the agreement fixture includes a foreign-currency Contract invoice', async () => {
     renderFigureAgreementRoute(contractRoute);
-    let observed = '';
-    await waitFor(() => {
-      const invoicedStep = screen.getByRole('listitem', { name: /^Invoiced /u });
-      observed = invoicedStep.getAttribute('aria-label') ?? '';
-      expect(observed).not.toBe('');
-    });
-    console.info(`FIGURE AGREEMENT OBSERVED · contract-invoiced · ProjectDetail Contract tab · expected USD $100 · observed ${observed}`);
-    expect(observed).toContain('$100');
+    const invoicedStep = await screen.findByRole('listitem', { name: /^Invoiced /u });
+    expect(invoicedStep).toHaveTextContent('—');
+    expect(invoicedStep).not.toHaveTextContent('$100');
+    expect(invoicedStep).not.toHaveTextContent('$0');
+    expect(invoicedStep).toHaveTextContent('Signed contract · excluding tax');
+  });
+
+  it('contract invoiced is $100 and 10% for a single-currency Contract invoice set', async () => {
+    setFigureAgreementSingleCurrencyContractCase(true);
+    renderFigureAgreementRoute(contractRoute);
+    const invoicedStep = await screen.findByRole('listitem', { name: /^Invoiced /u });
+    expect(invoicedStep).toHaveTextContent('$100');
+    expect(invoicedStep).toHaveTextContent('Signed contract · excluding tax');
+    expect(invoicedStep).toHaveTextContent('10%');
   });
 });

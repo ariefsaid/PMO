@@ -216,11 +216,17 @@
       "reconcile": "Buka faktur"
     },
     "col": {
+      "period": "Periode",
+      "billedWorkByMonth": "Pekerjaan tertagih per bulan",
       "progress": "Progres",
       "earned": "Diperoleh",
       "invoices": "Faktur",
       "doneNotYetBilled": "Selesai, belum ditagih",
       "leftToBill": "Sisa yang harus ditagih"
+    },
+    "export": {
+      "selectedPeriodTotal": "Total periode yang dipilih",
+      "opening": "Saldo awal"
     },
     "noProgressNote": "Tanpa penilaian progres, pendapatan yang diakui mengikuti nilai faktur.",
     "leftToBillUnknownNote": "Sisa tagihan tidak mencakup faktur mata uang asing yang belum direkonsiliasi; nilainya belum diketahui.",
