@@ -1,17 +1,16 @@
 import React, { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, PageHeader, ViewToggle } from '@/src/components/ui';
+import { Button, Icon, ListState, PageHeader, ViewToggle } from '@/src/components/ui';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { figureCols, moneyTileProps } from '@/src/components/finance/moneyTile';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
-import { useFinancePosition } from '@/src/hooks/useFinancePosition';
-import { useSalesInvoices, useIncomingPayments } from '@/src/hooks/useRevenue';
+import { useReceivablesPagePosition } from '@/src/hooks/useReceivablesPagePosition';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
-import { groupUnknownOverdueReceivablesByAge, type CurrencyTotals } from '@/src/lib/finance/financePosition';
+import { groupUnknownOverdueReceivablesByAge, type CurrencyTotals, type FinancePosition } from '@/src/lib/finance/financePosition';
 import { formatDay, formatTileMoney } from '@/src/lib/format';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { isOpenClientInvoiceStatus } from '@/src/lib/revenue/clientInvoiceStatus';
@@ -51,7 +50,7 @@ function dueSoonTotals(invoices: { erp_outstanding_amount: number | null; curren
   return totals;
 }
 
-function owedTotals(position: ReturnType<typeof useFinancePosition>['position']): CurrencyTotals {
+function owedTotals(position: FinancePosition): CurrencyTotals {
   const totals: CurrencyTotals = {};
   for (const [currency, buckets] of Object.entries(position.receivablesAgeing)) {
     totals[currency] = Object.values(buckets).reduce((sum, cents) => sum + cents, 0);
@@ -77,21 +76,21 @@ export default function ReceivablesPage() {
   const may = usePermission();
   const orgCurrency = useOrgCurrency();
   const [searchParams, setSearchParams] = useSearchParams();
-  const finance = useFinancePosition();
-  const { data: invoices = [], isPending: invoicesPending } = useSalesInvoices();
-  const { data: payments = [], isPending: paymentsPending } = useIncomingPayments();
-  const dataPending = finance.isPending || invoicesPending || paymentsPending;
+  const pagePosition = useReceivablesPagePosition();
+  const { position, today, invoices, payments } = pagePosition;
+  const { receivablesPending, receivablesError, cashPending, cashError } = pagePosition;
   const view: ReceivablesView = searchParams.get('view') === 'payments' ? 'payments' : 'invoices';
   const canCreateInvoice = may('create', 'salesInvoice');
   const canCreatePayment = may('create', 'incomingPayment');
-  const owed = useMemo(() => owedTotals(finance.position), [finance.position]);
+  const owed = useMemo(() => owedTotals(position), [position]);
   const openInvoices = useMemo(() => invoices.filter((invoice) => isOpenClientInvoiceStatus(invoice.status) && (invoice.erp_outstanding_amount == null || invoice.erp_outstanding_amount > 0)), [invoices]);
-  const owedUnknown = finance.position.receivablesUnknownCount;
-  const receivablesUnknownAgeing = groupUnknownOverdueReceivablesByAge(finance.position.overdue);
+  const owedUnknown = position.receivablesUnknownCount;
+  const receivablesUnknownAgeing = groupUnknownOverdueReceivablesByAge(position.overdue);
   const unknownBalancesWithoutAge = Math.max(0, owedUnknown - receivablesUnknownAgeing.total);
-  const overdueUnknown = finance.position.overdueUnknownCount;
-  const overduePercent = owedUnknown || overdueUnknown ? null : owed[orgCurrency] ? Math.round(((finance.position.overdueTotals[orgCurrency] ?? 0) / owed[orgCurrency]) * 100) : 0;
-  const today = finance.today;
+  const overdueUnknown = position.overdueUnknownCount;
+  const overduePercent = receivablesPending || receivablesError
+    ? null
+    : owedUnknown || overdueUnknown ? null : owed[orgCurrency] ? Math.round(((position.overdueTotals[orgCurrency] ?? 0) / owed[orgCurrency]) * 100) : 0;
   const dueSoon = useMemo(() => {
     if (!today) return [];
     const end = addDays(today, 30);
@@ -106,12 +105,12 @@ export default function ReceivablesPage() {
   const lastMonthCash = useMemo(() => today ? monthlyCash(payments, previousMonthStart(today), monthStart(today)) : { totals: {}, unknown: 0 }, [payments, today]);
   const cashDeltaCents = (thisMonthCash.totals[orgCurrency] ?? 0) - (lastMonthCash.totals[orgCurrency] ?? 0);
   const cashDelta = (() => {
-    if (!today || thisMonthCash.unknown || lastMonthCash.unknown) return undefined;
+    if (!today || cashPending || cashError || thisMonthCash.unknown || lastMonthCash.unknown) return undefined;
     const amount = formatTileMoney(Math.abs(cashDeltaCents) / 100, orgCurrency);
     return amount === null ? undefined : cashDeltaCents > 0 ? `+${amount}` : cashDeltaCents < 0 ? `−${amount}` : amount;
   })();
-  const owedTile = dataPending || (owedUnknown > 0 && !owed[orgCurrency]) ? null : moneyTileProps(finance.position.receivablesCount === 0 ? { [orgCurrency]: 0 } : owed, orgCurrency);
-  const overdueTile = dataPending || (overdueUnknown > 0 && !finance.position.overdueTotals[orgCurrency]) ? null : moneyTileProps(finance.position.overdue.length === 0 ? { [orgCurrency]: 0 } : finance.position.overdueTotals, orgCurrency);
+  const owedTile = receivablesPending || receivablesError || (owedUnknown > 0 && !owed[orgCurrency]) ? null : moneyTileProps(position.receivablesCount === 0 ? { [orgCurrency]: 0 } : owed, orgCurrency);
+  const overdueTile = receivablesPending || receivablesError || (overdueUnknown > 0 && !position.overdueTotals[orgCurrency]) ? null : moneyTileProps(position.overdue.length === 0 ? { [orgCurrency]: 0 } : position.overdueTotals, orgCurrency);
 
   const dueSoonTile = moneyTileProps(dueSoon.length === 0 && today ? { [orgCurrency]: 0 } : dueSoonByCurrency, orgCurrency);
   const hasCurrentPayments = today && payments.some((payment) => {
@@ -173,49 +172,62 @@ export default function ReceivablesPage() {
       <div className="order-2 mb-3"><FigureHiddenLine /></div>
 
       <div className="order-4 max-sm:order-5 min-w-0">
-        <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className={`mb-5 ${figureCols((owedTile || dataPending ? 1 : 0) + (overdueTile || dataPending ? 1 : 0) + 2)}`}>
+        <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className={`mb-5 ${figureCols((owedTile || receivablesPending || receivablesError ? 1 : 0) + (overdueTile || receivablesPending || receivablesError ? 1 : 0) + 2)}`}>
           <KPITile
             icon="grid" tone="blue" label={t('finance:receivables.owed', 'Owed to you')} caption={t('financeHub:hub.taxIncluded', 'tax included')}
-            value={owedTile?.value ?? null} exactValue={owedTile?.exactValue} loading={dataPending}
-            unavailableReason={owedTile || dataPending ? undefined : unknownReason(owedUnknown)} hiddenLink={seeInvoices}
+            value={owedTile?.value ?? null} exactValue={owedTile?.exactValue} loading={receivablesPending} error={receivablesError}
+            unavailableReason={owedTile || receivablesPending || receivablesError ? undefined : unknownReason(owedUnknown)} hiddenLink={seeInvoices}
             help={t('finance:receivables.owedHelp', 'Known outstanding balances on submitted and unpaid client invoices, including tax.')}
           />
           <KPITile
-            icon="grid" tone="red" label={t('finance:receivables.overdue', 'Overdue')} caption={overduePercent == null ? undefined : t('finance:receivables.overduePercent', '{{percent}}% of owed', { percent: overduePercent })}
-            value={overdueTile?.value ?? null} exactValue={overdueTile?.exactValue} loading={dataPending}
-            unavailableReason={overdueTile || dataPending ? undefined : unknownReason(overdueUnknown)} hiddenLink={seeInvoices}
+            icon="grid" tone="red" label={t('finance:receivables.overdue', 'Overdue')} caption={receivablesPending || receivablesError || overduePercent == null ? undefined : t('finance:receivables.overduePercent', '{{percent}}% of owed', { percent: overduePercent })}
+            value={overdueTile?.value ?? null} exactValue={overdueTile?.exactValue} loading={receivablesPending} error={receivablesError}
+            unavailableReason={overdueTile || receivablesPending || receivablesError ? undefined : unknownReason(overdueUnknown)} hiddenLink={seeInvoices}
             help={t('finance:receivables.overdueHelp', 'Known overdue balances divided by known owed balances in the same currency. Invoice count includes invoices with an unknown balance.')}
           />
           <KPITile
             icon="grid" tone="amber" label={t('finance:receivables.dueNext30', 'Due in next 30 days')}
-            caption={dueSoon[0] ? t('finance:receivables.nextDue', 'next due {{date}}', { date: formatDay(dueSoon[0].due) }) : undefined}
-            value={dataPending ? null : dueSoonTile.value} exactValue={dataPending ? undefined : dueSoonTile.exactValue} loading={dataPending}
-            unavailableReason={!dataPending && dueSoonTile.value == null && dueSoonUnknown > 0 ? unknownReason(dueSoonUnknown) : undefined} hiddenLink={seeInvoices}
+            caption={!receivablesPending && !receivablesError && dueSoon[0] ? t('finance:receivables.nextDue', 'next due {{date}}', { date: formatDay(dueSoon[0].due) }) : undefined}
+            value={receivablesPending || receivablesError ? null : dueSoonTile.value} exactValue={receivablesPending || receivablesError ? undefined : dueSoonTile.exactValue} loading={receivablesPending} error={receivablesError}
+            unavailableReason={!receivablesPending && !receivablesError && dueSoonTile.value == null && dueSoonUnknown > 0 ? unknownReason(dueSoonUnknown) : undefined} hiddenLink={seeInvoices}
             help={t('finance:receivables.dueHelp', 'Open invoices with a due date from today through 30 days from today, using the invoice date, client terms, and ERP due date.')}
           />
           <KPITile
             icon="grid" tone="green" label={t('finance:receivables.receivedThisMonth', 'Received this month')}
-            caption={cashDelta ? t('finance:receivables.vsLastMonth', '{{delta}} vs last month', { delta: cashDelta }) : undefined}
-            value={dataPending || thisMonthCash.unknown ? null : cashTile.value} exactValue={dataPending || thisMonthCash.unknown ? undefined : cashTile.exactValue} loading={dataPending}
-            unavailableReason={!dataPending && thisMonthCash.unknown ? t('finance:receivables.receiptUnknown', { defaultValue: '{{count}} receipt amounts unknown', count: thisMonthCash.unknown }) : undefined}
+            caption={!cashPending && !cashError && cashDelta ? t('finance:receivables.vsLastMonth', '{{delta}} vs last month', { delta: cashDelta }) : undefined}
+            value={cashPending || cashError || thisMonthCash.unknown ? null : cashTile.value} exactValue={cashPending || cashError || thisMonthCash.unknown ? undefined : cashTile.exactValue} loading={cashPending} error={cashError}
+            unavailableReason={!cashPending && !cashError && thisMonthCash.unknown ? t('finance:receivables.receiptUnknown', { defaultValue: '{{count}} receipt amounts unknown', count: thisMonthCash.unknown }) : undefined}
             help={t('finance:receivables.receivedHelp', 'Cash received on non-cancelled payments dated in this calendar month, compared with the previous calendar month.')}
           />
         </KPIRow>
-        <AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={finance.position.receivablesNoDueDateCounts} unknownTotal={unknownBalancesWithoutAge} />
+        {cashError && <ListState
+          variant="error"
+          title={t('finance:area.attentionLoadError', "Couldn't load finance activity")}
+          onRetry={pagePosition.retryCash}
+          testId="receivables-cash-load-error"
+          className="mb-5"
+        />}
+        {receivablesPending && <section aria-label={t('finance:area.receivablesAgeingTitle', 'Client balances by age')} className="mb-5 min-w-0">
+          <h2 className="mb-2 text-[14px] font-semibold">{t('finance:area.receivablesAgeingTitle', 'Client balances by age')}</h2>
+          <ListState variant="loading" shape="chart" rows={1} className="p-0" loadingLabel={t('ui.listState.loading', 'Loading…')} />
+        </section>}
+        {receivablesError && <ListState
+          variant="error"
+          title={t('finance:area.attentionLoadError', "Couldn't load finance activity")}
+          onRetry={pagePosition.retryReceivables}
+          testId="receivables-position-load-error"
+          className="mb-5"
+        />}
+        {!receivablesPending && !receivablesError && <AgeingStrip kind="receivables" values={position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={position.receivablesNoDueDateCounts} unknownTotal={unknownBalancesWithoutAge} />}
       </div>
-
-      {finance.isError && <div role="alert" className="order-4 mb-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-control">
-        <span>{t('finance:area.attentionLoadError', "Couldn't load finance activity")}</span>
-        <Button type="button" variant="outline" size="sm" onClick={finance.retry}>{t('ui.listState.retry', 'Retry')}</Button>
-      </div>}
 
       <section aria-label={t('finance:area.viewInvoicesOrPayments', 'Receivables list')} className="order-3 min-w-0 sm:order-5">
         {/* ponytail: no outer card — the DataTable frame is the one container (no card inside a card). */}
         <div className="mb-3">
           <ViewToggle<ReceivablesView>
             options={[
-              { value: 'invoices', label: `${t('finance:area.invoicesList', 'Invoices')} · ${invoices.length}` },
-              { value: 'payments', label: `${t('finance:area.paymentsList', 'Payments received')} · ${payments.length}` },
+              { value: 'invoices', label: pagePosition.invoiceCount === null ? t('finance:area.invoicesList', 'Invoices') : `${t('finance:area.invoicesList', 'Invoices')} · ${pagePosition.invoiceCount}` },
+              { value: 'payments', label: pagePosition.paymentCount === null ? t('finance:area.paymentsList', 'Payments received') : `${t('finance:area.paymentsList', 'Payments received')} · ${pagePosition.paymentCount}` },
             ]}
             value={view}
             onChange={changeView}

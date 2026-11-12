@@ -1,12 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, LateText, ListPage, SearchMini, StatusPill, Toolbar, useUrlFilters, isMostUrgentLateRow, type Column } from '@/src/components/ui';
+import { Button, DataTable, LateText, ListPage, ListState, SearchMini, StatusPill, Toolbar, useUrlFilters, isMostUrgentLateRow, type Column } from '@/src/components/ui';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
 import { useFinanceAccess } from '@/src/components/finance/useFinanceAccess';
 import { useExport } from '@/src/components/export/useExport';
-import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
@@ -16,7 +15,7 @@ import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { moneyTileProps } from '@/src/components/finance/moneyTile';
 import { initials } from '@/src/lib/initials';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
+import { usePayablesPagePosition } from '@/src/hooks/usePayablesPagePosition';
 
 type PayableRow = FinancePosition['payables'][number];
 
@@ -37,10 +36,13 @@ const PayablesPage: React.FC = () => {
     state: { recordContext: { origin: 'finance-payables' } },
   });
   const { canView } = useFinanceAccess();
-  const finance = useFinancePosition(canView);
-  // L12: supplier invoices kept in the accounting system count here exactly as on the procurement record.
-  const payablesPosition = usePayablesPosition(finance.position, canView);
-  const isPending = finance.isPending || payablesPosition.isPending;
+  const payablesPosition = usePayablesPagePosition(canView);
+  const isPending = payablesPosition.isPending;
+  const isError = payablesPosition.isError;
+  const agePending = payablesPosition.agePending;
+  const ageError = payablesPosition.ageError;
+  const ageingPending = payablesPosition.ageingPending;
+  const ageingError = payablesPosition.ageingError;
   const projects = useProjects({ enabled: canView });
   const currencyState = useOrgCurrencyState();
   const orgCurrency = currencyState.isResolved ? currencyState.currency : null;
@@ -101,10 +103,14 @@ const PayablesPage: React.FC = () => {
       header: t('financeHub:hub.invoiceAge', 'Invoice age'),
       kind: 'status',
       size: 130,
-      cell: (row) => row.ageDays === null ? null : row.ageDays > 90
+      cell: (row) => agePending
+        ? <span aria-label={t('ui.listState.loading', 'Loading…')} className="text-muted-foreground">…</span>
+        : ageError
+          ? <span title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} className="text-muted-foreground">—</span>
+          : row.ageDays === null ? null : row.ageDays > 90
         ? <LateText data-testid="payables-late-age" emphasis={isMostUrgentLateRow(lateRows, row)}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}</LateText>
         : <StatusPill variant={row.ageDays <= 30 ? 'neutral' : 'warn'}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}</StatusPill>,
-      exportValue: (row) => row.ageDays === null ? '' : `${row.ageDays} days`,
+      exportValue: (row) => agePending || ageError || row.ageDays === null ? '' : `${row.ageDays} days`,
     },
     {
       key: 'amount',
@@ -116,10 +122,10 @@ const PayablesPage: React.FC = () => {
       cell: (row) => row.amount === null ? null : formatTableMoney(row.amount / 100, row.procurement.currency),
       exportValue: (row) => (row.amount === null ? '' : row.amount / 100),
     },
-  ], [lateRows, projectManagers, t]);
+  ], [ageError, agePending, lateRows, projectManagers, t]);
 
   const totalValues = useMemo(() => currencyTotals(filteredRows), [filteredRows]);
-  const totals = Object.entries(totalValues).map(([currency, amount]) => ({
+  const totals = (isPending || isError ? [] : Object.entries(totalValues)).map(([currency, amount]) => ({
     key: `total-${currency}`,
     label: t('financeHub:hub.totalCurrency', 'Total · {{currency}}', { currency }),
     values: { amount: formatTableMoney(amount / 100, currency) ?? '' },
@@ -145,31 +151,47 @@ const PayablesPage: React.FC = () => {
     <ListPage
       title={t('financeHub:hub.payablesTitle', 'Payables')}
       help={<p>{t('financeHub:hub.payablesHelp', 'Invoice age is counted from the supplier invoice date.')}</p>}
-      count={filteredRows.length}
-      total={payablesPosition.payables.length}
+      count={isPending || isError ? undefined : filteredRows.length}
+      total={isPending || isError ? undefined : payablesPosition.payables.length}
     >
       <div className="mb-3"><FigureHiddenLine /></div>
       <KPIRow aria-label={t('financeHub:hub.payablesFigures', 'Payables figures')} className="mb-5 grid-cols-2">
         <KPITile
           icon="grid" tone="blue" label={t('financeHub:hub.toPaySuppliers', 'To pay suppliers')}
-          caption={supplierCaption}
-          value={toPay?.value ?? null} exactValue={toPay?.exactValue} loading={isPending}
-          unavailableReason={toPay || isPending ? undefined : t('financeHub:hub.fix.payables.unknownCount', { defaultValue: payablesPosition.payablesUnknownCount === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: payablesPosition.payablesUnknownCount })}
+          caption={isPending || isError ? undefined : supplierCaption}
+          value={toPay?.value ?? null} exactValue={toPay?.exactValue} loading={isPending} error={isError}
+          unavailableReason={toPay || isPending || isError ? undefined : t('financeHub:hub.fix.payables.unknownCount', { defaultValue: payablesPosition.payablesUnknownCount === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: payablesPosition.payablesUnknownCount })}
           help={t('financeHub:hub.payablesHint', 'Unpaid supplier invoice balances (invoice amount less payments made), grouped by currency. Unknown balances are counted, not added.')}
         />
-        {(isPending || oldest) && <KPITile
+        {(agePending || ageError || oldest) && <KPITile
           icon="grid" tone="amber" label={t('financeHub:hub.oldestInvoiceAge', 'Oldest invoice age')}
-          value={oldest?.ageDays === null || !oldest ? null : t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: oldest.ageDays })} loading={isPending}
+          value={agePending || ageError || oldest?.ageDays === null || !oldest ? null : t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: oldest.ageDays })} loading={agePending} error={ageError}
         />}
       </KPIRow>
-      {!isPending && !finance.isError && <AgeingStrip kind="payables" heading={t('financeHub:hub.invoiceAge', 'Invoice age')} ariaLabel={t('finance:area.payablesAgeingBasis', 'Invoice age, by days')} values={payablesPosition.payablesAgeing} unknownCounts={payablesPosition.payablesUnknownAgeing} />}
+      {ageingPending && <section aria-label={t('finance:area.payablesAgeingBasis', 'Invoice age, by days')} className="mb-5 min-w-0">
+        <h2 className="mb-2 text-[14px] font-semibold">{t('financeHub:hub.invoiceAge', 'Invoice age')}</h2>
+        <ListState variant="loading" shape="chart" rows={1} className="p-0" loadingLabel={t('ui.listState.loading', 'Loading…')} />
+      </section>}
+      {isError && <ListState
+        variant="error"
+        title={t('financeHub:hub.payablesLoadError', "Couldn't load supplier invoices")}
+        onRetry={payablesPosition.retry}
+        className="mb-5"
+      />}
+      {ageingError && !isError && <ListState
+        variant="error"
+        title={t('financeHub:hub.positionError', "Couldn't load balance ageings")}
+        onRetry={payablesPosition.retryAge}
+        className="mb-5"
+      />}
+      {!ageingPending && !ageingError && <AgeingStrip kind="payables" heading={t('financeHub:hub.invoiceAge', 'Invoice age')} ariaLabel={t('finance:area.payablesAgeingBasis', 'Invoice age, by days')} values={payablesPosition.payablesAgeing} unknownCounts={payablesPosition.payablesUnknownAgeing} />}
       <div className="min-w-0" data-testid="finance-payables-table-card">
       <Toolbar data-testid="finance-payables-table-toolbar" className="gap-2 sm:gap-3">
         <SearchMini aria-label={t('financeHub:hub.searchPayables', 'Search payables')} placeholder={t('financeHub:hub.searchPayables', 'Search payables')} value={search} onChange={(event) => setSearch(event.target.value)} searchSurface="finance-payables" module="finance" resultCount={filteredRows.length} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {lateRows.length > 0 && <StatusPill variant="overdue" data-testid="payables-overdue-count">{t('finance:area.overdueCount', { defaultValue: '{{count}} overdue', count: lateRows.length })}</StatusPill>}
-          <Button variant="outline" loading={busy} onClick={() => void exportXlsx(filteredRows, columns, 'Payables')}>{t('financeHub:hub.export', 'Export')}</Button>
-          {selectedKeys.size > 0 && <Button variant="outline" loading={busy} onClick={() => void exportXlsx(payablesPosition.payables.filter((row) => selectedKeys.has(row.procurement.id)), columns, 'Payables')}>{t('financeHub:hub.exportSelected', 'Export selected')}</Button>}
+          {!isPending && !isError && lateRows.length > 0 && <StatusPill variant="overdue" data-testid="payables-overdue-count">{t('finance:area.overdueCount', { defaultValue: '{{count}} overdue', count: lateRows.length })}</StatusPill>}
+          <Button variant="outline" loading={busy} disabled={isPending || isError || agePending || ageError} onClick={() => void exportXlsx(filteredRows, columns, 'Payables')}>{t('financeHub:hub.export', 'Export')}</Button>
+          {selectedKeys.size > 0 && <Button variant="outline" loading={busy} disabled={isPending || isError || agePending || ageError} onClick={() => void exportXlsx(payablesPosition.payables.filter((row) => selectedKeys.has(row.procurement.id)), columns, 'Payables')}>{t('financeHub:hub.exportSelected', 'Export selected')}</Button>}
         </div>
       </Toolbar>
       <DataTable
@@ -184,15 +206,15 @@ const PayablesPage: React.FC = () => {
           ...(row.procurement.vendor_id ? [{ label: t('financeHub:hub.openSupplier', 'Open supplier'), onClick: () => navigate(`/companies/${row.procurement.vendor_id}`) }] : []),
         ]}
         totals={totals}
-        state={isPending ? 'loading' : finance.isError ? 'error' : filteredRows.length === 0 ? 'empty' : undefined}
+        state={isPending ? 'loading' : isError ? 'error' : filteredRows.length === 0 ? 'empty' : undefined}
         emptyTitle={search ? t('financeHub:hub.noPayablesMatch', 'No payables match this search.') : t('financeHub:hub.noPayables', 'No supplier invoices waiting to be paid.')}
         errorTitle={t('financeHub:hub.payablesLoadError', "Couldn't load supplier invoices")}
-        onRetry={finance.retry}
+        onRetry={payablesPosition.retry}
         accessibleName={t('financeHub:hub.payablesTable', 'Supplier invoices waiting to be paid')}
         tableId="finance-payables-table"
         className="rounded-t-none border-t-0"
       />
-      {!isPending && !finance.isError && payablesPosition.payablesUnknownCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('financeHub:hub.fix.payables.unknownNote', { defaultValue: payablesPosition.payablesUnknownCount === 1 ? '{{count}} invoice has no amount and is left out of the total' : '{{count}} invoices have no amount and are left out of the total', count: payablesPosition.payablesUnknownCount })}</p>}
+      {!isPending && !isError && payablesPosition.payablesUnknownCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('financeHub:hub.fix.payables.unknownNote', { defaultValue: payablesPosition.payablesUnknownCount === 1 ? '{{count}} invoice has no amount and is left out of the total' : '{{count}} invoices have no amount and are left out of the total', count: payablesPosition.payablesUnknownCount })}</p>}
       </div>
     </ListPage>
     </FigureScope>

@@ -12,6 +12,14 @@ const h = vi.hoisted(() => ({
   role: 'Finance' as 'Finance' | 'Executive',
   invoices: [] as unknown[],
   payments: [] as unknown[],
+  financePending: false,
+  financeError: false,
+  receivablesPending: false,
+  receivablesError: false,
+  cashPending: false,
+  cashError: false,
+  invoiceError: false,
+  paymentError: false,
   position: {
     receivablesCount: 0, receivablesUnknownCount: 0, overdue: [], overdueTotals: {}, overdueUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [],
@@ -23,12 +31,19 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/hooks/useFinancePosition', () => ({
-  useFinancePosition: () => ({ position: h.position, today: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
+  useFinancePosition: () => ({ position: h.position, today: '2026-10-27', isPending: h.financePending, isError: h.financeError, retry: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
-  useSalesInvoices: () => ({ data: h.invoices, isPending: false }),
-  useIncomingPayments: () => ({ data: h.payments, isPending: false }),
+  useSalesInvoices: () => ({ data: h.invoices, isPending: h.receivablesPending, isError: h.invoiceError, refetch: vi.fn() }),
+  useIncomingPayments: () => ({ data: h.payments, isPending: h.cashPending, isError: h.paymentError, refetch: vi.fn() }),
 }));
+vi.mock('@/src/lib/finance/financePosition', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/finance/financePosition')>();
+  return { ...actual, buildFinancePosition: () => h.position };
+});
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
   useOrgCurrency: () => 'IDR',
   useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }),
@@ -78,6 +93,14 @@ function renderPage(initialEntry = '/finance/receivables') {
 
 beforeEach(async () => {
   h.role = 'Finance';
+  h.financePending = false;
+  h.financeError = false;
+  h.receivablesPending = false;
+  h.receivablesError = false;
+  h.cashPending = false;
+  h.cashError = false;
+  h.invoiceError = false;
+  h.paymentError = false;
   h.invoices = [invoice(), invoice({ id: 'invoice-2', si_number: 'SI-2', invoice_date: '2026-10-01', erp_payment_terms_days: 14 })];
   h.payments = [
     payment(),
@@ -102,6 +125,51 @@ beforeEach(async () => {
 const tile = (label: string) => screen.getByText(label).parentElement!.parentElement as HTMLElement;
 
 describe('Receivables page', () => {
+  it('B6: keeps invoice figures visible while the payment read is pending', () => {
+    h.financePending = true;
+    h.cashPending = true;
+
+    renderPage();
+
+    expect(tile('Owed to you')).toHaveTextContent(/IDR\s*100/);
+    expect(within(tile('Received this month')).getByTestId('kpi-skeleton')).toBeInTheDocument();
+  });
+
+  it('B6: keeps cash visible while the invoice read is pending', () => {
+    h.financePending = true;
+    h.receivablesPending = true;
+
+    renderPage();
+
+    expect(tile('Received this month')).toHaveTextContent(/IDR\s*100/);
+    expect(within(tile('Owed to you')).getByTestId('kpi-skeleton')).toBeInTheDocument();
+  });
+
+  it('B6: payment failures leave invoice figures visible and do not show a zero cash figure', () => {
+    h.financeError = true;
+    h.paymentError = true;
+    h.cashError = true;
+    h.payments = [];
+
+    renderPage();
+
+    expect(tile('Owed to you')).toHaveTextContent(/IDR\s*100/);
+    expect(within(tile('Received this month')).queryAllByText(/IDR\s*0\b/)).toHaveLength(0);
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load finance activity");
+  });
+
+  it('B6: invoice failures leave cash visible and do not show a stale owed figure', () => {
+    h.financeError = true;
+    h.invoiceError = true;
+    h.receivablesError = true;
+
+    renderPage();
+
+    expect(within(tile('Owed to you')).queryAllByText(/IDR\s*100\b/)).toHaveLength(0);
+    expect(tile('Received this month')).toHaveTextContent(/IDR\s*100/);
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load finance activity");
+  });
+
   it('R2-P1b #4 explains that an unknown invoice balance was not reported', () => {
     h.invoices = [invoice({ erp_outstanding_amount: null })];
     h.position = {

@@ -8,6 +8,12 @@ import type { FinancePosition } from '@/src/lib/finance/financePosition';
 const state = vi.hoisted(() => ({
   role: 'Finance',
   position: null as FinancePosition | null,
+  financePending: false,
+  financeError: false,
+  payablesPending: false,
+  payablesError: false,
+  orgDayPending: false,
+  orgDayError: false,
   exportXlsx: vi.fn(),
   erpDocuments: [] as unknown[],
 }));
@@ -16,10 +22,33 @@ vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (action: string, entity: string) => entity === 'finance' && action === 'view',
 }));
 vi.mock('@/src/hooks/useFinancePosition', () => ({
-  useFinancePosition: () => ({ position: state.position, isPending: false, isError: false, retry: vi.fn() }),
+  useFinancePosition: () => ({ position: state.position, isPending: state.financePending, isError: state.financeError, retry: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProcurements: () => ({
+    data: state.position?.payables.map(({ procurement, ageDays, amount }) => ({
+      ...procurement,
+      procurement_invoices: procurement.procurement_invoices?.length === 0 && amount === null ? [] : [{
+        invoice_date: ageDays === null ? null : new Date(Date.parse(`2026-07-19T00:00:00Z`) - ageDays * 86_400_000).toISOString().slice(0, 10),
+        amount: amount === null ? null : (amount / 100),
+        erp_outstanding_amount: amount === null ? null : (amount / 100),
+      }],
+    })) ?? [],
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({
+    day: state.orgDayPending || state.orgDayError ? null : '2026-07-19',
+    isPending: state.orgDayPending,
+    isError: state.orgDayError,
+    retry: vi.fn(),
+  }),
 }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({
-  useErpPurchases: () => ({ data: state.erpDocuments, isPending: false, isError: false }),
+  useErpPurchases: () => ({ data: state.erpDocuments, isPending: state.payablesPending, isError: state.payablesError, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({
@@ -98,6 +127,12 @@ function renderPage(role = 'Finance', position: FinancePosition = payablesFixtur
 
 beforeEach(() => {
   state.position = payablesFixture();
+  state.financePending = false;
+  state.financeError = false;
+  state.payablesPending = false;
+  state.payablesError = false;
+  state.orgDayPending = false;
+  state.orgDayError = false;
   state.erpDocuments = [];
   state.exportXlsx.mockClear();
 });
@@ -108,6 +143,61 @@ afterEach(() => {
 });
 
 describe('Payables page', () => {
+  it('B5: renders payable figures while an unrelated finance position read is pending', () => {
+    state.financePending = true;
+    renderPage();
+
+    expect(screen.getByText('IDR 62.4M')).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Supplier invoices waiting to be paid' })).toBeInTheDocument();
+  });
+
+  it('B5: shows the payable error when a payable source fails without reporting zero', () => {
+    state.payablesError = true;
+    renderPage();
+
+    expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes("Couldn't load supplier invoices"))).toBe(true);
+    expect(screen.queryByText(/IDR 62\.4M/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/IDR\s*0\b/)).not.toBeInTheDocument();
+  });
+
+  it('B5: shows the balance and table while organization-day ageing is pending', () => {
+    state.orgDayPending = true;
+    renderPage();
+
+    expect(screen.getByText('IDR 62.4M')).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toHaveTextContent('62,400,000');
+    expect(within(screen.getByRole('region', { name: 'Invoice age, by days' })).getByTestId('liststate-loading')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText('100 days')).not.toBeInTheDocument();
+  });
+
+  it('B5: shows an ageing error while balance and table figures remain available', () => {
+    state.orgDayError = true;
+    renderPage();
+
+    expect(screen.getByText('IDR 62.4M')).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toHaveTextContent('62,400,000');
+    expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes("Couldn't load balance ageings"))).toBe(true);
+    expect(screen.queryByText('100 days')).not.toBeInTheDocument();
+  });
+
+  it('B5: shows its loading state while the linked purchase read is pending', () => {
+    state.payablesPending = true;
+    renderPage();
+
+    expect(screen.getByRole('heading', { name: 'Payables', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: 'Search payables' })).toBeInTheDocument();
+    expect(screen.getAllByTestId('kpi-skeleton')).toHaveLength(1);
+    expect(screen.getByText('100 days')).toBeInTheDocument();
+    expect(screen.queryByText(/IDR\s*0\b/)).not.toBeInTheDocument();
+  });
+
+  it('does not surface unrelated receivable errors as a payables table error', () => {
+    state.financeError = true;
+    renderPage();
+
+    expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toBeInTheDocument();
+  });
+
   it('uses plain lateness text except for the oldest overdue invoice', () => {
     const base = payablesFixture();
     const next = {
