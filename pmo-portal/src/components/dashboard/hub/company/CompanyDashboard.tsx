@@ -357,7 +357,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     );
     const healthCard = (
       <ProjectHealthCard className={cn(half, 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
-        pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
+        pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry}
+        budgetLinkOnOverBudget={finance} />
     );
     const approvalsTotal = needs.approvals?.length ?? 0;
     const otherWaits = waitRows.filter((row) => row.id !== 'approvals');

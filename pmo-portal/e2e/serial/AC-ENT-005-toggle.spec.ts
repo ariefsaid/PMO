@@ -47,7 +47,6 @@ test(
     // Administration's index lands on Users (#676); the Operator opens Features from the section nav.
     await page.getByRole('main').getByRole('link', { name: /^features$/i }).click();
     await expect(page).toHaveURL(/\/administration\/features$/);
-    await expect(page.getByRole('heading', { name: /^Features$/ })).toBeVisible({ timeout: 20_000 });
 
     // PRE-CONDITION: ensure `incidents` is ENABLED first so the disable journey has a clean start.
     // (Seed default is disabled + no org_features row; toggling on writes the overriding row.)
@@ -89,7 +88,6 @@ test(
     // Administration's index lands on Users (#676); the Operator opens Features from the section nav.
     await page.getByRole('main').getByRole('link', { name: /^features$/i }).click();
     await expect(page).toHaveURL(/\/administration\/features$/);
-    await expect(page.getByRole('heading', { name: /^Features$/ })).toBeVisible({ timeout: 20_000 });
     const sw2 = incidentsSwitch(page);
     await expect(sw2).toHaveAttribute('aria-checked', 'false');
     await sw2.click();

@@ -64,8 +64,8 @@ async function expectSectionSelected(
   opts: { expectUrl?: string } = {},
 ) {
   await expect(page).toHaveURL(opts.expectUrl ?? new RegExp(`${s.url}$`));
-  // Source-of-truth heading: the page-level h1 stays "Administration"; the selected panel owns an h2.
-  await expect(page.getByRole('heading', { level: 1, name: 'Administration' })).toBeVisible();
+  // Each route now names its selected destination at page level.
+  await expect(page.getByRole('heading', { level: 1, name: s.heading })).toBeVisible();
   await expect(sectionLink(page, s.name)).toHaveAttribute('aria-current', 'page');
   await expect(panel(page, s.testid)).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: s.heading })).toBeVisible();
