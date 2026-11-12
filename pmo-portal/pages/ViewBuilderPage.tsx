@@ -18,7 +18,7 @@
  * Does NOT import from src/lib/db/* or src/lib/supabase/client.
  *
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams, useLocation } from 'react-router';
 import {
@@ -60,6 +60,19 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
   const may = usePermission();
   const { toast } = useToast();
   const { create, update } = useUserViewMutations();
+
+  const structurallyEqual = (left: unknown, right: unknown): boolean => {
+    if (Object.is(left, right)) return true;
+    if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') return false;
+    if (Array.isArray(left) || Array.isArray(right)) {
+      return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((value, index) => structurallyEqual(value, right[index]));
+    }
+    const leftRecord = left as Record<string, unknown>;
+    const rightRecord = right as Record<string, unknown>;
+    const leftKeys = Object.keys(leftRecord).sort();
+    const rightKeys = Object.keys(rightRecord).sort();
+    return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index] && structurallyEqual(leftRecord[key], rightRecord[key]));
+  };
 
   // ── Edit mode: load existing view ────────────────────────────────────────
   const {
@@ -125,7 +138,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
       : name !== initialValuesRef.current.name ||
         description !== initialValuesRef.current.description ||
         scope !== initialValuesRef.current.scope ||
-        JSON.stringify(panels) !== JSON.stringify(initialValuesRef.current.panels);
+        !structurallyEqual(panels, initialValuesRef.current.panels);
 
   const applyViewToEditor = useCallback((view: UserViewRow) => {
     const loadedName = view.name;
@@ -239,11 +252,16 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
 
   // ── Compile-before-save + save (FR-VB-040/041) ───────────────────────────
 
-  const spec: CompositionSpec = { version: 1, panels };
+  const spec: CompositionSpec = useMemo(() => ({ version: 1, panels }), [panels]);
 
   const handleSave = async () => {
     if (!currentUser || (mode === 'edit' && !canEditView)) return;
     setSaveError(null);
+
+    if (panels.length > MAX_PANELS_PER_VIEW) {
+      setSaveError(t('viewBuilder.maximumPanelsReached', 'Maximum of {{count}} panels reached.', { count: MAX_PANELS_PER_VIEW }));
+      return;
+    }
 
     // Compile-before-save invariant (NFR-VB-SEC-004)
     try {

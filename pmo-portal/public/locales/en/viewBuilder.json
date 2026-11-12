@@ -10,5 +10,6 @@
   "reloadSavedView": "Reload saved view",
   "continueEditing": "Continue editing",
   "invalidProjectFilter": "Enter a valid project ID.",
-  "serverVersionChangedHelp": "Reload drops the edits you have not saved; continue keeps them."
+  "serverVersionChangedHelp": "Reload drops the edits you have not saved; continue keeps them.",
+  "incompleteFilter": "Complete or remove each filter row before saving."
 }

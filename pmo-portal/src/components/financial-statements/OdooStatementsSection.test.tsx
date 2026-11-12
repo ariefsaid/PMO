@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
@@ -40,10 +41,18 @@ const bs = (summary: Record<string, unknown>) => ({
   ], [summary]),
 });
 
-function mount(projectId?: string, role = 'Finance') {
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="location" data-search={location.search} />;
+};
+
+function mount(projectId?: string, role = 'Finance', initialEntry = '/financial-statements') {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ImpersonationProvider realRole={role as never}><FinanceI18nTestProvider><OdooStatementsSection projectId={projectId} /></FinanceI18nTestProvider></ImpersonationProvider>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <LocationProbe />
+        <ImpersonationProvider realRole={role as never}><FinanceI18nTestProvider><OdooStatementsSection projectId={projectId} /></FinanceI18nTestProvider></ImpersonationProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -77,11 +86,27 @@ describe('OdooStatementsSection states', () => {
     h.catalogue.mockResolvedValue({ state: 'not_in_use' });
     const { container } = mount(PROJECT, 'Admin');
     await waitFor(() => expect(h.catalogue).toHaveBeenCalledWith(PROJECT));
-    await waitFor(() => expect(container).toBeEmptyDOMElement());
+    await waitFor(() => expect(container.querySelector('[data-testid="odoo-statements"]')).not.toBeInTheDocument());
   });
 });
 
 describe('OdooStatementsSection: populated', () => {
+  it('C10 OdooStatementsSection.tsx:40: period selections restore from and write to the URL', async () => {
+    h.statement.mockResolvedValue(tb());
+    mount(undefined, 'Finance', '/financial-statements?keep=preserve&periodKind=quarter&periodStart=2026-10-01');
+
+    await screen.findByRole('table', { name: 'Trial balance' });
+    expect(screen.getByLabelText('Period type')).toHaveValue('quarter');
+    expect(screen.getByLabelText('Period')).toHaveValue('2026-10-01');
+    expect(h.statement).toHaveBeenCalledWith({ statement: 'trial_balance', periodKind: 'quarter', periodStart: '2026-10-01' });
+
+    await userEvent.selectOptions(screen.getByLabelText('Period type'), 'month');
+    const params = new URLSearchParams(screen.getByTestId('location').getAttribute('data-search') ?? '');
+    expect(params.get('keep')).toBe('preserve');
+    expect(params.get('periodKind')).toBe('month');
+    expect(params.get('periodStart')).toBe('2026-10-01');
+  });
+
   it('Trial Balance: accounts as "code name", totals, as-of, freshness and the tie to Odoo', async () => {
     h.statement.mockResolvedValue(tb());
     mount();

@@ -221,6 +221,7 @@
     "standby": "siaga",
     "submitWeek": "Ajukan seminggu",
     "submitted": "{{count}} entri diajukan untuk persetujuan",
+    "partialSubmit": "{{submitted}} diajukan; {{failed}} gagal. Entri yang gagal: {{items}}.",
     "tabs": {
       "approvals": "Persetujuan",
       "log": "Pemakaian saya"

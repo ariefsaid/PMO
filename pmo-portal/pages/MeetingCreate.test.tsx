@@ -143,6 +143,28 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     });
   });
 
+  it('C10 MeetingCreate.tsx:155: prevents adding the same guest twice', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    const guest = screen.getByLabelText(/External guest/);
+    await user.type(guest, 'Guest One');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.type(guest, ' guest one ');
+
+    expect(screen.getByText('This guest is already on the list.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    expect(screen.getAllByText(/Guest One/i)).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledWith({
+      meetingId: 'meeting-new',
+      identity: { display_name: 'Guest One' },
+    });
+  });
+
   it('retains a typed-but-not-added guest after failure and retries it once on the same meeting', async () => {
     mutations.addAttendee.mutateAsync.mockRejectedValueOnce(new Error('attendee write failed'));
     renderPage();
