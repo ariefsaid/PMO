@@ -212,7 +212,7 @@ describe('ProjectBudget Option A', () => {
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select Labor' }));
     expect(screen.getByRole('toolbar', { name: 'Selected categories' })).toHaveTextContent('1 selected');
-    expect(screen.getByRole('button', { name: 'Export rows' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Export all lines' })).toBeInTheDocument();
   });
 
   it('AC-1402 summary tiles show the same spent and committed totals as the table, not a dash', () => {

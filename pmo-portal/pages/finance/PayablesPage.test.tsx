@@ -352,3 +352,45 @@ describe('Payables page', () => {
     expect(screen.getByRole('region', { name: 'Payables figures' })).toHaveTextContent('101 days');
   });
 });
+
+// plain-words C20-3a: the procurement line names what the payable is for. A record id fragment is
+// not a procurement reference a person can act on, so the fallback is the supplier's name.
+describe('Payables procurement reference (plain-words C20-3a)', () => {
+  const UUID = '3f9a1b2c-4d5e-4f60-8a7b-9c0d1e2f3a4b';
+
+  it('C20-3a: a payable with no procurement code shows its supplier name, never a record-id fragment', async () => {
+    const user = userEvent.setup();
+    const base = payablesFixture();
+    const codeLess = {
+      ...base.payables[0],
+      procurement: {
+        ...base.payables[0].procurement,
+        id: UUID,
+        code: null,
+        vendor: { name: 'Bumi Rental' },
+      },
+    } as FinancePosition['payables'][number];
+    renderPage('Finance', { ...base, payables: [codeLess] });
+
+    const row = screen.getByRole('row', { name: /Bumi Rental/ });
+    expect(row).not.toHaveTextContent('3f9a1b2c');
+
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    const columns = state.exportXlsx.mock.calls[0][1] as Array<{ key: string; exportValue?: (row: unknown) => unknown }>;
+    const procurementColumn = columns.find((column) => column.key === 'procurement')!;
+    expect(procurementColumn.exportValue!(codeLess)).toBe('Equipment inspection · Bumi Rental');
+  });
+
+  it('C20-3a: with neither a code nor a supplier the procurement line shows the empty marker', () => {
+    const base = payablesFixture();
+    const bare = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: UUID, code: null, vendor: null, vendor_id: null },
+    } as FinancePosition['payables'][number];
+    renderPage('Finance', { ...base, payables: [bare] });
+
+    const row = screen.getByRole('row', { name: /Equipment inspection/ });
+    expect(row).not.toHaveTextContent('3f9a1b2c');
+    expect(within(row).getAllByText('—').length).toBeGreaterThan(0);
+  });
+});

@@ -109,7 +109,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
     'different-currencies': t('projectDetail.money.marginOutCurrency', 'Gross margin is left out because spending and billed work use different currencies.'),
     'work-unavailable': t('projectDetail.money.marginOutWork', 'Gross margin is left out until billed-work revenue is complete.'),
     'actuals-unavailable': t('projectDetail.money.marginOutActuals', 'Gross margin is left out until spending is linked for every budget category.'),
-    'restricted-rows': t('projectDetail.money.marginOutRestricted', 'Gross margin is left out because spending excludes restricted rows.'),
+    'restricted-rows': t('projectDetail.money.marginOutRestricted', 'Gross margin is hidden because some spending is restricted.'),
   };
   const recordedSpending = money(displayedSpending, actualPosition.currency);
   const categoryColumns: Column<(typeof actuals.categories)[number]>[] = [
@@ -271,7 +271,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         )}
         {actualPosition.basis === 'erp' && !actualPosition.asOf &&
           <p className="text-sm text-muted-foreground">{t('project:noSpendingReading', "Spending hasn't been updated yet.")}</p>}
-        {actualPosition.basis === 'erp' && actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Actuals exclude restricted rows')}</p>}
+        {actualPosition.basis === 'erp' && actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Some spending is hidden by your access.')}</p>}
         {actualPosition.basis === 'erp' && knownCategories.length > 0 && <details className="min-w-0">
           <summary className="cursor-pointer text-sm font-medium">{t('uxs01.showCategoryDetails', 'Show category details')}</summary>
           {/* F10: the shared DataTable rather than a hand-rolled table. */}

@@ -288,7 +288,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       emptyDescription={`${t('dashboard.snapshots.unavailable', 'No accounting snapshot has been synced yet.')} ${t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}`}
       rows={actuals}
       collapsedSummary={actualsCollapsed && !actualsPending && !actualsError && actuals.length > 0
-        ? t('dashboard:finance.actualsRows', '{{count}} ledger rows', { count: actuals.length })
+        ? t('dashboard:finance.actualsRows', '{{count}} ledger entries', { count: actuals.length })
         : undefined}
       pending={actualsPending}
       isError={actualsError}

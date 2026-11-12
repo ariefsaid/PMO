@@ -188,7 +188,7 @@
     "loadingFigure": "Memuat angka",
     "openProject": "Buka proyek",
     "viewInvoices": "Lihat faktur",
-    "exportRow": "Ekspor baris",
+    "exportRow": "Ekspor baris ini",
     "actionsForProject": "Tindakan untuk {{project}}",
     "unassignedNote": "Beberapa faktur belum ditetapkan ke proyek.",
     "assignProjects": "Tetapkan proyek",

@@ -305,7 +305,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                     projects: orgPlanRow.projectLimit ?? t('console.unlimitedShort', 'unlimited'),
                     messages: orgPlanRow.aiMonthlyMessages ?? t('console.unlimitedShort', 'unlimited'),
                   })
-                : t('console.planHelperUnassigned', 'No plan row: this organisation resolves as Enterprise.')
+                : t('console.planHelperUnassigned', 'No plan assigned. This organisation is treated as Enterprise.')
             }
             disabled={anyPending}
             fullWidth

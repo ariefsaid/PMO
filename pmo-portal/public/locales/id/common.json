@@ -1865,7 +1865,7 @@
     "amount": "Jumlah",
     "status": "Status",
     "file": "Berkas",
-    "ledgerNote": "Setiap catatan ditampilkan satu kali secara kronologis. Jenis catatan yang kosong tidak memiliki baris.",
+    "ledgerNote": "Setiap catatan ditampilkan satu kali secara kronologis. Jenis catatan yang kosong tidak menampilkan apa pun.",
     "types": {
       "purchaseRequest": "Permintaan Pembelian",
       "purchaseOrder": "Pesanan Pembelian",
@@ -2250,7 +2250,7 @@
           "titleRequired": "Judul wajib diisi."
         },
         "legend": "Dokumen",
-        "newSubtitle": "Catat gambar, spesifikasi, atau transmittal. Upload file setelah baris Draf dibuat.",
+        "newSubtitle": "Catat gambar, spesifikasi, atau transmittal. Upload file setelah draf dibuat.",
         "revision": "Revisi",
         "revisionPlaceholder": "mis. A",
         "save": "Simpan dokumen",
@@ -3935,7 +3935,7 @@
     "selectPrimitive": "— pilih komponen —",
     "entity": "Entitas",
     "selectEntity": "— pilih entitas —",
-    "tasksRequireProjectFilter": "Tugas memerlukan filter proyek (kolom: project_id, op: eq atau in)",
+    "tasksRequireProjectFilter": "Panel tugas memerlukan filter proyek.",
     "selectColumnsRequired": "Pilih kolom *",
     "selectColumns": "Pilih kolom",
     "filters": "Filter",
@@ -3944,7 +3944,7 @@
     "filterOperator": "Operator filter",
     "filterValue": "Nilai filter",
     "removeFilter": "Hapus filter",
-    "currentTeamWarning": "$current_team memerlukan konteks teamId saat ditampilkan. Pratinjau mungkin gagal.",
+    "currentTeamWarning": "Filter tim perlu tim terpilih, atau pratinjau gagal.",
     "addFilter": "+ Tambah filter",
     "groupBy": "Kelompokkan berdasarkan",
     "aggregate": "Agregasi",
@@ -3953,8 +3953,8 @@
     "alias": "Alias",
     "timeRange": "Rentang waktu",
     "dateColumn": "Kolom tanggal",
-    "fromDate": "Dari (tanggal ISO atau token)",
-    "toDate": "Sampai (tanggal ISO atau token)",
+    "fromDate": "Tanggal mulai",
+    "toDate": "Tanggal akhir",
     "orderBy": "Urutkan berdasarkan",
     "orderColumn": "Kolom pengurutan",
     "direction": "Arah",
@@ -4295,7 +4295,7 @@
     "outstanding": "Belum dibayar",
     "settlementNote": "Penyelesaian tagihan (kas, potongan pajak, dan kredit), bukan kas diterima.",
     "margin": "Margin",
-    "restricted": "Aktual tidak mencakup baris terbatas",
+    "restricted": "Sebagian pengeluaran disembunyikan sesuai akses Anda.",
     "category": "Kategori",
     "unavailable": "Tidak tersedia",
     "loading": "Memuat keuangan proyek…",
@@ -4584,8 +4584,8 @@
     }
   },
   "uxs21": {
-    "listUnavailable": "Daftar tidak tersedia; ID daftar tersimpan: {{listId}}",
-    "listDetailsLoading": "Memuat detail daftar; ID daftar tersimpan: {{listId}}",
+    "listUnavailable": "Daftar tidak tersedia. Tautan tersimpan tetap ada.",
+    "listDetailsLoading": "Memuat detail daftar\u2026",
     "initialSourceLabel": "Sumber awal",
     "sourcePmo": "Mulai dengan tugas PMO",
     "sourceClickUp": "Mulai dengan tugas yang sudah ada di daftar ClickUp",
@@ -4619,7 +4619,7 @@
     "suggestedList": "Saran",
     "ambiguousMatch": "Beberapa daftar memakai nama proyek ini",
     "initialTransferPendingShort": "Transfer awal belum dikonfirmasi",
-    "savedListUnavailable": "Daftar tidak tersedia; ID daftar tersimpan: {{listId}}",
+    "savedListUnavailable": "Daftar tidak tersedia. Tautan tetap ada.",
     "reviewMatch": "Tinjau kecocokan daftar"
   },
   "v024Polish": {
@@ -4751,7 +4751,7 @@
       "emptyTitle": "Tidak ada versi",
       "emptySub": "Microsoft tidak mencantumkan versi sebelumnya dari file ini.",
       "list": "Versi",
-      "version": "Versi {{id}}",
+      "version": "Versi {{number}}",
       "loadMore": "Muat lebih banyak"
     },
     "history": {
