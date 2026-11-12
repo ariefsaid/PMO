@@ -8,7 +8,7 @@ declare
   v_org uuid := public.auth_org_id(); v_actor uuid := auth.uid();
   v_request uuid; v_project uuid; v_vendor uuid; v_purchase uuid; v_old jsonb;
   v_currency text; v_ledger_currency text; v_binding uuid; v_bindings integer; v_title text; v_reference text; v_line jsonb; v_source record;
-  v_undone timestamptz; v_override text := nullif(btrim(p_group->>'supplier_override_reason'),''); v_evidence jsonb := '[]'::jsonb; v_raw_parties jsonb;
+  v_undone timestamptz; v_override text; v_evidence jsonb := '[]'::jsonb; v_raw_parties jsonb;
   v_total numeric := 0; v_date date; v_sources jsonb := '[]'::jsonb; v_party uuid; v_key text; v_seen text[] := '{}'; v_facts record; v_group_party text;
 begin
   perform public.assert_is_active_member();
@@ -16,6 +16,10 @@ begin
     raise exception 'not authorized' using errcode = '42501';
   end if;
   perform public.assert_feature_on(v_org,'procurement');
+  if p_group->'supplier_override_reason' is not null and jsonb_typeof(p_group->'supplier_override_reason') not in ('null','string') then
+    raise exception 'invalid_supplier_override_reason' using errcode='22023';
+  end if;
+  v_override := nullif(regexp_replace(p_group->>'supplier_override_reason', '^[[:space:]]+|[[:space:]]+$', '', 'g'), '');
   v_request := (p_group->>'request_id')::uuid;
   v_project := (p_group->>'project_id')::uuid;
   v_vendor := (p_group->>'vendor_id')::uuid;
