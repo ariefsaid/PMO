@@ -29,7 +29,7 @@
     "payableBucketHint": "Known unpaid supplier balances grouped by calendar days since the supplier invoice date. Invoices with an unknown balance are counted in their age group, not added.",
     "finding": "{{overdue}} overdue across {{count}} invoices{{oldest}} · {{payables}} to pay suppliers",
     "unknownAmount": "Amount unavailable",
-    "oldest": "; oldest is {{client}}, {{days}} days late",
+    "oldest": "; oldest is {{client}}, {{days}} days overdue",
     "unknownClient": "unknown client",
     "noSupplierBalance": "no supplier balance",
     "overdueCount": "{{count}} overdue invoices",
