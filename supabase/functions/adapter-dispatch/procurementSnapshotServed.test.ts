@@ -37,6 +37,7 @@ async function dispatch(record: Record<string, unknown>, corruptDigest = false, 
       if (table === 'actor_authorization_state') return jsonResponse({ role: 'Project Manager', active: true });
       if (table === 'domain_owned_by_tier' || table === 'org_has_active_erpnext_binding') return jsonResponse(true);
       if (table === 'pre_cutover_procurement') return jsonResponse(false); // ECA-4: a purchase ordered after the connection
+      if (table === 'linked_step_state') return jsonResponse('not_applicable');
       if (table === 'procurement_gate_violation' || table === 'procurement_create_refusal' || table === 'read_vault_secret') return jsonResponse(null);
       if (table === 'insert_procurement_outbox_pending') return jsonResponse({ ...row, state: 'pending', external_record_id: null, canonical: null });
       if (table === 'claim_outbox_for_commit') return jsonResponse({ code: 'P0001', message: 'synthetic refusal' }, { status: 400 });
@@ -48,6 +49,7 @@ async function dispatch(record: Record<string, unknown>, corruptDigest = false, 
       if (table === 'procurements') return jsonResponse({ id: purchase, org_id: org, vendor_id: null, project_id: null });
       if (table === 'external_command_outbox') return jsonResponse(fresh ? null : row);
       if (table === 'external_refs') return jsonResponse(null);
+      if (table === 'procurement_erp_links') return jsonResponse([]);
       if (table === 'purchase_orders') return jsonResponse([]);
       if (table === 'procurement_items') return jsonResponse([{ name: 'Changed item', quantity: 9, rate: 99 }]);
       if (table === 'procurement_receipts') return jsonResponse(call.method === 'GET' ? null : []);

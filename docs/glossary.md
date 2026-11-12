@@ -91,7 +91,7 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Procurement (case)** — one procure-to-pay effort, modeled as a **case folder**: the thing that carries a title, an optional project link, a requester, a type, and a current lifecycle status. It is **not** itself a Purchase Request or any single document — it is the folder those documents hang under. The UI speaks of a **purchase** (and of the **supplier**, not vendor) for the case; case-directed copy should prefer "purchase" or "procurement case" for the aggregate — "**Procurement record**" always means a typed child document. (ADR-0033.)
 
-**Procurement record** — a real document that hangs under a Procurement case: a **Purchase Request, RFQ, Quotation, Purchase Order, Goods Receipt, Vendor Invoice,** or **Payment**. Each is its own typed entity, of which a case may have **many** (e.g. several partial Goods Receipts, multiple Vendor Invoices, progress Payments). A record is **evidence** of where the case stands; it is not the authority for the case's status (that is the declared lifecycle status — see **Committed spend**). The kinds are defined below. (ADR-0033.)
+**Procurement record** — a real document that hangs under a Procurement case: a **Purchase Request, RFQ, Quotation, Purchase Order, Goods Receipt, Vendor Invoice,** or **Payment**. Each is its own typed entity, of which a case may have **many** (e.g. several partial Goods Receipts, multiple Vendor Invoices, progress Payments). A record is **evidence** of where the case stands: document evidence advances the case to its furthest evidenced step, alongside explicit lifecycle decisions (ADR-0093). The kinds are defined below. (ADR-0033.)
 
 **Purchase request** — a numbered, dated request record under a procurement case, with a status and amount; the case's opening document.
 
@@ -377,3 +377,53 @@ It is operational and is not committed spend or an ERP actual.
 
 **Reorder level / suggestion** — the on-hand quantity at which an item should be reordered at a warehouse; a
 *suggestion* is computed from past usage and only a person turns it into a level.
+
+## Purchase history & figure language
+
+The purchase-history terms below describe the intended model; their presence does not assert that
+every entry path is available. The associated purchase-history ADR is a draft.
+
+**Record-only purchase** — a purchase that tracks evidence of buying already performed outside PMO;
+recording that evidence does not instruct the accounting system to buy again.
+
+**Captured purchase** — a purchase whose document evidence has been recorded in PMO.
+It describes how evidence arrived, not a separate purchase lifecycle.
+
+**Capture** — the act of recording a purchase document in PMO. Whether it also creates a document
+in the connected accounting system depends on the chosen entry path; record-only capture does not.
+
+**Linked step** — a purchase step evidenced by an existing document in the connected accounting
+system; it does not imply that every other step is already recorded there.
+
+**Completeness report** — the statement of which required facts are known, missing or not checked
+for a figure; it is not a claim that all the organisation's data is complete.
+
+**Named remainder** — an amount excluded from a displayed total, identified by the reason it is
+excluded, such as a missing category or project assignment.
+
+**Capital spending** — spending classified toward an asset's acquisition or improvement rather
+than the period's operating cost; lack of a project assignment alone does not decide this classification.
+
+**Overhead** — spending not charged directly to a project; it is not a synonym for all capital spending
+or for spending whose project assignment has not yet been established.
+
+**Figure family** — a named business quantity across screens with the same meaning, population,
+period, currency and treatment of incomplete evidence; a different basis is a different quantity.
+
+**Figure agreement** — figures in the same family agree when evaluated over the same facts and
+scope, including agreement that an amount is unknown.
+
+**Feature floor** — the user actions and information a screen must retain when its composition changes.
+
+**Pattern floor** — the minimum shared interaction and presentation conventions a screen follows;
+it does not freeze a previous screen composition.
+
+**Finding line** — a screen's short statement of current data findings, with links to the records
+behind them; distinct from instructions or an explanation of the page.
+
+**Waits on you** — work requiring the current person's action, such as a decision or a returned
+submission; distinct from general project risk or everything assigned to them.
+
+UI vocabulary keeps **Supplier** rather than vendor, **Purchase** for a procurement case,
+and **Phase** for a milestone. **Actual** and **Recorded spending** name the same spending position;
+**Cash received** and **Settlement** name different quantities and must stay distinct.

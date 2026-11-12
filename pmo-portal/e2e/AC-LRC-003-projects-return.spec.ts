@@ -60,7 +60,7 @@ test(
     const scrolledTop = await main.evaluate((el) => el.scrollTop);
 
     // ── Open a record; capture its canonical URL for the direct-visit check below ───────────
-    await page.getByText('Innovate Corp HQ Fit-Out').click();
+    await page.getByTestId('projects-table-container').getByRole('button', { name: 'Innovate Corp HQ Fit-Out', exact: true }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
     const recordUrl = page.url();
     await expect(page.getByTestId('record-header')).toContainText('Innovate Corp HQ Fit-Out');
@@ -75,13 +75,11 @@ test(
     await waitReady(page);
     await expect(page.getByRole('tab', { name: /^Ongoing$/i })).toHaveAttribute('aria-selected', 'true');
     await expect(search).toHaveValue('Innovate');
-    // The narrowed SET came back, not just the URL: the searched-out and filtered-out rows stay
-    // out. Scoped to the desktop table so the locator can't transiently match the breadcrumb of
-    // the just-departed detail page during the return transition (strict-mode ambiguity).
-    const table = page.getByRole('table');
-    await expect(table.getByText('Innovate Corp HQ Fit-Out')).toBeVisible();
-    await expect(table.getByText('Acme Internal Platform')).not.toBeVisible();
-    await expect(table.getByText('Northwind ERP Rollout')).not.toBeVisible();
+    // The narrowed set came back: the current Projects presentation exposes each record as a card action.
+    const projects = page.getByTestId('projects-table-container');
+    await expect(projects.getByRole('button', { name: 'Innovate Corp HQ Fit-Out', exact: true })).toBeVisible();
+    await expect(projects.getByRole('button', { name: 'Acme Internal Platform', exact: true })).toHaveCount(0);
+    await expect(projects.getByRole('button', { name: 'Northwind ERP Rollout', exact: true })).toHaveCount(0);
     await expectScrollRestored(main, scrolledTop);
 
     // ── Mobile BackBar return ────────────────────────────────────────────────────────────────
@@ -92,7 +90,7 @@ test(
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
     await page.getByText('Innovate Corp HQ Fit-Out').scrollIntoViewIfNeeded();
     const mobileScrolledTop = await main.evaluate((el) => el.scrollTop);
-    await page.getByText('Innovate Corp HQ Fit-Out').click();
+    await page.getByTestId('projects-table-container').getByRole('button', { name: 'Innovate Corp HQ Fit-Out', exact: true }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
     await page.getByRole('button', { name: 'Back to Projects', exact: true }).click();
     await expect(page).toHaveURL(/[?&]filter=Ongoing/, { timeout: 10_000 });

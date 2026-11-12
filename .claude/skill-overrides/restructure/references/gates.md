@@ -34,6 +34,12 @@ node .claude/skills/taste/scripts/inspect.mjs --app <url> --out <private-output-
 - Inspect inner scroll panes manually across their full content, because a tool that scrolls the window alone may never measure lower app content.
 - Older local and pinned inspector results may differ in scroll-walk checks; the app-mode measures gated here (`ragged-row`, `panel-void`, canvas edge, `no-data-hue`) exist in both, so preserve the inspector revision with every report.
 
+## Impeccable detector
+
+- Run `.claude/skills/impeccable/scripts/impeccable detect <touched .tsx/.css files>` before a builder reports done, and on the signed-in served URL for a recomposed screen; it stops AI-slop patterns reaching review that the composition inspector does not measure.
+- Fix each finding or name it a false positive with the reason; paste the detector's last lines in the report. Telemetry off; never `impeccable login`.
+- A clean detector is a floor, not composition approval.
+
 ## Stageshow layout checker
 
 Use the current `node .claude/skills/stageshow/scripts/layout.mjs --help` to confirm its contract before running; it is a one-snapshot box check rather than visual approval.

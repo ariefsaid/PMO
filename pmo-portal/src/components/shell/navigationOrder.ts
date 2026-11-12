@@ -1,10 +1,10 @@
 /** Canonical navigation order shared by the rail and the search destination list. */
 export const NAVIGATION_ORDER = [
-  '/', '/approvals', '/views',
-  '/my-tasks', '/timesheets', '/expenses', '/imprest', '/calendar',
-  '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings',
-  '/sales', '/companies', '/companies?type=Vendor', '/contacts',
+  '/approvals', '/',
+  '/sales', '/companies', '/contacts',
+  '/projects', '/procurement', '/stock', '/equipment', '/companies?type=Vendor', '/incidents', '/meetings', '/calendar',
   '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements',
+  '/timesheets', '/expenses', '/imprest', '/my-tasks', '/views',
   '/administration',
 ] as const;
 

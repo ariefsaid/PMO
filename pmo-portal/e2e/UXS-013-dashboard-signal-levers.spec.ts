@@ -64,11 +64,12 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
     await page.goto('/');
     await waitForFonts(page);
 
-    // The budget exception names the project, and the name itself is the lever.
-    const budgetRow = page.getByRole('row').filter({ hasText: SP2402_NAME });
-    await expect(budgetRow).toBeVisible({ timeout: 20_000 });
+    // Project health carries the budget exception directly to its Budget tab in Overview.
+    const budgetSignal = page.getByTestId('project-health').getByRole('link', { name: new RegExp(SP2402_NAME) });
+    await expect(budgetSignal).toBeVisible({ timeout: 20_000 });
+    await expect(budgetSignal).toHaveAttribute('href', `/projects/${SP2402_ID}/budget`);
 
-    await budgetRow.getByRole('rowheader').click();
+    await budgetSignal.click();
     await expect(page).toHaveURL(new RegExp(`/projects/${SP2402_ID}/budget$`));
     // The canonical Budget tab actually rendered with its active version.
     const budgetVersions = page.getByRole('region', { name: 'Budget versions' });

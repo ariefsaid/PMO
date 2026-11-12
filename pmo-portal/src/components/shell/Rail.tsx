@@ -64,32 +64,25 @@ interface NavItem {
 // is load-bearing: scripts/check-module-completeness.mjs parses this block by it.
 // eslint-disable-next-line react-refresh/only-export-components -- registry constant co-located with its rail; HMR-only lint concern
 export const ALL_ITEMS: NavItem[] = [
-  { to: '/', text: 'Dashboard', icon: 'dashboard', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/approvals', text: 'Approvals', icon: 'approvals', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/views', text: 'My Views', icon: 'views', group: undefined, feature: 'user_views', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'My work', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'My work', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
-  // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
-  { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  // #1515: floats are visible to approval rank (policy imprestFloat.view = master-data roles); Engineers see none.
-  { to: '/imprest', text: 'Site cash', icon: 'site-cash', group: 'My work', feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  // #1982: Calendar — what is due across projects. Reads are RLS-scoped, so every role gets it.
-  { to: '/calendar', text: 'Calendar', icon: 'cal', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/', text: 'Dashboard', icon: 'dashboard', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'Sales', feature: 'sales_pipeline', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/companies', text: 'Companies', icon: 'companies', group: 'Sales', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'Sales', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/projects', text: 'Projects', icon: 'projects', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Delivery', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/stock', text: 'Stock', icon: 'inbox', group: 'Delivery', feature: 'stock', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1519: every member logs equipment usage; the Assets and approvals views gate by role inside the page.
   { to: '/equipment', text: 'Equipment', icon: 'equipment', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // Without CRM, PM and Finance keep their supplier doorway in the Delivery group.
+  { to: '/companies?type=Vendor', text: 'Suppliers', icon: 'cart', group: 'Delivery', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
   // Gated behind the `incidents` feature flag (UI-hide-first); currently hidden (features.ts).
   { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', feature: 'incidents', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #526: Meetings — EVERY role may minute a meeting (OD-MTG-1, Engineer included); reads are RLS-scoped.
   { to: '/meetings', text: 'Meetings', icon: 'meetings', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'Sales', feature: 'sales_pipeline', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/companies', text: 'Companies', icon: 'companies', group: 'Sales', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  // Without CRM, PM and Finance keep their existing supplier doorway in this same ordered slot.
-  { to: '/companies?type=Vendor', text: 'Suppliers', icon: 'cart', group: 'Sales', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'Sales', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // #1982: Calendar — what is due across projects. Reads are RLS-scoped, so every role gets it.
+  { to: '/calendar', text: 'Calendar', icon: 'cal', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // Finance section — gated by the relevant org entitlements. OD-NAR-2 (owner,
   // 2026-10-07, #784; supersedes DD-NAR-14 for navigation): with NO explicit org_features row the
   // entitlement follows revenue ownership — ON when no ERP owns revenue (PMO-native invoicing is
@@ -100,9 +93,16 @@ export const ALL_ITEMS: NavItem[] = [
   { to: '/finance/payables', text: 'Payables', icon: 'payments', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/reports', text: 'Reports', icon: 'reports', group: 'Finance', feature: 'management_pack', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/statements', text: 'Statements', icon: 'statements', group: 'Finance', feature: 'financial_statements', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'My work', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
+  // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
+  { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // #1515: floats are visible to approval rank (policy imprestFloat.view = master-data roles); Engineers see none.
+  { to: '/imprest', text: 'Site cash', icon: 'site-cash', group: 'My work', feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'My work', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/views', text: 'My Views', icon: 'views', group: undefined, feature: 'user_views', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
 ];
 
-const GROUP_ORDER: NavigationGroup[] = ['My work', 'Delivery', 'Sales', 'Finance'];
+const NAV_GROUPS: NavigationGroup[] = [...new Set(ALL_ITEMS.flatMap(({ group }) => group ? [group] : []))];
 const NAV_GROUPS_STORAGE_KEY = 'shell.navigation.collapsedGroups';
 const NAV_GROUPS_CHANGED_EVENT = 'navigationgroupschange';
 
@@ -110,7 +110,7 @@ function readCollapsedGroups(): Set<NavigationGroup> {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(NAV_GROUPS_STORAGE_KEY) ?? '[]') as unknown;
     if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((value): value is NavigationGroup => GROUP_ORDER.includes(value as NavigationGroup)));
+    return new Set(parsed.filter((value): value is NavigationGroup => NAV_GROUPS.includes(value as NavigationGroup)));
   } catch {
     return new Set();
   }
@@ -490,33 +490,15 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         onPointerDown={preloadFromEvent}
         onFocusCapture={preloadFromEvent}
       >
+        {items.filter((item) => item.to === '/approvals').map((item) => (
+          <div key={item.to} data-rail-pinned-approvals className="shrink-0 border-b border-border p-2.5">
+            {renderItem(item)}
+          </div>
+        ))}
         <div className="relative min-h-0 flex-1">
           <div ref={scrollRegionRef} data-rail-scroll-region className="min-h-0 h-full overflow-y-auto p-2.5">
-            {items.filter((item) => !item.group).map((item) => (
-              <React.Fragment key={item.to}>
-                {renderItem(item)}
-                {item.to === '/views' && myViewsItems.length > 0 && (
-                  <div role="group" className="mb-2 border-l border-border pl-8" aria-label={t('shell.rail.myViews', 'My Views')}>
-                    {myViewsItems.map((view) => (
-                      <NavLink
-                        key={view.id}
-                        to={`/views/${view.id}`}
-                        onClick={onNavigate}
-                        className={({ isActive }: { isActive: boolean }) =>
-                          cn(
-                            'touch-target flex min-h-11 w-full items-center rounded-md px-2 text-control',
-                            isActive ? 'bg-nav-selected-surface font-semibold text-nav-active-text' : 'text-foreground hover:bg-surface-hover',
-                          )
-                        }
-                      >
-                        <span className="break-words">{view.name}</span>
-                      </NavLink>
-                    ))}
-                  </div>
-                )}
-              </React.Fragment>
-            ))}
-            {GROUP_ORDER.map((group) => {
+            {items.filter((item) => item.to === '/').map(renderItem)}
+            {NAV_GROUPS.map((group) => {
               const groupItems = items.filter((i) => i.group === group);
               if (groupItems.length === 0) return null;
               const expanded = group === currentGroup || !collapsedGroups.has(group);
@@ -543,6 +525,30 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
                 </div>
               );
             })}
+            {items.filter((item) => item.to === '/views').map((item) => (
+              <React.Fragment key={item.to}>
+                {renderItem(item)}
+                {myViewsItems.length > 0 && (
+                  <div role="group" className="mb-2 border-l border-border pl-8" aria-label={t('shell.rail.myViews', 'My Views')}>
+                    {myViewsItems.map((view) => (
+                      <NavLink
+                        key={view.id}
+                        to={`/views/${view.id}`}
+                        onClick={onNavigate}
+                        className={({ isActive }: { isActive: boolean }) =>
+                          cn(
+                            'touch-target flex min-h-11 w-full items-center rounded-md px-2 text-control',
+                            isActive ? 'bg-nav-selected-surface font-semibold text-nav-active-text' : 'text-foreground hover:bg-surface-hover',
+                          )
+                        }
+                      >
+                        <span className="break-words">{view.name}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </React.Fragment>
+            ))}
           </div>
           {hasScrollCue && (
             <div aria-hidden="true" className="pointer-events-none absolute inset-x-2.5 bottom-0 h-6 bg-gradient-to-t from-[hsl(var(--surface-panel))] to-transparent" />

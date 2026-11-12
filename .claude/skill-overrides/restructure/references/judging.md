@@ -25,6 +25,10 @@ Open the current render at actual size and at a 25% thumbnail, then answer every
 - If the fix list exceeds about five or the whole still has no hierarchy, return to composition and the Director's scope decision, because another card patch repeats the failure.
 - When an eye-found issue names a repeatable class, dispatch a cheap app-wide read-only audit that day, because the screenshot is one instance rather than the denominator.
 
+## Impeccable critique pass
+
+For a recomposed screen, the reviewer runs one `impeccable critique` pass (its `reference/critique.md`) and writes its design judgement first, detector evidence second, kept apart; the detector never stands in for the judgement.
+
 ## Blind fresh eyes at a batch boundary
 
 - Before dispatch, the Director freezes a private hidden list of owner concerns and acceptance targets, because a reviewer shown the list can only demonstrate checklist compliance.

@@ -152,8 +152,9 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   await page.goto('/projects');
   await expect(page.getByTestId('projects-loading')).not.toBeVisible({ timeout: 15_000 });
 
-  // The Seabridge row has a delivery progress bar with aria-label="Delivery 100%".
-  const seabridgeRow = page.getByRole('row').filter({ hasText: PROJECT_NAME });
-  await expect(seabridgeRow).toBeVisible({ timeout: 15_000 });
-  await expect(seabridgeRow.getByLabel('Delivery 100%')).toBeVisible({ timeout: 20_000 });
+  // The Seabridge project card exposes its current delivery progress.
+  const seabridgeCard = page.getByTestId('projects-table-container').getByRole('listitem')
+    .filter({ has: page.getByRole('button', { name: PROJECT_NAME, exact: true }) });
+  await expect(seabridgeCard).toBeVisible({ timeout: 15_000 });
+  await expect(seabridgeCard).toContainText('100%', { timeout: 20_000 });
 });

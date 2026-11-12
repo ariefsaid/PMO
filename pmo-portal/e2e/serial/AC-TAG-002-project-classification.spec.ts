@@ -90,8 +90,16 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
       await page.goto(name === deal ? '/sales?view=table' : '/projects?view=table');
       await page.getByText(name, { exact: true }).click();
       if (name === deal) await page.getByRole('dialog').getByRole('button', { name: 'Open deal' }).click();
-      await page.getByRole('button', { name: 'More actions', exact: true }).click();
-      await page.getByRole('menuitem', { name: 'Archive', exact: true }).click();
+      // The list toolbar also calls its export/import disclosure "More actions". Wait for
+      // the detail record to load and scope the archive menu to its header before opening it.
+      const recordHeader = page.getByTestId('record-header');
+      await expect(recordHeader).toContainText(name);
+      const actions = recordHeader.getByRole('button', { name: 'More actions', exact: true });
+      await expect(actions).toBeEnabled();
+      await actions.click();
+      const actionMenu = page.getByRole('menu', { name: 'More actions' });
+      await expect(actionMenu).toBeVisible();
+      await actionMenu.getByRole('menuitem', { name: 'Archive', exact: true }).click();
       await page.getByRole('alertdialog').getByRole('button', { name: /archive project/i }).click();
       await expect(page.getByRole('alertdialog')).not.toBeVisible();
     }
