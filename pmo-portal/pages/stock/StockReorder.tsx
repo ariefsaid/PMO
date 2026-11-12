@@ -169,7 +169,7 @@ const StockReorder: React.FC = () => {
           <div className="mt-4 space-y-3">
             <p className="text-sm" data-testid="current-level">
               {s.current
-                ? <>{t('reorder.panel.current', { level: q(s.current.reorderLevel), unit: unitCode }).trim()}{s.current.reorderQuantity ? `, ${t('reorder.panel.currentQuantity', { quantity: q(s.current.reorderQuantity), unit: unitCode }).trim()}` : ''}</>
+                ? <>{t('reorder.panel.current', { label: t('reorder.worklist.columns.level'), level: q(s.current.reorderLevel), unit: unitCode }).trim()}{s.current.reorderQuantity ? ` ${t('reorder.panel.currentQuantity', { label: t('reorder.worklist.columns.orderQuantity'), quantity: q(s.current.reorderQuantity), unit: unitCode }).trim()}` : ''}</>
                 : <span className="text-muted-foreground">{t('reorder.panel.noCurrent')}</span>}
             </p>
             {s.status === 'ok' && s.suggestion ? (

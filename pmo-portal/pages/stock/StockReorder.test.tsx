@@ -10,6 +10,7 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 import stockEn from '@/public/locales/en/stock.json';
+import stockId from '@/public/locales/id/stock.json';
 
 const { master, reorder } = vi.hoisted(() => ({
   master: { listWarehouses: vi.fn(), listItems: vi.fn(), listUnits: vi.fn() },
@@ -44,13 +45,16 @@ const renderPage = (role: Role = 'Project Manager', viewAs: Role | null = null) 
   return render(<QueryClientProvider client={qc}><ToastProvider><MemoryRouter initialEntries={['/reorder']}><Link to="/next">Continue</Link><Routes><Route path="/reorder" element={<StockReorder />} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter></ToastProvider></QueryClientProvider>);
 };
 
-async function pickPair() {
-  await userEvent.click(await screen.findByRole('combobox', { name: /^Item/ }));
+async function pickPair(itemLabel: RegExp = /^Item/, whLabel: string | RegExp = 'Warehouse') {
+  await userEvent.click(await screen.findByRole('combobox', { name: itemLabel }));
   await userEvent.click(await screen.findByRole('option', { name: /CAB - Cable 4mm/ }));
-  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Warehouse' }), 'w1');
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: whLabel }), 'w1');
 }
 
-beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true); });
+beforeAll(() => {
+  i18next.addResourceBundle('en', 'stock', stockEn, true, true);
+  i18next.addResourceBundle('id', 'stock', stockId, true, true);
+});
 beforeEach(() => {
   vi.clearAllMocks();
   master.listWarehouses.mockResolvedValue([wh]);
@@ -83,11 +87,24 @@ describe('StockReorder', () => {
     expect(screen.queryByText('Choose an item and a warehouse to see a suggestion.')).not.toBeInTheDocument();
   });
 
-  it('C16 the level in force says the stored quantity is what you order at that level', async () => {
+  it("C16 the level in force reads as the worklist's own two column names", async () => {
     reorder.suggestion.mockResolvedValue({ ...okSuggestion, current: { reorderLevel: '40', reorderQuantity: '55' } });
     renderPage();
     await pickPair();
-    expect(await screen.findByText(/Level in force: 40 m, you order 55 m at this level/)).toBeInTheDocument();
+    expect(await screen.findByText('Reorder level: 40 m. Order quantity: 55 m.')).toBeInTheDocument();
+  });
+
+  it('C16 the level in force line is Indonesian in the Indonesian catalogue, not the English words', async () => {
+    await i18next.changeLanguage('id');
+    try {
+      reorder.suggestion.mockResolvedValue({ ...okSuggestion, current: { reorderLevel: '40', reorderQuantity: '55' } });
+      renderPage();
+      await pickPair(/^Barang/, /^Gudang/);
+      expect(await screen.findByText('Level pemesanan ulang: 40 m. Jumlah pesanan: 55 m.')).toBeInTheDocument();
+      expect(screen.queryByText(/Level in force/)).not.toBeInTheDocument();
+    } finally {
+      await i18next.changeLanguage('en');
+    }
   });
 
   it('AC-STK-026 "not enough history" shows no figure and says why (28 days / 3 movements)', async () => {
@@ -149,7 +166,7 @@ describe('StockReorder', () => {
     reorder.suggestion.mockResolvedValue({ ...okSuggestion, current: { reorderLevel: '40', reorderQuantity: '55' } });
     renderPage();
     await pickPair();
-    expect(await screen.findByText(/Level in force: 40 m/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Reorder level: 40 m/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Clear level' }));
     expect(reorder.setLevel).not.toHaveBeenCalled();
     await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Clear level' }));
