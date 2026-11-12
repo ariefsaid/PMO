@@ -107,6 +107,26 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(screen.queryByText('Person unavailable')).not.toBeInTheDocument();
   });
 
+  it('C10 EquipmentUsage.tsx:160: reports mixed submission results and still attempts later entries', async () => {
+    h.entries = [
+      entry({ id: 'failed', project_id: 'pj1' }),
+      entry({ id: 'saved', project_id: 'pj2' }),
+    ];
+    h.transition.mockImplementation(async (a: { id: string; to: Entry['status'] }) => {
+      if (a.id === 'failed' && a.to === 'Submitted') throw new Error('write failed');
+      h.entries = (h.entries as Entry[]).map((e) => (e.id === a.id ? { ...e, status: a.to } : e));
+      h.setEntries(h.entries);
+    });
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Submit week' }));
+
+    expect(h.transition).toHaveBeenCalledWith({ id: 'saved', to: 'Submitted' });
+    const result = await screen.findByText(/1 submitted/i);
+    expect(result).toHaveTextContent(/1 failed/i);
+    expect(result).toHaveTextContent(/EQU P1/);
+  });
+
   it('AC-EQU-017 a user logs 6 h on a project for an asset and day, submits, and the row shows Submitted', async () => {
     const user = userEvent.setup();
     renderPage();
