@@ -156,6 +156,9 @@ const makeValidate =
     const errors: Partial<Record<keyof FormValues, string>> = {};
     if (!v.name.trim()) errors.name = t('projectForm.name.required', 'Project name is required.');
     if (!v.clientId) errors.clientId = t('projectForm.client.required', 'Select a client company.');
+    if (v.startDate && v.endDate && v.endDate < v.startDate) {
+      errors.endDate = t('projects:projectForm.endDateBeforeStart', 'Expected end date must be on or after the start date.');
+    }
     const valueErr = moneyError(v.value, t);
     if (valueErr) errors.value = valueErr;
     if (v.location.trim().length > CLASSIFICATION_MAX_LENGTH) {
@@ -331,6 +334,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const errorSummary = [
     form.errors.name ? { fieldId: nameField.id, message: form.errors.name } : null,
     form.errors.clientId ? { fieldId: nameField.id, message: form.errors.clientId } : null,
+    form.errors.endDate ? { fieldId: endField.id, message: form.errors.endDate } : null,
     form.errors.value ? { fieldId: valueField.id, message: form.errors.value } : null,
     shortNameConflict ? { fieldId: shortNameField.id, message: shortNameDuplicate } : null,
     numberConflict ? { fieldId: pmoNumberField.id, message: t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.') } : null,
@@ -691,6 +695,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             type="date"
             value={endField.value}
             onChange={endField.onChange}
+            error={endField.error}
           />
         </FormGrid>
       </FormSection>

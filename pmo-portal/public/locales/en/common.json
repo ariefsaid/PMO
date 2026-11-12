@@ -3577,7 +3577,7 @@
     },
     "refreshRetry": "Retry refresh",
     "save": "Save",
-    "saved": "Preferences saved",
+    "saved": "Language, number format, and timezone preferences saved.",
     "saving": "Saving your preference…",
     "staleRefresh": "Refreshing this session failed — your choices are stored and will apply on your next sign-in.",
     "timezone": {

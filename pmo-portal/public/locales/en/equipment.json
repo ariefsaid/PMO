@@ -221,6 +221,7 @@
     "standby": "standby",
     "submitWeek": "Submit week",
     "submitted": "{{count}} entries submitted for approval",
+    "partialSubmit": "{{submitted}} submitted; {{failed}} failed. Failed entries: {{items}}.",
     "tabs": {
       "approvals": "Approvals",
       "log": "My usage"

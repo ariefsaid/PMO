@@ -93,6 +93,7 @@
   "contractBasisNote": "Nilai kontrak {{basis}}.",
   "sharedManagerNote": "Manajer proyek: {{name}}",
   "projectForm": {
+    "endDateBeforeStart": "Tanggal selesai yang diharapkan harus pada atau setelah tanggal mulai.",
     "client": {
       "nounPlural": "perusahaan"
     },

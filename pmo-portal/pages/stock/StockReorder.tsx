@@ -11,6 +11,7 @@ import { useBelowReorder, useReorderSuggestion, useSetReorderLevel, useStockItem
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
+import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 import type { BelowReorderRow } from '@/src/lib/db/stockReorder';
 
 // A level is 0 or more, a quantity above 0; 3 decimals at most (the storage scale). The server re-checks both.
@@ -29,8 +30,9 @@ const StockReorder: React.FC = () => {
   const loc = getNumberLocale();
   const canEdit = may('edit', 'reorderLevel', { record: { viewOnly: realRole !== effectiveRole } });
 
-  const [itemId, setItemId] = useState('');
-  const [warehouseId, setWarehouseId] = useState('');
+  const { values: filters, setFilters } = useUrlFilters(['item', 'warehouse']);
+  const itemId = filters.item;
+  const warehouseId = filters.warehouse;
   const [editing, setEditing] = useState(false);
   const [level, setLevel] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -57,7 +59,7 @@ const StockReorder: React.FC = () => {
   const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
   const pick = (nextItem: string, nextWarehouse: string, after?: () => void) => {
-    const apply = () => { setItemId(nextItem); setWarehouseId(nextWarehouse); setEditing(false); setEditBaseline(null); setSubmitError(null); setFormErrors({}); after?.(); };
+    const apply = () => { setFilters({ item: nextItem, warehouse: nextWarehouse }); setEditing(false); setEditBaseline(null); setSubmitError(null); setFormErrors({}); after?.(); };
     if (dirty && (after !== undefined || nextItem !== itemId || nextWarehouse !== warehouseId)) guardLeave(apply);
     else apply();
   };

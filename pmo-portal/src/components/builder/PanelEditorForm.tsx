@@ -129,7 +129,7 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
   onConfirm,
   onClose,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'viewBuilder']);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [initialState, setInitialState] = useState<FormState>(emptyForm);
 
@@ -198,6 +198,7 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
   const hasInvalidProjectFilter = form.filters.some(
     (filter) => filter.column === 'project_id' && (filter.op === 'eq' || filter.op === 'in') && !isProjectIdFilterValid(filter),
   );
+  const hasIncompleteFilter = form.filters.some((filter) => !filter.column || !filter.op || !filter.value.trim());
   const tasksFilterSatisfied =
     form.entity !== 'tasks' ||
     (form.filters.some(isProjectIdFilterValid) && !hasInvalidProjectFilter);
@@ -206,7 +207,8 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
     form.primitive !== '' &&
     form.entity !== '' &&
     form.selectedColumns.length > 0 &&
-    tasksFilterSatisfied;
+    tasksFilterSatisfied &&
+    !hasIncompleteFilter;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -427,6 +429,9 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
               <FieldError>
                 {t('viewBuilder.currentTeamWarning', '$current_team requires a teamId context at render time. It may fail at preview.')}
               </FieldError>
+            )}
+            {hasIncompleteFilter && (
+              <FieldError>{t('viewBuilder:incompleteFilter', 'Complete or remove each filter row before saving.')}</FieldError>
             )}
             <button
               type="button"

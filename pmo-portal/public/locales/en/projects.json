@@ -93,6 +93,7 @@
   "contractBasisNote": "Contract amounts are {{basis}}.",
   "sharedManagerNote": "Project manager: {{name}}",
   "projectForm": {
+    "endDateBeforeStart": "Expected end date must be on or after the start date.",
     "client": {
       "nounPlural": "companies"
     },

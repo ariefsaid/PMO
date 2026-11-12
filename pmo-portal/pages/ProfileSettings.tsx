@@ -182,7 +182,7 @@ const ProfileSettings: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (isSaving) return;
+    if (isSaving || !dirty) return;
     if (timezoneChoice !== 'inherit' && !isValidTimeZone(timezoneChoice)) {
       setErrorMsg(t('profileSettings.invalidTimezone', 'Choose a valid timezone before saving.'));
       setStatus('error');
@@ -304,7 +304,7 @@ const ProfileSettings: React.FC = () => {
             type="button"
             variant="primary"
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || !dirty}
             loading={isSaving}
           >
             {t('profileSettings.save', 'Save')}
@@ -318,13 +318,13 @@ const ProfileSettings: React.FC = () => {
         )}
         {status === 'saved' && (
           <p role="status" className="mt-3 text-control font-medium text-foreground">
-            {t('profileSettings.saved', 'Preferences saved')}
+            {t('profileSettings.saved', 'Language, number format, and timezone preferences saved.')}
           </p>
         )}
         {status === 'stale' && (
           <div className="mt-3 space-y-2">
             <p role="status" className="text-control font-medium text-foreground">
-              {t('profileSettings.saved', 'Preferences saved')}
+              {t('profileSettings.saved', 'Language, number format, and timezone preferences saved.')}
             </p>
             <p role="alert" className="text-control leading-[1.5] text-muted-foreground">
               {t(

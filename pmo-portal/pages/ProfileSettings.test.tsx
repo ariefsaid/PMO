@@ -98,7 +98,19 @@ describe('ProfileSettings (profile language settings slice)', () => {
 
     languageSelect().focus();
     expect(document.activeElement).toBe(languageSelect());
-    expect(screen.getByRole('button', { name: /^save$/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+  });
+
+  it('C10 ProfileSettings.tsx:307,81: Save is disabled until a stored preference changes', () => {
+    renderPage();
+    const save = screen.getByRole('button', { name: /^save$/i });
+    expect(save).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/text size/i), { target: { value: 'larger' } });
+    expect(save).toBeDisabled();
+
+    fireEvent.change(languageSelect(), { target: { value: 'id' } });
+    expect(save).toBeEnabled();
   });
 
   it('asks before leaving changed profile preferences and Stay keeps the selection', async () => {
@@ -140,7 +152,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
     expect(languageSelect()).toHaveValue('en');
   });
 
-  it('saving Organization default writes null to language only, then refreshes', async () => {
+  it('C10 ProfileSettings.tsx:321-327: the saved status names the three stored preferences', async () => {
     currentUserState = { ...currentUserState, locale: 'en' };
     setLocalePreferences.mockResolvedValue(undefined);
     let resolveRefresh!: (value: { error: null }) => void;
@@ -158,7 +170,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
     await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
     expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
     await act(async () => resolveRefresh({ error: null }));
-    expect(await screen.findByRole('status')).toHaveTextContent(/preferences saved/i);
+    expect(await screen.findByRole('status')).toHaveTextContent('Language, number format, and timezone preferences saved.');
   });
 
   it('disables the select and save button and shows a saving status while the write is pending', async () => {
@@ -169,6 +181,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
     refreshMock.mockResolvedValue({ error: null });
 
     renderPage();
+    fireEvent.change(languageSelect(), { target: { value: 'id' } });
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
     expect(languageSelect()).toBeDisabled();
@@ -186,6 +199,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
     refreshMock.mockResolvedValue({ error: null });
 
     renderPage();
+    fireEvent.change(screen.getByLabelText(/number format/i), { target: { value: 'en-US' } });
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/could not save your preference/i));
@@ -203,6 +217,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
     refreshMock.mockResolvedValue({ error: 'profile refresh failed' });
 
     renderPage();
+    fireEvent.change(languageSelect(), { target: { value: 'id' } });
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
     // The write LANDED: the save is reported as saved (role=status), never as a failed save —
@@ -399,6 +414,7 @@ describe('ProfileSettings personal locale preferences', () => {
     setLocalePreferences.mockResolvedValue(undefined);
 
     renderPage();
+    fireEvent.change(languageSelect(), { target: { value: 'id' } });
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
     expect(await screen.findByRole('alert')).toBeInTheDocument();

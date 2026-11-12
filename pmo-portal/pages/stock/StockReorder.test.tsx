@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Link, MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import i18next from 'i18next';
@@ -37,11 +37,16 @@ const noHistory = {
   inputs: { historyDays: 27, usageMovements: 2, minHistoryDays: 28, minMovements: 3 }, current: null,
 };
 
-const renderPage = (role: Role = 'Project Manager', viewAs: Role | null = null) => {
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="location" data-search={location.search} />;
+};
+
+const renderPage = (role: Role = 'Project Manager', viewAs: Role | null = null, initialEntry = '/reorder') => {
   realRole = role;
   effectiveRole = viewAs;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={qc}><ToastProvider><MemoryRouter initialEntries={['/reorder']}><Link to="/next">Continue</Link><Routes><Route path="/reorder" element={<StockReorder />} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter></ToastProvider></QueryClientProvider>);
+  return render(<QueryClientProvider client={qc}><ToastProvider><MemoryRouter initialEntries={[initialEntry]}><LocationProbe /><Link to="/next">Continue</Link><Routes><Route path="/reorder" element={<StockReorder />} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter></ToastProvider></QueryClientProvider>);
 };
 
 async function pickPair() {
@@ -62,6 +67,24 @@ beforeEach(() => {
 });
 
 describe('StockReorder', () => {
+  it('C10 StockReorder.tsx:32-40: refresh restores both selectors and reads the selected pair', async () => {
+    renderPage('Project Manager', null, '/reorder?keep=preserve&item=i1&warehouse=w1');
+    await waitFor(() => expect(reorder.suggestion).toHaveBeenCalledWith('w1', 'i1'));
+    const params = new URLSearchParams(screen.getByTestId('location').getAttribute('data-search') ?? '');
+    expect(params.get('keep')).toBe('preserve');
+    expect(params.get('item')).toBe('i1');
+    expect(params.get('warehouse')).toBe('w1');
+  });
+
+  it('C10 StockReorder.tsx:32-40: choosing item and warehouse writes both selections to the URL', async () => {
+    renderPage('Project Manager', null, '/reorder?keep=preserve');
+    await pickPair();
+    const params = new URLSearchParams(screen.getByTestId('location').getAttribute('data-search') ?? '');
+    expect(params.get('keep')).toBe('preserve');
+    expect(params.get('item')).toBe('i1');
+    expect(params.get('warehouse')).toBe('w1');
+  });
+
   it('AC-STK-025 the suggestion shows level, quantity and the inputs beside them', async () => {
     renderPage();
     await pickPair();

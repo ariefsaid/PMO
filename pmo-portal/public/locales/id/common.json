@@ -3577,7 +3577,7 @@
     },
     "refreshRetry": "Coba segarkan lagi",
     "save": "Simpan",
-    "saved": "Preferensi disimpan",
+    "saved": "Preferensi bahasa, format angka, dan zona waktu disimpan.",
     "saving": "Menyimpan preferensi Anda…",
     "staleRefresh": "Menyegarkan sesi ini gagal — pilihan Anda sudah tersimpan dan akan berlaku saat masuk berikutnya.",
     "timezone": {
