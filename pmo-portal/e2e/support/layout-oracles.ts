@@ -310,7 +310,8 @@ export async function assertDashboardPaintAndDesktopAccount(page: Page) {
     `⌘K selected option should show the bg-primary/10 highlight, got ${selBg}`
   ).toBe(false);
   await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: /account menu/i }).click();
+    const accountMenuButton = page.getByRole('button', { name: /account menu/i });
+    await accountMenuButton.click();
     const menu = page.getByRole('menu');
     await expect(menu).toBeVisible();
     await waitForFonts(page);
@@ -327,24 +328,29 @@ export async function assertDashboardPaintAndDesktopAccount(page: Page) {
     }
     await page.keyboard.press('Shift+Tab');
     await expect(menu).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /account menu/i })).toBeFocused();
-    // 1a8ec0971 put the account menu on Base UI, which DELIBERATELY removed the hand-built Tab
-    // handling: Tab now moves focus INTO the open popup (it stays open) and Escape — or leaving
-    // backwards, proven above — dismisses it and returns focus to the trigger. The oracle stays a
-    // keyboard user can enter the menu and get back out to the control that opened it.
-    await page.getByRole('button', { name: /account menu/i }).click();
+    await expect(accountMenuButton).toBeFocused();
+    // Tab leaves and closes the menu; Escape closes it and returns focus to the trigger.
+    await accountMenuButton.click();
+    await expect(menu).toBeVisible();
+    await expect(page.locator('[role="menu"]:focus-within, [role="menu"]:focus')).toHaveCount(1);
     await page.keyboard.press('Tab');
-    await expect(menu).toHaveCount(1);
+    await expect(menu).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).not.toBe('BODY');
+
+    await accountMenuButton.click();
+    await expect(menu).toBeVisible();
+    await expect(page.locator('[role="menu"]:focus-within, [role="menu"]:focus')).toHaveCount(1);
     await page.keyboard.press('Escape');
     await expect(menu).toHaveCount(0);
-    // Base UI returns focus to the trigger on the backwards exit above; on this Escape path focus
-    // is not restored, so the oracle is the one a keyboard user needs: the control is still there
-    // and still opens from the keyboard, so nobody is stranded outside the menu.
-    await page.getByRole('button', { name: /account menu/i }).focus();
+    await expect(accountMenuButton).toBeFocused();
+
+    await accountMenuButton.focus();
     await page.keyboard.press('Enter');
-    await expect(menu).toHaveCount(1);
+    await expect(menu).toBeVisible();
+    await expect(page.locator('[role="menu"]:focus-within, [role="menu"]:focus')).toHaveCount(1);
     await page.keyboard.press('Escape');
     await expect(menu).toHaveCount(0);
+    await expect(accountMenuButton).toBeFocused();
 }
 
 export async function expectMoneyFits(tile: Locator, locator: Locator, shortValue: string, exactValue: string) {
