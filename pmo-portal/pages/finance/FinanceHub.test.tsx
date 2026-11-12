@@ -1,6 +1,7 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'jest-axe';
 import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
@@ -80,6 +81,11 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'project-1', name: 'North delivery', short_name: 'North delivery', pm: { full_name: 'Alex Rivera' } }] }) }));
 
 import FinanceHub from './FinanceHub';
+
+function CurrentLocation() {
+  const location = useLocation();
+  return <output aria-label="Current location">{`${location.pathname}${location.search}`}</output>;
+}
 
 function positionFixture(): FinancePosition {
   return {
@@ -333,6 +339,16 @@ describe('Finance hub', () => {
     renderHub('Executive');
     expect(screen.queryByRole('button', { name: /New invoice/ })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Finance', level: 1 })).toBeInTheDocument();
+  });
+
+  it('opens the invoice composer when Finance presses New invoice', async () => {
+    state.role = 'Finance';
+    state.position = positionFixture();
+    render(<MemoryRouter><FinanceHub /><CurrentLocation /></MemoryRouter>);
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /New invoice/ }));
+
+    expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?create=1');
   });
 
   it('AC-1405-HUB-003: keeps area cards, ageing figures and attention content accessible', async () => {

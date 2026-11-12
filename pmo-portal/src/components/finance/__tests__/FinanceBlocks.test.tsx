@@ -72,7 +72,29 @@ describe('Finance blocks', () => {
     expect(screen.getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent(/IDR\s?0\b/);
   });
 
-  it('opens an overdue invoice from the finance receivables list with its amount, due date and project', () => {
+  it('opens the selected overdue invoice row in its record drawer', async () => {
+    const invoice = {
+      id: 'invoice-open-1', project_id: null, customer_name: 'Cascade Foods', si_number: 'INV-OPEN-1',
+      invoice_date: '2026-06-15', erp_payment_terms_days: 0, erp_due_date: '2026-06-15', received_date: null,
+      amount: 1_110_000, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 110_000,
+      erp_outstanding_amount: 625_000, status: 'Unpaid',
+    } as FinancePosition['overdue'][number]['invoice'];
+    render(
+      <MemoryRouter>
+        <CurrentLocation />
+        <FinanceAttention
+          position={{ ...emptyPosition, overdue: [{ invoice, daysOverdue: 104, outstanding: 62_500 }], overdueTotals: { IDR: 62_500 }, receivablesCount: 1 }}
+          scope="all" canAct isPending={false} isError={false} onRetry={() => {}}
+          withLayout={(path) => path} orgCurrency="IDR"
+        />
+      </MemoryRouter>,
+    );
+
+    await userEvent.setup().click(screen.getByRole('link', { name: /Cascade Foods.*INV-OPEN-1/ }));
+    expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?open=invoice-open-1');
+  });
+
+  it('opens an overdue invoice from the finance receivables list with its amount, due date and project', async () => {
     const overdue = {
       id: 'invoice-1', org_id: 'org-1', project_id: 'project-1', erp_project: null, billing_kind: 'contract',
       customer_id: null, customer_name: 'Northstar Client', si_number: 'INV-104', reference_number: null,
@@ -92,6 +114,7 @@ describe('Finance blocks', () => {
 
     render(
       <MemoryRouter>
+        <CurrentLocation />
         <FinanceAttention
           position={position}
           scope="all"
@@ -119,6 +142,58 @@ describe('Finance blocks', () => {
     expect(screen.getByText(/INV-104/)).toHaveClass('whitespace-nowrap');
     expect(screen.getByText(/of IDR/)).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Alex Rivera' })).toBeNull();
+
+    await userEvent.setup().click(row);
+    expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?open=invoice-1');
+  });
+
+  it('opens the full overdue list after the five-row preview', async () => {
+    const overdue = Array.from({ length: 6 }, (_, index) => ({
+      invoice: {
+        id: `invoice-${index + 1}`, project_id: null, customer_name: `Client ${index + 1}`, si_number: `INV-${index + 1}`,
+        invoice_date: '2026-06-15', erp_payment_terms_days: 0, erp_due_date: '2026-06-15', received_date: null,
+        amount: 1_110_000, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 110_000,
+        erp_outstanding_amount: 625_000, status: 'Unpaid',
+      } as never,
+      daysOverdue: 104 - index,
+      outstanding: 62_500,
+    }));
+    render(
+      <MemoryRouter>
+        <CurrentLocation />
+        <FinanceAttention
+          position={{ ...emptyPosition, overdue, overdueTotals: { IDR: 375_000 }, receivablesCount: 6 }}
+          scope="all" canAct isPending={false} isError={false} onRetry={() => {}}
+          withLayout={(path) => path} orgCurrency="IDR"
+        />
+      </MemoryRouter>,
+    );
+
+    const showAll = screen.getByRole('link', { name: 'Show all 6 overdue' });
+    expect(showAll).toHaveAttribute('href', '/finance/receivables?overdue=true');
+    await userEvent.setup().click(showAll);
+
+    expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?overdue=true');
+  });
+
+  it('opens the supplier payables list from its waiting row', async () => {
+    const position: FinancePosition = {
+      ...emptyPosition,
+      payables: [{ procurement: { id: 'procurement-1' } as never, ageDays: 20, amount: 50_000 }],
+      payablesTotals: { IDR: 50_000 },
+    };
+    render(
+      <MemoryRouter>
+        <CurrentLocation />
+        <FinanceAttention
+          position={position} scope="all" canAct isPending={false} isError={false}
+          onRetry={() => {}} withLayout={(path) => path} orgCurrency="IDR"
+        />
+      </MemoryRouter>,
+    );
+
+    await userEvent.setup().click(screen.getByRole('link', { name: 'Open payables' }));
+    expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/payables');
   });
 
   it('gives Finance compact actions for each waiting count and keeps executives read-only', async () => {
@@ -141,13 +216,17 @@ describe('Finance blocks', () => {
     expect(screen.getByText('1 draft to approve')).toBeInTheDocument();
     await user.click(screen.getAllByRole('button', { name: 'Review' })[0]!);
     expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?todo=approve');
+    await user.click(screen.getAllByRole('button', { name: 'Review' })[1]!);
+    expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?todo=second');
     await user.click(screen.getByRole('button', { name: 'Record delivery' }));
     expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?todo=send');
     expect(screen.getByText('2 purchase orders to receive')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open procurement' })).toHaveAttribute('href', '/procurement?stage=receive');
+    await user.click(screen.getByRole('link', { name: 'Open procurement' }));
+    expect(screen.getByLabelText('Current location')).toHaveTextContent('/procurement?stage=receive');
     await user.click(screen.getByRole('button', { name: 'Apply' }));
     expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?view=payments&todo=unapplied');
-    expect(screen.getByRole('link', { name: 'Open payables' })).toHaveAttribute('href', '/finance/payables');
+    await user.click(screen.getByRole('link', { name: 'Open payables' }));
+    expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/payables');
 
     rerender(<MemoryRouter><FinanceAttention {...props} canAct={false} /></MemoryRouter>);
     expect(screen.queryByRole('button', { name: /Review|Record delivery|Apply/ })).not.toBeInTheDocument();
