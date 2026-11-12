@@ -64,8 +64,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       ? t('projects:columns.contractWithBasis', 'Contract ({{basis}})', { basis: sharedBasis })
       : t('projects.columns.contract', 'Contract'),
     kind: 'money',
-    size: 160,
-    minSize: 152,
+    size: 140,
+    minSize: 132,
     maxSize: 320,
     align: 'num',
     exportValue: (p) => p.contract_value,
@@ -148,18 +148,26 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'project',
       header: t('projects.columns.project', 'Project'),
       kind: 'primary',
-      size: 240,
+      size: 340,
       minSize: 240,
       maxSize: 640,
       exportValue: (p) => p.name,
       primaryTitle: (p) => p.name,
       secondaryCell: (p) => {
         const ids = [p.pmo_project_number, p.code].filter(Boolean).join(' · ');
+        const clientName = p.client ? companyDisplayName(p.client) : null;
+        const endClientName = p.end_client ? companyDisplayName(p.end_client) : null;
+        const metadata = [clientName, ids, endClientName].filter(Boolean).join(' · ');
         return (
-          <span className="block min-w-0" onClick={(event) => event.stopPropagation()}>
-            {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="block max-w-full truncate" />}
-            {ids && <>{p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}<span className="block whitespace-nowrap font-mono" title={ids}>{ids}</span></>}
-            {p.end_client && <span className="block truncate text-muted-foreground">{companyDisplayName(p.end_client)}</span>}
+          <span className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap" title={metadata} onClick={(event) => event.stopPropagation()}>
+            {clientName && <span className="min-w-0 max-w-[44%] overflow-hidden text-ellipsis whitespace-nowrap"><CompanyNameLink companyId={p.client_id} name={clientName} className="inline" /></span>}
+            {clientName && ids && <span aria-hidden className="shrink-0">·</span>}
+            {ids && <>
+              {p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}
+              <span className="shrink-0 whitespace-nowrap font-mono" title={ids}>{ids}</span>
+            </>}
+            {ids && endClientName && <span aria-hidden className="shrink-0">·</span>}
+            {endClientName && <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-muted-foreground">{endClientName}</span>}
           </span>
         );
       },
@@ -174,29 +182,27 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
             >
               {(projectDisplayName(p).trim().charAt(0) || '•').toUpperCase()}
             </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 flex-col items-start gap-1">
-                <button
-                  type="button"
-                  data-list-return-focus={`projects:${p.id}`}
-                  onPointerEnter={() => onPrefetch?.(p.id)}
-                  onFocus={() => onPrefetch?.(p.id)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpen(p);
-                  }}
-                  className="block w-full whitespace-normal break-words text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:line-clamp-2"
-                  title={p.name}
-                  aria-describedby={projectDisplayName(p) !== p.name ? `project-legal-${p.id}` : undefined}
-                >
-                  {projectDisplayName(p)}
-                </button>
-                {projectDisplayName(p) !== p.name && <span id={`project-legal-${p.id}`} className="sr-only">{p.name}</span>}
-                {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
-                {atRisk && (
-                  <StatusPill variant="warn">{t('projects.atRiskPill', 'At risk')}</StatusPill>
-                )}
-              </div>
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <button
+                type="button"
+                data-list-return-focus={`projects:${p.id}`}
+                onPointerEnter={() => onPrefetch?.(p.id)}
+                onFocus={() => onPrefetch?.(p.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpen(p);
+                }}
+                className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                title={p.name}
+                aria-describedby={projectDisplayName(p) !== p.name ? `project-legal-${p.id}` : undefined}
+              >
+                {projectDisplayName(p)}
+              </button>
+              {projectDisplayName(p) !== p.name && <span id={`project-legal-${p.id}`} className="sr-only">{p.name}</span>}
+              {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
+              {atRisk && (
+                <span className="shrink-0"><StatusPill variant="warn" className="py-1">{t('projects.atRiskPill', 'At risk')}</StatusPill></span>
+              )}
             </div>
           </div>
         );
@@ -206,8 +212,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'pm',
       header: t('projects.columns.pm', 'PM'),
       kind: 'meta',
-      size: 160,
-      minSize: 128,
+      size: 120,
+      minSize: 112,
       maxSize: 320,
       // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
       // and is never exported as "unassigned".
@@ -234,11 +240,11 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'status',
       header: t('projects.columns.status', 'Status'),
       kind: 'status',
-      size: 190,
-      minSize: 170,
+      size: 136,
+      minSize: 112,
       maxSize: 240,
       exportValue: (p) => String(p.status),
-      cell: (p) => <StatusPill record="project" state={p.status as string} />,
+      cell: (p) => <StatusPill record="project" state={p.status as string} className="py-1" />,
     },
     // Contract figure is money-view-gated (see `canViewMoney`): roles without the shared
     // money-view permission get no Contract column — and, since `withCurrencyColumn` only
@@ -250,11 +256,10 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'actual',
       header: t('projects.columns.actual', 'Actual'),
       kind: 'money',
-      size: 160,
-      minSize: 152,
+      size: 136,
+      minSize: 128,
       maxSize: 320,
       align: 'num',
-      colClassName: 'xl:pr-6',
       exportValue: (p) => {
         const { text, exportText } = actualProjection(p);
         return exportText ?? text;
@@ -276,10 +281,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'progress',
       header: t('projects.columns.progress', 'Progress'),
       kind: 'percent',
-      size: 120,
-      minSize: 96,
+      size: 104,
+      minSize: 88,
       maxSize: 160,
-      colClassName: 'xl:pl-6',
       exportValue: (p) => deliveryError || deliveryPending || deliverySummary?.[p.id]?.deliveryPct == null ? '' : Math.round(deliverySummary[p.id].deliveryPct!),
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
@@ -305,8 +309,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       exportValue: budgetExport,
       header: t('projects.columns.budgetUsed', 'Budget used'),
       kind: 'money',
-      size: 160,
-      minSize: 152,
+      size: 136,
+      minSize: 128,
       maxSize: 320,
       cell: (p) => {
         if (moneyPending) return <span className="text-sm text-muted-foreground">…</span>;
@@ -354,10 +358,11 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     return (
       <div className="min-w-0">
         {cellOf('project', p)}
-        {(p.client || ids) && (
+        {(p.client || ids || p.end_client) && (
           <div className="mt-1 flex min-w-0 flex-wrap gap-x-3 break-words text-sm font-normal text-muted-foreground" onClick={(event) => event.stopPropagation()}>
             {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="inline" />}
             {ids && <span className="whitespace-nowrap font-mono" title={ids}>{ids}</span>}
+            {p.end_client && <span>{companyDisplayName(p.end_client)}</span>}
           </div>
         )}
       </div>
@@ -369,6 +374,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     const budgetUsed = visibleColumns.some((column) => column.key === 'budget-used') ? cellOf('budget-used', p) : null;
     return (
       <div className="flex min-w-0 flex-col gap-1.5">
+        {!pmIsViewer && !sharedManager && (
+          <div>{t('projects.columns.pm', 'PM')}: {pmOf(p)}</div>
+        )}
         <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
           {cellOf('status', p)}
           {progress && <span className="min-w-[7rem] max-w-[10rem] flex-1">{progress}</span>}

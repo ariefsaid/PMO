@@ -151,6 +151,7 @@ export interface DataTableDesktopProps<Row> {
   totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
   onSort?: (key: string) => void;
   columnSizing: Record<string, number>;
+  compactRows?: boolean;
   onOverflowChange?: (overflowing: boolean) => void;
 }
 
@@ -181,6 +182,7 @@ export function DataTableDesktop<Row>({
   totals,
   onSort,
   columnSizing,
+  compactRows = false,
   onOverflowChange,
 }: DataTableDesktopProps<Row>) {
   const { t } = useTranslation('projects');
@@ -440,7 +442,8 @@ export function DataTableDesktop<Row>({
                           ? { width: cell.column.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                           : undefined}
                         className={cn(
-                          'h-[var(--table-row-min-height)] break-words px-[var(--table-cell-inset)] py-2 align-middle [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
+                          'h-[var(--table-row-min-height)] break-words px-[var(--table-cell-inset)] align-middle [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
+                          compactRows ? 'py-0.5' : 'py-2',
                           col.stickyLeft && cn('sticky left-0 z-[1]', stickyRowSurface),
                           alignClass(col.align),
                           col.align === 'num' && 'tabular',

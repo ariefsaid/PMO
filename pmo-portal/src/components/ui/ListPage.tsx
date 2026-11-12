@@ -46,13 +46,15 @@ export interface ListPageProps {
   view?: React.ReactNode;
 
   /**
-   * OPT-IN phone-width toolbar (FR-PRJUX-001). When supplied AND the viewport is below
-   * `md` (768px) it is rendered as the SOLE `list-page-toolbar`, replacing the desktop
-   * slots (status/filters/search/secondaryFilter/export/import/view). At `md` and wider —
-   * or when this prop is omitted — the canonical desktop toolbar renders exactly as before.
+   * OPT-IN phone-width toolbar (FR-PRJUX-001). When supplied AND the viewport is below its
+   * breakpoint (defaults to `md`, 768px), it is rendered as the SOLE `list-page-toolbar`,
+   * replacing the desktop slots (status/filters/search/secondaryFilter/export/import/view).
+   * `mobileToolbarBreakpoint` lets a denser toolbar keep this composition through tablet widths.
    * Projects is the only adopter.
    */
   mobileToolbar?: React.ReactNode;
+  /** Viewport width at which the canonical desktop toolbar replaces `mobileToolbar` (default 768px). */
+  mobileToolbarBreakpoint?: number;
   /** Page-specific desktop toolbar layout refinements. */
   desktopToolbarClassName?: string;
 
@@ -93,6 +95,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   importAction,
   view,
   mobileToolbar,
+  mobileToolbarBreakpoint = 768,
   desktopToolbarClassName,
   hideHeader = false,
   banner,
@@ -101,7 +104,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   className,
 }) => {
   const { t } = useTranslation();
-  const isBelowMd = !useIsDesktop();
+  const isBelowToolbarBreakpoint = !useIsDesktop(mobileToolbarBreakpoint);
   // A slot is "present" only when it renders something. Pages gate slots with
   // `state !== 'loading' && (…)`, which yields `false` during loading — so a
   // falsy slot (false/null/undefined) means absent, and the whole toolbar is
@@ -109,7 +112,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   const hasToolbar = Boolean(
     filters || search || secondaryFilter || exportAction || importAction || view || mobileToolbar,
   );
-  const useMobileToolbar = Boolean(mobileToolbar) && isBelowMd;
+  const useMobileToolbar = Boolean(mobileToolbar) && isBelowToolbarBreakpoint;
 
   return (
     <div className={className}>

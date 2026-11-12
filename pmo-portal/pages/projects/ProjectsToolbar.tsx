@@ -53,6 +53,10 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
 
   const mobileToolbar = (
     <div data-testid="projects-mobile-toolbar" className="flex w-full min-w-0 flex-col gap-2.5">
+      <p data-testid="projects-mobile-count" className="hidden text-control text-muted-foreground md:block">
+        {t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count: filtered.length, total: model.all.length })}
+      </p>
+
       {/* status — bounded horizontal scroller (must stay reachable at 390px) */}
       <div data-testid="status-filter-scroll" className="order-2 min-w-0 max-w-full overflow-x-auto scroll-fade-x [&_button]:whitespace-nowrap">
         <ViewToggle<StatusFilter>
