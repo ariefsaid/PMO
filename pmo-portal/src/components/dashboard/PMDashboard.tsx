@@ -42,7 +42,7 @@ import {
   projectMoneyFigure,
   projectRiskBasisKnown,
   projectSpendOfContractPct,
-  sumAwaitingTimesheetHours, projectBilledMargin, projectNothingBilled } from './hub/pm/metrics';
+  sumAwaitingTimesheetHours, projectBilledMargin, projectNothingBilled, projectOverBudget } from './hub/pm/metrics';
 
 const DELIVERY_PROJECT_STATUSES = new Set([...ON_HAND_STATUSES, ...INTERNAL_STATUSES]);
 /** #1461: the drill lands on exactly the figure's set — my delivery projects (the figure's
@@ -101,7 +101,7 @@ export const PMDashboard: React.FC = () => {
       const reason = [
         overdue > 0 ? t('home.overdueTasks', { count: overdue, defaultValue_one: '{{count}} task overdue', defaultValue_other: '{{count}} tasks overdue' }) : null,
         purchases > 0 ? t('home.purchasesToApprove', { count: purchases, defaultValue_one: '{{count}} purchase to approve', defaultValue_other: '{{count}} purchases to approve' }) : null,
-        atRisk ? t('home.budgetNinety', 'budget at 90% or more') : null,
+        atRisk ? (projectOverBudget(project) ? t('home.overBudget', 'over budget') : t('home.budgetNinety', 'budget at 90% or more')) : null,
       ].filter(Boolean).join(' · ');
       const delivery = deliveryQuery.data?.[project.id];
       return {
@@ -136,7 +136,7 @@ export const PMDashboard: React.FC = () => {
     const margin = projectBilledMargin(project);
     return [project.id, {
       meta: [projectNumbers.data?.[project.id], project.client_name, project.currency].filter(Boolean).join(' · '),
-      facts: projectAtRisk(project) ? [{ key: 'risk', red: true, text: t('home.budgetAtNinety', 'Budget at 90% or more') }] : [],
+      facts: projectAtRisk(project) ? [{ key: 'risk', red: true, text: projectOverBudget(project) ? t('hub.pm.overBudgetFlag', 'Over budget') : t('home.budgetAtNinety', 'Budget at 90% or more') }] : [],
       figures: margin != null ? t('home.marginBilledShort', 'Margin on billed work {{amount}}', { amount: formatTileMoney(margin, project.currency) ?? '' })
         : projectNothingBilled(project) ? t('home.nothingBilledYet', 'Nothing billed yet') : undefined,
       items: [
@@ -378,32 +378,38 @@ export const PMDashboard: React.FC = () => {
               loading={projectsQuery.isPending || (projectsQuery.data !== undefined && (overdueTasksQuery.isPending || overdueOrgDay.isPending))}
             />
           </KPIRow>
-          <div className="grid items-stretch gap-[var(--space-panel-gap)] max-[899px]:grid-cols-1 min-[900px]:grid-cols-12">
-            <div className="min-w-0 max-[899px]:order-2 min-[900px]:col-span-8 [&>div]:h-full">{projectsEl}</div>
-            <div className="min-w-0 self-start max-[899px]:order-1 min-[900px]:col-span-4">{waitsEl}</div>
+          {/* Row one: my projects beside what waits on me and the overdue tasks by project (both short, stacked).
+              Row two: delivery and budget used beside plan vs actual. */}
+          <div className="grid items-start gap-[var(--space-panel-gap)] max-[899px]:grid-cols-1 min-[900px]:grid-cols-12">
+            <div className="min-w-0 max-[899px]:order-2 min-[900px]:col-span-8">{projectsEl}</div>
+            <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)] max-[899px]:contents min-[900px]:col-span-4">
+              <div className="min-w-0 max-[899px]:order-1">{waitsEl}</div>
+              <div className="min-w-0 max-[899px]:order-3">
+                <ChartCard title={overdueTitle} actions={<CardLink to={tasksHref}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink>}
+                  known={tasksOverdue !== null || needs.isPending} pending={needs.isPending && tasksOverdue === null} hiddenReason={t('home.reasonTasksOverdue', 'task dates could not be read')} testId="chart-overdue-tasks">
+                  {overdueBars.length === 0
+                    ? <p className="text-control text-muted-foreground">{t('home.noOverdueTasks', 'No overdue tasks.')}</p>
+                    : <BarList rows={overdueBars} ariaLabel={overdueTitle} />}
+                </ChartCard>
+              </div>
+            </div>
           </div>
-          <div className="grid items-stretch gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2">
+          <div className="grid items-start gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2">
             <ChartCard title={t('home.deliveryVsBudget', 'Delivery and budget used by project')} actions={<CardLink to={projectsHref(userId)}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink>}
               known={pctBars.length > 0} hiddenReason={t('home.reasonDeliveryBudget', 'delivery and budget are not recorded')} pending={projectsPending}
               error={projectsError ? { title: t('home.projectsError', "Couldn't load projects"), retry: refresh } : undefined} testId="chart-delivery-budget">
               <SeriesKey items={[...(pctBars.some((row) => row.value !== null) ? [{ label: deliveryName, tone: 'accent' as const }] : []), ...(pctBars.some((row) => row.value2 != null) ? [{ label: budgetName, tone: 'neutral' as const }] : [])]} />
               <BarList rows={pctBars} ariaLabel={t('home.deliveryVsBudget', 'Delivery and budget used by project')} seriesNames={[deliveryName, budgetName]} domainMax={100} />
             </ChartCard>
-            <ChartCard title={overdueTitle} actions={<CardLink to={tasksHref}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink>}
-              known={tasksOverdue !== null || needs.isPending} pending={needs.isPending && tasksOverdue === null} hiddenReason={t('home.reasonTasksOverdue', 'task dates could not be read')} testId="chart-overdue-tasks">
-              {overdueBars.length === 0
-                ? <p className="text-control text-muted-foreground">{t('home.noOverdueTasks', 'No overdue tasks.')}</p>
-                : <BarList rows={overdueBars} ariaLabel={overdueTitle} />}
-            </ChartCard>
+            <Card>
+              <CardHead level={2} actions={<CardLink to={projectsHref(userId)}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink>}>{planTitle}</CardHead>
+              <CardPad className="min-w-0">
+                {projectsQuery.isPending ? <ListState variant="loading" shape="chart" rows={4} />
+                  : projectsQuery.isError ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={() => { void projectsQuery.refetch(); }} />
+                    : <PlanVsActualChart projects={projects} currency={orgCurrency} />}
+              </CardPad>
+            </Card>
           </div>
-          <Card>
-            <CardHead level={2} actions={<CardLink to={projectsHref(userId)}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink>}>{planTitle}</CardHead>
-            <CardPad className="min-w-0">
-              {projectsQuery.isPending ? <ListState variant="loading" shape="chart" rows={4} />
-                : projectsQuery.isError ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={() => { void projectsQuery.refetch(); }} />
-                  : <PlanVsActualChart projects={projects} currency={orgCurrency} />}
-            </CardPad>
-          </Card>
         </div>
       </FigureScope>
     );

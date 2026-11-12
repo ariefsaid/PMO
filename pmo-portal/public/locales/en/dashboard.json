@@ -359,7 +359,8 @@
       "riskUncheckedCaption_other": "{{count}} without a checkable budget",
       "tasksOverdueInProjects": "Tasks overdue in my projects",
       "marginUnknownProjects_one": "{{count}} project with incomplete spending or billing",
-      "marginUnknownProjects_other": "{{count}} projects with incomplete spending or billing"
+      "marginUnknownProjects_other": "{{count}} projects with incomplete spending or billing",
+      "overBudgetFlag": "Over budget"
     },
     "company": {
       "topAttentionProjects": "The 5 projects that most need attention",
