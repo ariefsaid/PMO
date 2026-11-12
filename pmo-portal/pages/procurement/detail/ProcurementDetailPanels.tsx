@@ -403,7 +403,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
           : null;
         return {
           id: row.id, date: status?.date ?? row.date, label: t(`timeline.record.${row.type}`, typeLabel[row.type]), number: row.systemNumber,
-          facts: [status?.label, documentDate, row.status, row.externalRef, row.groupRef, row.fileCount ? t('timeline.files', { count: row.fileCount, defaultValue_one: '{{count}} file', defaultValue_other: '{{count}} files' }) : null].filter((fact): fact is string => Boolean(fact)),
+          facts: [...new Set([status?.label, documentDate, row.status, row.externalRef, row.groupRef, row.fileCount ? t('timeline.files', { count: row.fileCount, defaultValue_one: '{{count}} file', defaultValue_other: '{{count}} files' }) : null].filter((fact): fact is string => Boolean(fact)))],
           amount: isEngineer && (row.type === 'Invoice' || row.type === 'Payment') ? null : row.amount,
           currency: row.currency, source: 'procurement', ledger: row, actor: status?.actor ?? null, note: status?.note ?? null,
           icon: row.type === 'PO' ? 'cart' : row.type === 'GR' ? 'inbox' : row.type === 'Invoice' ? 'invoices' : row.type === 'Payment' ? 'payments' : 'doc',

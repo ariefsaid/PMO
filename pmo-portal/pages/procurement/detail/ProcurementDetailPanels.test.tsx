@@ -139,6 +139,30 @@ describe('procurement record panels', () => {
     expect(rows.some((row) => /Approved/.test(row.textContent ?? '') && !row.textContent?.includes('PO-112'))).toBe(true);
   });
 
+  it('shows a matched transition once when it agrees with the document status', () => {
+    const detail = {
+      ...procurement,
+      status: 'Ordered',
+      statusEvents: [{
+        id: 'ordered-event', procurement_id: 'p-1', from_status: 'Quote Selected', to_status: 'Ordered',
+        actor_id: 'buyer-1', notes: null, created_at: '2026-09-08T10:00:00.000Z',
+        actor: { full_name: 'Procurement buyer' },
+      }],
+      purchase_orders: [{
+        id: 'po-1', procurement_id: 'p-1', org_id: 'org-1', po_number: 'PO-112', reference_number: 'EXT-112',
+        status: 'Ordered', date: '2026-09-08', created_at: '2026-09-08T10:00:00.000Z', amount: 500, currency: 'USD',
+      }],
+    } as unknown as ProcurementDetail;
+    render(
+      <ToastProvider>
+        <ProcurementTimeline procurement={detail} ledgerRows={buildLedgerRows(detail)} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={vi.fn()} />
+      </ToastProvider>,
+    );
+
+    const orderRow = screen.getAllByTestId('procurement-timeline-row').find((row) => row.textContent?.includes('PO-112')) as HTMLElement;
+    expect(within(orderRow).getAllByText('Ordered', { exact: true })).toHaveLength(1);
+  });
+
   it('uses the locale catalogue plural forms for stage documents and attached files', async () => {
     const i18n = i18next.createInstance();
     await i18n.init({
