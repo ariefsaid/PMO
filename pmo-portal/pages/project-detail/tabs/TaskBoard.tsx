@@ -147,7 +147,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                 </> : t('projectDetail.tasks.unassigned', 'Unassigned')}
                 {task.end_date && <Tooltip content={t('projectDetail.tasks.dueTooltip', 'Due date from the task record. Late days compare the due date with today in the organization timezone.')}>
                   <span tabIndex={0} className={`ml-auto shrink-0 tabular ${isOverdue(task, today) ? 'text-destructive-text' : ''}`}>
-                    {isOverdue(task, today) ? t('projectDetail.tasks.daysLateCount', '{{count}}d late', { count: daysLate(task.end_date, today) }) : formatDay(task.end_date)}
+                    {isOverdue(task, today) ? t('projectDetail.tasks.daysOverdueCount', '{{count}}d overdue', { count: daysLate(task.end_date, today) }) : formatDay(task.end_date)}
                   </span>
                 </Tooltip>}
               </div>

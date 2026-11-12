@@ -378,7 +378,8 @@
     "/projects/41000000-0000-0000-0000-000000000002/documents@1440@pm@acme.test": 0,
     "/projects/41000000-0000-0000-0000-000000000002/materials@1440@pm@acme.test": 0,
     "/projects/41000000-0000-0000-0000-000000000002/procurement@1440@pm@acme.test": 0,
-    "/projects/41000000-0000-0000-0000-000000000002/activity@1440@pm@acme.test": 0
+    "/projects/41000000-0000-0000-0000-000000000002/activity@1440@pm@acme.test": 0,
+    "/my-tasks@390@engineer@acme.test": 0
   },
   "/procurement/00000000-0000-0000-0000-000000000002@390@exec@acme.test": 3,
   "/procurement/00000000-0000-0000-0000-000000000002@390@pm@acme.test": 3,

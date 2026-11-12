@@ -192,7 +192,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
   it('N15: an overdue task says how late it is in red; a task due this week says its date', () => {
     renderDashboard();
     const overdue = screen.getByRole('link', { name: /Finalize drawings/ });
-    const late = within(overdue).getByText('3 days late');
+    const late = within(overdue).getByText('3 days overdue');
     expect(late).toHaveClass('text-destructive-text');
     expect(overdue).not.toHaveTextContent(/Due /);
     expect(screen.getByRole('link', { name: /Prepare handover/ })).toHaveTextContent(/Due /);
@@ -205,9 +205,9 @@ describe('Engineer home (one question: is my week on track?)', () => {
     ];
     renderDashboard();
 
-    expect(within(screen.getByRole('link', { name: /Finalize drawings/ })).getByText('3 days late')).toHaveClass('text-destructive-text');
-    expect(within(screen.getByRole('link', { name: /Review estimates/ })).getByText('2 days late')).toHaveClass('text-foreground');
-    expect(screen.getByText('2 days late')).not.toHaveClass('text-destructive-text');
+    expect(within(screen.getByRole('link', { name: /Finalize drawings/ })).getByText('3 days overdue')).toHaveClass('text-destructive-text');
+    expect(within(screen.getByRole('link', { name: /Review estimates/ })).getByText('2 days overdue')).toHaveClass('text-foreground');
+    expect(screen.getByText('2 days overdue')).not.toHaveClass('text-destructive-text');
   });
 
   it('N15: a task with no project still opens My Tasks', () => {

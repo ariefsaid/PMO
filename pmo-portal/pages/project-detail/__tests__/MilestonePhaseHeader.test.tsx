@@ -48,8 +48,8 @@ describe('MilestonePhaseHeader', () => {
     // Current label exists
     expect(screen.getByText('Current')).toBeInTheDocument();
 
-    // Overdue pill exists
-    expect(screen.getByText('Overdue')).toBeInTheDocument();
+    // Overdue pill exists — phases read "Late" (screen-rules Words: overdue is for tasks/invoices)
+    expect(screen.getByText('Late')).toBeInTheDocument();
 
     // NO "From tasks" text (removed from desktop cards)
     expect(screen.queryByText(/From tasks/i)).not.toBeInTheDocument();
@@ -151,7 +151,7 @@ describe('MilestonePhaseHeader', () => {
 
     const target = screen.getByText('Target 15 Aug');
     expect(target.className).not.toContain('text-warning-foreground');
-    expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
+    expect(screen.queryByText('Late')).not.toBeInTheDocument();
   });
 
   it('AC-DEL-010: compact variant renders only name + target (no regression)', () => {
