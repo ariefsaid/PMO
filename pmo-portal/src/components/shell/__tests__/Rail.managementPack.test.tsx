@@ -24,7 +24,7 @@ describe('Finance area in the rail', () => {
     effectiveRole = 'Finance';
     revenue = true;
     renderRail();
-    expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/finance');
+    expect(screen.getByRole('link', { name: 'Finance' })).toHaveAttribute('href', '/finance');
   });
 
   // AC-MMP-015 (ported): the management pack is now Finance › Reports. Engineers never see it,
@@ -55,11 +55,11 @@ describe('Finance area in the rail', () => {
     effectiveRole = 'Engineer';
     revenue = true;
     const { unmount } = renderRail();
-    expect(screen.queryByRole('link', { name: 'Overview' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Finance' })).toBeNull();
     unmount();
     effectiveRole = 'Finance';
     revenue = false;
     renderRail();
-    expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/finance');
+    expect(screen.getByRole('link', { name: 'Finance' })).toHaveAttribute('href', '/finance');
   });
 });

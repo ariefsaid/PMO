@@ -254,6 +254,11 @@ const AdministrationExchangeRates: React.FC = () => {
                 {t('uxs38.moreEarlier', 'earlier rates on the next pages')}
               </>
             )}
+            {/* T1: the page states what these rates are FOR wherever the history is loaded — they
+                feed display equivalents and never write an accounting record. (The empty state
+                said it; a loaded page did not.) */}
+            {' · '}
+            {t('administration:exchangeRates.displayOnly', 'Display equivalents only')}
           </p>
           <DataTable<FxRateRow>
             rows={rates.data.rows}
