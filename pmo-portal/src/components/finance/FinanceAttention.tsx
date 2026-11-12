@@ -19,6 +19,7 @@ export interface FinanceAttentionProps {
   onRetry: () => void;
   withLayout: (path: string) => string;
   orgCurrency?: string | null;
+  showOverdueUnknownCount?: boolean;
   projects?: Map<string, { name?: string | null; short_name?: string | null; pm?: { full_name?: string | null } | null }>;
 }
 
@@ -32,7 +33,7 @@ interface WaitingItem {
 }
 
 export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
-  position, scope, canAct, isPending, isError, onRetry, withLayout, orgCurrency, projects = new Map(),
+  position, scope, canAct, isPending, isError, onRetry, withLayout, orgCurrency, showOverdueUnknownCount = true, projects = new Map(),
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -94,8 +95,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
           <h2 className="mb-2 text-group font-semibold text-foreground">
               <span className="text-destructive-text">{t('financeHub:hub.fix.overdue.headingCount', { defaultValue: overdueCount === 1 ? 'Overdue · {{count}} invoice' : 'Overdue · {{count}} invoices', count: overdueCount })}</span>
               {overdueCurrencyLines[0] && <span className="font-normal"> · {overdueCurrencyLines[0]}</span>}
-              {/* C4: the one place an unknown overdue balance is said; the rows carry no placeholder. */}
-              {position.overdueUnknownCount > 0 && <span className="font-normal text-muted-foreground">{t('financeHub:hub.fix.overdue.unknownCount', { defaultValue: position.overdueUnknownCount === 1 ? ' · {{count}} balance unknown' : ' · {{count}} balances unknown', count: position.overdueUnknownCount })}</span>}
+              {showOverdueUnknownCount && position.overdueUnknownCount > 0 && <span className="font-normal text-muted-foreground">{t('financeHub:hub.fix.overdue.unknownCount', { defaultValue: position.overdueUnknownCount === 1 ? ' · {{count}} balance unknown' : ' · {{count}} balances unknown', count: position.overdueUnknownCount })}</span>}
           </h2>
           {overdueCurrencyLines.slice(1).map((amount) => <p key={amount} className="mb-2 text-sm text-muted-foreground">{amount}</p>)}
           <div className="divide-y divide-border">
