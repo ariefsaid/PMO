@@ -58,7 +58,9 @@ export const SalesOverviewCard: React.FC<{
   className?: string;
   /** Pipeline and win rate side by side (a two-thirds-wide card). */
   wide?: boolean;
-}> = ({ weighted, forecastMargin, stages, pending, error, retry, currency, period, won, range, className, wide = false }) => {
+  /** Drawn under the win rate (e.g. win and loss by client). */
+  aside?: React.ReactNode;
+}> = ({ weighted, forecastMargin, stages, pending, error, retry, currency, period, won, range, className, wide = false, aside }) => {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const statusLabel = useProjectStatusLabel();
@@ -90,7 +92,10 @@ export const SalesOverviewCard: React.FC<{
             : rows.length === 0 ? <ListState variant="empty" icon="pipe" title={t('hub.company.noPipeline', 'No open pipeline stages')} />
               : <BarList rows={rows} ariaLabel={t('home.pipelineChart', 'Weighted pipeline by stage')} />}
         </div>
-        <WinRateCard currency={currency} range={range} hidePeriodControl embedded helpInPage />
+        <div className={wide ? 'grid content-start gap-4' : 'contents'}>
+          <WinRateCard currency={currency} range={range} hidePeriodControl embedded helpInPage />
+          {aside}
+        </div>
       </CardPad>
     </Card>
   );
@@ -170,7 +175,7 @@ export const PurchasingCard: React.FC<{ counts: Array<{ status: ProcurementStage
  * Why deals were lost: bars for the reasons that were recorded. With none recorded the chart is left out (and counted in
  * the page's hidden line); win and loss by client stay as rows under their own heading.
  */
-export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string }> = ({ range, className }) => {
+export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string; /** A titled section inside another card. */ embedded?: boolean }> = ({ range, className, embedded = false }) => {
   const { t } = useTranslation('dashboard');
   const { t: tl } = useTranslation('lostReason');
   const { data, isPending, isError, refetch } = useLossBreakdown(range);
@@ -195,10 +200,9 @@ export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string
   );
   const nothing = reasons.length === 0 && clients.length === 0;
   if (!isError && noneRecorded && !clientRows) return null;
-  return (
-    <Card data-testid="chart-loss-reasons" className={className}>
-      <CardHead level={2} actions={<CardLink to="/sales">{t('dashboard:hub.company.openSales', 'Open sales')}</CardLink>}>{reasons.length > 0 || nothing ? title : tl('breakdown.clientsTitle', 'Win and loss by client')}</CardHead>
-      <div className="px-[var(--panel-inset)] pb-4">
+  const heading = reasons.length > 0 || nothing ? title : tl('breakdown.clientsTitle', 'Win and loss by client');
+  const body = (
+    <>
         {isError ? <ListState variant="error" title={tl('breakdown.errorTitle', "Couldn't load the loss breakdown")} onRetry={() => void refetch()} />
           : (
             <>
@@ -207,7 +211,20 @@ export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string
               {reasons.length > 0 ? clientRows : <div>{clientRows}</div>}
             </>
           )}
-      </div>
+    </>
+  );
+  if (embedded) {
+    return (
+      <section data-testid="chart-loss-reasons" aria-label={heading} className={cnJoin('border-t border-border pt-4', className)}>
+        <h3 className="mb-2 text-control font-semibold">{heading}</h3>
+        {body}
+      </section>
+    );
+  }
+  return (
+    <Card data-testid="chart-loss-reasons" className={className}>
+      <CardHead level={2} actions={<CardLink to="/sales">{t('dashboard:hub.company.openSales', 'Open sales')}</CardLink>}>{heading}</CardHead>
+      <div className="px-[var(--panel-inset)] pb-4">{body}</div>
     </Card>
   );
 };
@@ -216,7 +233,7 @@ const AGE_TONE: Record<keyof AgeingBuckets, ChartTone> = { notDue: 'accent', d1_
 const AGE_KEYS = ['notDue', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
 
 /** What clients owe, by how long it has been due (known balances only, in the organisation currency). */
-export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets>; unknownCount: number; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string }> = ({ ageing, unknownCount, currency, pending, error, retry, className }) => {
+export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets>; unknownCount: number; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string; embedded?: boolean }> = ({ ageing, unknownCount, currency, pending, error, retry, className, embedded = false }) => {
   const { t } = useTranslation();
   const buckets = ageing[currency];
   const labels: Record<keyof AgeingBuckets, string> = {
@@ -229,7 +246,7 @@ export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets
   const rows: BarRow[] = buckets ? AGE_KEYS.map((key) => ({ id: key, name: labels[key], value: buckets[key] / 100, label: money(buckets[key] / 100, currency), tone: AGE_TONE[key] })) : [];
   const title = t('dashboard:home.receivablesByAge', 'Owed by clients, by age');
   return (
-    <ChartCard title={title} actions={<CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
+    <ChartCard title={title} embedded={embedded} actions={embedded ? undefined : <CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
       known={Boolean(buckets) && rows.some((row) => (row.value ?? 0) > 0)} hiddenReason={t('dashboard:home.reasonAgeing', 'no client balance is known')}
       pending={pending} error={error ? { title: t('dashboard:home.overdueError', "Couldn't load overdue invoices"), retry } : undefined} testId="chart-receivables-age" className={className}>
       <BarList rows={rows} ariaLabel={title} />

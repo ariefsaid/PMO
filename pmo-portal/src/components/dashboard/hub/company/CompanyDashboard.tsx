@@ -308,8 +308,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   if (overview) {
     // One grid: 12 columns, one gutter (--space-panel-gap, 24px desktop). At 1440 the canvas is 1168px:
     // 12c + 11 x 24 = 1168 -> c = 75.33; a half is 6c + 5g = 572, a third 4c + 3g = 373.3; 3 x 373.3 + 2 x 24 = 1168.
-    // Rows: figures (12) · Project health (6) | Finances (6) · Waits on you (4) | Sales (8) · Purchasing (6) | Win and loss (6).
-    // Finance: figures · health | finances · Waits on you (4) | Payables (8) · Client overdue (8) | Owed by age (4).
+    // Rows: figures (12) · Project health (6) | Finances (6) · [Waits on you over Purchasing] (4) | Sales with win and loss (8).
+    // Finance: figures · health | finances (with owed by age) · Waits on you (4) | Payables (8) · Client overdue (12, a table).
     // Below 900px every block takes the full width, in the phone order: finding, figures, waits, health, finances, the rest.
     const lossRange = figures.winRateRange;
     const wonAmounts = won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined;
@@ -339,7 +339,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const financesCard = (
       <Card data-testid="finances" className={cn(half, 'flex flex-col max-[899px]:order-5')}>
         <CardHead level={2} actions={cardLink('/finance/receivables', t('home.openReceivables', 'Open receivables'))}>{t('home.finances', 'Finances')}</CardHead>
-        <KPIRow aria-label={t('home.finances', 'Finances')} className="mx-[var(--panel-inset)] grid-cols-1 min-[480px]:grid-flow-col min-[480px]:auto-cols-fr">
+        <KPIRow aria-label={t('home.finances', 'Finances')} className="rounded-none border-x-0 grid-cols-1 min-[480px]:grid-flow-col min-[480px]:auto-cols-fr [&>*]:px-[var(--panel-inset)]">
           {moneyTile(todayFigure('owed-clients'), { label: t('home.owedToUs', 'Owed to us'), link: setUp })}
           <KPITile icon="grid" tone="red" label={t('home.overdueLabel', 'Overdue')} value={overdueKnown?.value ?? null} exactValue={overdueKnown?.exact} negative={(overdue?.count ?? 0) > 0}
             unavailableReason={overdue ? t('home.reasonOverdueBalance', 'some overdue balances are unknown') : t('home.reasonOverdueUnknown', 'overdue invoices could not be read')}
@@ -347,8 +347,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
             to="/finance/receivables?overdue=true" linkLabel={t('home.overdueLabel', 'Overdue')} loading={needs.isPending} />
           {moneyTile(supplier, { label: t('home.owedToSuppliers', 'Owed to suppliers'), caption: supplierCaption })}
         </KPIRow>
-        <div className="flex flex-1 flex-col px-[var(--panel-inset)] pb-4 pt-4">
-          <InvoicedCollectedCard embedded chartHeight={180} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.todayPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />
+        <div className="flex flex-1 flex-col gap-4 px-[var(--panel-inset)] pb-4 pt-4">
+          {finance && <ReceivablesAgeCard embedded ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />}
+          <InvoicedCollectedCard embedded chartHeight={finance ? 120 : 180} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.todayPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />
         </div>
       </Card>
     );
@@ -366,15 +367,17 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <>
         {waits}
         <div className={cn('min-w-0 min-[900px]:col-span-8 [&>*]:h-full', 'max-[899px]:order-6')}>{readyCard}</div>
-        <div className={cn('min-w-0 min-[900px]:col-span-8 [&>*]:h-full', 'max-[899px]:order-7')}>{overdueCard}</div>
-        <ReceivablesAgeCard className={cn(third, 'max-[899px]:order-8')} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />
+        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-7')}>{overdueCard}</div>
       </>
     ) : (
       <>
-        {waits}
-        <SalesOverviewCard wide className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} weighted={weighted} forecastMargin={data?.pipeline_projected_margin} stages={pipeline.data?.stages ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange} />
-        <PurchasingCard className={cn(half, 'max-[899px]:order-7')} counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
-        <LossReasonsCard className={cn(half, 'max-[899px]:order-8')} range={lossRange} />
+        {/* Left third: Waits on you over Purchasing by stage (the column closes level with Sales; Purchasing takes the slack). */}
+        <div className={cn(third, 'flex flex-col gap-[var(--space-panel-gap)] max-[899px]:contents')}>
+          {waits}
+          <PurchasingCard className="flex-1 max-[899px]:order-7" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
+        </div>
+        <SalesOverviewCard wide className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} weighted={weighted} forecastMargin={data?.pipeline_projected_margin} stages={pipeline.data?.stages ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
+          aside={<LossReasonsCard embedded range={lossRange} />} />
       </>
     );
     return (
