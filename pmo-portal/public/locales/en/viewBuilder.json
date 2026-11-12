@@ -9,5 +9,7 @@
   "serverVersionChanged": "The saved view changed while you were editing.",
   "reloadSavedView": "Reload saved view",
   "continueEditing": "Continue editing",
-  "invalidProjectFilter": "Choose a valid project."
+  "invalidProjectFilter": "Choose a valid project.",
+  "serverVersionChangedHelp": "Reload drops the edits you have not saved; continue keeps them.",
+  "incompleteFilter": "Complete or remove each filter row before saving."
 }

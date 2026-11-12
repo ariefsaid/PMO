@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Link, MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import i18next from 'i18next';
@@ -10,6 +10,7 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 import stockEn from '@/public/locales/en/stock.json';
+import stockId from '@/public/locales/id/stock.json';
 
 const { master, reorder } = vi.hoisted(() => ({
   master: { listWarehouses: vi.fn(), listItems: vi.fn(), listUnits: vi.fn() },
@@ -37,20 +38,28 @@ const noHistory = {
   inputs: { historyDays: 27, usageMovements: 2, minHistoryDays: 28, minMovements: 3 }, current: null,
 };
 
-const renderPage = (role: Role = 'Project Manager', viewAs: Role | null = null) => {
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="location" data-search={location.search} />;
+};
+
+const renderPage = (role: Role = 'Project Manager', viewAs: Role | null = null, initialEntry = '/reorder') => {
   realRole = role;
   effectiveRole = viewAs;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={qc}><ToastProvider><MemoryRouter initialEntries={['/reorder']}><Link to="/next">Continue</Link><Routes><Route path="/reorder" element={<StockReorder />} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter></ToastProvider></QueryClientProvider>);
+  return render(<QueryClientProvider client={qc}><ToastProvider><MemoryRouter initialEntries={[initialEntry]}><LocationProbe /><Link to="/next">Continue</Link><Routes><Route path="/reorder" element={<StockReorder />} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter></ToastProvider></QueryClientProvider>);
 };
 
-async function pickPair() {
-  await userEvent.click(await screen.findByRole('combobox', { name: /^Item/ }));
+async function pickPair(itemLabel: RegExp = /^Item/, whLabel: string | RegExp = 'Warehouse') {
+  await userEvent.click(await screen.findByRole('combobox', { name: itemLabel }));
   await userEvent.click(await screen.findByRole('option', { name: /CAB - Cable 4mm/ }));
-  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Warehouse' }), 'w1');
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: whLabel }), 'w1');
 }
 
-beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true); });
+beforeAll(() => {
+  i18next.addResourceBundle('en', 'stock', stockEn, true, true);
+  i18next.addResourceBundle('id', 'stock', stockId, true, true);
+});
 beforeEach(() => {
   vi.clearAllMocks();
   master.listWarehouses.mockResolvedValue([wh]);
@@ -62,6 +71,24 @@ beforeEach(() => {
 });
 
 describe('StockReorder', () => {
+  it('C10 StockReorder.tsx:32-40: refresh restores both selectors and reads the selected pair', async () => {
+    renderPage('Project Manager', null, '/reorder?keep=preserve&item=i1&warehouse=w1');
+    await waitFor(() => expect(reorder.suggestion).toHaveBeenCalledWith('w1', 'i1'));
+    const params = new URLSearchParams(screen.getByTestId('location').getAttribute('data-search') ?? '');
+    expect(params.get('keep')).toBe('preserve');
+    expect(params.get('item')).toBe('i1');
+    expect(params.get('warehouse')).toBe('w1');
+  });
+
+  it('C10 StockReorder.tsx:32-40: choosing item and warehouse writes both selections to the URL', async () => {
+    renderPage('Project Manager', null, '/reorder?keep=preserve');
+    await pickPair();
+    const params = new URLSearchParams(screen.getByTestId('location').getAttribute('data-search') ?? '');
+    expect(params.get('keep')).toBe('preserve');
+    expect(params.get('item')).toBe('i1');
+    expect(params.get('warehouse')).toBe('w1');
+  });
+
   it('AC-STK-025 the suggestion shows level, quantity and the inputs beside them', async () => {
     renderPage();
     await pickPair();
@@ -72,6 +99,35 @@ describe('StockReorder', () => {
     expect(within(panel).getByText(/180 m used over 90 days/)).toBeInTheDocument();
     expect(within(panel).getByText(/14 days lead time plus 7 days safety/)).toBeInTheDocument();
     expect(reorder.suggestion).toHaveBeenCalledWith('w1', 'i1');
+  });
+
+  it('C16 an empty two-select panel says what to do, and the instruction goes once both are chosen', async () => {
+    renderPage();
+    const panel = screen.getByRole('region', { name: 'Set a reorder level' });
+    expect(within(panel).getByText('Choose an item and a warehouse to see a suggestion.')).toBeInTheDocument();
+    await pickPair();
+    await screen.findByText('Suggested level');
+    expect(screen.queryByText('Choose an item and a warehouse to see a suggestion.')).not.toBeInTheDocument();
+  });
+
+  it("C16 the level in force reads as the worklist's own two column names", async () => {
+    reorder.suggestion.mockResolvedValue({ ...okSuggestion, current: { reorderLevel: '40', reorderQuantity: '55' } });
+    renderPage();
+    await pickPair();
+    expect(await screen.findByText('Reorder level: 40 m. Order quantity: 55 m.')).toBeInTheDocument();
+  });
+
+  it('C16 the level in force line is Indonesian in the Indonesian catalogue, not the English words', async () => {
+    await i18next.changeLanguage('id');
+    try {
+      reorder.suggestion.mockResolvedValue({ ...okSuggestion, current: { reorderLevel: '40', reorderQuantity: '55' } });
+      renderPage();
+      await pickPair(/^Barang/, /^Gudang/);
+      expect(await screen.findByText('Level pemesanan ulang: 40 m. Jumlah pesanan: 55 m.')).toBeInTheDocument();
+      expect(screen.queryByText(/Level in force/)).not.toBeInTheDocument();
+    } finally {
+      await i18next.changeLanguage('en');
+    }
   });
 
   it('AC-STK-026 "not enough history" shows no figure and says why (28 days / 3 movements)', async () => {
@@ -133,7 +189,7 @@ describe('StockReorder', () => {
     reorder.suggestion.mockResolvedValue({ ...okSuggestion, current: { reorderLevel: '40', reorderQuantity: '55' } });
     renderPage();
     await pickPair();
-    expect(await screen.findByText(/Level in force: 40 m/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Reorder level: 40 m/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Clear level' }));
     expect(reorder.setLevel).not.toHaveBeenCalled();
     await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Clear level' }));

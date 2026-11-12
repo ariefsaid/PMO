@@ -9,5 +9,7 @@
   "serverVersionChanged": "Tampilan tersimpan berubah saat Anda mengedit.",
   "reloadSavedView": "Muat ulang tampilan tersimpan",
   "continueEditing": "Lanjutkan mengedit",
-  "invalidProjectFilter": "Pilih proyek yang valid."
+  "invalidProjectFilter": "Pilih proyek yang valid.",
+  "serverVersionChangedHelp": "Muat ulang membuang perubahan yang belum Anda simpan; lanjutkan menyimpannya.",
+  "incompleteFilter": "Lengkapi atau hapus setiap baris filter sebelum menyimpan."
 }
