@@ -13,13 +13,13 @@ const trendOf = (cents: number[], currency = 'IDR') => selectInvoicedTrend({
 describe('AC-DTR-001 InvoicedTrendTile', () => {
   it('labels the headline as the total over the window, with its tax basis, and draws a line across the months', () => {
     render(<InvoicedTrendTile trend={trendOf([100_000_000_00, 200_000_000_00, 450_000_000_00])} />);
-    const tile = screen.getByRole('region', { name: 'Billed work, last 12 completed months · excl. tax' });
+    const tile = screen.getByRole('region', { name: 'Invoiced, last 12 completed months · excl. tax' });
     expect(tile.querySelector('svg polyline')).not.toBeNull();
   });
 
-  it('keeps the completed-month scope in the compact finance-home label', () => {
+  it('shows the month window in the compact finance-home label', () => {
     render(<InvoicedTrendTile trend={trendOf([100_000_000_00, 200_000_000_00, 450_000_000_00])} compact />);
-    expect(screen.getByTestId('invoiced-trend-summary')).toHaveTextContent('Billed work · last 12 completed months');
+    expect(screen.getByTestId('invoiced-trend-summary')).toHaveTextContent('Invoiced, last 12 months');
   });
 
   it('shows the total with the currency symbol, like the sibling tiles', () => {
@@ -42,7 +42,7 @@ describe('AC-DTR-001 InvoicedTrendTile', () => {
 describe('AC-DTR-002 less than three months', () => {
   it('shows the figure with no line and no empty chart', () => {
     const { container } = render(<InvoicedTrendTile trend={trendOf([0, 0, 300_000_000_00, 100_000_000_00])} />);
-    expect(screen.getByRole('region', { name: /billed work/i })).toHaveTextContent('IDR 400M');
+    expect(screen.getByRole('region', { name: /invoiced/i })).toHaveTextContent('IDR 400M');
     expect(container.querySelector('svg')).toBeNull();
   });
 });
@@ -54,7 +54,7 @@ describe('AC-DTR-003 readable without sight or a pointer', () => {
     expect(summary).toHaveTextContent('Latest month, Mar 2026: IDR 450M');
     expect(summary).toHaveTextContent('from Jan 2026: IDR 100M');
     expect(summary).not.toHaveTextContent(/rising/i);
-    expect(screen.getByRole('img', { name: 'Billed work trend, Jan 2026 to Mar 2026' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Invoiced trend, Jan 2026 to Mar 2026' })).toBeInTheDocument();
     expect(container.querySelector('svg')).not.toHaveAttribute('focusable', 'true');
   });
 

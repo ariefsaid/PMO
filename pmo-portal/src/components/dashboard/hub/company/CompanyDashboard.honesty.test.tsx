@@ -311,14 +311,14 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     expect(screen.queryByText(/projects? won/)).not.toBeInTheDocument();
   });
 
-  it('L2: Billed work in period puts one currency per line, the organisation currency first', () => {
+  it('L2: Invoiced puts one currency per line, the organisation currency first', () => {
     const january = `${new Date().getFullYear()}-01`;
     h.pack = { months: [{ month: january }], rows: [], totals: [
       { currency: 'IDR', months: [{ month: january, invoiced: 11_470_000_000 }] },
       { currency: 'USD', months: [{ month: january, invoiced: 1_180_000_000 }] },
     ] };
     renderExec();
-    const invoiced = tile('Billed work in period');
+    const invoiced = tile('Invoiced');
     const lines = within(invoiced).getAllByText(/115M|11\.8M/).filter((line) => line.children.length === 0);
     expect(lines.map((line) => line.textContent?.replace(/\u00a0/g, ' '))).toEqual(['$11.8M', 'IDR 115M']);
     expect(invoiced.querySelector('[title="$11,800,000; IDR\u00a0114,700,000"]')).not.toBeNull();

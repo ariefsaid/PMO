@@ -5,7 +5,7 @@ import type { ManagementPackFacts } from '@/src/lib/db/managementPack';
 
 const labels: ManagementPackExportLabels = {
   period: 'Period', projectNumber: 'Project number', project: 'Project', client: 'Client', currency: 'Currency',
-  taxBasis: 'Tax basis', planned: 'Planned', recognised: 'Recognised', invoicedByMonth: 'Billed work by month',
+  taxBasis: 'Tax basis', planned: 'Planned', recognised: 'Recognised', invoicedByMonth: 'Invoiced',
   selectedPeriod: 'Billed work in period', opening: 'Opening billed work', selectedPeriodRow: 'Selected period total', openingRow: 'Opening',
   recognisedToDate: 'Recognised to date', invoicedToDate: 'Invoiced to date', unbilled: 'Done, not yet billed',
   backlog: 'Left to bill', basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
@@ -70,11 +70,11 @@ describe('AC-MMP-011 management pack export', () => {
     expect(feb[col('Basis')]).toBe('Progress');
     expect(feb[col('Planned')]).toBe('');
     expect(table.body[3][col('Project')]).toBe('Unassigned');
-    expect(table.body[0][col('Billed work by month')]).toBe(100.5);
+    expect(table.body[0][col('Invoiced')]).toBe(100.5);
   });
 
-  it('S02: monthly billed work has its own column name beside selected-period and cumulative scopes', () => {
-    expect(table.header).toContain('Billed work by month');
+  it('S02: monthly invoiced work has its own column name beside selected-period and cumulative scopes', () => {
+    expect(table.header).toContain('Invoiced');
     expect(table.header).toContain('Billed work in period');
     expect(table.header).toContain('Invoiced to date');
     expect(new Set(table.header).size).toBe(table.header.length);

@@ -109,7 +109,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const label: Record<Measure | TotalsMeasure, string> = useMemo(() => ({
     planned: t('managementPack.col.planned', 'Planned'),
     recognised: t('managementPack.col.recognised', 'Recognised'),
-    invoiced: t('managementPack.col.invoiced', 'Billed work in period'),
+    invoiced: t('managementPack.col.invoiced', 'Invoiced'),
     unbilled: t('financeHub:managementPack.col.doneNotYetBilled', 'Done, not yet billed'),
     recognisedToDate: t('managementPack.col.recognisedToDate', 'Recognised to date'),
     invoicedToDate: t('managementPack.col.invoicedToDate', 'Invoiced to date'),
@@ -177,7 +177,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     taxBasis: t('managementPack.col.taxBasis', 'Tax basis'),
     planned: label.planned,
     recognised: label.recognised,
-    invoicedByMonth: t('financeHub:managementPack.col.billedWorkByMonth', 'Billed work by month'),
+    invoicedByMonth: t('managementPack.col.invoiced', 'Invoiced'),
     selectedPeriod: t('financeHub:managementPack.figures.billedWorkInPeriod', 'Billed work in period'),
     opening: t('financeHub:managementPack.figures.openingBilledWork', 'Opening billed work'),
     selectedPeriodRow: t('financeHub:managementPack.export.selectedPeriodTotal', 'Selected period total'),
@@ -327,7 +327,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     },
     ...(['recognisedToDate', 'invoicedToDate', 'unbilled', 'backlog'] as Measure[]).map((k): Column<PackRow> => ({
       key: k,
-      header: k === 'recognisedToDate' ? t('financeHub:managementPack.col.earned', 'Earned') : label[k],
+      header: k === 'recognisedToDate' ? t('financeHub:managementPack.col.earned', 'Earned') : k === 'invoicedToDate' ? t('managementPack.col.invoiced', 'Invoiced') : label[k],
       kind: 'money', align: 'num', size: 135, cell: measureCell(k),
     })),
     {
