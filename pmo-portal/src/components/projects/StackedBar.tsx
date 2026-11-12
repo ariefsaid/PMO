@@ -11,16 +11,19 @@ export interface StackedBarSegment {
   accent?: boolean;
 }
 
-/** Neutral ramp, dark to light; text flips with the fill so every label stays readable. */
+/** Neutral ramp, dark to light; text flips with the fill so every label stays readable.
+ *  Fills are OPAQUE tokens (never an alpha tint): a translucent segment measures as the card
+ *  behind it, so its label's contrast cannot be proved. Every ink/fill pair clears 4.5:1 in
+ *  both themes — see StackedBar.contrast.test.tsx. */
 const NEUTRAL = [
-  'bg-foreground/85 text-background',
-  'bg-foreground/70 text-background',
+  'bg-foreground text-background',
+  'bg-chart-neutral-mid text-background',
   'bg-secondary text-foreground',
   'bg-muted text-foreground',
 ];
 const NEUTRAL_SWATCHES = [
-  { fill: 'hsl(var(--foreground))', opacity: 0.85 },
-  { fill: 'hsl(var(--foreground))', opacity: 0.7 },
+  { fill: 'hsl(var(--foreground))' },
+  { fill: 'hsl(var(--chart-neutral-mid))' },
   { fill: 'hsl(var(--secondary))' },
   { fill: 'hsl(var(--muted))' },
 ];
@@ -78,7 +81,7 @@ export const StackedBar: React.FC<{
               : NEUTRAL_SWATCHES[Math.min(Math.max(colorIndex, 0), NEUTRAL_SWATCHES.length - 1)]!;
             return (
               <g key={segment.key}>
-                <rect x={x} y={y + 4} width="10" height="10" rx="2" fill={swatch.fill} fillOpacity={swatch.opacity ?? 1} />
+                <rect x={x} y={y + 4} width="10" height="10" rx="2" fill={swatch.fill} />
                 <text x={x + 16} y={y + 14} fill="currentColor" fontSize="14" fontFamily="inherit">{segment.label}</text>
               </g>
             );
@@ -88,7 +91,7 @@ export const StackedBar: React.FC<{
       <div role="img" aria-label={`${ariaLabel}: ${ordered.map((segment) => `${segment.label} ${segment.display}`).join(', ')}`} data-testid="stacked-bar" className={cn('flex h-9 w-full min-w-0 gap-px overflow-hidden rounded-md', className)}>
         {shown.map((segment, index) => {
           const share = (segment.value / total) * 100;
-          const tone = segment.accent ? 'bg-destructive text-white' : NEUTRAL[Math.min(index, NEUTRAL.length - 1)];
+          const tone = segment.accent ? 'bg-destructive text-destructive-foreground' : NEUTRAL[Math.min(index, NEUTRAL.length - 1)];
           return (
             <div key={segment.key} style={{ flexGrow: segment.value, flexBasis: 0 }} title={`${segment.label}${segment.display ? ` ${segment.display}` : ''} · ${Math.round(share)}%`}
               className={cn('flex min-w-0 items-center px-2 text-sm font-medium', tone)}>
