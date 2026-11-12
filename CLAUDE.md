@@ -260,6 +260,7 @@ ui-implementer (sonnet; opus for hard slices) · design-reviewer (opus).
 | Reverse-engineer prototype → spec | spec-miner (`.claude/skills/`) |
 | User stories + acceptance criteria | feature-forge (`.claude/skills/`) |
 | Design + task planning | superpowers (brainstorming, writing-plans) |
+| Screen composition + rendered judgement | restructure (taste + stageshow) |
 | TDD build / debugging / verification | superpowers (tdd, systematic-debugging, verification) |
 | Code review | superpowers spec + quality reviewers |
 | Design-system reverse-eng / maintenance (`DESIGN.md`) | design-architect (impeccable, design-consultation) |
