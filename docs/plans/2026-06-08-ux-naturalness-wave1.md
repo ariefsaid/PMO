@@ -4,7 +4,7 @@ Date: 2026-06-08
 Audit basis: `review/ixd-master.md` §4 Wave 1 (findings 1,2,3,4,5,8,9,11,12,13,19,39,43,49 → SP-1/2/4/5/7)
 + `review/ia-navigation.md` F1/F2/F3 (the Model B blocker class).
 ADR: `docs/adr/0020-canonical-project-opportunity-lifecycle.md` (Model B, owner-approved).
-Workflow: `docs/design-workflow.md` §3a (e2e encodes the NATURAL journey, asserts convention-invariants +
+Workflow: `docs/archive/design-workflow-lens-battery.md` §3a (e2e encodes the NATURAL journey, asserts convention-invariants +
 post-states), `CLAUDE.md` "BDD authoring rule" (binding), ADR-0010 (test-pyramid, one owning layer per AC).
 
 ## Scope & posture
@@ -172,7 +172,7 @@ consequence in the body** (the contract-value SoD confirm is the template).
 ## BDD acceptance criteria + traceability (the heart — author RED first, then implement to green)
 
 Authored to the **natural journey**, asserting **convention-invariants + expected post-states**
-(design-workflow §3a). Each AC names its **owning test layer** (ADR-0010: lowest sufficient layer) and is
+(docs/archive/design-workflow-lens-battery.md §3a). Each AC names its **owning test layer** (ADR-0010: lowest sufficient layer) and is
 **AC-id-tagged** in the owning test's title (Vitest `it(...)`, pgTAP leading token, Playwright
 `test(...)` title + file `e2e/<AC-id>-<slug>.spec.ts`). The two owner-authored journeys are written
 **verbatim** as `AC-IXD-PROJ-001` and `AC-IXD-TS-001`.

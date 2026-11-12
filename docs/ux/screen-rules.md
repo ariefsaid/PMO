@@ -10,7 +10,8 @@ removes reading or makes the same thing identical everywhere.
 4. Everything else lives on its own page and is linked, not repeated.
 
 ## Words
-- No explanatory sentence under a page title. No sentence inside a figure tile. No running commentary in toolbars.
+- No sentence explaining the page or how to use it under a page title. No sentence inside a figure tile. No running commentary in toolbars.
+- Allow ONE data finding line directly under the title or directly under the figures band: today's facts from the data, each clause linking to its place ("3 of 11 projects off track · 1 invoice 120 days overdue"). Omit it when there is nothing to report; it never describes the page or how to use it.
 - At most ONE help control per screen (page level). Per-tile and per-column "?" icons go; a definition that
   matters moves into that one page-level help.
 - A caption is at most 6 words and at most one per figure.
@@ -23,7 +24,8 @@ removes reading or makes the same thing identical everywhere.
 - Money always carries its currency. Tiles: 2–3 significant digits ("IDR 7.7B"). Tables: full amount, right-aligned, tabular. Read-only money uses the currency symbol and whole units; inputs, exports and editable values keep their exact value. Never show a non-zero amount or difference as zero: show its exact value or “under $1” (in its currency).
 - One currency per figure: the organisation's currency is the figure; another currency sits on a second line ("+ USD 5,300"). Never "A · B" in one figure.
 - A count never sits in a row of money figures. Counts go in the "waits on you" rows.
-- Unknown is never a sentence in a tile and never "0": the tile or column is hidden, and ONE page-level line says what is missing and links to the fix ("3 figures hidden: accounting is not connected · Set up").
+- Unknown is never a sentence in a tile and never "0": hide the tile or column and report the reason and fix link in the screen's one hidden-figures line and Why list.
+- A partly drawn chart or table may keep one short line directly beneath it. State the same missing fact once in each screen region; don't repeat it in neighboring cards.
 - A column that is blank on every row is not rendered.
 - Two different quantities never share a name, and one quantity never has two. Where two screens show different figures under one word (two populations, two clocks), give each its own short name ("Invoice age" / "Waiting to pay") or show the same one on both; do not explain the difference in a sentence.
 - No verdict words from thin data: a trend needs 3+ data points, else no chart and no "Rising/Falling".

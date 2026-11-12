@@ -3,7 +3,7 @@
 **Date:** 2026-06-09 · **Branch base:** `feat/ux-naturalness-wave1` (Wave-1 + Model B / ADR-0020 on it)
 **Plan owner:** design-architect (Frontend + Existing-repo lenses) · **Build agent:** ui-implementer
 **Source backlog:** `review/OUTSTANDING.md` Theme A (RBAC view-gates), Theme D (IxD Wave 2), Theme E (IA F4–F8), plus the cheap couplers G2/H6/D14.
-**Authorities:** `docs/design/rbac-visibility.md` (role×affordance MAP — WHO sees what), `docs/decisions.md` (OD-UX-1/2/3, OD-PROC-1, OD-TS), ADR-0016 (`can()` is UX-only; **RLS/RPC is the enforcement authority**), ADR-0010 (one AC → lowest sufficient layer), `docs/design-workflow.md` §3a (e2e/component encodes the user's NATURAL journey + the gating-invariant; the app conforms to the test).
+**Authorities:** `docs/design/rbac-visibility.md` (role×affordance MAP — WHO sees what), `docs/decisions.md` (OD-UX-1/2/3, OD-PROC-1, OD-TS), ADR-0016 (`can()` is UX-only; **RLS/RPC is the enforcement authority**), ADR-0010 (one AC → lowest sufficient layer), `docs/archive/design-workflow-lens-battery.md` §3a (e2e/component encodes the user's NATURAL journey + the gating-invariant; the app conforms to the test).
 
 > **Scope discipline.** This plan covers Part A (RBAC view-gates) + Part B (IxD Wave 2 + IA F4–F8). It does **not** cover Theme B (lifecycle rework dead-ends), Theme C (mobile responsiveness), Theme F (workflow silent-failures beyond the dead-affordance cleanup), or the polish tails (G/H/I/J) — those are later waves per the OUTSTANDING ordering. A handful of zero-cost couplers that live in files this wave already opens are folded in and flagged as such.
 

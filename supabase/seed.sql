@@ -541,7 +541,7 @@ values
 on conflict do nothing;
 
 -- Synthetic submitted billing on SP-2402 gives the dashboard one fully known,
--- same-currency billed-work margin while the other projects remain honestly unknown.
+-- same-currency billed-work margin for the existing project fixture.
 insert into sales_invoices
   (id, org_id, project_id, customer_id, si_number, invoice_date, amount, tax_amount,
    tax_treatment, currency, status, erp_docstatus)
@@ -550,6 +550,43 @@ values
    '41000000-0000-0000-0000-000000000002','c0000000-0000-0000-0000-000000000003',
    'DEMO-SI-2402-001','2026-06-15',7700000,0,'exclusive','USD','Submitted',1)
 on conflict (id) do nothing;
+
+-- The first live ERP ledger refresh replaces the whole snapshot generation, so synthetic actuals vanish on a connected bench.
+insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, as_of, snapshot_id)
+select '00000000-0000-0000-0000-000000000001'::uuid, project_id::uuid, 'Salary - PSC', '2026', amount, 0, amount, now() - interval '1 day', '5a000000-0000-0000-0000-000000000001'::uuid
+from (values ('41000000-0000-0000-0000-000000000004',260000), ('40000000-0000-0000-0000-000000000001',2100000), ('41000000-0000-0000-0000-000000000003',2800000)) v(project_id,amount)
+on conflict do nothing;
+
+-- Monthly local-only demonstration facts; the newest invoice is unpaid, the next is partly paid and not due, and one older invoice is overdue.
+with months as (
+  select k, (public.org_current_month(o.default_timezone, now()) - make_interval(months => k))::date + 10 as issued,
+         (120000 + 10000*k)::numeric as total
+  from public.organizations o cross join generate_series(1,12) k
+  where o.id = '00000000-0000-0000-0000-000000000001'
+)
+insert into sales_invoices (id, org_id, project_id, customer_id, si_number, invoice_date, erp_due_date, amount, tax_amount, tax_treatment, currency, status, erp_docstatus, erp_outstanding_amount, pmo_native)
+select ('b5110000-0000-0000-0000-' || lpad(k::text,12,'0'))::uuid, '00000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002',
+       'DEMO-SI-2401-' || lpad(k::text,3,'0'), issued, case when k <= 2 then current_date + 30 when k in (5,9) then issued + 7 else issued + 20 end,
+       total, 0, 'exclusive', 'USD', case when k <= 3 then 'Unpaid' else 'Paid' end, 1,
+       case when k = 1 then total when k = 2 then total / 2 when k = 3 then total / 4 else 0 end, false
+from months on conflict (id) do nothing;
+
+with months as (
+  select k, (public.org_current_month(o.default_timezone, now()) - make_interval(months => k))::date + 10 as issued,
+         (120000 + 10000*k)::numeric as total
+  from public.organizations o cross join generate_series(1,12) k
+  where o.id = '00000000-0000-0000-0000-000000000001'
+), receipts as (
+  select k, k as invoice_k, issued + 12 as paid_date,
+         case when k = 2 then total / 4 when k = 3 then total * 3 / 4 else total end as paid
+  from months where k >= 2
+  union all
+  select 1, 2, issued + 12, (120000 + 10000*2)::numeric / 4 from months where k = 1
+)
+insert into incoming_payments (id, org_id, customer_id, sales_invoice_id, ip_number, date, amount, received_amount, withheld_amount, currency, status, erp_docstatus, pmo_native)
+select ('b5120000-0000-0000-0000-' || lpad(k::text,12,'0'))::uuid, '00000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002',
+       ('b5110000-0000-0000-0000-' || lpad(invoice_k::text,12,'0'))::uuid, 'DEMO-IP-2401-' || lpad(k::text,3,'0'), paid_date, paid, paid, 0, 'USD', 'Paid', 1, false
+from receipts on conflict (id) do nothing;
 
 -- PMO's own forward estimate (FR-BUD-151) — never pushed to ERP (FR-BUD-160).
 insert into budget_projections (org_id, project_id, fiscal_year, category, pmo_etc) values

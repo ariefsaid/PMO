@@ -230,6 +230,7 @@ describe('draft buffers', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Version' }), 'bv1');
     await openDraftEditor(user);
     await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Edited draft');
     expect(screen.getByRole('textbox', { name: 'Line item description' })).toHaveValue('New draft');
@@ -406,7 +407,9 @@ it.each(['create', 'update'] as const)('locks only the %s fields until the submi
   await user.selectOptions(screen.getByRole('combobox', { name: 'Version' }), 'bv1');
   await openDraftEditor(user);
   await user.click(screen.getByRole('button', { name: 'Close' }));
+  expect(screen.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Keep editing' }));
+  expect(other).toHaveValue(kind === 'create' ? 'Edited retained' : 'Added retained');
   await act(async () => { resolve(kind === 'create' ? { id: 'li-new' } : undefined); await deferred; });
   expect(screen.getByRole('textbox', { name: kind === 'create' ? 'Description' : 'Line item description' })).toHaveValue(kind === 'create' ? 'Edited retained' : 'Added retained');
 });
