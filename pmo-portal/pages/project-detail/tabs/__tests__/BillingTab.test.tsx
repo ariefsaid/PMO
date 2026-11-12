@@ -58,7 +58,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, ...h.docsState }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
-vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssets: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssetPages: () => ({ data: { pages: [{ rows: [] }] }, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn(), total: 0 }) }));
 vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useTmRateLines: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
   useTmRateAssignees: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),

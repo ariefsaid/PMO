@@ -60,7 +60,7 @@ export function useMeetingsPages(params?: MeetingListParams) {
     },
     enabled: Boolean(orgId),
   });
-  return { ...pages, total: count.data };
+  return { ...pages, total: count.data, isPartial: Boolean(pages.data?.pages.some((page) => page.partial)) };
 }
 
 /** A single meeting by id — null when absent or RLS-scoped out (calm not-found, FR-MTG-031). */

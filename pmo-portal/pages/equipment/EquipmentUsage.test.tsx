@@ -21,13 +21,18 @@ const h = vi.hoisted(() => ({
   usageArgs: [] as unknown[],
   query: { isPending: false, isError: false, refetch: vi.fn() },
   save: vi.fn(), transition: vi.fn(), approveWeek: vi.fn(), archive: vi.fn(),
+  assetsHasMore: false, fetchAssetPage: vi.fn(),
   userId: 'u-eng',
 }));
 
 vi.mock('@/src/hooks/useEquipment', async () => {
   const React = await import('react');
   return {
-    useEquipmentAssets: () => ({ data: { rows: [{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', archived_at: null }], truncated: false }, isPending: false, isError: false }),
+    useEquipmentAssetPages: () => ({
+      data: { pages: [{ rows: [{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', archived_at: null }] }] },
+      isPending: false, isError: false, hasNextPage: h.assetsHasMore, isFetchingNextPage: false,
+      fetchNextPage: h.fetchAssetPage, refetch: vi.fn(), total: 1,
+    }),
     useEquipmentUsage: (args: unknown) => {
       h.usageArgs.push(args);
       const [rows, set] = React.useState<unknown[]>(h.entries);
@@ -71,6 +76,8 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     h.userId = 'u-eng';
     h.entries = [entry({})];
     h.usageArgs = [];
+    h.assetsHasMore = false;
+    h.fetchAssetPage.mockClear();
     h.query = { isPending: false, isError: false, refetch: vi.fn() };
     h.save = vi.fn(async (input: { work_date: string; quantity: number }) => {
       h.setEntries([...h.entries, entry({ id: 'e2', work_date: input.work_date, quantity: input.quantity })]);
@@ -89,6 +96,15 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
   it('C8 EquipmentUsage.tsx:83,101 scopes the bounded week read to the selected asset', () => {
     renderPage('Engineer', '/equipment/usage?week=2026-09-07&asset=a1');
     expect(h.usageArgs.at(-1)).toMatchObject({ from: '2026-09-07', to: '2026-09-13', assetId: 'a1' });
+  });
+
+  it('C8b F2 counts the machines the picker has loaded and can load the rest', async () => {
+    h.assetsHasMore = true;
+    renderPage();
+    expect(screen.getByText('1 loaded, more available')).toBeInTheDocument();
+    expect(screen.getByText('Machines past this page are not loaded yet.')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Load more' }));
+    expect(h.fetchAssetPage).toHaveBeenCalledOnce();
   });
 
   it('AC-RSN-005 shows the returned equipment entry reason and person', () => {

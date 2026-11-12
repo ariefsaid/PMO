@@ -287,6 +287,28 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
   });
 
+  it('C8b F4 claims no page-only qualifier when the whole history is loaded and no gap can be elsewhere', async () => {
+    const sparseRows = [fxRow(0), fxRow(2), fxRow(4)];
+    h.list.mockResolvedValue({ rows: sparseRows, nextCursor: null });
+    renderPage();
+    const summary = await screen.findByTestId('fx-page-summary');
+    expect(summary).toHaveTextContent(/No rate for 28 Oct, 30 Oct/);
+    // Complete history (no cursor, no pages behind us): the gap list IS the whole set.
+    expect(screen.queryByText('These gaps cover this page only; use the page controls to review other dates.')).toBeNull();
+  });
+
+  it('C8b F4 keeps the page-only qualifier on a later page even when that page is the last one', async () => {
+    h.list.mockImplementation(async (before) => before
+      ? { rows: [fxRow(0), fxRow(2)], nextCursor: null }
+      : { rows: rows.slice(0, 50), nextCursor: rows[49].rate_date });
+    renderPage();
+    await screen.findByRole('table');
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    const summary = await screen.findByTestId('fx-page-summary');
+    expect(summary).toHaveTextContent(/No rate for 30 Oct/);
+    expect(screen.getByText('These gaps cover this page only; use the page controls to review other dates.')).toBeInTheDocument();
+  });
+
   it('upload preview states the reviewed file’s coverage window before confirmation', async () => {
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'Upload rates' }));

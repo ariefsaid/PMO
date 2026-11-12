@@ -128,6 +128,22 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
     expect(h.calls.range).toEqual([[0, MEETING_PAGE_SIZE]]);
   });
 
+  it('C8b F3 reads page 2+ at an offset above zero with the id tie-break that makes the offset stable', async () => {
+    h.queue[0] = { data: Array.from({ length: 51 }, (_, i) => ({ id: `m${50 - i}`, title: `Meeting ${50 - i}` })), error: null };
+
+    const page = await listMeetingsPage(undefined, MEETING_PAGE_SIZE);
+
+    expect(h.calls.range).toEqual([[MEETING_PAGE_SIZE, MEETING_PAGE_SIZE * 2]]);
+    // occurred_at alone is not unique; without `id` a page boundary may repeat or skip a row.
+    expect(h.calls.order).toEqual([
+      ['occurred_at', { ascending: false }],
+      ['id', { ascending: true }],
+    ]);
+    expect(page.rows.map((r) => r.id)).toEqual(Array.from({ length: MEETING_PAGE_SIZE }, (_, i) => `m${MEETING_PAGE_SIZE - i}`));
+    expect(page.hasMore).toBe(true);
+    expect(page.partial).toBeFalsy();
+  });
+
   it('excludes templates + archived, orders occurred_at DESC, and fetches an explicit sentinel page', async () => {
     h.queue[0] = { data: [{ id: 'm1', title: 'Kickoff' }], error: null };
     const rows = (await listMeetings()).rows;
@@ -243,8 +259,31 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
       h.queue.length = 0;
       h.queue.push({ data: null, error: { message: 'fts unavailable' } });
       h.queue.push({ data: [row('s1', '2026-09-01T00:00:00Z')], error: null });
-      const rows = (await listMeetings({ search: 'plan' })).rows;
-      expect(rows.map((r) => r.id)).toEqual(['s1']);
+      const page = await listMeetings({ search: 'plan' });
+      expect(page.rows.map((r) => r.id)).toEqual(['s1']);
+      // C8b F5: the page says it is INCOMPLETE, so no surface can print a count for it.
+      expect(page.partial).toBe(true);
+    });
+
+    it('C8b F3: page 2+ of a search reads each leg in page-sized chunks and keeps the union ordered', async () => {
+      const at = (i: number) => new Date(Date.UTC(2026, 0, 1) + i * 60_000).toISOString();
+      h.queue.length = 0;
+      h.queue.push({ data: Array.from({ length: 30 }, (_, i) => row(`f${29 - i}`, at(29 - i))), error: null });
+      h.queue.push({ data: Array.from({ length: 30 }, (_, i) => row(`s${29 - i}`, at(1000 + 29 - i))), error: null });
+
+      const page = await listMeetingsPage({ search: 'plan' }, MEETING_PAGE_SIZE);
+
+      // target = offset + MEETING_PAGE_SIZE + 1 = 51, so each leg is read in 25-row chunks:
+      // [0,24] then [25,49] (the second chunk returns only 5 rows and ends that leg).
+      expect(h.calls.range).toHaveLength(4);
+      expect(h.calls.range).toEqual(expect.arrayContaining([[0, MEETING_PAGE_SIZE - 1], [MEETING_PAGE_SIZE, MEETING_PAGE_SIZE * 2 - 1]]));
+      expect(page.rows).toHaveLength(MEETING_PAGE_SIZE);
+      // Without the tie-break, Postgres may repeat or skip rows across offset pages.
+      expect(h.calls.order).toContainEqual(['id', { ascending: true }]);
+      // newest-first: the substring leg's 30 rows start at offset 1000 minutes, then the full-text leg's.
+      expect(page.rows[0].id).toBe('s4');
+      expect(page.hasMore).toBe(true);
+      expect(page.partial).toBe(false);
     });
 
     it('#708: a substring error throws with the code preserved, even when full-text succeeded', async () => {

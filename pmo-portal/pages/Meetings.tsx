@@ -53,13 +53,15 @@ const Meetings: React.FC = () => {
   const search = values.q;
   const deferredSearch = useDeferredValue(search);
 
-  const { data, total: exactTotal, isPending, isError, isPlaceholderData, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = useMeetingsPages({
+  const { data, total: exactTotal, isPartial, isPending, isError, isPlaceholderData, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = useMeetingsPages({
     projectId: !projectFilter || projectFilter === 'All' ? undefined : projectFilter,
     search: deferredSearch.trim() || undefined,
     includeArchived: showArchived,
   });
   const rows = useMemo(() => data?.pages.flatMap((page) => page.rows) ?? [], [data]);
-  const total = !isPlaceholderData ? exactTotal : undefined;
+  // A search whose full-text leg failed loaded only the substring matches: an exact count would
+  // promise rows this list cannot reach, so the footer falls back to "x loaded, more available".
+  const total = !isPlaceholderData && !isPartial ? exactTotal : undefined;
   // A filter/search change keeps the PREVIOUS query's rows on screen (placeholderData in the
   // hook). A kept-previous EMPTY result says nothing about the new query — e.g. right after Clear
   // filters it would read as "No meetings yet" — so the body shows loading until it lands.

@@ -81,6 +81,16 @@ describe('useMeetings', () => {
     expect(repoMock.meeting.list).toHaveBeenCalledWith({ projectId: 'p1', search: 'pipeline' });
   });
 
+  it('C8b F5 flags the loaded pages as partial when a search leg failed, so no surface can print a total', async () => {
+    repoMock.meeting.listPage.mockResolvedValue({ rows: [{ id: 'm1' }], hasMore: false, partial: true });
+    repoMock.meeting.count.mockResolvedValue(9);
+    const { result } = renderHook(() => useMeetingsPages({ search: 'site' }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(result.current.total).toBe(9));
+    expect(result.current.isPartial).toBe(true);
+  });
+
   it('keeps the page usable when the exact count is unavailable', async () => {
     repoMock.meeting.listPage.mockResolvedValue({ rows: [{ id: 'm1' }], hasMore: true });
     repoMock.meeting.count.mockRejectedValue(new Error('count unavailable'));

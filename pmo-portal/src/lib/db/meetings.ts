@@ -86,6 +86,11 @@ export const MEETING_PAGE_SIZE = 25;
 export interface MeetingListPage {
   rows: MeetingListItem[];
   hasMore: boolean;
+  /**
+   * True when the page was assembled from fewer search legs than asked for (a transient full-text
+   * fault): `rows` is then a SUBSET of the matches, so no surface may print an exact count for it.
+   */
+  partial?: boolean;
 }
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -224,7 +229,7 @@ export async function listMeetingsPage(params: MeetingListParams | undefined, of
     const { data, error } = await buildMeetingListQuery(params, q ? 'fts' : undefined, offset, end);
     if (error) throwWrite(error);
     const rows = (data ?? []) as unknown as MeetingListItem[];
-    return { rows: rows.slice(0, MEETING_PAGE_SIZE), hasMore: rows.length > MEETING_PAGE_SIZE };
+    return { rows: rows.slice(0, MEETING_PAGE_SIZE), hasMore: rows.length > MEETING_PAGE_SIZE, partial: false };
   }
 
   // Search is a union of FTS and substring matches. Read stable 25-row chunks from each leg until
@@ -242,7 +247,10 @@ export async function listMeetingsPage(params: MeetingListParams | undefined, of
   }
   const combined = sortMeetingRows([...byId.values()]);
   const page = combined.slice(offset, end + 1);
-  return { rows: page.slice(0, MEETING_PAGE_SIZE), hasMore: page.length > MEETING_PAGE_SIZE };
+  // A failed full-text leg leaves only the substring matches: the rows are a subset of what the
+  // count (one `or` over both predicates) sees, so the page is flagged incomplete rather than
+  // letting the index print a total the list can never reach.
+  return { rows: page.slice(0, MEETING_PAGE_SIZE), hasMore: page.length > MEETING_PAGE_SIZE, partial: Boolean(fts.error) };
 }
 
 /** Bounded first-page summary/search read; `hasMore` keeps callers from treating its limit as a total. */

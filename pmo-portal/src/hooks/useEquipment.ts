@@ -20,12 +20,8 @@ const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 /** A totals/allocations read names an asset OR a project: the RPCs require one and refuse a bare range (22023). */
 const namesOne = (q: { assetId?: string; projectId?: string }): boolean => Boolean(q.assetId || q.projectId);
 
-export function useEquipmentAssets() {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: ['equipment-assets', orgId], queryFn: () => repositories.equipment.listAssets(), enabled: Boolean(orgId) });
-}
-
-/** The register screen pages through every asset instead of treating its 200-row sentinel as the whole list. */
+/** The register screen pages through every asset instead of treating its 200-row sentinel as the whole list.
+ *  Every screen that names an asset reads through this page chain, so nothing stops silently at the first page. */
 export function useEquipmentAssetPages() {
   const orgId = useOrgId();
   const pages = useInfiniteQuery({

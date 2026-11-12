@@ -18,7 +18,7 @@ let org: string | undefined = 'org-1';
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: org } }) }));
 
 import {
-  EQUIPMENT_QUERY_ROOTS, useEquipmentAssets, useEquipmentAssetPages, useEquipmentUsage, useEquipmentUsageTotals, useEquipmentCosting,
+  EQUIPMENT_QUERY_ROOTS, useEquipmentAssetPages, useEquipmentUsage, useEquipmentUsageTotals, useEquipmentCosting,
   useEquipmentAllocations, useSaveUsage, useTransitionUsage, useApproveWeek, useArchiveUsage, useSaveCosting,
   useEndCosting, usePreviewCosting, useRegister, useAssetMaintenance, useEquipmentPickers, usePendingEquipmentChanges,
   useAssetMatches, useAcceptAssetMatches, useSendEquipmentCommand, useOdooEquipmentOwned,
@@ -71,7 +71,7 @@ describe('AC-EQU-017 equipment hooks', () => {
   it('AC-EQU-017 every query key carries the org id', async () => {
     const client = fresh();
     renderHook(() => {
-      useEquipmentAssets();
+      useEquipmentAssetPages();
       useEquipmentUsage({ from: '2026-09-07', to: '2026-09-13' });
       useEquipmentUsageTotals({ assetId: 'd1', from: '2026-09-01', to: '2026-09-30' });
       useEquipmentCosting(false);
@@ -81,7 +81,7 @@ describe('AC-EQU-017 equipment hooks', () => {
     const keys = client.getQueryCache().getAll().map((q) => q.queryKey);
     for (const key of keys) expect(key[1]).toBe('org-1');
     expect(keys.map((k) => k[0]).sort()).toEqual([
-      'equipment-allocations', 'equipment-assets', 'equipment-costing', 'equipment-usage', 'equipment-usage-totals',
+      'equipment-allocations', 'equipment-assets', 'equipment-assets', 'equipment-costing', 'equipment-usage', 'equipment-usage-totals',
     ]);
     // every root is in the exported list, so a write can invalidate all of them by prefix
     for (const key of keys) expect(EQUIPMENT_QUERY_ROOTS).toContain(key[0]);
@@ -91,7 +91,7 @@ describe('AC-EQU-017 equipment hooks', () => {
     org = undefined;
     const c1 = fresh();
     renderHook(() => {
-      useEquipmentAssets(); useEquipmentUsage({ from: '2026-09-07', to: '2026-09-13' }); useEquipmentCosting(true);
+      useEquipmentAssetPages(); useEquipmentUsage({ from: '2026-09-07', to: '2026-09-13' }); useEquipmentCosting(true);
     }, { wrapper: wrap(c1) });
     org = 'org-1';
     const c2 = fresh();
@@ -125,7 +125,7 @@ describe('AC-EQU-017 equipment hooks', () => {
     const spy = vi.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => ({
       save: useSaveUsage(), approve: useApproveWeek(), archive: useArchiveUsage(),
-      saveCosting: useSaveCosting(), endCosting: useEndCosting(), assets: useEquipmentAssets(),
+      saveCosting: useSaveCosting(), endCosting: useEndCosting(), assets: useEquipmentAssetPages(),
     }), { wrapper: wrap(client) });
     const runs: Array<() => Promise<unknown>> = [
       () => result.current.save.mutateAsync({ asset_id: 'd1', project_id: 'p1', work_date: '2026-09-10', quantity: 6, unit: 'hours', kind: 'work' }),

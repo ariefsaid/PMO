@@ -18,6 +18,8 @@ const { listState, mutations, useMeetingsSpy } = vi.hoisted(() => ({
     total: 2 as number | undefined,
     hasNextPage: false,
     isFetchingNextPage: false,
+    /** The loaded pages are incomplete (one search leg failed) — their row set is a subset. */
+    isPartial: false,
     fetchNextPage: vi.fn(),
     /** When true, the UNFILTERED query answers with react-query's kept-previous `[]` placeholder
      *  (a refetch still in flight after Clear filters). */
@@ -181,6 +183,7 @@ beforeEach(() => {
   listState.total = 2;
   listState.hasNextPage = false;
   listState.isFetchingNextPage = false;
+  listState.isPartial = false;
   listState.fetchNextPage.mockClear();
   listState.unfilteredPlaceholder = false;
   listState.refetch.mockClear();
@@ -213,6 +216,23 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     expect(screen.getAllByText('Showing 200 of 250')).toHaveLength(2);
     await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
     expect(listState.fetchNextPage).toHaveBeenCalledOnce();
+  });
+
+  it('C8b F5 an incomplete page is counted as loaded rows, never as the exact total', () => {
+    listState.data = Array.from({ length: 25 }, (_, i) => ({ ...(seed[0] as object), id: `m${i}`, title: `Meeting ${i}` }));
+    listState.hasNextPage = true;
+    listState.total = 250;
+    listState.isPartial = true;
+    renderPage();
+    expect(screen.queryByText(/Showing 25 of 250/)).toBeNull();
+    expect(screen.getByText('25 loaded, more available')).toBeInTheDocument();
+  });
+
+  it('C8b F4 does not claim a count while the rows on screen are the previous query’s placeholder', () => {
+    listState.isPlaceholderData = true;
+    listState.total = 250;
+    renderPage();
+    expect(screen.queryByText(/Showing \d+ of 250/)).toBeNull();
   });
 
   it('AC-002 #1325: the project column leads with the short name and titles the contractual one', () => {
