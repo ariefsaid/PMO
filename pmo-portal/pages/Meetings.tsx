@@ -1,4 +1,4 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import { projectDisplayName, sortProjectOptions } from '@/src/lib/projectDisplayName';
 import React, { useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -83,7 +83,7 @@ const Meetings: React.FC = () => {
   const scopeTotal = isFiltered ? Math.max(unfilteredTotalRef.current, rows.length) : rows.length;
 
   const projectOptions = useMemo(
-    () => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })),
+    () => sortProjectOptions(projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })),
     [projects],
   );
   // Spec decision 6: a `?project=` naming no project this user can see stays the ACTIVE choice —

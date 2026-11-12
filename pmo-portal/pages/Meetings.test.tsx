@@ -9,7 +9,11 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { listState, mutations, useMeetingsSpy } = vi.hoisted(() => ({
+const { listState, mutations, useMeetingsSpy, projectsState } = vi.hoisted(() => ({
+  /** The picker read's rows, in whatever order the reader returns them (C18 order is the page's). */
+  projectsState: {
+    data: [] as Array<{ id: string; name: string; short_name?: string | null }>,
+  },
   listState: {
     data: [] as unknown[],
     isPending: false,
@@ -63,7 +67,7 @@ vi.mock('@/src/hooks/useMeetings', () => ({
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjectPickerOptions: () => ({ data: [{ id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade', short_name: 'North Terminal' }], isPending: false }),
+  useProjectPickerOptions: () => ({ data: projectsState.data, isPending: false }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -171,6 +175,7 @@ const sizeMainScroll = (): HTMLElement => {
 
 beforeEach(() => {
   listState.data = seed;
+  projectsState.data = [{ id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade', short_name: 'North Terminal' }];
   listState.isPending = false;
   listState.isError = false;
   listState.isPlaceholderData = false;
@@ -210,6 +215,19 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     renderPage();
     await userEvent.click(screen.getByText('Kickoff with Acme'));
     expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/meetings/m1');
+  });
+
+  it('C18 the project filter lists projects by the name a person reads, not the UUID order of the picker read', () => {
+    projectsState.data = [
+      { id: '90000000-0000-4000-8000-000000000001', name: 'Zulu Refinery Upgrade', short_name: null },
+      { id: '10000000-0000-4000-8000-000000000002', name: 'Legal Title', short_name: 'Arun Terminal' },
+    ];
+    renderPage();
+    const select = screen.getByLabelText(/Filter by project/i);
+    expect([...select.querySelectorAll('option')].slice(1).map((option) => option.textContent)).toEqual([
+      'Arun Terminal',
+      'Zulu Refinery Upgrade',
+    ]);
   });
 
   it('the search box drives the SERVER query (DD-MTG-5 — notes are the find mechanism)', async () => {
