@@ -267,6 +267,8 @@
     "expandGroup": "Bentangkan {{group}}",
     "collapseAll": "Ciutkan semua",
     "expandAll": "Bentangkan semua",
+    "projectNameLoadFailed": "Nama proyek yang dipilih tidak dapat dimuat",
+    "projectNameLoadFailedDescription": "Nama proyek pilihan belum dapat dibaca. Coba lagi untuk memulihkan cakupan proyek ini.",
     "setUp": "Atur akuntansi"
   },
   "erpPurchases": {

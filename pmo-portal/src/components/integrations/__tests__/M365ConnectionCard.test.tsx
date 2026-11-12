@@ -721,7 +721,7 @@ describe('AC-M365LOC-001 — English states and actions (fixed copy)', () => {
     );
     expect(msg.textContent).not.toContain('Failed to send a request');
     expect(screen.queryByTestId('m365-connected-msg')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry status' })).toBeInTheDocument();
   });
 
   it('AC-M365LOC-001: connecting keeps the English Connect label while the Button is loading', async () => {

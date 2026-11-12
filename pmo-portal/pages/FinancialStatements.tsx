@@ -320,8 +320,12 @@ const FinancialStatements: React.FC = () => {
     unavailableDescription: t('financialStatements.unavailableDescription', 'Statements come from the accounting system.'),
     noActivity: t('financialStatements.noActivity', 'No activity in this period'),
     noActivityDescription: t('financialStatements.noActivityDescription', 'There was no activity in the selected period.'),
-    error: t('financialStatements.error', "Couldn't load financial statements"),
-    errorDescription: t('financialStatements.errorDescription', 'The request failed. Check your connection and try again.'),
+    error: projectNames.isError && selectedScope !== null && selectedScope !== COMPANY_SCOPE
+      ? tf('statements.projectNameLoadFailed', "Couldn't load the selected project's name")
+      : t('financialStatements.error', "Couldn't load financial statements"),
+    errorDescription: projectNames.isError && selectedScope !== null && selectedScope !== COMPANY_SCOPE
+      ? tf('statements.projectNameLoadFailedDescription', 'The selected project name could not be read. Retry to restore this project scope.')
+      : t('financialStatements.errorDescription', 'The request failed. Check your connection and try again.'),
     retry: t('financialStatements.retry', 'Retry'),
     updated: t('financialStatements.updated', 'Updated'),
     delayed: t('financialStatements.delayed', 'Update delayed'),

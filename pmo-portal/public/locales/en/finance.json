@@ -267,6 +267,8 @@
     "expandGroup": "Expand {{group}}",
     "collapseAll": "Collapse all",
     "expandAll": "Expand all",
+    "projectNameLoadFailed": "Couldn't load the selected project's name",
+    "projectNameLoadFailedDescription": "The selected project name could not be read. Retry to restore this project scope.",
     "setUp": "Set up accounting"
   },
   "erpPurchases": {

@@ -214,6 +214,8 @@
     "warehouse": {
       "current": "Gudang penerimaan utama",
       "save": "Simpan",
+      "archivedReadOnly": "Gudang utama diarsipkan di Odoo. Admin perlu memilih gudang lain.",
+      "deletedReadOnly": "Gudang utama dihapus di Odoo. Admin perlu memilih gudang lain.",
       "archived": "Perlu perhatian: gudang utama diarsipkan di Odoo. Pilih yang lain.",
       "deleted": "Perlu perhatian: gudang utama dihapus di Odoo. Pilih yang lain."
     },

@@ -189,7 +189,7 @@ describe('Financial statements company scope (AC-007)', () => {
     await client.invalidateQueries({ queryKey: ['financial-statements', 'mapped-project-name'] });
 
     await waitFor(() => expect(projectGetSpy).toHaveBeenCalledTimes(2));
-    const errorTitle = await screen.findByText("Couldn't load financial statements");
+    const errorTitle = await screen.findByText("Couldn't load the selected project's name");
     const error = errorTitle.closest('[role="alert"]');
     expect(error).not.toBeNull();
     expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue(projectId);
@@ -242,7 +242,10 @@ describe('Financial statements company scope (AC-007)', () => {
     expect(screen.queryByText('Current native row')).not.toBeInTheDocument();
     expect(screen.queryByText('private project lookup failure')).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue(projectId);
-    expect(screen.getByRole('alert')).toHaveTextContent(/Couldn't load the selected project's name/);
+    const projectNameErrorTitle = await screen.findByText("Couldn't load the selected project's name");
+    const projectNameError = projectNameErrorTitle.closest('[role="alert"]');
+    expect(projectNameError).not.toBeNull();
+    expect(within(projectNameError!).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
     expect(requestedInputs().filter((input) => input.projectId === projectId)).toHaveLength(1);
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), { target: { value: 'company' } });

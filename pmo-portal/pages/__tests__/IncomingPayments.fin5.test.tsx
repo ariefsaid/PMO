@@ -99,6 +99,9 @@ beforeEach(async () => {
   h.payments.data = [];
   h.payments.isError = false;
   h.invoices.data = [];
+  h.invoices.isPending = false;
+  h.invoices.isError = false;
+  h.invoices.refetch.mockReset();
   h.route = 'pmo';
   h.toast.mockClear();
   await financeTestI18n.changeLanguage('en');

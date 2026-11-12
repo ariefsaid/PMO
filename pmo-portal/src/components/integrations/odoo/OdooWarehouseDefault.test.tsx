@@ -42,7 +42,7 @@ it('AC-ODC-060 a default archived or deleted in Odoo says so and is not kept as 
   h.conn.data = { status: 'active', activated: true, config: { default_warehouse_id: '3' } };
   render(<OdooWarehouseDefault />);
   expect(screen.getByText('Needs attention')).toBeInTheDocument();
-  expect(screen.getByText('The default warehouse was archived in Odoo. An administrator needs to choose another.')).toBeInTheDocument();
+  expect(screen.getByText('Needs attention: the default warehouse was archived in Odoo. Choose another.')).toBeInTheDocument();
   expect((screen.getByLabelText('Default receiving warehouse') as HTMLSelectElement).value).toBe('');
   cleanup();
   h.conn.data = { status: 'active', activated: true, config: { default_warehouse_id: '4' } };
