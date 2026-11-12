@@ -45,6 +45,7 @@ const h = vi.hoisted(() => ({
   budgets: [] as unknown[],
   pipeline: { stages: [], projects: [] } as unknown,
   workOrders: { totals: [], incompleteCount: 0 } as unknown,
+  delivery: {} as Record<string, number>,
 }));
 
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
@@ -74,7 +75,7 @@ vi.mock('@/src/components/dashboard/restructure/useNeedsYou', async (importOrigi
   ...(await importOriginal<typeof import('@/src/components/dashboard/restructure/useNeedsYou')>()),
   useNeedsYou: () => ({ items: h.items, areaItems: h.items, approvals: h.approvals, overdueInvoices: h.overdue, approvalsPending: false, approvalsError: false, isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {}, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: h.delivery, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: h.procurements, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -121,6 +122,7 @@ beforeEach(() => {
   h.budgets = [];
   h.pipeline = { stages: [], projects: [] };
   h.workOrders = { totals: [], incompleteCount: 0 };
+  h.delivery = {};
 });
 
 describe('HOME4 floor: the finding line and the page help', () => {
@@ -251,6 +253,24 @@ describe('HOME4 fix: every health row has one shape', () => {
       expect(within(line).getByTestId('health-spend')).toBeInTheDocument();
       expect(within(line).getByTestId('health-contract')).toHaveTextContent(/^Contract/);
     }
+  });
+});
+
+describe('HOME4 floor: Project health bar key', () => {
+  it('names the three bar colours once, directly labelled, each beside the tone its bar uses', () => {
+    // Over budget; spending ahead of delivery (80% spent, 50% delivered); on plan (40% spent, 60% delivered).
+    h.delivery = { p2: 50, p3: 60 };
+    h.dash = { ...base, attention_projects: [
+      attn('p1', 'Over project', { budget: 1_000_000, spent: 1_200_000, budget_used_ratio: 1.2, over_budget: true }),
+      attn('p2', 'Ahead project', { budget: 1_000_000, spent: 800_000, budget_used_ratio: 0.8 }),
+      attn('p3', 'On plan project', { budget: 1_000_000, spent: 400_000, budget_used_ratio: 0.4 }),
+    ] };
+    renderHome();
+    const card = screen.getByTestId('project-health');
+    expect(within(card).getAllByTestId('health-key')).toHaveLength(1);
+    const key = within(card).getByTestId('health-key');
+    expect(within(key).getAllByRole('listitem').map((entry) => entry.textContent)).toEqual(['Over budget', 'Spend ahead of delivery', 'On plan']);
+    expect(within(card).getAllByTestId('health-bullet').map((bar) => bar.getAttribute('data-tone'))).toEqual(['over', 'ahead', 'data']);
   });
 });
 

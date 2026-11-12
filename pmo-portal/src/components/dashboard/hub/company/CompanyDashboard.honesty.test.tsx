@@ -317,12 +317,37 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     expect(owed).toHaveTextContent('Overdue $100K');
     // 2026-06-29 to the org day 2026-10-27 is 120 days.
     expect(owed).toHaveTextContent('3 invoices · oldest 120 days overdue');
-    expect(within(owed).getAllByText('1 balance unknown, not in the total')).toHaveLength(1);
+    // The invoice behind it has no amount either: the line still names the count, never a guessed size.
+    expect(within(owed).getAllByText('1 invoice, balance not reported')).toHaveLength(1);
     const notDue = within(owed).getByTestId('owed-to-us-not-due');
     const late = within(owed).getByTestId('owed-to-us-overdue');
     expect(notDue.style.flexGrow).toBe('0.75');
     expect(late.style.flexGrow).toBe('0.25');
     expect(within(screen.getByTestId('finances')).getByRole('link', { name: /Open receivables/ })).toHaveAttribute('href', '/finance/receivables');
+  });
+
+  it('the unknown-balance line names how much is invoiced behind it, so a large unknown cannot hide', () => {
+    h.invoices = [
+      { id: 'i1', status: 'Unpaid', currency: 'USD', invoice_date: '2026-10-20', erp_due_date: '2026-11-19', received_date: null, erp_outstanding_amount: 300_000, erp_payment_terms_days: 30, amount: 300_000 },
+      { id: 'i2', status: 'Unpaid', currency: 'USD', invoice_date: '2026-09-01', erp_due_date: '2026-09-30', received_date: null, erp_outstanding_amount: null, erp_payment_terms_days: 30, amount: 2_500_000 },
+    ];
+    renderExec();
+    const owed = screen.getByTestId('owed-to-us');
+    // The known total is unchanged: the unknown invoice is named, never added.
+    expect(owed).toHaveTextContent('$300K');
+    expect(owed).not.toHaveTextContent('$2.8M');
+    expect(within(owed).getAllByText('1 invoice, $2.5M invoiced, balance not reported')).toHaveLength(1);
+  });
+
+  it('an unknown balance in two currencies gives each currency its own line, the organisation currency first', () => {
+    h.invoices = [
+      { id: 'i1', status: 'Unpaid', currency: 'IDR', invoice_date: '2026-09-01', erp_due_date: '2026-09-30', received_date: null, erp_outstanding_amount: null, erp_payment_terms_days: 30, amount: 4_000_000_000 },
+      { id: 'i2', status: 'Unpaid', currency: 'USD', invoice_date: '2026-10-01', erp_due_date: '2026-10-31', received_date: null, erp_outstanding_amount: null, erp_payment_terms_days: 30, amount: 2_500_000 },
+    ];
+    renderExec();
+    const lines = within(screen.getByTestId('owed-to-us')).getAllByTestId('owed-to-us-unknown-line')
+      .map((line) => line.textContent?.replace(/\u00a0/g, ' '));
+    expect(lines).toEqual(['1 invoice, $2.5M invoiced, balance not reported', '1 invoice, IDR 4B invoiced, balance not reported']);
   });
 
   it('AC-1461: Owed to suppliers carries its payables link, and an empty side reads as a known zero', () => {
