@@ -290,7 +290,11 @@ describe('HOME4 floor: figures, sales and purchasing', () => {
   });
 
   it('the pipeline shows its gross beside the weighted total, and each stage its gross value', () => {
-    h.pipeline = { stages: [{ status: 'Leads', count: 2, total_value: 3_000_000, weighted_value: 600_000, win_probability: 0.2 }], projects: [{ id: 'o1', name: 'One', status: 'Leads', currency: 'USD', contract_value: 3_000_000 }] };
+    // Match the stage's project count so its weighted value has a complete currency read.
+    h.pipeline = { stages: [{ status: 'Leads', count: 2, total_value: 3_000_000, weighted_value: 600_000, win_probability: 0.2 }], projects: [
+      { id: 'o1', name: 'One', status: 'Leads', currency: 'USD', contract_value: 3_000_000 },
+      { id: 'o2', name: 'Two', status: 'Leads', currency: 'USD', contract_value: 0 },
+    ] };
     renderHome();
     const sales = screen.getByTestId('sales-overview');
     expect(sales).toHaveTextContent('Gross $2M');

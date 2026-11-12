@@ -429,7 +429,10 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       unavailableReason: t('home.reasonClientBalances', 'some client invoice balances are not synced'),
       // The one caption: what part of it is overdue (only when every overdue balance is known).
       subline: overdue && overdue.count > 0 && overdue.unknownBalances === 0 && overdue.knownTotals.length
-        ? t('home.overdueAmount', '{{amount}} overdue', { amount: tileMoneyLines(overdue.knownTotals, orgCurrency, formatTileMoney).join(' ') }) : undefined,
+        ? overdue.knownTotals.length === 1
+          ? t('home.overdueAmount', '{{amount}} overdue', { amount: tileMoneyLines(overdue.knownTotals, orgCurrency, formatTileMoney)[0] })
+          : t('hub.company.attentionOverdue', { count: overdue.count, defaultValue: '{{count}} overdue' })
+        : undefined,
       href: '/finance/receivables',
     },
     {

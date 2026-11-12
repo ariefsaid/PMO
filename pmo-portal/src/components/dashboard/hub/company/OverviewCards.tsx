@@ -17,7 +17,7 @@ import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { useLossBreakdown, type WinRateRange } from '@/src/hooks/useDashboard';
 import { budgetSpendKnown } from './financeData';
 import { budgetVsSpentRows } from './overviewData';
-import { openPipelineStages } from './pipelineStages';
+import { openPipelineStages, stageCurrencyState } from './pipelineStages';
 
 const linkClass = 'inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 export const CardLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
@@ -62,9 +62,9 @@ export const SalesOverviewCard: React.FC<{
   aside?: React.ReactNode;
   /** The open pipeline before weighting, beside the weighted total: one line per currency, the organisation's first. */
   gross?: string[] | null;
-  /** The open opportunities: each stage's gross is grouped from these by their own currency (the stage read adds currencies together). */
-  stageProjects?: PipelineProject[];
-}> = ({ weighted, forecastMargin, stages, pending, error, retry, currency, period, won, range, className, wide = false, aside, gross, stageProjects = [] }) => {
+  /** Stage gross is summed by each project's own currency; weighted values require a complete single-currency stage. */
+  projects?: PipelineProject[];
+}> = ({ weighted, forecastMargin, stages, projects, pending, error, retry, currency, period, won, range, className, wide = false, aside, gross }) => {
   const { t } = useTranslation('dashboard');
   // The definitions go to the page's one help list (no per-figure "?").
   useFigureReport([], [
@@ -74,18 +74,21 @@ export const SalesOverviewCard: React.FC<{
   const navigate = useNavigate();
   const statusLabel = useProjectStatusLabel();
   const open = openPipelineStages(stages);
+  const state = stageCurrencyState(stages, projects);
   const max = Math.max(1, ...open.map((stage) => stage.weighted_value));
-  const wonValue = won ? tileMoneyLines(won.amounts, currency, formatTileMoney).join(' ') : '';
+  const wonValue = won ? tileMoneyLines(won.amounts, currency, formatTileMoney) : [];
   return (
     <Card data-testid="sales-overview" className={cnJoin('flex flex-col', className)}>
       <CardHead level={2} actions={<CardLink to="/sales">{t('dashboard:hub.company.openSales', 'Open sales')}</CardLink>}>{t('home.sales', 'Sales')}</CardHead>
       <CardPad className={wide ? 'grid flex-1 gap-x-[var(--space-panel-gap)] gap-y-4 min-[900px]:grid-cols-2' : 'grid gap-4'}>
         <div className={wide ? 'flex flex-col gap-4' : 'contents'}>
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-          {weighted && (
+          {(weighted || gross || forecastMargin != null) && (
             <div>
-              <div className="text-control text-muted-foreground">{t('home.pipelineWeighted', 'Weighted pipeline')}</div>
-              <div className="text-[23px] font-bold leading-tight tabular" title={weighted.exact}>{weighted.value}</div>
+              {weighted && <>
+                <div className="text-control text-muted-foreground">{t('home.pipelineWeighted', 'Weighted pipeline')}</div>
+                <div className="text-[23px] font-bold leading-tight tabular" title={weighted.exact}>{weighted.value}</div>
+              </>}
               {gross && <div className="text-control text-muted-foreground">{t('home.pipelineGross', 'Gross {{amount}}', { amount: gross[0] })}{gross.slice(1).map((line) => <span key={line} className="block">{line}</span>)}</div>}
               {forecastMargin != null && <div className="text-control text-muted-foreground">{t('dashboard:hub.company.forecastMargin', 'Forecast margin')}: {(forecastMargin * 100).toFixed(1)}%</div>}
             </div>
@@ -93,7 +96,7 @@ export const SalesOverviewCard: React.FC<{
           {won && (
             <button type="button" onClick={() => navigate(won.href ?? '/projects?filter=won')} className="min-h-11 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
               <span className="block text-control text-muted-foreground">{t('home.wonThisYear', 'Won')}{period ? ` · ${period}` : ''} · {won.count}</span>
-              <span className="block text-[23px] font-bold leading-tight tabular">{wonValue}</span>
+              <span className="block text-[23px] font-bold leading-tight tabular">{wonValue.map((line) => <span key={line} data-currency-line className="block">{line}</span>)}</span>
             </button>
           )}
         </div>
@@ -105,22 +108,26 @@ export const SalesOverviewCard: React.FC<{
                 <ul aria-label={t('home.pipelineChart', 'Weighted pipeline by stage')} className="flex flex-1 flex-col justify-between gap-1">
                   {open.map((stage) => {
                     const name = `${statusLabel(stage.status as string)} · ${stage.count}`;
-                    const value = money(stage.weighted_value, currency);
-                    // The stage's gross project value per currency (its projects' contract values, each in its own currency).
+                    const currencies = state.forStage(stage);
+                    const value = state.complete && (currencies.size === 1 || stage.count === 0) ? money(stage.weighted_value, [...currencies][0] ?? currency) : null;
+                    // Keep stage gross truthful when its open projects use more than one currency.
                     const grossByCurrency = new Map<string, number>();
-                    for (const project of stageProjects) {
+                    for (const project of projects ?? []) {
                       if (project.status === stage.status && Number.isFinite(project.contract_value)) grossByCurrency.set(project.currency, (grossByCurrency.get(project.currency) ?? 0) + project.contract_value);
                     }
                     const grossLines = grossByCurrency.size ? tileMoneyLines([...grossByCurrency].map(([code, amount]) => ({ currency: code, amount })), currency, formatTileMoney) : [];
                     const stageGross = grossLines.join('; ');
+                    const ariaLabel = value
+                      ? stageGross ? t('home.stageWeightedOfGross', '{{name}}: {{weighted}} weighted of {{gross}} gross', { name, weighted: value, gross: stageGross }) : `${name}: ${value}`
+                      : stageGross ? `${name}: ${t('home.pipelineGross', 'Gross {{amount}}', { amount: stageGross })}` : name;
                     return (
                       <li key={String(stage.status)}>
-                        <Link to={`/sales?status=${encodeURIComponent(stage.status as string)}`} aria-label={stageGross ? t('home.stageWeightedOfGross', '{{name}}: {{weighted}} weighted of {{gross}} gross', { name, weighted: value, gross: stageGross }) : `${name}: ${value}`}
+                        <Link to={`/sales?status=${encodeURIComponent(stage.status as string)}`} aria-label={ariaLabel}
                           className="grid min-h-11 grid-cols-[minmax(7rem,9.5rem)_minmax(0,1fr)] items-center gap-x-3 text-control text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                           <span className="truncate text-right">{name}</span>
                           <span className="flex min-w-0 items-center gap-2">
-                            <span aria-hidden className="h-[18px] min-w-0.5 rounded-r bg-primary" style={{ width: `${Math.max(1, (stage.weighted_value / max) * 75)}%` }} />
-                            <span className="shrink-0 font-semibold tabular">{value}{grossLines.length > 0 && <span className="font-normal text-muted-foreground"> {t('home.ofGross', 'of {{amount}}', { amount: grossLines[0] })}{grossLines.slice(1).map((line) => <span key={line} className="block text-right">{line}</span>)}</span>}</span>
+                            {state.complete && state.currencies.size === 1 && <span aria-hidden className="h-[18px] min-w-0.5 rounded-r bg-primary" style={{ width: `${Math.max(1, (stage.weighted_value / max) * 75)}%` }} />}
+                            <span className="shrink-0 font-semibold tabular">{value}{grossLines.length > 0 && <span className="font-normal text-muted-foreground"> {value ? t('home.ofGross', 'of {{amount}}', { amount: grossLines[0] }) : t('home.pipelineGross', 'Gross {{amount}}', { amount: grossLines[0] })}{grossLines.slice(1).map((line) => <span key={line} className="block text-right">{line}</span>)}</span>}</span>
                           </span>
                         </Link>
                       </li>
