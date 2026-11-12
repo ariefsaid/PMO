@@ -55,7 +55,7 @@ import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
-import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
+import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly } from './lib/pmo-purchases.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
@@ -686,7 +686,7 @@ function defaultOpenBrowser(url) {
 
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
-const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent']);
+const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason']);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees']);
 
 export function parseArgs(argv) {
@@ -795,6 +795,7 @@ const USAGE = `usage:
                                                    erp_doctype, erp_name, note; hides overhead documents from orphans)
   pmo purchases link <file.json | file.csv | -> [--csv] [--dry-run]   (Admin, Executive, Project Manager, Finance;
                                                                    link sends ${MAX_BATCH} rows per call)
+  pmo purchases record-only <history.json|-> [--dry-run] | undo-record-only <purchase> --reason <text> [--dry-run]
   pmo purchases journals --project <id>   (the project's accounting-system journal cost lines)
   pmo purchases attach-journals <file.json | -> [--dry-run]   (Admin, Executive, Project Manager, Finance; rows of
                                                    voucher_no, account, project_id, procurement_id; link only)
@@ -1248,6 +1249,20 @@ async function purchases(ctx, positionals, flags) {
     const report = await runAttachJournals(api, rows, { dryRun });
     const failed = report.error !== undefined || (!dryRun && report.counts.refused > 0);
     return failed ? new Reported(report, 1) : report;
+  }
+  if (sub === 'record-only') {
+    if (!arg) throw usage('purchases record-only needs a JSON file');
+    const groups = await readPayload(ctx, arg === '-' ? '-' : `@${arg.replace(/^@/, '')}`);
+    const problems = validateRecordOnlyGroups(groups);
+    if (problems.length) throw new CliError('Invalid record-only file; nothing was sent.', { exit: 2, code: 'invalid_record_only_file', details: problems });
+    const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
+    const report = await runRecordOnly(api, groups, { dryRun: Boolean(flags['dry-run']) });
+    return report.error ? new Reported(report, 1) : report.counts.refused ? new Reported(report, 2) : report;
+  }
+  if (sub === 'undo-record-only') {
+    if (!UUID.test(String(arg ?? '')) || typeof flags.reason !== 'string' || !flags.reason.trim()) throw usage('purchases undo-record-only needs a purchase UUID and --reason');
+    const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
+    return runUndoRecordOnly(api, arg, flags.reason, { dryRun: Boolean(flags['dry-run']) });
   }
   if (sub === 'receive') return receive(ctx, arg, flags);
   if (sub === 'link-file') {

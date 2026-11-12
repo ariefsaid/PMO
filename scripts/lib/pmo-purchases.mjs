@@ -6,7 +6,7 @@
 
 /** The PROCUREMENT-WRITER tier of the API-client guard (migration 0363) — keep in step with it. */
 export const PURCHASE_RPCS = Object.freeze(['link_erp_purchase_documents', 'link_procurement_sharepoint_item',
-  'attach_erp_journal_lines', 'project_erp_journal_lines']);  // 0688 (#1919)
+  'attach_erp_journal_lines', 'project_erp_journal_lines', 'create_record_only_journal_purchase', 'undo_captured_purchase']);  // 0688 (#1919)
 export const PURCHASE_READ_VIEWS = Object.freeze({
   erp_purchase_orphans: Object.freeze(['id', 'erp_doctype', 'erp_name', 'supplier', 'supplier_name', 'doc_date', 'currency',
     'grand_total', 'net_total', 'erp_status', 'project_ids', 'note']),
@@ -296,4 +296,50 @@ export async function readJournalPages(getPage) {
     out.push(...page);
     if (page.length < JOURNAL_PAGE) return out;
   }
+}
+
+/** Validate bounded, whole journal purchase groups before any request is sent. */
+export function validateRecordOnlyGroups(groups) {
+  if (!Array.isArray(groups) || groups.length === 0 || groups.length > 500) return ['send 1 to 500 groups'];
+  const uuid = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+  const errors = [];
+  let lines = 0;
+  for (const [i, g] of groups.entries()) {
+    if (!g || typeof g !== 'object' || Array.isArray(g)) { errors.push(`row ${i + 1}: expected an object`); continue; }
+    for (const k of ['request_id', 'project_id', 'vendor_id']) if (!uuid.test(g[k] ?? '')) errors.push(`row ${i + 1}: ${k} must be a UUID`);
+    if (typeof g.title !== 'string' || !g.title.trim()) errors.push(`row ${i + 1}: title is required`);
+    if (!Array.isArray(g.journal_lines) || !g.journal_lines.length || g.erp_documents !== undefined) errors.push(`row ${i + 1}: supply journal_lines only`);
+    else {
+      lines += g.journal_lines.length;
+      for (const line of g.journal_lines) if (!line || typeof line !== 'object' || !['erp_doctype', 'voucher_no', 'project_id', 'account'].every((k) => typeof line[k] === 'string' && line[k].trim())) errors.push(`row ${i + 1}: invalid journal line`);
+    }
+  }
+  if (lines > 500) errors.push('the file exceeds 500 journal lines');
+  return errors;
+}
+
+/** Keep each group atomic and preserve identities if the transport outcome is unknown. */
+export async function runRecordOnly(api, groups, { dryRun }) {
+  const out = { dry_run: Boolean(dryRun), counts: { create: 0, skip: 0, refused: 0 }, results: [] };
+  for (const [index, group] of groups.entries()) {
+    try {
+      const result = await api.rpc('create_record_only_journal_purchase', { p_group: group, p_dry_run: Boolean(dryRun) });
+      out.results.push({ ...result, row: index + 1, request_id: group.request_id });
+      if (Object.hasOwn(out.counts, result?.outcome)) out.counts[result.outcome]++;
+      else { out.error = { message: 'unknown RPC outcome' }; out.not_saved_request_ids = groups.slice(index).map((g) => g.request_id); break; }
+    } catch (error) {
+      if (error?.code === '22023' && error?.status === 400) {
+        out.results.push({ row: index + 1, request_id: group.request_id, outcome: 'refused', reason: error.message, erp_write: false });
+        out.counts.refused++;
+        continue;
+      }
+      out.error = Object.fromEntries(['message', 'code', 'status'].filter((key) => error?.[key] != null).map((key) => [key, error[key]]));
+      out.not_saved_request_ids = groups.slice(index).map((g) => g.request_id);
+      break;
+    }
+  }
+  return out;
+}
+export async function runUndoRecordOnly(api, purchase, reason, { dryRun }) {
+  return api.rpc('undo_captured_purchase', { p_procurement_id: purchase, p_reason: reason, p_dry_run: Boolean(dryRun) });
 }

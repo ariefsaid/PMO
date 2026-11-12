@@ -2215,3 +2215,28 @@ test('AC-CLI-018: a budget version cannot be archived from the CLI, so the app a
     fs.rmSync(configDir, { recursive: true, force: true });
   }
 });
+
+test('AC-ROP-012 purchases record-only preview and undo use authenticated RPCs', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
+    if (url.pathname === '/rest/v1/rpc/create_record_only_journal_purchase' || url.pathname === '/rest/v1/rpc/undo_captured_purchase') {
+      calls.push({ path: url.pathname, body: JSON.parse(body) });
+      send(200, { outcome: url.pathname.includes('undo') ? 'undo' : 'create', erp_write: false });
+      return true;
+    }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'history.json');
+    const group = { request_id: '11111111-1111-4111-8111-111111111111', project_id: '22222222-2222-4222-8222-222222222222', vendor_id: '33333333-3333-4333-8333-333333333333', title: 'Purchase', journal_lines: [{ erp_doctype: 'Journal Entry', voucher_no: 'J1', project_id: '22222222-2222-4222-8222-222222222222', account: 'Cost' }] };
+    fs.writeFileSync(file, JSON.stringify([group]));
+    const preview = await runCli(['purchases', 'record-only', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(preview.code, 0, preview.err);
+    assert.deepEqual(calls[0].body, { p_group: group, p_dry_run: true });
+    const undo = await runCli(['purchases', 'undo-record-only', group.project_id, '--reason', 'Wrong project', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(undo.code, 0, undo.err);
+    assert.deepEqual(calls[1].body, { p_procurement_id: group.project_id, p_reason: 'Wrong project', p_dry_run: true });
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});

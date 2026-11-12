@@ -159,6 +159,7 @@ async function servedDispatch(opts: DispatchOptions) {
       if (rpc === 'actor_authorization_state') return jsonResponse({ role: opts.role ?? 'Project Manager', active: opts.actorActive ?? true });
       if (rpc === 'pre_cutover_procurement') return jsonResponse(false);
       if (rpc === 'linked_step_state') return jsonResponse(opts.linkedOrder ? 'new_step' : 'not_applicable');
+      if (rpc === 'record_only_step_refusal') return jsonResponse(null);
       if (rpc === 'procurement_gate_violation') return jsonResponse(opts.gateViolation ?? null);
       if (rpc === 'service_feature_enabled') {
         assertEquals(rpcArgs.p_key, 'procurement_full', 'the guard must consult the exact switch key');
