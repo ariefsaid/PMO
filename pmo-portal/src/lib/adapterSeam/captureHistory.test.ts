@@ -77,3 +77,21 @@ describe('AC-ROP-017 capture proposals', () => {
     expect(result.map((r) => r.reason)).toEqual(['journal', 'cancelled', 'capital_spending']);
   });
 });
+
+describe('AC-ROP-017 reviewed source versions', () => {
+  it('rejects a changed source or a changed census before any capture', async () => {
+    const { verifyCaptureRevision } = await import('./captureHistory');
+    const reviewed = [{ id: 'a', version: 'old' }];
+    const live = [{ id: 'a', version: 'new' }];
+    expect(verifyCaptureRevision('g1', 'g1', reviewed, live)).toBe(false);
+    expect(verifyCaptureRevision('g1', 'g2', reviewed, reviewed)).toBe(false);
+    expect(verifyCaptureRevision('g1', 'g1', reviewed, reviewed)).toBe(true);
+  });
+  it('rejects added, removed and duplicated source identities', async () => {
+    const { verifyCaptureRevision } = await import('./captureHistory');
+    const reviewed = [{ id: 'a', version: '1' }];
+    expect(verifyCaptureRevision('g', 'g', reviewed, [])).toBe(false);
+    expect(verifyCaptureRevision('g', 'g', reviewed, [...reviewed, { id: 'b', version: '1' }])).toBe(false);
+    expect(verifyCaptureRevision('g', 'g', [...reviewed, ...reviewed], [...reviewed, ...reviewed])).toBe(false);
+  });
+});

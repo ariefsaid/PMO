@@ -175,3 +175,24 @@ export async function collectCaptureSources(adapter: CaptureAdapter): Promise<Ca
     return { complete: false, sources, missing: ['source read failed'] };
   }
 }
+
+/** Compare the whole reviewed census with a fresh one before attempting a write. */
+export function verifyCaptureRevision(
+  reviewedRevision: string,
+  currentRevision: string,
+  reviewed: ReadonlyArray<{ id: string; version: string }>,
+  current: ReadonlyArray<{ id: string; version: string }>,
+): boolean {
+  if (!reviewedRevision || reviewedRevision !== currentRevision || reviewed.length !== current.length) return false;
+  const versions = new Map<string, string>();
+  for (const source of reviewed) {
+    if (!source.id || !source.version || versions.has(source.id)) return false;
+    versions.set(source.id, source.version);
+  }
+  const seen = new Set<string>();
+  for (const source of current) {
+    if (!source.id || !source.version || seen.has(source.id) || versions.get(source.id) !== source.version) return false;
+    seen.add(source.id);
+  }
+  return true;
+}
