@@ -29,7 +29,14 @@ async function loadProfile(userId: string): Promise<ProfileResult> {
   // org, a role change or a locale edit arrives exactly that way. A cached read here silently
   // pins the session to the profile that was loaded first.
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
-  if (error) return { profile: null, error: error.message, errorKind: classifyProfileError(error) };
+  if (error) {
+    const errorKind = classifyProfileError(error);
+    // The raw message is for the console/error log ONLY — the screen's recovery copy is fixed and
+    // localised (see RequireAuth's ProfileErrorPage). "TypeError: Failed to fetch" is not a sentence
+    // a user can act on, and it used to be rendered verbatim in both locales.
+    if (errorKind === 'load_error') console.error('[auth] profile read failed', error);
+    return { profile: null, error: error.message, errorKind };
+  }
   return { profile: data, error: null, errorKind: null };
 }
 
