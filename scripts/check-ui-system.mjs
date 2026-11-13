@@ -69,6 +69,10 @@ function selfTest() {
   const bad = {
     uppercase: '<p className="text-[11px] uppercase tracking-wide">Status</p>',
     button: '<Button variant="outline" className="h-9 px-2">Go</Button>',
+    buttonDefault: '<Button onClick={save}>Save</Button>',
+    nativeInput: '<input type="text" aria-label="Name" />',
+    nativeSelect: '<select aria-label="Status"><option>Open</option></select>',
+    nativeTextarea: '<textarea aria-label="Notes" />',
     button2: '<Link className="rounded-md border border-input px-3" to="/x">Go</Link>',
     avatar: '<span className="grid size-6 place-items-center rounded-full bg-secondary text-[11px] font-bold">RK</span>',
     avatar2: "style={{ background: 'hsl(var(--avatar-2))' }}",
