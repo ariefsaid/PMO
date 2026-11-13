@@ -54,9 +54,8 @@ const DocumentsToolbar: React.FC<{
   const { t } = useTranslation('project');
   return (
     <Toolbar
-      standalone
       data-testid="documents-register-toolbar"
-      className="min-w-0 border-0 bg-transparent px-[var(--panel-inset)] py-3"
+      className="min-w-0 px-[var(--panel-inset)] py-3"
     >
       <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
         {/* B7: search earns its place only beyond about ten documents; the filters cover a short register. */}
@@ -115,7 +114,11 @@ const DocumentsToolbar: React.FC<{
             semantics="toggle"
           />
           {/* The quieter create/link controls sit beside the tab's one filled action, never above the filters. */}
-          {folderAction}
+          {folderAction && (
+            // RecordFolderAction keeps a polite status line above its button (space-y-2); cancel that
+            // block's top gap so its button lines up with the row's other controls.
+            <div className="-mt-2 flex min-w-0 items-center">{folderAction}</div>
+          )}
           {canCreateMicrosoftReference && (
             <Button variant="outline" size="sm" onClick={onLinkMicrosoft}>
               {t('m365Documents.link', 'Link from Microsoft 365')}

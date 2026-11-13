@@ -472,33 +472,8 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </GateNotice>
       )}
 
-      {/* The folder action shares the toolbar row with the other create/link controls (empty for non-writers). */}
-      <DocumentsToolbar
-        registerSize={all.length}
-        search={search}
-        setSearch={setSearch}
-        categories={categories}
-        categoryFilter={categoryFilter}
-        setCategoryFilter={setCategoryFilter}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        sourceFilter={sourceFilter}
-        setSourceFilter={setSourceFilter}
-        documentsView={documentsView}
-        setDocumentsView={setDocumentsView}
-        canCreateMicrosoftReference={canCreateMicrosoftReference}
-        canCreate={canCreate}
-        folderAction={(
-          <RecordFolderAction
-            target={{ kind: 'project', id: projectId }}
-            hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
-            onChooseExisting={() => { if (canCreateMicrosoftReference) setMicrosoftEntry({ kind: 'create' }); }}
-          />
-        )}
-        onLinkMicrosoft={() => setMicrosoftEntry({ kind: 'create' })}
-        onAddDocument={() => setFormTarget({ doc: null })}
-      />
-
+      {/* Selection actions and their failure report sit above the assembly, so the assembly stays one
+          unbroken surface (toolbar seamed to its rows) whatever the selection is. */}
       {bulkFailure && <div role="alert" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
         {bulkFailure.succeeded > 0 && <p>{t('projectDetail.documents.bulk.partialSuccess', 'Updated {{count}} document(s). Failed documents remain selected for retry.', { count: bulkFailure.succeeded })}</p>}
         <ul className="list-disc space-y-1 pl-5">{bulkFailure.failures.map((failure) => <li key={failure.id}>{failure.title}: {failure.headline}{failure.detail ? `. ${failure.detail}` : ''}</li>)}</ul>
@@ -521,55 +496,89 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         />
       )}
 
-      {state === 'loading' && (
-        <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={5} />
-        </div>
-      )}
-
-      {state === 'error' && (
-        <ListState
-          variant="error"
-          title={t('projectDetail.documents.errorTitle', "Couldn't load documents")}
-          sub={t(
-            'projectDetail.documents.errorSub',
-            'The request failed. Check your connection and try again.',
+      {/* One card assembly (DESIGN.md §3): the register toolbar seams to the rows below it, so the
+          filters and the register read as one surface in every state, like the record's other tabs. */}
+      <div className="min-w-0" data-testid="documents-register-assembly">
+        {/* The folder action shares the toolbar row with the other create/link controls (empty for non-writers). */}
+        <DocumentsToolbar
+          registerSize={all.length}
+          search={search}
+          setSearch={setSearch}
+          categories={categories}
+          categoryFilter={categoryFilter}
+          setCategoryFilter={setCategoryFilter}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          sourceFilter={sourceFilter}
+          setSourceFilter={setSourceFilter}
+          documentsView={documentsView}
+          setDocumentsView={setDocumentsView}
+          canCreateMicrosoftReference={canCreateMicrosoftReference}
+          canCreate={canCreate}
+          folderAction={(
+            <RecordFolderAction
+              target={{ kind: 'project', id: projectId }}
+              hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
+              onChooseExisting={() => { if (canCreateMicrosoftReference) setMicrosoftEntry({ kind: 'create' }); }}
+            />
           )}
-          onRetry={() => refetch()}
+          onLinkMicrosoft={() => setMicrosoftEntry({ kind: 'create' })}
+          onAddDocument={() => setFormTarget({ doc: null })}
         />
-      )}
 
-      {state === 'empty' && (
-        <ListState
-          variant="empty"
-          icon="doc"
-          title={t('projectDetail.documents.emptyTitle', 'No documents yet')}
-          sub={t(
-            'projectDetail.documents.emptySub',
-            "Add a drawing, specification, or transmittal to start the project's document register.",
-          )}
-        />
-      )}
+        {state === 'loading' && (
+          <div className="rounded-b-lg border border-border bg-card">
+            <ListState variant="loading" rows={5} />
+          </div>
+        )}
 
-      {state === undefined && (
-        <DataTable<ProjectDocumentRow>
-          rows={sortedFiltered}
-          columns={columns}
-          rowKey={(d) => d.id}
-          selection={documentSelection}
-          onActivate={(d) => setDrawerDoc(d)}
-          rowMenu={rowMenu}
-          selectedKey={drawerDoc?.id}
-          sort={sort}
-          onSort={setSortBy}
-          groupBy={documentsView === 'grouped' ? categoryName : undefined}
-          state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('projectDetail.documents.noSearchMatch', 'No documents match your search')}
-          emptySub={t('projectDetail.documents.noSearchMatchSub', 'Try a different title, code, or category.')}
-          className="!overflow-visible !rounded-none !border-0 !bg-transparent"
-          tableId="project-detail-tabs-documentstab-table"
-        />
-      )}
+        {state === 'error' && (
+          <div className="rounded-b-lg border border-border bg-card">
+            <ListState
+              variant="error"
+              title={t('projectDetail.documents.errorTitle', "Couldn't load documents")}
+              sub={t(
+                'projectDetail.documents.errorSub',
+                'The request failed. Check your connection and try again.',
+              )}
+              onRetry={() => refetch()}
+            />
+          </div>
+        )}
+
+        {state === 'empty' && (
+          <div className="rounded-b-lg border border-border bg-card">
+            <ListState
+              variant="empty"
+              icon="doc"
+              title={t('projectDetail.documents.emptyTitle', 'No documents yet')}
+              sub={t(
+                'projectDetail.documents.emptySub',
+                "Add a drawing, specification, or transmittal to start the project's document register.",
+              )}
+            />
+          </div>
+        )}
+
+        {state === undefined && (
+          <DataTable<ProjectDocumentRow>
+            rows={sortedFiltered}
+            columns={columns}
+            rowKey={(d) => d.id}
+            selection={documentSelection}
+            onActivate={(d) => setDrawerDoc(d)}
+            rowMenu={rowMenu}
+            selectedKey={drawerDoc?.id}
+            sort={sort}
+            onSort={setSortBy}
+            groupBy={documentsView === 'grouped' ? categoryName : undefined}
+            state={filtered.length === 0 ? 'empty' : undefined}
+            emptyTitle={t('projectDetail.documents.noSearchMatch', 'No documents match your search')}
+            emptySub={t('projectDetail.documents.noSearchMatchSub', 'Try a different title, code, or category.')}
+            tableId="project-detail-tabs-documentstab-table"
+          />
+        )}
+      </div>
 
       {drawerDoc && (
         <DocumentDrawer

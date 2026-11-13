@@ -102,7 +102,7 @@ import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQu
 // The register mounts RecordFolderAction, which reads the query cache (#1020).
 const testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const RouteSearch = () => <output data-testid="route-search">{useLocation().search}</output>;
-const RoutePath = () => <output data-testid="route-path">{useLocation().pathname}</output>;
+const RoutePath = () => <div data-testid="route-path">{useLocation().pathname}</div>;
 const RouteBack = () => {
   const navigate = useNavigate();
   return <button type="button" onClick={() => navigate(-1)}>Navigate back</button>;
@@ -671,14 +671,12 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
 
   it('keeps Microsoft 365 linking and document creation available from the register toolbar', () => {
     renderTab('Admin', 'admin-1');
-    const linkAction = screen.getByRole('button', { name: /Link from Microsoft 365/i });
-    expect(linkAction).toBeEnabled();
-    expect(screen.getByRole('button', { name: /Add document/i })).toBeEnabled();
-
-    const filter = screen.getByRole('combobox', { name: 'Filter by category' });
-    const toolbar = filter.parentElement?.parentElement;
-    expect(toolbar?.className).toContain('mb-[var(--space-group)]');
-    expect(toolbar?.className).not.toContain('mb-3.5');
+    const toolbar = screen.getByTestId('documents-register-toolbar');
+    expect(within(toolbar).getByRole('button', { name: /Link from Microsoft 365/i })).toBeEnabled();
+    expect(within(toolbar).getByRole('button', { name: /Add document/i })).toBeEnabled();
+    // The toolbar is the register assembly's own header, not a floating bar over a bare table (move 2).
+    expect(within(toolbar).getByRole('combobox', { name: 'Filter by category' })).toBeInTheDocument();
+    expect(screen.getByTestId('documents-register-assembly')).toContainElement(toolbar);
   });
 
   it('AC-DOC-M365: linked folder contents remain expandable and the footer opens SharePoint', async () => {
@@ -1162,7 +1160,7 @@ describe('DocumentsTab — floor (register controls)', () => {
       await user.click(await screen.findByRole('menuitem', { name: 'Copy link' }));
       await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
       expect(String(writeText.mock.calls[0][0])).toContain('open=d1');
-      expect(await screen.findByText('Document link copied')).toBeInTheDocument();
+      expect(await findToastAnnouncement('status', /Document link copied/)).toHaveTextContent('Site Plan');
     } finally {
       delete (navigator as unknown as { clipboard?: unknown }).clipboard;
     }
