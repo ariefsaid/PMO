@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import i18next from 'i18next';
@@ -33,6 +33,33 @@ const renderPage = (role: Role = 'Project Manager', viewAs: Role | null = null) 
   return render(<QueryClientProvider client={qc}><ToastProvider><MemoryRouter><StockOnHand /></MemoryRouter></ToastProvider></QueryClientProvider>);
 };
 
+/** The movement form's own route, reduced to the kind it opened for. */
+const NewMovementPage: React.FC = () => {
+  const { kind } = useParams<{ kind: string }>();
+  return <p>{`new movement: ${kind ?? ''}`}</p>;
+};
+
+/** The page inside the stock route table, so a control that navigates can be observed. */
+const renderRouted = (role: Role = 'Admin') => {
+  realRole = role;
+  effectiveRole = null;
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/stock']}>
+          <Routes>
+            <Route path="/stock" element={<StockOnHand />} />
+            <Route path="/stock/documents" element={<p>documents page</p>} />
+            <Route path="/stock/ledger" element={<p>ledger page</p>} />
+            <Route path="/stock/new/:kind" element={<NewMovementPage />} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
+    </QueryClientProvider>,
+  );
+};
+
 beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true); });
 beforeEach(() => {
   vi.clearAllMocks();
@@ -41,6 +68,7 @@ beforeEach(() => {
   reports.onHand.mockResolvedValue([row]);
   reorder.worklist.mockResolvedValue([]);
 });
+afterEach(() => vi.unstubAllGlobals());
 
 describe('C18 — the balance list is ordered for scanning', () => {
   it('orders by item, then warehouse, so one item sits with all its stores instead of three lookups by eye', async () => {
@@ -169,5 +197,40 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search items' }), 'cable');
     expect(screen.queryByText('CEM')).not.toBeInTheDocument();
     expect(screen.getByText('CAB')).toBeInTheDocument();
+  });
+});
+
+/** Floor list (all-screens/floor-tests/stock-on-hand.md): the items this suite did not yet cover. */
+describe('AC-STK-032 floor: every control on the balance list still works', () => {
+  it('the stock section strip opens Documents from On hand', async () => {
+    renderRouted();
+    await screen.findByText('CEM');
+    await userEvent.click(screen.getByRole('link', { name: 'Documents' }));
+    expect(await screen.findByText('documents page')).toBeInTheDocument();
+  });
+
+  it('Issue to project starts an issue movement', async () => {
+    renderRouted();
+    await screen.findByText('CEM');
+    await userEvent.click(await screen.findByRole('button', { name: 'Issue to project' }));
+    expect(await screen.findByText('new movement: issue')).toBeInTheDocument();
+  });
+
+  it('each movement in the More menu opens its own new-movement route', async () => {
+    const movements = [
+      ['Receive', 'receive'],
+      ['Transfer', 'transfer'],
+      ['Return from project', 'return'],
+      ['Stock count', 'count'],
+      ['Adjustment', 'adjustment'],
+    ] as const;
+    for (const [label, kind] of movements) {
+      const view = renderRouted();
+      await screen.findByText('CEM');
+      await userEvent.click(screen.getByRole('button', { name: 'More' }));
+      await userEvent.click(await screen.findByRole('menuitem', { name: label }));
+      expect(await screen.findByText(`new movement: ${kind}`)).toBeInTheDocument();
+      view.unmount();
+    }
   });
 });
