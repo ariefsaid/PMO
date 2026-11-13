@@ -6,7 +6,7 @@ import { ListState } from './ListState';
 import { useIsDesktop } from './useIsDesktop';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { RowMenu, MenuButton, type RowMenuItem } from './RowMenu';
-import { Toolbar, SearchMini, type SearchMiniProps } from './TableControls';
+import { Toolbar, SearchMini, type FilteredEmptyOptions, type SearchMiniProps } from './TableControls';
 import {
   useTableColumnSizing,
   columnMinSize,
@@ -121,6 +121,8 @@ interface DataTablePropsBase<Row> {
   emptyAction?: { label: string; onClick: () => void };
   /** Select outline when the page header already carries the create action. */
   emptyActionVariant?: ButtonVariant;
+  /** Empty copy and clear action when current filters exclude every row. */
+  filteredEmpty?: FilteredEmptyOptions;
   errorTitle?: string;
   errorSub?: string;
   /**
@@ -229,6 +231,7 @@ export function DataTable<Row>({
   emptySub,
   emptyAction,
   emptyActionVariant,
+  filteredEmpty,
   errorTitle = 'Could not load',
   errorSub,
   onRetry,
@@ -387,10 +390,13 @@ export function DataTable<Row>({
       {state === 'empty' && (
         <ListState
           variant="empty"
-          title={emptyTitle}
-          sub={emptySub}
-          action={emptyAction}
-          actionVariant={emptyActionVariant}
+          title={filteredEmpty?.message ?? emptyTitle}
+          sub={filteredEmpty ? undefined : emptySub}
+          icon={filteredEmpty ? 'search' : undefined}
+          action={filteredEmpty
+            ? { label: filteredEmpty.clearFiltersLabel, onClick: filteredEmpty.onClearFilters }
+            : emptyAction}
+          actionVariant={filteredEmpty ? 'outline' : emptyActionVariant}
         />
       )}
       {state === 'error' && (
