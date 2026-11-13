@@ -51,7 +51,7 @@ import { ApprovalItems } from './ApprovalItems';
 import { FindingLine, PipelineCurrencyReport, UncheckedReport } from './FindingLine';
 import { ProjectHealthCard } from './ProjectHealthCard';
 import { FinancesCard } from './FinancesCard';
-import { healthOrder, isOffTrack, overBudget, overdueTaskCount } from './homeHealth';
+import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
@@ -99,7 +99,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const healthRows = healthOrder(attention);
   const healthDelivery = useProjectsDelivery(attention.map((row) => row.id));
   const deliveryQuery = healthDelivery;
-  const offTrackCount = attention.filter(isOffTrack).length;
+  const offTrackCount = attention.filter((row) => overBudget(row) || row.overdue_items > 0).length;
   // The server sends the top five by attention; when all five are off track there may be more.
   const offTrackSaturated = attention.length >= 5 && offTrackCount === attention.length;
   const activeProjectCount = data?.active_delivery_projects ?? data?.active_projects;
