@@ -76,7 +76,7 @@ describe('F3: Bahasa Indonesia', () => {
     expect(screen.getByText(/Akses bergantung pada izin Microsoft Anda/)).toBeInTheDocument();
     await act(async () => { await userEvent.click(screen.getByRole('button', { name: 'Tampilkan semua versi Plan' })); });
     expect(await screen.findByRole('dialog', { name: 'Versi Plan.docx' })).toBeInTheDocument();
-    expect(await screen.findByText('Versi 2.0')).toBeInTheDocument();
+    expect(await screen.findByText('Versi 1')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Tutup' }).length).toBeGreaterThan(0);
     expect(document.body.textContent).not.toMatch(/Versions|Open in|Unchanged|Loading|Done\b|Close\b/);
   });

@@ -265,7 +265,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     openProject: t('financeHub:managementPack.openProject', 'Open project'),
     viewInvoices: t('financeHub:managementPack.viewInvoices', 'View invoices'),
     recordProgress: t('managementPack.recordProgress', 'Record progress'),
-    exportRow: t('financeHub:managementPack.exportRow', 'Export row'),
+    exportRow: t('financeHub:managementPack.exportRow', 'Export current line'),
   }), [t]);
 
   const columns = useMemo<Column<PackRow>[]>(() => [

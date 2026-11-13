@@ -240,7 +240,7 @@ describe('PanelEditorForm — whitelist constraints', () => {
     const entitySelect = screen.getByRole('combobox', { name: /entity/i });
     await user.selectOptions(entitySelect, 'tasks');
     // Note must be visible
-    expect(screen.getByText(/tasks require a project filter/i)).toBeInTheDocument();
+    expect(screen.getByText(/tasks panels need a project filter/i)).toBeInTheDocument();
     // The form submit/confirm should be disabled (no filter yet + no columns)
     const confirmBtn = screen.getByRole('button', { name: /add panel|confirm/i });
     expect(confirmBtn).toBeDisabled();
@@ -273,16 +273,16 @@ describe('PanelEditorForm — whitelist constraints', () => {
     const confirmBtn = screen.getByRole('button', { name: /add panel|confirm/i });
     const filterValue = screen.getByRole('textbox', { name: /filter value/i });
     expect(confirmBtn).toBeDisabled();
-    expect(screen.getByText(/enter a valid project id/i)).toBeInTheDocument();
+    expect(screen.getByText(/choose a valid project/i)).toBeInTheDocument();
 
     await user.type(filterValue, 'not-a-project-id');
     expect(confirmBtn).toBeDisabled();
-    expect(screen.getByText(/enter a valid project id/i)).toBeInTheDocument();
+    expect(screen.getByText(/choose a valid project/i)).toBeInTheDocument();
 
     await user.clear(filterValue);
     await user.type(filterValue, '123e4567-e89b-12d3-a456-426614174000');
     expect(confirmBtn).not.toBeDisabled();
-    expect(screen.queryByText(/enter a valid project id/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/choose a valid project/i)).not.toBeInTheDocument();
   });
 
   it('CMP-003: every project ID in a tasks in-filter must be valid', async () => {
@@ -299,11 +299,11 @@ describe('PanelEditorForm — whitelist constraints', () => {
 
     await user.type(filterValue, '123e4567-e89b-12d3-a456-426614174000,not-a-uuid');
     expect(confirmBtn).toBeDisabled();
-    expect(screen.getByText(/enter a valid project id/i)).toBeInTheDocument();
+    expect(screen.getByText(/choose a valid project/i)).toBeInTheDocument();
 
     await user.clear(filterValue);
     await user.type(filterValue, '123e4567-e89b-12d3-a456-426614174000,550e8400-e29b-41d4-a716-446655440000');
     expect(confirmBtn).not.toBeDisabled();
-    expect(screen.queryByText(/enter a valid project id/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/choose a valid project/i)).not.toBeInTheDocument();
   });
 });

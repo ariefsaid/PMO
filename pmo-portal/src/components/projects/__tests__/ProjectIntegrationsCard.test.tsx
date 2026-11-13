@@ -280,7 +280,7 @@ describe('ProjectIntegrationsCard', () => {
       });
     });
 
-    it('AC-S21-003 preserves a saved list ID in the one-line link when its list is unavailable', async () => {
+    it('AC-S21-003 preserves the saved list link in the one-line link when its list is unavailable', async () => {
       const unavailableBinding: ProjectBinding = {
         ...mockProjectClickUpBinding,
         external_container_id: 'list-archived-17',
@@ -293,7 +293,7 @@ describe('ProjectIntegrationsCard', () => {
 
       wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" projectName="Delivery Alpha" />);
 
-      expect(await screen.findByText(/List unavailable.*list-archived-17/i)).toBeInTheDocument();
+      expect(await screen.findByText(/List unavailable\. Its saved link is kept\./i)).toBeInTheDocument();
       expect(screen.getByTestId('project-integrations-cards')).not.toHaveTextContent(/Initial source|Start with existing list tasks/i);
       expect(screen.queryByText(/Initial task transfer is not confirmed/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/^Direction:/i)).not.toBeInTheDocument();
@@ -314,10 +314,36 @@ describe('ProjectIntegrationsCard', () => {
 
       const card = screen.getByTestId('project-integrations-cards');
       expect(card).toHaveTextContent('Linked to ClickUp');
-      expect(card).toHaveTextContent(/saved list ID: list-1/i);
+      expect(card).toHaveTextContent(/List unavailable\. Its saved link is kept\./i);
       expect(card).not.toHaveTextContent(/Initial task transfer is not confirmed/i);
       await userEvent.setup().click(within(card).getByRole('button', { name: 'Retry list details' }));
       expect(refetchLists).toHaveBeenCalledTimes(1);
+    });
+
+    it('C20-3c: the saved list id sits behind a reference disclosure, never in the linked line itself', async () => {
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        projectBindings: [{ ...mockProjectClickUpBinding, external_container_id: 'list-1' }],
+        clickupLists: [],
+        isListsError: true,
+      } as any);
+
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" projectName="Delivery Alpha" />);
+
+      const card = screen.getByTestId('project-integrations-cards');
+      const reference = await within(card).findByTestId('record-reference');
+      expect(reference.tagName).toBe('DETAILS');
+      expect(reference).toHaveTextContent('list-1');
+      expect((reference as HTMLDetailsElement).open).toBe(false);
+    });
+
+    it('C20-3c: a loaded list shows its name, so no reference disclosure is needed', async () => {
+      vi.mocked(useIntegrations).mockReturnValue({ ...baseMockReturn, projectBindings: [mockProjectClickUpBinding] } as any);
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" projectName="Delivery Alpha" />);
+
+      const card = await screen.findByTestId('project-integrations-cards');
+      expect(card).toHaveTextContent('Linked to ClickUp list Sprint Backlog');
+      expect(within(card).queryByTestId('record-reference')).not.toBeInTheDocument();
     });
 
     it('SUB-F never assumes or shows an initial source — an unrecorded one renders the same one-line link', async () => {

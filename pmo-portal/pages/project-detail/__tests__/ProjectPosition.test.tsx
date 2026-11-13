@@ -537,7 +537,7 @@ describe('contract billing block', () => {
     expect(screen.getByText('2 invoices')).toBeInTheDocument();
     expect(screen.getByText(/Updated/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Recorded spending · USD' })).toBeInTheDocument();
-    expect(screen.getByText('Actuals exclude restricted rows', { exact: true })).toHaveAttribute('role', 'status');
+    expect(screen.getByText('Some spending is hidden by your access.', { exact: true })).toHaveAttribute('role', 'status');
     const setupPrompt = screen.getByTestId('spending-setup-prompt');
     expect(setupPrompt).toHaveTextContent('Recorded spending will appear after account setup is complete.');
     expect(within(setupPrompt).getByRole('link', { name: 'Open spending setup' })).toHaveAttribute(

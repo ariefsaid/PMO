@@ -229,6 +229,7 @@
   "shell.palette.resultCount_one",
   "shell.palette.resultCount_other",
   "ui.listPage.showingOf",
+  "ui.recordReference",
   "unsavedChanges.body",
   "unsavedChanges.discard",
   "unsavedChanges.keepEditing",

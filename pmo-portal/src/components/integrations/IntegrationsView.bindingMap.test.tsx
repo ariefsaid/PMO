@@ -126,6 +126,21 @@ describe('Admin ClickUp binding map (AC-IEM-013, AC-IEM-016)', () => {
     expect(screen.getByRole('row', { name: /P1.*Unknown/i })).toBeInTheDocument();
     expect(screen.getByText(/ClickUp lists are unavailable/i)).toBeInTheDocument();
   });
+
+  it('C20-3c: a bound list whose name did not load keeps its id behind a reference disclosure', () => {
+    vi.mocked(useProjects).mockReturnValue({ data: [project('p1', 'Harbor Upgrade')] } as any);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({
+      projectBindings: [{ id: 'b1', org_id: 'org-1', project_id: 'p1', external_tier: 'clickup', external_container_id: 'list-77', config: {}, linked_by: null, linked_at: null, disconnected_at: null }],
+      clickupLists: [],
+    }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+
+    const row = screen.getByRole('row', { name: /Harbor Upgrade/ });
+    expect(row).toHaveTextContent('List unavailable. The saved link is kept.');
+    const reference = within(row).getByTestId('record-reference');
+    expect(reference).toHaveTextContent('list-77');
+    expect((reference as HTMLDetailsElement).open).toBe(false);
+  });
 })
 
 // ============================================================================

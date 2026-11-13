@@ -110,7 +110,7 @@ export const revenueRepository: RevenueRepository = {
           const si = await getSalesInvoice(siId);
           if (!si) throw new AppError('sales invoice not found', 'not-found');
           if (si?.pmo_native) throw nativeReadOnly();
-          if (!si.si_number && !odooOwnsRevenueTier(domainTier('revenue') ?? undefined)) throw new AppError('sales invoice not found or missing si_number', 'not-found');
+          if (!si.si_number && !odooOwnsRevenueTier(domainTier('revenue') ?? undefined)) throw new AppError('This invoice is not in the ERP yet.', 'not-found');
           await submitSalesInvoiceSod(siId);   // SoD: server-enforced approver≠author (42501 on self-approval) BEFORE any ERP submit
           await dispatchDomainCommand(
             'revenue',
@@ -126,7 +126,7 @@ export const revenueRepository: RevenueRepository = {
       ? wrap(async () => {
           const si = await getSalesInvoice(siId);
           if (si?.pmo_native) throw nativeReadOnly();
-          if (!si || !si.si_number) throw new AppError('sales invoice not found or missing si_number', 'not-found');
+          if (!si || !si.si_number) throw new AppError('This invoice is not in the ERP yet.', 'not-found');
           await dispatchDomainCommand(
             'revenue',
             'transition',
@@ -150,7 +150,7 @@ export const revenueRepository: RevenueRepository = {
       ? wrap(async () => {
           const ip = await getIncomingPayment(ipId);
           if (ip?.pmo_native) throw nativeReadOnly();
-          if (!ip || !ip.ip_number) throw new AppError('incoming payment not found or missing ip_number', 'not-found');
+          if (!ip || !ip.ip_number) throw new AppError('This payment is not in the ERP yet.', 'not-found');
           await dispatchDomainCommand(
             'revenue',
             'transition',

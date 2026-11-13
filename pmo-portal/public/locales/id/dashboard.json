@@ -3,7 +3,7 @@
     "account": "Akun",
     "actualsError": "Gagal memuat aktual",
     "actualsTitle": "Aktual (buku besar ERP)",
-    "actualsRows": "{{count}} baris buku besar",
+    "actualsRows": "{{count}} entri buku besar",
     "allInvoicesPaid": "Semua faktur pemasok telah dibayar atau tidak ada yang menunggu tindakan.",
     "apError": "Gagal memuat utang pemasok",
     "apTitle": "Utang kepada pemasok (AP)",

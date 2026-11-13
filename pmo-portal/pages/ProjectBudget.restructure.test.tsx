@@ -212,7 +212,42 @@ describe('ProjectBudget Option A', () => {
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select Labor' }));
     expect(screen.getByRole('toolbar', { name: 'Selected categories' })).toHaveTextContent('1 selected');
-    expect(screen.getByRole('button', { name: 'Export rows' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Export lines' })).toBeInTheDocument();
+  });
+
+  it('C20-R8: the selection export says Export lines and carries only the selected categories', async () => {
+    state.versions.data = [active([
+      line('li-labor', 'Labor', 'Design', 100),
+      line('li-materials', 'Materials', 'Steel', 50),
+    ]) as unknown as BudgetVersionWithItems];
+    state.position.rows = [
+      { category: 'Labor', budget: 100, actual: 35 },
+      { category: 'Materials', budget: 50, actual: 10 },
+    ];
+
+    const createObjectURL = vi.fn((_blob: Blob) => 'blob:budget-selection');
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL: vi.fn() });
+    try {
+      renderPage();
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Select Labor' }));
+
+      // The label must describe THIS control — a selection export, never "all" (the toolbar's plain
+      // Export button exports every row, and the two must not read alike).
+      const button = screen.getByRole('button', { name: 'Export lines' });
+      expect(screen.queryByRole('button', { name: /Export all/i })).not.toBeInTheDocument();
+      await userEvent.click(button);
+
+      expect(click).toHaveBeenCalledOnce();
+      const anchor = click.mock.instances[0] as HTMLAnchorElement;
+      expect(anchor.download).toBe('ProjectBudgetSelected.csv');
+      const csv = await (createObjectURL.mock.calls[0][0] as Blob).text();
+      expect(csv).toContain('"Labor"');
+      expect(csv).not.toContain('Materials');
+    } finally {
+      vi.unstubAllGlobals();
+      click.mockRestore();
+    }
   });
 
   it('AC-1402 summary tiles show the same spent and committed totals as the table, not a dash', () => {

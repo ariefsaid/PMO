@@ -520,7 +520,7 @@
       "retryFailedEtc": "Coba lagi menyimpan perubahan yang gagal",
       "editCostToFinish": "Ubah biaya penyelesaian",
       "chooseFiscalYear": "Pilih tahun fiskal untuk melihat proyeksi ERP",
-      "chooseFiscalYearSub": "Aktifkan dan kirim versi anggaran, lalu pilih tahun fiskalnya. Jika belum ada baris buku besar yang masuk, tunggu hingga pencatatan pertama tersinkron.",
+      "chooseFiscalYearSub": "Aktifkan dan kirim versi anggaran, lalu pilih tahun fiskalnya. Jika belum ada entri buku besar yang masuk, tunggu hingga pencatatan pertama tersinkron.",
       "forecastError": "Proyeksi tidak dapat dimuat",
       "noForecastRows": "Tidak ada kategori proyeksi untuk tahun fiskal ini",
       "noForecastRowsSub": "Aktifkan dan kirim versi anggaran untuk tahun fiskal ini. Jika sudah aktif dan terkirim, tunggu hingga pencatatan pertama dari buku besar ERP tersinkron.",

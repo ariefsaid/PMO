@@ -482,7 +482,7 @@ describe('validateGroups — #505: VI tax treatment + tax amount are required', 
   it('#505: a VI row with NO tax amount is invalid — blank never means 0', () => {
     const result = validateRow(viRow({ taxAmount: undefined }));
     expect(result.valid).toBe(false);
-    expect(result.errors.join(' ')).toMatch(/Tax amount is required/i);
+    expect(result.errors.join(' ')).toMatch(/Enter the tax amount/i);
   });
 
   it('#505: a VI row with a NEGATIVE or non-numeric tax amount is invalid', () => {
@@ -576,7 +576,7 @@ describe('supported creation values', () => {
 it('reports unknown record types without throwing', () => {
   const input = row({ caseRef: 'C', type: '__proto__', title: 'Case', status: 'Draft', rowNumber: 1 });
   const [result] = validateGroups([makeGroup([input])], { projectLookup, vendorLookup: vendorLookupOk });
-  expect(result.rows[0].errors.join(' ')).toMatch(/unknown record type/i);
+  expect(result.rows[0].errors.join(' ')).toMatch(/Unrecognized record type/i);
 });
 
 it('does not reject unrelated optional cells', () => {
