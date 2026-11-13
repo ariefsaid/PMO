@@ -286,4 +286,23 @@ describe('UX-081 resolved approval route (S-32)', () => {
     await waitFor(() => expect(screen.getByTestId('spend-route-org')).toHaveTextContent('Only an Admin can decide'));
     expect(screen.getByTestId('spend-route-project')).toHaveTextContent('Only an Admin can decide');
   });
+
+  it('C1: a failed people read has its own Retry that refetches THAT read, and the approver lists stay readable', async () => {
+    // The people list is a SECOND read: when it fails the approver lists themselves are still
+    // readable, so the failure is stated once, beside them, with a retry of its own — never a
+    // sentence that sends the reader to reload the page.
+    listOrgProfiles.mockReset();
+    listOrgProfiles.mockRejectedValueOnce(new Error('network down'));
+    listOrgProfiles.mockResolvedValue([{ id: 'u-fin', full_name: 'Fiona Finance', role: 'Finance', status: 'active' }]);
+    const user = userEvent.setup();
+    renderPanel('Admin');
+
+    expect(await screen.findByText("Couldn't read the people this screen checks")).toBeInTheDocument();
+    expect(await screen.findByText('Fiona Finance')).toBeInTheDocument();
+    expect(screen.getAllByText('Pat PM').length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(listOrgProfiles).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText("Couldn't read the people this screen checks")).not.toBeInTheDocument());
+  });
 });
