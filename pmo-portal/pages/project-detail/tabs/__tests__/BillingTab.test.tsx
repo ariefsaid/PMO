@@ -158,6 +158,13 @@ async function renderTabLocalized(lng: 'en' | 'id') {
 }
 
 describe('BillingTab', () => {
+  it('renders an unpaid claim invoice status from the project translation catalog', async () => {
+    const { i18n } = await renderTabLocalized('id');
+
+    expect(i18n.getResource('id', 'project', 'projectDetail.billing.claims.status.unpaid')).toBe('Belum dibayar');
+    expect(screen.getByText('ACC-SINV-1 · Belum dibayar')).toBeInTheDocument();
+  });
+
   it('AC-1402 counts only fully-paid invoices when any submitted invoice balance is unknown', () => {
     const invoices = [
       { status: 'Unpaid', amount: 10_000.01, erp_outstanding_amount: 4_000.01 },
