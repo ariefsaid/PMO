@@ -111,12 +111,12 @@ const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Bloc
 /**
  * Judging my-tasks #3 (Example: ERPNext list — row actions quiet): a row's Comments and Log time
  * are icon controls, not two outlined word buttons repeating down 17 rows. They keep the row's one
- * control height (38px, DESIGN.md default; compact 30px is for dense toolbars) and take their 44px
- * coarse-pointer hit area from `.touch-target`. Not `buttonClasses('ghost', 'icon')`: that size is
- * the 30px compact square, and this row already holds a 38px status select.
+ * control height (38px, DESIGN.md default; compact 30px is for dense toolbars) and grow to the 44px
+ * phone target the word buttons had (`max-md:size-11`). Not `buttonClasses('ghost', 'icon')`: that
+ * size is the 30px compact square, and this row already holds a 38px status select.
  */
 const ROW_ACTION_CLASS =
-  'touch-target inline-flex size-[var(--control-height)] shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color] duration-[var(--motion-press)] hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  'touch-target inline-flex size-[var(--control-height)] max-md:size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color] duration-[var(--motion-press)] hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 const MyTasks: React.FC = () => {
   const { t } = useTranslation();
