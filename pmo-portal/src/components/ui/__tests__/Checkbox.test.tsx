@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
 import { Checkbox } from '../Checkbox';
 
 describe('Checkbox (custom 16px, role=checkbox)', () => {
@@ -16,6 +17,26 @@ describe('Checkbox (custom 16px, role=checkbox)', () => {
     const onChange = vi.fn();
     render(<Checkbox checked={false} onChange={onChange} label="x" />);
     await userEvent.click(screen.getByRole('checkbox'));
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
+
+  it('keeps a visible label inside the checkbox hit target and reports the updated value', async () => {
+    const onChange = vi.fn();
+    const Harness = () => {
+      const [checked, setChecked] = React.useState(false);
+      return (
+        <Checkbox checked={checked} onChange={(next) => { onChange(next); setChecked(next); }} label="PPN 11%">
+          PPN 11%
+        </Checkbox>
+      );
+    };
+    render(
+      <Harness />,
+    );
+
+    await userEvent.click(screen.getByText('PPN 11%'));
+
+    expect(screen.getByRole('checkbox', { name: 'PPN 11%' })).toHaveAttribute('aria-checked', 'true');
     expect(onChange).toHaveBeenCalledWith(true);
   });
 

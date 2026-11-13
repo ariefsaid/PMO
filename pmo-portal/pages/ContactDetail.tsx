@@ -178,7 +178,9 @@ const ContactDetail: React.FC = () => {
       <RecordHeader
         name={contact.full_name}
         icon={(contact.full_name.trim().charAt(0) || '•').toUpperCase()}
-        status={<StatusPill variant="violet">{t('contactDetail.pill', 'Contact')}</StatusPill>}
+        status={contact.archived_at
+          ? <StatusPill variant="neutral">{t('contactDetail.pill.archived', 'Archived')}</StatusPill>
+          : <StatusPill variant="violet">{t('contactDetail.pill', 'Contact')}</StatusPill>}
         meta={contact.title ? <span>{contact.title}</span> : undefined}
         primaryAction={canEdit ? (
           <Button variant="primary" size="sm" data-testid="contact-edit" onClick={() => setEditOpen(true)}>

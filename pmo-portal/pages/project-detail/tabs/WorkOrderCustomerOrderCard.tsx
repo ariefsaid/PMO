@@ -23,6 +23,7 @@ import type { BoqItemRow } from '@/src/lib/db/progressBilling';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type { ProjectBillingSummary } from '@/src/lib/progressBilling';
 import { deriveWorkOrderBillingState, type WorkOrderBillingState } from '@/src/lib/workOrderBilling';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { summarizeInvoiceSettlement } from '../ContractCascade';
 import WorkOrderAcceptances from '../WorkOrderAcceptances';
 import { WorkOrderCostVariations } from '../WorkOrderCostVariations';
@@ -233,7 +234,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
             </button>
           </h3>
           <span className="min-w-0 break-words text-sm text-foreground">{row.title}</span>
-          <StatusPill variant={workOrderStatusTone}>{row.status}</StatusPill>
+          <StatusPill variant={workOrderStatusTone}>{statusLabel('workOrder', row.status, t)}</StatusPill>
           {canViewBilling && billingState && billingState !== 'not-billable' && <StatusPill variant={billingStateTones[billingState]}>
             {billingStateLabels[billingState]}
           </StatusPill>}
@@ -367,7 +368,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
             return <Tooltip key={invoice.id} content={t('projectDetail.cascade.invoicePillSource', 'Source: invoice status mirrored from accounting.') }>
               <button type="button" className="touch-target rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" aria-label={t('projectDetail.cascade.openInvoice', 'Open invoice {{invoice}}', { invoice: invoice.si_number ?? invoice.status })} onClick={() => openInvoiceDrawer(invoice)}>
                 <span className="mr-1 text-sm text-muted-foreground">{invoice.si_number ?? t('projectDetail.cascade.invoiceDraft', 'Invoice draft')}</span>
-                <StatusPill variant={tone}>{invoice.status}</StatusPill>
+                <StatusPill variant={tone}>{statusLabel('salesInvoice', invoice.status, t)}</StatusPill>
               </button>
             </Tooltip>;
           })}

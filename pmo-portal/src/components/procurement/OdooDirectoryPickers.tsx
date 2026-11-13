@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { SelectField } from '@/src/components/ui';
+import { Checkbox, SelectField } from '@/src/components/ui';
 import { useMasterRecords, useMasterSummary } from '@/src/hooks/useOdoo';
 import { formatRelativeTime } from '@/src/lib/format';
 import type { MirrorKind, MasterRecord } from '@/src/lib/repositories/types';
@@ -34,15 +34,14 @@ export const OdooTaxPicker: React.FC<{ value: string[]; onChange: (ids: string[]
       <legend className="mb-1 text-sm font-semibold text-muted-foreground">{t('odoo.taxes.label', 'Taxes')}</legend>
       <div className="flex flex-wrap gap-x-4 gap-y-1.5">
         {rows.map((r) => (
-          <label key={r.external_id} className="inline-flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="size-4 accent-[hsl(var(--primary))]"
-              checked={value.includes(r.external_id)}
-              onChange={() => onChange(value.includes(r.external_id) ? value.filter((v) => v !== r.external_id) : [...value, r.external_id])}
-            />
+          <Checkbox
+            key={r.external_id}
+            checked={value.includes(r.external_id)}
+            onChange={(checked) => onChange(checked ? [...value, r.external_id] : value.filter((v) => v !== r.external_id))}
+            label={r.name}
+          >
             {r.name}
-          </label>
+          </Checkbox>
         ))}
       </div>
       <p id={reason ? 'odoo-tax-reason' : undefined} className="mt-1 text-sm text-muted-foreground">

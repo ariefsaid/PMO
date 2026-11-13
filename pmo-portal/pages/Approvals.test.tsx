@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
@@ -91,7 +91,8 @@ vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingVie
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
-vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => ({ data: { plans: [], replenishments: [] }, isPending: false, isError: false, refetch: vi.fn() }) }));
+const imprestState = { data: { plans: [] as unknown[], replenishments: [] as unknown[] }, isPending: false, isError: false, refetch: vi.fn() };
+vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => imprestState }));
 const correctionState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => correctionState,
@@ -185,7 +186,11 @@ const desktopSheets: TimesheetAwaitingApproval[] = [
 // CW-6: /approvals now splits its two modules into deep-linkable scope tabs. This file
 // tests the TIMESHEET section's behavior (approve/return), so it deep-links to that scope
 // (`?scope=timesheets`) — the timesheet panel is the surface under test here.
-const renderPage = (scope: 'all' | 'timesheets' | 'procurement' = 'timesheets', largeScreen = true) => {
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="approvals-location">{location.pathname}{location.search}</output>;
+};
+const renderPage = (scope: 'all' | 'timesheets' | 'procurement' | 'expense' = 'timesheets', largeScreen = true) => {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation(() => ({
     matches: largeScreen,
     addEventListener: vi.fn(),
@@ -196,6 +201,7 @@ const renderPage = (scope: 'all' | 'timesheets' | 'procurement' = 'timesheets', 
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <ToastProvider>
           <ApprovalsPage />
+          <LocationProbe />
         </ToastProvider>
       </QueryClientProvider>
     </MemoryRouter>,
@@ -213,6 +219,10 @@ beforeEach(() => {
   expenseState.data = [];
   expenseState.isPending = false;
   expenseState.isError = false;
+  imprestState.data = { plans: [], replenishments: [] };
+  imprestState.isPending = false;
+  imprestState.isError = false;
+  imprestState.refetch = vi.fn();
   correctionState.data = [];
   correctionState.isPending = false;
   correctionState.isError = false;
@@ -371,6 +381,19 @@ describe('Approvals page data', () => {
     expect(screen.getAllByText('€1,000').length).toBeGreaterThan(0);
     expect(screen.queryByText('$1,000')).not.toBeInTheDocument();
   });
+});
+
+it('C9 the site-cash approval link opens its float record', async () => {
+  authState.role = 'Admin';
+  expenseState.data = [{ claim: { id: 'ex1', created_at: '2026-06-03', status: 'Submitted', claimant_id: 'other', claim_number: 'EXP-1', title: 'Travel', amount: 250, currency: 'USD', claimant: { full_name: 'Colleague' } }, route: { route: 'project', approvers: [{ id: 'u-mgr' }] } }];
+  imprestState.data = { plans: [], replenishments: [{
+    id: 'rep-1', float_id: 'f1', number: 'REP-1', status: 'Requested', requested_by: 'u-cust', approved_by: null,
+    amount: 1000, float: { custodian_id: 'u-cust', project: { name: 'North Terminal' }, currency: 'IDR' },
+  }] };
+  const user = userEvent.setup();
+  renderPage('expense');
+  await user.click(screen.getByRole('link', { name: 'REP-1' }));
+  expect(screen.getByTestId('approvals-location')).toHaveTextContent('/imprest/f1');
 });
 
 // ---------------------------------------------------------------------------

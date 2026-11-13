@@ -16,6 +16,7 @@ import { VendorInvoiceCaptureFields } from './VendorInvoiceCaptureFields';
 import React, { useState } from 'react';
 import type { TFunction } from 'i18next';
 import { Button, ConfirmDialog, FieldError, Icon, SelectField, useMoneyInputMask, useToast } from '@/src/components/ui';
+import { Input } from '@/src/components/shadcn/input';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProcurementInvoiceRow, TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { RECORD_AMOUNT_ERROR, parseRecordAmount } from './recordAmount';
@@ -438,7 +439,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
               ? t('procurementDetail.vendorInvoice.invoiceNumber', 'Invoice #')
               : cfg.refLabel} {kind !== 'payment' && <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>}
         </label>
-        <input
+        <Input
           id={`${formId}-ref`}
           type="text"
           value={referenceNumber}
@@ -460,7 +461,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             {t('procurementDetail.groupRef.label', 'Group ref')}{' '}
             <span className="font-normal">{t('procurementDetail.groupRef.optional', '(optional)')}</span>
           </label>
-          <input
+          <Input
             id={`${formId}-group-ref`}
             type="text"
             value={groupRef}
@@ -487,7 +488,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
                 ? t('procurementDetail.dateLabel', 'Date')
                 : cfg.dateLabel}
           </label>
-          <input
+          <Input
             id={`${formId}-date`}
             type="date"
             value={date}
@@ -575,7 +576,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
                 : t('procurementDetail.amountOptional', 'Amount (optional)')}
             {currency ? ` · ${currency}` : null}
           </label>
-          <input
+          <Input
             id={`${formId}-amount`}
             type="text"
             inputMode="decimal"

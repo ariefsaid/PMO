@@ -27,5 +27,9 @@
   "error": {
     "title": "Kalender tidak dapat dimuat",
     "sub": "Periksa koneksi Anda lalu coba lagi."
-  }
+  },
+  "phasesUnavailable": "Fase tidak dapat dimuat, sehingga kalender ini tidak menampilkannya. Tugas tetap ditampilkan.",
+  "retry": "Coba lagi",
+  "undatedNotice": "Hanya pekerjaan bertanggal yang tampil di sini. Tugas tanpa tenggat tidak ada di kalender — tugas itu tetap ada di daftar tugas proyeknya.",
+  "overdue": "Terlambat"
 }

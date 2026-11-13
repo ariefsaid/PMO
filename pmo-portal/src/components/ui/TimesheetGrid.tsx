@@ -8,6 +8,7 @@ import { useIsDesktop } from './useIsDesktop';
 import { ProjectNameLink } from './ProjectNameLink';
 import { useTranslation } from 'react-i18next';
 import { formatNumberExact } from '@/src/lib/format';
+import { TextArea, TextField } from './FormFields';
 
 export interface TimesheetDay {
   /** Short weekday label, e.g. "Mon". */
@@ -221,30 +222,17 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
           const value = raw !== undefined ? raw : h === 0 ? '' : formatNumberExact(h);
           return (
             <div className={tint(d.weekend)} style={{ minHeight: 54 }}>
-              <input
-                type="text"
+              <TextField
+                label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: d.label })}
+                hideLabel
+                fullWidth
+                value={value}
+                onChange={(next) => onCellChange?.(r.id, i, next)}
                 inputMode="decimal"
                 autoComplete="off"
-                aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: d.label })}
-                aria-invalid={invalid || undefined}
-                value={value}
-                onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
-                className={cn(
-                  'touch-target mx-auto block h-9 min-w-[44px] w-full max-w-[64px] rounded-md border bg-card text-center text-control tabular text-foreground',
-                  invalid ? 'border-destructive' : 'border-border'
-                )}
+                error={invalid ? t('timesheets.invalidHours', '0–24 only') : undefined}
+                className="touch-target mx-auto block max-w-[64px] text-center tabular"
               />
-              {invalid && (
-                <span
-                  role="alert"
-                  // Darkened destructive text variant (the system's error-text value,
-                  // shared with ErrBanner/ListState) — ~6.5:1 on white, clears WCAG-AA.
-                  style={{ color: 'hsl(0 72% 42%)' }}
-                  className="mt-0.5 block text-center text-control leading-tight"
-                >
-                  {t('timesheets.invalidHours', '0–24 only')}
-                </span>
-              )}
             </div>
           );
         }
@@ -441,28 +429,17 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                         <span className="ml-1 font-normal tabular">{day.dateNum}</span>
                       </span>
                       <div className="flex-1">
-                        <input
-                          type="text"
+                        <TextField
+                          label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: day.label })}
+                          hideLabel
+                          fullWidth
+                          value={value}
+                          onChange={(next) => onCellChange?.(r.id, i, next)}
                           inputMode="decimal"
                           autoComplete="off"
-                          aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: day.label })}
-                          aria-invalid={invalid || undefined}
-                          value={value}
-                          onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
-                          className={cn(
-                            'touch-target block h-9 w-full rounded-md border bg-card px-3 text-control tabular text-foreground',
-                            invalid ? 'border-destructive' : 'border-border'
-                          )}
+                          error={invalid ? t('timesheets.invalidHours', '0–24 only') : undefined}
+                          className="touch-target block w-full tabular"
                         />
-                        {invalid && (
-                          <span
-                            role="alert"
-                            style={{ color: 'hsl(0 72% 42%)' }}
-                            className="mt-0.5 block text-control leading-tight"
-                          >
-                            {t('timesheets.invalidHours', '0–24 only')}
-                          </span>
-                        )}
                       </div>
                     </div>
                   );
@@ -606,14 +583,17 @@ const NoteCell: React.FC<{
   }
 
   return (
-    <textarea
+    <TextArea
       ref={noteRef}
       rows={2}
-      aria-label={t('timesheets.noteForProject', '{{project}} note', { project })}
+      label={t('timesheets.noteForProject', '{{project}} note', { project })}
+      hideLabel
+      wrapperClassName="min-w-0 flex-1"
+      unstyled
       placeholder={t('timesheets.addNotePlaceholder', 'Add a note')}
       title={value}
       value={value}
-      onChange={(e) => onNoteChange?.(rowId, e.target.value)}
+      onChange={(next) => onNoteChange?.(rowId, next)}
       // Demoted to a single bottom hairline (Single-Border Rule) so the note reads
       // quieter than the bordered hour cells; touch-target keeps a ≥44px hit-area.
       className="touch-target mt-1 min-h-12 w-full resize-none rounded-none border-0 border-b border-border bg-transparent px-0 py-1 text-base leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring md:text-control"

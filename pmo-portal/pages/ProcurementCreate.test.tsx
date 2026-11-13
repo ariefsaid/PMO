@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn(),
   canCreate: true,
   currency: 'USD',
+  orgFxContext: { data: { currency: 'USD' } as { currency: string } | undefined, isPlaceholderData: false, isError: false, isPending: false, refetch: vi.fn() },
   realRole: 'Admin' as string,
   projectQuery: { data: [{ value: 'p1', label: 'Project One' }], isPending: false, isError: false, refetch: vi.fn() },
   vendorQuery: { data: [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }], isPending: false, isError: false, refetch: vi.fn() },
@@ -29,7 +30,7 @@ vi.mock('@/src/auth/impersonation', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/src/auth/impersonation')>(),
   useOptionalRealRole: () => mocks.realRole,
 }));
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => mocks.currency }));
+vi.mock('@/src/hooks/useOrgFxContext', () => ({ useOrgFxContext: () => mocks.orgFxContext }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => mocks.projectQuery,
   useVendorOptions: () => mocks.vendorQuery,
@@ -57,6 +58,7 @@ describe('AC-PROC1 one-page request creation', () => {
     vi.clearAllMocks();
     mocks.canCreate = true;
     mocks.currency = 'USD';
+    mocks.orgFxContext = { data: { currency: 'USD' }, isPlaceholderData: false, isError: false, isPending: false, refetch: vi.fn() };
     mocks.realRole = 'Admin';
     mocks.projectQuery.isPending = false; mocks.projectQuery.isError = false;
     mocks.projectQuery.data = [{ value: 'p1', label: 'Project One' }];
@@ -82,6 +84,20 @@ describe('AC-PROC1 one-page request creation', () => {
     view.rerender(<MemoryRouter initialEntries={['/procurement/new?have=need']}><Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes></MemoryRouter>);
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     expect(await screen.findByRole('option', { name: /New Supplier/ })).toBeVisible();
+  });
+
+  it('C5 keeps new line money unknown until currency resolves and offers a retry after its read fails', () => {
+    mocks.orgFxContext = { data: undefined, isPlaceholderData: true, isError: true, isPending: false, refetch: vi.fn() };
+    renderCreate();
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Steel beams' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '100' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add line item' }));
+    expect(screen.getAllByText('Unknown')).toHaveLength(3);
+    expect(screen.queryByText(/\$200/)).not.toBeInTheDocument();
+    expect(screen.getByText("Couldn't load your organisation's currency.")).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(mocks.orgFxContext.refetch).toHaveBeenCalledTimes(1);
   });
 
   it('SEC-RS-5: shows the five intake choices to Finance and only the plain request to an Engineer', () => {
@@ -481,7 +497,7 @@ describe('AC-PROC1 one-page request creation', () => {
   });
 
   it('AC-PROC1-008 formats draft line totals in the organization currency', () => {
-    mocks.currency = 'IDR';
+    mocks.orgFxContext.data = { currency: 'IDR' };
     renderCreate();
     fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
