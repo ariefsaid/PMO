@@ -111,14 +111,15 @@ function payablesFixture(): FinancePosition {
 }
 
 function Location() {
-  return <output aria-label="Current path">{useLocation().pathname}</output>;
+  const location = useLocation();
+  return <output aria-label="Current path">{`${location.pathname}${location.search}`}</output>;
 }
 
-function renderPage(role = 'Finance', position: FinancePosition = payablesFixture()) {
+function renderPage(role = 'Finance', position: FinancePosition = payablesFixture(), initialEntry = '/finance/payables') {
   state.role = role;
   state.position = position;
   return render(
-    <MemoryRouter initialEntries={['/finance/payables']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/finance/payables" element={<><PayablesPage /><Location /></>} />
         <Route path="/procurement/:id" element={<><p>PROCUREMENT RECORD</p><Location /></>} />
@@ -205,6 +206,46 @@ describe('Payables page', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }));
 
     expect(state.retryOrgDay).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an active overdue filter in a loading state until age data arrives', () => {
+    state.orgDayPending = true;
+    renderPage('Finance', payablesFixture(), '/finance/payables?overdue=true');
+
+    expect(screen.getByRole('button', { name: 'Clear overdue filter' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('payables-overdue-count')).toHaveTextContent('Overdue filter active');
+    expect(within(screen.getByTestId('finance-payables-table-card')).getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByText('No supplier invoices over 90 days match the current filters.')).not.toBeInTheDocument();
+  });
+
+  it('shows an age-filter error with its own retry and lets the user clear the filter', async () => {
+    state.orgDayError = true;
+    const user = userEvent.setup();
+    renderPage('Finance', payablesFixture(), '/finance/payables?overdue=true');
+
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.getAllByRole('alert')[0]).toHaveTextContent("Couldn't load balance ageings");
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(state.retryOrgDay).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Clear overdue filter' }));
+    expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toBeInTheDocument();
+  });
+
+  it('keeps an active overdue filter clearable while the payable read is pending or failed', async () => {
+    const user = userEvent.setup();
+    state.payablesPending = true;
+    const pendingView = renderPage('Finance', payablesFixture(), '/finance/payables?overdue=true');
+
+    await user.click(screen.getByRole('button', { name: 'Clear overdue filter' }));
+    expect(new URLSearchParams(screen.getByRole('status', { name: 'Current path' }).textContent?.split('?')[1] ?? '').has('overdue')).toBe(false);
+    pendingView.unmount();
+
+    state.payablesPending = false;
+    state.payablesError = true;
+    renderPage('Finance', payablesFixture(), '/finance/payables?overdue=true');
+    await user.click(screen.getByRole('button', { name: 'Clear overdue filter' }));
+    expect(new URLSearchParams(screen.getByRole('status', { name: 'Current path' }).textContent?.split('?')[1] ?? '').has('overdue')).toBe(false);
   });
 
   it('B5: shows its loading state while the linked purchase read is pending', () => {
