@@ -194,6 +194,8 @@
     "pairedCountedOnce": "Dihitung sekali bersama faktur ERP {{number}}.",
     "allocatedInErp": "Dialokasikan di sistem akuntansi Anda; hanya bisa dilihat di sini.",
     "helpAges": "Saldo klien menurut umur dihitung dari hari lewat jatuh tempo, termasuk pajak. Jatuh tempo hanya menampilkan saldo yang diketahui; faktur tanpa saldo diketahui dicantumkan, tidak dijumlahkan.",
+    "overdueCount_one": "{{count}} lewat jatuh tempo",
+    "overdueCount_other": "{{count}} lewat jatuh tempo",
     "overduePercent": "{{percent}}% dari piutang",
     "nextDue": "jatuh tempo berikutnya {{date}}",
     "vsLastMonth": "{{delta}} dibanding bulan lalu",
