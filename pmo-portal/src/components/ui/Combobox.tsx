@@ -99,7 +99,7 @@ export interface ComboboxProps {
   /** Stable DOM id for form error-summary focus links. */
   id?: string;
   className?: string;
-  /** Use the compact 30px control when this picker sits beside compact toolbar controls. */
+  /** Use the compact 30px control when this picker sits beside other compact controls. */
   compact?: boolean;
 }
 

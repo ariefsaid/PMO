@@ -28,11 +28,15 @@ describe('Combobox: closed state + a11y on the trigger', () => {
     );
     const trigger = screen.getByRole('combobox', { name: 'Client company' });
     expect(trigger).toHaveClass(
+      'h-auto',
       'min-h-[var(--control-height)]',
+      'rounded-md',
       'bg-card',
       'px-3',
+      'py-1',
       'border-border',
       'hover:enabled:border-input',
+      '[@media(pointer:coarse)]:min-h-11',
     );
     expect(trigger).not.toHaveClass('min-h-8', 'bg-background', 'hover:border-input');
   });
