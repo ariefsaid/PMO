@@ -4,8 +4,8 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
-  Button, Card, CardHead, CardPad, Combobox, UnsavedChangesDialog, FormGrid,
-  ListState, RecordHeader, SelectField, TextField, useToast,
+  Button, Card, CardHead, CardPad, Combobox, UnsavedChangesDialog, FormFooter, FormGrid,
+  ListState, PageHeader, SelectField, TextField, useToast,
   type ComboboxOption,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
@@ -132,9 +132,11 @@ const MeetingCreate: React.FC = () => {
 
   if (!may('create', 'meeting')) return <ListState variant="empty" title={tCreate('denied', 'You do not have permission to create meetings.')} />;
 
-  return <form onSubmit={onSave}>
-    <div className="mb-3"><BackBar label={t('meetingDetail.backToMeetings', 'Meetings')} onBack={() => guardLeave(() => returnToList())} /></div>
-    <RecordHeader name={title.value || t('meetings.form.newTitle', 'New meeting')} icon="M" status={null} />
+  return <form onSubmit={onSave} className="mx-auto w-full max-w-[880px]">
+    <PageHeader title={t('meetings.form.newTitle', 'New meeting')} />
+    {/* One back on desktop, where the shell breadcrumb reads Meetings > New meeting. The breadcrumb
+        hides its parent crumb at phone width, so the guarded bar stays exactly there (#735). */}
+    <BackBar label={t('meetingDetail.backToMeetings', 'Meetings')} phoneOnly onBack={() => guardLeave(() => returnToList())} />
     <section className="mb-4" aria-label={t('meetingDetail.form.sections.details', 'Details')}>
       <FormGrid>
         <TextField id={title.id} label={t('meetings.form.title.label', 'Title')} required placeholder={t('meetings.form.title.placeholder', 'e.g. Weekly site coordination')} value={title.value} onChange={title.onChange} onBlur={title.onBlur} error={title.error} fullWidth disabled={Boolean(savedMeetingId) || form.isSubmitting} />
@@ -158,7 +160,7 @@ const MeetingCreate: React.FC = () => {
       </fieldset>
     </CardPad></Card>
     {saveError && <p role="alert" className="mb-4 text-sm text-destructive-text">{tCreate('partialSaveFailed', 'Meeting saved, but some details were not saved. Save again to retry.')}</p>}
-    <div className="flex justify-end pb-6"><Button type="submit" variant="primary" disabled={form.isSubmitting || create.isPending}>{tCreate('save', 'Save meeting')}</Button></div>
+    <FormFooter submitLabel={tCreate('save', 'Save meeting')} hideCancel onCancel={() => guardLeave(() => returnToList())} disabled={form.isSubmitting || create.isPending} loading={form.isSubmitting} />
     <UnsavedChangesDialog open={pendingLeave !== null} onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }} onKeepEditing={() => setPendingLeave(null)} />
   </form>;
 };

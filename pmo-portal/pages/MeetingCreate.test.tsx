@@ -379,3 +379,26 @@ describe('floor — the new-meeting controls keep working', () => {
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Rule 1 (judging move 1): a create form is a plain page title, not a record header — there is no
+ * record yet, so no avatar card and no second back beside the breadcrumb.
+ */
+describe('rule 1 — the create shell', () => {
+  it('rule 1: the page carries a plain title, and typing a title does not grow a second header', async () => {
+    renderPage();
+    expect(screen.getByRole('heading', { level: 1, name: 'New meeting' })).toBeVisible();
+
+    await userEvent.type(screen.getByLabelText(/Title/), 'Design review');
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Design review' })).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Title/ })).toHaveValue('Design review');
+  });
+
+  it('rule 1: the one primary action sits in the shared form footer', () => {
+    renderPage();
+    const footer = screen.getByTestId('form-footer');
+    expect(within(footer).getByRole('button', { name: 'Save meeting' })).toBeEnabled();
+    expect(screen.getAllByRole('button', { name: 'Save meeting' })).toHaveLength(1);
+  });
+});
