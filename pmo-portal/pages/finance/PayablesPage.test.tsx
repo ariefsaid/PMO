@@ -22,7 +22,8 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/auth/usePermission', () => ({
-  usePermission: () => (action: string, entity: string) => entity === 'finance' && action === 'view',
+  // The page's own gate: finance.view, which the role inventory denies to Engineer.
+  usePermission: () => (action: string, entity: string) => state.role !== 'Engineer' && entity === 'finance' && action === 'view',
 }));
 vi.mock('@/src/hooks/useFinancePosition', () => ({
   useFinancePosition: () => ({ position: state.position, isPending: state.financePending, isError: state.financeError, retry: vi.fn() }),
@@ -124,6 +125,7 @@ function renderPage(role = 'Finance', position: FinancePosition = payablesFixtur
         <Route path="/finance/payables" element={<><PayablesPage /><Location /></>} />
         <Route path="/procurement/:id" element={<><p>PROCUREMENT RECORD</p><Location /></>} />
         <Route path="/companies/:id" element={<p>SUPPLIER RECORD</p>} />
+        <Route path="/" element={<><p>DASHBOARD</p><Location /></>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -377,6 +379,24 @@ describe('Payables page', () => {
     expect(state.exportXlsx.mock.calls[0][0]).toHaveLength(2);
   });
 
+  it('exports every visible payable row from Export', async () => {
+    const base = payablesFixture();
+    const second = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-2', title: 'Crane rental', code: 'PR-105', vendor: { name: 'Bumi Rental' }, vendor_id: 'supplier-2' },
+      ageDays: 12,
+      amount: 2_000_000,
+    } as FinancePosition['payables'][number];
+    const user = userEvent.setup();
+    renderPage('Finance', { ...base, payables: [base.payables[0], second] });
+
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+
+    expect(state.exportXlsx).toHaveBeenCalledTimes(1);
+    expect(state.exportXlsx.mock.calls[0][0]).toHaveLength(2);
+    expect(state.exportXlsx.mock.calls[0][0].map((row: FinancePosition['payables'][number]) => row.procurement.vendor?.name)).toEqual(['Sinar Supplier', 'Bumi Rental']);
+  });
+
   it('opens the supplier from a row action menu', async () => {
     const user = userEvent.setup();
     renderPage();
@@ -402,6 +422,17 @@ describe('Payables page', () => {
 
     expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Record payment|Edit|Cancel|Pay supplier/i })).not.toBeInTheDocument();
+  });
+
+  it('sends a role without finance view back to the dashboard from the access-denied page', async () => {
+    const user = userEvent.setup();
+    renderPage('Engineer');
+
+    expect(screen.queryByTestId('finance-payables-table-card')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Back to Dashboard' }));
+    expect(screen.getByText('DASHBOARD')).toBeInTheDocument();
   });
 
   it('uses the supplier invoice empty state when no procurement is awaiting payment (ported from PayablesList)', () => {
