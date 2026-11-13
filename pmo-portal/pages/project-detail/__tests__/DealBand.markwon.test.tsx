@@ -146,7 +146,7 @@ describe('DealBand — mark-won shows the booked value (AC-IXD-DASH-005)', () =>
 
     const save = screen.getByRole('button', { name: 'Save' });
     expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(1);
-    expect(save).toHaveAttribute('data-variant', 'primary');
+    expect(save).toHaveAttribute('data-variant', 'outline');
     await user.click(save);
 
     await vi.waitFor(() => {
