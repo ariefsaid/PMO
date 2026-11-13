@@ -297,8 +297,31 @@ describe('OD-TAX-1 §2: the pipeline board states shared tax basis once (#578)',
   });
 });
 
-describe('SalesKanbanBoard stage line + Signed pill (#1638)', () => {
-  beforeEach(() => { vi.useFakeTimers({ now: new Date('2026-11-01T05:00:00Z'), toFake: ['Date'] }); });
+// One percent sign, not two. The badge template carries the "%", so the number it is given must
+// not already include one — every card and phone row read "2.5%%" before this.
+describe('the chance badge states the percent once', () => {
+  const lowChance = (id: string, name: string): PipelineProject => ({
+    ...projects[0], id, name, go_probability: 0.1, get_probability: 0.25,
+  });
+
+  it('reads "2.5%" on a board card, with the same number in its accessible name', () => {
+    render(<SalesKanbanBoard projects={[lowChance('chance-card', 'Low chance deal')]} onOpen={vi.fn()} />);
+    const badge = within(screen.getByText('Low chance deal').closest('[data-testid="project-card"]') as HTMLElement)
+      .getByLabelText(/^Chance 2\.5%/);
+    expect(badge.textContent).toBe('2.5%');
+  });
+
+  it('reads "2.5%" on the phone list row', () => {
+    const CompactBoard = SalesKanbanBoard as React.ComponentType<
+      React.ComponentProps<typeof SalesKanbanBoard> & { presentation: 'list' }
+    >;
+    render(<CompactBoard projects={[lowChance('chance-row', 'Low chance row')]} onOpen={vi.fn()} presentation="list" />);
+    const badge = within(screen.getByTestId('project-card')).getByLabelText(/^Chance 2\.5%/);
+    expect(badge.textContent).toBe('2.5%');
+  });
+});
+
+describe('SalesKanbanBoard stage line + Signed pill (#1638)', () => {  beforeEach(() => { vi.useFakeTimers({ now: new Date('2026-11-01T05:00:00Z'), toFake: ['Date'] }); });
   afterEach(() => { vi.useRealTimers(); });
 
   it('AC-PSH-011: an open deal card shows one stage line for its latest entry', () => {

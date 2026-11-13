@@ -51,9 +51,24 @@ interface SalesKanbanBoardProps {
   };
 }
 
+/**
+ * A deal's chance: the product of its Go and Get estimates, with Go falling back to the record's
+ * win probability and Get to 1 (100%) — the fallbacks the badge has always used.
+ */
+const dealChance = (project: PipelineProject): number =>
+  (project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1);
+
+/**
+ * The chance badge's NUMBER, without a percent sign. `formatPercent` is the ONE percent formatter
+ * on this screen and already prints the locale's sign, so the badge template (`{{pct}}%`) supplies
+ * it once — passing the formatter's output straight in read "2.5%%" on every card and phone row.
+ * The sign is stripped rather than added twice; a sign-prefixing locale would need the template
+ * changed, which is why the strip is anchored to the end.
+ */
+const chanceNumber = (project: PipelineProject): string => formatPercent(dealChance(project)).replace(/\s*%$/, '');
+
 /** #1638 FR-PSH-013: one line for the latest stage entry; lost deals date from decided_at (an instant). */
-const DealStageLine: React.FC<{ project: PipelineProject }> = ({ project }) => {
-  const { t } = useTranslation();
+const DealStageLine: React.FC<{ project: PipelineProject }> = ({ project }) => {  const { t } = useTranslation();
   const today = useOrgToday();
   const lost = project.status === 'Loss Tender' || project.status === 'Declined';
   const enteredOn = lost
@@ -147,11 +162,11 @@ const DealCard: React.FC<{
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
               <Badge aria-label={t('sales:chanceBadgeAria', 'Chance {{chance}}; % Go {{go}}, % Get {{get}}', {
-                chance: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)),
+                chance: formatPercent(dealChance(project)),
                 go: formatPercent(project.go_probability ?? project.win_probability),
                 get: formatPercent(project.get_probability ?? 1),
               })} className="px-1.5">
-                {t('sales:chanceValue', '{{pct}}%', { pct: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)) })}
+                {t('sales:chanceValue', '{{pct}}%', { pct: chanceNumber(project) })}
               </Badge>
             </div>
           </div>
@@ -212,11 +227,11 @@ const CompactDealCard: React.FC<{
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
               <Badge aria-label={t('sales:chanceBadgeAria', 'Chance {{chance}}; % Go {{go}}, % Get {{get}}', {
-                chance: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)),
+                chance: formatPercent(dealChance(project)),
                 go: formatPercent(project.go_probability ?? project.win_probability),
                 get: formatPercent(project.get_probability ?? 1),
               })} className="px-1.5">
-                {t('sales:chanceValue', '{{pct}}%', { pct: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)) })}
+                {t('sales:chanceValue', '{{pct}}%', { pct: chanceNumber(project) })}
               </Badge>
             </div>
           </div>
