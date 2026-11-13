@@ -142,9 +142,9 @@ async function enterHours() {
 }
 
 async function confirmSubmit(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: /^Submit timesheet$/i }));
+  await user.click(screen.getByRole('button', { name: /^Submit week$/i }));
   const dialog = screen.getByRole('dialog');
-  await user.click(within(dialog).getByRole('button', { name: /^Submit timesheet$/i }));
+  await user.click(within(dialog).getByRole('button', { name: /^Submit week$/i }));
 }
 
 beforeEach(() => {
@@ -170,10 +170,10 @@ describe('AC-TM-018: save a new week before submitting it', () => {
     const user = await enterHours();
     const footer = screen.getByTestId('timesheets-footer');
 
-    await user.click(within(footer).getByRole('button', { name: /^Save$/i }));
+    await user.click(within(footer).getByRole('button', { name: /^Save draft$/i }));
     await waitFor(() => expect(repositoryMocks.saveWeek).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(server.waitingReads.length).toBeGreaterThan(0));
-    await waitFor(() => expect(within(footer).getByRole('button', { name: /^Save$/i })).toBeEnabled());
+    await waitFor(() => expect(within(footer).getByRole('button', { name: /^Save draft$/i })).toBeEnabled());
 
     await confirmSubmit(user);
 
@@ -192,7 +192,7 @@ describe('AC-TM-018: save a new week before submitting it', () => {
     const server = emptySheetRepository({ holdReads: true });
     renderPage();
     const user = await enterHours();
-    const saveButton = within(screen.getByTestId('timesheets-footer')).getByRole('button', { name: /^Save$/i });
+    const saveButton = within(screen.getByTestId('timesheets-footer')).getByRole('button', { name: /^Save draft$/i });
 
     await user.click(saveButton);
     await waitFor(() => expect(repositoryMocks.saveWeek).toHaveBeenCalledTimes(1));

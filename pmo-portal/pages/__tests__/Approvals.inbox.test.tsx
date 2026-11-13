@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
@@ -15,6 +15,7 @@ import type { Role } from '@/src/auth/AuthContext';
  *   Role-awareness: eligible managers also receive their timesheet queue.
  */
 const navigateMock = vi.fn();
+const detailRead = { isError: false, refetch: vi.fn() };
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
@@ -96,8 +97,8 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
       items: (id && detailItems[id]) || [{ id: 'li1', name: 'Beam', quantity: 1, rate: 48000, amount: 48000, description: null }],
     },
     isPending: false,
-    isError: false,
-    refetch: vi.fn(),
+    isError: detailRead.isError,
+    refetch: detailRead.refetch,
   }),
   useProcurementMutations: () => ({ transition: { mutate: vi.fn(), isPending: false } }),
 }));
@@ -123,9 +124,14 @@ const pageAs = (realRole: Role, initialPath = '/approvals') =>
       <ImpersonationProvider realRole={realRole}>
         <ToastProvider>
           <ApprovalsPage />
+          <LocationProbe />
         </ToastProvider>
       </ImpersonationProvider>
     </MemoryRouter>;
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="approval-location">{location.pathname}{location.search}</output>;
+};
 const renderAs = (realRole: Role, initialPath = '/approvals') => render(pageAs(realRole, initialPath));
 
 beforeEach(() => {
@@ -133,6 +139,8 @@ beforeEach(() => {
   procState.data = procRows;
   procState.isPending = false;
   procState.isError = false;
+  detailRead.isError = false;
+  detailRead.refetch.mockReset();
   tsState.data = [{ id: 's1', status: 'Submitted', week_start_date: '2026-06-01', owner: { full_name: 'Anita Rao' }, entries: [{ project_id: 'pA', entry_date: '2026-06-01', hours: 8, project: { name: 'Apollo', code: 'PRJ-014' } }] }];
   tsState.isPending = false;
   tsState.isError = false;
@@ -285,6 +293,73 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveAttribute('aria-selected', 'true');
     expect(within(preview).getByText(/Anita Rao/i)).toBeInTheDocument();
     expect(screen.queryByText(/Steel beams/i)).not.toBeInTheDocument();
+  });
+
+  it('the phone scope control selects Expense claims and updates the URL', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = (() => ({
+      matches: false, media: '', onchange: null, addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      renderAs('Project Manager', '/approvals?scope=procurement');
+      const scope = screen.getByLabelText('Approvals scope');
+      await userEvent.selectOptions(scope, 'expense');
+      expect(scope).toHaveValue('expense');
+      expect(screen.getByTestId('approval-location')).toHaveTextContent('/approvals?scope=expense');
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it('approved history disclosure shows its records and collapses them again', async () => {
+    reopenableState.data = [{ id: 'approved-week', user_id: 'other', week_start_date: '2026-05-25', status: 'Approved', owner: { full_name: 'Reviewer' }, entries: [], mirror: null, pushCommandState: null }];
+    const user = userEvent.setup();
+    renderAs('Project Manager');
+    const summary = screen.getByText('Approved history and corrections');
+    const details = summary.closest('details') as HTMLElement;
+    expect(details).not.toHaveAttribute('open');
+    await user.click(summary);
+    expect(details).toHaveAttribute('open');
+    expect(within(details).getByText('Reviewer')).toBeVisible();
+    await user.click(summary);
+    expect(details).not.toHaveAttribute('open');
+    expect(within(details).queryByText('Reviewer')).not.toBeInTheDocument();
+  });
+
+  it('procurement row checkbox selects the request and Clear returns to the queue', async () => {
+    const user = userEvent.setup();
+    renderAs('Project Manager', '/approvals?scope=procurement');
+    await user.click(screen.getByRole('button', { name: 'Select purchases' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select Steel beams' }));
+    expect(screen.getByText('1 selected')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.queryByRole('checkbox', { name: 'Select Steel beams' })).not.toBeInTheDocument();
+  });
+
+  it('a failed procurement preview has its own Retry for the detail read', async () => {
+    detailRead.isError = true;
+    const user = userEvent.setup();
+    renderAs('Project Manager', '/approvals?scope=procurement');
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
+    const retry = within(preview).getByRole('button', { name: 'Retry' });
+    await user.click(retry);
+    expect(detailRead.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('Open procurement navigates from the preview to its record', async () => {
+    const user = userEvent.setup();
+    renderAs('Project Manager', '/approvals?scope=procurement');
+    await user.click(screen.getByRole('link', { name: 'Open procurement' }));
+    expect(screen.getByTestId('approval-location')).toHaveTextContent('/procurement/pr1');
+  });
+
+  it('the expense claim number opens the claim record', async () => {
+    expenseState.data = [{ claim: { id: 'ex1', created_at: '2026-06-03', status: 'Submitted', claimant_id: 'other', claim_number: 'EXP-1', title: 'Travel', amount: 250, currency: 'USD', claimant: { full_name: 'Colleague' } }, route: { route: 'project', approvers: [{ id: 'me' }] } }];
+    const user = userEvent.setup();
+    renderAs('Project Manager', '/approvals?scope=expense');
+    await user.click(screen.getByRole('link', { name: 'EXP-1' }));
+    expect(screen.getByTestId('approval-location')).toHaveTextContent('/expenses/ex1');
   });
 
   it('L3-APPROVALS: ?scope=timesheets deep-links straight to the timesheets queue with neutral policy guidance', () => {

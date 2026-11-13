@@ -217,7 +217,9 @@
       "archivedReadOnly": "The default warehouse was archived in Odoo. An administrator needs to choose another.",
       "deletedReadOnly": "The default warehouse was deleted in Odoo. An administrator needs to choose another.",
       "archived": "Needs attention: the default warehouse was archived in Odoo. Choose another.",
-      "deleted": "Needs attention: the default warehouse was deleted in Odoo. Choose another."
+      "deleted": "Needs attention: the default warehouse was deleted in Odoo. Choose another.",
+      "savedReadError": "Couldn't read the saved default warehouse",
+      "savedReadErrorSub": "The default is still saved. Retry to see whether Odoo archived or deleted it."
     },
     "records": {
       "title": "Records in PMO and Odoo",
@@ -466,5 +468,15 @@
   "exchangeRates": {
     "displayOnly": "Display equivalents only",
     "pageGapsPartial": "These gaps cover this page only; use the page controls to review other dates."
+  },
+  "projectNumberPattern": {
+    "error": {
+      "empty": "Pattern cannot be empty. Enter a project-number pattern.",
+      "closingBrace": "A closing brace has no matching opening brace.",
+      "unclosedToken": "A token is missing its closing brace.",
+      "unknownToken": "The token {{token}} is not one this app knows. Use CLIENT, YY or SEQ4.",
+      "duplicateToken": "Use {{token}} exactly once.",
+      "missingToken": "Include {{token}} exactly once."
+    }
   }
 }

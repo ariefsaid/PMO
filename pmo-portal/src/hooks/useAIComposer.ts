@@ -12,6 +12,7 @@
  * or elevates claims (NFR-AS-SEC-006).
  */
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';
 import type { CompositionSpec } from '@/src/lib/viewspec/types';
@@ -28,23 +29,29 @@ export interface UseAIComposerResult {
   error: string | null;
 }
 
-/** Map server error codes to user-facing messages (FR-AS-018, FR-AS-019). */
-function mapError(status: number, _body: unknown): string {
-  if (status === 422) {
-    return "Couldn't generate a valid view for that description. Try rephrasing or being more specific.";
-  }
-  if (status === 429) {
-    return "You've reached the AI compose limit. Try again later.";
-  }
-  if (status === 401) {
-    return 'Authentication required. Please sign in again.';
-  }
-  // 502 or other
-  return 'AI compose is temporarily unavailable. Please try again later.';
-}
-
+/**
+ * Map server error codes to user-facing messages (FR-AS-018, FR-AS-019).
+ *
+ * C4 (GLM my-views #4): these sentences are catalogue entries (`viewBuilder` namespace, en + id),
+ * not English literals — the composer panel is otherwise translated, and a failure is exactly when a
+ * reader most needs a sentence in their own language.
+ */
 export function useAIComposer(): UseAIComposerResult {
+  const { t } = useTranslation();
   const { currentUser, session } = useAuth();
+  const errorText = (status: number): string => {
+    if (status === 422) {
+      return t('viewBuilder:ai.errorInvalidView', "Couldn't generate a valid view for that description. Try rephrasing or being more specific.");
+    }
+    if (status === 429) {
+      return t('viewBuilder:ai.errorLimit', "You've reached the AI compose limit. Try again later.");
+    }
+    if (status === 401) {
+      return t('viewBuilder:ai.errorAuth', 'Authentication required. Please sign in again.');
+    }
+    // 502 or other
+    return t('viewBuilder:ai.errorUnavailable', 'AI compose is temporarily unavailable. Please try again later.');
+  };
   const [status, setStatus] = useState<AIComposerStatus>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -80,7 +87,7 @@ export function useAIComposer(): UseAIComposerResult {
       const body = await res.json();
 
       if (!res.ok) {
-        const msg = mapError(res.status, body);
+        const msg = errorText(res.status);
         setError(msg);
         setStatus('error');
         return null;
@@ -96,7 +103,7 @@ export function useAIComposer(): UseAIComposerResult {
         });
       } catch {
         // Tampered or corrupt spec — should not happen in normal operation
-        setError("The composed view failed client-side validation. Try rephrasing.");
+        setError(t('viewBuilder:ai.errorClientValidation', 'The composed view failed client-side validation. Try rephrasing.'));
         setStatus('error');
         return null;
       }
@@ -106,7 +113,7 @@ export function useAIComposer(): UseAIComposerResult {
     } catch {
       // Includes the AbortError thrown when the timeout fires — surfaced as the same generic
       // "temporarily unavailable" state (no raw error string, no stuck 'loading').
-      setError('AI compose is temporarily unavailable. Please try again later.');
+      setError(t('viewBuilder:ai.errorUnavailable', 'AI compose is temporarily unavailable. Please try again later.'));
       setStatus('error');
       return null;
     } finally {

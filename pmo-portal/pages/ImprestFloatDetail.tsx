@@ -157,8 +157,10 @@ const ImprestFloatDetail: React.FC = () => {
   return (
     <div>
       <div className="hidden max-[920px]:block"><BackBar label={backLabel} onBack={goBack} /></div>
-      <RecordHeader name={flt.project?.name ?? '—'} icon="$"
-        status={<StatusPill record="imprest" state="Active" />}
+      <RecordHeader name={`${t('imprest:detail.floatName', 'Float {{id}}', { id: flt.id.slice(0, 8) })} · ${flt.project?.name ?? '—'}`} icon="$"
+        status={flt.archived_at
+          ? <StatusPill variant="neutral">{t('imprest:detail.archived', 'Archived')}</StatusPill>
+          : <StatusPill record="imprest" state="Active" />}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{t('imprest:detail.custodian', 'Custodian: {{name}}', { name: flt.custodian?.full_name ?? '—' })}</span>
           <span>{t('imprest:position.float', 'Float')}: {money(flt.float_amount)}</span>
@@ -167,7 +169,8 @@ const ImprestFloatDetail: React.FC = () => {
       {position.isPending && <ListState variant="loading" rows={3} />}
       {!position.isPending && (position.isError || !pos) && (
         <div className="mb-4"><ListState variant="error" title={t('imprest:detail.positionError', "Couldn't load this float's position")}
-          sub={t('imprest:detail.positionErrorSub', 'No figure is shown rather than a wrong one. Try again.')} onRetry={() => void position.refetch()} /></div>
+          sub={t('imprest:detail.positionErrorSub', 'The position read failed. Float actions are unavailable until it is available. No figure is shown. Retry the position read.')}
+          onRetry={() => void position.refetch()} /></div>
       )}
       {pos && (
         <>
@@ -269,6 +272,7 @@ const ImprestFloatDetail: React.FC = () => {
         <CardHead>{t('imprest:counts.title', 'Cash counts')}</CardHead>
         <CardPad className="pt-0">
           {counts.isError ? <ListState variant="error" title={t('imprest:counts.error', "Couldn't load counts")} onRetry={() => void counts.refetch()} />
+            : counts.isPending ? <ListState variant="loading" rows={2} loadingRole="status" loadingLabel={t('imprest:counts.loading', 'Loading cash counts…')} />
             : (counts.data?.rows ?? []).length === 0 ? <p className="text-sm text-muted-foreground">{t('imprest:counts.none', 'No cash count recorded yet.')}</p>
             : <ul className="divide-y divide-border text-sm">
               {(counts.data?.rows ?? []).map((c) => (

@@ -2,7 +2,7 @@ import { projectsToolbar } from './projects/ProjectsToolbar';
 import { ProjectListActions } from './projects/ProjectListActions';
 import { useProjectListModel } from './projects/useProjectListModel';
 import { projectTableColumns } from './projects/projectTableColumns';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ListPage,
   ListState,
@@ -58,6 +58,40 @@ const Projects: React.FC = () => {
     filter, view, calendarCursor, onCalendarCursorChange,
     all, filtered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending, moneyError, refetchMoney,
     isAtRiskActual, milestoneDates, datesPending, datesError, refetchDates, filtersActive, clearFilters } = model;
+  const projectScopeRead = isEngineer && filter === 'My Projects';
+  const riskScopeRead = filter === 'at-risk' && all.length > 0;
+  const secondaryReadPending = (projectScopeRead && tasksPending) || (riskScopeRead && moneyPending);
+  const secondaryReadError = (projectScopeRead && tasksError) || (riskScopeRead && moneyError);
+  const secondaryReadUnavailable = secondaryReadPending || secondaryReadError;
+  const filteredSnapshotKey = JSON.stringify([effectiveRole, currentUser?.id, currentUser?.org_id, model.workingSet, model.search]);
+  const lastFilteredSnapshot = useRef<{ key: string; rows: ProjectWithRefs[] } | null>(null);
+  const lastAtRiskSnapshot = useRef<{ viewerId: string | undefined; byProjectId: Map<string, boolean> } | null>(null);
+  const currentProjectsById = new Map<string, ProjectWithRefs>(all.map((project) => [project.id, project] as const));
+  const cachedFiltered = lastFilteredSnapshot.current?.key === filteredSnapshotKey
+    ? lastFilteredSnapshot.current.rows.flatMap((project) => {
+      const current = currentProjectsById.get(project.id);
+      return current ? [current] : [];
+    })
+    : null;
+  const displayFiltered = secondaryReadUnavailable && cachedFiltered ? cachedFiltered : filtered;
+  const displayIsAtRiskActual = (project: ProjectWithRefs) => {
+    const cachedRisk = lastAtRiskSnapshot.current;
+    if ((moneyPending || moneyError) && cachedRisk?.viewerId === currentUser?.id && cachedRisk.byProjectId.has(project.id)) {
+      return cachedRisk.byProjectId.get(project.id)!;
+    }
+    return isAtRiskActual(project);
+  };
+  useEffect(() => {
+    if (secondaryReadUnavailable) return;
+    lastFilteredSnapshot.current = { key: filteredSnapshotKey, rows: filtered };
+  }, [filtered, filteredSnapshotKey, secondaryReadUnavailable]);
+  useEffect(() => {
+    if (moneyPending || moneyError) return;
+    lastAtRiskSnapshot.current = {
+      viewerId: currentUser?.id,
+      byProjectId: new Map<string, boolean>(all.map((project) => [project.id, isAtRiskActual(project)] as const)),
+    };
+  }, [all, currentUser?.id, isAtRiskActual, moneyError, moneyPending]);
   const { openRecord } = useListReturn({ list: 'projects', contentReady: !isPending && !isError });
   const { updateHeader, archive } = useProjectMutations();
 
@@ -115,8 +149,8 @@ const Projects: React.FC = () => {
   };
 
   const { tableColumns, exportColumns, actualHiddenReason, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails } = projectTableColumns({
-    filtered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending,
-    moneyError, canViewMoney, viewerId: currentUser?.id, isAtRiskActual, onOpen, onPrefetch: prefetchProject, t,
+    filtered: displayFiltered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending,
+    moneyError, canViewMoney, viewerId: currentUser?.id, isAtRiskActual: displayIsAtRiskActual, onOpen, onPrefetch: prefetchProject, t,
   });
 
   // ── States ──────────────────────────────────────────────────────────────
@@ -207,24 +241,23 @@ const Projects: React.FC = () => {
       {...toolbar}
     >
       {/* Body */}
-      {isEngineer && filter === 'My Projects' && tasksPending ? (
-        <ListState variant="loading" rows={3} />
-      ) : isEngineer && filter === 'My Projects' && tasksError ? (
+      {projectScopeRead && tasksError && (
         <ListState variant="error" title={t('projectDetail.tasks.errorTitle', "Couldn't load tasks")} onRetry={() => void refetchTasks()} />
-      ) : filter === 'at-risk' && all.length > 0 && moneyPending ? (
-        <ListState variant="loading" rows={3} />
-      ) : filter === 'at-risk' && all.length > 0 && moneyError ? (
+      )}
+      {riskScopeRead && moneyError && (
         <ListState
           variant="error"
           title={t('uxs02.riskUnavailableTitle', "Couldn't check project budget risk")}
           sub={t('uxs02.riskUnavailableSub', 'Project spending and Active budget information could not be checked.')}
           onRetry={() => void refetchMoney()}
         />
-      ) : view === 'kanban' ? (
-        <ProjectKanbanBoard projects={filtered} onOpen={(p) => onOpen(p, 'card')} />
+      )}
+      {secondaryReadPending && <span role="status" className="sr-only">{t('common.ui.listState.loading', 'Loading…')}</span>}
+      {view === 'kanban' ? (
+        <ProjectKanbanBoard projects={displayFiltered} onOpen={(p) => onOpen(p, 'card')} />
       ) : view === 'calendar' ? (
         <ProjectCalendarView
-          projects={filtered}
+          projects={displayFiltered}
           milestoneDates={milestoneDates}
           isPending={filtered.length > 0 && datesPending}
           isError={datesError}
@@ -267,13 +300,13 @@ const Projects: React.FC = () => {
             tableId="projects-list"
             onActivate={onOpen}
             rowMenu={canRowWrite ? rowMenu : undefined}
-            state={filtered.length === 0 ? 'empty' : undefined}
+            state={displayFiltered.length === 0 && !secondaryReadUnavailable ? 'empty' : undefined}
             emptyTitle={emptyState.title}
             emptySub={emptyState.sub}
             emptyAction={emptyState.action}
           />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : displayFiltered.length === 0 && !secondaryReadUnavailable ? (
         <ListState
           variant="empty"
           icon="folder"
@@ -286,7 +319,7 @@ const Projects: React.FC = () => {
           className="grid gap-3.5"
           style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}
         >
-          {filtered.map((p) => (
+          {displayFiltered.map((p) => (
             <div
               key={p.id}
               onPointerEnter={() => prefetchProject(p.id)}
