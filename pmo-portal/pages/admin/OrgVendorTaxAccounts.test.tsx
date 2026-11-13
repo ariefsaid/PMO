@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeAll, beforeEach, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
@@ -114,6 +114,19 @@ it('AC-S11-003 keeps an unreadable binding status distinct from a missing connec
   expect(await screen.findByText(/Couldn't check ERPNext setup/)).toBeInTheDocument();
   expect(screen.queryByText(/active ERPNext organization connection is needed/)).not.toBeInTheDocument();
   expect(h.listAccounts).not.toHaveBeenCalled();
+});
+
+it('C1: an unreadable binding setup is the shared error card, and its Retry refetches THAT read', async () => {
+  h.bindingError = true;
+  const user = userEvent.setup();
+  renderSetting();
+
+  // The sentence stays (it says what could not be checked); what it gains is its own retry of the
+  // setup read, so recovering never needs a page reload.
+  expect(await screen.findByText(/Couldn't check ERPNext setup/)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Check setup again' }));
+  await waitFor(() => expect(h.retryBinding).toHaveBeenCalledTimes(1));
+  expect(h.get).toHaveBeenCalled();
 });
 
 it('AC-VWH-029 a failed read offers a retry and no write', async () => {

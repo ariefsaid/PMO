@@ -68,5 +68,7 @@
   "checkSaveStatus": "Periksa status permintaan",
   "actions": {
     "cancel": "Batal"
-  }
+  },
+  "currencyError": "Mata uang organisasi tidak dapat dimuat.",
+  "currencyLoading": "Memuat mata uang organisasi…"
 }

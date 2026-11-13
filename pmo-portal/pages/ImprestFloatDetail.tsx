@@ -157,8 +157,10 @@ const ImprestFloatDetail: React.FC = () => {
   return (
     <div>
       <div className="hidden max-[920px]:block"><BackBar label={backLabel} onBack={goBack} /></div>
-      <RecordHeader name={flt.project?.name ?? '—'} icon="$"
-        status={<StatusPill record="imprest" state="Active" />}
+      <RecordHeader name={`${t('imprest:detail.floatName', 'Float {{id}}', { id: flt.id.slice(0, 8) })} · ${flt.project?.name ?? '—'}`} icon="$"
+        status={flt.archived_at
+          ? <StatusPill variant="neutral">{t('imprest:detail.archived', 'Archived')}</StatusPill>
+          : <StatusPill record="imprest" state="Active" />}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{t('imprest:detail.custodian', 'Custodian: {{name}}', { name: flt.custodian?.full_name ?? '—' })}</span>
           <span>{t('imprest:position.float', 'Float')}: {money(flt.float_amount)}</span>
@@ -167,7 +169,8 @@ const ImprestFloatDetail: React.FC = () => {
       {position.isPending && <ListState variant="loading" rows={3} />}
       {!position.isPending && (position.isError || !pos) && (
         <div className="mb-4"><ListState variant="error" title={t('imprest:detail.positionError', "Couldn't load this float's position")}
-          sub={t('imprest:detail.positionErrorSub', 'No figure is shown rather than a wrong one. Try again.')} onRetry={() => void position.refetch()} /></div>
+          sub={t('imprest:detail.positionErrorSub', 'No figure is shown and float actions are paused until the position loads.')}
+          onRetry={() => void position.refetch()} /></div>
       )}
       {pos && (
         <>
@@ -222,7 +225,7 @@ const ImprestFloatDetail: React.FC = () => {
       <Card className="mb-4">
         <CardHead>{t('imprest:receipts.title', 'Receipts')}</CardHead>
         <CardPad className="pt-0">
-          {claims.isError ? <p role="alert" className="text-sm text-destructive-text">{t('imprest:receipts.error', "Couldn't load the float's records")}</p>
+          {claims.isError ? <ListState variant="error" title={t('imprest:receipts.error', "Couldn't load the float's records")} onRetry={() => void claims.refetch()} />
             : claims.isPending ? <ListState variant="loading" rows={2} />
             : (claims.data?.rows ?? []).length === 0 ? <p className="text-sm text-muted-foreground">{t('imprest:receipts.none', 'Nothing has been charged to this float yet.')}</p>
             : <ul className="divide-y divide-border text-sm">
@@ -251,7 +254,9 @@ const ImprestFloatDetail: React.FC = () => {
       <Card className="mb-4">
         <CardHead>{t('imprest:rep.title', 'Replenishments')}</CardHead>
         <CardPad className="pt-0">
-          {postings.isError && <p role="alert" className="mb-2 text-sm text-destructive-text">{t('imprest:posting.error', "Couldn't load the ERP posting status")}</p>}
+          {postings.isError
+            ? <ListState variant="error" title={t('imprest:posting.error', "Couldn't load the ERP posting status")} retryLabel={t('common.retry', 'Retry')} onRetry={() => void postings.refetch()} />
+            : null}
           {postings.data?.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
             {t('imprest:posting.truncated', 'Showing posting status for the first {{count}} movements only.', { count: LIST_LIMIT })}
           </p>}
@@ -266,7 +271,8 @@ const ImprestFloatDetail: React.FC = () => {
       <Card className="mb-4">
         <CardHead>{t('imprest:counts.title', 'Cash counts')}</CardHead>
         <CardPad className="pt-0">
-          {counts.isError ? <p role="alert" className="text-sm text-destructive-text">{t('imprest:counts.error', "Couldn't load counts")}</p>
+          {counts.isError ? <ListState variant="error" title={t('imprest:counts.error', "Couldn't load counts")} onRetry={() => void counts.refetch()} />
+            : counts.isPending ? <ListState variant="loading" rows={2} loadingRole="status" loadingLabel={t('imprest:counts.loading', 'Loading cash counts…')} loadingAriaLabel={t('imprest:counts.loading', 'Loading cash counts…')} />
             : (counts.data?.rows ?? []).length === 0 ? <p className="text-sm text-muted-foreground">{t('imprest:counts.none', 'No cash count recorded yet.')}</p>
             : <ul className="divide-y divide-border text-sm">
               {(counts.data?.rows ?? []).map((c) => (
@@ -276,6 +282,14 @@ const ImprestFloatDetail: React.FC = () => {
                   <span className="tabular-nums text-muted-foreground">{t('imprest:counts.book', 'Book {{amount}}', { amount: moneyCents(c.book_amount) })}</span>
                   <span className={toCents(c.variance) !== 0 ? 'tabular-nums text-destructive-text' : 'tabular-nums'}>{t('imprest:counts.variance', 'Variance {{amount}}', { amount: moneyCents(c.variance) })}</span>
                   {c.note && <span className="min-w-0 flex-1 truncate text-muted-foreground" title={c.note}>{c.note}</span>}
+                  {c.note && (
+                    <details className="w-full">
+                      <summary className="cursor-pointer text-control text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                        {t('imprest:note.readFull', 'Read full note')}
+                      </summary>
+                      <p className="break-words pt-1 text-control text-muted-foreground">{c.note}</p>
+                    </details>
+                  )}
                 </li>
               ))}
             </ul>}

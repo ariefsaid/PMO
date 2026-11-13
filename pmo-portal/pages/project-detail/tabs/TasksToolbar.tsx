@@ -8,6 +8,7 @@ import {
   Button,
   Checkbox,
   Icon,
+  SearchMini,
   SelectField,
   TextField,
   ViewToggle,
@@ -140,26 +141,45 @@ const TasksToolbar: React.FC<{
             ariaLabel={t('projectDetail.tasks.scopeAriaLabel', 'Task scope')}
             semantics="toggle"
           />
-          <label className="min-w-[128px] flex-1 sm:flex-none">
-            <span className="sr-only">{t('projectDetail.tasks.filter.status', 'Filter by status')}</span>
-            <select value={statusFilter} onChange={(event) => onStatusFilter(event.target.value as TaskStatus | 'all')} className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <option value="all">{t('projectDetail.tasks.filter.allStatuses', 'All statuses')}</option>
-              {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
-            </select>
-          </label>
-          <label className="min-w-[144px] flex-1 sm:flex-none">
-            <span className="sr-only">{t('projectDetail.tasks.filter.assignee', 'Filter by assignee')}</span>
-            <select value={assigneeFilter} onChange={(event) => onAssigneeFilter(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <option value="all">{t('projectDetail.tasks.filter.allAssignees', 'All assignees')}</option>
-              <option value="unassigned">{t('projectDetail.tasks.filter.unassigned', 'Unassigned')}</option>
-              {assignableProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.full_name}</option>)}
-            </select>
-          </label>
-          <label className="relative min-w-[160px] flex-1">
-            <span className="sr-only">{t('projectDetail.tasks.search', 'Search tasks')}</span>
-            <Icon name="search" className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input value={searchText} onChange={(event) => onSearchText(event.target.value)} placeholder={t('projectDetail.tasks.searchPlaceholder', 'Search tasks…')} className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
-          </label>
+          <div className="min-w-[128px] flex-1 sm:flex-none">
+            <SelectField
+              id="tasks-filter-status"
+              hideLabel
+              label={t('projectDetail.tasks.filter.status', 'Filter by status')}
+              value={statusFilter}
+              onChange={(value) => onStatusFilter(value as TaskStatus | 'all')}
+              options={[
+                { value: 'all', label: t('projectDetail.tasks.filter.allStatuses', 'All statuses') },
+                ...STATUSES.map((status) => ({ value: status, label: status })),
+              ]}
+            />
+          </div>
+          <div className="min-w-[144px] flex-1 sm:flex-none">
+            <SelectField
+              id="tasks-filter-assignee"
+              hideLabel
+              label={t('projectDetail.tasks.filter.assignee', 'Filter by assignee')}
+              value={assigneeFilter}
+              onChange={onAssigneeFilter}
+              options={[
+                { value: 'all', label: t('projectDetail.tasks.filter.allAssignees', 'All assignees') },
+                { value: 'unassigned', label: t('projectDetail.tasks.filter.unassigned', 'Unassigned') },
+                ...assignableProfiles.map((profile) => ({ value: profile.id, label: profile.full_name })),
+              ]}
+            />
+          </div>
+          <div className="min-w-[160px] flex-1">
+            {/* F6: the shared list-toolbar search (SearchMini) — same shell, magnifier and
+                searchbox role the FilterBar/DataTable toolbars give. TextField has no leading
+                icon, and inventing a second search look is exactly what the picture sitting caught. */}
+            <SearchMini
+              aria-label={t('projectDetail.tasks.search', 'Search tasks')}
+              placeholder={t('projectDetail.tasks.searchPlaceholder', 'Search tasks…')}
+              value={searchText}
+              onChange={(event) => onSearchText(event.target.value)}
+              containerClassName="sm:min-w-0"
+            />
+          </div>
           {state !== 'loading' && state !== 'error' && state !== 'empty' && <ViewToggle<ViewMode>
             options={[
               { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },

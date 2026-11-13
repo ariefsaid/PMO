@@ -29,6 +29,15 @@ function currencyTotals(rows: PayableRow[]): Record<string, number> {
   }, {});
 }
 
+/**
+ * plain-words C20-3a: the line under the procurement title is a reference a person can act on. The
+ * procurement code; failing that the supplier's name; failing both the empty marker — never a
+ * fragment of the record's own id, which says nothing about what the payable is for.
+ */
+function procurementReference(row: PayableRow): string {
+  return row.procurement.code ?? row.procurement.vendor?.name ?? '—';
+}
+
 const PayablesPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -89,8 +98,8 @@ const PayablesPage: React.FC = () => {
       header: t('financeHub:hub.fix.payables.procurement', 'Procurement'),
       kind: 'text',
       size: 210,
-      cell: (row) => <div className="min-w-0"><div className="min-w-0 whitespace-normal break-words font-medium" title={row.procurement.title}>{row.procurement.title}</div><div className="font-mono text-control text-muted-foreground">{row.procurement.code ?? row.procurement.id.slice(0, 8)}</div></div>,
-      exportValue: (row) => `${row.procurement.title} · ${row.procurement.code ?? row.procurement.id.slice(0, 8)}`,
+      cell: (row) => <div className="min-w-0"><div className="min-w-0 whitespace-normal break-words font-medium" title={row.procurement.title}>{row.procurement.title}</div><div className={row.procurement.code ? 'font-mono text-control text-muted-foreground' : 'text-control text-muted-foreground'}>{procurementReference(row)}</div></div>,
+      exportValue: (row) => `${row.procurement.title} · ${procurementReference(row)}`,
     },
     {
       key: 'project',

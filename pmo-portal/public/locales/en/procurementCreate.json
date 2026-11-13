@@ -68,5 +68,7 @@
   "checkSaveStatus": "Check request status",
   "actions": {
     "cancel": "Cancel"
-  }
+  },
+  "currencyError": "Couldn't load your organisation's currency.",
+  "currencyLoading": "Loading organisation currency…"
 }

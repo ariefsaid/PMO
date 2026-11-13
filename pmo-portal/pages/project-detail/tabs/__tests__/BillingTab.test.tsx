@@ -12,6 +12,15 @@ import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQu
 import { formatNumberMax2 } from '@/src/lib/format';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
+vi.mock('@/src/components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/ui')>();
+  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => {
+    const buttonProps = { ...props, 'data-variant': props.variant ?? 'primary' } as React.ComponentProps<typeof actual.Button>;
+    return React.createElement(actual.Button, buttonProps);
+  };
+  return { ...actual, Button: ButtonWithVariant };
+});
+
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
   effectiveRole: null as string | null,
@@ -158,6 +167,30 @@ async function renderTabLocalized(lng: 'en' | 'id') {
 }
 
 describe('BillingTab', () => {
+  it('C21 keeps the eligible row invoice action secondary while New claim remains the primary action', async () => {
+    h.routeReady = false;
+    const user = renderTab();
+    const newClaim = screen.getByRole('button', { name: 'New claim' });
+    const raiseInvoice = within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' });
+
+    expect(newClaim).toHaveAttribute('data-variant', 'primary');
+    expect(raiseInvoice).toHaveAttribute('data-variant', 'outline');
+
+    await user.click(raiseInvoice);
+    const raiseDialog = await screen.findByRole('dialog');
+    expect(within(raiseDialog).getByText("Raise this claim's invoice?")).toBeInTheDocument();
+    await user.click(within(raiseDialog).getByRole('button', { name: 'Cancel' }));
+    await user.click(newClaim);
+    expect(await screen.findByRole('dialog', { name: 'New billing claim' })).toBeInTheDocument();
+  });
+
+  it('renders an unpaid claim invoice status from the project translation catalog', async () => {
+    const { i18n } = await renderTabLocalized('id');
+
+    expect(i18n.getResource('id', 'project', 'projectDetail.billing.claims.status.unpaid')).toBe('Belum dibayar');
+    expect(screen.getByText('ACC-SINV-1 · Belum dibayar')).toBeInTheDocument();
+  });
+
   it('AC-1402 counts only fully-paid invoices when any submitted invoice balance is unknown', () => {
     const invoices = [
       { status: 'Unpaid', amount: 10_000.01, erp_outstanding_amount: 4_000.01 },

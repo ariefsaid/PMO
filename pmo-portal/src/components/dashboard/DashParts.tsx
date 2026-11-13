@@ -42,7 +42,7 @@ export const WaitsOnYou: React.FC<{
   rows: WaitRow[];
   pending?: boolean;
   error?: boolean;
-  onRetry?: () => void;
+  onRetry: () => void;
   /** Overrides the shared title ("Waits on you"). */
   title?: string;
   emptyLabel?: string;
@@ -200,7 +200,7 @@ export const ProjectRows: React.FC<{
   rows: ProjectRow[];
   pending?: boolean;
   error?: boolean;
-  onRetry?: () => void;
+  onRetry: () => void;
   /** "All 7 projects" link. */
   allLink?: { to: string; label: string };
   emptyLabel: string;

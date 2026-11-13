@@ -1,7 +1,7 @@
 /** AC-ODC-060, FR-ODC-080: the org's default receiving warehouse, chosen from active warehouses only. Archiving or deleting it in Odoo marks it "needs attention" rather than silently keeping it. */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, SelectField, StatusPill } from '@/src/components/ui';
+import { Button, ListState, SelectField, StatusPill } from '@/src/components/ui';
 import { useMasterRecords, useOdooConnection, useOdooSetup } from '@/src/hooks/useOdoo';
 import { odooErrorMessage } from './odooErrors';
 import { useOdooCan } from './useOdooCan';
@@ -27,11 +27,36 @@ export function OdooWarehouseDefault() {
   const savedState = !savedId || !chosen.data ? null : !savedRow || savedRow.tombstoned_at ? 'deleted' : !savedRow.active ? 'archived' : null;
   const label = (r: { code: string | null; name: string }) => [r.code, r.name].filter(Boolean).join(' ');
   const value = picked ?? (savedId && !savedState ? savedId : '');
+  // The saved default is a SECOND read (by id, inactive rows included). When it fails nothing can be
+  // said about the saved value — not even to a non-setter who needs the warning — so the failure is
+  // stated with its own Retry that refetches THAT read, for every viewer.
+  const savedReadFailed = Boolean(savedId) && chosen.isError;
+  const savedReadError = savedReadFailed ? (
+    <ListState
+      variant="error"
+      title={t('administration:odoo.warehouse.savedReadError', "Couldn't read the saved default warehouse")}
+      sub={t('administration:odoo.warehouse.savedReadErrorSub', 'The default is still saved. Retry to see whether Odoo archived or deleted it.')}
+      retryLabel={t('admin.retry', 'Retry')}
+      onRetry={() => void chosen.refetch()}
+    />
+  ) : null;
 
   if (!may.setValue) {
-    return savedId && !savedState && savedRow ? (
-      <p className="text-sm text-muted-foreground" data-testid="odoo-warehouse-default">{t('administration:odoo.warehouse.current', 'Default receiving warehouse')}: <span className="font-medium text-foreground">{savedRow.name}</span></p>
-    ) : null;
+    if (!savedId) return null;
+    return (
+      <div className="space-y-1.5 text-sm text-muted-foreground" data-testid="odoo-warehouse-default">
+        {savedReadError}
+        {!savedReadFailed && !savedState && savedRow && <p>{t('administration:odoo.warehouse.current', 'Default receiving warehouse')}: <span className="font-medium text-foreground">{savedRow.name}</span></p>}
+        {!savedReadFailed && savedState && (
+          <p className="flex flex-wrap items-center gap-1.5">
+            <StatusPill variant="warn">{t('administration:odoo.mapOnce.attention', 'Needs attention')}</StatusPill>
+            <span>{savedState === 'archived'
+              ? t('administration:odoo.warehouse.archivedReadOnly', 'The default warehouse was archived in Odoo. An administrator needs to choose another.')
+              : t('administration:odoo.warehouse.deletedReadOnly', 'The default warehouse was deleted in Odoo. An administrator needs to choose another.')}</span>
+          </p>
+        )}
+      </div>
+    );
   }
   const submit = async () => {
     setError(null);
@@ -43,8 +68,9 @@ export function OdooWarehouseDefault() {
         <SelectField label={t('administration:odoo.mapOnce.warehouseLabel', 'Default receiving warehouse')} value={value} onChange={setPicked} placeholder={t('administration:odoo.mapOnce.choose', 'Choose…')}
           options={live.map((r) => ({ value: r.external_id, label: label(r) }))} fullWidth />
       </div>
-      <Button size="sm" variant="outline" loading={save.isPending} disabled={!value || value === savedId} onClick={() => void submit()}>{t('administration:odoo.warehouse.save', 'Save')}</Button>
-      {savedState && (
+      <Button size="sm" variant="primary" loading={save.isPending} disabled={!value || value === savedId} onClick={() => void submit()}>{t('administration:odoo.warehouse.save', 'Save')}</Button>
+      {savedReadError && <div className="basis-full">{savedReadError}</div>}
+      {!savedReadFailed && savedState && (
         <p className="flex basis-full flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
           <StatusPill variant="warn">{t('administration:odoo.mapOnce.attention', 'Needs attention')}</StatusPill>
           <span>{savedState === 'archived'

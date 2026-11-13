@@ -213,7 +213,9 @@ describe('AC-CQ-014 WorkOrderLinesModal allocation editor', () => {
     await user.clear(survey);
     await user.type(survey, '399');
     await user.click(screen.getByRole('button', { name: 'Save SURVEY' }));
-    expect(await screen.findByText(/already accepted 400 km/)).toBeInTheDocument();
+    const surveyLine = survey.closest('li');
+    expect(surveyLine).not.toBeNull();
+    expect(await within(surveyLine!).findByText(/already accepted 400 km\. The allocation cannot go below it\./)).toBeInTheDocument();
     expect(onUpdate).not.toHaveBeenCalled();
     await user.clear(survey);
     await user.type(survey, '400');

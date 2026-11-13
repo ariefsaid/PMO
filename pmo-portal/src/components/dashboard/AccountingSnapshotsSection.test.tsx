@@ -75,13 +75,13 @@ const arRows: ErpAgingSnapshotRow[] = [
 const emptyProps = {
   actuals: [] as ErpActualsSnapshotRow[],
   actualsPending: false,
-  actualsError: false,
+  actualsError: false as const,
   apAging: [] as ErpAgingSnapshotRow[],
   apAgingPending: false,
-  apAgingError: false,
+  apAgingError: false as const,
   arAging: [] as ErpAgingSnapshotRow[],
   arAgingPending: false,
-  arAgingError: false,
+  arAgingError: false as const,
 };
 
 describe('AccountingSnapshotsSection — empty state (unflipped default)', () => {
@@ -110,7 +110,7 @@ describe('AccountingSnapshotsSection — empty state (unflipped default)', () =>
 describe('AccountingSnapshotsSection — populated state', () => {
   it('starts the actuals ledger closed behind its row count on an index page, and opens on click', async () => {
     render(<AccountingSnapshotsSection {...emptyProps} showApAging={false} showArAging={false} actualsCollapsed actuals={actualsRows} />);
-    const summary = screen.getByText('1 ledger rows').closest('summary') as HTMLElement;
+    const summary = screen.getByText('1 ledger entries').closest('summary') as HTMLElement;
     const details = summary.closest('details') as HTMLDetailsElement;
     expect(details.open).toBe(false);
     expect(within(summary).getByRole('heading', { name: 'Actuals (ERP ledger)' })).toBeInTheDocument();

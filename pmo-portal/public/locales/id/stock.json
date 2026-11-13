@@ -14,6 +14,7 @@
       "code": "Kode",
       "name": "Nama",
       "unit": "Satuan",
+      "onHand": "Stok tersedia",
       "wholeOnly": "Jumlah",
       "leadTime": "Waktu tunggu",
       "kind": "Jenis",
@@ -107,7 +108,7 @@
         "sub": "Tambahkan gudang pusat dan gudang lokasi proyek.",
         "action": "Tambah gudang pertama"
       },
-      "readOnlyHint": "Anda dapat melihat pengaturan stok. Manajer Proyek ke atas dapat mengubahnya."
+      "readOnlyHint": "Anda dapat melihat pengaturan stok. Finance, Manajer Proyek, Eksekutif, dan Admin dapat mengubahnya."
     },
     "confirm": {
       "archiveTitle": "Arsipkan data ini?",
@@ -209,7 +210,10 @@
       "noMatchSub": "Hapus pencarian atau pilih gudang lain.",
       "emptySub": "Terima stok ke gudang dan akan tampil di sini."
     },
-    "moreMovements": "Lainnya"
+    "moreMovements": "Lainnya",
+    "count": "{{shown}} saldo",
+    "countOne": "1 saldo",
+    "countOfTotal": "Menampilkan {{shown}} dari {{total}} saldo"
   },
   "documents": {
     "title": "Dokumen",
@@ -238,7 +242,8 @@
       "emptySub": "Terima stok ke gudang untuk membuat yang pertama.",
       "noMatch": "Tidak ada dokumen yang cocok",
       "noMatchSub": "Hapus filter untuk melihat lebih banyak."
-    }
+    },
+    "loadMoreFailed": "Gagal memuat dokumen berikutnya"
   },
   "detail": {
     "notFound": {
@@ -246,6 +251,7 @@
       "sub": "Dokumen mungkin milik organisasi lain atau sudah tidak ada."
     },
     "backToList": "Kembali ke dokumen",
+    "keepersError": "Data penjaga stok tidak dapat dimuat, jadi tindakan Posting tidak tersedia.",
     "fields": {
       "warehouse": "Gudang",
       "project": "Proyek",
@@ -279,7 +285,9 @@
       "title": "Batalkan draf ini?",
       "description": "Draf tetap tersimpan sebagai catatan tetapi tidak dapat diposting lagi.",
       "confirm": "Batalkan draf"
-    }
+    },
+    "overAllowanceFailed": "Tidak dapat memeriksa apakah pengeluaran ini melebihi batas item pekerjaannya.",
+    "costsFailed": "Gagal memuat biaya per baris"
   },
   "ledger": {
     "title": "Buku stok",
@@ -303,7 +311,8 @@
       "allWarehouses": "Semua gudang",
       "from": "Dari",
       "to": "Sampai",
-      "oneDocument": "Satu dokumen"
+      "oneDocument": "Satu dokumen",
+      "dateHelp": "Dari dan Sampai menyaring tanggal pergerakan (kolom Tanggal), bukan waktu pencatatannya."
     },
     "loadMore": "Muat lebih banyak",
     "end": "{{count}} catatan, akhir buku stok",
@@ -312,7 +321,8 @@
       "emptySub": "Posting muncul di sini begitu dibuat.",
       "noMatch": "Tidak ada catatan yang cocok",
       "noMatchSub": "Hapus filter untuk melihat lebih banyak."
-    }
+    },
+    "loadMoreFailed": "Gagal memuat entri berikutnya"
   },
   "materials": {
     "title": "Material",
@@ -401,6 +411,8 @@
     "in": "Tambah stok",
     "costDefault": "Kosongkan untuk memakai biaya rata-rata.",
     "anotherPerson": "Orang lain harus mem-posting ini: Manajer Proyek atau di atasnya yang bukan pembuatnya.",
+    "otherAuthorDraft": "Draf ini dibuat oleh {{name}}. Hanya pembuatnya yang dapat menyimpan perubahan.",
+    "anotherPersonName": "orang lain",
     "saveDraft": "Simpan draf",
     "post": "Posting hitungan",
     "saved": "Draf disimpan",
@@ -480,6 +492,7 @@
   "issueOverAllowance": "Melebihi jatah: {{workItem}} kini memakai {{used}} dari {{planned}} {{unit}} yang direncanakan. Pengeluaran tetap tercatat; ini penanda, bukan penghalang.",
   "reorder": {
     "title": "Pemesanan ulang",
+    "readOnlyHint": "Hanya Finance, Manajer Proyek, Eksekutif, dan Admin yang dapat mengubah level pemesanan ulang.",
     "panel": {
       "title": "Atur level pemesanan ulang",
       "item": "Barang",
@@ -500,7 +513,8 @@
       "save": "Simpan level",
       "cancel": "Batal",
       "clear": "Hapus level",
-      "setManually": "Atur level"
+      "setManually": "Atur level",
+      "suggestionFailed": "Gagal memuat saran pemesanan ulang"
     },
     "worklist": {
       "title": "Di bawah level pemesanan ulang",

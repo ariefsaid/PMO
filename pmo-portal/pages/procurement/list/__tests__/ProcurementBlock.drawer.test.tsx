@@ -26,6 +26,7 @@ const detailFor = (r: ReturnType<typeof row>) => ({
 });
 
 const procState = { data: [row()] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
+const detailState = { isPending: false, isError: false, refetch: vi.fn() };
 const authState = { userId: 'u-finance', role: 'Finance' };
 const budgetState = { rows: [] as unknown[], hasBudget: false, isPending: false, actualsPending: false };
 
@@ -44,7 +45,7 @@ vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { id: 'pr
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: (id?: string) => {
     const found = (procState.data as Array<ReturnType<typeof row>>).find((candidate) => candidate.id === id);
-    return { data: found ? detailFor(found) : undefined, isPending: false, isError: false, refetch: vi.fn() };
+    return { data: found ? detailFor(found) : undefined, ...detailState };
   },
 }));
 vi.mock('@/src/hooks/useProjectPosition', () => ({ useBudgetPosition: () => budgetState }));
@@ -72,6 +73,9 @@ const renderBlock = (path = '/procurement?open=p-1') => render(
 describe('Procurement drawer header (B4)', () => {
   beforeEach(() => {
     procState.data = [row()];
+    detailState.isPending = false;
+    detailState.isError = false;
+    detailState.refetch.mockClear();
     authState.userId = 'u-finance';
     authState.role = 'Finance';
     budgetState.rows = [];
@@ -157,6 +161,9 @@ describe('Procurement drawer header (B4)', () => {
 describe('Procurement drawer body', () => {
   beforeEach(() => {
     procState.data = [row()];
+    detailState.isPending = false;
+    detailState.isError = false;
+    detailState.refetch.mockClear();
     authState.userId = 'u-finance';
     authState.role = 'Finance';
     budgetState.rows = [];
@@ -202,6 +209,41 @@ describe('Procurement drawer body', () => {
     const drawer = screen.getByRole('dialog');
     expect(within(drawer).getAllByText('$62,000')).toHaveLength(1);
     expect(within(drawer).getByText('Unpaid in full')).toBeInTheDocument();
+  });
+
+  it('C1: gives the failed line-item read its own retry', async () => {
+    detailState.isError = true;
+    renderBlock();
+
+    const section = within(screen.getByRole('dialog')).getByRole('region', { name: 'Line items' });
+    expect(within(section).getByRole('alert')).toHaveTextContent('Line items could not be loaded.');
+    await userEvent.click(within(section).getByRole('button', { name: 'Retry' }));
+    expect(detailState.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("C1: the drawer's two failed reads share one error anatomy", async () => {
+    detailState.isError = true;
+    renderBlock();
+
+    const drawer = within(screen.getByRole('dialog'));
+    const documents = drawer.getByRole('region', { name: 'Documents' });
+    const items = drawer.getByRole('region', { name: 'Line items' });
+
+    // Both failures are the shared error card: one alert region, one alert icon, one Retry each.
+    for (const section of [documents, items]) {
+      expect(within(section).getByRole('alert')).toBeInTheDocument();
+    }
+    expect(within(documents).getByRole('alert')).toHaveTextContent('Linked documents could not be loaded.');
+    expect(drawer.getAllByRole('alert')).toHaveLength(2);
+    for (const section of [documents, items]) {
+      expect(within(section).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    }
+    // The plain, muted card the Documents section used to hand-roll is gone: its failure is now the
+    // SAME destructive-tinted alert card the Line items section uses.
+    expect(within(documents).getByRole('alert').className).toContain('border-destructive/30');
+
+    await userEvent.click(within(documents).getByRole('button', { name: 'Retry' }));
+    expect(detailState.refetch).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -32,6 +32,7 @@ import { MAX_PANELS_PER_VIEW, ValidationError } from '@/src/lib/viewspec/types';
 import type { CompiledPanel, CompositionSpec } from '@/src/lib/viewspec/types';
 import { ChartFrame } from '@/src/components/dashboard/ChartFrame';
 import { DashGrid, DashPageHead } from '@/src/components/dashboard/layout';
+import { ErrBanner } from '@/src/components/ui/ErrBanner';
 import { ListState } from '@/src/components/ui/ListState';
 import { HydratedPrimitive } from '@/src/components/dashboard/HydratedPrimitive';
 
@@ -163,8 +164,7 @@ const UserViewRenderer: React.FC = () => {
     const isValidationError = specError instanceof ValidationError;
     return (
       <div className="flex flex-col gap-4 p-6">
-        <ListState
-          variant="error"
+        <ErrBanner
           title={t('viewBuilder:renderer.invalidTitle', "This view's definition is invalid.")}
           sub={t('viewBuilder:renderer.invalidSub', 'The view cannot be rendered because its specification is invalid.')}
         />

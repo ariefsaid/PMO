@@ -151,8 +151,41 @@ const MeetingCreate: React.FC = () => {
     <Card variant="bare" className="mb-4"><CardHead>{t('meetingDetail.attendees.title', 'Attendees')}</CardHead><CardPad>
       <fieldset disabled={form.isSubmitting}>
       <ul className="mb-3 flex flex-col gap-1.5" data-testid="attendees-list">
-        {members.map((member) => <li key={member.value} className="flex items-center gap-2 text-sm"><span className="flex-1">{member.label}</span><Button type="button" variant="ghost" size="sm" aria-label={t('meetingDetail.attendees.remove', 'Remove attendee')} onClick={() => setMembers((existing) => existing.filter((item) => item.value !== member.value))}>{t('meetingDetail.attendees.remove', 'Remove attendee')}</Button></li>)}
-        {guests.map((guest, index) => <li key={`${guest}-${index}`} className="flex items-center gap-2 text-sm"><span className="flex-1">{guest} <span className="text-muted-foreground">{t('meetingDetail.attendees.guestTag', 'Guest')}</span></span><Button type="button" variant="ghost" size="sm" aria-label={t('meetingDetail.attendees.remove', 'Remove attendee')} onClick={() => setGuests((existing) => existing.filter((_item, guestIndex) => guestIndex !== index))}>{t('meetingDetail.attendees.remove', 'Remove attendee')}</Button></li>)}
+        {members.map((member) => (
+          <li key={member.value} className="flex items-center gap-2 text-sm">
+            <span className="flex-1">{member.label}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              /* Tone only (A9): the removal is reversible (re-add the same person), so it keeps the
+                 quiet ghost weight rather than a filled red control; it gains the destructive text
+                 tone on hover so a pointer user reads it as a removal, never as a neutral action. */
+              className="hover:text-destructive-text"
+              aria-label={`${t('meetingDetail.attendees.remove', 'Remove attendee')}: ${member.label}`}
+              onClick={() => setMembers((existing) => existing.filter((item) => item.value !== member.value))}
+            >
+              {t('meetingDetail.attendees.remove', 'Remove attendee')}
+            </Button>
+          </li>
+        ))}
+        {guests.map((guest, index) => (
+          <li key={`${guest}-${index}`} className="flex items-center gap-2 text-sm">
+            <span className="flex-1">
+              {guest} <span className="text-muted-foreground">{t('meetingDetail.attendees.guestTag', 'Guest')}</span>
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="hover:text-destructive-text"
+              aria-label={`${t('meetingDetail.attendees.remove', 'Remove attendee')}: ${guest}`}
+              onClick={() => setGuests((existing) => existing.filter((_item, guestIndex) => guestIndex !== index))}
+            >
+              {t('meetingDetail.attendees.remove', 'Remove attendee')}
+            </Button>
+          </li>
+        ))}
       </ul>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1"><Combobox label={t('meetingDetail.attendees.addMember', 'Add attendee')} value={null} onChange={(_value, option) => setMembers((existing) => [...existing, option])} loadOptions={loadMembers} placeholder={t('meetingDetail.attendees.addMemberPlaceholder', 'Pick an organisation member…')} noun={t('meetingDetail.attendees.memberNoun', 'member')} /></div>

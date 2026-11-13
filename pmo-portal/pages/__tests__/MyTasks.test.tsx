@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -98,6 +98,44 @@ describe('MyTasks page — component states (B-1, AC-W2-IXD-002)', () => {
     // The status select should have the task's current status selected.
     const statusSelect = screen.getByRole('combobox', { name: /change status of review design specs/i });
     expect(statusSelect).toHaveValue('In Progress');
+  });
+
+  it('C13 tasks.ts:435-441 / MyTasks.tsx: an archived task is marked, not shown as ordinary open work', () => {
+    tasksState.isPending = false;
+    tasksState.isError = false;
+    tasksState.data = [
+      {
+        id: 't-archived', name: 'Old agenda item', status: 'To Do', assignee_id: 'u-self',
+        project_id: 'p1', project_name: 'Northwind ERP', start_date: null, end_date: null,
+        priority: null, archived_at: '2026-10-01T00:00:00Z',
+      },
+    ];
+    renderMyTasks();
+    expect(screen.getByText('Old agenda item')).toBeInTheDocument();
+    expect(screen.getByText('Archived')).toBeInTheDocument();
+  });
+
+  it('C13 MyTasks.tsx: a row says the task’s priority, and an unset priority stays unshown (never a fabricated default)', () => {
+    tasksState.isPending = false;
+    tasksState.isError = false;
+    tasksState.data = [
+      {
+        id: 't-high', name: 'Review design specs', status: 'In Progress', assignee_id: 'u-self',
+        project_id: 'p1', project_name: 'Northwind ERP', start_date: null, end_date: null,
+        priority: 'High', archived_at: null,
+      },
+      {
+        id: 't-none', name: 'File the report', status: 'To Do', assignee_id: 'u-self',
+        project_id: 'p1', project_name: 'Northwind ERP', start_date: null, end_date: null,
+        priority: null, archived_at: null,
+      },
+    ];
+    renderMyTasks();
+    const high = screen.getByText('Review design specs').closest('div')!;
+    const none = screen.getByText('File the report').closest('div')!;
+    expect(within(high).getByText('Priority: High')).toBeInTheDocument();
+    expect(within(none).queryByText(/Priority:/)).not.toBeInTheDocument();
+    expect(within(none).queryByText('Priority: Normal')).not.toBeInTheDocument();
   });
 
   it('CW-7: the project header deep-links to the project Tasks tab (role-invariant default is Overview)', () => {

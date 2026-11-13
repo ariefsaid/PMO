@@ -580,7 +580,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           </p>
         )}
         <p className="mt-3 text-sm text-muted-foreground">
-          {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types have no row.')}
+          {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types show nothing.')}
         </p>
       </CardPad>
     </div>

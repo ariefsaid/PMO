@@ -9,7 +9,12 @@
   "serverVersionChanged": "The saved view changed while you were editing.",
   "reloadSavedView": "Reload saved view",
   "continueEditing": "Continue editing",
-  "invalidProjectFilter": "Enter a valid project ID.",
+  "invalidProjectFilter": "Choose a valid project.",
+  "serverVersionChangedHelp": "Reload drops the edits you have not saved; continue keeps them.",
+  "incompleteFilter": "Complete or remove each filter row before saving.",
+  "removePanelConfirmTitle": "Remove this panel?",
+  "removePanelConfirmDescription": "The {{primitive}} panel for {{entity}} will be removed from this view draft. Other panels stay.",
+  "removePanelConfirm": "Remove panel",
   "aggregateFn": {
     "count": "Count",
     "sum": "Sum",
@@ -46,10 +51,5 @@
     "goToDashboard": "Go to Dashboard",
     "invalidTitle": "This view's definition is invalid.",
     "invalidSub": "The view cannot be rendered because its specification is invalid."
-  },
-  "serverVersionChangedHelp": "Reload drops the edits you have not saved; continue keeps them.",
-  "incompleteFilter": "Complete or remove each filter row before saving.",
-  "removePanelConfirmTitle": "Remove this panel?",
-  "removePanelConfirmDescription": "The {{primitive}} panel for {{entity}} will be removed from this view draft. Other panels stay.",
-  "removePanelConfirm": "Remove panel"
+  }
 }

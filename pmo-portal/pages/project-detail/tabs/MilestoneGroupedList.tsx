@@ -148,7 +148,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
       </Tooltip>}
       {group.milestone && <Tooltip content={t(
         'projectDetail.tasks.phaseProgressTooltip',
-        'Manual phase progress when set; otherwise Done phase tasks divided by the phase task count. Source: get_project_milestones.',
+        'Manual progress, or calculated from the phase\'s tasks.',
       )}>
         <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center">
           <ProgressBar value={completionPct(group.milestone.effective_pct)} tone={group.milestone.effective_pct >= 100 ? 'success' : 'primary'} showValue compact className="max-w-full flex-wrap" aria-label={t('projectDetail.tasks.phaseProgress', 'Phase progress')} />

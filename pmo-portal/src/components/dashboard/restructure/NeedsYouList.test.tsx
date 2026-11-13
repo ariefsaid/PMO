@@ -9,8 +9,10 @@ const items: NeedsItem[] = [
   { id: 'overdue', count: 1, label: 'client invoice overdue', amount: 'USD 1,250', href: '/finance/receivables?overdue=true', tone: 'lost' },
 ];
 
-const renderList = (props: Partial<React.ComponentProps<typeof NeedsYouList>> = {}) =>
-  render(<MemoryRouter><NeedsYouList items={items} {...props} /></MemoryRouter>);
+const renderList = (props: Partial<React.ComponentProps<typeof NeedsYouList>> = {}) => {
+  const listProps = { items, ...props } as React.ComponentProps<typeof NeedsYouList>;
+  return render(<MemoryRouter><NeedsYouList {...listProps} /></MemoryRouter>);
+};
 
 describe('NeedsYouList', () => {
   it('renders each need as one complete link with count, label, amount and tone text', () => {

@@ -13,7 +13,8 @@
     "discardLeave": "Tinggalkan",
     "discardStay": "Tetap di sini",
     "saving": "Menyimpan…",
-    "required": "Wajib diisi"
+    "required": "Wajib diisi",
+    "amountInvalid": "Masukkan jumlah yang lebih besar dari nol."
   },
   "postings": {
     "recordedBeforeConnection": "Dicatat sebelum terhubung ke ERP"

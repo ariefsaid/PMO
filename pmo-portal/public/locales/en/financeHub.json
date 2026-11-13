@@ -190,7 +190,7 @@
     "loadingFigure": "Loading figure",
     "openProject": "Open project",
     "viewInvoices": "View invoices",
-    "exportRow": "Export row",
+    "exportRow": "Export current line",
     "actionsForProject": "Actions for {{project}}",
     "unassignedNote": "Some invoices lack project assignments.",
     "assignProjects": "Assign projects",

@@ -379,7 +379,7 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
         {/* tasks required-filter note (FR-VB-032 §4) */}
         {form.entity === 'tasks' && (
           <div className="col-span-2">
-            <FieldError>{t('viewBuilder.tasksRequireProjectFilter', 'Tasks require a project filter (column: project_id, op: eq or in)')}</FieldError>
+            <FieldError>{t('viewBuilder.tasksRequireProjectFilter', 'Tasks panels need a project filter.')}</FieldError>
           </div>
         )}
 
@@ -431,7 +431,7 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
                     f.column === 'project_id' &&
                     (f.op === 'eq' || f.op === 'in') &&
                     !isProjectIdFilterValid(f)
-                      ? t('viewBuilder:invalidProjectFilter', 'Enter a valid project ID.')
+                      ? t('viewBuilder:invalidProjectFilter', 'Choose a valid project.')
                       : undefined
                   }
                 />
@@ -447,7 +447,7 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
             ))}
             {hasTeamToken && (
               <FieldError>
-                {t('viewBuilder.currentTeamWarning', '$current_team requires a teamId context at render time. It may fail at preview.')}
+                {t('viewBuilder.currentTeamWarning', 'This team filter needs a team chosen, or preview fails.')}
               </FieldError>
             )}
             {hasIncompleteFilter && (
@@ -522,12 +522,12 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
               {form.timeRangeColumn && (
                 <>
                   <TextField
-                    label={t('viewBuilder.fromDate', 'From (ISO date or token)')}
+                    label={t('viewBuilder.fromDate', 'From date')}
                     value={form.timeRangeFrom}
                     onChange={(v) => setForm((p) => ({ ...p, timeRangeFrom: v }))}
                   />
                   <TextField
-                    label={t('viewBuilder.toDate', 'To (ISO date or token)')}
+                    label={t('viewBuilder.toDate', 'To date')}
                     value={form.timeRangeTo}
                     onChange={(v) => setForm((p) => ({ ...p, timeRangeTo: v }))}
                   />

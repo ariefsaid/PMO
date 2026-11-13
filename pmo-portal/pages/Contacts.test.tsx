@@ -17,6 +17,8 @@ const h = vi.hoisted(() => ({
   directory: [] as Array<Record<string, unknown>>,
   pending: false,
   error: false,
+  /** The kept-previous payload react-query paints while a new query lands (keepPreviousData). */
+  placeholder: false,
   refetch: vi.fn(),
   lastInput: null as Record<string, unknown> | null,
   companies: [] as Array<Record<string, unknown>>,
@@ -49,6 +51,7 @@ vi.mock('@/src/hooks/useContacts', () => ({
         : { rows: matching.slice(start, start + input.pageSize), total: matching.length },
       isPending: h.pending,
       isError: h.error,
+      isPlaceholderData: h.placeholder,
       isFetching: false,
       refetch: h.refetch,
     };
@@ -135,6 +138,7 @@ beforeEach(() => {
   h.directory = contacts;
   h.pending = false;
   h.error = false;
+  h.placeholder = false;
   h.refetch.mockClear();
   h.lastInput = null;
   h.companies = companies;
@@ -200,6 +204,20 @@ describe('Contacts index — rows + states (AC-CRM-030)', () => {
     h.directory = [];
     renderPage('Admin');
     expect(screen.getByText(/No contacts yet/i)).toBeInTheDocument();
+  });
+
+  it('C5 useContacts.ts:62 / Contacts.tsx: a kept-previous page never states an empty directory', () => {
+    // The new (unfiltered) read has not landed yet; react-query paints the PREVIOUS query's
+    // zero-match payload as a placeholder. That payload knows nothing about the new query.
+    h.directory = [];
+    h.placeholder = true;
+    renderPage('Admin');
+
+    expect(screen.queryByText(/No contacts yet/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No contacts match your filters/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    // …and the toolbar stays mounted, so the person can still clear a filter or search.
+    expect(screen.getByLabelText(/Search contacts/i)).toBeInTheDocument();
   });
 
   it('AC-CRM-030: search filters rows by name — the committed term goes to the server', async () => {

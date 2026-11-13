@@ -17,7 +17,7 @@ export interface StageHistoryProps {
 /** #1638 FR-PSH-016/017: every stage a deal went through, newest first; editors may correct dates. */
 export default function StageHistory({ projectId, hideHeading = false }: StageHistoryProps) {
   const { t } = useTranslation('project');
-  const { data: entries = [], isLoading, error } = useProjectStageEntries(projectId);
+  const { data: entries = [], isLoading, error, refetch } = useProjectStageEntries(projectId);
   const { redate, addSkipped } = useStageEntryMutations();
   const may = usePermission();
   const canEdit = may('transition', 'project'); // same set as the server's editor rank (plan D6)
@@ -32,7 +32,7 @@ export default function StageHistory({ projectId, hideHeading = false }: StageHi
     ? { min: entries[i + 1]?.entered_on ?? null, max: entries[i - 1]?.entered_on ?? today }
     : { min: entries[i + 1]?.entered_on ?? null, max: entries[i].entered_on };
   if (isLoading) return <ListState variant="loading" />;
-  if (error) return <ListState variant="error" title={t('projectDetail.stageHistory.loadError', 'Stage history could not load')} />;
+  if (error) return <ListState variant="error" title={t('projectDetail.stageHistory.loadError', 'Stage history could not load')} onRetry={() => void refetch()} />;
   const entry = editing ? entries[editing.index] : null;
   return (
     <section aria-labelledby={hideHeading ? undefined : 'stage-history-heading'} aria-label={hideHeading ? t('projectDetail.stageHistory.heading', 'Stage history') : undefined} className="space-y-2">

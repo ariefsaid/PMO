@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -65,6 +65,18 @@ describe('Project consumption report', () => {
     renderIt();
     await screen.findByRole('table', { name: 'By month' });
     expect(consumption.report).toHaveBeenCalledWith('p1', '2026-08-01', '2026-11-30');
+  });
+
+  it('changing To month keeps the value and reloads the selected inclusive month range', async () => {
+    consumption.report.mockResolvedValue(report());
+    renderIt();
+    await screen.findByRole('table', { name: 'By month' });
+    consumption.report.mockClear();
+
+    fireEvent.change(screen.getByLabelText('To month'), { target: { value: '2026-10' } });
+
+    expect(screen.getByLabelText('To month')).toHaveValue('2026-10');
+    await waitFor(() => expect(consumption.report).toHaveBeenCalledWith('p1', '2026-08-01', '2026-10-31'));
   });
 
   it('AC-STK-022 the report renders one row per month x work item x item with issued, returned, net and who issued it', async () => {

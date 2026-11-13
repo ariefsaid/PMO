@@ -41,7 +41,7 @@
     "organisationHelper": "Setiap sakelar di bawah adalah status organisasi ini setelah resolusi.",
     "plan": "Paket",
     "planHelper": "Batas paket: {{seats}} kursi, {{projects}} proyek aktif, {{messages}} pesan AI per bulan.",
-    "planHelperUnassigned": "Belum ada baris paket: organisasi ini diresolusikan sebagai Enterprise.",
+    "planHelperUnassigned": "Tidak ada paket dipilih. Organisasi ini diperlakukan sebagai Enterprise.",
     "unlimitedShort": "tanpa batas",
     "saving": "Menyimpan…",
     "switchesHeading": "Sakelar untuk {{org}}",
@@ -67,7 +67,7 @@
       "platform": "Platform"
     },
     "adminOwnedRow": "Milik admin",
-    "noGlobalRow": "Tidak ada baris semua organisasi",
+    "noGlobalRow": "Tidak ada bawaan semua organisasi",
     "overrideSwitch": "{{feature}}: penimpaan untuk organisasi ini",
     "clearOverride": "Hapus",
     "globalSwitch": "{{feature}}: sakelar untuk semua organisasi",

@@ -37,7 +37,7 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
   const columns: Column<StockLedgerRow>[] = useMemo(() => {
     const cols: Column<StockLedgerRow>[] = [
       { key: 'when', header: t('ledger.columns.when'), cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatDay(r.postedAt)}</span>, exportValue: (r) => r.postedAt },
-      ...(embedded ? [] : [{ key: 'occurred', header: t('ledger.columns.occurred'), colClassName: 'hidden 2xl:table-cell', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatDay(r.occurredOn)}</span>, exportValue: (r) => r.occurredOn} as Column<StockLedgerRow>]),
+      ...(embedded ? [] : [{ key: 'occurred', header: t('ledger.columns.occurred'), colClassName: 'hidden lg:table-cell', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatDay(r.occurredOn)}</span>, exportValue: (r) => r.occurredOn} as Column<StockLedgerRow>]),
       {
         key: 'doc', header: t('ledger.columns.document'), rowHeader: true,
         cell: (r) => (
@@ -50,10 +50,12 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
       },
       {
         key: 'item', header: t('ledger.columns.item'),
-        cell: (r) => (<div className="min-w-0"><span className="block break-all font-mono text-sm">{r.itemCode}</span><span className="block break-words text-sm text-muted-foreground">{r.itemName}</span></div>),
+        // A code has no spaces, so any wrapping class snaps it mid-code. In the table it stays on one line
+        // and the table scrolls sideways (F9); in the phone card below md it still breaks to stay inside.
+        cell: (r) => (<div className="min-w-0"><span className="block break-all font-mono text-sm md:break-normal md:whitespace-nowrap">{r.itemCode}</span><span className="block break-words text-sm text-muted-foreground">{r.itemName}</span></div>),
         exportValue: (r) => r.itemCode,
       },
-      { key: 'warehouse', header: t('ledger.columns.warehouse'), cell: (r) => <span data-testid="stock-ledger-warehouse-code" className="block min-w-0 break-all font-mono text-sm">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
+      { key: 'warehouse', header: t('ledger.columns.warehouse'), cell: (r) => <span data-testid="stock-ledger-warehouse-code" className="block min-w-0 break-all font-mono text-sm md:break-normal md:whitespace-nowrap">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
       {
         key: 'project', header: t('ledger.columns.project'), colClassName: 'hidden lg:table-cell',
         cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block truncate text-sm">{r.projectName}</span><span className="block truncate text-sm text-muted-foreground">{r.boqItemCode ?? ''}</span></div>) : null),
@@ -68,16 +70,22 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
     ];
     if (showCost) {
       cols.push(
-        { key: 'vdelta', header: t('ledger.columns.valueChange'), align: 'num', colClassName: 'hidden xl:table-cell', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' },
-        { key: 'vafter', header: t('ledger.columns.valueBalance'), align: 'num', colClassName: 'hidden xl:table-cell', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueAfter, currency, loc)}</span>, exportValue: (r) => r.valueAfter ?? '' },
+        // C13: a cost-rank role never gets a ledger with no money on it — the trace scrolls sideways rather
+        // than dropping the two value columns below a wide breakpoint.
+        { key: 'vdelta', header: t('ledger.columns.valueChange'), align: 'num', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' },
+        { key: 'vafter', header: t('ledger.columns.valueBalance'), align: 'num', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueAfter, currency, loc)}</span>, exportValue: (r) => r.valueAfter ?? '' },
       );
     }
     cols.push({ key: 'actor', header: t('ledger.columns.by'), colClassName: 'hidden md:table-cell', cell: (r) => <span className="text-sm">{r.actorName ?? ''}</span>, exportValue: (r) => r.actorName ?? '' });
     return cols;
   }, [t, loc, currency, showCost, embedded]);
 
+  // A failed next page keeps the trace already read: that failure is reported under the table, not by
+  // replacing the whole trace with a page-level error.
   const state: 'loading' | 'empty' | 'error' | undefined =
-    ledger.isError || items.isError || warehouses.isError ? 'error' : ledger.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined;
+    (ledger.isError && !ledger.isFetchNextPageError) || items.isError || warehouses.isError
+      ? 'error'
+      : ledger.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined;
   const filtered = Boolean(itemId || warehouseId || from || to || documentId || (!fixedProject && projectId));
 
   const body = (
@@ -97,6 +105,18 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
             onLoadMore={() => void ledger.fetchNextPage()}
             loadMoreLabel={t('ledger.loadMore')} />
           {!ledger.hasNextPage && <p className="mt-3 text-center text-sm text-muted-foreground">{t('ledger.end', { count: total })}</p>}
+          {ledger.isFetchNextPageError && (
+            /* C1: a failed next page must not leave the trace looking complete. */
+            <div className="mt-3">
+              <ListState
+                variant="error"
+                title={t('ledger.loadMoreFailed', "Couldn't load more entries")}
+                sub={t('states.errorSub')}
+                retryLabel={t('actions.retry')}
+                onRetry={() => void ledger.fetchNextPage()}
+              />
+            </div>
+          )}
         </>
       )}
     </>
@@ -117,6 +137,11 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
           <TextField label={t('ledger.filters.from')} type="date" value={from} onChange={(v) => set('from', v)} />
           <TextField label={t('ledger.filters.to')} type="date" value={to} onChange={(v) => set('to', v)} />
           {documentId && <StatusPill variant="neutral">{t('ledger.filters.oneDocument')}</StatusPill>}
+          {/* C13: From and To bound the MOVEMENT date, which is the Date column — not the posting time
+              the reader sees beside it. Said here, once, for both fields. */}
+          <p className="w-full text-sm text-muted-foreground">
+            {t('ledger.filters.dateHelp', 'From and To filter the movement date (the Date column), not when the entry was posted.')}
+          </p>
       </StockFilters>
       {body}
     </ListPage>

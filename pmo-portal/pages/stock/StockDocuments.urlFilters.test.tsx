@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import i18next from 'i18next';
@@ -37,7 +37,10 @@ const renderPage = (initialEntry = '/stock/documents') => {
       <ToastProvider>
         <MemoryRouter initialEntries={[initialEntry]}>
           <LocationProbe />
-          <StockDocuments />
+          <Routes>
+            <Route path="/stock/documents/:documentId" element={<p>document page</p>} />
+            <Route path="*" element={<StockDocuments />} />
+          </Routes>
         </MemoryRouter>
       </ToastProvider>
     </QueryClientProvider>,
@@ -65,5 +68,20 @@ describe('R2 — stock document filters live in the URL', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'Draft');
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?status=Draft');
     expect(documents.list.mock.calls.at(-1)?.[0]).toMatchObject({ status: 'Draft' });
+  });
+});
+
+/** Floor list (all-screens/floor-tests/stock-documents.md): the two items this suite did not yet cover. */
+describe('floor: a listed document opens its record', () => {
+  it('the document number is a keyboard-reachable link to the record, and the row is a pointer target for it', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('ISS-1');
+    const number = screen.getByRole('link', { name: 'ISS-1' });
+    number.focus();
+    expect(number).toHaveFocus();
+    expect(number).toHaveAttribute('href', '/stock/documents/d1');
+    await user.click(screen.getByText('Tower A'));
+    expect(await screen.findByText('document page')).toBeInTheDocument();
   });
 });

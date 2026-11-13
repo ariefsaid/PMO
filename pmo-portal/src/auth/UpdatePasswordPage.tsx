@@ -8,7 +8,7 @@ import { Button } from '../components/ui/Button';
 import { buttonClasses } from '../components/ui/buttonClasses';
 import { Card, CardPad } from '../components/ui/Card';
 import { ListState } from '../components/ui/ListState';
-import { ErrorBanner, AuthInput } from './authFormPrimitives';
+import { AuthHeader, ErrorBanner, AuthInput } from './authFormPrimitives';
 import { trackAuthLoginSucceeded, trackAuthLoginFailed } from '../lib/analytics';
 import type { AuthFailureReason, AuthMethod } from '../lib/analytics';
 
@@ -93,6 +93,11 @@ const UpdatePasswordPage: React.FC = () => {
           settled = true;
           setPhase('expired');
         }
+      }).catch(() => {
+        if (!settled) {
+          settled = true;
+          setPhase('expired');
+        }
       });
       return;
     }
@@ -102,6 +107,11 @@ const UpdatePasswordPage: React.FC = () => {
     void supabase.auth.getSession().then(({ data }) => {
       if (data.session) activate();
       else if (!settled) {
+        settled = true;
+        setPhase('expired');
+      }
+    }).catch(() => {
+      if (!settled) {
         settled = true;
         setPhase('expired');
       }
@@ -122,7 +132,11 @@ const UpdatePasswordPage: React.FC = () => {
     e.preventDefault();
     setError(null);
     if (password !== confirm || !password) {
-      setConfirmError(t('update.mismatch', 'The two passwords do not match.')); // FR-AUTHF-022
+      setConfirmError(
+        password
+          ? t('update.mismatch', 'The two passwords do not match.')
+          : t('update.required', 'Enter a new password.'),
+      ); // FR-AUTHF-022
       return;
     }
     setConfirmError(null);
@@ -142,8 +156,9 @@ const UpdatePasswordPage: React.FC = () => {
     return (
       <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
         <div className="w-full max-w-sm">
-          <div className="mb-5 text-center">
-            <h1 className="text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
+          <AuthHeader className="mb-4" />
+          <div className="mb-6 text-center">
+            <h1 className="text-page font-bold tracking-[-0.02em] text-foreground">
               {t('update.inviteTitle', 'Set your password')}
             </h1>
           </div>
@@ -156,10 +171,12 @@ const UpdatePasswordPage: React.FC = () => {
                 {t('update.requestNew', 'Request a new link')}
               </Link>
               <Link
-                to="/login"
-                className="block text-center text-[12.5px] font-semibold text-primary-text hover:underline"
+                to={session ? '/' : '/login'}
+                className="touch-target flex min-h-[var(--control-height)] items-center justify-center text-control font-semibold text-primary-text hover:underline"
               >
-                {t('update.back', 'Back to sign in')}
+                {session
+                  ? t('update.backToApp', 'Back to the app')
+                  : t('update.back', 'Back to sign in')}
               </Link>
             </CardPad>
           </Card>
@@ -170,27 +187,32 @@ const UpdatePasswordPage: React.FC = () => {
 
   if (phase === 'verifying') {
     return (
-      <div
-        className="min-h-[100dvh] bg-secondary/35"
-      >
-        <ListState
-          variant="loading"
-          shape="detail"
-          rows={3}
-          loadingLabel={t('update.verifying', 'Verifying your link…')}
-          loadingRole="status"
-          loadingAriaLabel={t('update.verifying', 'Verifying your link…')}
-          className="mx-auto w-full max-w-sm px-4 py-10"
-        />
-      </div>
+      <main className="min-h-[100dvh] bg-secondary/35 px-4 py-8">
+        <div className="mx-auto w-full max-w-sm">
+          <AuthHeader className="mb-4" />
+          <h1 className="mb-5 text-center text-page font-bold tracking-[-0.02em] text-foreground">
+            {t('update.verifyingHeading', 'Verifying your link')}
+          </h1>
+          <ListState
+            variant="loading"
+            shape="detail"
+            rows={3}
+            loadingLabel={t('update.verifying', 'Verifying your link…')}
+            loadingRole="status"
+            loadingAriaLabel={t('update.verifying', 'Verifying your link…')}
+            className="mx-auto w-full px-4 py-10"
+          />
+        </div>
+      </main>
     );
   }
 
   return (
     <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
-        <div className="mb-5 text-center">
-          <h1 className="text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
+        <AuthHeader className="mb-4" />
+        <div className="mb-6 text-center">
+          <h1 className="text-page font-bold tracking-[-0.02em] text-foreground">
             {wasInvite ? t('update.inviteTitle', 'Set your password') : t('update.resetTitle', 'Set a new password')}
           </h1>
         </div>
@@ -231,7 +253,7 @@ const UpdatePasswordPage: React.FC = () => {
                   <span
                     id="confirm-err"
                     role="alert"
-                    className="mt-1.5 flex items-center gap-1.5 text-[12px] font-medium"
+                    className="mt-1.5 flex items-center gap-1.5 text-control font-medium"
                     style={{ color: 'hsl(0 72% 45%)' }}
                   >
                     {confirmError}

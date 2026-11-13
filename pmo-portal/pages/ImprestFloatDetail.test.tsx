@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor, cleanup } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -48,8 +48,16 @@ const POSITION = {
 };
 const REP = { id: 'r1', number: 'REP-1', kind: 'replenishment', amount: 3500000, status: 'Requested', requested_by: 'u-cust', approved_by: null, requested_at: '2026-11-02T00:00:00Z', float_id: 'f1' };
 const setViewer = (userId: string, role: string) => { h.userId = userId; h.realRole = role; };
+const RouteName = ({ kind }: { kind: 'expense' | 'imprest' }) => {
+  const { claimId, floatId } = useParams();
+  return <p>{kind === 'expense' ? `Expense record ${claimId}` : `Float record ${floatId}`}</p>;
+};
 const renderPage = () => render(
-  <MemoryRouter initialEntries={['/imprest/f1']}><ToastProvider><Routes><Route path="/imprest/:floatId" element={<ImprestFloatDetail />} /></Routes></ToastProvider></MemoryRouter>,
+  <MemoryRouter initialEntries={['/imprest/f1']}><ToastProvider><Routes>
+    <Route path="/imprest/:floatId" element={<ImprestFloatDetail />} />
+    <Route path="/imprest" element={<p>Site cash list</p>} />
+    <Route path="/expenses/:claimId" element={<RouteName kind="expense" />} />
+  </Routes></ToastProvider></MemoryRouter>,
 );
 
 describe('/imprest/:floatId (AC-IMP-082)', () => {
@@ -70,6 +78,17 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     h.position = ok({ ...POSITION, last_count_variance: null });
     renderPage();
     expect(screen.getByText(/Last count.*variance/)).toHaveTextContent('variance —');
+  });
+
+  it('lets a person open the full cash count note', async () => {
+    const note = 'Cash purchase was missing from the receipt log.';
+    h.counts = ok({ rows: [{ id: 'count-1', counted_at: '2026-11-02T00:00:00Z', counted_amount: 990000, book_amount: 1000000, variance: -10000, note }], truncated: false });
+    renderPage();
+    const disclosure = screen.getByText('Read full note').closest('details');
+    expect(disclosure).not.toHaveAttribute('open');
+    await userEvent.click(screen.getByText('Read full note'));
+    expect(disclosure).toHaveAttribute('open');
+    expect(within(disclosure!).getByText(note)).toBeVisible();
   });
 
   it('AC-RSN-005 shows each returned top-up decision on its own row', () => {
@@ -93,6 +112,31 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     expect(within(vehicle).queryByText('Out of plan')).toBeNull();
   });
 
+  it('C5 does not say there are no cash counts while their read is pending', () => {
+    h.counts = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    renderPage();
+    expect(screen.queryByText('No cash count recorded yet.')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading cash counts…' })).toBeInTheDocument();
+  });
+
+  it('C13 identifies this float and shows its archived status', () => {
+    h.floats = ok({ ...FLOAT, archived_at: '2026-11-01T00:00:00Z' });
+    renderPage();
+    expect(screen.getByRole('heading', { name: /Float f1 · Site Alpha/ })).toBeInTheDocument();
+    expect(screen.getByText('Archived')).toBeInTheDocument();
+    expect(screen.queryByText('Active')).not.toBeInTheDocument();
+  });
+
+  it('the float read error Retry reruns the float query', async () => {
+    const retry = vi.fn();
+    h.floats = { data: undefined, isPending: false, isError: true, refetch: retry };
+    const user = userEvent.setup();
+    renderPage();
+    const alert = screen.getByText("Couldn't load this float").closest('[role="alert"]') as HTMLElement;
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
   it('AC-IMP-082 the custodian sees Request replenishment and not Approve', () => {
     setViewer('u-cust', 'Finance');
     renderPage();
@@ -111,12 +155,33 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     expect(screen.queryByRole('button', { name: 'Request replenishment' })).toBeNull();
   });
 
-  it('AC-IMP-082 a failed position read shows the error state, not zeros', () => {
-    h.position = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+  it('AC-IMP-082 a failed position read shows its cause and retries that read, not zeros', async () => {
+    const retry = vi.fn();
+    h.position = { data: undefined, isPending: false, isError: true, refetch: retry };
     renderPage();
-    expect(screen.getByText("Couldn't load this float's position")).toBeInTheDocument();
+    const errorTitle = screen.getByText("Couldn't load this float's position");
+    const error = errorTitle.closest('[role="alert"]') as HTMLElement | null;
+    expect(error).not.toBeNull();
+    expect(within(error!).getByText('No figure is shown and float actions are paused until the position loads.')).toBeInTheDocument();
     expect(screen.queryByText(/Books do not balance/)).toBeNull();
     expect(screen.queryByRole('row', { name: /Vehicle/ })).toBeNull();
+    await userEvent.click(within(error!).getByRole('button', { name: 'Retry' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('C1: failed receipts and counts reads each have their own retry', async () => {
+    const receiptsRetry = vi.fn();
+    const countsRetry = vi.fn();
+    h.claims = { data: undefined, isPending: false, isError: true, refetch: receiptsRetry };
+    h.counts = { data: undefined, isPending: false, isError: true, refetch: countsRetry };
+    renderPage();
+
+    const receiptsError = await screen.findByText("Couldn't load the float's records");
+    const countsError = await screen.findByText("Couldn't load counts");
+    await userEvent.click(within(receiptsError.closest('[role="alert"]') as HTMLElement).getByRole('button', { name: 'Retry' }));
+    await userEvent.click(within(countsError.closest('[role="alert"]') as HTMLElement).getByRole('button', { name: 'Retry' }));
+    expect(receiptsRetry).toHaveBeenCalledTimes(1);
+    expect(countsRetry).toHaveBeenCalledTimes(1);
   });
 
   it('AC-IMP-082 receipts already in an open replenishment request cannot be requested again', () => {
@@ -145,6 +210,81 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     expect(screen.getByText('Not yet funded')).toBeInTheDocument();
     expect(screen.queryByText('Books do not balance')).toBeNull();
     expect(screen.getByRole('button', { name: 'Request funding' })).toBeInTheDocument();
+  });
+
+  it('AC-IMP-003 confirms a funding request before sending it', async () => {
+    setViewer('u-cust', 'Finance');
+    h.position = ok({ ...POSITION, cash_book: 0, advances_out: 0, receipts_waiting: 0, gap: 5000000, funded_total: 0, last_count_at: null, last_count_variance: null });
+    h.reps = ok({ rows: [], truncated: false });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Request funding' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(h.m.requestReplenishment.mutateAsync).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Request funding' }));
+    await waitFor(() => expect(h.m.requestReplenishment.mutateAsync).toHaveBeenCalledWith({ floatId: 'f1', kind: 'funding' }));
+  });
+
+  it('C9 the phone Back bar opens the Site cash list', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Back to Site cash' }));
+    expect(screen.getByText('Site cash list')).toBeInTheDocument();
+  });
+
+  it('C9 a plan exception opens its expense record', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('link', { name: 'EXP-9' }));
+    expect(screen.getByText('Expense record c9')).toBeInTheDocument();
+  });
+
+  it('C9 a receipt number opens its expense record', async () => {
+    h.claims = ok({ rows: [{ id: 'c1', claim_number: 'EXP-1', kind: 'claim', title: 'Fuel', amount: 100000, status: 'Paid', is_plan_exception: false, currency: 'IDR' }], truncated: false });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('link', { name: 'EXP-1' }));
+    expect(screen.getByText('Expense record c1')).toBeInTheDocument();
+  });
+
+  it('C1 retries a failed replenishment read from its own error', async () => {
+    const retry = vi.fn();
+    h.reps = { data: undefined, isPending: false, isError: true, refetch: retry };
+    const user = userEvent.setup();
+    renderPage();
+    const alert = screen.getByText("Couldn't load replenishments").closest('[role="alert"]') as HTMLElement;
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-IMP-082 confirms approval of a requested replenishment', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(h.m.transitionReplenishment.mutateAsync).toHaveBeenCalledWith({ id: 'r1', to: 'Approved' }));
+  });
+
+  it('AC-IMP-082 records a rejection reason when rejecting a replenishment', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Reject' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.type(within(dialog).getByLabelText(/reason/i), 'Attach receipts first');
+    await user.click(within(dialog).getByRole('button', { name: 'Reject' }));
+    await waitFor(() => expect(h.m.transitionReplenishment.mutateAsync).toHaveBeenCalledWith({ id: 'r1', to: 'Rejected', notes: 'Attach receipts first' }));
+  });
+
+  it('AC-IMP-082 confirms cancellation of the custodian\'s requested replenishment', async () => {
+    const user = userEvent.setup();
+    setViewer('u-cust', 'Finance');
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(h.m.transitionReplenishment.mutateAsync).not.toHaveBeenCalled();
+    await user.click(within(dialog).getAllByRole('button', { name: 'Cancel' })[1]);
+    await waitFor(() => expect(h.m.transitionReplenishment.mutateAsync).toHaveBeenCalledWith({ id: 'r1', to: 'Cancelled' }));
   });
 
   it('AC-IMP-003 an enlarged float shows the top-up due, not a defect', () => {
@@ -265,9 +405,15 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
   });
 
   it('AC-IMP-072 an unreadable posting status says so rather than implying everything posted', () => {
-    h.postings = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+    const postingsRefetch = vi.fn();
+    h.postings = { data: undefined, isPending: false, isError: true, refetch: postingsRefetch };
     renderPage();
-    expect(screen.getByText("Couldn't load the ERP posting status")).toHaveAttribute('role', 'alert');
+    // C1 fix round: this failure is the SHARED error card (same anatomy as the records/counts
+    // reads beside it), so the alert is the enclosing card and Retry re-reads only this read.
+    const alert = screen.getByText("Couldn't load the ERP posting status").closest('[role="alert"]') as HTMLElement;
+    expect(alert).toBeInTheDocument();
+    fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }));
+    expect(postingsRefetch).toHaveBeenCalledTimes(1);
   });
 
   it('AC-IMP-072 a posting list past the cap says so rather than reading as the complete truth', () => {

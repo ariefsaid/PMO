@@ -1,12 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
 } from '@/src/components/ui';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
-import { StockError } from '@/src/components/stock/StockError';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
+import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -92,17 +92,6 @@ const StockMovementForm: React.FC = () => {
   const usable = useMemo(() => (warehouses.data ?? []).filter((w) => isAdmin || keptIds.has(w.id)), [warehouses.data, isAdmin, keptIds]);
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data]);
   const wholeByUnit = useMemo(() => new Map((units.data ?? []).map((u) => [u.id, u.whole_only])), [units.data]);
-
-  const submitErrorRef = useRef<HTMLParagraphElement>(null);
-  // A refused post is answered at the foot of the form, where the fixed phone action bar cut the
-  // strip's last line at 390 and left it below the fold for a reader further up the form (C16).
-  // Bring the strip's own line into view clear of the bar, and focus it so it is read as well as seen.
-  useEffect(() => {
-    const strip = submitErrorRef.current;
-    if (!strip) return;
-    strip.scrollIntoView({ block: 'center' });
-    strip.focus({ preventScroll: true });
-  }, [submitError]);
 
   if (!kind) {
     return <div className="p-4"><ListState variant="empty" icon="folder" title={t('form.unknownKind')} sub={t('form.unknownKindSub')} /></div>;
@@ -307,7 +296,7 @@ const StockMovementForm: React.FC = () => {
             </div>
           </FormSection>
 
-          {!insufficient && <StockError error={submitError} ref={submitErrorRef} tabIndex={-1} />}
+          {!insufficient && <FormErrorStrip>{submitError ? errorText(submitError) : null}</FormErrorStrip>}
 
           {canSubmit ? (
             <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">

@@ -20,12 +20,12 @@ const contractLine: ContractLineFacts = {
   acceptedQuantity: 0, closedFinal: 0, earnedQuantity: 0, contractBalance: 90, allocations: [],
 };
 
-function renderLines(onClose = vi.fn(), onUpdate = vi.fn().mockResolvedValue(undefined)) {
+function renderLines(onClose = vi.fn(), onUpdate = vi.fn().mockResolvedValue(undefined), facts = contractLine) {
   render(
     <WorkOrderLinesModal
       workOrder={{ id: 'wo-1', wo_number: 'WO-1', title: 'Survey', status: 'Draft' }}
       boqItems={[item]}
-      contractLines={[contractLine]}
+      contractLines={[facts]}
       allocations={[allocation]}
       canEdit
       onClose={onClose}
@@ -39,6 +39,18 @@ function renderLines(onClose = vi.fn(), onUpdate = vi.fn().mockResolvedValue(und
 }
 
 describe('WorkOrderLinesModal unsaved line quantities', () => {
+  it('C1: explains beside a disabled Remove that a confirmed BAST accepted the allocation', () => {
+    renderLines(undefined, undefined, {
+      ...contractLine,
+      allocations: [{ workOrderId: 'wo-1', boqItemId: 'boq-1', quantity: 10, claimedQuantity: 0, acceptedQuantity: 5, final: false }],
+    });
+
+    const remove = screen.getByRole('button', { name: /Remove SURVEY/ });
+    expect(remove).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent(/A confirmed BAST already accepted 5 km/);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
   it('CMP-005: Done asks before dropping an edited allocation and Keep editing retains it', async () => {
     const user = userEvent.setup();
     const { onClose } = renderLines();

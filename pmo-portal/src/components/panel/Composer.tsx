@@ -8,6 +8,7 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
+import { FileInput, TextArea } from '@/src/components/ui/FormFields';
 import type { ClassifiedUploadError } from '@/src/lib/uploadTransport';
 import {
   AGENT_ATTACHMENT_ACCEPT,
@@ -154,15 +155,11 @@ export const Composer: React.FC<ComposerProps> = ({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      <label htmlFor={composerId} className="sr-only">
-        Ask a question
-      </label>
       <div className="flex items-end gap-2">
         {attachmentsEnabled ? (
           <>
-            <input
+            <FileInput
               ref={fileInputRef}
-              type="file"
               accept={AGENT_ATTACHMENT_ACCEPT}
               // IMPORTANT-4: the visible button is the SOLE accessible "Attach file" control.
               // The hidden input stays functional (programmatic click + Playwright setInputFiles)
@@ -187,11 +184,15 @@ export const Composer: React.FC<ComposerProps> = ({
             </button>
           </>
         ) : null}
-        <textarea
+        <TextArea
           id={composerId}
           ref={resolvedRef}
+          label="Ask a question"
+          hideLabel
+          wrapperClassName="min-w-0 flex-1"
+          unstyled
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={onChange}
           onKeyDown={handleKeyDown}
           disabled={running || disabled}
           // NFR-AW-A11Y-003: explicit aria-disabled in needs-approval phase so screen
@@ -200,7 +201,7 @@ export const Composer: React.FC<ComposerProps> = ({
           maxLength={2000}
           rows={1}
           placeholder="Ask a question…"
-          className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-0 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Ask a question"
         />
         {running ? (

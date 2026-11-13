@@ -267,7 +267,7 @@ describe('live Reports money honesty (adapted from RevenueByProject)', () => {
     const alphaActions = screen.getAllByRole('button', { name: /Actions for Alpha/i });
     expect(alphaActions.length).toBeGreaterThan(0);
     await user.click(alphaActions[0]);
-    await user.click(screen.getByRole('menuitem', { name: 'Export row' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Export current line' }));
     expect(h.exportTable).toHaveBeenCalledTimes(1);
     const [rowTablePending] = h.exportTable.mock.calls[0];
     expect(rowTablePending.header).not.toContain('Invoices');
@@ -287,7 +287,7 @@ describe('live Reports money honesty (adapted from RevenueByProject)', () => {
 
     const alphaActionsError = screen.getAllByRole('button', { name: /Actions for Alpha/i });
     await user.click(alphaActionsError[0]);
-    await user.click(screen.getByRole('menuitem', { name: 'Export row' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Export current line' }));
     expect(h.exportTable).toHaveBeenCalledTimes(1);
     const [rowTableError] = h.exportTable.mock.calls[0];
     expect(rowTableError.header).not.toContain('Invoices');
@@ -305,7 +305,7 @@ describe('live Reports money honesty (adapted from RevenueByProject)', () => {
 
     const alphaActionsSuccess = screen.getAllByRole('button', { name: /Actions for Alpha/i });
     await user.click(alphaActionsSuccess[0]);
-    await user.click(screen.getByRole('menuitem', { name: 'Export row' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Export current line' }));
     expect(h.exportTable).toHaveBeenCalledTimes(1);
     const [rowTableSuccess] = h.exportTable.mock.calls[0];
     expect(rowTableSuccess.header).not.toContain('Invoices');

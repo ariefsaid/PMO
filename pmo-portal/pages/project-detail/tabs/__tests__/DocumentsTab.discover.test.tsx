@@ -179,7 +179,7 @@ describe('F7: Add document from a Microsoft item', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Add document' });
     expect(within(dialog).getByTestId('document-linked-item')).toHaveTextContent('Specification rev C.pdf');
     expect(within(dialog).getByRole('textbox', { name: /Title/ })).toHaveValue('Specification rev C');
-    expect(within(dialog).queryByText(/Upload a file once the Draft row is created/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/Upload a file once the draft is created/)).not.toBeInTheDocument();
   });
 
   it('F7: a folder keeps its full name as the title', async () => {

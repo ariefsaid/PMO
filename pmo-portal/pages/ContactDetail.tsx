@@ -178,7 +178,9 @@ const ContactDetail: React.FC = () => {
       <RecordHeader
         name={contact.full_name}
         icon={(contact.full_name.trim().charAt(0) || '•').toUpperCase()}
-        status={<StatusPill variant="violet">{t('contactDetail.pill', 'Contact')}</StatusPill>}
+        status={contact.archived_at
+          ? <StatusPill variant="neutral">{t('contactDetail.pillArchived', 'Archived')}</StatusPill>
+          : <StatusPill variant="violet">{t('contactDetail.pill', 'Contact')}</StatusPill>}
         meta={contact.title ? <span>{contact.title}</span> : undefined}
         primaryAction={canEdit ? (
           <Button variant="primary" size="sm" data-testid="contact-edit" onClick={() => setEditOpen(true)}>
@@ -363,12 +365,14 @@ const CompanyRefOutsideDirectory: React.FC<{ companyId: string }> = ({ companyId
     return <span className="text-muted-foreground">…</span>;
   }
   if (isError || !data) {
+    const unavailable = t('contactDetail.field.companyUnavailable', 'This company is not in your company directory.');
     return (
       <span
         className="text-muted-foreground"
-        title={t('contactDetail.field.companyUnavailable', 'This company is not in your company directory.')}
+        title={unavailable}
       >
         —
+        <span className="ml-1">{unavailable}</span>
       </span>
     );
   }
