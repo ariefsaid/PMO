@@ -83,9 +83,7 @@ const A9: Handoff[] = [
 ];
 
 /** The c4 merge leftover: the literal in UpdatePasswordPage.tsx becomes `update.empty`. */
-const C4_LEFTOVER: Handoff[] = [
-  ['auth', 'update.empty', 'Enter a password to continue.', 'Masukkan kata sandi untuk melanjutkan.'],
-];
+const C4_LEFTOVER: Handoff[] = [];
 
 /**
  * A3 — the claim status "Unpaid" in the BillingTab claim drawer. A3's source edit is deferred to

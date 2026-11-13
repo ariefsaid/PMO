@@ -149,7 +149,7 @@ describe('Finance reports floor controls', () => {
     renderPage();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Actions for Alpha' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Export row' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Export current line' }));
     expect(h.exportTable).toHaveBeenCalledOnce();
     const [table, stem, format] = h.exportTable.mock.calls[0]!;
     expect(table.body.length).toBeGreaterThan(0);
