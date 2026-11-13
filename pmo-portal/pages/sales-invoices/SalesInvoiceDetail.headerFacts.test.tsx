@@ -64,3 +64,35 @@ it('links the project in header facts and keeps Project and Invoice date facts o
   expect(within(main).getAllByText('Invoice date')).toHaveLength(1);
   expect(screen.getByText('Customer PO')).toBeInTheDocument();
 });
+
+it('keeps all four invoice lifecycle steps named in the timeline', () => {
+  render(
+    <FinanceI18nTestProvider>
+      <MemoryRouter>
+        <SalesInvoiceDetail
+          viewTarget={target}
+          projectName="Northwind Build"
+          isPending={false}
+          isError={false}
+          data={[target]}
+          mode="erp"
+          organizationToday="2026-10-16"
+          onBack={vi.fn()}
+          refetch={vi.fn()}
+          recordPrimaryAction={null}
+          invoiceDisplayLabel={() => 'SI-2026-0001'}
+          may={(() => false) as never}
+          pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never}
+          dialogs={null}
+        />
+      </MemoryRouter>
+    </FinanceI18nTestProvider>,
+  );
+
+  const timeline = screen.getByRole('list', { name: 'Invoice status timeline' });
+  expect(within(timeline).getAllByRole('listitem')).toHaveLength(4);
+  expect(within(timeline).getByRole('listitem', { name: 'Draft: done' })).toBeInTheDocument();
+  expect(within(timeline).getByRole('listitem', { name: 'Submitted: current' })).toBeInTheDocument();
+  expect(within(timeline).getByRole('listitem', { name: 'Delivered to client: upcoming' })).toBeInTheDocument();
+  expect(within(timeline).getByRole('listitem', { name: 'Paid: upcoming' })).toBeInTheDocument();
+});
