@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import StageHistory from '../StageHistory';
 
 const entries = [
@@ -14,14 +14,26 @@ const entries = [
     recorded_at: '2026-08-01T03:00:00Z', redated_at: null, recorder: null },
 ] as const;
 
+const { stageMutations } = vi.hoisted(() => ({
+  stageMutations: {
+    redate: { mutateAsync: vi.fn() },
+    addSkipped: { mutateAsync: vi.fn() },
+  },
+}));
+
 vi.mock('@/src/hooks/useProjectStageEntries', () => ({
   useProjectStageEntries: () => ({ data: entries, isLoading: false, error: null }),
-  useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),
+  useStageEntryMutations: () => stageMutations,
 }));
 // usePermission returns the predicate itself: (action, entity, ctx?) => boolean (src/auth/usePermission.tsx:20).
 const { canEdit } = vi.hoisted(() => ({ canEdit: vi.fn() }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => canEdit }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-11-01' }));
+
+beforeEach(() => {
+  stageMutations.redate.mutateAsync.mockReset();
+  stageMutations.addSkipped.mutateAsync.mockReset();
+});
 
 describe('StageHistory (#1638)', () => {
   it('AC-PSH-013: lists every entry newest-first, including the re-quote, with date and recorder', () => {
@@ -54,6 +66,22 @@ describe('StageHistory (#1638)', () => {
     await userEvent.click(within(firstRow).getByRole('button', { name: /change date/i }));
     expect(screen.getByRole('dialog', { name: /Quoted/i })).toBeInTheDocument();
     expect(screen.getByText(/Currently 12 Oct/i)).toBeInTheDocument();
+  });
+  it('floor: Add skipped stage saves the chosen stage and date before the selected entry', async () => {
+    canEdit.mockReturnValue(true);
+    render(<StageHistory projectId="p1" />);
+
+    await userEvent.click(within(screen.getAllByRole('listitem')[0]).getByRole('button', { name: /add skipped stage/i }));
+    await userEvent.selectOptions(screen.getByLabelText('Stage'), 'Tender Submitted');
+    await userEvent.clear(screen.getByLabelText('Stage date'));
+    await userEvent.type(screen.getByLabelText('Stage date'), '2026-10-05');
+    await userEvent.click(screen.getByRole('button', { name: 'Save date' }));
+
+    expect(stageMutations.addSkipped.mutateAsync).toHaveBeenCalledWith({
+      beforeEntryId: 'e4',
+      stage: 'Tender Submitted',
+      enteredOn: '2026-10-05',
+    });
   });
   it('AC-PSH-013: suppresses its own heading when hideHeading is true', () => {
     canEdit.mockReturnValue(true);
