@@ -36,6 +36,16 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   expect(within(allocation).getByLabelText('Project')).toBeInTheDocument();
   expect(within(allocation).getByLabelText('Budget category')).toBeInTheDocument();
  });
+ it('includes project, budget category and purpose in the saved draft header', async () => {
+  renderPage();
+  fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Client visit' } });
+  fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
+  fireEvent.change(screen.getByLabelText('Budget category'), { target: { value: 'Vehicle' } });
+  fireEvent.change(screen.getByLabelText('Purpose'), { target: { value: 'Visit the site' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await waitFor(() => expect(h.capture).toHaveBeenCalled());
+  expect(h.capture.mock.calls[0][0].header).toMatchObject({ projectId: 'p1', budgetCategory: 'Vehicle', purpose: 'Visit the site' });
+ });
  it('keeps each expense line grouped and shows the already computed total', () => {
   h.orgCurrency = { currency: 'USD', isResolved: true, isError: false };
   renderPage();
