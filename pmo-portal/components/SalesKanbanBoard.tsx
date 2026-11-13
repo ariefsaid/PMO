@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { createContext, useContext, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/src/components/shadcn/dropdown-menu';
@@ -50,6 +50,9 @@ interface SalesKanbanBoardProps {
     onMove: (projectId: string, columnId: string) => void;
   };
 }
+
+/** The summary condition from SalesPipeline's open-deal band, shared with desktop board cards. */
+export const SalesKanbanBoardTaxBasisContext = createContext<boolean | undefined>(undefined);
 
 /**
  * A deal's chance: the product of its Go and Get estimates, with Go falling back to the record's
@@ -352,7 +355,8 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
     projects.filter((p) => (drag ? drag.columnOf(p.id, serverColumnId(p)) : serverColumnId(p)) === col.testId);
   const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
     useKanbanMobileScroll();
-  const sharedExclusiveTaxBasis = canSummarizeExclusiveTaxBasis(projects);
+  const summarizedExclusiveTaxBasis = useContext(SalesKanbanBoardTaxBasisContext);
+  const sharedExclusiveTaxBasis = summarizedExclusiveTaxBasis ?? canSummarizeExclusiveTaxBasis(projects);
 
   // #697: a funnel stage selection scrolls the board to that column (on mount too, so a copied
   // `?status=` link lands on it). `handleStageClick` is identity-stable.

@@ -1,8 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { chartTheme } from '@/src/components/ui/chartTheme';
-import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { formatCurrency } from '@/src/lib/format';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { cn } from '@/src/components/ui/cn';
@@ -45,6 +43,14 @@ const PAYABLE_STATUS_COLORS: Record<BucketKey, string> = {
   d61_90: 'hsl(var(--warning) / 0.48)',
 };
 
+/**
+ * A distance along the age bar, as a percentage of the bar's width, at the four decimals the bar is
+ * painted at. Neighbouring segments read the same edge from this one number, so their painted edges
+ * coincide; a value rounded down on one side and up on the other is what leaves a sub-pixel gap at a
+ * join or at the bar's end, showing the surface behind a 1px lighter sliver.
+ */
+const barPercent = (value: number) => Number(Math.max(value, 0).toFixed(4));
+
 export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, noDueDateCounts = {}, unknownTotal = 0, payablesStatusColors = false }) => {
   const { t } = useTranslation();
   const { currency: orgCurrency, isResolved } = useOrgCurrencyState();
@@ -84,8 +90,22 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
       {currencies.map(([currency, buckets]) => {
         const amounts = bucketKeys.map((key) => amountFor(buckets, key));
         const total = amounts.reduce((sum, amount) => sum + Math.max(amount, 0), 0);
-        const chartData = { name: currency, ...Object.fromEntries(bucketKeys.map((key, index) => [key, Math.max(amounts[index] ?? 0, 0)])) };
         const chartLabel = `${t('financeHub:hub.fix.ageingBarLabel', '{{currency}} balance distribution by age', { currency })}. ${bucketKeys.map((key, index) => `${labels[key]} ${formatCurrency((amounts[index] ?? 0) / 100, currency)}`).join(', ')}`;
+        // One contiguous run of edges across the bar: segment i starts on edge i and ends on edge i+1,
+        // so each width is derived from the edge it shares with its neighbour rather than from its own
+        // rounded share — that is what keeps the joins seamless. The final edge is closed on exactly
+        // 100 (with any rounding remainder absorbed there) so the paint finishes on the column's edge.
+        const edges: number[] = [];
+        let painted = 0;
+        amounts.forEach((amount) => {
+          painted += total > 0 ? (Math.max(amount, 0) / total) * 100 : 0;
+          edges.push(barPercent(painted));
+        });
+        if (edges.length > 0) edges[edges.length - 1] = 100;
+        const segments = bucketKeys.map((key, index) => {
+          const start = index === 0 ? 0 : (edges[index - 1] ?? 0);
+          return { key, start, width: barPercent((edges[index] ?? 0) - start), amount: amounts[index] ?? 0 };
+        });
         return (
           <div key={currency} className="mb-4 min-w-0 last:mb-0">
             <div className="mb-1 text-control font-medium text-muted-foreground">{currency}</div>
@@ -94,18 +114,30 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
               aria-label={chartLabel}
               data-testid={`ageing-bar-${currency}`}
               data-scale-max={total}
-              className="h-9 min-w-0 overflow-hidden rounded-md"
+              className="relative h-9 min-w-0 overflow-hidden rounded-md"
             >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={[chartData]} layout="vertical" margin={{ top: 3, right: 0, bottom: 3, left: 0 }} barSize={24}>
-                  <XAxis type="number" hide domain={[0, total]} />
-                  <YAxis type="category" dataKey="name" hide />
-                  <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key) => [formatCurrency(Number(value) / 100, currency), labels[key as BucketKey]]} />
-                  {bucketKeys.map((key) => <Bar key={key} dataKey={key} stackId="age" fill={bucketColors[key]} />)}
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="absolute inset-x-0 top-1/2 h-6 -translate-y-1/2">
+                {segments.map(({ key, start, width, amount }) => <span
+                  key={key}
+                  data-testid={`ageing-segment-${currency}-${key}`}
+                  data-bucket={key}
+                  aria-hidden="true"
+                  title={`${labels[key]} · ${formatCurrency(amount / 100, currency)}`}
+                  className="absolute inset-y-0"
+                  style={{
+                    left: `${start}%`,
+                    width: `${width}%`,
+                    background: bucketColors[key],
+                    // A hairline of the segment's own colour past its right edge: the next segment
+                    // paints over it, so a browser that lands the two rounded edges a fraction apart
+                    // still shows bar colour, never the surface behind. At the bar's end this closes
+                    // the last pixel and is clipped by the bar's overflow.
+                    boxShadow: `1px 0 0 ${bucketColors[key]}`,
+                  }}
+                />)}
+              </div>
             </div>}
-            <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-x-3 gap-y-2">
+            <div data-testid={`ageing-legend-${currency}`} className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-x-3 gap-y-2">
               {bucketKeys.map((key, index) => {
                 const amount = amounts[index] ?? 0;
                 const unknown = unknownCounts[currency]?.[key] ?? 0;

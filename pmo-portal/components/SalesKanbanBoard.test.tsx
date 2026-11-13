@@ -109,6 +109,26 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     }
   });
 
+  it('floor #31: tapping a stage indicator scrolls its stage into view', async () => {
+    const scrollTo = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      writable: true,
+      value: scrollTo,
+    });
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+
+    const targetColumn = screen.getByTestId('stage-Negotiation');
+    Object.defineProperty(targetColumn, 'offsetLeft', { configurable: true, value: 987 });
+    const stageNavigation = screen.getByRole('navigation', { name: 'Pipeline stage navigation' });
+    const target = within(stageNavigation).getByRole('button', { name: 'Negotiation' });
+
+    await userEvent.click(target);
+
+    expect(scrollTo).toHaveBeenCalledWith({ left: 987, behavior: 'smooth' });
+    expect(target).toHaveAttribute('aria-current', 'true');
+  });
+
   it('CW-3b: each deal renders the shared canonical ProjectCardShell (one project-card vocabulary)', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     // The shared shell stamps every card with the canonical `project-card` testid — the SAME

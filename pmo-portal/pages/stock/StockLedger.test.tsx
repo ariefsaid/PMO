@@ -8,6 +8,8 @@ import React from 'react';
 import i18next from 'i18next';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
+import { buildExportRows } from '@/src/lib/export';
+import type { StockLedgerRow } from '@/src/lib/db/stockReports';
 import stockEn from '@/public/locales/en/stock.json';
 
 const { master, reports } = vi.hoisted(() => ({
@@ -19,7 +21,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me'
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Project Manager', effectiveRole: 'Project Manager' }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 
-import StockLedger from './StockLedger';
+import StockLedger, { buildLedgerColumns } from './StockLedger';
 
 const entry = (seq: number, over: Record<string, unknown> = {}) => ({
   seq, id: `e${seq}`, documentId: 'd1', documentNumber: `ISS-${seq}`, documentStatus: 'Posted', kind: 'issue', postedAt: '2026-10-30T03:00:00Z', occurredOn: '2026-10-28', postedBy: 'u1', actorName: 'Eka Engineer',
@@ -90,18 +92,31 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(change).toHaveTextContent('+500 metric tons');
   });
 
-  it('F9 a code is never broken mid-code in the table: the row scrolls sideways instead', async () => {
-    // A code has no spaces to break at, so the only thing that can break it is a CSS wrapping class.
-    // This pins the two cells the picture showed snapped over three lines; the phone card below md is
-    // asserted separately (it must still break a long code rather than push it out of the card).
+  it('F9b a code in the table breaks only after a hyphen, never inside a segment, and keeps its exact text', async () => {
+    // F9 forbade every wrap in the table and scrolled sideways instead; the Director sitting (11-13)
+    // replaced that with "wrap only after a hyphen", because a 17-character code held on one line is
+    // what pushed Value balance and By out of the box. So the code is rendered as its hyphen-ended
+    // segments with a break opportunity (<wbr>) after each hyphen and no opportunity inside one.
+    // The phone card below md is asserted separately (it must still break a long code anywhere).
     reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(3, {
       itemCode: 'CEMENTAL-MIX-50-KILOGRAM-BAG',
       warehouseCode: 'WAREHOUSE-SITE-A-REAR-STORE',
     })], nextBeforeSeq: null });
     renderPage();
     const table = await screen.findByRole('table');
-    expect(within(table).getByTestId('stock-ledger-warehouse-code')).toHaveClass('md:whitespace-nowrap');
-    expect(within(table).getByText('CEMENTAL-MIX-50-KILOGRAM-BAG')).toHaveClass('md:whitespace-nowrap');
+
+    const item = within(table).getByTestId('stock-ledger-item-code');
+    // Copying the code still gives the original text: no added spaces, no dropped hyphen.
+    expect(item.textContent).toBe('CEMENTAL-MIX-50-KILOGRAM-BAG');
+    expect([...item.querySelectorAll('span')].map((piece) => piece.textContent))
+      .toEqual(['CEMENTAL-', 'MIX-', '50-', 'KILOGRAM-', 'BAG']);
+    expect(item.querySelectorAll('wbr')).toHaveLength(4);
+
+    const warehouse = within(table).getByTestId('stock-ledger-warehouse-code');
+    expect(warehouse.textContent).toBe('WAREHOUSE-SITE-A-REAR-STORE');
+    expect([...warehouse.querySelectorAll('span')].map((piece) => piece.textContent))
+      .toEqual(['WAREHOUSE-', 'SITE-', 'A-', 'REAR-', 'STORE']);
+    expect(warehouse.querySelectorAll('wbr')).toHaveLength(4);
   });
 
   it('FR-STK-041 a back-dated movement shows its occurred date apart from the post time', async () => {
@@ -109,6 +124,47 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     await screen.findByText('Eka Engineer');
     expect(screen.getByRole('columnheader', { name: 'Date' })).toBeInTheDocument();
     expect(screen.getByText(formatDay('2026-10-28'))).toBeInTheDocument();
+  });
+
+  it('F9b the posting day is a muted second line under the Date, and only when that day differs', async () => {
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [
+      // Back-dated: moved on the 28th, posted on the 30th — the reader must see both facts.
+      entry(2, { occurredOn: '2026-10-28', postedAt: '2026-10-30T03:00:00Z' }),
+      // Posted the day it moved: one day, said once (no second line repeating it).
+      entry(1, { documentNumber: 'ISS-1', occurredOn: '2026-10-30', postedAt: '2026-10-30T03:00:00Z' }),
+    ], nextBeforeSeq: null });
+    renderPage();
+
+    const backdated = await screen.findByRole('row', { name: /ISS-2/ });
+    expect(within(backdated).getByText(formatDay('2026-10-28'))).toBeInTheDocument();
+    expect(within(backdated).getByText(`Posted ${formatDay('2026-10-30T03:00:00Z')}`)).toBeInTheDocument();
+
+    const sameDay = screen.getByRole('row', { name: /ISS-1/ });
+    expect(within(sameDay).getByText(formatDay('2026-10-30T03:00:00Z'))).toBeInTheDocument();
+    expect(within(sameDay).queryByText(/^Posted /)).not.toBeInTheDocument();
+  });
+
+  it('F9b the screen has one date column; the posted date is a second line, never a second column', async () => {
+    renderPage();
+    await screen.findByText('Eka Engineer');
+    const headers = screen.getAllByRole('columnheader').map((header) => header.textContent);
+    expect(headers.filter((header) => header === 'Date')).toHaveLength(1);
+    expect(headers).not.toContain('Posted');
+  });
+
+  it('F9b the export keeps both dates as two columns, the movement date and the posted date', () => {
+    // DataTable's export seam reads the column list, not the screen (Column.exportOnly keeps a column
+    // out of the DOM but in the export). The ledger page has no export button of its own, so the seam
+    // is the builder's list — assert the projection the xlsx writer would receive.
+    const row = entry(2, { occurredOn: '2026-10-28', postedAt: '2026-10-30T03:00:00Z' }) as unknown as StockLedgerRow;
+    const { header, body } = buildExportRows([row], buildLedgerColumns({
+      t: i18next.getFixedT('en', 'stock'),
+      loc: 'en-US',
+      currency: 'IDR',
+      showCost: false,
+    }));
+    expect(header.slice(0, 2)).toEqual(['Date', 'Posted']);
+    expect(body[0].slice(0, 2)).toEqual(['2026-10-28', '2026-10-30T03:00:00Z']);
   });
 
   it('AC-STK-032 loading, empty, error with retry', async () => {
@@ -216,10 +272,11 @@ describe('FR-STK-041 floor: every control on the trace still works', () => {
     expect(await screen.findByText('document page')).toBeInTheDocument();
   });
 
-  it('C13 the From and To fields say which date they bound, and the date they bound is on the table', async () => {
+  it('C13 the window From and To bound is the Date column on the table', async () => {
+    // The helper sentence went with the second date column (F9b: one date, nothing to explain);
+    // the fields still bound the movement date, so that stays asserted here.
     renderPage();
     await screen.findByText('Eka Engineer');
-    expect(screen.getByText('From and To filter the movement date (the Date column), not when the entry was posted.')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Date' })).toBeInTheDocument();
   });
 
