@@ -23,6 +23,7 @@ import { KIND_SPECS } from '@/src/lib/adapterSeam/odoo/kinds';
 const row = (over: Record<string, unknown>) => ({ id: String(over.external_id), code: null, parent_external_id: null, active: true, tombstoned_at: null, attrs: {}, as_of: '2026-11-01T08:00:00Z', ...over });
 const page = (rows: unknown[], total = rows.length) => ({ data: { rows, total }, isPending: false, isError: false, isFetching: false, refetch: vi.fn() });
 const CONN = { status: 'active', activated: true, capabilities: { missing: [] }, connection: { state: 'healthy', failures: 0, last_ok_at: null, last_checked_at: new Date().toISOString(), error_class: null, missing: [] }, config: {} };
+const DISCONNECTED = { ...CONN, status: 'disconnected', activated: false, connection: { ...CONN.connection, state: 'disconnected', last_ok_at: null, error_class: null } };
 
 function Where() { const l = useLocation(); return <div data-testid="where">{l.pathname}</div>; }
 function mount(role: string, path = '/master-data/product') {
@@ -186,4 +187,26 @@ it('FR-ODC-111 a list that fails to load offers Retry and asks for it again', as
   await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
   expect(refetch).toHaveBeenCalled();
 });
+
+it('FR-ODC-111 with Odoo not connected the banner is the whole state: no count, no table, nothing read', () => {
+  h.conn.data = DISCONNECTED;
+  mount('Admin');
+  expect(screen.getByTestId('odoo-connection-banner')).toHaveTextContent('Odoo is not connected');
+  expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
+  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument();
+  expect(screen.queryByRole('navigation', { name: 'Pages' })).not.toBeInTheDocument();
+  expect(h.records).not.toHaveBeenCalledWith(expect.anything(), true);
+  expect(h.summary).not.toHaveBeenCalledWith(expect.anything(), true);
+});
+
+it('FR-ODC-111 a connection that is not activated is not read either, and says how to finish', () => {
+  h.conn.data = { ...CONN, activated: false };
+  mount('Admin');
+  expect(screen.getByTestId('odoo-connection-banner')).toHaveTextContent('Choose the Odoo company to finish connecting');
+  expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
+  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  expect(h.records).not.toHaveBeenCalledWith(expect.anything(), true);
+});
+
 

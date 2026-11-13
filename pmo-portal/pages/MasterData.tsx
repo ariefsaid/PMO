@@ -36,9 +36,11 @@ export default function MasterDataPage() {
   useEffect(() => { setPage(1); setTyped(''); setSearch(''); }, [kind]);
 
   const conn = useOdooConnection().data;
+  // Without an active, activated connection nothing has been read: the banner is the whole state (an unread directory is unknown, never 0).
+  const readable = !conn || (conn.status === 'active' && conn.activated);
   const blocked = kind && FINANCIAL.includes(kind) && !may.viewFinancialDirectory;
   const reasons = kind && conn?.capabilities ? missingForKind(kind, conn.capabilities.missing ?? []) : [];
-  const enabled = Boolean(kind) && !blocked && reasons.length === 0;
+  const enabled = Boolean(kind) && !blocked && reasons.length === 0 && readable;
   const isWarehouses = kind === 'warehouse';
   const list = useMasterRecords({ kind: kind ?? 'product', search: search || undefined, page, pageSize: PAGE_SIZE, includeInactive }, enabled);
   const rows = useMemo(() => list.data?.rows ?? [], [list.data]);
@@ -102,7 +104,7 @@ export default function MasterDataPage() {
       </div>
 
       <div role="tabpanel" id={tabPanelId('odoo-master', kind)} aria-labelledby={tabId('odoo-master', kind)}>
-      {reasons.length > 0 ? (
+      {!readable ? null : reasons.length > 0 ? (
         <div role="status" className="mt-3 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/12 px-3.5 py-3 text-control">
           <Icon name="alert" className="mt-px size-[17px] shrink-0" aria-hidden="true" />
           <div>
