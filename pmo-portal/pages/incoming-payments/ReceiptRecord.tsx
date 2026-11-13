@@ -67,8 +67,8 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-[24px] font-bold tracking-[-0.02em]">
             {odoo && !receiptNumber(receipt)
-              ? t('finance:receipts.titleUnnumbered', 'Receipt, not numbered yet')
-              : t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptNumber(receipt) ?? receipt.id })}
+              ? t('finance:receipts.paymentReceivedUnnumbered', 'Payment received, not numbered yet')
+              : t('uxs06.paymentReceivedTitle', 'Payment received {{number}}', { number: receiptNumber(receipt) ?? receipt.id })}
           </h1>
           {odoo
             ? <OdooReceiptStatus receipt={receipt} fallback={cancelled

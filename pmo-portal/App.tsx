@@ -651,7 +651,7 @@ export const ShellChrome: React.FC = () => {
           href: listPath,
           onClick: () => breadcrumbNavigate(listPath),
         },
-        { label: t('financeHub:nav.paymentRecord', 'Payment record') },
+        { label: t('financeHub:nav.paymentReceived', 'Payment received') },
       ];
     }
     const fromPayables = (location.state as { recordContext?: { origin?: string } } | null)?.recordContext?.origin === 'finance-payables';
