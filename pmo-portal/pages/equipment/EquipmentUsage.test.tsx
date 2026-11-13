@@ -400,6 +400,14 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(screen.getByText('An Admin or Project Manager adds the machines.')).toBeInTheDocument();
   });
 
+  it('AC-EQU-017 each day column is headed with the weekday and the day number', () => {
+    renderPage();
+    const heads = screen.getAllByRole('columnheader').map((c) => c.textContent?.trim());
+    for (const head of ['Mon 7', 'Tue 8', 'Wed 9', 'Thu 10', 'Fri 11', 'Sat 12', 'Sun 13']) {
+      expect(heads).toContain(head);
+    }
+  });
+
   it('AC-EQU-017 the grid is keyboard operable', async () => {
     h.entries = [entry({}), entry({ id: 'e3', project_id: 'pj2', work_date: '2026-09-09' })];
     const user = userEvent.setup();
