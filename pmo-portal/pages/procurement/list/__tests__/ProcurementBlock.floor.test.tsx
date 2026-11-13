@@ -19,7 +19,7 @@ const makeRow = (over: Record<string, unknown> = {}) => ({
 const procState = { data: [makeRow()] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 const authState = { userId: 'u-finance', role: 'Finance' };
 const transitionSpy = vi.hoisted(() => vi.fn(async () => undefined));
-const exportSpy = vi.hoisted(() => vi.fn(async () => undefined));
+const exportSpy = vi.hoisted(() => vi.fn(async (_rows: unknown[], ..._args: unknown[]) => undefined));
 vi.mock('@/src/lib/repositories', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
   return { ...actual, repositories: { ...actual.repositories, procurement: { ...actual.repositories.procurement, transition: transitionSpy } } };
