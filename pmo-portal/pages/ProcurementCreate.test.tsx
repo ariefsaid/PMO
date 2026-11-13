@@ -242,6 +242,14 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.queryByText(/quotation/i)).not.toBeInTheDocument();
   });
 
+  it('opens the create grid with its editable add row inside the table', () => {
+    renderCreate();
+    const table = screen.getByRole('table', { name: 'Line items' });
+    expect(within(table).getByLabelText('New item description')).toBeInTheDocument();
+    expect(within(table).getByRole('button', { name: 'Add line item' })).toBeInTheDocument();
+    expect(screen.queryByText('No line items yet. Add one below.')).not.toBeInTheDocument();
+  });
+
   it('AC-PROC1-002 choosing a new need saves the request and its entered line before replacing to detail', async () => {
     renderCreate('/procurement/new');
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));

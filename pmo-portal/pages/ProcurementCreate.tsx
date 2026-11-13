@@ -383,6 +383,7 @@ export default function ProcurementCreate() {
             <LineItemsSection
               items={lines as unknown as ProcurementItemRow[]}
               editable
+              createFormLayout
               busy={saving || Boolean(attempt)}
               onAdd={addLine}
               onUpdate={updateLine}

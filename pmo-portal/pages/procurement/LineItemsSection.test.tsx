@@ -37,6 +37,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof LineItemsSecti
         items={props.items ?? items}
         editable={props.editable ?? true}
         valuesEditable={props.valuesEditable}
+        createFormLayout={props.createFormLayout}
         onAdd={onAdd}
         onUpdate={onUpdate}
         onDelete={onDelete}
@@ -163,6 +164,30 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     renderSection({ items: [] });
     const row = screen.getByTestId('line-item-add-row');
     expect(within(row).getByRole('button', { name: /add line item/i })).toBeDisabled();
+  });
+
+  it('adds the first line from the in-table row with keyboard navigation', async () => {
+    const user = userEvent.setup();
+    const { onAdd } = renderSection({ items: [], createFormLayout: true });
+    const table = screen.getByRole('table', { name: 'Line items' });
+    const description = screen.getByLabelText('New item description');
+
+    for (let tabCount = 0; tabCount < 24 && document.activeElement !== description; tabCount += 1) {
+      await user.tab();
+    }
+    expect(description).toHaveFocus();
+    await user.keyboard('Shielding gas');
+    await user.tab();
+    await user.keyboard('6');
+    await user.tab();
+    await user.keyboard('142.51');
+    await user.tab();
+    const addButton = within(table).getByRole('button', { name: /add line item/i });
+    expect(addButton).toHaveFocus();
+    await user.keyboard('{Enter}');
+
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Shielding gas', quantity: 6, rate: 142.51 });
+    expect(screen.queryByText(/No line items yet/i)).not.toBeInTheDocument();
   });
 
   it('AC-PROC-003: Edit flips the row to inputs and Save delegates the patch', async () => {
