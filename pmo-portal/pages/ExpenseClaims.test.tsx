@@ -61,6 +61,8 @@ const renderPage = () => render(<MemoryRouter><ToastProvider><ExpenseClaims /></
 beforeEach(() => {
   mockNavigate.mockClear();
   h.listSpy.mockClear();
+  h.list.isError = false;
+  h.list.refetch = vi.fn();
   h.create.mutateAsync.mockReset();
   h.capture.capture.mockReset();
   h.capture.cleanupUnlinkedAttachment.mockReset();
@@ -89,6 +91,33 @@ describe('ExpenseClaims page', () => {
     expect(within(row).getByText('Harbour Upgrade')).toBeInTheDocument();
     expect(within(row).getByText(money(750000, 'IDR'))).toBeInTheDocument();
     expect(within(row).getByText('Submitted')).toBeInTheDocument();
+  });
+
+  it('AC-EXP-060 opens a claim from its accessible row action', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Open Site visit' }));
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses/c1');
+  });
+
+  it('AC-EXP-060 retries a failed expense-list read', async () => {
+    h.list.isError = true;
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(h.list.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps New claim reachable when the list has no claims', async () => {
+    h.list.data = { rows: [], truncated: false };
+    renderPage();
+    await userEvent.click(screen.getAllByRole('button', { name: 'New claim' })[0]);
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
+  });
+
+  it('keeps Request advance available when the list has no claims', async () => {
+    h.list.data = { rows: [], truncated: false };
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Request advance' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
   it('AC-002 #1325: the project column leads with the short name and titles the contractual one', () => {
