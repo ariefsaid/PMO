@@ -107,6 +107,15 @@ const zeroBudget = {
   pm: { id: 'pm-1', full_name: 'Alice PM' },
 };
 
+const canonicalBudgetPosition = (projectId: string, budget: number, spent: number, usedPercent: string | null, atRisk: boolean) => {
+  const consumption = budget * Number(usedPercent ?? 0) / 100;
+  return {
+    projectId, ledgerBasis: 'pmo' as const, currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: String(budget),
+    spent: String(spent), openCommitment: String(consumption - spent), consumption: String(consumption), complete: true,
+    usedRatio: usedPercent === null ? null : String(Number(usedPercent) / 100), usedPercent, consumptionVariance: String(consumption - budget), riskEligible: true, atRisk,
+  };
+};
+
 const renderPage = () =>
   render(
     <ImpersonationProvider realRole="Project Manager">
@@ -128,9 +137,9 @@ beforeEach(() => {
   projectMoneyState.isPending = false;
   projectMoneyState.isError = false;
   projectMoneyState.data = {
-    'p-risk': { actuals: { currency: 'USD', total: '95000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '95000.00' }] }, activeBudgetAmount: '100000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
-    'p-safe': { actuals: { currency: 'USD', total: '40000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '40000.00' }] }, activeBudgetAmount: '80000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
-    'p-zero': { actuals: { currency: 'USD', total: '0.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '0.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    'p-risk': { actuals: { currency: 'USD', total: '95000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '95000.00' }] }, activeBudgetAmount: '100000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true, budgetPosition: canonicalBudgetPosition('p-risk', 100000, 95000, '95', true) },
+    'p-safe': { actuals: { currency: 'USD', total: '40000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '40000.00' }] }, activeBudgetAmount: '80000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true, budgetPosition: canonicalBudgetPosition('p-safe', 80000, 40000, '50', false) },
+    'p-zero': { actuals: { currency: 'USD', total: '0.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '0.00', activeBudgetCurrency: 'USD', hasActiveBudget: true, budgetPosition: canonicalBudgetPosition('p-zero', 0, 0, null, false) },
   };
 });
 
@@ -139,10 +148,11 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     renderPage();
     const row = screen.getByText('At Risk Project').closest('tr')!;
     // Use aria-label on the progressbar to find the budget-used cell (robust to column-count changes)
-    const budgetBar = within(row).getByRole('progressbar', { name: '95% of Active budget' });
-    expect(budgetBar).toHaveAttribute('aria-label', '95% of Active budget');
+    const budgetBar = within(row).getByRole('progressbar', { name: '95% of Active budget before tax' });
+    expect(budgetBar).toHaveAttribute('aria-label', '95% of Active budget before tax');
     // PL-A: the "x of y" detail is the bar's title, not a second line of text.
-    expect(budgetBar.closest('[title]')).toHaveAttribute('title', '$95,000 of $100,000 Active budget');
+    expect(budgetBar.closest('[title]')).toHaveAttribute('title', expect.stringContaining('Spent as a share of budget, before tax'));
+    expect(budgetBar.closest('[title]')).toHaveAttribute('title', expect.stringContaining('$95,000 of $100,000'));
     expect(within(row).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
   });
 
@@ -173,16 +183,18 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     renderPage();
     const card = screen.getByText('At Risk Project').closest('li')!;
     expect(within(card).getAllByText(/^At risk$/i)).toHaveLength(1);
-    expect(within(card).getByRole('progressbar', { name: '95% of Active budget' }).closest('[title]')).toHaveAttribute('title', '$95,000 of $100,000 Active budget');
+    expect(within(card).getByRole('progressbar', { name: '95% of Active budget before tax' }).closest('[title]')).toHaveAttribute('title', expect.stringContaining('Spent as a share of budget, before tax'));
+    expect(within(card).getByRole('progressbar', { name: '95% of Active budget before tax' }).closest('[title]')).toHaveAttribute('title', expect.stringContaining('$95,000 of $100,000'));
   });
 
   it('AC-W6-IXD-ATRISK: a healthy row still renders Budget used in its own column', () => {
     renderPage();
     const row = screen.getByText('Safe Project').closest('tr')!;
     // Seek by aria-label — robust to column count (a rowMenu column was added)
-    const budgetBar = within(row).getByRole('progressbar', { name: '50% of Active budget' });
-    expect(budgetBar).toHaveAttribute('aria-label', '50% of Active budget');
-    expect(budgetBar.closest('[title]')).toHaveAttribute('title', '$40,000 of $80,000 Active budget');
+    const budgetBar = within(row).getByRole('progressbar', { name: '50% of Active budget before tax' });
+    expect(budgetBar).toHaveAttribute('aria-label', '50% of Active budget before tax');
+    expect(budgetBar.closest('[title]')).toHaveAttribute('title', expect.stringContaining('Spent as a share of budget, before tax'));
+    expect(budgetBar.closest('[title]')).toHaveAttribute('title', expect.stringContaining('$40,000 of $80,000'));
   });
 
   it('AC-W6-IXD-ATRISK: budget===0 → no caption, no NaN', () => {
