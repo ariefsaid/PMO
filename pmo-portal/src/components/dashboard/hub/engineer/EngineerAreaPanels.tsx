@@ -97,9 +97,13 @@ export function EngineerTasksCard({
   const { t } = useTranslation('dashboard');
   const oldestFirst = [...overdue].sort((a, b) => String(a.end_date).localeCompare(String(b.end_date)));
   const rows = [...oldestFirst, ...dueThisWeek].slice(0, 5);
+  // The group's one exception, stated where the list starts.
+  const overdueFinding = overdue.length > 0
+    ? <span data-testid="engineer-tasks-overdue" className="tabular">{t('home.eng.tasksOverdueFinding', { count: overdue.length, defaultValue_one: '{{count}} overdue', defaultValue_other: '{{count}} overdue' })}</span>
+    : undefined;
   return (
     <Card data-testid="engineer-tasks">
-      <CardHead level={2} actions={<CardLink to="/my-tasks">{t('home.eng.allTasks', 'All tasks')}</CardLink>}>{t('home.eng.myTasks', 'My tasks')}</CardHead>
+      <CardHead level={2} subline={overdueFinding} actions={<CardLink to="/my-tasks">{t('home.eng.allTasks', 'All tasks')}</CardLink>}>{t('home.eng.myTasks', 'My tasks')}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
         {loading ? <ListState variant="loading" rows={3} />
           : error ? <ListState variant="error" title={t('hub.engineer.tasksError', "Couldn't load your tasks")} onRetry={onRetry} />

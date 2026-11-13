@@ -123,11 +123,10 @@ const timesheetCard = () => screen.getByTestId('engineer-timesheet');
 const tasksCard = () => screen.getByTestId('engineer-tasks');
 
 describe('Engineer home (one question: is my week on track?)', () => {
-  it('shows task rows while the organization day is pending and date-based cards wait for it', () => {
+  it('waits for the organization day before dating the week or the tasks', () => {
     state.orgDay = { day: null, isPending: true, isError: false, retry: vi.fn() };
     renderDashboard();
 
-    expect(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /task overdue/ })).toHaveAttribute('href', '/my-tasks');
     expect(within(timesheetCard()).getByTestId('liststate-loading')).toBeInTheDocument();
     expect(within(tasksCard()).getByTestId('liststate-loading')).toBeInTheDocument();
   });
@@ -138,7 +137,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
     renderDashboard();
 
     expect(timesheetCard()).toHaveTextContent('15.5 h');
-    expect(within(screen.getByTestId('waits-on-you')).getByText("Couldn't load what waits on you")).toBeInTheDocument();
+    expect(within(tasksCard()).getByText("Couldn't load your tasks")).toBeInTheDocument();
     expect(within(tasksCard()).queryByText('Finalize drawings')).not.toBeInTheDocument();
   });
 
@@ -148,35 +147,41 @@ describe('Engineer home (one question: is my week on track?)', () => {
     renderDashboard();
 
     expect(within(tasksCard()).getByRole('link', { name: /Finalize drawings/ })).toBeInTheDocument();
-    expect(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /task overdue/ })).toHaveAttribute('href', '/my-tasks');
     expect(screen.queryByRole('link', { name: /Open timesheet entry for/ })).not.toBeInTheDocument();
   });
 
-  it('keeps the waits card available when only the organization day read fails', () => {
+  it('names both failed reads when only the organization day read fails', () => {
     state.orgDay = { day: null, isPending: false, isError: true, retry: vi.fn() };
     renderDashboard();
 
-    expect(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /task overdue/ })).toHaveAttribute('href', '/my-tasks');
-    expect(within(screen.getByTestId('waits-on-you')).queryByText("Couldn't load what waits on you")).not.toBeInTheDocument();
     expect(within(timesheetCard()).getByText("Couldn't load your timesheets")).toBeInTheDocument();
     expect(within(tasksCard()).getByText("Couldn't load your tasks")).toBeInTheDocument();
   });
 
-  it('shows own overdue and due-today counts in the shared Waits on you rows', () => {
+  it('folds the overdue count into the My tasks header, with no separate waits band above it', () => {
     state.tasks.data = [
-      { id: 'late', name: 'Late task', status: 'In Progress', end_date: '2026-06-02' },
-      { id: 'today', name: 'Today task', status: 'To Do', end_date: '2026-06-03' },
-      { id: 'done-today', name: 'Done today', status: 'Done', end_date: '2026-06-03' },
-      { id: 'later', name: 'Later task', status: 'To Do', end_date: '2026-06-04' },
+      { ...tasks[0] },
+      { ...tasks[0], id: 'second-overdue', name: 'Review estimates', end_date: '2026-06-01' },
+      { ...tasks[1] },
     ];
     renderDashboard();
 
-    const waits = within(screen.getByTestId('waits-on-you'));
-    expect(waits.getByRole('link', { name: /1\s*task overdue/ })).toHaveAttribute('href', '/my-tasks');
-    expect(waits.getByRole('link', { name: /1\s*task due today/ })).toHaveAttribute('href', '/my-tasks');
+    expect(within(tasksCard()).getByTestId('engineer-tasks-overdue')).toHaveTextContent('2 overdue');
+    expect(screen.queryByTestId('waits-on-you')).not.toBeInTheDocument();
   });
 
-  it('leads with Waits on you, then my week, returned claims and recent entries; no company money', () => {
+  it('states no overdue count when nothing is overdue', () => {
+    state.tasks.data = [tasks[1]];
+    const dueOnly = renderDashboard();
+    expect(within(tasksCard()).queryByTestId('engineer-tasks-overdue')).not.toBeInTheDocument();
+    dueOnly.unmount();
+
+    state.tasks.data = [tasks[2]];
+    renderDashboard();
+    expect(tasksCard()).toHaveTextContent('No overdue tasks or tasks due this week.');
+  });
+
+  it('leads with My tasks, then my week, returned claims and recent entries; no company money', () => {
     renderDashboard();
 
     expect(screen.getByRole('heading', { level: 1, name: 'My dashboard' })).toBeInTheDocument();
@@ -186,9 +191,9 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(card).not.toHaveTextContent('99');
     expect(card).toHaveTextContent('Returned');
     expect(card).toHaveTextContent('Sent back for correction.');
-    expect(screen.getByTestId('waits-on-you').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(timesheetCard().compareDocumentPosition(tasksCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(tasksCard().compareDocumentPosition(screen.getByTestId('engineer-returned')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The first block is the person's own work; the week's timesheet sits beside it.
+    expect(tasksCard().compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.compareDocumentPosition(screen.getByTestId('engineer-returned')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const text = document.body.textContent ?? '';
     expect(text).not.toMatch(/(?:Rp|USD|IDR|\$|invoice|budget|revenue|spending)/i);
@@ -492,28 +497,5 @@ describe('Engineer home — floor: every control acts', () => {
     renderDashboard();
     fireEvent.click(within(screen.getByTestId('engineer-recent')).getByRole('button', { name: /Retry|Try again/ }));
     expect(state.timesheets.refetch).toHaveBeenCalled();
-  });
-
-  it('opens My Tasks from the own overdue and due-today rows', () => {
-    state.tasks.data = [
-      { id: 'late', name: 'Late task', status: 'In Progress', end_date: '2026-06-02' },
-      { id: 'today', name: 'Today task', status: 'To Do', end_date: '2026-06-03' },
-    ];
-    const overdue = renderDashboard();
-    fireEvent.click(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /task overdue/ }));
-    expect(path()).toContain('/my-tasks');
-    overdue.unmount();
-
-    renderDashboard();
-    fireEvent.click(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /task due today/ }));
-    expect(path()).toContain('/my-tasks');
-  });
-
-  it('re-reads what waits on you from its own Retry', () => {
-    state.tasks.data = undefined;
-    state.tasks.isError = true;
-    renderDashboard();
-    fireEvent.click(within(screen.getByTestId('waits-on-you')).getByRole('button', { name: /Retry|Try again/ }));
-    expect(state.tasks.refetch).toHaveBeenCalled();
   });
 });
