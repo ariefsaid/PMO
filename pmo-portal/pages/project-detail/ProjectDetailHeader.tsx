@@ -54,6 +54,7 @@ import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { calendarAgeDays } from '@/src/lib/finance/financePosition';
+import { ProjectBudgetFigures } from './ProjectBudgetFigures';
 
 /**
  * Finance-forward roles: Admin · Executive · Finance · Project Manager (the PM owns the P&L).
@@ -288,40 +289,6 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
 };
 
 /** Small canonical budget facts stay visible in the compact project record header. */
-export const CompactProjectBudgetFigures: React.FC<{ project: ProjectWithRefs; className?: string }> = ({ project, className }) => {
-  const { t } = useTranslation('project');
-  const positions = useProjectBudgetPositions([project.id]);
-  const reading = positions.data?.[project.id];
-  const usedPercent = projectBudgetUsedPercent(reading, project.currency);
-  const spentPercent = projectBudgetSpentPercent(reading, project.currency);
-  const budgetUsedBasis = reading?.ledgerBasis === 'pmo'
-    ? t('projectDetail.cost.budgetUsedBasis', 'Spent + open orders, before tax')
-    : t('projectDetail.cost.budgetUsedBasisLedger', 'Ledger spending, before tax');
-  const tiles: StatTile[] = [
-    ...(usedPercent === null ? [] : [{
-      label: t('projects:columns.budgetUsed', 'Budget used before tax'),
-      value: `${usedPercent}%`,
-      sub: budgetUsedBasis,
-    }]),
-    ...(spentPercent === null ? [] : [{
-      label: t('projectDetail.header.tile.spent', 'Spent (% of budget before tax)'),
-      value: `${spentPercent}%`,
-      sub: t('projectDetail.cost.spentBasis', 'Spending share of budget, before tax'),
-    }]),
-  ];
-  if (tiles.length === 0) return null;
-  return (
-    <div
-      data-testid="compact-project-budget-figures"
-      role="group"
-      aria-label={t('projectDetail.budget.figures', 'Budget figures')}
-      className={`min-w-0 max-w-full flex-[2_1_30rem] ${className ?? ''}`}
-    >
-      <StatTiles tiles={tiles} columns={tiles.length} density="compact" variant="bare" className="grid-cols-2 gap-x-3 gap-y-0 [&>div]:py-0" />
-    </div>
-  );
-};
-
 /**
  * Detail-page header: PageHeader (icon + name + StatusPill + meta row) + a 5-stat
  * strip (Contract / PMO purchase orders / Actual / Contract remaining after cost / Spend %).
@@ -436,7 +403,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
       {customerName && <span className="inline-flex items-center max-md:hidden">{customerName}</span>}
       {isDelivery && isFinanceForward && budgetFiguresPlacement === 'header' && (
-        <CompactProjectBudgetFigures project={project} className="md:hidden" />
+        <ProjectBudgetFigures project={project} className="md:hidden" />
       )}
     </div>
   ) : (

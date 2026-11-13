@@ -18,7 +18,8 @@ import { trackProjectTabViewed } from '@/src/lib/analytics';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useProjectOverviewRead } from '@/src/hooks/useProjectOverviewRead';
 import { completionPct, formatDay, formatDayRange, formatRelativeTime } from '@/src/lib/format';
-import ProjectDetailHeader, { CompactProjectBudgetFigures } from './ProjectDetailHeader';
+import ProjectDetailHeader from './ProjectDetailHeader';
+import { ProjectBudgetFigures } from './ProjectBudgetFigures';
 import DealBand from '../sales/DealBand';
 import StageHistory from './StageHistory';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
@@ -75,7 +76,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
         </Tooltip>
       )}
       {showBudgetFigures && canViewBudgetFigures && isDeliveryProject && (
-        <CompactProjectBudgetFigures project={project} className="max-w-full" />
+        <ProjectBudgetFigures project={project} className="max-w-full" />
       )}
     </section>
   );

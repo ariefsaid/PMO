@@ -283,13 +283,13 @@ describe('ProjectDetail shell (decomposition)', () => {
   it('S04: puts canonical before-tax budget use and separate spending in the desktop project facts row', async () => {
     await renderAt('/projects/p1');
     const facts = screen.getByRole('region', { name: 'Project facts' });
-    const figures = within(facts).getByTestId('compact-project-budget-figures');
+    const figures = within(facts).getByTestId('project-budget-figures');
 
     expect(within(figures).getByText('Budget used before tax')).toBeVisible();
     expect(within(figures).getByText('90%')).toBeVisible();
     expect(within(figures).getByText('Spent (% of budget before tax)')).toBeVisible();
     expect(within(figures).getByText('50%')).toBeVisible();
-    expect(within(figures).getByText('Spent + open orders, before tax')).toBeVisible();
+    expect(figures).toHaveAccessibleDescription(/Spent \+ open orders, before tax/);
   });
 
   it('2057: Copy link lives in the More actions menu', async () => {
@@ -354,12 +354,17 @@ describe('ProjectDetail shell (decomposition)', () => {
     ];
     budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000,
       line_items: [{ id: 'li1', category: 'Labor', budgeted_amount: 4_700_000 }] }];
+    budgetPositionsBox.value = { p1: {
+      projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '4700000.00',
+      spent: '2350000.00', openCommitment: '2350000.00', consumption: '4700000.00', complete: true, usedRatio: '1.0', usedPercent: '100',
+    } };
     await renderAt('/projects/p1');
 
     expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Budget' })).toBeInTheDocument();
     expect(screen.getByText(/Spent \$2,350,000 of \$4,700,000/)).toBeInTheDocument();
-    expect(screen.getByText(/Plus \$2,350,000 committed in purchase orders/)).toBeInTheDocument();
+    expect(screen.getByText('Budget used before tax: 100%')).toBeInTheDocument();
+    expect(screen.getByText('Open orders: $2,350,000')).toBeInTheDocument();
   });
 
   it.each(['Project Manager', 'Finance'])('UIP-006: %s contract and committed values remain visible', async (role) => {
@@ -372,13 +377,17 @@ describe('ProjectDetail shell (decomposition)', () => {
     ];
     budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000,
       line_items: [{ id: 'li1', category: 'Labor', budgeted_amount: 4_700_000 }] }];
+    budgetPositionsBox.value = { p1: {
+      projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '4700000.00',
+      spent: '2350000.00', openCommitment: '2360000.00', consumption: '4710000.00', complete: true, usedRatio: '1.0021', usedPercent: '100',
+    } };
     await renderAt('/projects/p1');
 
     const contractAmount = within(screen.getByRole('region', { name: 'Money position' })).getByTestId('contract-value-amount');
     expect(contractAmount).toBeVisible();
     const budgetActual = screen.getByRole('region', { name: 'Budget' });
     expect(budgetActual).toHaveTextContent('USD · excl. PPN');
-    expect(within(budgetActual).getByText('Plus $2,360,000 committed in purchase orders')).toBeVisible();
+    expect(within(budgetActual).getByText('Open orders: $2,360,000')).toBeVisible();
     projectsState.data = seed;
   });
 

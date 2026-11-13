@@ -343,7 +343,7 @@ afterEach(() => {
 const endpointLabels = (): string[] => stub.endpoints.map((e) => e.label);
 
 describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', () => {
-  it('fires exactly the measured endpoint set on Overview mount, total 6 (Steps 1 and 3)', async () => {
+  it('fires exactly the measured endpoint set on Overview mount, total 7 (Steps 1 and 3 plus the S03 budget reader)', async () => {
     vi.stubGlobal('IntersectionObserver', stub.IO);
     renderProjectDetail();
     await settleRequests();
@@ -367,12 +367,13 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
         'read:sales_invoices',
         'read:tasks',
         'read:procurements',
+        'rpc:project_budget_positions', // S04 consumes the existing S03 reader for the project header figures.
         // #2057: the ERP match-review context (a second projects read + the org binding check) now loads when
         // the header's Project details popover opens, not on mount.
         'rpc:resolved_org_features', // Overview-foot survey eligibility
       ].sort(),
     );
-    expect(endpointLabels()).toHaveLength(6);
+    expect(endpointLabels()).toHaveLength(7);
   });
 
   it('AC-PERF-003: the work-order reads fire exactly once when the block nears the viewport', async () => {

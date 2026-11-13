@@ -40,6 +40,13 @@ const pmHomeRoute = budgetAgreementRoutes.find((route) => route.id === 'budget.h
 const projectOverviewRoute = budgetAgreementRoutes.find((route) => route.id === 'budget.project.overview')!;
 const projectBudgetRoute = budgetAgreementRoutes.find((route) => route.id === 'budget.project.budget')!;
 
+const renderBudgetAgreementRoute = async () => {
+  // ProjectDetail's budget tab is a lazy chunk; match the project's own harness so a
+  // parallel test run cannot assert against Suspense's temporary "Loading…" fallback.
+  await import('../project-detail/tabs/BudgetTab');
+  return renderFigureAgreementRoute(projectBudgetRoute);
+};
+
 afterEach(() => setFigureAgreementBudgetPositionOverride(undefined));
 
 for (const route of budgetAgreementRoutes) {
@@ -86,9 +93,9 @@ describe('S01 budget figure agreement on real screens', () => {
   });
 
   // S04 flips this baseline red case after replacing the card's spend-only Budget used with PMO consumption.
-  it('Budget used before tax agrees with the Active budget consumption on the real Projects card', async () => {
+  it('Budget used agrees with the Active budget consumption on the real Projects card', async () => {
     const { container } = renderFigureAgreementRoute(cardRoute);
-    await waitFor(() => expect(container.textContent).toContain('Budget used before tax'));
+    await waitFor(() => expect(container.textContent).toContain('Budget used'));
     const observed = container.textContent?.replace(/\s+/gu, ' ').trim() ?? '';
     console.info(`FIGURE AGREEMENT RED · budget-used · Projects cards · expected 90% · observed screen: ${observed}`);
     expect(observed).toContain('90%');
@@ -110,7 +117,7 @@ describe('S01 budget figure agreement on real screens', () => {
   });
 
   it('keeps the project budget total known when category allocation is unknown', async () => {
-    const { container } = renderFigureAgreementRoute(projectBudgetRoute);
+    const { container } = await renderBudgetAgreementRoute();
     await waitFor(() => expect(container.textContent).toContain('Left after open orders'));
     expect(container.textContent).toContain('Budget used before tax');
     expect(container.textContent).toContain('90%');
@@ -128,7 +135,7 @@ describe('S01 budget figure agreement on real screens', () => {
       spent: null, openCommitment: null, consumption: null, complete: false, usedRatio: null, usedPercent: null,
       consumptionVariance: null, riskEligible: false, atRisk: null,
     });
-    const { container } = renderFigureAgreementRoute(projectBudgetRoute);
+    const { container } = await renderBudgetAgreementRoute();
     await waitFor(() => expect(container.textContent).toContain('Budget used before tax is unknown or unavailable.'));
     expect(container.textContent).not.toMatch(/Budget used before tax\s*0%/u);
     expect(container.textContent).not.toMatch(/Budget used before tax\s*0(?:\.0+)?% of/u);
@@ -141,7 +148,7 @@ describe('S01 budget figure agreement on real screens', () => {
       consumptionVariance: '-500.00', riskEligible: true, atRisk: false,
     };
     setFigureAgreementBudgetPositionOverride(erpPosition);
-    const { container } = renderFigureAgreementRoute(projectBudgetRoute);
+    const { container } = await renderBudgetAgreementRoute();
     await waitFor(() => expect(container.textContent).toContain('Left after spending'));
     expect(container.textContent).toContain('Budget used before tax');
     expect(container.textContent).toContain('50%');
