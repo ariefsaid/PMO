@@ -33,8 +33,8 @@ vi.mock('@/src/hooks/useManagementPack', () => ({
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {} }) }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [
-    { id: 'p1', name: 'Alpha', pmo_project_number: 'PRJ-001', client_name: 'Northstar Client', pm: { full_name: 'Test Manager' } },
-    { id: 'p2', name: 'Beta', pmo_project_number: 'PRJ-002', client_name: 'Beta Client', pm: { full_name: 'Other Manager' } },
+    { id: 'p1', name: 'Alpha', pmo_project_number: 'PRJ-001', client_name: 'Client Alpha', pm: null },
+    { id: 'p2', name: 'Beta', pmo_project_number: 'PRJ-002', client_name: 'Client Beta', pm: null },
   ] }),
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
@@ -61,7 +61,7 @@ const project = (id: string, name: string, pm: string) => ({
   start_date: null,
   end_date: null,
   project_manager_id: pm,
-  client_name: id === 'p1' ? 'Northstar Client' : 'Beta Client',
+  client_name: id === 'p1' ? 'Client Alpha' : 'Client Beta',
 });
 
 const facts: ManagementPackFacts = {
@@ -139,7 +139,7 @@ describe('Finance reports floor controls', () => {
 
   it('floor: Search projects filters rows by client and updates the result count', () => {
     renderPage();
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search projects' }), { target: { value: 'Beta Client' } });
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search projects' }), { target: { value: 'Client Beta' } });
     expect(projectCell('Beta')).toBeInTheDocument();
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
     expect(screen.getByText('Showing 1 of 2')).toBeInTheDocument();
