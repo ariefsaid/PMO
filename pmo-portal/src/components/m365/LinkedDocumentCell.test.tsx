@@ -163,7 +163,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     view(ref(), projectOwner());
     await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
     const items = within(await screen.findByRole('list', { name: 'Versions' })).getAllByRole('listitem');
-    expect(items[1]).toHaveTextContent('Version 2');
+    expect(items[1]).toHaveTextContent('Version 2.0');
     expect(items[1]).toHaveTextContent('Approved version');
     expect(items[0]).not.toHaveTextContent('Approved version');
     await user.click(screen.getByText('Close', { selector: 'button' }));
@@ -178,7 +178,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Microsoft could not load this location');
     expect(document.body.textContent).not.toMatch(/raw-synthetic-error/);
     await user.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(await screen.findByText('Version 1')).toBeInTheDocument();
+    expect(await screen.findByText('Version 9.0')).toBeInTheDocument();
   });
 
   it('F15 the versions modal has one footer dismiss (Close), no Done beside it', async () => {
