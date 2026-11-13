@@ -7,6 +7,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCalendarTasks, useMoveCalendarTask } from '@/src/hooks/useWorkCalendar';
 import { useProjects, useProjectsMilestoneDates } from '@/src/hooks/useProjects';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useOwnershipCacheSynced } from '@/src/hooks/useOwnershipCacheSync';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
@@ -38,6 +39,9 @@ const CalendarPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [window, setWindow] = useState<{ from: string; to: string } | null>(null);
+
+  // C13 (DS calendar #4): the org day, so a chip can say a task is past its due date.
+  const today = useOrgToday();
 
   const tasks = useCalendarTasks(window);
   const projects = useProjects();
@@ -119,6 +123,8 @@ const CalendarPage: React.FC = () => {
           loading={tasks.isFetching && !tasks.data}
           withProject
           initialDate={initialDate}
+          today={today}
+          lateLabel={t('overdue', 'Overdue')}
           canMoveTask={canMoveTask}
           onMoveTask={async (task, patch) => {
             await move.mutateAsync({ task, patch });

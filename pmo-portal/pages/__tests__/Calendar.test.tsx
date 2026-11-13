@@ -23,6 +23,7 @@ const { moveTask, calendarState } = vi.hoisted(() => {
       milestones: [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }] as Array<{ id: string; projectId: string; name: string; targetDate: string }>,
       milestonesError: false,
       projectsError: false,
+      today: '2026-11-10',
       refetch: vi.fn(),
     },
   };
@@ -30,6 +31,8 @@ const { moveTask, calendarState } = vi.hoisted(() => {
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'o1' } }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => may }));
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useOwnershipCacheSynced: () => true }));
+// The org day drives the C13 lateness fact; pinned per test so the marker is deterministic.
+vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => calendarState.today }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeTaskWrite: () => 'internal' }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: calendarState.projectsError ? undefined : [{ id: 'p1' }], isError: calendarState.projectsError, isPending: false, refetch: calendarState.refetch }),
@@ -67,6 +70,7 @@ describe('Calendar page (#1982)', () => {
     calendarState.milestones = [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }];
     calendarState.milestonesError = false;
     calendarState.projectsError = false;
+    calendarState.today = '2026-11-10';
     HTMLElement.prototype.scrollTo = vi.fn();
     may.mockReturnValue(true);
     moveTask.mockReset().mockResolvedValue(undefined);
@@ -148,13 +152,14 @@ describe('Calendar — C5 unknown never shown as nothing', () => {
     expect(screen.getByText(/Tasks with no due date are not on the calendar/i)).toBeInTheDocument();
   });
 
-  it('C13: the chip names whose task it is', () => {
+  it('C13: the chip names whose task it is and marks one that is past its due date', () => {
     calendarState.tasks = [{
       id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
       start_date: null, end_date: '2026-11-12', assignee_id: 'u2', assignee_name: 'Sam Member', created_by: 'u1',
     }];
+    calendarState.today = '2026-11-20';
     renderPage();
-    expect(screen.getByText('Tower A · Pour slab · Sam Member')).toBeInTheDocument();
+    expect(screen.getByText('Overdue · Tower A · Pour slab · Sam Member')).toBeInTheDocument();
   });
 });
 
@@ -167,6 +172,7 @@ describe('Calendar — floor: toolbar and chip journeys (floor-tests/calendar.md
     calendarState.milestones = [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }];
     calendarState.milestonesError = false;
     calendarState.projectsError = false;
+    calendarState.today = '2026-11-10';
     HTMLElement.prototype.scrollTo = vi.fn();
     may.mockReturnValue(true);
     moveTask.mockReset().mockResolvedValue(undefined);
