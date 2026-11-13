@@ -3355,11 +3355,9 @@
     "returned": {
       "revise": "Revisi minggu ini"
     },
-    "save": "Simpan",
     "status": {},
-    "submit": "Ajukan timesheet",
     "submitConfirm": {
-      "confirmLabel": "Ajukan timesheet",
+      "confirmLabel": "Ajukan minggu ini",
       "description": "Ini mengirim seluruh minggu ke atasan Anda. Anda tidak dapat mengubahnya lagi sampai dikembalikan.",
       "title": "Ajukan minggu ini untuk persetujuan?"
     },
