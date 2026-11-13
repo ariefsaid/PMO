@@ -183,24 +183,39 @@ const MyTasks: React.FC = () => {
       {!isPending && !isError && tasks && tasks.length > 0 && (
         <div className={`mb-4 flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between ${queue === 'open' ? 'rounded-lg border border-border bg-waiting-surface p-4' : 'border-b border-border pb-4'}`} data-testid={queue === 'open' ? 'my-tasks-waiting-summary' : undefined}>
           {queue === 'open' && openTaskCount !== null && (
-            <div className="flex shrink-0 items-center gap-3">
+            // Judging my-tasks #1 (Emphasis): one bare "17" and one bare red "15" made the reader
+            // guess what was counted. Each figure now carries its word — "17 Open · 15 Overdue" —
+            // and the exception colour sits once, on the overdue count, not on both.
+            <div className="flex shrink-0 flex-wrap items-baseline gap-x-2 gap-y-1">
               <span
                 data-testid="my-tasks-open-count"
                 aria-label={`${openTaskCount} ${t('myTasks.openTasks', 'Open tasks')}`}
                 className="text-metric font-semibold tabular-nums text-foreground"
               >
                 {openTaskCount}
+              </span>{' '}
+              {/* The visible word is the figure's label. It is hidden from assistive tech because
+                  the figure's own name already says "N Open tasks" — the word is not announced twice. */}
+              <span aria-hidden="true" className="text-control font-medium text-foreground">
+                {t('tasks:myTasks.openTasksShort', 'Open')}
               </span>
               {lateTasks.length > 0 && (
-                <StatusPill
-                  variant="overdue"
-                  role="status"
-                  data-testid="my-tasks-overdue-count"
-                  aria-label={`${lateTasks.length} ${t('myTasks.overdue', 'Overdue')}`}
-                  title={`${lateTasks.length} ${t('myTasks.overdue', 'Overdue')}`}
-                >
-                  {lateTasks.length}
-                </StatusPill>
+                <>
+                  {' '}
+                  <span aria-hidden="true" className="text-muted-foreground">
+                    ·
+                  </span>{' '}
+                  <StatusPill
+                    variant="overdue"
+                    wrap={false}
+                    role="status"
+                    data-testid="my-tasks-overdue-count"
+                    aria-label={`${lateTasks.length} ${t('myTasks.overdue', 'Overdue')}`}
+                    title={`${lateTasks.length} ${t('myTasks.overdue', 'Overdue')}`}
+                  >
+                    {lateTasks.length} {t('myTasks.overdue', 'Overdue')}
+                  </StatusPill>
+                </>
               )}
             </div>
           )}
