@@ -27,7 +27,8 @@ import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadine
  * Administration › Accounting › Expense account map (#775 phase B, FR-EXP-116). The 8 keys an expense posting needs
  * (OD-EXP-PB-1: a delivery-project claim posts to Project direct cost, other claims to their expense type).
  * Saving goes through `external-set-company`, which reads the account from ERPNext and refuses one that does not fit
- * (FR-EXP-112 — e.g. the supplier payable account, an untyped advance account); its message is shown in the form.
+ * (FR-EXP-112 — e.g. the supplier payable account, an untyped advance account); the form states the remedy for the
+ * cause its stable code names (the account itself, or the binding) and never the server's own text.
  * Admin-only actions via `can('manage', 'integration')`; the table and the edge action are the authority (ADR-0016).
  *
  * S-12 (UX-080, RF-053): the readiness states are distinct — not connected, connected-but-switched-off,
@@ -104,18 +105,22 @@ const ExpenseAccountMap: React.FC = () => {
       toast(t('admin.expenseMap.toast.saved', 'Expense account saved'), `${label(key)} → ${erpAccount}`, 'success');
       setEditing(null);
     } catch (err) {
-      // The server's FR-EXP-112 refusal names the account and the rule — show it verbatim in the form.
+      // FR-EXP-112 refusal, stated once for the cause the code actually names. The endpoint uses
+      // TWO distinct codes that differ only in case, and each has its own remedy:
+      //   'CONFIG_REJECTED' — its ENTRY refuses binding-level problems (inactive binding, no site
+      //                       URL, unreadable Vault secret): the ERPNext connection is the remedy.
+      //   'config-rejected' — the account rule refuses THIS account: the account name/type is.
+      // Anything else (a Postgres code such as 23505, FORBIDDEN, a network failure) names no cause
+      // this screen can know, so its copy must not send the admin to the connection setup — that is
+      // a refusal telling them the wrong reason.
       const code = (err as { code?: unknown } | null)?.code;
-      // S-12: the server-side readiness refusal is state-neutral — a connected org must not be told to
-      // connect again (UX-080); the connection setup itself is named as the remedy.
-      const connectionRefusal = code === 'CONFIG_REJECTED' || code === 'ERP_NOT_CONNECTED' || code === 'integration-not-connected';
       setSaveError({
         headline: t('admin.expenseMap.error.saveHeadline', 'Couldn’t save the expense account'),
-        detail: connectionRefusal
+        detail: code === 'CONFIG_REJECTED'
           ? t('uxs12.expensePosting.saveRefused', 'Expense posting isn\'t ready right now, so the account was not saved. Check the ERPNext connection setup in Integrations.')
           : code === 'config-rejected'
             ? t('admin.expenseMap.error.accountRemedy', 'Check the account name and type in ERPNext, then try again. Your entry is kept.')
-            : t('admin.expenseMap.error.unknownRemedy', 'Check your connection and try again. Your entry is kept.'),
+            : t('admin.expenseMap.error.noCauseRemedy', 'The account was not saved. Your entry is kept; try again.'),
       });
     }
   };

@@ -21,7 +21,11 @@ import {
  */
 describe('breadcrumbForPath (route-derived breadcrumb)', () => {
   it('resolves the profile settings route to its page label', () => {
-    expect(breadcrumbForPath('/settings/profile')).toEqual([{ label: 'Profile & preferences' }]);
+    // C4 (fan-out round 1): the label is the English source/fallback; the crumb now carries the
+    // account menu's own key so a Bahasa session reads "Profil & preferensi".
+    expect(breadcrumbForPath('/settings/profile')).toEqual([
+      { label: 'Profile & preferences', i18nKey: 'shell.nav.profileSettings' },
+    ]);
   });
   it('AC-PROJ1-001: the one-step create page reads Projects > New project, never Loading/Not found', () => {
     const [parent, current] = breadcrumbForPath('/projects/new', undefined, undefined, true);

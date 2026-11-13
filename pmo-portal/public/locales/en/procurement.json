@@ -30,7 +30,8 @@
     "add": "Add",
     "removeDescription": "This removes the line item from procurement. You can add it again while the procurement is a draft.",
     "removeItem": "Remove item",
-    "searchItem": "Search item code or name…"
+    "searchItem": "Search item code or name…",
+    "unknownCurrencyAmount": "Unknown"
   },
   "create": {
     "heading": "New procurement",

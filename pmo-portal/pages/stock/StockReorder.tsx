@@ -165,7 +165,16 @@ const StockReorder: React.FC = () => {
 
         {itemId && warehouseId && suggestion.isPending && <div className="mt-3"><ListState variant="loading" rows={2} /></div>}
         {itemId && warehouseId && suggestion.isError && (
-          <div className="mt-3"><StockError error={suggestion.error} /></div>
+          <div className="mt-3">
+            {/* C1: a failed suggestion is a read that can be re-run, not a bare sentence. */}
+            <ListState
+              variant="error"
+              title={t('reorder.panel.suggestionFailed', "Couldn't load the reorder suggestion")}
+              sub={t('states.errorSub')}
+              retryLabel={t('actions.retry')}
+              onRetry={() => void suggestion.refetch()}
+            />
+          </div>
         )}
 
         {s && (

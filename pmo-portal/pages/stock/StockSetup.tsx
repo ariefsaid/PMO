@@ -123,12 +123,16 @@ const StockSetup: React.FC = () => {
         key: 'keepers', header: t('setup.columns.keepers'),
         cell: (r) => {
           const ks = keepersOf(r.id);
+          const names = ks.map((k) => personName.get(k.user_id) || '').filter(Boolean).join(', ');
+          const shown = names || t('setup.noKeepers');
+          // C13: the writer used to see a bare count where everyone else saw the names — the same
+          // evidence, whoever is looking. The panel control still opens from this cell.
           return canKeepers ? (
-            <Button variant="ghost" size="sm" onClick={() => setKeepersFor(r as StockWarehouseRow)}>
-              {t('setup.actions.keepers')} · {ks.length}
+            <Button variant="ghost" size="sm" className="max-w-56 justify-start" onClick={() => setKeepersFor(r as StockWarehouseRow)}>
+              <span className="truncate">{t('setup.actions.keepers')} · {shown}</span>
             </Button>
           ) : (
-            <span className="text-sm">{ks.length === 0 ? t('setup.noKeepers') : ks.map((k) => personName.get(k.user_id) || '').filter(Boolean).join(', ')}</span>
+            <span className="text-sm">{shown}</span>
           );
         },
       },

@@ -10,7 +10,13 @@
 
 ### ⚑⚑⚑ CURRENT STATE — run the four commands below before quoting any number
 
-**2026-11-13 — v0.38.0 is on `main` and on production** (tag `v0.38.0`; database at migration 0858; edge functions
+**2026-11-13 — v0.39.0 is on `main` and on production** (tag `v0.39.0`; database at migration 0865; no edge
+function changed since v0.38.0; the site on the tagged commit). Shipped since v0.38.0: invoiced figures agree across
+screens (#2212), the Contract tab and the timesheet editor keep what was typed (#2226, #2227), confirm before work is
+lost and partial lists say so (#2224), the first all-screens class repairs (#2222), one read for project budget
+positions (#2220), and follow-ups to journal purchase capture (#2218).
+
+**2026-11-13 — v0.38.0 was on `main` and on production** (tag `v0.38.0`; database at migration 0858; edge functions
 and the site on the tagged commit). Shipped since v0.36.0: the sidebar's single ordered list restored, the check
 that stops PMO re-sending a purchase step the ERP already holds (#2200), the figure-agreement gate and browser
 journey repairs (#2198), and the first part of #2195: an Admin records a purchase from existing ERP journal cost
