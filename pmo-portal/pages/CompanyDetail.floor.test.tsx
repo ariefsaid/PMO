@@ -64,17 +64,16 @@ function ContactDestination() {
 const company = {
   id: 'co1',
   org_id: 'org-1',
-  name: 'Cascade Port Authority',
+  name: 'Sample Company',
   type: 'Client' as const,
   archived_at: null,
   created_at: '2026-01-01T00:00:00Z',
 };
 const contact = {
   id: 'ct1',
-  full_name: 'Jane Doe',
+  full_name: 'Test Contact',
   title: 'Procurement Lead',
   company_id: 'co1',
-  email: 'jane@cascade.test',
   phone: null,
   notes: null,
   org_id: 'org-1',
@@ -120,7 +119,7 @@ beforeEach(() => {
 describe('company record floor controls', () => {
   it('floor: Primary contact name opens that contact record', () => {
     renderPage();
-    fireEvent.click(screen.getByRole('link', { name: 'Jane Doe' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Test Contact' }));
     expect(screen.getByText('Contact page ct1')).toBeInTheDocument();
   });
 });

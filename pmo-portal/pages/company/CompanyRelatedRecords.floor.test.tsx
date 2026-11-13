@@ -39,9 +39,9 @@ afterEach(cleanup);
 
 describe('related company record floor controls', () => {
   it('floor: related project name opens that project record', () => {
-    h.projects.data = [{ id: 'p-1', name: 'Meridian Solar Phase 1', status: 'Ongoing Project' }];
+    h.projects.data = [{ id: 'p-1', name: 'Project Alpha', status: 'Ongoing Project' }];
     renderProjects();
-    fireEvent.click(screen.getByRole('link', { name: /Meridian Solar Phase 1/i }));
+    fireEvent.click(screen.getByRole('link', { name: /Project Alpha/i }));
     expect(screen.getByLabelText('Current location').textContent).toBe('/projects/p-1');
   });
 
@@ -52,20 +52,20 @@ describe('related company record floor controls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(refetch).toHaveBeenCalledOnce();
 
-    h.projects = { data: [{ id: 'p-1', name: 'Meridian Solar Phase 1', status: 'Ongoing Project' }], isPending: false, isError: false, refetch };
+    h.projects = { data: [{ id: 'p-1', name: 'Project Alpha', status: 'Ongoing Project' }], isPending: false, isError: false, refetch };
     view.rerender(
       <MemoryRouter initialEntries={['/companies/co1']}>
         <RelatedProjects companyId="co1" />
         <CurrentLocation />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('link', { name: /Meridian Solar Phase 1/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Project Alpha/i })).toBeInTheDocument();
   });
 
   it('floor: related procurement name opens that procurement record', () => {
-    h.procurements.data = [{ id: 'pr-1', title: 'PV Module Supply', status: 'Ordered' }];
+    h.procurements.data = [{ id: 'pr-1', title: 'Procurement Alpha', status: 'Ordered' }];
     renderProcurement();
-    fireEvent.click(screen.getByRole('link', { name: /PV Module Supply/i }));
+    fireEvent.click(screen.getByRole('link', { name: /Procurement Alpha/i }));
     expect(screen.getByLabelText('Current location').textContent).toBe('/procurement/pr-1');
   });
 });
