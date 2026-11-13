@@ -12,14 +12,27 @@ import CalendarPage from '../Calendar';
 
 const may = vi.fn(() => true);
 const { moveTask, calendarState } = vi.hoisted(() => {
-  const baseTask = {
+  /** One calendar task fixture — typed, so a test may vary any field (owner, project, dates). */
+  type TaskFixture = {
+    id: string;
+    name: string;
+    status: string;
+    project_id: string | null;
+    project_name: string | null;
+    start_date: string | null;
+    end_date: string;
+    assignee_id: string | null;
+    assignee_name: string | null;
+    created_by: string | null;
+  };
+  const baseTask: TaskFixture = {
     id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
     start_date: null, end_date: '2026-11-12', assignee_id: null, assignee_name: null, created_by: null,
   };
   return {
     moveTask: vi.fn(),
     calendarState: {
-      tasks: [baseTask] as Array<typeof baseTask>,
+      tasks: [baseTask] as TaskFixture[],
       milestones: [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }] as Array<{ id: string; projectId: string; name: string; targetDate: string }>,
       milestonesError: false,
       projectsError: false,
