@@ -74,7 +74,7 @@ test('AC-EXP-070 a field claim is filed, approved by the project approver, paid 
   await page.getByLabel(/^Type/).nth(1).selectOption('Travel');
   await page.getByLabel(/^Description/).nth(1).fill('Rail fare');
   await page.getByRole('textbox', { name: 'Amount' }).nth(1).fill('10000');
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save draft' }).click();
   await expect(page).toHaveURL(/\/expenses\/[0-9a-f-]{36}$/, { timeout: 15_000 });
   const claimUrl = page.url();
 
