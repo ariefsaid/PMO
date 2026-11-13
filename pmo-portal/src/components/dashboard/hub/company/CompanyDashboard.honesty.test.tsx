@@ -390,9 +390,21 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     expect(within(owed).getAllByText('1 balance unknown, not in the total')).toHaveLength(1);
     const notDue = within(owed).getByTestId('owed-to-us-not-due');
     const late = within(owed).getByTestId('owed-to-us-overdue');
-    expect(notDue.style.flexGrow).toBe('0.75');
-    expect(late.style.flexGrow).toBe('0.25');
+    // Each painted side carries its share of the known total: 300K of 400K, 100K of 400K.
+    expect(notDue).toHaveAttribute('data-share', '0.75');
+    expect(late).toHaveAttribute('data-share', '0.25');
     expect(within(screen.getByTestId('finances')).getByRole('link', { name: /Open receivables/ })).toHaveAttribute('href', '/finance/receivables');
+  });
+
+  it('the home owed bar is one picture that names each side and its amount', () => {
+    h.invoices = [
+      { id: 'i1', status: 'Unpaid', currency: 'USD', invoice_date: '2026-10-20', erp_due_date: '2026-11-19', received_date: null, erp_outstanding_amount: 300_000, erp_payment_terms_days: 30 },
+      { id: 'i2', status: 'Unpaid', currency: 'USD', invoice_date: '2026-06-01', erp_due_date: '2026-06-29', received_date: null, erp_outstanding_amount: 100_000, erp_payment_terms_days: 30 },
+    ];
+    renderExec();
+    // A reader who cannot see the bar still gets the split: both sides, each with its amount.
+    const bar = within(screen.getByTestId('owed-to-us')).getByRole('img', { name: 'Owed to us, split by due date. Not yet due $300K, Overdue $100K' });
+    expect(bar).toBeInTheDocument();
   });
 
   it('AC-1461: Owed to suppliers carries its payables link, and an empty side reads as a known zero', () => {
@@ -402,6 +414,8 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     expect(suppliers).toHaveTextContent('$0');
     expect(suppliers).not.toHaveTextContent('Not yet due');
     expect(suppliers).toHaveTextContent('No supplier invoice to pay');
+    // Nothing known to divide: there is no picture of a split, so no bar is drawn and none is named.
+    expect(within(suppliers).queryByRole('img')).toBeNull();
   });
 
   it('Project health links to all projects without restating a count it does not share', () => {

@@ -849,6 +849,7 @@
     "openReceivables": "Buka piutang",
     "finances": "Keuangan",
     "owedToUs": "Piutang kita",
+    "owedSplitLabel": "{{title}}, dibagi menurut tanggal jatuh tempo",
     "overdueLabel": "Lewat tenggat",
     "reasonOverdueBalance": "sebagian saldo lewat tenggat tidak diketahui",
     "reasonOverdueUnknown": "faktur lewat tenggat tidak dapat dibaca",

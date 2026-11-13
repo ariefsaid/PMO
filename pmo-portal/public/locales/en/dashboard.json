@@ -849,6 +849,7 @@
     "openReceivables": "Open receivables",
     "finances": "Finances",
     "owedToUs": "Owed to us",
+    "owedSplitLabel": "{{title}}, split by due date",
     "overdueLabel": "Overdue",
     "reasonOverdueBalance": "some overdue balances are unknown",
     "reasonOverdueUnknown": "overdue invoices could not be read",
