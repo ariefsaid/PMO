@@ -265,6 +265,8 @@ describe('AC-PROC1 one-page request creation', () => {
 
   it('keeps quantity and unit-price labels with the line row and the estimate above the phone footer', () => {
     const originalMatchMedia = window.matchMedia;
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 390 });
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
       value: vi.fn((media: string) => ({
@@ -292,6 +294,7 @@ describe('AC-PROC1 one-page request creation', () => {
       const footer = screen.getByTestId('form-footer');
       expect(estimate.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: originalWidth });
       Object.defineProperty(window, 'matchMedia', { configurable: true, value: originalMatchMedia });
     }
   });
