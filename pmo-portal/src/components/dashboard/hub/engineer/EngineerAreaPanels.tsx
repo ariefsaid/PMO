@@ -96,15 +96,23 @@ export function EngineerTasksCard({
 }: PanelState & { overdue: MyTask[]; dueThisWeek: MyTask[]; today: string | null }) {
   const { t } = useTranslation('dashboard');
   const oldestFirst = [...overdue].sort((a, b) => String(a.end_date).localeCompare(String(b.end_date)));
+  const dueToday = today ? dueThisWeek.filter((task) => task.end_date === today).length : 0;
   const rows = [...oldestFirst, ...dueThisWeek].slice(0, 5);
-  // The group's one exception, stated where the list starts: the count in words and in the shared late tone.
-  // The rows below stay plain except the single most urgent one (screen-rules: exception colour once per group).
+  // Both of the person's own counts, stated where the list starts: overdue in the shared late tone (the group's
+  // one exception), due today plain. The rows below stay plain except the single most urgent one
+  // (screen-rules: exception colour once per group).
   const overdueFinding = overdue.length > 0
     ? <span data-testid="engineer-tasks-overdue" className="tabular text-destructive-text">{t('home.eng.tasksOverdueFinding', { count: overdue.length, defaultValue_one: '{{count}} overdue', defaultValue_other: '{{count}} overdue' })}</span>
+    : null;
+  const dueTodayFinding = dueToday > 0
+    ? <span data-testid="engineer-tasks-due-today" className="tabular text-foreground">{t('home.eng.dueTodayFinding', { count: dueToday, defaultValue_one: '{{count}} due today', defaultValue_other: '{{count}} due today' })}</span>
+    : null;
+  const finding = overdueFinding || dueTodayFinding
+    ? <>{overdueFinding}{overdueFinding && dueTodayFinding && <span aria-hidden className="mx-1.5 text-muted-foreground">·</span>}{dueTodayFinding}</>
     : undefined;
   return (
     <Card data-testid="engineer-tasks">
-      <CardHead level={2} subline={overdueFinding} actions={<CardLink to="/my-tasks">{t('home.eng.allTasks', 'All tasks')}</CardLink>}>{t('home.eng.myTasks', 'My tasks')}</CardHead>
+      <CardHead level={2} subline={finding} actions={<CardLink to="/my-tasks">{t('home.eng.allTasks', 'All tasks')}</CardLink>}>{t('home.eng.myTasks', 'My tasks')}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
         {loading ? <ListState variant="loading" rows={3} />
           : error ? <ListState variant="error" title={t('hub.engineer.tasksError', "Couldn't load your tasks")} onRetry={onRetry} />

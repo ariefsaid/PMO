@@ -170,6 +170,22 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(screen.queryByTestId('waits-on-you')).not.toBeInTheDocument();
   });
 
+  it('states the person\'s own overdue and due-today counts in the My tasks header', () => {
+    state.tasks.data = [
+      { id: 'late', name: 'Late task', status: 'In Progress', end_date: '2026-06-02' },
+      { id: 'today', name: 'Today task', status: 'To Do', end_date: '2026-06-03' },
+      { id: 'done-today', name: 'Done today', status: 'Done', end_date: '2026-06-03' },
+      { id: 'later', name: 'Later task', status: 'To Do', end_date: '2026-06-04' },
+    ];
+    renderDashboard();
+
+    // Both counts the old band carried are here: overdue is the exception, due today is plain.
+    expect(within(tasksCard()).getByTestId('engineer-tasks-overdue')).toHaveTextContent('1 overdue');
+    expect(within(tasksCard()).getByTestId('engineer-tasks-overdue')).toHaveClass('text-destructive-text');
+    expect(within(tasksCard()).getByTestId('engineer-tasks-due-today')).toHaveTextContent('1 due today');
+    expect(within(tasksCard()).getByTestId('engineer-tasks-due-today')).toHaveClass('text-foreground');
+  });
+
   it('states no overdue count when nothing is overdue', () => {
     state.tasks.data = [tasks[1]];
     const dueOnly = renderDashboard();
