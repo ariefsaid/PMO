@@ -227,7 +227,13 @@ const MyTasks: React.FC = () => {
     }
     // Judging my-tasks #2: worst first across groups too — the group whose own worst row is the
     // most overdue leads, so the task that needs attention today is not buried in a later group.
-    groups.sort((a, b) => groupUrgencyKey(a.items, today).localeCompare(groupUrgencyKey(b.items, today)));
+    // Plain string compare (not localeCompare): the key is a rank prefix plus an ISO date.
+    groups.sort((a, b) => {
+      const aKey = groupUrgencyKey(a.items, today);
+      const bKey = groupUrgencyKey(b.items, today);
+      if (aKey === bKey) return 0;
+      return aKey < bKey ? -1 : 1;
+    });
     return groups;
   }, [tasks, visibleTasks, t, today]);
 
