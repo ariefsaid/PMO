@@ -20,7 +20,6 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
-import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useCompanyFigures } from '@/src/components/dashboard/restructure/useCompanyFigures';
 import { useNeedsYou } from '@/src/components/dashboard/restructure/useNeedsYou';
@@ -80,7 +79,6 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const finance = role === 'Finance';
   const unpaidOf = useSupplierUnpaid(finance);
   const financePosition = useFinancePosition(finance, { withRoutes: true });
-  const erpPurchases = useErpPurchases(undefined, { enabled: finance });
   const [refreshToken, setRefreshToken] = React.useState(0);
   const todayFigure = (id: string) => figures.today.find((figure) => figure.id === id);
   const { period } = periodState;
@@ -131,7 +129,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const refresh = () => {
     figures.todayRetry(); figures.periodRetry(); figures.dashboardRetry(); figures.pipelineRetry(); needs.refetch();
     void procurements.refetch(); void budgetReview.refetch(); void projects.refetch();
-    if (finance) { void financePosition.retry(); void erpPurchases.refetch(); }
+    if (finance) void financePosition.retry();
     if (attention.length > 0) void healthDelivery.refetch();
     figures.trendRetry();
     setRefreshToken((current) => current + 1);
