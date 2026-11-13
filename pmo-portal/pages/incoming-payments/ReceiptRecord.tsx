@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, Icon, StatusPill, type Column } from '@/src/components/ui';
+import { Button, DataTable, Icon, RecordHeader, StatusPill, type Column } from '@/src/components/ui';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { knownUnappliedCash, type ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
@@ -33,7 +33,6 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
   const unappliedShown = unapplied !== null && unapplied > 0;
   const someUnreported = receipt.amount == null || receipt.received_amount == null || receipt.withheld_amount == null || unapplied === null;
   const facts: Array<{ label: string; testId?: string; value: React.ReactNode }> = [
-    { label: t('uxs06.receiptTotal', 'Receipt total'), value: receipt.amount != null ? money(receipt.amount) : notReported },
     ...(cashDiffers ? [{ label: t('financeCopy.cashReceived', 'Cash received'), value: money(receipt.received_amount!) }] : []),
     ...(withheldShown ? [{
       label: t('financeCopy.taxWithheld', 'Tax withheld'), testId: 'receipt-withheld',
@@ -56,6 +55,17 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       : <span className="font-mono text-control" title={t('uxs06.invoiceNotInPmo', 'This invoice is not in PMO yet.')}>{allocation.invoice_number}</span>, primaryTitle: (allocation) => allocation.invoice_number },
     { key: 'amount', header: t('uxs06.applied', 'Applied'), kind: 'money', align: 'num', cell: (allocation) => allocation.amount != null && allocation.currency != null ? formatCurrency(Number(allocation.amount), allocation.currency, { precision: 'minor' }) : notReported },
   ], [notReported, t]);
+  const number = receiptNumber(receipt);
+  const status = odoo
+    ? <OdooReceiptStatus receipt={receipt} fallback={cancelled
+      ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
+      : <StatusPill variant={incomingPaymentStatusVariant(receipt.status)}>{receipt.status === 'Paid' ? t('uxs06.statusReceived', 'Received') : t('uxs06.statusExpected', 'Expected')}</StatusPill>}
+    />
+    : cancelled
+    ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
+    : <StatusPill variant={incomingPaymentStatusVariant(receipt.status)}>
+        {receipt.status === 'Paid' ? t('uxs06.statusReceived', 'Received') : t('uxs06.statusExpected', 'Expected')}
+      </StatusPill>;
 
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
@@ -63,28 +73,18 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
         <Icon name="back" className="size-4" />
         {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
       </Button>
-      <header className="mb-5 border-b border-border pb-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-            {odoo && !receiptNumber(receipt)
-              ? t('finance:receipts.paymentReceivedUnnumbered', 'Payment received, not numbered yet')
-              : t('uxs06.paymentReceivedTitle', 'Payment received {{number}}', { number: receiptNumber(receipt) ?? receipt.id })}
-          </h1>
-          {odoo
-            ? <OdooReceiptStatus receipt={receipt} fallback={cancelled
-              ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
-              : <StatusPill variant={incomingPaymentStatusVariant(receipt.status)}>{receipt.status === 'Paid' ? t('uxs06.statusReceived', 'Received') : t('uxs06.statusExpected', 'Expected')}</StatusPill>}
-            />
-            : cancelled
-            ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
-            : <StatusPill variant={incomingPaymentStatusVariant(receipt.status)}>
-                {receipt.status === 'Paid' ? t('uxs06.statusReceived', 'Received') : t('uxs06.statusExpected', 'Expected')}
-              </StatusPill>}
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {[receipt.customer_name, receipt.date ? formatDay(receipt.date) : null].filter(Boolean).join(' · ') || '—'}
-        </p>
-      </header>
+      <RecordHeader
+        icon={null}
+        name={odoo && !number
+          ? t('finance:receipts.paymentReceivedUnnumbered', 'Payment received, not numbered yet')
+          : t('uxs06.paymentReceivedTitle', 'Payment received {{number}}', { number: number ?? receipt.id })}
+        status={status}
+        meta={receipt.customer_name ?? '—'}
+        stats={[
+          { label: t('financeCopy.date', 'Date'), value: receipt.date ? formatDay(receipt.date) : '—' },
+          { label: t('uxs06.receiptTotal', 'Receipt total'), value: receipt.amount != null ? money(receipt.amount) : notReported },
+        ]}
+      />
 
       <dl className="mb-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
         {facts.map((f) => (
