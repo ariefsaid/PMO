@@ -196,3 +196,20 @@ describe('Incoming payment record floor controls', () => {
     expect(screen.getByTestId('floor-location')).toHaveTextContent('/finance/receivables?view=payments&q=RCV');
   });
 });
+
+describe('Incoming payment record name', () => {
+  it('shows Payment received as the current breadcrumb', () => {
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter initialEntries={[{
+          pathname: '/incoming-payments/ip-1',
+          state: { recordContext: { listPath: '/finance/receivables?view=payments' } },
+        }]}>
+          <ShellChrome />
+          <LocationProbe />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+    expect(screen.getByText('Payment received')).toBeInTheDocument();
+  });
+});
