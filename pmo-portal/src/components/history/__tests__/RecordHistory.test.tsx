@@ -837,8 +837,8 @@ describe('RecordHistory — a system run of updates folds into one entry', () =>
       'Task updated', 'Task updated', 'Task updated',
     ]);
     expect(within(group).getAllByRole('button', { name: 'View details' })).toHaveLength(3);
-    // …and the child-record names still say which task each line changed.
-    expect(within(group).getByText('Task · Install pump')).toBeInTheDocument();
+    // …and the child-record names still say which task each line changed (t1 appears twice in the run).
+    expect(within(group).getAllByText('Task · Install pump')).toHaveLength(2);
     expect(within(group).getByText('Task · Commission pump')).toBeInTheDocument();
   });
 
