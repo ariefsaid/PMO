@@ -14,6 +14,7 @@ import {
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseStockError } from '@/src/lib/stockErrors';
 import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
+import { StockTabs } from '@/src/components/stock/StockTabs';
 import { categoryVariant } from '@/src/lib/status/statusVariants';
 import { formatQuantity, sumDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -174,6 +175,7 @@ const StockSetup: React.FC = () => {
         </Button>
       )}
     >
+      <StockTabs />
       <div className="mb-4 flex items-center border-b border-border">
         <Tabs<Tab>
           className="mb-0 min-w-0 flex-1 border-b-0"
