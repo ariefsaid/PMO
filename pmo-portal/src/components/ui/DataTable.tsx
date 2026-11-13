@@ -155,6 +155,13 @@ export interface DataTableProps<Row> {
   groupHeaderSpan?: boolean;
   /** Aligned subtotal/total rows rendered in a semantic <tfoot>; values are keyed by column key. */
   totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
+  /** True result size when known. Leave unset while a paged result is still loading. */
+  total?: number;
+  /** A following page exists. The shared footer names the partial result and exposes its recovery action. */
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
+  loadMoreLabel?: string;
   /** Optional controlled multi-row selection. */
   selection?: DataTableSelection<Row>;
   /** Callback notifying when the table's inner scrollport has overflowing content on the right. */
@@ -233,6 +240,11 @@ export function DataTable<Row>({
   groupOrder,
   groupHeaderSpan = false,
   totals,
+  total,
+  hasMore = false,
+  onLoadMore,
+  isLoadingMore = false,
+  loadMoreLabel,
   selection,
   onOverflowChange,
 }: DataTableProps<Row>) {
@@ -451,6 +463,21 @@ export function DataTable<Row>({
       {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-[var(--table-cell-inset)] py-2 text-control text-muted-foreground">
         {caveats.map((caveat, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="text-warning-foreground">*</span> {caveat.reason}{caveat.remedy && <> {caveat.remedy}</>}</React.Fragment>)}
       </p>}
+      {(hasMore || total !== undefined) && (
+        <ListState
+          variant="partial"
+          partialLayout="centeredAction"
+          className="border-t border-border/70 px-3 py-2.5"
+          title={total !== undefined
+            ? t('ui.listPage.showingOf', { ns: 'common', defaultValue: 'Showing {{count}} of {{total}}', count: rows.length, total })
+            : t('listPage.loadedMoreAvailable', { defaultValue: '{{count}} loaded, more available', count: rows.length })}
+          action={hasMore && onLoadMore ? {
+            label: loadMoreLabel ?? 'Load more',
+            onClick: onLoadMore,
+            loading: isLoadingMore,
+          } : undefined}
+        />
+      )}
     </div>
   );
 }

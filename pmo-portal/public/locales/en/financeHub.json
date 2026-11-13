@@ -199,8 +199,12 @@
       "doneNotYetBilledHelp": "Earned to date minus invoiced to date, using the report’s revenue recognition basis.",
       "earnedToDate": "Earned to date",
       "earnedToDateHelp": "Cumulative recognized revenue through the as-at month; the caption shows this month’s change.",
+      "billedWorkInPeriod": "Invoiced in period",
+      "billedWorkInPeriodHelp": "Invoice value dated inside the selected months, before tax.",
       "invoicedToDate": "Invoiced to date",
-      "invoicedToDateHelp": "Cumulative dated invoice value through the as-at month, before tax. The table lists the invoice count per project.",
+      "invoicedToDateHelp": "Cumulative invoice value from all history through the as-at month, before tax. The table lists the invoice count per project.",
+      "openingBilledWork": "Opening invoiced",
+      "openingBilledWorkHelp": "Invoice value from all history before the first selected month, before tax.",
       "invoiceCount": "{{count}} invoices",
       "invoiceCount_one": "{{count}} invoice",
       "invoiceCount_other": "{{count}} invoices",
@@ -212,11 +216,16 @@
       "reconcile": "Open invoices"
     },
     "col": {
+      "period": "Period",
       "progress": "Progress",
       "earned": "Earned",
       "invoices": "Invoices",
       "doneNotYetBilled": "Done, not yet billed",
       "leftToBill": "Left to bill"
+    },
+    "export": {
+      "selectedPeriodTotal": "Selected period total",
+      "opening": "Opening"
     },
     "noProgressNote": "Without progress assessments, earned revenue follows invoiced revenue.",
     "leftToBillUnknownNote": "Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.",

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -93,6 +93,17 @@ const StockMovementForm: React.FC = () => {
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data]);
   const wholeByUnit = useMemo(() => new Map((units.data ?? []).map((u) => [u.id, u.whole_only])), [units.data]);
 
+  const submitErrorRef = useRef<HTMLParagraphElement>(null);
+  // A refused post is answered at the foot of the form, where the fixed phone action bar cut the
+  // strip's last line at 390 and left it below the fold for a reader further up the form (C16).
+  // Bring the strip's own line into view clear of the bar, and focus it so it is read as well as seen.
+  useEffect(() => {
+    const strip = submitErrorRef.current;
+    if (!strip) return;
+    strip.scrollIntoView({ block: 'center' });
+    strip.focus({ preventScroll: true });
+  }, [submitError]);
+
   if (!kind) {
     return <div className="p-4"><ListState variant="empty" icon="folder" title={t('form.unknownKind')} sub={t('form.unknownKindSub')} /></div>;
   }
@@ -141,6 +152,11 @@ const StockMovementForm: React.FC = () => {
   function wholeOnlyItem(l: LineState): boolean {
     const item = l.itemId ? itemById.get(l.itemId) : undefined;
     return item ? (wholeByUnit.get(item.unit_id) ?? false) : false;
+  }
+  /** The item's own unit code, so the quantity field can say what its number is measured in (C16). */
+  function unitCodeOfLine(l: LineState): string {
+    const item = l.itemId ? itemById.get(l.itemId) : undefined;
+    return item ? (units.data ?? []).find((u) => u.id === item.unit_id)?.code ?? '' : '';
   }
 
   async function submit(ev: React.FormEvent) {
@@ -252,7 +268,7 @@ const StockMovementForm: React.FC = () => {
                         autoComplete="off"
                         value={l.quantity}
                         onChange={(v) => setLine(l.key, { quantity: v })}
-                        helper={kind === 'return' && src ? t('form.issuedHelper', { qty: src.quantity, unit: src.item?.unit.code ?? '' }) : undefined}
+                        helper={kind === 'return' && src ? t('form.issuedHelper', { qty: src.quantity, unit: src.item?.unit.code ?? '' }) : unitCodeOfLine(l) ? t('form.qtyUnitHelp', 'Enter the quantity in {{unit}}.', { unit: unitCodeOfLine(l) }) : undefined}
                         error={fieldErrors[`qty${l.key}`]}
                       />
                       {kind === 'receive' && (
@@ -291,7 +307,7 @@ const StockMovementForm: React.FC = () => {
             </div>
           </FormSection>
 
-          {!insufficient && <StockError error={submitError} />}
+          {!insufficient && <StockError error={submitError} ref={submitErrorRef} tabIndex={-1} />}
 
           {canSubmit ? (
             <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">

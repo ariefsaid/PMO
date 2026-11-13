@@ -17,7 +17,17 @@ import { useRevenuePerProject } from '@/src/hooks/useRevenue';
 import { useExport } from '@/src/components/export/useExport';
 import { RecordProgressModal } from '@/src/components/reports/RecordProgressModal';
 import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
-import { fromCents, leftToBillAt, type PackMonth, type PackRow, type PackTotalsMonth } from '@/src/lib/reports/managementPack';
+import {
+  fromCents,
+  leftToBillAt,
+  selectBilledWorkCumulative,
+  selectBilledWorkInPeriod,
+  selectBilledWorkOpening,
+  type BilledWorkTotal,
+  type PackMonth,
+  type PackRow,
+  type PackTotalsMonth,
+} from '@/src/lib/reports/managementPack';
 import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
 } from '@/src/lib/reports/managementPackExport';
@@ -159,7 +169,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   };
 
   const exportLabels: ManagementPackExportLabels = {
-    month: t('managementPack.col.month', 'Month'),
+    period: t('financeHub:managementPack.col.period', 'Period'),
     projectNumber: t('managementPack.col.projectNumber', 'Project number'),
     project: t('managementPack.col.project', 'Project'),
     client: t('managementPack.col.client', 'Client'),
@@ -167,7 +177,11 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     taxBasis: t('managementPack.col.taxBasis', 'Tax basis'),
     planned: label.planned,
     recognised: label.recognised,
-    invoiced: label.invoiced,
+    invoicedByMonth: t('managementPack.col.invoiced', 'Invoiced'),
+    selectedPeriod: t('financeHub:managementPack.figures.billedWorkInPeriod', 'Invoiced in period'),
+    opening: t('financeHub:managementPack.figures.openingBilledWork', 'Opening invoiced'),
+    selectedPeriodRow: t('financeHub:managementPack.export.selectedPeriodTotal', 'Selected period total'),
+    openingRow: t('financeHub:managementPack.export.opening', 'Opening'),
     recognisedToDate: label.recognisedToDate,
     invoicedToDate: label.invoicedToDate,
     unbilled: label.unbilled,
@@ -441,11 +455,15 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     return [{ currency: tot.currency, month: { ...month, backlog: leftToBill } }];
   });
   const homeCurrency = orgCurrency ?? 'IDR';
+  const selectedPeriod = selectBilledWorkInPeriod(pack, pack?.from.slice(0, 7) ?? null, pack?.to.slice(0, 7) ?? null);
+  const cumulativeBilledWork = selectBilledWorkCumulative(pack, pack?.to.slice(0, 7) ?? null);
+  const openingBilledWork = selectBilledWorkOpening(pack, pack?.from.slice(0, 7) ?? null);
   const figureSpecs: Array<{
     key: string;
     label: string;
     help: string;
-    amount: (month: PackTotalsMonth) => number | null;
+    amount?: (month: PackTotalsMonth) => number | null;
+    reading?: readonly BilledWorkTotal[];
     caption?: (month: PackTotalsMonth, currency: string) => string;
   }> = [
     {
@@ -462,10 +480,23 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       caption: (month, currency) => t('financeHub:managementPack.figures.thisMonthDelta', 'This month {{amount}}', { amount: formatTableMoney(Math.round(fromCents(month.recognised)), currency) ?? '—' }),
     },
     {
+      key: 'billedWorkInPeriod',
+      label: t('financeHub:managementPack.figures.billedWorkInPeriod', 'Invoiced in period'),
+      help: t('financeHub:managementPack.figures.billedWorkInPeriodHelp', 'Invoice value dated inside the selected months, before tax.'),
+      reading: selectedPeriod,
+    },
+    {
       key: 'invoicedToDate',
       label: t('financeHub:managementPack.figures.invoicedToDate', 'Invoiced to date'),
-      help: t('financeHub:managementPack.figures.invoicedToDateHelp', 'Cumulative dated invoice value through the as-at month, before tax. The table lists the invoice count per project.'),
+      help: t('financeHub:managementPack.figures.invoicedToDateHelp', 'Cumulative invoice value from all history through the as-at month, before tax. The table lists the invoice count per project.'),
       amount: (month) => month.invoicedToDate,
+      reading: cumulativeBilledWork,
+    },
+    {
+      key: 'openingBilledWork',
+      label: t('financeHub:managementPack.figures.openingBilledWork', 'Opening invoiced'),
+      help: t('financeHub:managementPack.figures.openingBilledWorkHelp', 'Invoice value from all history before the first selected month, before tax.'),
+      reading: openingBilledWork,
     },
     {
       key: 'backlog',
@@ -478,9 +509,12 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const tileFor = (spec: (typeof figureSpecs)[number]) => {
     const byCurrency: Record<string, number> = {};
     for (const { currency, month } of latestTotals) {
-      const cents = spec.amount(month);
+      const reading = spec.reading?.find((row) => row.currency === currency)?.amount;
+      const cents = spec.reading
+        ? reading === undefined ? null : Math.round(reading * 100)
+        : spec.amount?.(month) ?? null;
       if (cents === null) { if (currency === homeCurrency) return null; continue; }
-      byCurrency[currency] = Math.round(fromCents(cents) * 100);
+      byCurrency[currency] = Math.round(cents);
     }
     return Object.keys(byCurrency).length > 0 ? moneyTileProps(byCurrency, homeCurrency) : null;
   };
@@ -520,11 +554,11 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     >
       <div className="mb-3"><FigureHiddenLine compact /></div>
       {isPending && !pack ? (
-        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 xl:grid-cols-4">
+        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 xl:grid-cols-6">
           {figureSpecs.map((spec) => <KPITile key={spec.key} loading tone="blue" icon="grid" label={spec.label} value="" />)}
         </KPIRow>
       ) : showFigures && homeMonth && (
-        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 xl:grid-cols-4">
+        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 xl:grid-cols-6">
           {figureSpecs.map((spec) => {
             const tile = tileFor(spec);
             return (

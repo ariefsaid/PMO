@@ -39,11 +39,13 @@
     "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
     "externalRef": "Referensi ERP",
     "inUse": "Aset ini dipakai oleh entri pemakaian atau penetapan biaya. Arsipkan saja.",
+    "loadMore": "Muat lebih banyak",
     "name": "Nama",
     "new": "Aset baru",
     "newTitle": "Aset peralatan baru",
     "notFound": "Aset ini tidak ditemukan",
     "notFoundSub": "Mungkin sudah diarsipkan.",
+    "onLaterPage": "Alat ini mungkin ada di halaman berikutnya.",
     "refLine": "Referensi ERP {{ref}}",
     "rowLabel": "Buka {{name}}",
     "title": "Aset",
@@ -176,6 +178,8 @@
     "cardTitle": "Pemakaian",
     "confirmApproveBody": "Ini akan menyetujui entri pemakaian peralatan yang dicatat.",
     "confirmApproveTitle": "Setujui entri pemakaian?",
+    "confirmApproveWeekTitle": "Setujui pemakaian peralatan minggu ini?",
+    "confirmApproveWeekBody": "Setujui {{count}} {{entries}} yang diajukan untuk {{asset}} pada {{from}} – {{to}}. Statusnya akan menjadi Disetujui. Entri Anda sendiri dan entri yang tidak dapat Anda setujui akan dilewati tanpa perubahan.",
     "columns": {
       "date": "Tanggal",
       "decision": "Keputusan",
@@ -221,6 +225,7 @@
     "standby": "siaga",
     "submitWeek": "Ajukan seminggu",
     "submitted": "{{count}} entri diajukan untuk persetujuan",
+    "partialSubmit": "{{submitted}} diajukan; {{failed}} gagal. Entri yang gagal: {{items}}.",
     "tabs": {
       "approvals": "Persetujuan",
       "log": "Pemakaian saya"
@@ -231,8 +236,8 @@
     "totalsEmpty": "Belum ada pemakaian dalam 12 bulan terakhir",
     "totalsEmptySub": "Jam yang dicatat tampil di sini per bulan dan proyek setelah disetujui.",
     "totalsError": "Total pemakaian tidak dapat dimuat",
+    "moreAssets": "Alat setelah halaman ini belum dimuat.",
     "trips": "Perjalanan",
-    "truncated": "Hanya {{count}} entri pertama yang ditampilkan. Pilih satu alat untuk melihat sisanya.",
     "waiting": "Menunggu persetujuan",
     "entrySubject": "entri pemakaian",
     "chartLabel": "Pekerjaan per bulan, {{unit}}"

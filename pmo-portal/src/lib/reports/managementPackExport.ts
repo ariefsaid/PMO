@@ -1,9 +1,9 @@
 import type { CellValue, ExportTable } from '@/src/lib/export';
-import { fromCents, leftToBillAt, type ManagementPack, type PackRow } from './managementPack';
+import { fromCents, leftToBillAt, selectBilledWorkInPeriod, selectBilledWorkOpening, type ManagementPack, type PackRow } from './managementPack';
 
 /** Translated column titles and cell words — the page passes `t()` results; this module stays pure. */
 export interface ManagementPackExportLabels {
-  month: string;
+  period: string;
   projectNumber: string;
   project: string;
   client: string;
@@ -11,7 +11,11 @@ export interface ManagementPackExportLabels {
   taxBasis: string;
   planned: string;
   recognised: string;
-  invoiced: string;
+  invoicedByMonth: string;
+  selectedPeriod: string;
+  opening: string;
+  selectedPeriodRow: string;
+  openingRow: string;
   recognisedToDate: string;
   invoicedToDate: string;
   unbilled: string;
@@ -30,11 +34,11 @@ const money = (cents: number | null): CellValue => (cents === null ? '' : fromCe
 const rowName = (row: PackRow, l: ManagementPackExportLabels): string =>
   row.kind === 'unassigned' ? l.unassigned : row.projectName ?? '';
 
-/** Long format (one row per project row × month) so a pivot table can reshape it; months are `YYYY-MM` text. */
+/** Long format monthly rows plus per-currency selected-period and opening summaries; periods are `YYYY-MM` text. */
 export function buildManagementPackExport(pack: ManagementPack, l: ManagementPackExportLabels): ExportTable {
   const header = [
-    l.month, l.projectNumber, l.project, l.client, l.currency, l.taxBasis, l.planned, l.recognised, l.invoiced,
-    l.recognisedToDate, l.invoicedToDate, l.unbilled, l.backlog, l.basis,
+    l.period, l.projectNumber, l.project, l.client, l.currency, l.taxBasis, l.planned, l.recognised, l.invoicedByMonth,
+    l.selectedPeriod, l.opening, l.recognisedToDate, l.invoicedToDate, l.unbilled, l.backlog, l.basis,
   ];
   const body: CellValue[][] = [];
   for (const row of pack.rows) {
@@ -42,7 +46,7 @@ export function buildManagementPackExport(pack: ManagementPack, l: ManagementPac
       const leftToBill = row.kind === 'contract' ? leftToBillAt([row], row.currency, m.month) : null;
       body.push([
         m.month.slice(0, 7), row.projectNumber ?? '', rowName(row, l), row.clientName ?? '', row.currency,
-        l.taxBasisValue, money(m.planned), money(m.recognised), money(m.invoiced), money(m.recognisedToDate),
+        l.taxBasisValue, money(m.planned), money(m.recognised), money(m.invoiced), '', '', money(m.recognisedToDate),
         money(m.invoicedToDate), money(m.unbilled), money(leftToBill),
         m.basis === 'progress' ? l.basisProgress : m.basis === 'earned' ? l.basisEarned : l.basisInvoiced,
       ]);
@@ -53,9 +57,21 @@ export function buildManagementPackExport(pack: ManagementPack, l: ManagementPac
       const leftToBill = leftToBillAt(pack.rows, totals.currency, t.month);
       body.push([
         t.month.slice(0, 7), '', l.total, '', totals.currency, l.taxBasisValue, money(t.planned), money(t.recognised),
-        money(t.invoiced), money(t.recognisedToDate), money(t.invoicedToDate), money(t.unbilled), money(leftToBill), '',
+        money(t.invoiced), '', '', money(t.recognisedToDate), money(t.invoicedToDate), money(t.unbilled), money(leftToBill), '',
       ]);
     }
+  }
+  for (const total of selectBilledWorkInPeriod(pack, pack.from, pack.to) ?? []) {
+    body.push([
+      l.selectedPeriodRow, '', l.total, '', total.currency, l.taxBasisValue, '', '', '', money(Math.round(total.amount * 100)),
+      '', '', '', '', '', '',
+    ]);
+  }
+  for (const opening of selectBilledWorkOpening(pack, pack.from) ?? []) {
+    body.push([
+      l.openingRow, '', l.total, '', opening.currency, l.taxBasisValue, '', '', '', '', money(Math.round(opening.amount * 100)),
+      '', '', '', '', '',
+    ]);
   }
   return { header, body };
 }

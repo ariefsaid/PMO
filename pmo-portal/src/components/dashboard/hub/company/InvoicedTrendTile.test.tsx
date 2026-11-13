@@ -17,6 +17,11 @@ describe('AC-DTR-001 InvoicedTrendTile', () => {
     expect(tile.querySelector('svg polyline')).not.toBeNull();
   });
 
+  it('shows the month window in the compact finance-home label', () => {
+    render(<InvoicedTrendTile trend={trendOf([100_000_000_00, 200_000_000_00, 450_000_000_00])} compact />);
+    expect(screen.getByTestId('invoiced-trend-summary')).toHaveTextContent('Invoiced, last 12 months');
+  });
+
   it('shows the total with the currency symbol, like the sibling tiles', () => {
     const { rerender } = render(<InvoicedTrendTile trend={trendOf([100_000_000_00, 200_000_000_00, 450_000_000_00])} />);
     expect(screen.getByTestId('invoiced-trend')).toHaveTextContent('IDR 750M');

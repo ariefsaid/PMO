@@ -42,6 +42,20 @@ function openForm(props?: Partial<React.ComponentProps<typeof PanelEditorForm>>)
 }
 
 describe('PanelEditorForm — whitelist constraints', () => {
+  it('C10 PanelEditorForm.tsx:217: an incomplete filter cannot be silently dropped on confirm', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    openForm({ onConfirm });
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'companies');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.click(screen.getByRole('button', { name: /add filter/i }));
+
+    expect(screen.getByText('Complete or remove each filter row before saving.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /add panel|confirm/i })).toBeDisabled();
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
   it('CMP-004: closing a changed panel asks first, and Keep editing preserves the draft', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
@@ -144,6 +158,25 @@ describe('PanelEditorForm — whitelist constraints', () => {
     // groupBy is reset to '' (no option selected — select reverts to '— none —')
     const groupByAfter = screen.getByRole('combobox', { name: /group by/i });
     expect(groupByAfter).toHaveValue('');
+  });
+
+  it('C2 PanelEditorForm.tsx:149 preserves the unrelated label and column span when entity changes', async () => {
+    const user = userEvent.setup();
+    openForm({
+      initialPanel: {
+        id: 'panel-a',
+        primitive: 'DataTable',
+        querySpec: { entity: 'projects', select: ['name', 'status'] },
+        layout: { colSpan: 2 },
+        props: { label: 'Project status' },
+      },
+    });
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'companies');
+
+    expect(screen.getByRole('textbox', { name: /panel label/i })).toHaveValue('Project status');
+    expect(screen.getByRole('textbox', { name: /column span/i })).toHaveValue('2');
+    expect(screen.getByRole('combobox', { name: /entity/i })).toHaveValue('companies');
   });
 
   it('AC-VB-003: incidents column options equal exactly ENTITY_WHITELIST["incidents"].allowedColumns', async () => {

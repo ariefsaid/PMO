@@ -1,8 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { deriveActualPosition, deriveCollectionActual, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseContractExcess, parseProjectReceiptCash } from './projectFinances';
+import { deriveActualPosition, deriveCollectionActual, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseContractExcess, parseProjectReceiptCash, selectContractInvoiceFigure } from './projectFinances';
 import type { ProjectMoneyRead } from './db/projectMoney';
 import { getNumberLocale } from './locale/activeLocale';
 import { isMoneyAtRisk } from './dashboardConstants';
+
+describe('AC-S02-001 authoritative contract invoice figure', () => {
+  it('uses the contract basis and recorded contract denominator from the finance projection', () => {
+    expect(selectContractInvoiceFigure({ contract_invoiced: '555.00', remaining_to_invoice: '555.00' }))
+      .toEqual({ amount: '555.00', denominator: '1110.00', percentage: 50 });
+  });
+
+  it('keeps a contract currency mismatch unknown instead of returning a partial amount', () => {
+    expect(selectContractInvoiceFigure({ contract_invoiced: null, remaining_to_invoice: null }))
+      .toEqual({ amount: null, denominator: null, percentage: null });
+  });
+
+  it('preserves signed credit percentages and leaves a nonpositive denominator unavailable', () => {
+    expect(selectContractInvoiceFigure({ contract_invoiced: '-100.00', remaining_to_invoice: '1100.00' }))
+      .toEqual({ amount: '-100.00', denominator: '1000.00', percentage: -10 });
+    expect(selectContractInvoiceFigure({ contract_invoiced: '0.00', remaining_to_invoice: '0.00' }).percentage).toBeNull();
+  });
+});
 
 // #2060: the collection Actual is the same derivation for the Cards view, the Table view and any
 // other list surface. Its coverage verdict is the collection read's own `complete`; the category

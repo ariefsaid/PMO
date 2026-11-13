@@ -15,6 +15,7 @@ import { useOdooLedgerCurrency, useOdooStatement, useOdooStatementCatalogue } fr
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { formatDayYear } from '@/src/lib/format';
 import type { OdooLedgerCheck, OdooStatementKind, OdooStatementPair, OdooStatementProvenance, OdooStatementRead } from '@/src/lib/db/odooLedger';
+import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 
 const STATEMENTS: readonly OdooStatementKind[] = ['trial_balance', 'profit_and_loss', 'balance_sheet'];
 
@@ -37,8 +38,11 @@ export function OdooStatementsSection({ projectId }: { projectId?: string }) {
   const currency = useOdooLedgerCurrency();
   const catalogueQuery = useOdooStatementCatalogue(projectId);
   const catalogue = catalogueQuery.data;
-  const [periodKind, setPeriodKind] = useState<StatementPeriodKind>('month');
-  const [periodStart, setPeriodStart] = useState<string | null>(null);
+  const { values: periodFilters, setFilter, setFilters } = useUrlFilters(['periodKind', 'periodStart']);
+  const periodKind: StatementPeriodKind = periodFilters.periodKind === 'quarter' || periodFilters.periodKind === 'fiscal_year'
+    ? periodFilters.periodKind
+    : 'month';
+  const periodStart = periodFilters.periodStart || null;
   const [statement, setStatement] = useState<OdooStatementKind>(projectId ? 'profit_and_loss' : 'trial_balance');
   const [side, setSide] = useState<'current' | 'prior'>('current');
   const periods = useMemo(() => (catalogue?.state === 'complete' ? catalogue.periods : []), [catalogue]);
@@ -101,8 +105,8 @@ export function OdooStatementsSection({ projectId }: { projectId?: string }) {
             quarter: tc('financialStatements.quarter', 'Quarter'), fiscalYear: tc('financialStatements.fiscalYear', 'Fiscal year'),
             choosePeriod: tc('financialStatements.choosePeriod', 'Choose a period'), noPeriods: tc('financialStatements.noPeriods', 'No periods available'),
           }}
-          onKindChange={(k) => { setPeriodKind(k); setPeriodStart(latestPair(periods, k, today)?.currentStart ?? null); }}
-          onPeriodChange={setPeriodStart}
+          onKindChange={(k) => setFilters({ periodKind: k, periodStart: latestPair(periods, k, today)?.currentStart ?? '' })}
+          onPeriodChange={(start) => setFilter('periodStart', start ?? '')}
         />
         {!projectId && (
           <SelectField

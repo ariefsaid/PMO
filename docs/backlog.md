@@ -8,7 +8,17 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
+### ⚑⚑⚑ CURRENT STATE — run the four commands below before quoting any number
+
+**2026-11-13 — v0.38.0 is on `main` and on production** (tag `v0.38.0`; database at migration 0858; edge functions
+and the site on the tagged commit). Shipped since v0.36.0: the sidebar's single ordered list restored, the check
+that stops PMO re-sending a purchase step the ERP already holds (#2200), the figure-agreement gate and browser
+journey repairs (#2198), and the first part of #2195: an Admin records a purchase from existing ERP journal cost
+lines through the CLI (`docs/runbooks/pmo-cli.md`). Not shipped yet from #2195: invoices with no project in the
+ERP, capture of everything in one run with a completeness report, continuing an unpaid captured purchase, and the
+screen. The dated notes below this line are history of earlier drives; where they state a ceiling or a version,
+the owner's later instructions and the four commands win.
+
 
 **2026-11-05 — Odoo P9/C9 evidence (#1505/#1506):** `purchase.link-existing`, `cutover.purchase`, and
 `cutover.activation` are supported. **2026-11-07 update:** `purchase.push`, `bill.push`, `vendor-payment.push`,

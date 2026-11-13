@@ -34,6 +34,9 @@ function toTimezoneChoice(timezone: string | null | undefined): TimezoneChoice {
 
 const NUMBER_EXAMPLE = 1234567.89;
 
+/** Id of the muted note that explains a disabled Save; the button points at it. */
+const SAVE_NO_CHANGES_ID = 'profile-save-no-changes';
+
 /** The number convention shown as its own example (`1.234.567,89`), never as a bare tag like `id`. */
 function numberExample(numberLocale: string): string {
   return formatMoneyInputValue(NUMBER_EXAMPLE, numberLocale);
@@ -182,7 +185,7 @@ const ProfileSettings: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (isSaving) return;
+    if (isSaving || !dirty) return;
     if (timezoneChoice !== 'inherit' && !isValidTimeZone(timezoneChoice)) {
       setErrorMsg(t('profileSettings.invalidTimezone', 'Choose a valid timezone before saving.'));
       setStatus('error');
@@ -299,16 +302,23 @@ const ProfileSettings: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-6">
+        <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1">
           <Button
             type="button"
             variant="primary"
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || !dirty}
             loading={isSaving}
+            aria-describedby={!dirty ? SAVE_NO_CHANGES_ID : undefined}
           >
             {t('profileSettings.save', 'Save')}
           </Button>
+          {/* A disabled control says why: the reason sits beside Save and leaves with the first change. */}
+          {!dirty && (
+            <p id={SAVE_NO_CHANGES_ID} className="text-control text-muted-foreground">
+              {t('profilePreferences:noChanges', 'No changes to save')}
+            </p>
+          )}
         </div>
 
         {status === 'saving' && (
