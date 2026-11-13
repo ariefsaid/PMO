@@ -490,7 +490,7 @@
     "retry": "Coba lagi",
     "loadErrorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
     "roles": {
-      "engineer": "Engineer",
+      "engineer": "Insinyur",
       "projectManager": "Manajer proyek",
       "finance": "Keuangan",
       "executive": "Eksekutif",
@@ -507,7 +507,7 @@
       "invite": "Undang pengguna",
       "columns": {
         "user": "Pengguna",
-        "role": "Role",
+        "role": "Peran",
         "status": "Status",
         "manager": "Manajer"
       },
@@ -517,7 +517,7 @@
       },
       "noManager": "Tanpa manajer",
       "menu": {
-        "editRole": "Edit role",
+        "editRole": "Ubah peran",
         "changeManager": "Ubah manajer",
         "reEnable": "Aktifkan kembali",
         "disable": "Nonaktifkan"
@@ -624,7 +624,7 @@
       "noPush": "Tanpa akun pengiriman",
       "pushBadge": "Pengiriman anggaran",
       "addAccount": "Tambah akun ke {{category}}",
-      "editAccount": "Edit {{account}}",
+      "editAccount": "Ubah {{account}}",
       "usePush": "Gunakan {{account}} untuk pengiriman anggaran",
       "removeAccount": "Hapus {{account}}",
       "removePushHint": "Jadikan akun lain sebagai akun pengiriman untuk menghapus akun ini.",
@@ -887,7 +887,7 @@
     "actions": {
       "archive": "Arsipkan",
       "delete": "Hapus",
-      "edit": "Edit",
+      "edit": "Ubah",
       "new": "Perusahaan baru"
     },
     "columns": {
@@ -1005,7 +1005,7 @@
     "activityKind": {
       "call": "Telepon",
       "email": "Email",
-      "meeting": "Meeting",
+      "meeting": "Rapat",
       "note": "Catatan"
     },
     "addContact": {},
@@ -1029,7 +1029,7 @@
       "openRow": "Buka",
       "title": "Kontak"
     },
-    "edit": "Edit",
+    "edit": "Ubah",
     "error": {
       "sub": "Terjadi kesalahan saat mengambil data perusahaan ini.",
       "title": "Gagal memuat perusahaan"
@@ -1113,7 +1113,7 @@
     "activityKind": {
       "call": "Telepon",
       "email": "Email",
-      "meeting": "Meeting",
+      "meeting": "Rapat",
       "note": "Catatan"
     },
     "archive": "Arsipkan",
@@ -1123,7 +1123,7 @@
       "title": "Arsipkan {{name}}?"
     },
     "backToContacts": "Kontak",
-    "edit": "Edit",
+    "edit": "Ubah",
     "editActivity": {
       "legend": "Detail",
       "submitLabel": "Simpan",
@@ -1169,7 +1169,7 @@
     "actions": {
       "archive": "Arsipkan",
       "delete": "Hapus",
-      "edit": "Edit",
+      "edit": "Ubah",
       "new": "Kontak baru"
     },
     "columns": {
@@ -1632,7 +1632,7 @@
     "actionItems": {
       "empty": "Belum ada action item. Ketik /action di notulen untuk membuatnya.",
       "error": "Gagal memuat action item rapat ini.",
-      "title": "Action item"
+      "title": "Item tindakan"
     },
     "archive": "Arsipkan",
     "attendees": {
@@ -1696,7 +1696,7 @@
       "empty": "Tidak ada notulen yang tercatat untuk rapat ini.",
       "save": "Simpan notulen",
       "slash": {
-        "actionTitle": "Action item",
+        "actionTitle": "Item tindakan",
         "actionSubtext": "Buat tugas dari baris ini",
         "actionGroup": "Tindakan",
         "actionAliases": "action,aksi,tindakan,tugas,todo"
@@ -2208,7 +2208,7 @@
         "approve": "Setujui",
         "close": "Tutup dokumen",
         "delete": "Hapus",
-        "edit": "Edit",
+        "edit": "Ubah",
         "issue": "Terbitkan",
         "reject": "Tolak",
         "reopen": "Buka kembali untuk revisi",
@@ -2220,7 +2220,7 @@
         "code": "Kode",
         "document": "Dokumen",
         "status": "Status",
-        "file": "File"
+        "file": "Berkas"
       },
       "deleteConfirm": {
         "body": "Ini menghapus entri register dokumen secara permanen. Tindakan ini tidak dapat dibatalkan.",
@@ -2236,7 +2236,7 @@
         "category": "Kategori",
         "code": "Kode",
         "docDate": "Tanggal dokumen",
-        "file": "File",
+        "file": "Berkas",
         "lineage": "Riwayat revisi",
         "revision": "Revisi",
         "supersededBy": "Digantikan oleh"
@@ -2310,7 +2310,7 @@
       },
       "ceiling": "Pagu kontrak",
       "committed": "Sudah diterbitkan",
-      "draft": "Draft",
+      "draft": "Draf",
       "error": {
         "sub": "Total komitmen terhadap kontrak ini tidak dapat dibaca. Coba lagi, atau buka ulang proyek.",
         "title": "Gagal memuat penyerapan"
@@ -2349,8 +2349,8 @@
         "milestones_one": "{{count}} fase",
         "milestones_other": "{{count}} fase",
         "scale": "skala: {{scale}}",
-        "tasks_one": "{{count}} task",
-        "tasks_other": "{{count}} task"
+        "tasks_one": "{{count}} tugas",
+        "tasks_other": "{{count}} tugas"
       },
       "taskColumn": "Tugas",
       "tasksOnTimeline_one": "{{count}} task di timeline",
@@ -2364,7 +2364,7 @@
         "archive": "Arsipkan",
         "cancel": "Batal",
         "delete": "Hapus",
-        "edit": "Edit",
+        "edit": "Ubah",
         "save": "Simpan"
       },
       "archiveConfirm": {
@@ -2447,7 +2447,7 @@
         "titleFallback": "Hapus fase ini?"
       },
       "deleteMilestone": "Hapus fase",
-      "edit": "Edit",
+      "edit": "Ubah",
       "editInputPct": "Ubah progres penggantian",
       "editMilestone": "Edit fase",
       "editProgress": "Ubah progres",
@@ -2583,7 +2583,7 @@
       "action": {
         "archive": "Arsipkan",
         "delete": "Hapus",
-        "edit": "Edit",
+        "edit": "Ubah",
         "unarchive": "Pulihkan"
       },
       "addTask": "Tambah tugas",
@@ -2660,7 +2660,7 @@
       "view": {
         "board": "Papan",
         "list": "Daftar",
-        "timeline": "Timeline",
+        "timeline": "Linimasa",
         "calendar": "Kalender"
       },
       "viewAriaLabel": "Tampilan tugas",
@@ -2819,7 +2819,7 @@
       "status": {
         "cancelled": "Dibatalkan",
         "closed": "Ditutup",
-        "draft": "Draft",
+        "draft": "Draf",
         "issued": "Diterbitkan"
       },
       "tax": {
@@ -2990,7 +2990,7 @@
     "card": {
       "delivery": "Penyelesaian",
       "deliveryPercent": "Penyelesaian {{percent}}%",
-      "editProject": "Edit {{name}}"
+      "editProject": "Ubah {{name}}"
     },
     "kanban": {
       "won": "Menang",
@@ -3158,7 +3158,7 @@
       "label": "Kembali ke {{label}}"
     },
     "breadcrumb": {
-      "label": "Breadcrumb",
+      "label": "Jejak navigasi",
       "recordLoading": "Memuat…",
       "recordNotFound": "Tidak ditemukan"
     },
@@ -3188,7 +3188,7 @@
       "approvals": "Persetujuan",
       "companies": "Perusahaan",
       "contacts": "Kontak",
-      "dashboard": "Dashboard",
+      "dashboard": "Dasbor",
       "incidents": "Insiden",
       "incomingPayments": "Pembayaran Masuk",
       "integrations": "Integrasi saya",
@@ -3279,10 +3279,10 @@
   },
   "task": {
     "status": {
-      "blocked": "Blocked",
-      "done": "Done",
-      "inProgress": "In Progress",
-      "toDo": "To Do"
+      "blocked": "Terhambat",
+      "done": "Selesai",
+      "inProgress": "Sedang dikerjakan",
+      "toDo": "Akan dikerjakan"
     }
   },
   "tax": {
@@ -3559,7 +3559,7 @@
         "inherit": "Default organisasi",
         "inheritWithEffective": "Default organisasi: {{value}}",
         "id": "Bahasa Indonesia",
-        "en": "English"
+        "en": "Inggris"
       },
       "effective": "Bahasa aktif: {{value}}"
     },
@@ -3923,11 +3923,11 @@
     "panelList": "Daftar panel",
     "movePanelUp": "Pindahkan panel {{number}} ke atas",
     "movePanelDown": "Pindahkan panel {{number}} ke bawah",
-    "editPanel": "Edit panel {{number}}",
-    "edit": "Edit",
+    "editPanel": "Ubah panel {{number}}",
+    "edit": "Ubah",
     "removePanel": "Hapus panel {{number}}",
     "remove": "Hapus",
-    "editPanelTitle": "Edit panel",
+    "editPanelTitle": "Ubah panel",
     "addPanelTitle": "Tambah panel",
     "configurePanel": "Atur sumber data panel ini",
     "updatePanel": "Perbarui panel",
