@@ -35,3 +35,20 @@ describe('ProjectActivity views', () => {
     expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind-filters', 'true');
   });
 });
+
+// Floor (#13/#14 in floor-tests/project-record.md): the deal Overview embeds the same Activity card
+// inline, so its own name and its filter control must survive — the record-history filters are only
+// offered on the All view there, because Comments and Changes are already one kind each.
+describe('ProjectActivity on a deal Overview (compact)', () => {
+  it('keeps the card name the record page relies on and offers the kind filters on All only', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><ProjectActivity projectId="p1" compact title="Notes and activity" /></MemoryRouter>);
+
+    expect(screen.getByRole('region', { name: 'Notes and activity' })).toBeInTheDocument();
+    expect(screen.getByText('Project comments')).toBeInTheDocument();
+    expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind-filters', 'true');
+
+    await user.click(screen.getByRole('tab', { name: 'Changes' }));
+    expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind-filters', 'false');
+  });
+});
