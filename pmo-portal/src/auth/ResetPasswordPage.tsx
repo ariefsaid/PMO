@@ -5,7 +5,7 @@ import { useAuth } from './useAuth';
 import { useServiceMessageText } from './useServiceMessageText';
 import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
-import { ErrorBanner, SuccessNotice, AuthInput } from './authFormPrimitives';
+import { AuthHeader, ErrorBanner, SuccessNotice, AuthInput } from './authFormPrimitives';
 
 // -----------------------------------------------------------------------
 // ResetPasswordPage — /reset-password (FR-AUTHF-010..015). Public route,
@@ -47,11 +47,9 @@ const ResetPasswordPage: React.FC = () => {
   return (
     <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
-        <div className="mb-5 text-center">
-          <p className="text-[11px] font-semibold text-muted-foreground">
-            PMO Portal
-          </p>
-          <h1 className="mt-1 text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
+        <AuthHeader className="mb-4" />
+        <div className="mb-6 text-center">
+          <h1 className="text-page font-bold tracking-[-0.02em] text-foreground">
             {t('reset.title', 'Reset your password')}
           </h1>
         </div>
@@ -85,7 +83,7 @@ const ResetPasswordPage: React.FC = () => {
             </form>
             <Link
               to="/login"
-              className="block text-center text-[12.5px] font-semibold text-primary-text hover:underline"
+              className="touch-target flex min-h-[var(--control-height)] items-center justify-center text-control font-semibold text-primary-text hover:underline"
             >
               {t('reset.back', 'Back to sign in')}
             </Link>

@@ -392,7 +392,15 @@
     "/projects/41000000-0000-0000-0000-000000000002/activity@1440@pm@acme.test": 0,
     "/my-tasks@390@engineer@acme.test": 0,
     "/projects/41000000-0000-0000-0000-000000000002@768@exec@acme.test": 0,
-    "/sales@768@exec@acme.test": 0
+    "/sales@768@exec@acme.test": 0,
+    "/login@1440@exec@acme.test": 0,
+    "/login@390@exec@acme.test": 0,
+    "/reset-password@1440@exec@acme.test": 0,
+    "/reset-password@390@exec@acme.test": 0,
+    "/update-password@1440@exec@acme.test": 0,
+    "/update-password@390@exec@acme.test": 0,
+    "/oauth/consent@1440@exec@acme.test": 0,
+    "/oauth/consent@390@exec@acme.test": 0
   },
   "/procurement/00000000-0000-0000-0000-000000000002@390@exec@acme.test": 32,
   "/procurement/00000000-0000-0000-0000-000000000002@390@pm@acme.test": 32,
@@ -402,5 +410,13 @@
   "/timesheets@390@finance@acme.test": 27,
   "/projects/41000000-0000-0000-0000-000000000002/activity@1440@pm@acme.test": 132,
   "/projects/41000000-0000-0000-0000-000000000002@768@exec@acme.test": 128,
-  "/sales@768@exec@acme.test": 59
+  "/sales@768@exec@acme.test": 59,
+  "/login@1440@exec@acme.test": 49,
+  "/login@390@exec@acme.test": 49,
+  "/reset-password@1440@exec@acme.test": 14,
+  "/reset-password@390@exec@acme.test": 14,
+  "/update-password@1440@exec@acme.test": 20,
+  "/update-password@390@exec@acme.test": 20,
+  "/oauth/consent@1440@exec@acme.test": 22,
+  "/oauth/consent@390@exec@acme.test": 22
 }

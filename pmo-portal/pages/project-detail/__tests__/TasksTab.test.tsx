@@ -598,7 +598,9 @@ describe('TasksTab — Mine / All list scope', () => {
     await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
     expect(screen.getByText('Survey the site')).toBeInTheDocument();
     expect(screen.queryByText('Mobilise crew')).not.toBeInTheDocument();
-    await userEvent.type(screen.getByRole('textbox', { name: 'Search tasks' }), 'no match');
+    // F6 moved the field onto the shared list-toolbar search (<input type="search">), whose
+    // explicit role is searchbox; the behaviour this test pins (typing narrows the list) is unchanged.
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search tasks' }), 'no match');
     expect(screen.getByText('No tasks match these filters')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(screen.getByText('Survey the site')).toBeInTheDocument();

@@ -13,7 +13,7 @@ import {
   getM365ConnectionStatus,
   type ConnectionStatus,
 } from '@/src/lib/m365/connectClient';
-import { knownM365ErrorReason } from '@/src/lib/m365/errorCopy';
+import { knownM365ErrorReason, M365_STATUS_UNKNOWN_ENGLISH } from '@/src/lib/m365/errorCopy';
 
 /**
  * M365ConnectionCard — the PERSONAL connect surface for the Microsoft 365 integration.
@@ -110,10 +110,7 @@ function localizedError(t: TFunction, code: string | undefined, origin: ErrorOri
   if (origin === 'status') {
     return (
       knownM365ErrorReason(t, code) ??
-      t(
-        'integrations.personalM365.errors.statusFallback',
-        "We couldn't confirm your Microsoft 365 connection status. Retry status to try again.",
-      )
+      t('integrations.personalM365.errors.statusFallback', M365_STATUS_UNKNOWN_ENGLISH)
     );
   }
   return (
@@ -459,11 +456,11 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
           <span>
             {errorState
               ? localizedError(t, errorState.code, 'status')
-              : t(
-                  'integrations.personalM365.state.unknown',
-                  "We couldn't confirm your Microsoft 365 connection status. Retry status to try again.",
-                )}
+              : t('integrations.personalM365.state.unknown', M365_STATUS_UNKNOWN_ENGLISH)}
           </span>
+          {/* F8 (Director sitting): one word. "Retry status" is a label the reader never asked for
+              and it wrapped onto two lines inside this button; the action beside the unconfirmed
+              status is Retry. */}
           <Button
             type="button"
             variant="outline"
@@ -475,7 +472,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
               setStatusFetchAttempt((attempt) => attempt + 1);
             }}
           >
-            {t('administration:integrations.personalM365.action.retryStatus', 'Retry status')}
+            {t('administration:integrations.personalM365.action.retryStatus', 'Retry')}
           </Button>
         </p>
       ) : phase === 'loading' ? (

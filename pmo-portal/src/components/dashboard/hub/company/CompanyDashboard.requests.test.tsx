@@ -38,10 +38,10 @@ const pack = {
   rows: [],
   totals: [{ currency: 'USD', months: [{ month: '2026-10', planned: 0, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0 }] }],
 };
-const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: { months: [] as string[], rows: [] as unknown[], totals: [] as unknown[] }, procurementList: vi.fn() }));
+const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: { months: [] as string[], rows: [] as unknown[], totals: [] as unknown[] }, procurementList: vi.fn(), erpPurchases: vi.fn() }));
 
 // Ready to pay / payables ageing read linked accounting documents (L12); none linked here.
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: (...args: unknown[]) => { h.erpPurchases(...args); return { data: [], isPending: false, isError: false }; } }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: { totals: [], incompleteCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
@@ -99,7 +99,7 @@ const renderExec = () => render(
   </QueryClientProvider>,
 );
 
-beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = pack; h.procurementList.mockReset().mockResolvedValue([]); localStorage.removeItem('home-layout'); });
+beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = pack; h.procurementList.mockReset().mockResolvedValue([]); h.erpPurchases.mockReset(); localStorage.removeItem('home-layout'); });
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('company dashboard procurement reads (PERF-FIN-1)', () => {
@@ -112,6 +112,15 @@ describe('company dashboard procurement reads (PERF-FIN-1)', () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
         expect(h.procurementList).toHaveBeenCalledTimes(1);
     expect(h.procurementList).toHaveBeenCalledWith({ lean: true });
+  });
+
+  it('does not request ERP purchases on the company home or when refreshing it', async () => {
+    renderExec();
+    const refresh = await screen.findByRole('button', { name: 'Refresh dashboard' });
+
+    expect(h.erpPurchases).not.toHaveBeenCalled();
+    await act(async () => { refresh.click(); });
+    expect(h.erpPurchases).not.toHaveBeenCalled();
   });
 });
 
