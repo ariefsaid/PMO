@@ -289,7 +289,7 @@ describe('Sales pipeline floor — recoveries', () => {
     renderPage('/sales?view=kanban');
 
     const wonError = await screen.findByText("Couldn't load won projects");
-    const alert = wonError.closest('[role="alert"]')!;
+    const alert = wonError.closest('[role="alert"]') as HTMLElement;
     await userEvent.click(within(alert).getByRole('button', { name: 'Retry' }));
 
     expect(wonState.refetch).toHaveBeenCalled();
