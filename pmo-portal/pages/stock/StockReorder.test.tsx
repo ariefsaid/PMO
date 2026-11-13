@@ -110,11 +110,18 @@ describe('StockReorder', () => {
     expect(screen.queryByText('Choose an item and a warehouse to see a suggestion.')).not.toBeInTheDocument();
   });
 
+  it('C16 the worklist names the quantity to order with one name a person can read', async () => {
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Below reorder level' });
+    expect(within(table).getByRole('columnheader', { name: 'Suggested order' })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Order quantity' })).not.toBeInTheDocument();
+  });
+
   it("C16 the level in force reads as the worklist's own two column names", async () => {
     reorder.suggestion.mockResolvedValue({ ...okSuggestion, current: { reorderLevel: '40', reorderQuantity: '55' } });
     renderPage();
     await pickPair();
-    expect(await screen.findByText('Reorder level: 40 m. Order quantity: 55 m.')).toBeInTheDocument();
+    expect(await screen.findByText('Reorder level: 40 m. Suggested order: 55 m.')).toBeInTheDocument();
   });
 
   it('C16 the level in force line is Indonesian in the Indonesian catalogue, not the English words', async () => {
@@ -123,7 +130,7 @@ describe('StockReorder', () => {
       reorder.suggestion.mockResolvedValue({ ...okSuggestion, current: { reorderLevel: '40', reorderQuantity: '55' } });
       renderPage();
       await pickPair(/^Barang/, /^Gudang/);
-      expect(await screen.findByText('Level pemesanan ulang: 40 m. Jumlah pesanan: 55 m.')).toBeInTheDocument();
+      expect(await screen.findByText(/^Level pemesanan ulang: 40 m/)).toBeInTheDocument();
       expect(screen.queryByText(/Level in force/)).not.toBeInTheDocument();
     } finally {
       await i18next.changeLanguage('en');
@@ -255,7 +262,7 @@ describe('StockReorder', () => {
     expect(cells).toContain('60 m');
     await userEvent.click(within(row).getByRole('button', { name: 'Edit level for CAB' }));
     expect(await screen.findByRole('textbox', { name: /^Reorder level.*\(m\)$/ })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: /^Order quantity.*\(m\)$/ })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /^Suggested order.*\(m\)$/ })).toBeInTheDocument();
   });
 
   it('a failed clear keeps the dialog open and shows the error in it', async () => {
@@ -271,7 +278,7 @@ describe('StockReorder', () => {
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: 'Edit level for CAB' }));
     expect(await screen.findByRole('textbox', { name: /^Reorder level/ })).toHaveValue('50');
-    expect(screen.getByRole('textbox', { name: /^Order quantity/ })).toHaveValue('60');
+    expect(screen.getByRole('textbox', { name: /^Suggested order/ })).toHaveValue('60');
   });
 
   it('AC-STK-032 worklist loading, empty, error with retry, populated', async () => {
