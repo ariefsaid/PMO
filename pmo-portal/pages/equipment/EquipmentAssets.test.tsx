@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
@@ -24,6 +24,22 @@ import EquipmentAssetsPage from './EquipmentAssets';
 const asset = (id: string, code: string, name: string, over: Record<string, unknown> = {}) =>
   ({ id, code, name, default_unit: 'hours', external_ref: null, external_tier: null, archived_at: null, ...over });
 const renderPage = () => render(<MemoryRouter><ToastProvider><EquipmentAssetsPage /></ToastProvider></MemoryRouter>);
+
+/** Stands in for the asset record route so row activation can be asserted on the URL's value. */
+const AssetRecordProbe = () => {
+  const { assetId } = useParams();
+  return <p>Asset record {assetId}</p>;
+};
+const renderAtRoutes = () => render(
+  <MemoryRouter initialEntries={['/equipment/assets']}>
+    <ToastProvider>
+      <Routes>
+        <Route path="/equipment/assets" element={<EquipmentAssetsPage />} />
+        <Route path="/equipment/assets/:assetId" element={<AssetRecordProbe />} />
+      </Routes>
+    </ToastProvider>
+  </MemoryRouter>,
+);
 
 describe('/equipment/assets list (S6.4)', () => {
   beforeEach(() => {
@@ -121,5 +137,40 @@ describe('/equipment/assets list (S6.4)', () => {
     h.assetPages = { data: { pages: [{ rows: [], truncated: false }] }, total: 0, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
     renderPage();
     expect(screen.getByText('No equipment yet')).toBeInTheDocument();
+  });
+
+  it('AC-EQU-017 activating a row opens that asset record', async () => {
+    const user = userEvent.setup();
+    renderAtRoutes();
+    await user.click(screen.getByRole('button', { name: 'Open Loader 1' }));
+    expect(await screen.findByText('Asset record a1')).toBeInTheDocument();
+  });
+
+  it('AC-EQU-017 the new asset form starts on hours and sends days when days is chosen', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'New asset' }));
+    const unit = screen.getByRole('combobox', { name: /Default unit/ });
+    expect(unit).toHaveValue('hours');
+    await user.selectOptions(unit, 'days');
+    await user.type(screen.getByRole('textbox', { name: /Code/ }), 'EQU-4');
+    await user.type(screen.getByRole('textbox', { name: /Name/ }), 'Dozer');
+    await user.click(screen.getByRole('button', { name: 'Create asset' }));
+    await waitFor(() => expect(h.create).toHaveBeenCalledWith({ code: 'EQU-4', name: 'Dozer', default_unit: 'days' }));
+  });
+
+  it('AC-EQU-017 Cancel on a dirty new-asset form asks before discarding; Keep editing keeps the entries', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'New asset' }));
+    await user.type(screen.getByRole('textbox', { name: /Code/ }), 'EQU-9');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    const keep = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(within(keep).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByRole('textbox', { name: /Code/ })).toHaveValue('EQU-9');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(within(discard).getByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Create asset' })).not.toBeInTheDocument());
   });
 });
