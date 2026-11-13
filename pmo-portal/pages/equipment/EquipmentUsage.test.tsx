@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { axe } from 'jest-axe';
 import 'jest-axe/extend-expect';
 import type { Role } from '@/src/auth/AuthContext';
@@ -18,6 +18,7 @@ type Entry = {
 const h = vi.hoisted(() => ({
   entries: [] as unknown[],
   setEntries: (() => undefined) as (e: unknown[]) => void,
+  assets: [] as unknown[],
   usageArgs: [] as unknown[],
   query: { isPending: false, isError: false, refetch: vi.fn() },
   save: vi.fn(), transition: vi.fn(), approveWeek: vi.fn(), archive: vi.fn(),
@@ -29,9 +30,9 @@ vi.mock('@/src/hooks/useEquipment', async () => {
   const React = await import('react');
   return {
     useEquipmentAssetPages: () => ({
-      data: { pages: [{ rows: [{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', archived_at: null }] }] },
+      data: { pages: [{ rows: h.assets }] },
       isPending: false, isError: false, hasNextPage: h.assetsHasMore, isFetchingNextPage: false,
-      fetchNextPage: h.fetchAssetPage, refetch: vi.fn(), total: 1,
+      fetchNextPage: h.fetchAssetPage, refetch: vi.fn(), total: h.assets.length,
     }),
     useEquipmentUsage: (args: unknown) => {
       h.usageArgs.push(args);
@@ -61,7 +62,12 @@ const day = (iso: string) => formatDay(iso);
 const cell = (iso: string, project = 'EQU P1') => screen.getByRole('textbox', { name: `Loader 1 · ${project} · ${day(iso)}, hours` });
 
 const renderPage = (role: Role = 'Engineer', initialEntry = '/equipment/usage') =>
-  render(<ImpersonationProvider realRole={role}><MemoryRouter initialEntries={[initialEntry]}><ToastProvider><EquipmentUsagePage /></ToastProvider></MemoryRouter></ImpersonationProvider>);
+  render(<ImpersonationProvider realRole={role}><MemoryRouter initialEntries={[initialEntry]}><ToastProvider><LocationProbe /><EquipmentUsagePage /></ToastProvider></MemoryRouter></ImpersonationProvider>);
+
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return <div data-testid="location-probe" data-pathname={location.pathname} data-search={location.search} />;
+};
 
 const ViewAs: React.FC<{ role: Role }> = ({ role }) => {
   const { viewAs } = useEffectiveRole();
@@ -75,6 +81,7 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     vi.setSystemTime(new Date(2026, 8, 11, 9, 0, 0)); // Fri 11 Sep 2026: the week is Mon 7 - Sun 13 Sep
     h.userId = 'u-eng';
     h.entries = [entry({})];
+    h.assets = [{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', archived_at: null }];
     h.usageArgs = [];
     h.assetsHasMore = false;
     h.fetchAssetPage.mockClear();
@@ -363,6 +370,26 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Add row' })).toBeInTheDocument();
     expect(screen.queryByRole('row', { name: /Loader 1/ })).toBeNull();
+  });
+
+  it('AC-EQU-017 with no machines registered the empty grid names the absence and leads to New asset', async () => {
+    h.assets = [];
+    h.entries = [];
+    const user = userEvent.setup();
+    renderPage('Admin');
+    expect(screen.getByText('No machines registered')).toBeInTheDocument();
+    expect(screen.queryByText('No equipment logged this week')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'New asset' }));
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/equipment/assets');
+  });
+
+  it('AC-EQU-017 with no machines an Engineer is told who registers them and gets no asset action', () => {
+    h.assets = [];
+    h.entries = [];
+    renderPage('Engineer');
+    expect(screen.getByText('No machines registered')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New asset' })).toBeNull();
+    expect(screen.getByText('An Admin or Project Manager adds the machines.')).toBeInTheDocument();
   });
 
   it('AC-EQU-017 the grid is keyboard operable', async () => {

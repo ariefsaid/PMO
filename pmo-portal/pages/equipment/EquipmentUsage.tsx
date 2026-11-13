@@ -1,6 +1,7 @@
 import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import {
   Button, Combobox, ConfirmDialog, DataTable, Icon, ListPage, ListState, ReasonDialog, SelectField, StatusPill, Tabs, TextField, tabId, tabPanelId, useToast, useUrlFilters,
   type Column,
@@ -49,12 +50,14 @@ const UsageCell: React.FC<{ label: string; stored: string; disabled: boolean; on
 const EquipmentUsagePage: React.FC = () => {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const may = usePermission();
   // A view-as (impersonation) session is read-only: nothing here writes while the effective role is not the real one.
   const { realRole, effectiveRole } = useEffectiveRole();
   const viewOnly = realRole !== effectiveRole;
   const writeCtx = { record: { viewOnly } };
   const canLog = may('create', 'equipmentUsage', writeCtx);
+  const canCreateAsset = may('create', 'equipmentAsset', writeCtx);
   const userId = useAuth().currentUser?.id ?? null;
   const today = toIso(new Date());
   // R2: week/tab/asset are URL-owned (`?week=YYYY-MM-DD`, the same deep-link contract) so
@@ -90,6 +93,10 @@ const EquipmentUsagePage: React.FC = () => {
   const archive = useArchiveUsage();
 
   const assets = useMemo(() => assetsQ.data?.pages.flatMap((page) => page.rows) ?? [], [assetsQ.data]);
+  // The grid's empty state names WHICH absence it is: an empty machine register is a different
+  // dead end (nothing can be logged yet) from a week with no hours, and only it has a fix this
+  // screen cannot do itself — the New asset control on the assets page.
+  const noMachines = !assetsQ.isPending && !assetsQ.isError && assets.length === 0;
   const projects = useMemo(() => projectsQ.data ?? [], [projectsQ.data]);
   const assetById = useMemo(() => new Map<string, EquipmentAssetRow>(assets.map((a) => [a.id, a])), [assets]);
   const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
@@ -363,8 +370,15 @@ const EquipmentUsagePage: React.FC = () => {
           <DataTable<GridRow> embedded rows={gridRows} columns={columns} rowKey={(r) => r.key} tableId="equipment-usage-grid"
             accessibleName={t('equipment:usage.gridLabel', 'Equipment usage this week')}
             state={gridRows.length === 0 ? 'empty' : undefined}
-            emptyTitle={t('equipment:usage.empty', 'No equipment logged this week')}
-            emptySub={t('equipment:usage.emptySub', 'Add a row for a machine and a project, then type the hours for each day.')} />
+            emptyTitle={noMachines
+              ? t('equipment:usage.noMachines', 'No machines registered')
+              : t('equipment:usage.empty', 'No equipment logged this week')}
+            emptySub={noMachines
+              ? (canCreateAsset ? undefined : t('equipment:usage.noMachinesSub', 'An Admin or Project Manager adds the machines.'))
+              : t('equipment:usage.emptySub', 'Add a row for a machine and a project, then type the hours for each day.')}
+            emptyAction={noMachines && canCreateAsset
+              ? { label: t('equipment:assets.new', 'New asset'), onClick: () => navigate('/equipment/assets') }
+              : undefined} />
         </>
       )}
       {!usageQ.isPending && !usageQ.isError && usageQ.data && tab === 'approvals' && canApproveTab && (
