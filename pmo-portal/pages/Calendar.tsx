@@ -12,6 +12,7 @@ import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseLocalDate } from '@/src/lib/calendar/monthMatrix';
+import { formatDay } from '@/src/lib/format';
 import type { WorkItem, WorkTask } from '@/src/lib/calendar/workCalendar';
 
 /**
@@ -89,7 +90,14 @@ const CalendarPage: React.FC = () => {
           withProject
           initialDate={initialDate}
           canMoveTask={canMoveTask}
-          onMoveTask={(task, patch) => move.mutateAsync({ task, patch })}
+          onMoveTask={async (task, patch) => {
+            await move.mutateAsync({ task, patch });
+            toast(
+              t('move.savedTitle', 'Task due date updated'),
+              t('move.savedBody', '{{task}} is now due {{date}}.', { task: task.name, date: formatDay(patch.end_date) }),
+              'success',
+            );
+          }}
           onMoveError={onMoveError}
           onWindowChange={setWindow}
           onOpenItem={onOpenItem}

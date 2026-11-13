@@ -264,7 +264,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     // #1511 F5: register and maintenance reads, picker and pending-change reads, asset matching
     // (list and accept), and outbox commands deliberately extend this repository seam.
     expect(Object.keys(repositories.equipment).sort()).toEqual(
-      ['acceptAssetMatches', 'approveWeek', 'archiveUsage', 'createAsset', 'deleteAsset', 'endCosting', 'listAllocations', 'listAssetMatches', 'listAssets', 'listCosting',
+      ['acceptAssetMatches', 'approveWeek', 'archiveUsage', 'countAssets', 'createAsset', 'deleteAsset', 'endCosting', 'listAllocations', 'listAssetMatches', 'listAssets', 'listCosting',
         'listMaintenance', 'listPendingChanges', 'listPickers', 'listRegister', 'listUsage', 'listUsageTotals', 'previewCosting', 'saveCosting', 'saveUsage', 'sendEquipmentCommand', 'transitionUsage', 'updateAsset'].sort(),
     );
   });
@@ -344,7 +344,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'listForContact' added with the I7 review round — the DD-MTG-6 contact-timeline union.
       // 'restore' added with the author/Admin archived-meeting restore flow (#1542); repository delegation,
       // mutation, and visible UI behavior are covered by focused meeting tests.
-      ['addAttendee', 'addGrant', 'archive', 'create', 'delete', 'get', 'list', 'listAttendees', 'listForContact', 'listGrants', 'removeAttendee', 'restore', 'revokeGrant', 'update'].sort(),
+      // 'listPage' added with C8 so meeting index callers can continue through bounded pages.
+      ['addAttendee', 'addGrant', 'archive', 'count', 'create', 'delete', 'get', 'list', 'listAttendees', 'listForContact', 'listGrants', 'listPage', 'removeAttendee', 'restore', 'revokeGrant', 'update'].sort(),
     );
     expect(Object.keys(repositories.procurement).sort()).toEqual(
       // 'setEfaktur' added deliberately with #893 (DD-EFK-1): the PMO-only vendor e-Faktur setter.

@@ -20,7 +20,7 @@ export interface FilterBarProps {
   onChange: (key: string, value: string) => void;
   onClear: () => void;
   shown: number;
-  total: number;
+  total?: number;
   labels?: { all?: string; clear?: string; filters?: string; count?: (shown: number, total: number) => string };
   searchSurface?: string;
   module?: string;
@@ -63,6 +63,6 @@ export function FilterBar({ searchKey, searchLabel, searchPlaceholder, filters, 
   </div>;
   return <div className={`flex flex-wrap items-center justify-between gap-2 w-full ${className ?? ''}`}>
     {narrow ? <><button type="button" onClick={() => setOpen(true)} className="min-h-11 rounded-md border border-input bg-background px-3 text-control text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{filterLabel}</button><Drawer open={open} onClose={() => setOpen(false)} title={filterLabel}>{controls}</Drawer></> : controls}
-    <span aria-live="polite" className="text-control text-muted-foreground">{labels?.count?.(shown, total) ?? `Showing ${shown} of ${total}`}</span>
+    {total !== undefined && <span aria-live="polite" className="text-control text-muted-foreground">{labels?.count?.(shown, total) ?? `Showing ${shown} of ${total}`}</span>}
   </div>;
 }

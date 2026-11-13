@@ -5,7 +5,7 @@ import {
   setWarehouseKeeper,
 } from '@/src/lib/db/stockMaster';
 import {
-  cancelStockDocument, createStockDocument, getStockDocument, getStockDocumentCosts, listIssuableWorkItems, listProjectIssueLines, listStockDocuments, postStockDocument, saveStockDraft,
+  cancelStockDocument, countStockDocuments, createStockDocument, getStockDocument, getStockDocumentCosts, listIssuableWorkItems, listProjectIssueLines, listStockDocuments, postStockDocument, saveStockDraft,
 } from '@/src/lib/db/stockDocuments';
 import { getProjectConsumption, getStockLedgerAll, getStockLedgerPage, getStockOnHand } from '@/src/lib/db/stockReports';
 import { clearAllowance, listAllowances, setAllowance } from '@/src/lib/db/stockAllowances';
@@ -30,6 +30,7 @@ export const stockRepository: StockRepository = {
   },
   documents: {
     list: (f) => wrap(() => listStockDocuments(f)),
+    count: (f) => wrap(() => countStockDocuments(f)),
     get: (id) => wrap(() => getStockDocument(id)),
     create: (i, o) => wrap(() => createStockDocument(i, o)),
     saveDraft: (id, i) => wrap(() => saveStockDraft(id, i)),

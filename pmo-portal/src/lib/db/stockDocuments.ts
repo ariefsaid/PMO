@@ -89,6 +89,18 @@ export async function listStockDocuments(f: StockDocumentFilters = {}): Promise<
   return (data ?? []) as unknown as StockDocumentListRow[];
 }
 
+/** Exact count of the same active filters as the list; pagination cursors do not narrow the result total. */
+export async function countStockDocuments(f: StockDocumentFilters = {}): Promise<number | undefined> {
+  let q = supabase.from('stock_documents').select('id', { count: 'exact', head: true });
+  if (f.kind) q = q.eq('kind', f.kind);
+  if (f.status) q = q.eq('status', f.status);
+  if (f.warehouseId) q = q.eq('warehouse_id', f.warehouseId);
+  if (f.projectId) q = q.eq('project_id', f.projectId);
+  const { count, error } = await q;
+  if (error) throw toAppError(error);
+  return count ?? undefined;
+}
+
 export interface StockDocumentLine {
   id: string; line_no: number; item_id: string;
   quantity: string | null; counted_quantity: string | null; expected_quantity: string | null;

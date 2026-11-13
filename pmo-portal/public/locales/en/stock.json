@@ -271,6 +271,10 @@
     "cancelDraft": "Cancel draft",
     "cancelled": "Draft cancelled",
     "actionFailed": "That didn't work",
+    "postConfirm": {
+      "title": "Post this stock document?",
+      "description": "{{number}} will be posted and stock on hand will change using these lines. This document can no longer be edited."
+    },
     "confirm": {
       "title": "Cancel this draft?",
       "description": "The draft is kept for the record but can no longer be posted.",
@@ -385,6 +389,11 @@
     "systemNow": "System now",
     "variance": "Difference",
     "fill": "Fill from stock on hand",
+    "fillConfirm": {
+      "title": "Replace the count lines?",
+      "description": "All current lines and entered counts will be replaced by the positive stock-on-hand items.",
+      "confirm": "Replace lines"
+    },
     "reason": "Reason",
     "reasonHelp": "For example: damaged, lost, found in the yard.",
     "direction": "Direction",
