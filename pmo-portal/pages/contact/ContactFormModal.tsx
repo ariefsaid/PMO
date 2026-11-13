@@ -215,6 +215,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             <SelectField
               id="contact-form-company"
               label={t('contacts.form.company.label', 'Company')}
+              aria-label={t('contacts.form.company.label', 'Company')}
               required
               value={lockedCompanyId!}
               onChange={() => { /* locked */ }}
@@ -226,6 +227,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
               <SelectField
                 id={companyField.id}
                 label={t('contacts.form.company.label', 'Company')}
+                aria-label={t('contacts.form.company.label', 'Company')}
                 required
                 value={companyField.value}
                 onChange={(v) => companyField.onChange(v)}

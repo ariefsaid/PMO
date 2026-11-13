@@ -272,6 +272,7 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
             />
             <TextField
               label={t('contactDetail.activity.date', 'Date')}
+              aria-label={t('contactDetail.activity.date', 'Date')}
               type="date"
               value={activityDate}
               onChange={setActivityDate}
