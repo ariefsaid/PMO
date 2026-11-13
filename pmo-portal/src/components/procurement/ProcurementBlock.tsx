@@ -30,6 +30,7 @@ import { useProject } from '@/src/hooks/useProjects';
 import { useProcurements, useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import { repositories } from '@/src/lib/repositories';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
@@ -277,6 +278,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   const { currentUser, role } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { openRecord } = useListReturn({ list: 'procurement' });
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const queryClient = useQueryClient();
@@ -468,6 +470,14 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   };
 
   const openFullRecord = (row: ProcurementWithRefs) => navigate(`/procurement/${row.id}`);
+  // The drawer's Open full page carries the same list-return context a direct row open captures
+  // (useListReturn → openRecord, as ProcurementListRow does), so the record's Back returns to the
+  // list the buyer came from — query string included. Where no /procurement context can be
+  // captured (the project page's block), openRecord declines and the plain navigation stands.
+  const openFullPage = (row: ProcurementWithRefs) => {
+    if (openRecord(`/procurement/${row.id}`)) return;
+    openFullRecord(row);
+  };
   const attachDocument = (row: ProcurementWithRefs) => navigate(`/procurement/${row.id}/documents`);
   const copyRecordLink = async (row: ProcurementWithRefs) => {
     const href = `${window.location.origin}/procurement/${row.id}`;
@@ -1052,7 +1062,17 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
           {drawerMain && <Button size="sm" onClick={runDrawerMain} disabled={transition.isPending || (drawerMain.transition.to === 'Requested' && (drawerDetails?.items?.length ?? 0) === 0)}>
             {drawerMain.label}
           </Button>}
-          <Link to={`/procurement/${selected.id}`} className={buttonClasses('outline', 'sm')}>
+          <Link
+            to={`/procurement/${selected.id}`}
+            onClick={(event) => {
+              // Modified / new-tab clicks keep the plain href (no return context crosses into
+              // another browsing context); a plain left-click routes through the shared opener.
+              if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+              event.preventDefault();
+              openFullPage(selected);
+            }}
+            className={buttonClasses('outline', 'sm')}
+          >
             {t('projectDetail.procurement.detail.openFullRecord', 'Open full page')}
           </Link>
           <MenuButton items={rowMenu(selected, true)} ariaLabel={t('procurement.moreActions', 'More procurement actions')} />

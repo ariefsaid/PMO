@@ -324,4 +324,13 @@ describe('ProcurementBlock floor controls', () => {
     expect(screen.getByRole('button', { name: 'Open Inverters' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Open Batteries' })).not.toBeInTheDocument();
   });
+
+  it('floor: Drawer Open full page carries the same list-return context a direct row open does', async () => {
+    renderBlock('/procurement?open=p-1');
+    const drawer = screen.getByRole('dialog');
+    await userEvent.click(within(drawer).getByRole('link', { name: 'Open full page' }));
+    expect(screen.getByTestId('route-probe')).toHaveTextContent('/procurement/p-1');
+    const state = JSON.parse(screen.getByTestId('route-probe').getAttribute('data-state') ?? 'null') as { pmoListReturn?: { list?: string; path?: string } } | null;
+    expect(state?.pmoListReturn).toMatchObject({ list: 'procurement', path: '/procurement?open=p-1' });
+  });
 });
