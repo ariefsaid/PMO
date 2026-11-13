@@ -76,8 +76,12 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
     return cols;
   }, [t, loc, currency, showCost, embedded]);
 
+  // A failed next page keeps the trace already read: that failure is reported under the table, not by
+  // replacing the whole trace with a page-level error.
   const state: 'loading' | 'empty' | 'error' | undefined =
-    ledger.isError || items.isError || warehouses.isError ? 'error' : ledger.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined;
+    (ledger.isError && !ledger.isFetchNextPageError) || items.isError || warehouses.isError
+      ? 'error'
+      : ledger.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined;
   const filtered = Boolean(itemId || warehouseId || from || to || documentId || (!fixedProject && projectId));
 
   const body = (

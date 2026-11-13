@@ -59,7 +59,10 @@ const StockDocuments: React.FC = () => {
     { key: 'by', header: t('documents.columns.by'), colClassName: 'hidden lg:table-cell', cell: (r) => <span className="text-sm">{r.author?.full_name ?? ''}</span>, exportValue: (r) => r.author?.full_name ?? '' },
   ], [t]);
 
-  const state: 'loading' | 'empty' | 'error' | undefined = q.isError ? 'error' : q.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined;
+  // A failed next page keeps the rows already read: that failure is reported under the table, not by
+  // replacing the register with a page-level error.
+  const state: 'loading' | 'empty' | 'error' | undefined =
+    q.isError && !q.isFetchNextPageError ? 'error' : q.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined;
   const filtered = Boolean(kind || status);
 
   return (
