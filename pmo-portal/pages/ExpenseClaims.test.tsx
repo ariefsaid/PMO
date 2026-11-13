@@ -120,23 +120,25 @@ describe('ExpenseClaims page', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
-  it('#1430 move 1: keeps New claim in the header and empty state with one filled action', () => {
+  it('ruling 1: keeps one filled New claim — the header action, with the empty-state copy quiet', async () => {
     h.list.data = { rows: [], truncated: false };
     renderPage();
-    const actions = screen.getAllByRole('button', { name: 'New claim' });
-    expect(actions).toHaveLength(2);
-    expect(actions[0]).toHaveClass('bg-primary');
-    expect(actions[1]).toHaveClass('bg-card');
-    expect(actions[1]).not.toHaveClass('bg-primary');
+    const [headerAction, emptyAction] = screen.getAllByRole('button', { name: 'New claim' });
+    // One-Blue: exactly one filled action on the view — the header's. The empty-state
+    // copy stays present (New claim must not disappear) but is the quiet outline.
+    expect(headerAction).toHaveClass('bg-primary');
+    expect(emptyAction).not.toHaveClass('bg-primary');
+    await userEvent.click(emptyAction);
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
   });
 
-  it('keeps the empty state inside the expense list card surface', () => {
+  it('ruling 2: keeps the empty state inside the expense list card surface', () => {
     h.list.data = { rows: [], truncated: false };
     renderPage();
     expect(screen.getByText('No expenses here yet').closest('.panel-card')).toBeInTheDocument();
   });
 
-  it('#1430 move 2: hides table headers until expense rows exist', () => {
+  it('move 2: hides table headers until expense rows exist', () => {
     h.list.data = { rows: [], truncated: false };
     renderPage();
     expect(screen.queryByRole('columnheader')).not.toBeInTheDocument();
