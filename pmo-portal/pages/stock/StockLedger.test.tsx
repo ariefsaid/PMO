@@ -201,4 +201,17 @@ describe('FR-STK-041 floor: every control on the trace still works', () => {
     await userEvent.click(await screen.findByRole('link', { name: 'ISS-2' }));
     expect(await screen.findByText('document page')).toBeInTheDocument();
   });
+
+  it('C1 a failed next page says so, and its Retry follows the cursor again', async () => {
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(9)], nextBeforeSeq: 9 });
+    reports.ledgerPage.mockRejectedValueOnce(new AppError('boom'));
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(8, { documentNumber: 'ISS-8' })], nextBeforeSeq: null });
+    renderPage();
+    await screen.findByText('ISS-9');
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByText("Couldn't load more entries")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('ISS-8')).toBeInTheDocument();
+    expect(reports.ledgerPage.mock.calls[2][0]).toMatchObject({ beforeSeq: 9 });
+  });
 });

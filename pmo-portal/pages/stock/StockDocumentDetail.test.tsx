@@ -250,8 +250,21 @@ describe('C5 the over-allowance check is never silent', () => {
   });
 });
 
-/** C13: money the record already knows stays on the line after posting. */
-describe('C13 line money survives posting', () => {
+/** C1: every failed read on the record is visible and can be re-run. */
+describe('C1 a failed line-cost read is not silent', () => {
+  it('the lines keep their place and the failed cost read is shown with a Retry that reruns it', async () => {
+    documents.get.mockResolvedValue(adjDraft());
+    documents.costs.mockRejectedValueOnce(new AppError('boom'));
+    renderPage('Project Manager');
+    expect(await screen.findByText("Couldn't load the line costs")).toBeInTheDocument();
+    documents.costs.mockResolvedValue([{ lineId: 'l1', hasCost: true, unitCost: '1000000.0000' }]);
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    const table = await screen.findByRole('table', { name: 'Lines' });
+    expect(await within(table).findByText(/^\D*1,000,000\.00$/)).toBeInTheDocument();
+  });
+});
+
+/** C13: money the record already knows stays on the line after posting. */describe('C13 line money survives posting', () => {
   it('a posted adjustment still shows the unit cost its lines posted at', async () => {
     documents.get.mockResolvedValue(adjDraft({ status: 'Posted', posted_by: 'me', posted_at: '2026-10-30T04:00:00Z' }));
     documents.costs.mockResolvedValue([{ lineId: 'l1', hasCost: true, unitCost: '1000000.0000' }]);

@@ -97,4 +97,17 @@ describe('StockDocuments (AC-STK-032)', () => {
     const table = screen.getByRole('table');
     expect(within(table).getAllByRole('link').map((link) => link.textContent)).toEqual(['STK-9', 'STK-2', 'STK-10']);
   });
+
+  it('C1 a failed next page says so, and its Retry fetches that page', async () => {
+    const page = Array.from({ length: 50 }, (_, i) => doc(i + 1, { id: `d${i + 1}`, number: `ISS-${i + 1}`, created_at: `2026-10-01T00:00:${String(i).padStart(2, '0')}Z` }));
+    documents.list.mockResolvedValueOnce(page);
+    documents.list.mockRejectedValueOnce(new AppError('boom'));
+    documents.list.mockResolvedValueOnce([doc(51, { number: 'ISS-51' })]);
+    renderPage();
+    await screen.findByText('ISS-1');
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByText("Couldn't load more documents")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('ISS-51')).toBeInTheDocument();
+  });
 });
