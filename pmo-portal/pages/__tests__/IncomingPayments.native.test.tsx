@@ -762,7 +762,7 @@ describe('Receipt page — every allocation (S-06)', () => {
     h.payments.data = [erpReceipt({ withheld_amount: null, allocation_details: twoInvoices })];
     renderAt('/incoming-payments/ip-erp');
     expect(screen.queryByTestId('receipt-withheld')).toBeNull();
-    expect(screen.getByText(/Some figures weren.t reported/)).toBeInTheDocument();
+    expect(screen.getByText(/^Not reported: Tax withheld, Not yet applied\.$/)).toBeInTheDocument();
   });
 
   it('a fully applied receipt shows neither a withheld nor an unapplied fact', () => {
