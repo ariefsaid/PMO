@@ -18,7 +18,11 @@ const LINE = { id: 'l1', claim_id: 'c1', org_id: 'o', expense_date: '2026-10-01'
 const renderCard = (editable: boolean, lines: unknown[] = []) =>
   render(<ToastProvider><ExpenseLinesCard claimId="c1" lines={lines as never} isPending={false} isError={false} currency="IDR" editable={editable} /></ToastProvider>);
 
-beforeEach(() => { h.addLine.mutateAsync.mockReset().mockResolvedValue({ id: 'l2' }); });
+beforeEach(() => {
+  h.addLine.mutateAsync.mockReset().mockResolvedValue({ id: 'l2' });
+  h.updateLine.mutateAsync.mockReset().mockResolvedValue(undefined);
+  h.removeLine.mutateAsync.mockReset().mockResolvedValue(undefined);
+});
 
 describe('ExpenseLinesCard', () => {
   it('AC-EXP-062 adding a line sends the parsed amount', async () => {
@@ -81,5 +85,46 @@ describe('ExpenseLinesCard', () => {
     expect(screen.queryByRole('button', { name: 'Add line' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Edit line/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Remove line/ })).toBeNull();
+  });
+});
+
+// Floor tests (floor-tests/expense-claim-record.md rows 13, 14).
+describe('floor: expense line controls', () => {
+  it('floor: editing a line saves the values the claimant changed', async () => {
+    renderCard(true, [LINE]);
+    await userEvent.click(screen.getByRole('button', { name: 'Edit line Taxi' }));
+    const dialog = await screen.findByRole('dialog');
+    const description = within(dialog).getByLabelText(/Description/);
+    await userEvent.clear(description);
+    await userEvent.type(description, 'Taxi to the airport');
+    const amount = within(dialog).getByLabelText(/Amount/);
+    await userEvent.clear(amount);
+    await userEvent.type(amount, '175000');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save line' }));
+
+    expect(h.updateLine.mutateAsync).toHaveBeenCalledWith({
+      id: 'l1', input: { expenseDate: '2026-10-01', expenseType: 'Travel', description: 'Taxi to the airport', amount: 175000 },
+    });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('floor: confirming Remove deletes that line', async () => {
+    renderCard(true, [LINE]);
+    await userEvent.click(screen.getByRole('button', { name: 'Remove line Taxi' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
+
+    expect(h.removeLine.mutateAsync).toHaveBeenCalledWith('l1');
+  });
+
+  it('floor: cancelling Remove keeps the line and writes nothing', async () => {
+    renderCard(true, [LINE]);
+    await userEvent.click(screen.getByRole('button', { name: 'Remove line Taxi' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(screen.getByText('Taxi')).toBeInTheDocument();
+    expect(h.removeLine.mutateAsync).not.toHaveBeenCalled();
   });
 });
