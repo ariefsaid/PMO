@@ -55,7 +55,7 @@ const CellInput: React.FC<React.ComponentPropsWithRef<'input'> & { numeric?: boo
     className={(createForm ? 'h-[var(--control-height)] max-sm:min-h-11 max-sm:text-base ' : 'h-8 ') + 'w-full rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ' + (numeric ? 'tabular text-right ' : '') + className} />
 );
 
-const CREATE_ADD_ROW_ID = '__create_line_item__';
+const CREATE_ADD_ROW_ID = '__create_line_item__' as const;
 type LineTableRow =
   | { id: string; kind: 'item'; item: ProcurementItemRow }
   | { id: typeof CREATE_ADD_ROW_ID; kind: 'add' };
@@ -78,8 +78,8 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   const addRowInTable = createFormLayout && editable;
   const tableRows: LineTableRow[] = [
     ...items.map((item) => ({ id: item.id, kind: 'item' as const, item })),
-    ...(addRowInTable ? [{ id: CREATE_ADD_ROW_ID, kind: 'add' as const }] : []),
   ];
+  if (addRowInTable) tableRows.push({ id: CREATE_ADD_ROW_ID, kind: 'add' });
 
   const submitAdd = async () => {
     if (!draft.name.trim()) return;
