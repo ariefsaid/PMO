@@ -34,15 +34,12 @@ function useDealFigures(d: DealActions): Fig[] {
       return probability == null ? '—' : formatPercent(probability);
     }
     return (
-      <form onSubmit={(e) => void d.saveProbability(e, kind)} className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <label className="sr-only" htmlFor={`opt-${kind}-${p.id}`}>{label}</label>
         <input id={`opt-${kind}-${p.id}`} type="number" min={0} max={100} step={1} value={input} onChange={(e) => set(e.target.value)} disabled={d.saving !== null}
           className="h-9 w-20 rounded-[var(--radius-control)] border border-input bg-background px-2 text-sm tabular focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50" />
-        <Button type="submit" variant="outline" size="sm" disabled={d.saving !== null}>
-          {d.saving === kind ? t('projectDetail.pipeline.statLoading', 'Loading…') : t('projectDetail.pipeline.saveProbability', 'Save')}
-        </Button>
         {err && <span role="alert" className="w-full text-control text-destructive-text">{err}</span>}
-      </form>
+      </div>
     );
   };
   const contractValue = p.contract_value ?? d.cached?.contract_value;
@@ -73,19 +70,35 @@ function useDealFigures(d: DealActions): Fig[] {
 }
 
 export const DealFigures: React.FC<{ d: DealActions; className?: string }> = ({ d, className }) => {
+  const { t } = useTranslation('project');
   const figs = useDealFigures(d);
   const isLost = d.project.status === 'Loss Tender' || d.project.status === 'Declined';
+  const canSaveProbabilities = !d.isTerminal && d.canEditProbability && !d.pipelinePending && !d.pipelineError && Boolean(d.cached);
+  const saveBothProbabilities = async (event: React.FormEvent<HTMLFormElement>) => {
+    await d.saveProbability(event, 'go');
+    await d.saveProbability(event, 'get');
+  };
+  const figures = (
+    <dl className={className ?? 'grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4'}>
+      {figs.map((f) => (
+        <div key={f.key} className="min-w-0 border-b border-border pb-2">
+          <dt className="text-control text-muted-foreground">{f.label}</dt>
+          <dd className="mt-1 break-words text-base font-semibold tabular-nums text-foreground">{f.value}</dd>
+          {f.sub && <dd className="mt-1 text-control text-muted-foreground">{f.sub}</dd>}
+        </div>
+      ))}
+    </dl>
+  );
   return (
     <>
-      <dl className={className ?? 'grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4'}>
-        {figs.map((f) => (
-          <div key={f.key} className="min-w-0 border-b border-border pb-2">
-            <dt className="text-control text-muted-foreground">{f.label}</dt>
-            <dd className="mt-1 break-words text-base font-semibold tabular-nums text-foreground">{f.value}</dd>
-            {f.sub && <dd className="mt-1 text-control text-muted-foreground">{f.sub}</dd>}
-          </div>
-        ))}
-      </dl>
+      {canSaveProbabilities ? (
+        <form onSubmit={(event) => { void saveBothProbabilities(event); }} className="space-y-2">
+          {figures}
+          <Button type="submit" variant="outline" size="sm" disabled={d.saving !== null}>
+            {d.saving ? t('projectDetail.pipeline.statLoading', 'Loading…') : t('projectDetail.pipeline.saveProbability', 'Save')}
+          </Button>
+        </form>
+      ) : figures}
       {isLost && d.project.lost_note && <p data-testid="lost-note" className="mt-2 text-control text-muted-foreground">{d.project.lost_note}</p>}
     </>
   );
@@ -114,7 +127,7 @@ export const DealActionButtons: React.FC<{ d: DealActions; primaryOnly?: boolean
         <Button variant="primary" disabled={d.pending} onClick={() => void d.runTransition(d.nextStage!)}>{advanceLabel}</Button>
       )}
       {!secondaryOnly && !d.nextStage && d.canWin && (
-        <Button variant="primary" disabled={d.pending} onClick={() => d.setShowWonPanel(true)}>{t('projectDetail.pipeline.markWon', 'Mark won')}</Button>
+        <Button variant={d.showWonPanel ? 'outline' : 'primary'} disabled={d.pending} onClick={() => d.setShowWonPanel(true)}>{t('projectDetail.pipeline.markWon', 'Mark won')}</Button>
       )}
       {!primaryOnly && d.nextStage && d.canWin && (
         <Button variant="outline" disabled={d.pending} onClick={() => d.setShowWonPanel((v) => !v)}>

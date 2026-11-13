@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import type { Column } from '@/src/components/ui';
-import { Button, DataTable, Drawer, Icon, ListState, NumberField, ProgressBar, StatusPill, Tooltip } from '@/src/components/ui';
+import { Button, DataTable, Drawer, Icon, ListState, NumberField, ProgressBar, SelectField, StatusPill, Tooltip } from '@/src/components/ui';
 import type { ActiveBudgetCategoryPhasing, BudgetComparisonRow, BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
 import { fetchActiveBudgetCategoryPhasing, fetchBudgetComparison, fetchBudgetProjection, fetchProjectFiscalCalendar, listBudgetFiscalYears } from '@/src/lib/repositories/budgetProjection';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -364,12 +364,8 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
   const viewLoading = !scope || comparisonQuery.isPending || (scope.kind === 'year' && (!yearsReady || projectionQuery.isPending));
   const viewError = Boolean(scope && (comparisonQuery.isError || (scope.kind === 'year' && projectionQuery.isError)));
   const viewRetry = () => {
-    if (calendarQuery.isError) void calendarQuery.refetch();
-    else if (yearsQuery.isError) void yearsQuery.refetch();
-    else if (wholeProjectMode && distributionQuery.isError) void distributionQuery.refetch();
-    else if (comparisonQuery.isError) void comparisonQuery.refetch();
-    else if (projectionQuery.isError) void projectionQuery.refetch();
-    else void calendarQuery.refetch();
+    if (comparisonQuery.isError) void comparisonQuery.refetch();
+    if (scope?.kind === 'year' && projectionQuery.isError) void projectionQuery.refetch();
   };
   const allYearsScope = { kind: 'all' as const };
   const setScopeFromToken = (value: string) => {
@@ -398,6 +394,11 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
         : source === 'approvedHistoricalYear' ? 'approved / historical' : 'observed / historical';
     return `${year.fiscalYear} · ${t(`projectDetail.budget.${source}`, fallback)}`;
   };
+  const fiscalYearOptions = [
+    ...(!scope ? [{ value: 'unresolved', label: calendarIsPending || calendarIsFetching || yearsQuery.isPending ? t('projectDetail.budget.scopeLoading', 'Loading fiscal years') : t('projectDetail.budget.scopeUnresolved', 'Current fiscal years unavailable'), disabled: true }] : []),
+    { value: scopeToken(allYearsScope), label: t('projectDetail.budget.allYearsProjectToDate', 'All years (project to date)') },
+    ...years.map((year) => ({ value: scopeToken({ kind: 'year' as const, year: year.fiscalYear }), label: fiscalYearLabel(year) })),
+  ];
 
   // Shown above the controls while no scope is chosen; below them once Forecast has fallen back to the budget's own years.
   const calendarNote = calendarMessage && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -432,14 +433,9 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
         <div className="min-w-0"><dt className="text-sm text-muted-foreground">{t('projectDetail.budget.forecastRemaining', 'Forecast remaining')}</dt><dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(totalForecastRemaining, currency)}</dd></div>
       </dl>}
       <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
-        <label className="flex min-w-44 flex-col gap-1 text-sm font-medium text-muted-foreground">
-          {t('projectDetail.budget.fiscalYear', 'Fiscal year')}
-          <select aria-label={t('projectDetail.budget.fiscalYear', 'Fiscal year')} value={scopeKey} disabled={editing || saveEtc.isPending} onChange={(event) => setScopeFromToken(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
-            {!scope && <option value="unresolved" disabled>{calendarIsPending || calendarIsFetching || yearsQuery.isPending ? t('projectDetail.budget.scopeLoading', 'Loading fiscal years') : t('projectDetail.budget.scopeUnresolved', 'Current fiscal years unavailable')}</option>}
-            <option value={scopeToken(allYearsScope)}>{t('projectDetail.budget.allYearsProjectToDate', 'All years (project to date)')}</option>
-            {years.map((year) => <option key={year.fiscalYear} value={scopeToken({ kind: 'year', year: year.fiscalYear })}>{fiscalYearLabel(year)}</option>)}
-          </select>
-        </label>
+        <SelectField label={t('projectDetail.budget.fiscalYear', 'Fiscal year')} value={scopeKey} options={fiscalYearOptions}
+          disabled={editing || saveEtc.isPending} onChange={setScopeFromToken} wrapperClassName="min-w-44"
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground" />
         <div className="flex flex-wrap items-center gap-2">
           {hasAllYearRows && <Button variant="outline" size="sm" onClick={() => onExport({ scope: allYearsScope, rows: comparisonRows })}>{t('projectDetail.budget.export', 'Export')}</Button>}
           {selectedYearScope && hasForecastRows && <Button variant="outline" size="sm" onClick={() => onExport({ scope: selectedYearScope, rows })}>{t('projectDetail.budget.export', 'Export')}</Button>}

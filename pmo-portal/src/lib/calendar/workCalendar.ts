@@ -18,17 +18,36 @@ export type WorkItem =
 
 const TASK_DONE = 'Done';
 
+/**
+ * C13 (DS calendar #4): a chip's own text carries the facts its record holds. `today` (the org
+ * day, 'YYYY-MM-DD') and `lateLabel` are supplied by the page so this module stays clock-free;
+ * without them the title is the plain name/project it always was.
+ */
+export interface WorkEventOptions {
+  withProject?: boolean;
+  /** The org day ('YYYY-MM-DD'). Passed by the page; absent = no lateness is claimed. */
+  today?: string;
+  /** Localised word for a past-due task (e.g. "Overdue"). Required to render the marker. */
+  lateLabel?: string;
+}
+
 export function toWorkEvents(
   tasks: readonly WorkTask[],
   milestones: readonly MilestoneDate[],
   canMove: (task: WorkTask) => boolean = () => false,
-  opts: { withProject?: boolean } = {},
+  opts: WorkEventOptions = {},
 ): CalendarEvent<WorkItem>[] {
   const taskEvents = tasks.map((task): CalendarEvent<WorkItem> => {
     const start = parseLocalDate(task.end_date);
+    const late = Boolean(opts.today && opts.lateLabel && task.status !== TASK_DONE && task.end_date < opts.today);
+    const title = [
+      ...(late ? [opts.lateLabel!] : []),
+      opts.withProject && task.project_name ? `${task.project_name} · ${task.name}` : task.name,
+      ...(task.assignee_name ? [task.assignee_name] : []),
+    ].join(' · ');
     return {
       id: `task:${task.id}`,
-      title: opts.withProject && task.project_name ? `${task.project_name} · ${task.name}` : task.name,
+      title,
       start,
       end: addDays(start, 1),
       allDay: true,

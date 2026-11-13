@@ -5,6 +5,13 @@ import { trackSearchUsed } from '@/src/lib/analytics';
 
 const SEARCH_USED_DEBOUNCE_MS = 500;
 
+/** Translation-ready copy and recovery action for a table whose active filters match no rows. */
+export interface FilteredEmptyOptions {
+  message: string;
+  clearFiltersLabel: string;
+  onClearFilters: () => void;
+}
+
 /** Toolbar seamed to the table top (or `standalone` fully rounded). */
 export const Toolbar: React.FC<
   React.HTMLAttributes<HTMLDivElement> & { standalone?: boolean }

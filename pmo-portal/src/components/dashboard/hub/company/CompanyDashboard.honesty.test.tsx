@@ -6,7 +6,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import i18next from 'i18next';
 import { ToastProvider } from '@/src/components/ui/Toast';
 import idDashboard from '../../../../../public/locales/id/dashboard.json';
@@ -92,9 +92,13 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiv
 
 import { CompanyDashboard } from './CompanyDashboard';
 
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}{location.search}</output>;
+};
 const renderDashboard = (role: 'Executive' | 'Finance' = 'Executive') => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <MemoryRouter><ToastProvider><CompanyDashboard role={role} /></ToastProvider></MemoryRouter>
+    <MemoryRouter><LocationProbe /><ToastProvider><CompanyDashboard role={role} /></ToastProvider></MemoryRouter>
   </QueryClientProvider>,
 );
 const renderExec = () => renderDashboard('Executive');
@@ -198,7 +202,10 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
   h.pipeline = { stages: [], projects: [] };
     renderExec();
     expect(tile('Contract on hand')).toHaveTextContent('2 with a signed contract');
-    expect(within(figures()).getByRole('link', { name: /Contract on hand/ })).toHaveAttribute('href', '/projects?filter=on-hand');
+    const link = within(figures()).getByRole('link', { name: /Contract on hand/ });
+    expect(link).toHaveAttribute('href', '/projects?filter=on-hand');
+    fireEvent.click(link);
+    expect(screen.getByTestId('location')).toHaveTextContent('/projects?filter=on-hand');
   });
 
   it('AC-IXD-DASH-W5-C2A: the caption counts every on-hand state the figure sums (ongoing, on hold, close-out, won pending kickoff), never leads', () => {
@@ -225,7 +232,10 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     const notice = /Budget check unavailable for 2 projects/;
     expect(await screen.findByText(notice)).toBeInTheDocument();
     expect(screen.getAllByText(notice)).toHaveLength(1);
-    expect(screen.getByRole('link', { name: 'Open projects' })).toHaveAttribute('href', '/projects');
+    const link = screen.getByRole('link', { name: 'Open projects' });
+    expect(link).toHaveAttribute('href', '/projects');
+    fireEvent.click(link);
+    expect(screen.getByTestId('location')).toHaveTextContent('/projects');
   });
 
   it('Project health names each non-zero need in words, overdue and late in red, approvals not; zero needs are not printed', () => {
@@ -272,6 +282,20 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     const finding = screen.getByTestId('home-finding');
     expect(within(finding).getByRole('link', { name: '1 of 11 active projects off track' })).toHaveAttribute('href', '/projects');
     expect(await within(finding).findByRole('link', { name: 'No client invoice overdue' })).toHaveAttribute('href', '/finance/receivables?overdue=true');
+  });
+
+  it('the operations and overdue clauses open the projects list and overdue receivables', () => {
+    h.dash = { ...base, active_delivery_projects: 2, attention_projects: [attn('p1', 'Late project', { attention_signals: 1, overdue_items: 1 })] };
+    h.invoices = [{ id: 'i1', status: 'Unpaid', currency: 'USD', invoice_date: '2026-06-01', erp_due_date: '2026-06-29', received_date: null, erp_outstanding_amount: 100_000, erp_payment_terms_days: 30 }];
+    renderExec();
+    const finding = screen.getByTestId('home-finding');
+    const operations = within(finding).getByRole('link', { name: /active projects off track/ });
+    const overdue = within(finding).getByRole('link', { name: /client invoice overdue/ });
+
+    fireEvent.click(operations);
+    expect(screen.getByTestId('location')).toHaveTextContent('/projects');
+    fireEvent.click(overdue);
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?overdue=true');
   });
 
   it('the finance clause waits only on its own invoices read: a slow unrelated read never drops it from the finding line', async () => {
@@ -358,6 +382,8 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     renderExec();
     const link = within(screen.getByTestId('project-health')).getByRole('link', { name: /All projects/ });
     expect(link).toHaveTextContent(/^All projects$/);
+    fireEvent.click(link);
+    expect(screen.getByTestId('location')).toHaveTextContent('/projects');
   });
 });
 
