@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
-import { Button, ConfirmDialog, DataTable, NumberField, SelectField, TextField, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, NumberField, type Column } from '@/src/components/ui';
 import type { BudgetLineItemRow, NewLineItem, BudgetVersionMode } from '@/src/lib/db/budgets';
 import { Constants, type Enums } from '@/src/lib/supabase/database.types';
 
@@ -214,6 +214,9 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     }
   };
 
+  const fieldCls =
+    'h-8 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+
   const total = lineItems.reduce((sum, li) => sum + Number(li.budgeted_amount), 0);
   const rows: EditorRow[] = [
     ...lineItems.map((li): EditorRow => ({ kind: 'item', li })),
@@ -232,18 +235,21 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
   );
 
   const categorySelect = (props: { id?: string; label: string; value: Enums<'budget_category'>; onChange: (v: Enums<'budget_category'>) => void; autoFocus?: boolean; disabled?: boolean }) => (
-    <SelectField
+    <select
       id={props.id}
-      label={props.label}
-      hideLabel
+      aria-label={props.label}
       value={props.value}
-      onChange={(value) => props.onChange(value as Enums<'budget_category'>)}
-      options={BUDGET_CATEGORIES.map((category) => ({ value: category, label: budgetCategoryLabel(category, t) }))}
-      className="max-w-full"
+      onChange={(e) => props.onChange(e.target.value as Enums<'budget_category'>)}
+      className={`${fieldCls} max-w-full`}
       autoFocus={props.autoFocus}
       disabled={props.disabled}
-      wrapperClassName="max-w-full"
-    />
+    >
+      {BUDGET_CATEGORIES.map((c) => (
+        <option key={c} value={c}>
+          {budgetCategoryLabel(c, t)}
+        </option>
+      ))}
+    </select>
   );
 
   const allColumns: Column<EditorRow>[] = [
@@ -270,27 +276,27 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
       cell: (row) => {
         if (row.kind === 'new') {
           return (
-            <TextField
-              label={t('financeCopy.lineItemDescription', "Line item description")}
-              hideLabel
+            <input
+              type="text"
+              aria-label={t('financeCopy.lineItemDescription', "Line item description")}
               placeholder={t('financeCopy.description', "Description")}
               value={newDesc}
               disabled={createIsPending}
-              onChange={setNewDesc}
-              className="w-full"
+              onChange={(e) => setNewDesc(e.target.value)}
+              className={`${fieldCls} w-full`}
             />
           );
         }
         const li = row.li;
         return editingId === li.id ? (
-          <TextField
-            label={t('financeCopy.description', "Description")}
-            hideLabel
+          <input
+            type="text"
+            aria-label={t('financeCopy.description', "Description")}
             placeholder={t('financeCopy.description', "Description")}
             value={editDesc}
             disabled={updateIsPending}
-            onChange={setEditDesc}
-            className="w-full"
+            onChange={(e) => setEditDesc(e.target.value)}
+            className={`${fieldCls} w-full`}
           />
         ) : (
           <span className="text-muted-foreground">{li.description ?? '—'}</span>
@@ -310,18 +316,18 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
         if (row.kind === 'new') {
           return (
             <>
-              <TextField
-                label={t('financeCopy.lineItemFiscalYear', "Line item fiscal year")}
-                hideLabel
+              <input
+                type="text"
+                aria-label={t('financeCopy.lineItemFiscalYear', "Line item fiscal year")}
                 placeholder={t('financeCopy.unPhased', "Un-phased")}
                 list="budget-fiscal-year-options"
                 value={newFiscalYear}
                 disabled={createIsPending}
-                onChange={(value) => {
-                  setNewFiscalYear(value);
+                onChange={(e) => {
+                  setNewFiscalYear(e.target.value);
                   setNewFiscalYearError(null);
                 }}
-                className="w-32"
+                className={`${fieldCls} w-32`}
               />
               {newFiscalYearError && <p role="alert" className="text-sm text-destructive-text">{newFiscalYearError}</p>}
               {fiscalYearDatalist}
@@ -334,19 +340,21 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
         // until it is resolved), so it is stated rather than left empty.
         return editingId === li.id ? (
           <>
-            <TextField
+            <label htmlFor={`edit-fy-${li.id}`} className="sr-only">
+              {t('financeCopy.fiscalYear', "Fiscal year")}</label>
+            <input
               id={`edit-fy-${li.id}`}
-              label={t('financeCopy.fiscalYear', "Fiscal year")}
-              hideLabel
+              type="text"
+              aria-label={t('financeCopy.fiscalYear', "Fiscal year")}
               placeholder={t('financeCopy.unPhased', "Un-phased")}
               list="budget-fiscal-year-options"
               value={editFiscalYear}
               disabled={updateIsPending}
-              onChange={(value) => {
-                setEditFiscalYear(value);
+              onChange={(e) => {
+                setEditFiscalYear(e.target.value);
                 setEditFiscalYearError(null);
               }}
-              className="w-32"
+              className={`${fieldCls} w-32`}
             />
             {editFiscalYearError && <p role="alert" className="text-sm text-destructive-text">{editFiscalYearError}</p>}
             {fiscalYearDatalist}
