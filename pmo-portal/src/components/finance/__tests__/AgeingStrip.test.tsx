@@ -51,4 +51,26 @@ describe('Ageing strip bar', () => {
     expect(round(leftOf(painted[0]!))).toBe(0);
     expect(round(rightOf(painted[painted.length - 1]!))).toBe(100);
   });
+
+  it('item 2: adjacent segments share one edge, so no lighter seam shows between them', () => {
+    render(
+      <AgeingStrip
+        kind="payables"
+        payablesStatusColors
+        values={payables({ d0_30: 3, d31_60: 7, d61_90: 11, over90: 13 })}
+      />,
+    );
+
+    const painted = segmentsOf();
+    expect(painted).toHaveLength(4);
+    for (let index = 1; index < painted.length; index += 1) {
+      // The next segment starts exactly where the previous one ends: the surface behind the bar has
+      // no room to show through, which is what a 1px lighter column at a join is.
+      expect(round(leftOf(painted[index]!))).toBe(round(rightOf(painted[index - 1]!)));
+    }
+    for (let index = 0; index < painted.length - 1; index += 1) {
+      // The same edge, from the other side: a segment never paints over the one after it.
+      expect(round(rightOf(painted[index]!))).toBeLessThanOrEqual(round(leftOf(painted[index + 1]!)));
+    }
+  });
 });
