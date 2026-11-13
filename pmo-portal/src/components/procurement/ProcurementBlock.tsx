@@ -1124,10 +1124,12 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               {detailQuery.isPending ? (
                 <p className="text-sm text-muted-foreground">{t('projectDetail.procurement.detail.loadingDocuments', 'Loading linked documents…')}</p>
               ) : detailQuery.isError ? (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3 text-sm text-muted-foreground">
-                  <span>{t('projectDetail.procurement.detail.documentsError', 'Linked documents could not be loaded.')}</span>
-                  <Button variant="outline" size="sm" onClick={() => { void detailQuery.refetch(); }}>{t('common.retry', 'Retry')}</Button>
-                </div>
+                <ListState
+                  variant="error"
+                  title={t('projectDetail.procurement.detail.documentsError', 'Linked documents could not be loaded.')}
+                  retryLabel={t('common.retry', 'Retry')}
+                  onRetry={() => { void detailQuery.refetch(); }}
+                />
               ) : documents.length > 0 ? (
                 <ul className="divide-y divide-border">
                   {documents.map((document) => (

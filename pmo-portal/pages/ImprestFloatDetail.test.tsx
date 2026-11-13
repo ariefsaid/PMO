@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor, cleanup } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
@@ -288,7 +288,12 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
   it('AC-IMP-072 an unreadable posting status says so rather than implying everything posted', () => {
     h.postings = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
     renderPage();
-    expect(screen.getByText("Couldn't load the ERP posting status")).toHaveAttribute('role', 'alert');
+    // C1 fix round: this failure is the SHARED error card (same anatomy as the records/counts
+    // reads beside it), so the alert is the enclosing card and Retry re-reads only this read.
+    const alert = screen.getByText("Couldn't load the ERP posting status").closest('[role="alert"]') as HTMLElement;
+    expect(alert).toBeInTheDocument();
+    fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }));
+    expect(h.postings.refetch).toHaveBeenCalledTimes(1);
   });
 
   it('AC-IMP-072 a posting list past the cap says so rather than reading as the complete truth', () => {

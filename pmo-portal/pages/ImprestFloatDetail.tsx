@@ -251,7 +251,9 @@ const ImprestFloatDetail: React.FC = () => {
       <Card className="mb-4">
         <CardHead>{t('imprest:rep.title', 'Replenishments')}</CardHead>
         <CardPad className="pt-0">
-          {postings.isError && <p role="alert" className="mb-2 text-sm text-destructive-text">{t('imprest:posting.error', "Couldn't load the ERP posting status")}</p>}
+          {postings.isError
+            ? <ListState variant="error" title={t('imprest:posting.error', "Couldn't load the ERP posting status")} retryLabel={t('common.retry', 'Retry')} onRetry={() => void postings.refetch()} />
+            : null}
           {postings.data?.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
             {t('imprest:posting.truncated', 'Showing posting status for the first {{count}} movements only.', { count: LIST_LIMIT })}
           </p>}
