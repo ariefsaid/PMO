@@ -235,6 +235,23 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     expect(screen.getByText('25 loaded, more available')).toBeInTheDocument();
   });
 
+  // C8 residual: the full-text leg of a search failed, so the rows are a subset of the matches.
+  // c8b dropped the exact total for that case; on the LAST page there is no continuation footer
+  // at all, so the page itself has to say the result may be incomplete.
+  it('C8 residual: an incomplete last page says some matches may be missing', () => {
+    listState.data = Array.from({ length: 25 }, (_, i) => ({ ...(seed[0] as object), id: `m${i}`, title: `Meeting ${i}` }));
+    listState.hasNextPage = false;
+    listState.total = undefined;
+    listState.isPartial = true;
+    renderPage();
+    expect(screen.getByText('Some matches may be missing. Search again to retry.')).toBeInTheDocument();
+  });
+
+  it('C8 residual: a complete page never claims matches are missing', () => {
+    renderPage();
+    expect(screen.queryByText(/may be missing/i)).toBeNull();
+  });
+
   it('C8b F4 does not claim a count while the rows on screen are the previous query’s placeholder', () => {
     listState.isPlaceholderData = true;
     listState.total = 250;

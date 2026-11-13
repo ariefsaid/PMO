@@ -343,6 +343,21 @@ const Meetings: React.FC = () => {
         tableId="meetings-table" />
       )}
 
+      {/* C8 residual: the search's full-text leg failed, so the rows are a subset of the matches.
+          On the last page there is no continuation footer to carry that caveat, so the list states
+          it itself — the same ListState line the footer uses, with the retry named instead of an
+          action (re-running the search IS the retry). */}
+      {state === undefined && !awaitingRows && isPartial && !isPlaceholderData && (
+        <ListState
+          variant="partial"
+          className="mt-2 px-1"
+          title={tMeetings(
+            'list.mayBeMissing',
+            'Some matches may be missing. Search again to retry.',
+          )}
+        />
+      )}
+
       <ConfirmDialog
         open={!!archiveTarget}
         tone="default"
