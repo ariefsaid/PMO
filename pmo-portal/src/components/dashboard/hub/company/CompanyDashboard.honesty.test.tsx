@@ -298,6 +298,32 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?overdue=true');
   });
 
+  it('the off-track finding count matches the projects shown in the focused list', () => {
+    h.dash = {
+      ...base,
+      active_delivery_projects: 2,
+      attention_projects: [
+        attn('p1', 'Late project', { attention_signals: 1, overdue_items: 1, overdue_tasks: 1 }),
+        attn('p2', 'Aggregate-only project', { attention_signals: 1, overdue_items: 1 }),
+      ],
+    };
+
+    const { unmount } = renderExec();
+    const finding = within(screen.getByTestId('home-finding')).getByRole('link', { name: '2 of 2 active projects off track' });
+    expect(finding).toHaveAttribute('href', '/projects');
+    const findingCount = Number(finding.textContent?.match(/^\d+/)?.[0]);
+    unmount();
+
+    localStorage.setItem('home-layout', 'focused');
+    const { unmount: unmountFocused } = renderExec();
+    const projects = within(screen.getByTestId('project-rows'))
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('href')?.startsWith('/projects/'));
+    expect(projects).toHaveLength(findingCount);
+    expect(projects.map((link) => link.getAttribute('href'))).toEqual(['/projects/p1', '/projects/p2']);
+    unmountFocused();
+  });
+
   it('the finance clause waits only on its own invoices read: a slow unrelated read never drops it from the finding line', async () => {
     h.budgetReviewHangs = true;
     renderExec();

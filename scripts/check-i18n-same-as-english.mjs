@@ -29,7 +29,11 @@
  *   node scripts/check-i18n-same-as-english.mjs
  *   node scripts/check-i18n-same-as-english.mjs --self-test
  *
- * Wired as `npm run check:i18n-same-as-english`; it joins `check:guards` only by Director ruling.
+ * ⚑ It runs as the last two steps of `npm run check:i18n` (Director ruling 2026-11-13), so it gates
+ * wherever check:i18n gates — `check:guards`, `verify` and CI's verify job — with no ci.yml edit. It
+ * is deliberately NOT a top-level `check:*` npm script: the repository gate
+ * (`scripts/ci-integration-order.test.mjs`) requires every such script to be invoked by
+ * `check:guards`, and a second entry point would only duplicate the run.
  */
 
 import fs from 'node:fs';
