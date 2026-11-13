@@ -1,9 +1,10 @@
 import { projectDisplayName, sortProjectOptions } from '@/src/lib/projectDisplayName';
-import React, { useDeferredValue, useMemo, useState } from 'react';
+import React, { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage,
-  FilterBar,
+  SearchMini,
+  Combobox,
   useUrlFilters,
   ListState,
   DataTable,
@@ -15,7 +16,6 @@ import {
   Switch,
   type Column,
   type RowMenuItem,
-  type FilterBarFilter,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -98,14 +98,23 @@ const Meetings: React.FC = () => {
     return options;
   }, [projectFilter, projectOptions, projects, t]);
 
-  const filters: FilterBarFilter[] = useMemo(() => [
-    {
-      key: 'project',
-      label: t('meetings.filters.projectLabel', 'Filter by project'),
-      kind: 'select',
-      options: projectFilterOptions,
-    },
-  ], [projectFilterOptions, t]);
+  const allProjectsOption = useMemo(
+    () => ({ value: '', label: t('meetings.filters.allProjects', 'All projects') }),
+    [t],
+  );
+  const projectPickerOptions = useMemo(
+    () => [allProjectsOption, ...projectFilterOptions],
+    [allProjectsOption, projectFilterOptions],
+  );
+  const selectedProjectOption = projectPickerOptions.find((option) => option.value === projectFilter)
+    ?? allProjectsOption;
+  const loadProjectOptions = useCallback(
+    async () => projectPickerOptions,
+    [projectPickerOptions],
+  );
+  const hasActiveFilters = Boolean(
+    search.trim() || (projectFilter && projectFilter !== 'All') || showArchived,
+  );
 
   const handleFilterChange = (key: string, value: string) => {
     setFilter(key, value);
@@ -258,36 +267,56 @@ const Meetings: React.FC = () => {
           </Button>
         )
       }
+      desktopToolbarClassName="md:grid-cols-[minmax(0,1fr)]"
       filters={
         state !== 'loading' && (
-          <FilterBar
-            searchKey="q"
-            searchLabel={t('meetings.search.ariaLabel', 'Search meetings')}
-            searchPlaceholder={t('meetings.search.placeholder', 'Search notes and titles…')}
-            filters={filters}
-            values={values}
-            onChange={handleFilterChange}
-            onClear={clear}
-            shown={rows.length}
-            total={total}
-            labels={{
-              all: t('meetings.filters.allProjects', 'All projects'),
-              clear: 'Clear all',
-            }}
-          />
-        )
-      }
-      secondaryFilter={
-        state !== 'loading' && (
-          <div className="inline-flex min-h-11 items-center gap-2">
-            <span id="meetings-show-archived-label" className="text-control font-medium">
-              {tMeetings('filters.showArchived', 'Show archived')}
-            </span>
-            <Switch
-              checked={showArchived}
-              onChange={(archived) => setFilter('archived', archived ? '1' : '')}
-              labelledBy="meetings-show-archived-label"
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+            <SearchMini
+              aria-label={t('meetings.search.ariaLabel', 'Search meetings')}
+              placeholder={t('meetings.search.placeholder', 'Search notes and titles…')}
+              value={search}
+              onChange={(event) => setFilter('q', event.currentTarget.value)}
+              containerClassName="h-[var(--control-height-sm)] w-full flex-1 max-sm:min-h-11 sm:min-w-[190px] sm:max-w-[240px]"
             />
+            <Combobox
+              className="w-full min-w-0 sm:w-[270px] sm:flex-row sm:items-center sm:gap-2"
+              compact
+              label={t('meetings.filters.projectLabel', 'Filter by project')}
+              value={selectedProjectOption.value}
+              selectedOption={selectedProjectOption}
+              onChange={(value) => handleFilterChange('project', value)}
+              loadOptions={loadProjectOptions}
+              placeholder={allProjectsOption.label}
+              noun={t('meetings.columns.project', 'Project')}
+              nounPlural={t('projects.title', 'Projects')}
+            />
+            <div className="inline-flex min-h-[var(--control-height-sm)] items-center gap-2 max-[640px]:min-h-11">
+              <span id="meetings-show-archived-label" className="text-control font-medium">
+                {tMeetings('filters.showArchived', 'Show archived')}
+              </span>
+              <Switch
+                checked={showArchived}
+                onChange={(archived) => setFilter('archived', archived ? '1' : '')}
+                labelledBy="meetings-show-archived-label"
+              />
+            </div>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clear}
+                className="min-h-11 rounded-md px-3 text-control text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[var(--control-height-sm)]"
+              >
+                {t('mobile.clearAll', 'Clear all')}
+              </button>
+            )}
+            {total !== undefined && (
+              <span aria-live="polite" className="ml-auto whitespace-nowrap text-control text-muted-foreground">
+                {t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', {
+                  count: rows.length,
+                  total,
+                })}
+              </span>
+            )}
           </div>
         )
       }
