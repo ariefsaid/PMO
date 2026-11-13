@@ -37,7 +37,8 @@ export default function MasterDataPage() {
 
   const conn = useOdooConnection().data;
   // The mirror read runs whatever the connection state, as on dev: a disconnected org still holds its last-synced rows (see the report's carve-out evidence).
-  const readable = !conn || (conn.status === 'active' && conn.activated);
+  const connected = conn?.status === 'active' && conn.activated;
+  const readable = !conn || connected;
   const blocked = kind && FINANCIAL.includes(kind) && !may.viewFinancialDirectory;
   const reasons = kind && conn?.capabilities ? missingForKind(kind, conn.capabilities.missing ?? []) : [];
   const enabled = Boolean(kind) && !blocked && reasons.length === 0;
@@ -55,8 +56,8 @@ export default function MasterDataPage() {
   const total = list.data?.total ?? 0;
   // A disconnected page with nothing mirrored is the banner's whole state (an unread directory is never "0"); last-synced rows still show.
   const showList = readable || rows.length > 0;
-  // The count is an answered total: while the first page is still in flight there is no number yet.
-  const count = showList && list.data ? list.data.total : undefined;
+  // A disconnected mirror remains readable, but its count can be stale or internally inconsistent; leave it unnamed.
+  const count = connected && list.data ? list.data.total : undefined;
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
 
@@ -99,88 +100,88 @@ export default function MasterDataPage() {
       title={t('administration:odoo.master.title', 'Odoo directories')}
       count={count}
       banner={conn && (
-        <div>
-          <OdooConnectionBanner connection={conn.connection} binding={{ status: conn.status, activated: conn.activated }} />
-          {/* The banner names where to connect Odoo; without a connection it also offers the way there (edit-only: the banner itself is shared). */}
+        <OdooConnectionBanner connection={conn.connection} binding={{ status: conn.status, activated: conn.activated }}>
           {!readable && (
-            <p className="-mt-2 mb-3.5">
-              <Link to="/administration/integrations" className="inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            <>
+              <p className="min-w-0 text-muted-foreground">{t('administration:odoo.master.connectContents', 'After connecting: items, units, warehouses, cost accounts, accounts, and taxes.')}</p>
+              <Link to="/administration/integrations" className="touch-target inline-flex min-h-[var(--control-height)] items-center rounded-sm px-2 font-medium text-primary-text underline underline-offset-2 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                 {t('administration:odoo.master.connect', 'Connect Odoo')}
               </Link>
-            </p>
+            </>
           )}
-        </div>
+        </OdooConnectionBanner>
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-3 border-b border-border">
-        <Tabs items={tabs} value={kind} onChange={(k) => navigate(`/master-data/${k}`)} ariaLabel={t('administration:odoo.master.tabs', 'Directories')} idBase="odoo-master" className="mb-0 min-w-0 flex-1 border-b-0" />
-        {/* The search belongs to a list: with nothing to list (a disconnected page with nothing mirrored) it is not drawn. */}
-        {showList && (
-          <div className="w-full shrink-0 py-1.5 sm:w-56">
-            <SearchMini aria-label={t('administration:odoo.master.search', 'Search code or name')} placeholder={t('administration:odoo.master.search', 'Search code or name')} value={typed} onChange={(e) => setTyped(e.target.value)} type="search" />
-          </div>
-        )}
-      </div>
-
-      <div role="tabpanel" id={tabPanelId('odoo-master', kind)} aria-labelledby={tabId('odoo-master', kind)}>
-      {!showList ? null : reasons.length > 0 ? (
-        <div role="status" className="mt-3 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/12 px-3.5 py-3 text-control">
-          <Icon name="alert" className="mt-px size-[17px] shrink-0" aria-hidden="true" />
-          <div>
-            <div className="font-semibold">{t('administration:odoo.master.unavailable', 'Odoo is missing an app this list needs')}</div>
-            <div className="text-muted-foreground">{t('administration:odoo.master.unavailableWhy', 'Missing: {{missing}}. Install or allow it in Odoo, then Re-check on the Integrations page.', { missing: reasons.join(', ') })}</div>
-          </div>
-        </div>
-      ) : (
+      {showList && (
         <>
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-control text-muted-foreground">
-            {/* Counts only once known (an unread summary is not "0"); the toggle only when there is something to show. */}
-            {summary.data && (summary.data.inactive > 0 || summary.data.tombstoned > 0) && (
-              <>
-                <span>{t('administration:odoo.master.hidden', '{{inactive}} inactive · {{deleted}} deleted in Odoo', { inactive: summary.data.inactive, deleted: summary.data.tombstoned })}</span>
-                <label className="inline-flex min-h-11 items-center gap-1.5">
-                  <input type="checkbox" checked={includeInactive} onChange={(e) => { setIncludeInactive(e.target.checked); setPage(1); }} />
-                  {t('administration:odoo.master.showInactive', 'Show inactive and deleted')}
-                </label>
-              </>
-            )}
-            {asOf && <span>{t('administration:odoo.master.asOf', 'As of {{when}}', { when: formatDay(asOf) })}</span>}
+          <div className="flex flex-wrap items-center gap-x-3 border-b border-border">
+            <Tabs items={tabs} value={kind} onChange={(k) => navigate(`/master-data/${k}`)} ariaLabel={t('administration:odoo.master.tabs', 'Directories')} idBase="odoo-master" className="mb-0 min-w-0 flex-1 border-b-0" />
+            <div className="w-full shrink-0 py-1.5 sm:w-56">
+            <SearchMini aria-label={t('administration:odoo.master.search', 'Search code or name')} placeholder={t('administration:odoo.master.search', 'Search code or name')} value={typed} onChange={(e) => setTyped(e.target.value)} type="search" />
+            </div>
           </div>
 
-          {isWarehouses && <div className="mt-3"><OdooWarehouseDefault /></div>}
+          <div role="tabpanel" id={tabPanelId('odoo-master', kind)} aria-labelledby={tabId('odoo-master', kind)}>
+            {reasons.length > 0 ? (
+              <div role="status" className="mt-3 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/12 px-3.5 py-3 text-control">
+                <Icon name="alert" className="mt-px size-[17px] shrink-0" aria-hidden="true" />
+                <div>
+                  <div className="font-semibold">{t('administration:odoo.master.unavailable', 'Odoo is missing an app this list needs')}</div>
+                  <div className="text-muted-foreground">{t('administration:odoo.master.unavailableWhy', 'Missing: {{missing}}. Install or allow it in Odoo, then Re-check on the Integrations page.', { missing: reasons.join(', ') })}</div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-control text-muted-foreground">
+                  {/* Counts only once known (an unread summary is not "0"); the toggle only when there is something to show. */}
+                  {summary.data && (summary.data.inactive > 0 || summary.data.tombstoned > 0) && (
+                    <>
+                      <span>{t('administration:odoo.master.hidden', '{{inactive}} inactive · {{deleted}} deleted in Odoo', { inactive: summary.data.inactive, deleted: summary.data.tombstoned })}</span>
+                      <label className="inline-flex min-h-11 items-center gap-1.5">
+                        <input type="checkbox" checked={includeInactive} onChange={(e) => { setIncludeInactive(e.target.checked); setPage(1); }} />
+                        {t('administration:odoo.master.showInactive', 'Show inactive and deleted')}
+                      </label>
+                    </>
+                  )}
+                  {asOf && <span>{t('administration:odoo.master.asOf', 'As of {{when}}', { when: formatDay(asOf) })}</span>}
+                </div>
 
-          {isWarehouses && state === undefined ? (
-            <div className="mt-3 space-y-3">
-              {locationsCut && <p role="status" className="text-control text-muted-foreground">{t('administration:odoo.master.locationsCut', 'Some locations are not shown.')}</p>}
-              {rows.map((w) => (
-                <section key={w.id} role="group" aria-label={`${w.name}${w.code ? ` (${w.code})` : ''}`} className="rounded-lg border border-border bg-card p-3">
-                  <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">{w.name}{w.code && <span className="font-mono text-control text-muted-foreground">{w.code}</span>}{status(w)}</h2>
-                  <ul className="mt-2 divide-y divide-border text-sm">
-                    {locs.filter((l) => l.attrs.warehouse_id === w.external_id).map((l) => (
-                      <li key={l.id} className="flex items-center justify-between gap-3 py-1.5"><span className="min-w-0 break-words">{l.name}</span><span className="text-control text-muted-foreground">{text(l.attrs.usage)}</span></li>
+                {isWarehouses && <div className="mt-3"><OdooWarehouseDefault /></div>}
+
+                {isWarehouses && state === undefined ? (
+                  <div className="mt-3 space-y-3">
+                    {locationsCut && <p role="status" className="text-control text-muted-foreground">{t('administration:odoo.master.locationsCut', 'Some locations are not shown.')}</p>}
+                    {rows.map((w) => (
+                      <section key={w.id} role="group" aria-label={`${w.name}${w.code ? ` (${w.code})` : ''}`} className="rounded-lg border border-border bg-card p-3">
+                        <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">{w.name}{w.code && <span className="font-mono text-control text-muted-foreground">{w.code}</span>}{status(w)}</h2>
+                        <ul className="mt-2 divide-y divide-border text-sm">
+                          {locs.filter((l) => l.attrs.warehouse_id === w.external_id).map((l) => (
+                            <li key={l.id} className="flex items-center justify-between gap-3 py-1.5"><span className="min-w-0 break-words">{l.name}</span><span className="text-control text-muted-foreground">{text(l.attrs.usage)}</span></li>
+                          ))}
+                        </ul>
+                      </section>
                     ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-3">
-              <DataTable<MasterRecord> rows={rows} columns={columns[kind]} rowKey={(r) => r.id} tableId={`masterdata-${kind}`} state={state} accessibleName={tabs.find((x) => x.value === kind)?.label}
-                emptyTitle={t('administration:odoo.master.empty', 'Nothing here yet')} 
-                errorTitle={t('administration:odoo.master.error', 'This list could not be loaded')} onRetry={() => void list.refetch()} />
-            </div>
-          )}
+                  </div>
+                ) : (
+                  <div className="mt-3">
+                    <DataTable<MasterRecord> rows={rows} columns={columns[kind]} rowKey={(r) => r.id} tableId={`masterdata-${kind}`} state={state} accessibleName={tabs.find((x) => x.value === kind)?.label}
+                      emptyTitle={t('administration:odoo.master.empty', 'Nothing here yet')}
+                      errorTitle={t('administration:odoo.master.error', 'This list could not be loaded')} onRetry={() => void list.refetch()} />
+                  </div>
+                )}
 
-          <nav aria-label={t('administration:odoo.master.pager', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-control tabular-nums">
-            <span>{total === 0 ? '' : t('administration:odoo.master.range', '{{from}}–{{to}} of {{total}}', { from: formatNumberWhole(from), to: formatNumberWhole(to), total: formatNumberWhole(total) })}</span>
-            <span className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} aria-label={t('administration:odoo.master.prev', 'Previous page')}><Icon name="back" aria-hidden="true" /></Button>
-              <Button variant="outline" size="sm" disabled={to >= total} onClick={() => setPage((p) => p + 1)} aria-label={t('administration:odoo.master.next', 'Next page')}><Icon name="chev" aria-hidden="true" /></Button>
-            </span>
-          </nav>
+                {total > PAGE_SIZE && <nav aria-label={t('administration:odoo.master.pager', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-control tabular-nums">
+                  <span>{t('administration:odoo.master.range', '{{from}}–{{to}} of {{total}}', { from: formatNumberWhole(from), to: formatNumberWhole(to), total: formatNumberWhole(total) })}</span>
+                  <span className="flex gap-2">
+                    <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} aria-label={t('administration:odoo.master.prev', 'Previous page')}><Icon name="back" aria-hidden="true" /></Button>
+                    <Button variant="outline" size="sm" disabled={to >= total} onClick={() => setPage((p) => p + 1)} aria-label={t('administration:odoo.master.next', 'Next page')}><Icon name="chev" aria-hidden="true" /></Button>
+                  </span>
+                </nav>}
+              </>
+        )}
+          </div>
         </>
       )}
-      </div>
     </ListPage>
   );
 }
