@@ -1,7 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import React from 'react';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
+
+vi.mock('@/src/components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/ui')>();
+  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => React.createElement(actual.Button, {
+    ...props,
+    'data-variant': props.variant ?? 'primary',
+  });
+  return { ...actual, Button: ButtonWithVariant };
+});
 
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
 const mut = () => ({ mutateAsync: vi.fn().mockResolvedValue('x'), isPending: false });
@@ -32,8 +42,20 @@ describe('FR-IMP-071 plans section', () => {
   it('FR-IMP-071 the author of a Draft sees Submit plan and can create a plan', async () => {
     const user = userEvent.setup();
     renderIt();
-    expect(screen.getByRole('button', { name: 'Submit plan' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'New plan' }));
+    expect(screen.getByRole('button', { name: 'Submit plan' })).toHaveAttribute('data-variant', 'primary');
+    const newPlan = screen.getByRole('button', { name: 'New plan' });
+    expect(newPlan).toHaveAttribute('data-variant', 'outline');
+    await user.click(newPlan);
+    await waitFor(() => expect(h.m.createPlan.mutateAsync).toHaveBeenCalledWith({ floatId: 'f1', month: '2026-11-01' }));
+  });
+  it('C21 the empty plans state makes New plan the named primary action', async () => {
+    const user = userEvent.setup();
+    h.plans = ok({ rows: [], truncated: false });
+    renderIt();
+
+    const newPlan = screen.getByRole('button', { name: 'New plan' });
+    expect(newPlan).toHaveAttribute('data-variant', 'primary');
+    await user.click(newPlan);
     await waitFor(() => expect(h.m.createPlan.mutateAsync).toHaveBeenCalledWith({ floatId: 'f1', month: '2026-11-01' }));
   });
   it('FR-IMP-071 submitting moves the plan to Submitted', async () => {
@@ -81,6 +103,9 @@ describe('FR-IMP-071 plans section', () => {
     expect(screen.getByRole('button', { name: 'Save line' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'New plan' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Submit plan' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save line' })).toHaveAttribute('data-variant', 'primary');
+    expect(screen.getByRole('button', { name: 'New plan' })).toHaveAttribute('data-variant', 'outline');
+    expect(screen.getByRole('button', { name: 'Submit plan' })).toHaveAttribute('data-variant', 'outline');
     await user.click(screen.getByRole('button', { name: 'Save line' }));
 
     await waitFor(() => expect(h.m.savePlanLine.mutateAsync).toHaveBeenCalledWith({

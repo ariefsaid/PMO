@@ -10,6 +10,16 @@ import type {
   ConnectProposal,
   IntegrationsRepository,
 } from '@/src/lib/repositories/types';
+
+vi.mock('@/src/components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/ui')>();
+  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => React.createElement(actual.Button, {
+    ...props,
+    'data-variant': props.variant ?? 'primary',
+  });
+  return { ...actual, Button: ButtonWithVariant };
+});
+
 import { ConnectProposalReview } from './ConnectProposalReview';
 
 const mockIntegrationsRepo = vi.hoisted(() => ({
@@ -242,6 +252,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
     // Top-level Accept all (the header button renders before the per-kind cards)
     const topAcceptAll = screen.getAllByRole('button', { name: 'Accept all' })[0];
+    expect(topAcceptAll).toHaveAttribute('data-variant', 'primary');
     fireEvent.click(topAcceptAll);
 
     const dialog = await screen.findByRole('dialog');
@@ -882,11 +893,12 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     fireEvent.click(within(partyCard).getByRole('button', { name: 'Review list' }));
     const selectedRow = await screen.findByTestId('connect-review-list-row-proposal-1');
     expect(within(selectedRow).getByText('Partner One')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Accept all' })[0]).toBeInTheDocument();
+    const acceptAll = screen.getAllByRole('button', { name: 'Accept all' })[0];
+    expect(acceptAll).toHaveAttribute('data-variant', 'outline');
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Partner One' }));
     const acceptSelected = screen.getByRole('button', { name: 'Accept 1 selected' });
-    expect(acceptSelected).toBeInTheDocument();
+    expect(acceptSelected).toHaveAttribute('data-variant', 'primary');
     fireEvent.click(acceptSelected);
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Accept selected' }));

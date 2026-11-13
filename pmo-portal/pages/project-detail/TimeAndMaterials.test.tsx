@@ -10,6 +10,15 @@ import { axe } from 'jest-axe';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
+vi.mock('@/src/components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/ui')>();
+  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => React.createElement(actual.Button, {
+    ...props,
+    'data-variant': props.variant ?? 'primary',
+  });
+  return { ...actual, Button: ButtonWithVariant };
+});
+
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
   effectiveRole: 'Finance' as string,
@@ -332,8 +341,9 @@ describe('TimeAndMaterials', () => {
     ]);
     const { user } = renderPanel();
 
-    expect(screen.getByRole('button', { name: 'Add rate' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add rate' })).toHaveAttribute('data-variant', 'outline');
     const accept = await screen.findByRole('button', { name: 'Accept proposed (1)' });
+    expect(accept).toHaveAttribute('data-variant', 'primary');
     await user.click(accept);
 
     await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledTimes(1));

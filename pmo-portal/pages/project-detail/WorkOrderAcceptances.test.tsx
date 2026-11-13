@@ -1,9 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
+import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/ui')>();
+  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => React.createElement(actual.Button, {
+    ...props,
+    'data-variant': props.variant ?? 'primary',
+  });
+  return { ...actual, Button: ButtonWithVariant };
+});
 
 import WorkOrderAcceptances from './WorkOrderAcceptances';
 
@@ -19,13 +28,17 @@ const draft = {
   lines: [],
 } as unknown as WorkOrderAcceptanceWithLines;
 
-const renderAcceptances = (onPrepare = vi.fn(), onConfirm = vi.fn()) => {
+const renderAcceptances = (
+  acceptances: WorkOrderAcceptanceWithLines[] = [draft],
+  onPrepare = vi.fn(),
+  onConfirm = vi.fn(),
+) => {
   render(
     <WorkOrderAcceptances
       workOrder={{ id: 'wo-1', status: 'Issued' }}
       boqItems={[]}
       documents={[]}
-      acceptances={[draft]}
+      acceptances={acceptances}
       state="ready"
       onRetry={vi.fn()}
       currentUserId="u-finance"
@@ -47,12 +60,19 @@ describe('WorkOrderAcceptances C21 primary actions', () => {
 
     const confirm = screen.getByRole('button', { name: 'Confirm BAST' });
     const prepare = screen.getByRole('button', { name: 'Prepare BAST' });
-    expect(confirm).toBeInTheDocument();
-    expect(prepare).toBeInTheDocument();
+    expect(confirm).toHaveAttribute('data-variant', 'primary');
+    expect(prepare).toHaveAttribute('data-variant', 'outline');
 
     await user.click(confirm);
     expect(onConfirm).toHaveBeenCalledWith(draft);
     await user.click(prepare);
     expect(onPrepare).toHaveBeenCalledOnce();
+  });
+
+  it('keeps Prepare BAST as the named primary when no draft needs confirmation', () => {
+    renderAcceptances([]);
+
+    expect(screen.getByRole('button', { name: 'Prepare BAST' })).toHaveAttribute('data-variant', 'primary');
+    expect(screen.queryByRole('button', { name: 'Confirm BAST' })).not.toBeInTheDocument();
   });
 });
