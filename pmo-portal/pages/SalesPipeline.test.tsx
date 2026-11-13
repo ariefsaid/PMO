@@ -1013,8 +1013,7 @@ describe('SalesPipeline tax basis: once in the band caption (move 4)', () => {
 
     const words = screen.getAllByText('excl. PPN', { exact: true });
     expect(words).toHaveLength(1);
-    expect(within(screen.getByLabelText('Pipeline summary')).getByTestId('pipeline-funnel-taxbasis')).toHaveTextContent('excl. PPN');
-    expect(within(screen.getByLabelText('Pipeline summary')).getByTestId('pipeline-funnel-scale')).toContainElement(words[0]);
+    expect(within(screen.getByLabelText('Pipeline summary')).getByTestId('pipeline-funnel-caption')).toHaveTextContent('excl. PPN');
     expect(screen.queryByText('Chance', { exact: true })).toBeNull();
     // The cards are still qualified — the one shared word covers them, so none repeats it.
     expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
@@ -1029,7 +1028,7 @@ describe('SalesPipeline tax basis: once in the band caption (move 4)', () => {
     renderPage('/sales?view=kanban');
 
     const summary = screen.getByLabelText('Pipeline summary');
-    expect(within(summary).getByTestId('pipeline-funnel-scale')).toHaveTextContent('Open value, one scale');
+    expect(within(summary).queryByTestId('pipeline-funnel-caption')).toBeNull();
     expect(within(summary).queryByText('excl. PPN', { exact: true })).toBeNull();
     expect(screen.getAllByTestId('tax-basis').length).toBeGreaterThan(0);
   });

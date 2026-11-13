@@ -73,19 +73,15 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
           }
         }}
       />
-      {/* One stated measure for the bars: the same open value as the amount above each bar, on one
-          scale (the largest stage is the full bar). Stage order is the pipeline's own. The tax
-          basis rides in the same line, once for the whole band, instead of a key floating over the
-          board that named a column the board does not have. */}
-      <p data-testid="pipeline-funnel-scale" className="mt-2 text-control text-muted-foreground">
-        {t('sales:pipeline.funnelScale', 'Open value, one scale')}
-        {taxBasis && (
-          <>
-            {' · '}
-            <span data-testid="pipeline-funnel-taxbasis">{taxBasis}</span>
-          </>
-        )}
-      </p>
+      {/* The band's one caption: the tax basis for these amounts, stated once instead of a key
+          floating over the board that named a column the board does not have. The bars themselves
+          need no caption — each stage's amount sits directly above its own bar, and every bar is
+          drawn on the same scale (the largest stage is the full bar). */}
+      {taxBasis && (
+        <p data-testid="pipeline-funnel-caption" className="mt-2 text-control text-muted-foreground">
+          {taxBasis}
+        </p>
+      )}
     </section>
   );
 };

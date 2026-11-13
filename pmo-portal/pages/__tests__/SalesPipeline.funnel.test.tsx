@@ -118,11 +118,17 @@ describe('AC-SFA-001: sales pipeline stages use one open-value scale', () => {
     expect(quotation.querySelector('[data-funnel-stage-bar]')).toBeNull();
   });
 
-  it('states what the bars measure once, under the band', () => {
+  it('keeps every stage bar on the one shared scale, the largest stage full', () => {
     renderPage();
     const summary = screen.getByLabelText('Pipeline summary');
-    expect(within(summary).getByTestId('pipeline-funnel-scale')).toHaveTextContent('Open value, one scale');
-    expect(within(summary).getAllByTestId('pipeline-funnel-scale')).toHaveLength(1);
+    const widths = Array.from(summary.querySelectorAll('[data-funnel-stage-bar] > span'))
+      .map((bar) => parseFloat((bar as HTMLElement).style.width));
+    // Leads 200k, PQ 500k, Tender 1.2M (the maximum), Negotiation 900k; the empty stage draws none.
+    expect(widths).toHaveLength(4);
+    expect(widths[0]).toBeCloseTo(200 / 12, 6);
+    expect(widths[1] / widths[0]).toBeCloseTo(2.5, 6);
+    expect(widths[2]).toBeCloseTo(100, 6);
+    expect(widths[3] / widths[2]).toBeCloseTo(0.75, 6);
   });
 
   it('draws no bar it cannot scale: a mixed-currency stage reads its withheld amount, and the band draws no bars at all', () => {
