@@ -41,6 +41,9 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
   const canPrepare = workOrder.status === 'Issued' && hasAllocations
     && may('create', 'workOrderAcceptance', { currentUserId, record: { status: workOrder.status, project_manager_id: projectManagerId } });
   const sorted = [...acceptances].sort((a, b) => b.acceptance_date.localeCompare(a.acceptance_date) || b.prepared_at.localeCompare(a.prepared_at));
+  const canConfirmAcceptance = (a: WorkOrderAcceptanceWithLines) => a.status === 'Draft' && workOrder.status === 'Issued'
+    && may('confirm', 'workOrderAcceptance', { currentUserId, record: { status: a.status, prepared_by: a.prepared_by } });
+  const hasConfirmableDraft = sorted.some(canConfirmAcceptance);
 
   const linesText = (a: WorkOrderAcceptanceWithLines): string => a.lines.map((line) => {
     const item = itemOf.get(line.boq_item_id);
@@ -69,7 +72,7 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
             const canEdit = draft && workOrder.status === 'Issued'
               && may('create', 'workOrderAcceptance', { currentUserId, record: { status: workOrder.status, project_manager_id: projectManagerId } });
             const canWithdraw = draft && may('withdraw', 'workOrderAcceptance', { currentUserId, record: { status: a.status, prepared_by: a.prepared_by } });
-            const canConfirm = draft && workOrder.status === 'Issued' && may('confirm', 'workOrderAcceptance', { currentUserId, record: { status: a.status, prepared_by: a.prepared_by } });
+            const canConfirm = canConfirmAcceptance(a);
             return (
               <li key={a.id} data-testid={`bast-${a.id}`} className="flex flex-col gap-1 rounded-md border border-border p-2.5">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -123,7 +126,7 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
       )}
       {canPrepare && (
         <div>
-          <Button variant="primary" size="sm" onClick={onPrepare}>{t('projectTabs:contractQuantities.workOrders.acceptances.prepare', 'Prepare BAST')}</Button>
+          <Button variant={hasConfirmableDraft ? 'outline' : 'primary'} size="sm" onClick={onPrepare}>{t('projectTabs:contractQuantities.workOrders.acceptances.prepare', 'Prepare BAST')}</Button>
         </div>
       )}
     </div>

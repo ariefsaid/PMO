@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import {
   EntityFormModal, FormGrid, FormSection, NumberField, SelectField, TextArea, TextField, type SubmitError,
 } from '@/src/components/ui';
@@ -76,7 +77,7 @@ const WorkOrderAcceptanceModal: React.FC<WorkOrderAcceptanceModalProps> = ({
     { value: '', label: t('projectTabs:contractQuantities.workOrders.acceptances.form.noDocument', 'None yet') },
     ...eligibleDocs.map((d) => ({
       value: d.id,
-      label: `${d.code ? `${d.code} · ` : ''}${d.title} (${d.status}${d.revision ? `, ${t('projectDetail.billing.evidence.revision', 'rev {{revision}}', { revision: d.revision })}` : ''})`,
+      label: `${d.code ? `${d.code} · ` : ''}${d.title} (${statusLabel('document', d.status, t)}${d.revision ? `, ${t('projectDetail.billing.evidence.revision', 'rev {{revision}}', { revision: d.revision })}` : ''})`,
     })),
   ];
 

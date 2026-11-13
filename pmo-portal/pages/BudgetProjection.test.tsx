@@ -276,6 +276,26 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(onExport).not.toHaveBeenCalled();
   });
 
+  it('Forecast Retry refetches the failed comparison read, not the separate calendar read', async () => {
+    calendarMock.mockRejectedValue(new Error('calendar offline'));
+    comparisonMock.mockRejectedValue(new Error('comparison offline'));
+    renderForecast();
+
+    expect(await screen.findByText('Forecast could not be loaded')).toBeInTheDocument();
+    const retries = within(screen.getByTestId('budget-forecast-view')).getAllByRole('button', { name: 'Retry' });
+    const calendarCalls = calendarMock.mock.calls.length;
+    const yearsCalls = yearsMock.mock.calls.length;
+    const projectionCalls = fetchMock.mock.calls.length;
+    const comparisonCalls = comparisonMock.mock.calls.length;
+
+    await userEvent.click(retries[retries.length - 1]);
+
+    await waitFor(() => expect(comparisonMock).toHaveBeenCalledTimes(comparisonCalls + 1));
+    expect(calendarMock).toHaveBeenCalledTimes(calendarCalls);
+    expect(yearsMock).toHaveBeenCalledTimes(yearsCalls);
+    expect(fetchMock).toHaveBeenCalledTimes(projectionCalls);
+  });
+
   it('AC-015 reloads comparison money when the active version or organisation changes', async () => {
     setTwoYearCurrentCalendar();
     yearsMock.mockResolvedValue([

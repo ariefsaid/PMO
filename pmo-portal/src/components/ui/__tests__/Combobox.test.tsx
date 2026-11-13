@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Combobox, type ComboboxOption } from '../Combobox';
+import { TextField } from '../FormFields';
 
 // ---------------------------------------------------------------------------
 // Combobox — the async FK picker (crud-components §4). Loads options, filters
@@ -24,10 +25,14 @@ function loadOk() {
 describe('Combobox: closed state + a11y on the trigger', () => {
   it('uses the form-field shell by default', () => {
     render(
-      <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />,
+      <>
+        <TextField label="Reference text" value="" onChange={() => {}} />
+        <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />
+      </>,
     );
     const trigger = screen.getByRole('combobox', { name: 'Client company' });
-    expect(trigger).toHaveClass(
+    const field = screen.getByLabelText('Reference text');
+    const sharedShell = [
       'h-auto',
       'min-h-[var(--control-height)]',
       'rounded-md',
@@ -37,6 +42,10 @@ describe('Combobox: closed state + a11y on the trigger', () => {
       'border-border',
       'hover:enabled:border-input',
       '[@media(pointer:coarse)]:min-h-11',
+    ];
+    sharedShell.forEach((token) => expect(field).toHaveClass(token));
+    expect(trigger).toHaveClass(
+      ...sharedShell,
     );
     expect(trigger).not.toHaveClass('min-h-8', 'bg-background', 'hover:border-input');
   });

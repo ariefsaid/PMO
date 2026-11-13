@@ -280,6 +280,16 @@ describe('StockReorder', () => {
     expect(screen.queryByTestId('suggested-level')).not.toBeInTheDocument();
   });
 
+  it('C1 a failed suggestion offers a Retry that reruns that read', async () => {
+    reorder.suggestion.mockRejectedValueOnce(new AppError('STK_NOT_FOUND: nope', 'P0001'));
+    renderPage();
+    await pickPair();
+    expect(await screen.findByText("Couldn't load the reorder suggestion")).toBeInTheDocument();
+    reorder.suggestion.mockResolvedValue(okSuggestion);
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Suggested level')).toBeInTheDocument();
+  });
+
   it('AC-STK-030 the page has no axe violation', async () => {
     const { container } = renderPage();
     await screen.findByRole('table', { name: 'Below reorder level' });
