@@ -287,8 +287,8 @@ const Meetings: React.FC = () => {
               onChange={(value) => handleFilterChange('project', value)}
               loadOptions={loadProjectOptions}
               placeholder={allProjectsOption.label}
-              noun={t('meetings.columns.project', 'Project')}
-              nounPlural={t('projects.title', 'Projects')}
+              noun={t('meetings.columns.project', 'Project').toLowerCase()}
+              nounPlural={t('projects.title', 'Projects').toLowerCase()}
             />
             <div className="inline-flex min-h-[var(--control-height-sm)] items-center gap-2 max-[640px]:min-h-11">
               <span id="meetings-show-archived-label" className="text-control font-medium">
