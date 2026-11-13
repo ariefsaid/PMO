@@ -157,8 +157,10 @@ const ImprestFloatDetail: React.FC = () => {
   return (
     <div>
       <div className="hidden max-[920px]:block"><BackBar label={backLabel} onBack={goBack} /></div>
-      <RecordHeader name={flt.project?.name ?? '—'} icon="$"
-        status={<StatusPill record="imprest" state="Active" />}
+      <RecordHeader name={`${t('imprest:detail.floatName', 'Float {{id}}', { id: flt.id.slice(0, 8) })} · ${flt.project?.name ?? '—'}`} icon="$"
+        status={flt.archived_at
+          ? <StatusPill variant="neutral">{t('imprest:detail.archived', 'Archived')}</StatusPill>
+          : <StatusPill record="imprest" state="Active" />}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{t('imprest:detail.custodian', 'Custodian: {{name}}', { name: flt.custodian?.full_name ?? '—' })}</span>
           <span>{t('imprest:position.float', 'Float')}: {money(flt.float_amount)}</span>
