@@ -252,6 +252,14 @@ const Projects: React.FC = () => {
           onRetry={() => void refetchMoney()}
         />
       )}
+      {secondaryReadPending && cachedFiltered === null && (
+        <ListState
+          variant="loading"
+          shape={view === 'table' ? 'table' : view === 'calendar' ? 'chart' : 'cards'}
+          columns={6}
+          rows={6}
+        />
+      )}
       {secondaryReadPending && <span role="status" className="sr-only">{t('common.ui.listState.loading', 'Loading…')}</span>}
       {view === 'kanban' ? (
         <ProjectKanbanBoard projects={displayFiltered} onOpen={(p) => onOpen(p, 'card')} />
