@@ -194,18 +194,16 @@ const PayablesPage: React.FC = () => {
       <Toolbar data-testid="finance-payables-table-toolbar" className="gap-2 sm:gap-3">
         <SearchMini aria-label={t('financeHub:hub.searchPayables', 'Search payables')} placeholder={t('financeHub:hub.searchPayables', 'Search payables')} value={search} onChange={(event) => setSearch(event.target.value)} searchSurface="finance-payables" module="finance" resultCount={visibleRows.length} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {/* The overdue filter is the outlined toggle Receivables uses for the same job, with its count
+              in the label: the red pill read as a status label, not as the control that filters the list. */}
           {(overdueFilter || (overdueCountAvailable && lateRows.length > 0)) && <Button
-            variant="ghost"
-            aria-label={overdueFilter && !overdueCountAvailable
-              ? t('financeHub:hub.clearOverduePayablesFilter', 'Clear overdue filter')
-              : t('financeHub:hub.filterOverduePayables', 'Filter overdue invoices ({{count}})', { count: lateRows.length })}
+            variant="outline"
+            size="sm"
+            data-testid="payables-overdue-toggle"
             aria-pressed={overdueFilter}
-            className="min-h-11 touch-target px-1 aria-pressed:ring-2 aria-pressed:ring-ring"
+            className="aria-pressed:border-primary/40 aria-pressed:bg-primary/10 aria-pressed:text-primary"
             onClick={() => setFilter('overdue', overdueFilter ? '' : 'true')}
-          ><StatusPill variant="overdue" data-testid="payables-overdue-count">{overdueCountAvailable
-            ? t('finance:area.overdueCount', { defaultValue: '{{count}} overdue', count: lateRows.length })
-            : t('financeHub:hub.overduePayablesFilterActive', 'Overdue filter active')}
-          </StatusPill></Button>}
+          >{t('uxs05.overdueOnly', 'Overdue only')}{overdueCountAvailable ? ` · ${lateRows.length}` : null}</Button>}
           <Button variant="outline" loading={busy} disabled={isPending || isError || agePending || ageError} onClick={() => void exportXlsx(visibleRows, columns, 'Payables')}>{t('financeHub:hub.export', 'Export')}</Button>
           {selectedKeys.size > 0 && <Button variant="outline" loading={busy} disabled={isPending || isError || agePending || ageError} onClick={() => void exportXlsx(payablesPosition.payables.filter((row) => selectedKeys.has(row.procurement.id)), columns, 'Payables')}>{t('financeHub:hub.exportSelected', 'Export selected')}</Button>}
         </div>

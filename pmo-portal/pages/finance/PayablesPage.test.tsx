@@ -214,8 +214,8 @@ describe('Payables page', () => {
     state.orgDayPending = true;
     renderPage('Finance', payablesFixture(), '/finance/payables?overdue=true');
 
-    expect(screen.getByRole('button', { name: 'Clear overdue filter' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('payables-overdue-count')).toHaveTextContent('Overdue filter active');
+    expect(screen.getByRole('button', { name: 'Overdue only' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('payables-overdue-toggle')).toHaveTextContent(/^Overdue only$/);
     expect(within(screen.getByTestId('finance-payables-table-card')).getByTestId('liststate-loading')).toBeInTheDocument();
     expect(screen.queryByText('No supplier invoices over 90 days match the current filters.')).not.toBeInTheDocument();
   });
@@ -230,7 +230,7 @@ describe('Payables page', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(state.retryOrgDay).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole('button', { name: 'Clear overdue filter' }));
+    await user.click(screen.getByRole('button', { name: 'Overdue only' }));
     expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toBeInTheDocument();
   });
 
@@ -239,15 +239,38 @@ describe('Payables page', () => {
     state.payablesPending = true;
     const pendingView = renderPage('Finance', payablesFixture(), '/finance/payables?overdue=true');
 
-    await user.click(screen.getByRole('button', { name: 'Clear overdue filter' }));
+    await user.click(screen.getByRole('button', { name: 'Overdue only' }));
     expect(new URLSearchParams(screen.getByRole('status', { name: 'Current path' }).textContent?.split('?')[1] ?? '').has('overdue')).toBe(false);
     pendingView.unmount();
 
     state.payablesPending = false;
     state.payablesError = true;
     renderPage('Finance', payablesFixture(), '/finance/payables?overdue=true');
-    await user.click(screen.getByRole('button', { name: 'Clear overdue filter' }));
+    await user.click(screen.getByRole('button', { name: 'Overdue only' }));
     expect(new URLSearchParams(screen.getByRole('status', { name: 'Current path' }).textContent?.split('?')[1] ?? '').has('overdue')).toBe(false);
+  });
+
+  it('filters to overdue rows from the outlined Overdue only toggle, which is pressed and names its count', async () => {
+    const base = payablesFixture();
+    const recent = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-2', title: 'Crane rental', code: 'PR-105', vendor: { name: 'Bumi Rental' }, vendor_id: 'supplier-2' },
+      ageDays: 12,
+      amount: 2_000_000,
+    } as FinancePosition['payables'][number];
+    const user = userEvent.setup();
+    renderPage('Finance', { ...base, payables: [base.payables[0], recent] });
+
+    const toolbar = screen.getByTestId('finance-payables-table-toolbar');
+    const toggle = within(toolbar).getByRole('button', { name: 'Overdue only · 1' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('row', { name: /Bumi Rental/ })).toBeInTheDocument();
+
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toBeInTheDocument();
+    expect(screen.queryByRole('row', { name: /Bumi Rental/ })).not.toBeInTheDocument();
   });
 
   it('B5: shows its loading state while the linked purchase read is pending', () => {
@@ -291,7 +314,7 @@ describe('Payables page', () => {
 
     const lateAges = screen.getAllByTestId('payables-late-age');
     expect(lateAges).toHaveLength(2);
-    expect(screen.getByTestId('payables-overdue-count')).toHaveTextContent('2 overdue');
+    expect(screen.getByRole('button', { name: 'Overdue only · 2' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Invoice age' })).toBeVisible();
     expect(lateAges.map((row) => row.textContent)).toEqual(['100 days', '95 days']);
   });

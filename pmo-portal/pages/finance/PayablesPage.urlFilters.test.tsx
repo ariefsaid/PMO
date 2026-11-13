@@ -171,7 +171,7 @@ describe('R2 — payables search lives in the URL', () => {
     const user = userEvent.setup();
     renderPage('/finance/payables', { ...base, payables: [base.payables[0], recent] });
 
-    const overdueToggle = screen.getByRole('button', { name: 'Filter overdue invoices (1)' });
+    const overdueToggle = screen.getByRole('button', { name: 'Overdue only · 1' });
     overdueToggle.focus();
     await user.keyboard('{Enter}');
     expect(overdueToggle).toHaveAttribute('aria-pressed', 'true');
@@ -188,10 +188,10 @@ describe('R2 — payables search lives in the URL', () => {
 
     await user.type(screen.getByRole('searchbox', { name: 'Search payables' }), 'Bumi');
     expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '').get('overdue')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Filter overdue invoices (0)' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Overdue only · 0' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('No supplier invoices over 90 days match the current filters.')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Filter overdue invoices (0)' }));
+    await user.click(screen.getByRole('button', { name: 'Overdue only · 0' }));
     expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '').has('overdue')).toBe(false);
     expect(screen.getByRole('row', { name: /Bumi Rental/ })).toBeInTheDocument();
   });
@@ -200,13 +200,13 @@ describe('R2 — payables search lives in the URL', () => {
     const user = userEvent.setup();
     renderPage('/finance/payables?q=inspection');
 
-    await user.click(screen.getByRole('button', { name: 'Filter overdue invoices (1)' }));
+    await user.click(screen.getByRole('button', { name: 'Overdue only · 1' }));
     await user.click(screen.getByRole('button', { name: 'Open supplier invoice for Sinar Supplier' }));
     await user.click(screen.getByRole('button', { name: 'Back to Payables' }));
 
     const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '');
     expect(params.get('q')).toBe('inspection');
     expect(params.get('overdue')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Filter overdue invoices (1)' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Overdue only · 1' })).toHaveAttribute('aria-pressed', 'true');
   });
 });
