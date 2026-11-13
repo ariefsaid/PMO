@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import legalEn from '../public/locales/en/legal.json';
+import legalId from '../public/locales/id/legal.json';
 
 // Fixed config → deterministic assertions (AC-LEG-006/034). Mocked so the page
 // test is independent of env; the real module is proven in legalConfig.test.ts.
@@ -148,3 +152,59 @@ describe('Terms page', () => {
     expect(htmlA).not.toMatch(/last updated|effective (date|today)/i);
   });
 });
+
+describe('C4: the legal body stays in English under the Indonesian locale', () => {
+  const ID_NOTICE = 'Teks hukum ini tersedia dalam bahasa Inggris.';
+
+  async function renderWithLanguage(language: 'en' | 'id') {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: language,
+      fallbackLng: false,
+      defaultNS: 'legal',
+      resources: { en: { legal: legalEn }, id: { legal: legalId } },
+    });
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter>
+          <Terms />
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+  }
+
+  it('under id: the page shows the English legal body plus the one Indonesian line, above it', async () => {
+    await renderWithLanguage('id');
+
+    // The clauses are a contract: English, verbatim — no machine-translated clause ships.
+    expect(screen.getByRole('heading', { level: 1, name: 'Terms of Service' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Acceptance of Terms' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Governing Law' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Ketentuan Layanan' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Penerimaan Ketentuan' })).toBeNull();
+
+    // The page chrome around the body is still translated.
+    expect(screen.getByRole('link', { name: 'Kembali ke halaman masuk' })).toHaveAttribute('href', '/login');
+    expect(screen.getByRole('link', { name: 'Privasi' })).toHaveAttribute('href', '/privacy');
+    expect(screen.getByRole('link', { name: 'Lompat ke konten utama' })).toHaveAttribute('href', '#main');
+
+    // Exactly one Indonesian line, and it sits above the legal body it explains.
+    const notices = screen.getAllByText(ID_NOTICE);
+    expect(notices).toHaveLength(1);
+    const firstSectionHeading = screen.getAllByRole('heading', { level: 2 })[0];
+    expect(
+      notices[0].compareDocumentPosition(firstSectionHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // The English catalogue sentences still carry the configured entity, domain and contact address.
+    expect(screen.getAllByText(/Acme Legal Test Co/).length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: /legal@acme\.test\.example/i })).toBeInTheDocument();
+  });
+
+  it('under en: the same English body and no Indonesian line', async () => {
+    await renderWithLanguage('en');
+    expect(screen.getByRole('heading', { level: 1, name: 'Terms of Service' })).toBeInTheDocument();
+    expect(screen.queryByText(ID_NOTICE)).toBeNull();
+  });
+});
+

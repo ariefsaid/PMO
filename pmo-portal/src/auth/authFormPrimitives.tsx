@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '../components/ui/cn';
 import { Icon } from '../components/ui/icons';
 
@@ -49,6 +50,8 @@ export const AuthInput: React.FC<{
   // Secret fields render MASKED by default with an eye toggle to reveal (same contract as the shared
   // TextField primitive) — so a typed/pasted password can be confirmed without sitting legible on
   // screen. Reveal is local, ephemeral state; nothing is persisted or logged.
+  // C4: the toggle's accessible name is the label a screen reader user hears on every auth screen.
+  const { t } = useTranslation('auth');
   const isSecret = type === 'password';
   const [revealed, setRevealed] = React.useState(false);
 
@@ -85,7 +88,7 @@ export const AuthInput: React.FC<{
           // "value" not "password" on purpose: an accessible name containing the field's own label
           // makes getByLabelText(/password/i) ambiguous (the toggle and the input both match), which
           // is a real usability smell as well as a test one. Matches the shared TextField toggle.
-          aria-label={revealed ? 'Hide value' : 'Show value'}
+          aria-label={revealed ? t('field.hideValue', 'Hide value') : t('field.showValue', 'Show value')}
           aria-pressed={revealed}
           disabled={disabled}
           className="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"

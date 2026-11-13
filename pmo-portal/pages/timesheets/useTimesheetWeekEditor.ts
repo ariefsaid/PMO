@@ -36,6 +36,9 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
   const { toast } = useToast();
   const { saveWeek, deleteRow, isReconciling, reconciledDelete } = entryMutations;
   const submittingRef = useRef(false);
+  // A save resolves with its sheet id before the invalidated week query is guaranteed to refetch.
+  // Retain ids by week so another Save or Submit during that gap updates the created Draft.
+  const savedSheetIds = useRef(new Map<string, string>());
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const weekDateStrings = useMemo(() => weekDates.map((date) => dayKey(date)), [weekDates]);
   // AC-IFW-TASKS-02: consume ?project=<id> from the URL (set by MyTasks "Log time" link).
@@ -271,11 +274,12 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
 
   // Save (explicit commit — FR-TSE-011/012/016). Builds the diff, calls saveWeek.
   const commitSave = () => {
+    const currentTimesheetId = currentTimesheet?.id ?? savedSheetIds.current.get(weekStartString) ?? null;
     const diff = diffEntries(
       editRows,
       weekDateStrings,
       serverEntriesForDiff,
-      currentTimesheet?.id ?? ''
+      currentTimesheetId ?? ''
     );
     const changeCount = diff.upserts.length + diff.deletes.length;
     // Suppress the no-op: 0 changes never toasts a fake "0 changes saved" success — it reports an
@@ -285,10 +289,13 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
       return;
     }
     saveWeek.mutate(
-      { currentTimesheetId: currentTimesheet?.id ?? null, weekStartDate: weekStartString, diff },
+      { currentTimesheetId, weekStartDate: weekStartString, diff },
       {
         // Quiet success toast; the user stays on the editable grid (no view/navigation change).
-        onSuccess: () => toast(...saveToastForChangeCount(changeCount)),
+        onSuccess: (sheetId) => {
+          savedSheetIds.current.set(weekStartString, sheetId);
+          toast(...saveToastForChangeCount(changeCount));
+        },
         onError: (err: { message: string }) =>
           toast(t('timesheets.toast.saveFailed', 'Save failed'), err.message, 'warning'),
       }
@@ -400,14 +407,14 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
     // `submit.mutate` is fire-and-forget, so the ref must stay held until that mutation settles.
     if (submittingRef.current) return;
     submittingRef.current = true;
-    let sheetId = currentTimesheet?.id ?? null;
+    let sheetId = currentTimesheet?.id ?? savedSheetIds.current.get(weekStartString) ?? null;
 
     // Compute the diff to detect dirty state (mirrors commitSave logic).
     const diff = diffEntries(
       editRows,
       weekDateStrings,
       serverEntriesForDiff,
-      currentTimesheet?.id ?? '',
+      sheetId ?? '',
     );
     const changeCount = diff.upserts.length + diff.deletes.length;
 
@@ -415,10 +422,11 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
       // Dirty + valid: auto-save first, get the resolved sheet id.
       try {
         sheetId = await saveWeek.mutateAsync({
-          currentTimesheetId: currentTimesheet?.id ?? null,
+          currentTimesheetId: sheetId,
           weekStartDate: weekStartString,
           diff,
         });
+        savedSheetIds.current.set(weekStartString, sheetId);
       } catch (err: unknown) {
         // Auto-save failed — don't attempt the submit; surface the error.
         submittingRef.current = false;
