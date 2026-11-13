@@ -124,7 +124,8 @@
     "limitHint": "Above the procurement limit ({{limit}}): site cash will refuse this. Raise it as a procurement request.",
     "linkFailed": "Saved, but not charged to the site float",
     "noFloat": "Not charged to a float",
-    "remainingHint": "Remaining this month for this category: {{amount}}."
+    "remainingHint": "Remaining this month for this category: {{amount}}.",
+    "unknownCurrency": "Unknown"
   },
   "list": {
     "columns": {
