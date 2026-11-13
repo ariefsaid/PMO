@@ -103,13 +103,21 @@ beforeEach(() => {
 
 describe('Companies floor controls', () => {
   it('floor: Export fetches and captures the matching directory workbook', async () => {
+    const matches = Array.from({ length: 55 }, (_, index) => ({
+      ...seed[0],
+      id: `atlas-${index + 1}`,
+      name: `Atlas Project Services ${index + 1}`,
+    }));
+    h.directory = [...matches, seed[1], seed[2]];
+    h.exportAll.mockResolvedValue(matches);
     renderPage('Admin', '/companies?type=Client&q=Atlas');
     await userEvent.click(screen.getByRole('button', { name: /^export$/i }));
 
     await waitFor(() => expect(h.exportAll).toHaveBeenCalledWith({ type: 'Client', search: 'Atlas' }));
     await waitFor(() => expect(h.exportXlsx).toHaveBeenCalledOnce());
     const [rows, columns, entity] = h.exportXlsx.mock.calls[0];
-    expect(rows).toEqual(seed);
+    expect(rows).toEqual(matches);
+    expect(rows).toHaveLength(55);
     expect(columns.map((column: { key: string }) => column.key)).toEqual(['name', 'type']);
     expect(entity).toBe('Companies');
   });
