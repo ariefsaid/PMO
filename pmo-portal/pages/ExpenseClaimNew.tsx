@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, FormFooter, FormGrid, FormSection, GateNotice, PageHeader, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
+import { Button, FormFooter, FormGrid, FormSection, GateNotice, NumberField, PageHeader, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useExpenseClaims } from '@/src/hooks/useExpenseClaims';
@@ -195,15 +195,15 @@ const ExpenseClaimNew: React.FC = () => {
                 <TextField label={t('expenses.lines.date', 'Date')} required error={submitted && lineStarted(line) && !line.date ? t('expenseClaims:new.required', 'Required') : undefined} type="date" value={line.date} onChange={(value) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, date: value } : row))} />
                 <SelectField label={t('expenses.lines.type', 'Type')} required error={submitted && lineStarted(line) && !line.type ? t('expenseClaims:new.required', 'Required') : undefined} value={line.type} onChange={(value) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, type: value } : row))} options={[{ value: '', label: t('uxs29.expenseCapture.expenseTypePlaceholder', 'Choose a type') }, ...Constants.public.Enums.expense_type.map((value) => ({ value, label: expenseTypeLabel(value, t) }))]} />
                 <TextField label={t('expenses.lines.description', 'Description')} required error={submitted && lineStarted(line) && !line.description.trim() ? t('expenseClaims:new.required', 'Required') : undefined} value={line.description} onChange={(value) => { setLines((rows) => rows.map((row, i) => i === index ? { ...row, description: value } : row)); if (index === 0 && !titleEdited) setTitle(value); }} fullWidth />
-                <TextField
+                <NumberField
                   label={t('expenses.lines.amount', 'Amount')}
+                  prefix={orgCurrency.isResolved ? currency : unknownCurrency}
                   required
                   error={submitted && lineStarted(line) && !(amount !== null && amount > 0)
                     ? line.amount.trim()
                       ? t('expenseClaims:new.amountInvalid', 'Enter an amount greater than zero.')
                       : t('expenseClaims:new.required', 'Required')
                     : undefined}
-                  inputMode="decimal"
                   value={line.amount}
                   onChange={(value) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, amount: value } : row))}
                 />
