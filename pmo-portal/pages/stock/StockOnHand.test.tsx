@@ -101,13 +101,30 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     expect(cells).toEqual(expect.arrayContaining([expect.stringContaining('SITE-A'), expect.stringContaining('SITE-B')]));
   });
 
-  it('a compact figure line carries the counts and the total of the Value column', async () => {
+  it('keeps the item and warehouse counts visible beside a separate Value figure', async () => {
     reports.onHand.mockResolvedValue([{ ...row, valueOnHand: '3500.00' }, { ...row, itemId: 'i2', itemCode: 'CAB', valueOnHand: '500.50' }]);
     renderPage();
     await screen.findByText('CEM');
-    const line = screen.getByText('Items').closest('p')!;
-    expect(line).toHaveTextContent(/2\s*Items/);
-    expect(line).toHaveTextContent(/4,000/);
+    const counts = screen.getByText('Items').closest('p')!;
+    expect(counts).toHaveTextContent(/2\s*Items/);
+    expect(counts).toHaveTextContent(/1\s*Warehouses/);
+    expect(counts).toHaveTextContent(/2\s*Site balances/);
+    expect(counts).not.toHaveTextContent('Value');
+    const figure = screen.getByRole('figure');
+    expect(figure).toHaveTextContent('Value');
+    expect(figure).toHaveTextContent(/4,000/);
+  });
+
+  it('labels Value as the shown balances when a filter narrows the rows', async () => {
+    reports.onHand.mockResolvedValue([
+      { ...row, valueOnHand: '3500.00' },
+      { ...row, itemId: 'i2', itemCode: 'CAB', itemName: 'Cable 4mm', valueOnHand: '500.50' },
+    ]);
+    renderPage();
+    await screen.findByText('CEM');
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search items' }), 'cable');
+    expect(await screen.findByText('Value of shown balances')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/Showing 1 of 2 balances/);
   });
 
   it('AC-STK-032 empty: no stock yet', async () => {
