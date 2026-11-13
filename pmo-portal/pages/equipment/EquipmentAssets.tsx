@@ -131,7 +131,7 @@ const EquipmentAssetsPage: React.FC = () => {
             onLoadMore={() => void fetchNextPage()}
             loadMoreLabel={t('equipment:assets.loadMore', 'Load more')}
             state={rows.length === 0 ? 'empty' : undefined}
-            emptyTitle={t('equipment:assets.empty', 'No equipment yet')}
+            emptyTitle={t('equipment:assets.empty', 'No assets yet')}
             emptySub={t('equipment:assets.emptySub', 'An Admin or Project Manager adds the machines so crews can log their hours.')} />
         </>
       )}

@@ -136,7 +136,7 @@ describe('/equipment/assets list (S6.4)', () => {
     b.unmount();
     h.assetPages = { data: { pages: [{ rows: [], truncated: false }] }, total: 0, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
     renderPage();
-    expect(screen.getByText('No equipment yet')).toBeInTheDocument();
+    expect(screen.getByText('No assets yet')).toBeInTheDocument();
   });
 
   it('AC-EQU-017 activating a row opens that asset record', async () => {
