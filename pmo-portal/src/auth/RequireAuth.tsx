@@ -1,16 +1,18 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { useAuth } from './useAuth';
 import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
 import { ListState } from '../components/ui/ListState';
+import { Icon } from '../components/ui/icons';
 import { returnToState } from './returnTo';
 
 // -----------------------------------------------------------------------
 // RequireAuth — DESIGN.md token-pure reskin (IA-3 / RIS identity)
 // No gray-* / dark: / primary-NNN utilities.
 // Loading → page-shaped skeleton on tinted ground (never a bare spinner).
-// profileErrorKind='load_error' → tinted destructive banner with retry (unchanged).
+// profileErrorKind='load_error' → tinted destructive banner with retry and Sign out.
 // profileErrorKind='not_provisioned' → calm "not set up yet" card + Sign out
 // (Retry can't help — there's no profiles row for a Retry to find). AC-MSAUTH-010/011.
 // -----------------------------------------------------------------------
@@ -32,34 +34,64 @@ const AuthLoading: React.FC = () => (
   </div>
 );
 
-/** Full-page profile-error state — destructive tinted banner + retry */
-const ProfileErrorPage: React.FC<{ message: string }> = ({ message }) => (
-  <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
-    <div className="w-full max-w-sm rounded-lg border border-destructive/30 bg-destructive/[0.07] p-5">
-      <p
-        className="text-[14px] font-semibold"
-        style={{ color: 'hsl(0 72% 42%)' }}
+const SignOutButton: React.FC<{ className?: string }> = ({ className }) => {
+  const { signOut } = useAuth();
+  const { t } = useTranslation();
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className={className}
+      onClick={() => void signOut()}
+    >
+      {t('shell.contextBar.signOut', 'Sign out')}
+    </Button>
+  );
+};
+
+/**
+ * Full-page profile error — retry the failed profile read through the shared auth context.
+ *
+ * The body is FIXED recovery copy, never the raw read error: `TypeError: Failed to fetch` told a
+ * user nothing they could act on, and it leaked the failure's English internals into both locales.
+ * The technical message is logged where the read fails (`AuthProvider`), not rendered.
+ * Keep this composition local: ListState's error variant does not expose a busy retry and second action.
+ */
+const ProfileErrorPage: React.FC<{ onRetry: () => void; retrying: boolean }> = ({ onRetry, retrying }) => {
+  const { t } = useTranslation();
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
+      <div
         role="alert"
         aria-live="assertive"
+        className="w-full max-w-sm rounded-lg border border-destructive/30 bg-destructive/[0.07] px-4 py-3.5"
       >
-        Unable to load your profile.
-      </p>
-      <p className="mt-1 text-[12.5px] text-muted-foreground">{message}</p>
-      <Button
-        variant="outline"
-        size="sm"
-        className="mt-4"
-        onClick={() => window.location.reload()}
-      >
-        Retry
-      </Button>
+        <div className="flex items-start gap-3">
+          <Icon name="alert" className="size-5 shrink-0 text-destructive" />
+          <div className="min-w-0 flex-1">
+            <h1 className="text-control font-semibold text-destructive-text">
+              {t('auth:profileLoadError.title', 'Unable to load your profile.')}
+            </h1>
+            <p className="mt-px text-control text-muted-foreground">
+              {t('auth:profileLoadError.body', 'Check your connection and try again.')}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 flex justify-end gap-2">
+          <Button type="button" variant="outline" size="sm" loading={retrying} onClick={onRetry}>
+            <Icon name="refresh" />
+            {t('ui.listState.retry', 'Retry')}
+          </Button>
+          <SignOutButton />
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 /** Full-page not-provisioned state — the session is valid but no profiles row exists yet. */
 const NotProvisionedPage: React.FC = () => {
-  const { signOut } = useAuth();
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
       <div className="w-full max-w-sm">
@@ -71,15 +103,7 @@ const NotProvisionedPage: React.FC = () => {
             <p className="text-[13px] text-muted-foreground">
               Ask your administrator to invite you, then sign in again.
             </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-1"
-              onClick={() => void signOut()}
-            >
-              Sign out
-            </Button>
+            <SignOutButton className="mt-1" />
           </CardPad>
         </Card>
       </div>
@@ -88,14 +112,28 @@ const NotProvisionedPage: React.FC = () => {
 };
 
 export const RequireAuth: React.FC = () => {
-  const { session, loading, profileError, profileErrorKind } = useAuth();
+  const { session, loading, profileError, profileErrorKind, refreshCurrentUser } = useAuth();
   const location = useLocation();
+  const [retrying, setRetrying] = useState(false);
+  const retryInFlightRef = useRef(false);
+
+  const retryProfile = async () => {
+    if (retryInFlightRef.current) return;
+    retryInFlightRef.current = true;
+    setRetrying(true);
+    try {
+      await refreshCurrentUser();
+    } finally {
+      retryInFlightRef.current = false;
+      setRetrying(false);
+    }
+  };
 
   if (loading) return <AuthLoading />;
   // AC-CLI-012: carry the page being visited so sign-in can return to it (router state, not URL).
   if (!session) return <Navigate to="/login" replace state={returnToState(location)} />;
   if (profileErrorKind === 'not_provisioned') return <NotProvisionedPage />;
-  if (profileError) return <ProfileErrorPage message={profileError} />;
+  if (profileError) return <ProfileErrorPage onRetry={() => { void retryProfile(); }} retrying={retrying} />;
 
   return <Outlet />;
 };

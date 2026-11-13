@@ -532,7 +532,10 @@ function EventCalendarMonthWeek({
           role="gridcell"
           data-slot="event-calendar-month-bar-overlay"
           className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 z-10 grid pt-1.5",
+            // pt-8 (2rem) clears the day-number row at the top of every cell (1.625rem) plus the
+            // cell content's own 0.375rem top padding, so a bar lines up with the chips beneath
+            // the day number instead of covering it.
+            "pointer-events-none absolute inset-x-0 top-0 z-10 grid pt-8",
             viewConfig.classNames?.monthBarOverlay
           )}
           style={{
@@ -876,6 +879,54 @@ function EventCalendarMonthCell({
 
   const defaultContent = (
     <>
+      {/* Day number + add affordance, top-left: position and the reading order agree, so the day
+          is the first thing met in a cell (the chips paint below it). */}
+      <div
+        className={cn(
+          "flex shrink-0 items-center justify-start gap-1 px-2 pt-1.5",
+          viewConfig.classNames?.monthCellFooter
+        )}
+      >
+        {viewConfig.showDayAddButton && !isInteracting && (
+          <button
+            type="button"
+            data-slot="event-calendar-day-add"
+            aria-label={settings.i18n.labels.addEvent}
+            // a different icon/markup is a renderMonthCell job
+            className={cn(
+              "bg-primary text-primary-foreground flex size-5 cursor-pointer items-center justify-center rounded-sm opacity-0 transition-opacity group-hover/ec-cell:opacity-100 focus-visible:opacity-100",
+              viewConfig.classNames?.dayAddButton
+            )}
+            onClick={(e) => {
+              e.stopPropagation()
+              settings.onSlotClick?.(
+                { date: day, allDay: true, view: "month" },
+                e
+              )
+            }}
+          >
+            <PlusIcon className="size-3.5" aria-hidden="true" />
+          </button>
+        )}
+        <span
+          data-slot="event-calendar-month-day-number"
+          aria-current={isToday ? "date" : undefined}
+          className={cn(
+            "flex size-5 items-center justify-center rounded-full",
+            isOutside && "text-muted-foreground",
+            // Today is a RING around the number, not a filled dot: the digits keep the same size
+            // and weight as every other day so the marker never reads as a bigger figure.
+            isToday && "font-semibold ring-2 ring-primary",
+            viewConfig.classNames?.monthDayNumber
+          )}
+        >
+          {format(
+            toZoned(day, settings.timeZone),
+            settings.i18n.formats.monthCellDay,
+            { locale: settings.locale }
+          )}
+        </span>
+      </div>
       <div
         ref={contentRef}
         className={cn(
@@ -943,55 +994,6 @@ function EventCalendarMonthCell({
           />
         )}
       </div>
-      {/* Day number + add affordance, bottom-right (Notion-style) */}
-      <div
-        className={cn(
-          "flex items-center justify-end gap-1 px-2 pb-1.5",
-          viewConfig.classNames?.monthCellFooter
-        )}
-      >
-        {viewConfig.showDayAddButton && !isInteracting && (
-          <button
-            type="button"
-            data-slot="event-calendar-day-add"
-            aria-label={settings.i18n.labels.addEvent}
-            // a different icon/markup is a renderMonthCell job
-            className={cn(
-              "bg-primary text-primary-foreground flex size-5 cursor-pointer items-center justify-center rounded-sm opacity-0 transition-opacity group-hover/ec-cell:opacity-100 focus-visible:opacity-100",
-              viewConfig.classNames?.dayAddButton
-            )}
-            onClick={(e) => {
-              e.stopPropagation()
-              settings.onSlotClick?.(
-                { date: day, allDay: true, view: "month" },
-                e
-              )
-            }}
-          >
-            <PlusIcon className="size-3.5" aria-hidden="true" />
-          </button>
-        )}
-        <span
-          data-slot="event-calendar-month-day-number"
-          className={cn(
-            "flex size-5 items-center justify-center rounded-full",
-            isOutside && "text-muted-foreground",
-            // the filled circle already marks today; keep the number the same
-            // weight/size as the other days so it does not read as larger
-            // Same font-size as every other day; a lighter weight cancels the
-            // way white digits on the filled circle read bolder/larger than the
-            // dark-on-light numbers around them.
-            isToday && "bg-primary text-primary-foreground font-light",
-            viewConfig.classNames?.monthDayNumber
-          )}
-        >
-          {format(
-            toZoned(day, settings.timeZone),
-            settings.i18n.formats.monthCellDay,
-            { locale: settings.locale }
-          )}
-        </span>
-      </div>
     </>
   )
 
@@ -1031,11 +1033,9 @@ function EventCalendarMonthCell({
         !isLast && "border-e",
         isOutside && !settings.showOutsideDays && "invisible",
         isOff && offClassName,
-        isToday &&
-          cn(
-            "bg-primary/3 border-b-primary/40 relative border-b-2",
-            viewConfig.todayClassName
-          ),
+        // Today is marked ON its day number (a ring): one marker, on the figure the eye already
+        // reads, instead of a cell tint plus a bar drawn over the cell's own bottom border.
+        isToday && viewConfig.todayClassName,
         viewConfig.dayClassName?.(day),
         // No drop-target bg fill on move/resize - the dragged bar + not-allowed
         // cursor carry the feedback; a cell-wide color wash is too distracting.

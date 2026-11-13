@@ -1111,6 +1111,7 @@
         "sub": "The request failed. Try again.",
         "title": "Couldn't load activity"
       },
+      "date": "Date",
       "logAction": "Log activity",
       "notes": "Notes",
       "notesPlaceholder": "What was discussed?",
@@ -1148,7 +1149,6 @@
       "email": "Email",
       "notes": "Notes",
       "phone": "Phone",
-      "title": "Title",
       "companyUnavailable": "This company is not in your company directory.",
       "companyArchived": "Archived"
     },
@@ -1160,7 +1160,6 @@
       "sub": "This contact either doesn't exist or isn't visible to you. Return to the directory to find them.",
       "title": "Contact not found"
     },
-    "pill": "Contact",
     "pillArchived": "Archived",
     "sectionTitle": "Contact detail",
     "toast": {
@@ -1185,11 +1184,12 @@
     "columns": {
       "company": "Company",
       "email": "Email",
-      "name": "Name"
+      "name": "Name",
+      "phone": "Phone"
     },
     "confirm": {
       "archiveConfirm": "Archive contact",
-      "archiveDescription": "They will be hidden from the default list. Existing activity stays intact. You can restore them any time.",
+      "archiveDescription": "They will be hidden from the default list. Existing activity stays intact.",
       "archiveTitle": "Archive contact?",
       "deleteConfirm": "Delete contact",
       "deleteDescription": "This permanently removes the contact and all of their logged activity. This cannot be undone. Archive instead to keep the history.",
@@ -1197,7 +1197,10 @@
     },
     "filters": {
       "allCompanies": "All companies",
+      "clear": "Clear all",
       "companyLabel": "Filter by company",
+      "companyNoun": "company",
+      "companyNounPlural": "companies",
       "unavailableCompany": "Unavailable company"
     },
     "form": {
@@ -1830,7 +1833,6 @@
     "noSearchResults": "No tasks match your search",
     "noTasksInView": "No tasks in this view",
     "start": "Start {{date}}",
-    "title": "Tasks",
     "archived": "Archived",
     "priority": {
       "urgent": "Priority: Urgent",

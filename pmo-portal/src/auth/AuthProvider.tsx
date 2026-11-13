@@ -29,7 +29,14 @@ async function loadProfile(userId: string): Promise<ProfileResult> {
   // org, a role change or a locale edit arrives exactly that way. A cached read here silently
   // pins the session to the profile that was loaded first.
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
-  if (error) return { profile: null, error: error.message, errorKind: classifyProfileError(error) };
+  if (error) {
+    const errorKind = classifyProfileError(error);
+    // The raw message is for the console/error log ONLY — the screen's recovery copy is fixed and
+    // localised (see RequireAuth's ProfileErrorPage). "TypeError: Failed to fetch" is not a sentence
+    // a user can act on, and it used to be rendered verbatim in both locales.
+    if (errorKind === 'load_error') console.error('[auth] profile read failed', error);
+    return { profile: null, error: error.message, errorKind };
+  }
   return { profile: data, error: null, errorKind: null };
 }
 
@@ -213,7 +220,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: 'Profile refresh was superseded' };
       }
       if (result.error) {
-        // Preserve the previously usable profile; surface the read error to the caller.
+        if (profileError !== null) {
+          setProfileError(result.error);
+          setProfileErrorKind(result.errorKind);
+          if (result.errorKind === 'not_provisioned') setCurrentUser(null);
+        }
+        // An ordinary refresh preserves its usable profile and surfaces the error to its caller.
         return { error: result.error };
       }
       syncOrgScope(orgIdRef, result.profile?.org_id ?? null);
@@ -227,7 +239,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       manualRefreshesRef.current -= 1;
     }
-  }, []);
+  }, [profileError]);
 
   const value = useMemo(
     () => ({

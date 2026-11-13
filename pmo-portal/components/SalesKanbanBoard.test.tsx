@@ -109,6 +109,12 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     }
   });
 
+  it('opts the seven-stage sales board into viewport-fit columns', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+
+    expect(screen.getByLabelText('Sales pipeline board')).toHaveAttribute('data-fit-columns', 'true');
+  });
+
   it('floor #31: tapping a stage indicator scrolls its stage into view', async () => {
     const scrollTo = vi.fn();
     Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
