@@ -98,7 +98,12 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                 ...(overdueDays !== null ? [{ label: t('uxs17.overdue', 'Overdue'), value: t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays }) }] : []),
               ]}
             />
-            {timeline && <LifecycleStepper variant="bar" steps={timeline} aria-label={t('finance:invoiceTimeline.label', 'Invoice status timeline')} className="mb-5" />}
+            {timeline && <LifecycleStepper
+              variant="bar"
+              steps={timeline}
+              aria-label={t('finance:invoiceTimeline.label', 'Invoice status timeline')}
+              className="mb-5 [&_[data-testid=stepper-scroll-container]>[role=list]]:gap-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep>span:first-child]:rounded-none [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:first-child>span:first-child]:rounded-l-full [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:last-child>span:first-child]:rounded-r-full sm:[&_[data-testid=stepper-fade]]:hidden"
+            />}
             {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
               <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
                 <div>
