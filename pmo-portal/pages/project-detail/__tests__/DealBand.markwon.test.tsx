@@ -62,6 +62,7 @@ vi.mock('@/src/lib/repositories', async (orig) => {
 const CONTRACT_VALUE = 1200000;
 
 const pipelineState = {
+  refetch: vi.fn().mockResolvedValue(undefined),
   data: {
     stages: [],
     projects: [
