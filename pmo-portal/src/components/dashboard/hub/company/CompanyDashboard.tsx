@@ -20,6 +20,7 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
+import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useCompanyFigures } from '@/src/components/dashboard/restructure/useCompanyFigures';
 import { useNeedsYou } from '@/src/components/dashboard/restructure/useNeedsYou';
@@ -79,6 +80,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const finance = role === 'Finance';
   const unpaidOf = useSupplierUnpaid(finance);
   const financePosition = useFinancePosition(finance, { withRoutes: true });
+  // Same query key as the figure hooks, so no extra request; present so Retry can re-run it.
+  const erpPurchases = useErpPurchases();
   const [refreshToken, setRefreshToken] = React.useState(0);
   const todayFigure = (id: string) => figures.today.find((figure) => figure.id === id);
   const { period } = periodState;
@@ -130,6 +133,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     figures.todayRetry(); figures.periodRetry(); figures.dashboardRetry(); figures.pipelineRetry(); needs.refetch();
     void procurements.refetch(); void budgetReview.refetch(); void projects.refetch();
     if (finance) void financePosition.retry();
+    void erpPurchases.refetch();
     if (attention.length > 0) void healthDelivery.refetch();
     figures.trendRetry();
     setRefreshToken((current) => current + 1);
@@ -169,7 +173,10 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const label = opts.label ?? figure.label;
     const caption = opts.caption ?? (typeof figure.subline === 'string' ? figure.subline : undefined);
     // A1/A4: a tile waits on (and fails with) the one read it is made of; a failed read says so, never blank, never 0.
-    const status = figures.figureStatus(figure.id);
+    const figureStatus = figures.figureStatus(figure.id);
+    const status = figure.id === 'supplier-payables' && erpPurchases.isError
+      ? { ...figureStatus, error: true, retry: () => { figureStatus.retry?.(); void erpPurchases.refetch(); } }
+      : figureStatus;
     if (status.error) {
       return (
         <div key={figure.id} data-testid={`figure-error-${figure.id}`} className="flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4">
@@ -352,8 +359,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const financesCard = (
       <FinancesCard className={cn(half, 'max-[899px]:order-5')} currency={orgCurrency}
         receivables={figures.receivables} receivablesPending={figures.receivablesPending} receivablesError={figures.receivablesError}
-        payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError}
-        retry={() => { figures.todayRetry(); figures.periodRetry(); }}
+        payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError || erpPurchases.isError}
+        retry={() => { figures.todayRetry(); figures.periodRetry(); void erpPurchases.refetch(); }}
         chart={<InvoicedCollectedCard embedded chartHeight={188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />}
         leftToBill={{ rows: figures.leftToBillByProject, pending: figures.figureStatus('left-to-bill').pending, error: figures.figureStatus('left-to-bill').error }} />
     );
