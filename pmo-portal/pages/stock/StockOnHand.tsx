@@ -231,8 +231,9 @@ const StockOnHand: React.FC = () => {
           rowKey={(r) => `${r.itemId}:${r.warehouseId}`}
           tableId="stock-on-hand"
           accessibleName={t('onHand.title')}
-          // A balance is one line of identity and one line of figures on a phone — not a five-line
-          // card per balance. Every fact of the row stays: code, name, store, quantity with its unit, value.
+          // F12: a compact card may not drop a fact. Every cell the table carries keeps its label here —
+          // Warehouse, On hand, and (only for a reader the server sends cost to) Average cost and Value —
+          // laid out as a tight two-column list so the card stays short without losing a line.
           mobileCardTitle={(r) => (
             <div className="min-w-0">
               <span className="block font-mono text-sm font-semibold">{r.itemCode}</span>
@@ -240,20 +241,26 @@ const StockOnHand: React.FC = () => {
             </div>
           )}
           mobileCardDetails={(r) => (
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
-              <span className="min-w-0">
-                <span className="text-muted-foreground">{t('onHand.columns.warehouse')} </span>
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 text-control">
+              <dt className="text-muted-foreground">{t('onHand.columns.warehouse')}</dt>
+              <dd className="min-w-0">
                 {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="font-mono text-muted-foreground"> · {r.warehouseCode}</span>}
-              </span>
-              <span className="tabular-nums font-semibold">
+              </dd>
+              <dt className="text-muted-foreground">{t('onHand.columns.quantity')}</dt>
+              <dd className="tabular-nums font-semibold">
                 {formatQuantity(r.qtyOnHand, loc)} <span className="font-normal text-muted-foreground">{r.unitCode}</span>
-              </span>
+              </dd>
               {showCost && (
-                <span className="tabular-nums text-muted-foreground">
-                  {t('onHand.columns.value')} {formatStockValue(r.valueOnHand, currency, loc)}
-                </span>
+                <>
+                  {/* Average cost is blank for a zero balance (the read computes it only above zero): the
+                      shared empty marker says "not known", never a fabricated 0. */}
+                  <dt className="text-muted-foreground">{t('onHand.columns.avgCost')}</dt>
+                  <dd className="tabular-nums">{formatStockValue(r.avgCost, currency, loc) || <span className="text-muted-foreground">—</span>}</dd>
+                  <dt className="text-muted-foreground">{t('onHand.columns.value')}</dt>
+                  <dd className="tabular-nums">{formatStockValue(r.valueOnHand, currency, loc) || <span className="text-muted-foreground">—</span>}</dd>
+                </>
               )}
-            </div>
+            </dl>
           )}
         />
       )}
