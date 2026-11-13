@@ -335,7 +335,9 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await user.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    const fuel = screen.getByRole('textbox', { name: `Loader 1 · EQU P1 · ${day('2026-09-10')}, fuel litres` });
+    // Fuel and trips attach to an entry that already exists: a day with no entry is locked (the grid's own rule).
+    expect(screen.getByRole('textbox', { name: `Loader 1 · EQU P1 · ${day('2026-09-10')}, fuel litres` })).toBeDisabled();
+    const fuel = screen.getByRole('textbox', { name: `Loader 1 · EQU P1 · ${day('2026-09-08')}, fuel litres` });
     await user.type(fuel, '12{Enter}');
     await waitFor(() => expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'e1', fuel_litres: 12 })));
   });
@@ -409,10 +411,19 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
 
   it('AC-EQU-017 each day column is headed with the weekday and the day number', () => {
     renderPage();
-    const heads = screen.getAllByRole('columnheader').map((c) => c.textContent?.trim());
-    for (const head of ['Mon 7', 'Tue 8', 'Wed 9', 'Thu 10', 'Fri 11', 'Sat 12', 'Sun 13']) {
-      expect(heads).toContain(head);
-    }
+    // The suite pins locale `en` (en-US), where `formatWeekdayDay` renders the day BEFORE the weekday
+    // ("7 Mon"), so this asserts the seven day columns, in week order, each carrying its weekday and its
+    // day number — not the word order, which belongs to the viewer's locale.
+    const dayHeads = screen.getAllByRole('columnheader')
+      .map((c) => (c.textContent ?? '').trim())
+      .filter((h) => /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/.test(h));
+    expect(dayHeads).toHaveLength(7);
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const dates = ['7', '8', '9', '10', '11', '12', '13'];
+    weekdays.forEach((weekday, i) => {
+      expect(dayHeads[i]).toContain(weekday);
+      expect(dayHeads[i]).toMatch(new RegExp(`(^|\\D)${dates[i]}(\\D|$)`));
+    });
   });
 
   it('AC-EQU-017 the grid is keyboard operable', async () => {
