@@ -1,12 +1,13 @@
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { ownershipMock } from '@/test/domainOwnershipMock';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { firstInstantOfZonedCalendarDay, formatDay } from '@/src/lib/format';
 
 // ── The single-contact hook + activities + mutations + the companies list are mocked. ──
 const { detailState, activitiesState, mutations, companiesState, companyRefState } = vi.hoisted(() => ({
@@ -33,6 +34,9 @@ const { detailState, activitiesState, mutations, companiesState, companyRefState
   },
   companiesState: {
     data: [{ id: 'co1', name: 'Cascade Port Authority', type: 'Client' }],
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
   },
   companyRefState: {
     data: undefined as Record<string, unknown> | null | undefined,
@@ -40,8 +44,30 @@ const { detailState, activitiesState, mutations, companiesState, companyRefState
     isError: false,
   },
 }));
+const permissionOverrides = vi.hoisted(() => ({
+  contactView: null as boolean | null,
+  contactActivityCreate: null as boolean | null,
+}));
 
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/auth/usePermission', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/auth/usePermission')>();
+  return {
+    ...actual,
+    usePermission: () => {
+      const may = actual.usePermission();
+      return (action: Parameters<typeof may>[0], entity: Parameters<typeof may>[1], context?: Parameters<typeof may>[2]) => {
+        if (action === 'view' && entity === 'contact' && permissionOverrides.contactView !== null) {
+          return permissionOverrides.contactView;
+        }
+        if (action === 'create' && entity === 'contactActivity' && permissionOverrides.contactActivityCreate !== null) {
+          return permissionOverrides.contactActivityCreate;
+        }
+        return may(action, entity, context);
+      };
+    },
+  };
+});
 
 vi.mock('@/src/hooks/useContacts', () => ({
   useContact: () => detailState,
@@ -130,7 +156,13 @@ const renderPageWithReturnContext = (role: Role = 'Admin') => {
   );
 };
 
+const openRecordActions = async () => {
+  await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+};
+
 beforeEach(() => {
+  permissionOverrides.contactView = null;
+  permissionOverrides.contactActivityCreate = null;
   ownershipMock.override = null;
   ownershipMock.retry.mockClear();
   clearOwnershipCache();
@@ -138,6 +170,9 @@ beforeEach(() => {
   detailState.isPending = false;
   detailState.isError = false;
   companiesState.data = [{ id: 'co1', name: 'Cascade Port Authority', type: 'Client' }];
+  companiesState.isPending = false;
+  companiesState.isError = false;
+  companiesState.refetch.mockClear();
   companyRefState.data = undefined;
   companyRefState.isPending = false;
   companyRefState.isError = false;
@@ -160,25 +195,44 @@ describe('ContactDetail', () => {
     expect(ownershipMock.retry).toHaveBeenCalled();
   });
 
-  it('CW-4b: renders the shared RecordHeader with the contact name + the categorical pill, and its fields', () => {
+  it('renders the contact name and all key contact facts in the record header', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
     expect(within(header).getByText('Jane Doe')).toBeInTheDocument();
-    expect(within(header).getByText('Contact')).toBeInTheDocument();
-    // Body fields are present.
-    expect(screen.getByText('Cascade Port Authority')).toBeInTheDocument();
-    expect(screen.getByText('jane@example.com')).toBeInTheDocument();
+    expect(within(header).queryByText('Contact')).not.toBeInTheDocument();
+    expect(within(header).getByText('Procurement Lead')).toBeInTheDocument();
+    expect(screen.getAllByText('Procurement Lead')).toHaveLength(1);
+    expect(within(header).getByText('Company')).toBeInTheDocument();
+    expect(within(header).getByText('Email')).toBeInTheDocument();
+    expect(within(header).getByText('Phone')).toBeInTheDocument();
+    expect(within(header).getByRole('link', { name: 'Cascade Port Authority' })).toBeInTheDocument();
+    expect(within(header).getByRole('link', { name: 'jane@example.com' })).toHaveAttribute('href', 'mailto:jane@example.com');
+    expect(within(header).getByRole('link', { name: '+1 555 010 0000' })).toHaveAttribute('href', 'tel:+15550100000');
+    expect(screen.getByText('Key contact')).toBeInTheDocument();
   });
 
-  it('C2 ContactDetail.tsx:186-201 makes Edit primary while retaining the confirmed Archive action', async () => {
+  it('keeps the title fact visible when the contact has no title value', () => {
+    detailState.data = { ...contact, title: null };
+    renderPage();
+    expect(within(screen.getByTestId('record-header')).getByText('—')).toBeInTheDocument();
+  });
+
+  it('C2 puts Log activity in the header and Edit and Archive in the action menu', async () => {
     renderPage();
     const header = screen.getByTestId('record-header');
-    expect(within(header).getByRole('button', { name: /^edit$/i }).className).toContain('bg-primary');
-    expect(within(header).getByRole('button', { name: /^archive$/i })).toBeInTheDocument();
-    expect(within(header).getAllByRole('button').map((button) => button.textContent)).toEqual(['Edit', 'Archive']);
-    await userEvent.click(within(header).getByRole('button', { name: /^archive$/i }));
-    const dialog = await screen.findByRole('dialog', { name: 'Archive Jane Doe?' });
-    expect(dialog).toHaveTextContent(/hidden from the default list/i);
+    expect(within(header).getByRole('button', { name: /log activity/i })).toBeInTheDocument();
+    await openRecordActions();
+    expect(screen.getByRole('menuitem', { name: /^edit$/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^archive$/i })).toBeInTheDocument();
+  });
+
+  it('hides Log activity when the viewer may see contacts but cannot create contact activities', () => {
+    permissionOverrides.contactView = true;
+    permissionOverrides.contactActivityCreate = false;
+    renderPage('Engineer');
+    expect(screen.getByRole('heading', { name: 'Jane Doe' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /log activity/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/subject/i)).not.toBeInTheDocument();
   });
 
   it('explains an unavailable company in visible text', () => {
@@ -261,34 +315,86 @@ describe('ContactDetail', () => {
     expect(activitiesState.refetch).toHaveBeenCalled();
   });
 
-  it('CW-4b: a manager can log an activity from the form on the page', async () => {
+  it('opens the activity form from the header and logs it on the selected date', async () => {
     renderPage('Admin');
+    expect(screen.queryByLabelText(/subject/i)).not.toBeInTheDocument();
+    await userEvent.click(within(screen.getByTestId('record-header')).getByRole('button', { name: /log activity/i }));
+    const date = '2026-06-14';
+    const dateField = screen.getByLabelText(/^date$/i);
+    fireEvent.change(dateField, { target: { value: date } });
+    await userEvent.selectOptions(screen.getByLabelText(/activity type/i), 'Email');
     const subject = screen.getByLabelText(/subject/i);
     await userEvent.type(subject, 'Followup');
-    await userEvent.click(screen.getByRole('button', { name: /log activity/i }));
-    expect(mutations.logActivity.mutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({ contact_id: 'ct1', subject: 'Followup' }),
-    );
+    await userEvent.type(screen.getByLabelText(/^notes$/i), 'Discussed next steps');
+    const form = subject.closest('form')!;
+    await userEvent.click(within(form).getByRole('button', { name: /log activity/i }));
+    const input = mutations.logActivity.mutateAsync.mock.calls[0][0];
+    expect(input).toEqual(expect.objectContaining({
+      contact_id: 'ct1',
+      kind: 'Email',
+      subject: 'Followup',
+      body: 'Discussed next steps',
+      occurred_at: firstInstantOfZonedCalendarDay(date)?.toISOString(),
+    }));
+    expect(formatDay(input.occurred_at)).toBe(formatDay(date));
+    expect(screen.queryByLabelText(/subject/i)).not.toBeInTheDocument();
   });
 
   it('CW-4b: a manager can open the edit modal from the header and save an update', async () => {
+    companiesState.data = [
+      { id: 'co1', name: 'Cascade Port Authority', type: 'Client' },
+      { id: 'co2', name: 'Keystone Systems', type: 'Client' },
+    ];
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    await openRecordActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^edit$/i }));
     const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
     const nameField = within(dialog).getByLabelText(/full name/i);
     await userEvent.clear(nameField);
     await userEvent.type(nameField, 'Jane Smith');
+    await userEvent.selectOptions(within(dialog).getByLabelText(/^company$/i), 'co2');
+    const titleField = within(dialog).getByLabelText(/^title$/i);
+    await userEvent.clear(titleField);
+    await userEvent.type(titleField, 'Account Lead');
+    const emailField = within(dialog).getByLabelText(/^email$/i);
+    await userEvent.clear(emailField);
+    await userEvent.type(emailField, 'jane.smith@example.com');
+    const phoneField = within(dialog).getByLabelText(/^phone$/i);
+    await userEvent.clear(phoneField);
+    await userEvent.type(phoneField, '+1 555 010 1234');
+    const notesField = within(dialog).getByLabelText(/^notes$/i);
+    await userEvent.clear(notesField);
+    await userEvent.type(notesField, 'Updated contact notes');
     await userEvent.click(within(dialog).getByRole('button', { name: /save contact/i }));
     expect(mutations.update.mutateAsync).toHaveBeenCalledWith({
       id: 'ct1',
-      input: expect.objectContaining({ full_name: 'Jane Smith' }),
+      input: {
+        full_name: 'Jane Smith',
+        company_id: 'co2',
+        title: 'Account Lead',
+        email: 'jane.smith@example.com',
+        phone: '+1 555 010 1234',
+        notes: 'Updated contact notes',
+      },
     });
+  });
+
+  it('retries company options from the edit form after the company directory fails', async () => {
+    companiesState.data = [];
+    companiesState.isError = true;
+    renderPage('Admin');
+    await openRecordActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^edit$/i }));
+    const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
+    await userEvent.click(within(dialog).getByRole('button', { name: /^retry$/i }));
+    expect(companiesState.refetch).toHaveBeenCalled();
   });
 
   it('keeps mirrored contact details read-only and enhancements editable', async () => {
     setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    await openRecordActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^edit$/i }));
     const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
     for (const label of [/full name/i, /^company/i, /^email/i, /^phone/i]) {
       expect(within(dialog).getByLabelText(label)).toBeDisabled();
@@ -300,7 +406,8 @@ describe('ContactDetail', () => {
 
   it('preserves unsaved contact identity edits when ownership changes', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    await openRecordActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^edit$/i }));
     const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
     const name = within(dialog).getByLabelText(/full name/i);
     await userEvent.clear(name);
@@ -311,6 +418,7 @@ describe('ContactDetail', () => {
 
   it('CW-4b: a manager can archive from the header (confirm-before-write)', async () => {
     renderPage('Admin');
+    await openRecordActions();
     await userEvent.click(screen.getByTestId('contact-archive'));
     const dialog = await screen.findByRole('dialog', { name: 'Archive Jane Doe?' });
     await userEvent.click(within(dialog).getByRole('button', { name: /archive contact/i }));
@@ -337,6 +445,7 @@ describe('ContactDetail — list-return context (AC-LRC-007)', () => {
 
   it('AC-LRC-007: archive-success also returns to the SAME filtered list context, not a bare reset', async () => {
     renderPageWithReturnContext();
+    await openRecordActions();
     await userEvent.click(screen.getByTestId('contact-archive'));
     const dialog = await screen.findByRole('dialog', { name: 'Archive Jane Doe?' });
     await userEvent.click(within(dialog).getByRole('button', { name: /archive contact/i }));
