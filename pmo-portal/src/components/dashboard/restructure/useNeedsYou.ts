@@ -26,6 +26,7 @@ import { formatTileMoney } from '@/src/lib/format';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { tileMoneyLines } from './currencyOrder';
 import { atRiskCount, projectRiskBasisKnown } from '../hub/pm/metrics';
+import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
 import { repositories } from '@/src/lib/repositories';
 import type { OverdueInvoiceFact } from '@/src/lib/db/revenue';
@@ -314,6 +315,12 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     enabled: Boolean(orgId && userId && role === 'Project Manager'),
   });
   const pmProjectIds = (pmProjectsQuery.data ?? []).map((project) => project.id);
+  const pmRiskProjectIds = (pmProjectsQuery.data ?? []).filter((project) =>
+    ON_HAND_STATUSES.includes(project.status) || INTERNAL_STATUSES.includes(project.status as never),
+  ).map((project) => project.id);
+  const pmBudgetPositionsQuery = useProjectBudgetPositions(role === 'Project Manager' ? pmRiskProjectIds : []);
+  // A disabled, empty-ID query remains pending by TanStack Query convention; it is not a pending read.
+  const pmBudgetPositionsPending = pmBudgetPositionsQuery.isPending && pmBudgetPositionsQuery.fetchStatus !== 'idle';
   // One batched read for every project's tasks (was one list per project).
   const projectTasks = useQuery({
     queryKey: ['pm-overdue-tasks', orgId, pmProjectIds],
@@ -383,9 +390,10 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const pmDeliveryProjects = useMemo(() => (pmProjectsQuery.data ?? []).filter((project) =>
     ON_HAND_STATUSES.includes(project.status) || INTERNAL_STATUSES.includes(project.status as never),
   ), [pmProjectsQuery.data]);
-  const pmAtRisk = useMemo(() => atRiskCount(pmDeliveryProjects), [pmDeliveryProjects]);
+  const pmBudgetPositions = useMemo(() => pmBudgetPositionsQuery.data ?? {}, [pmBudgetPositionsQuery.data]);
+  const pmAtRisk = useMemo(() => atRiskCount(pmDeliveryProjects, pmBudgetPositions), [pmBudgetPositions, pmDeliveryProjects]);
   const pmUnknownRiskCount = pmAtRisk === null
-    ? pmDeliveryProjects.filter((project) => !projectRiskBasisKnown(project)).length
+    ? pmDeliveryProjects.filter((project) => !projectRiskBasisKnown(pmBudgetPositions[project.id], project.currency)).length
     : undefined;
   const pmOverdueTaskCount = useMemo(() => selectOverdueTaskCount(projectTasks.data ?? [], organizationDay.day), [organizationDay.day, projectTasks.data]);
 
@@ -424,14 +432,14 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const needsPending = companyRole
     ? dashboardQuery.isPending || salesInvoiceQuery.isPending || (procurementApprovalRole && procurementsQuery.isPending) || workOrdersQuery.isPending || organizationDay.isPending || budgetReviewQuery.isPending || approvalSourcesPending || !invoiceNeeds && !salesInvoiceQuery.isError && !organizationDay.isError
     : role === 'Project Manager'
-      ? pmProjectsQuery.isPending || projectTasks.isPending || organizationDay.isPending || approvalSourcesPending
+      ? pmProjectsQuery.isPending || pmBudgetPositionsPending || projectTasks.isPending || organizationDay.isPending || approvalSourcesPending
       : role === 'Engineer'
         ? timesheetsQuery.isPending || myTasksQuery.isPending || expenseClaimsQuery.isPending || organizationDay.isPending
         : false;
   const needsError = companyRole
     ? dashboardQuery.isError || salesInvoiceQuery.isError || (procurementApprovalRole && procurementsQuery.isError) || workOrdersQuery.isError || organizationDay.isError || budgetReviewQuery.isError || approvalSourcesError
     : role === 'Project Manager'
-      ? pmProjectsQuery.isError || projectTasks.isError || organizationDay.isError || approvalSourcesError
+      ? pmProjectsQuery.isError || pmBudgetPositionsQuery.isError || projectTasks.isError || organizationDay.isError || approvalSourcesError
       : role === 'Engineer'
         ? timesheetsQuery.isError || myTasksQuery.isError || expenseClaimsQuery.isError || organizationDay.isError
         : false;
@@ -455,6 +463,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     void workOrdersQuery.refetch();
     void budgetReviewQuery.refetch();
     void pmProjectsQuery.refetch();
+    void pmBudgetPositionsQuery.refetch();
     void projectTasks.refetch();
     void timesheetsQuery.refetch();
     void myTasksQuery.refetch();

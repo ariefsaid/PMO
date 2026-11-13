@@ -5,6 +5,7 @@ import React, { useCallback, useLayoutEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, ProgressBar, Tooltip, useToast } from '@/src/components/ui';
+import { usePermission } from '@/src/auth/usePermission';
 import { BackBar } from '@/src/components/shell';
 import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
 import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
@@ -16,8 +17,10 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useProjectOverviewRead } from '@/src/hooks/useProjectOverviewRead';
+import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
 import { completionPct, formatDay, formatDayRange, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
+import { ProjectBudgetFigures } from './ProjectBudgetFigures';
 import DealBand from '../sales/DealBand';
 import StageHistory from './StageHistory';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
@@ -27,8 +30,10 @@ import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
 import { areaFromParam, type Area } from './projectDetailAreas';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
-const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures: boolean }> = ({ project, showBudgetFigures }) => {
   const { t } = useTranslation('project');
+  const may = usePermission();
+  const canViewBudgetFigures = may('view', 'salesInvoice');
   const phases = useMilestones(project.id);
   const milestones = phases.data ?? [];
   const totalWeight = milestones.reduce((sum, phase) => sum + phase.weight, 0);
@@ -36,6 +41,8 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
     ? completionPct(milestones.reduce((sum, phase) => sum + phase.weight * phase.effective_pct, 0) / totalWeight)
     : null;
   const manager = project.pm?.full_name;
+  const statusGroup = projectStatusGroup(project.status as never);
+  const isDeliveryProject = statusGroup === 'onHand' || statusGroup === 'internal';
   const dates = project.start_date || project.end_date
     ? formatDayRange(project.start_date, project.end_date)
     : t('projectDetail.facts.noDates', 'Dates not set');
@@ -62,6 +69,9 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
         </Tooltip>
       )}
       {phases.isPending && <span>{t('projectDetail.facts.progressLoading', 'Progress loading')}</span>}
+      {showBudgetFigures && canViewBudgetFigures && isDeliveryProject && (
+        <ProjectBudgetFigures project={project} className="max-w-full" />
+      )}
       {updated && (
         <Tooltip content={t('projectDetail.facts.updatedTooltip', 'Last updated on {{date}}.', { date: formatDay(project.last_update) })}>
           <time tabIndex={0} dateTime={project.last_update} className="text-muted-foreground">
@@ -120,6 +130,8 @@ const ProjectDetail: React.FC = () => {
   // AC-PERF-007/008: the Overview's summaries arrive in one request, in parallel with the project; leaf hooks mount
   // only after it settles (success or error), so they find seeded data or fall back to their own reads.
   const overview = useProjectOverviewRead(projectId, true);
+  // Start the shared budget read with the project and overview reads, before their responses arrive.
+  useProjectBudgetPositions(projectId ? [projectId] : []);
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
@@ -222,7 +234,7 @@ const ProjectDetail: React.FC = () => {
       <ProjectDetailHeader project={project} onEditProject={openEditProject} compact
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
         menuContent={<ProjectDetailRail project={project} detailsOnly />} />
-      <ProjectHeaderFacts project={project} />
+      <ProjectHeaderFacts project={project} showBudgetFigures />
       {isPipelineRecord && <div className="mb-8"><DealBand project={project} /></div>}
       {/* UIP-005 (#1701): the sales-history doorway sits in the header only on desktop — on phone it
           moves below the tab work so every tab's work still arrives above the fold (AC-TH-007). */}
