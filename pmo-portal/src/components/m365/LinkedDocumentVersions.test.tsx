@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { formatDay } from '@/src/lib/format';
 import { listVersions } from '@/src/lib/m365/graphClient';
 import type { MicrosoftReference } from '@/src/lib/m365/reference';
@@ -36,14 +36,23 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('LinkedDocumentVersionsModal (plain-words C20-3d)', () => {
-  it('C20-3d: numbers versions by their order and keeps each date, never printing the opaque version id', async () => {
+  it('C20-3d: numbers versions by their order and keeps each date, never printing the opaque version id as the label', async () => {
     render(<LinkedDocumentVersionsModal reference={reference} onClose={vi.fn()} />);
 
     const first = await screen.findByText('Version 1');
     expect(first.closest('li')).toHaveTextContent(formatDay('2026-09-02T10:00:00Z'));
     expect(screen.getByText('Version 2').closest('li')).toHaveTextContent(formatDay('2026-09-01T10:00:00Z'));
 
-    for (const id of GRAPH_VERSION_IDS) expect(screen.queryByText(new RegExp(id))).not.toBeInTheDocument();
+    // The opaque id is reference material, not the version's name: each row keeps it behind the
+    // same closed Reference disclosure the other C20 surfaces use (ruling 3b/3c/3d).
+    for (const [rowText, id] of [['Version 1', GRAPH_VERSION_IDS[0]], ['Version 2', GRAPH_VERSION_IDS[1]]] as const) {
+      const row = screen.getByText(rowText).closest('li') as HTMLElement;
+      const disclosure = within(row).getByTestId('record-reference') as HTMLDetailsElement;
+      expect(disclosure.tagName).toBe('DETAILS');
+      expect(disclosure.open).toBe(false);
+      expect(disclosure).toHaveTextContent(id);
+      expect(row).not.toHaveTextContent(new RegExp(`^Version ${id}`));
+    }
     expect(screen.queryByText(/Version 3058fe1c/)).not.toBeInTheDocument();
   });
 });

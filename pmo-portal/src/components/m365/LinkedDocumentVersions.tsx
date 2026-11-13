@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Button, EntityFormModal, ListState } from '@/src/components/ui';
+import { Button, EntityFormModal, ListState, RecordReference } from '@/src/components/ui';
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { getItem, listVersions, type GraphReadRequest, type GraphVersion } from '@/src/lib/m365/graphClient';
 import { buildVersionHistoryUrl, toReferenceInput, type MicrosoftReference } from '@/src/lib/m365/reference';
@@ -83,6 +83,9 @@ export function LinkedDocumentVersionsModal({ reference, pinned, onClose }: Vers
                 <span className="font-medium text-foreground">{t('m365Documents.versions.version', 'Version {{number}}', { number: index + 1 })}</span>
                 {version.modified_at && <span className="tabular text-control text-muted-foreground">{formatDay(version.modified_at)}</span>}
                 {pinned && pinned.id === version.id && <span className="text-control font-semibold text-foreground">{pinned.label}</span>}
+                {/* C20-3d: the opaque Graph id is reference material for the admin who must quote it,
+                    never the version's name — same closed Reference disclosure as 3b/3c. */}
+                <RecordReference ids={[version.id]} className="ml-auto" />
               </li>
             ))}
           </ul>

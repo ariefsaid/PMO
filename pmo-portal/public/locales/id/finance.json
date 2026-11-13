@@ -619,7 +619,7 @@
       "budgetVsActual": "Anggaran vs aktual",
       "selectedCategories": "Kategori yang dipilih",
       "selectedCount": "{{count}} dipilih",
-      "exportRows": "Ekspor semua baris",
+      "exportRows": "Ekspor baris",
       "budgetView": "Tampilan anggaran",
       "fiscalYearInForecast": "Tahun fiskal pada proyeksi",
       "updateBudget": "Perbarui anggaran",

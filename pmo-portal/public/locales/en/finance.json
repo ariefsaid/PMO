@@ -619,7 +619,7 @@
       "budgetVsActual": "Budget vs actual",
       "selectedCategories": "Selected categories",
       "selectedCount": "{{count}} selected",
-      "exportRows": "Export all lines",
+      "exportRows": "Export lines",
       "budgetView": "Budget view",
       "fiscalYearInForecast": "Fiscal year in forecast",
       "updateBudget": "Update budget",

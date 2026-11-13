@@ -6,7 +6,8 @@
     "listState": {
       "loading": "Memuat…",
       "retry": "Coba lagi"
-    }
+    },
+    "recordReference": "Referensi"
   },
   "uxs07": {
     "personalConnections": "Integrasi saya",

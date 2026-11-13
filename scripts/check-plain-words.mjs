@@ -13,6 +13,11 @@
  * out of scope by design: the sweep kept the two dev-detail disclosures and the ERP identifiers on
  * integration screens (those are the vendor's own product nouns).
  *
+ * Known limits — green is NOT proof of a clean surface. This gate does not catch: camelCase tokens
+ * (`teamId`, `externalRecordId`); the bare word "id"/"ID" used as a noun; or any string written
+ * inline in source (a `t(key, 'default')` fallback or a plain TS/TSX message), because it reads
+ * catalogue files only — so a fix in a `.ts` message must be reviewed by a person, not this run.
+ *
  * Run: node scripts/check-plain-words.mjs            (the catalogue)
  *      node scripts/check-plain-words.mjs --self-test (the gate itself, planted cases)
  *

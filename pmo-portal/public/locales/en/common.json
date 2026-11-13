@@ -6,7 +6,8 @@
     "listState": {
       "loading": "Loading…",
       "retry": "Retry"
-    }
+    },
+    "recordReference": "Reference"
   },
   "uxs07": {
     "personalConnections": "My integrations",
