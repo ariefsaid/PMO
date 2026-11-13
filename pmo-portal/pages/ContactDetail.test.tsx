@@ -34,6 +34,9 @@ const { detailState, activitiesState, mutations, companiesState, companyRefState
   },
   companiesState: {
     data: [{ id: 'co1', name: 'Cascade Port Authority', type: 'Client' }],
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
   },
   companyRefState: {
     data: undefined as Record<string, unknown> | null | undefined,
@@ -167,6 +170,9 @@ beforeEach(() => {
   detailState.isPending = false;
   detailState.isError = false;
   companiesState.data = [{ id: 'co1', name: 'Cascade Port Authority', type: 'Client' }];
+  companiesState.isPending = false;
+  companiesState.isError = false;
+  companiesState.refetch.mockClear();
   companyRefState.data = undefined;
   companyRefState.isPending = false;
   companyRefState.isError = false;
@@ -343,6 +349,17 @@ describe('ContactDetail', () => {
       id: 'ct1',
       input: expect.objectContaining({ full_name: 'Jane Smith' }),
     });
+  });
+
+  it('retries company options from the edit form after the company directory fails', async () => {
+    companiesState.data = [];
+    companiesState.isError = true;
+    renderPage('Admin');
+    await openRecordActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^edit$/i }));
+    const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
+    await userEvent.click(within(dialog).getByRole('button', { name: /^retry$/i }));
+    expect(companiesState.refetch).toHaveBeenCalled();
   });
 
   it('keeps mirrored contact details read-only and enhancements editable', async () => {
