@@ -76,7 +76,7 @@ const Projects: React.FC = () => {
   const displayFiltered = secondaryReadUnavailable && cachedFiltered ? cachedFiltered : filtered;
   const displayIsAtRiskActual = (project: ProjectWithRefs) => {
     const cachedRisk = lastAtRiskSnapshot.current;
-    if ((moneyPending || moneyError) && cachedRisk?.viewerId === currentUser?.id && cachedRisk.byProjectId.has(project.id)) {
+    if ((moneyPending || moneyError) && cachedRisk && cachedRisk.viewerId === currentUser?.id && cachedRisk.byProjectId.has(project.id)) {
       return cachedRisk.byProjectId.get(project.id)!;
     }
     return isAtRiskActual(project);
@@ -252,6 +252,14 @@ const Projects: React.FC = () => {
           onRetry={() => void refetchMoney()}
         />
       )}
+      {secondaryReadPending && cachedFiltered === null && (
+        <ListState
+          variant="loading"
+          shape={view === 'table' ? 'table' : view === 'calendar' ? 'chart' : 'cards'}
+          columns={6}
+          rows={6}
+        />
+      )}
       {secondaryReadPending && <span role="status" className="sr-only">{t('common.ui.listState.loading', 'Loading…')}</span>}
       {view === 'kanban' ? (
         <ProjectKanbanBoard projects={displayFiltered} onOpen={(p) => onOpen(p, 'card')} />
@@ -288,7 +296,7 @@ const Projects: React.FC = () => {
           {sharedBasis && canViewMoney && <p className="mb-2 text-control text-muted-foreground md:hidden">{t('projects:contractBasisNote', 'Contract amounts are {{basis}}.', { basis: sharedBasis })}</p>}
           {sharedManager && <p className="mb-2 text-control text-muted-foreground">{t('projects:sharedManagerNote', 'Project manager: {{name}}', { name: sharedManager })}</p>}
           <DataTable<ProjectWithRefs>
-            rows={filtered}
+            rows={displayFiltered}
             columns={tableColumns}
             className="[--table-row-min-height:40px]"
             compactRows

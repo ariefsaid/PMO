@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach, waitFor } from 'vitest';
-import { act, render, screen, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -153,6 +153,12 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
 });
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   routeDomainWrite: vi.fn(() => 'pmo'),
+  domainTier: vi.fn((domain: string) => {
+    const owner = hoisted.ownership.find((entry) =>
+      typeof entry === 'object' && entry !== null && 'domain' in entry && entry.domain === domain,
+    ) as { externalTier?: unknown } | undefined;
+    return typeof owner?.externalTier === 'string' ? owner.externalTier : null;
+  }),
 }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: hoisted.ownership, isError: false }) }));
 vi.mock('@/src/hooks/useOdooPurchase', async (orig) => ({ ...(await orig<Record<string, unknown>>()), useOdooUnreachable: (enabled = true) => ({ unreachable: enabled && hoisted.odooUnreachable, lastOkAt: null }) }));
