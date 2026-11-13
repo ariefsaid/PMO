@@ -167,6 +167,7 @@ const ImprestFloatsPage: React.FC = () => {
             state={rows.length === 0 ? 'empty' : undefined}
             emptyTitle={t('imprest:list.empty', 'No site floats yet')}
             emptyAction={may('create', 'imprestFloat') ? { label: t('imprest:establish.submit', 'Establish float'), onClick: () => setEstablishOpen(true) } : undefined}
+            emptyActionVariant="outline"
             tableId="imprest-floats-table" />
         </>
       )}

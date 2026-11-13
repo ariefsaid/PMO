@@ -40,7 +40,7 @@ const members = [
 
 const LocationProbe = () => {
   const location = useLocation();
-  return <output data-testid="location" data-search={location.search} />;
+  return <output data-testid="location" data-path={location.pathname} data-search={location.search} />;
 };
 
 const renderPage = (role: Role = 'Admin', viewingAs: Role = role, initialEntry = '/stock/setup') => {
@@ -105,6 +105,18 @@ describe('StockSetup screen states (AC-STK-032)', () => {
     expect(await screen.findByText('Archived')).toBeInTheDocument();
     await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
     expect(await screen.findByRole('menuitem', { name: 'Restore' })).toBeInTheDocument();
+  });
+});
+
+describe('StockSetup section navigation', () => {
+  it('offers the Stock section strip and returns to On hand from Setup', async () => {
+    renderPage();
+    await screen.findByText('Bag');
+    const stockSections = screen.getByRole('navigation', { name: 'Stock sections' });
+
+    expect(within(stockSections).getByRole('link', { name: 'Setup' })).toHaveAttribute('aria-current', 'page');
+    await userEvent.click(within(stockSections).getByRole('link', { name: 'On hand' }));
+    expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/stock');
   });
 });
 

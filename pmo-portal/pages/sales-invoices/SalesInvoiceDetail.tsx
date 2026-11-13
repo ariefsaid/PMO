@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, LifecycleStepper, ListState, RecordHeader, StatusPill } from '@/src/components/ui';
+import { Button, Icon, LifecycleStepper, ListState, ProjectNameLink, RecordHeader, StatusPill } from '@/src/components/ui';
 import { invoiceTimelineSteps } from './invoiceTimeline';
 import { usePermission } from '@/src/auth/usePermission';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
@@ -13,6 +13,7 @@ import { invoiceNumber, isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { SalesInvoiceEvidenceSection } from './SalesInvoiceEvidence';
+import { useSalesInvoiceEvidence } from '@/src/hooks/useRevenue';
 
 interface Props {
   viewTarget: SalesInvoiceRow | null;
@@ -25,15 +26,23 @@ interface Props {
   refetch: () => unknown;
   recordPrimaryAction: { label: string; onClick: () => void } | null;
   invoiceDisplayLabel: (invoice: SalesInvoiceRow) => string;
+  projectName?: string | null;
   receiptAwaitingOdoo?: boolean;
   odoo?: boolean;
   may: ReturnType<typeof usePermission>;
   pdfDownload: ReturnType<typeof useInvoicePdfDownload>;
   dialogs: React.ReactNode;
 }
-export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, receiptAwaitingOdoo = false, odoo = false, may, pdfDownload, dialogs }: Props) {
+export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, projectName = null, receiptAwaitingOdoo = false, odoo = false, may, pdfDownload, dialogs }: Props) {
   const { t } = useTranslation();
   const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
+  const canReadInvoiceLines = Boolean(viewTarget && !viewTarget.pmo_native && viewTarget.erp_docstatus !== null && !odoo);
+  // The evidence section observes this same query key. This second observer reads its state for
+  // the approval totals without starting a second request.
+  const invoiceEvidence = useSalesInvoiceEvidence(viewTarget?.id, canReadInvoiceLines);
+  const hideTaxAndTotal = canReadInvoiceLines && (
+    invoiceEvidence.isPending || invoiceEvidence.isError || invoiceEvidence.data?.lines == null
+  );
   const dueDate = viewTarget ? deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date) : null;
   // #1457: the one shared overdue rule gates the stat and supplies the day count.
   const overdueDays = viewTarget ? clientInvoiceOverdueDays(viewTarget, organizationToday) : null;
@@ -75,6 +84,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
               </>}
               primaryAction={recordPrimaryAction ? <Button variant="primary" size="sm" onClick={recordPrimaryAction.onClick}>{recordPrimaryAction.label}</Button> : undefined}
               stats={[
+                { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={viewTarget.project_id} name={projectName} className="text-control" /> },
                 { label: t('uxs17.invoiceDate', 'Invoice date'), value: viewTarget.invoice_date ? formatDayYear(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded') },
                 { label: t('uxs17.dueDate', 'Due date'), value: dueDate ? formatDayYear(dueDate) : t('uxs17.dueDateUnavailable', 'Due date not available') },
                 // Unknown outstanding is left out; the receivables page carries the one hidden-figures line.
@@ -88,7 +98,12 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                 ...(overdueDays !== null ? [{ label: t('uxs17.overdue', 'Overdue'), value: t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays }) }] : []),
               ]}
             />
-            {timeline && <LifecycleStepper variant="bar" steps={timeline} aria-label={t('finance:invoiceTimeline.label', 'Invoice status timeline')} className="mb-5" />}
+            {timeline && <LifecycleStepper
+              variant="bar"
+              steps={timeline}
+              aria-label={t('finance:invoiceTimeline.label', 'Invoice status timeline')}
+              className="mb-5 [&_[data-testid=stepper-scroll-container]>[role=list]]:gap-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep>span:first-child]:rounded-none [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:first-child>span:first-child]:rounded-l-full [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:last-child>span:first-child]:rounded-r-full sm:[&_[data-testid=stepper-fade]]:hidden"
+            />}
             {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
               <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
                 <div>
@@ -125,7 +140,14 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
             {/* hideLines: the Bill evidence section above is the record page's single lines render
                 (AC-991-001's accessible "Line items" list lives there); the approvals panel keeps
                 the preview as its own lines surface. */}
-            <SalesInvoiceApprovalPreview inv={viewTarget} showFx hideLines />
+            <SalesInvoiceApprovalPreview
+              inv={viewTarget}
+              showFx
+              hideLines
+              hideTaxAndTotal={hideTaxAndTotal}
+              hideProject
+              hideInvoiceDate
+            />
           </>
         ) : (
           <ListState
