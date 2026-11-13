@@ -33,6 +33,48 @@ function urgencyKey(
   return 1;
 }
 
+/** The earliest due date among a group's late rows — its worst lateness (null = nothing late). */
+function worstLateDueDate(
+  items: ReadonlyArray<{ end_date: string | null; status: string }> | undefined,
+  today: string,
+): string | null {
+  let worst: string | null = null;
+  for (const item of items ?? []) {
+    if (!item.end_date || !isOverdueTask(item, today)) continue;
+    if (worst === null || item.end_date < worst) worst = item.end_date;
+  }
+  return worst;
+}
+
+/** The earliest due date among a group's dated rows (null = the group holds no dated row). */
+function soonestDueDate(
+  items: ReadonlyArray<{ end_date: string | null }> | undefined,
+): string | null {
+  let soonest: string | null = null;
+  for (const item of items ?? []) {
+    if (!item.end_date) continue;
+    if (soonest === null || item.end_date < soonest) soonest = item.end_date;
+  }
+  return soonest;
+}
+
+/**
+ * Judging my-tasks #2 (Order: off track, worst first): the queue answers "what do I work on now",
+ * so the group holding the most overdue row leads. A group ranks by the same key its rows use —
+ * late first by the earliest due date (earlier = worse), then the rest by soonest due date, and an
+ * undated group trails. Equal keys keep the read's order (`Array#sort` is stable), so the order is
+ * never arbitrary.
+ */
+function groupUrgencyKey(
+  items: ReadonlyArray<{ end_date: string | null; status: string }> | undefined,
+  today: string,
+): string {
+  const worst = worstLateDueDate(items, today);
+  if (worst) return `0|${worst}`;
+  const soonest = soonestDueDate(items);
+  return soonest ? `1|${soonest}` : '2';
+}
+
 /** Sunday of the week `day` (ISO YYYY-MM-DD) belongs to — the figure's due-by bound (Mon-based week). */
 function weekEndDate(day: string): string {
   const [year, month, date] = day.split('-').map(Number);
@@ -173,6 +215,9 @@ const MyTasks: React.FC = () => {
         return a.end_date < b.end_date ? -1 : 1;
       });
     }
+    // Judging my-tasks #2: worst first across groups too — the group whose own worst row is the
+    // most overdue leads, so the task that needs attention today is not buried in a later group.
+    groups.sort((a, b) => groupUrgencyKey(a.items, today).localeCompare(groupUrgencyKey(b.items, today)));
     return groups;
   }, [tasks, visibleTasks, t, today]);
 
