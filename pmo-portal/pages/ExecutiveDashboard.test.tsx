@@ -151,7 +151,7 @@ beforeEach(() => {
     today: defaultToday.map((figure) => figure.id === 'contract-on-hand' && state.unknownContract ? { ...figure, value: null } : figure),
     period: periodFigures,
     todayPending: false, todayError: false, periodPending: false, periodError: false,
-    todayRetry: vi.fn(), periodRetry: vi.fn(),
+    todayRetry: vi.fn(), periodRetry: vi.fn(), trendRetry: vi.fn(),
     dashboard: { top_projects: [], attention_projects: [], projects_by_status: [{ status: 'Ongoing Project', count: 1 }], procurements_by_status: [], pipeline_projected_margin: 0.2, on_hand_actual_coverage_count: 1, on_hand_actual_coverage_total: 1 },
     dashboardPending: false, dashboardError: false, dashboardRetry: vi.fn(),
     pipeline: { projects: [], stages: [] }, pipelinePending: false, pipelineError: false, pipelineRetry: vi.fn(),
@@ -736,7 +736,18 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(screen.getByTestId('location')).toHaveTextContent('/approvals');
   });
 
-  it('Refresh and ageing Retry each refetch the reads shown beside their controls', async () => {
+  it('the finding line approvals clause opens approvals', async () => {
+    needsState.approvals = [{
+      kind: 'timesheet', key: 'approval-1', createdAt: '2026-10-25T00:00:00Z',
+      row: { week_start_date: '2026-10-19', owner: { full_name: 'Team member' } },
+    }];
+    renderPage();
+
+    await userEvent.click(within(screen.getByTestId('home-finding')).getByRole('link', { name: /approval waits on you/ }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/approvals');
+  });
+
+  it('Retry in the receivables ageing card refetches its finance-position read', async () => {
     state.role = 'Finance';
     financePositionState.isError = true;
     renderPage();
