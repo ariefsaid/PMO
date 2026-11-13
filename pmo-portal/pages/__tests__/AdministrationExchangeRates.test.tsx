@@ -263,7 +263,7 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
 describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup path', () => {
   it('C1: a view-as Admin is told to stop viewing as another role before uploading', async () => {
     h.effectiveRole = 'Engineer';
-    h.list.mockResolvedValue({ rows: [], nextCursor: null });
+    h.list.mockResolvedValue({ rows: [], nextCursor: null, total: null });
     renderPage();
 
     expect(await screen.findByText('No JISDOR rates yet')).toBeInTheDocument();
