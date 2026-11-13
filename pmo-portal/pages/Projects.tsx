@@ -288,7 +288,7 @@ const Projects: React.FC = () => {
           {sharedBasis && canViewMoney && <p className="mb-2 text-control text-muted-foreground md:hidden">{t('projects:contractBasisNote', 'Contract amounts are {{basis}}.', { basis: sharedBasis })}</p>}
           {sharedManager && <p className="mb-2 text-control text-muted-foreground">{t('projects:sharedManagerNote', 'Project manager: {{name}}', { name: sharedManager })}</p>}
           <DataTable<ProjectWithRefs>
-            rows={filtered}
+            rows={displayFiltered}
             columns={tableColumns}
             className="[--table-row-min-height:40px]"
             compactRows
