@@ -6,6 +6,7 @@ import type { EquipmentRepository } from './contracts/equipment';
 
 export const equipmentRepository: EquipmentRepository = {
   listAssets: () => wrap(() => dal.listAssets()),
+  countAssets: () => wrap(() => dal.countAssets()),
   createAsset: (input) => wrap(() => dal.createAsset(input)),
   updateAsset: (id, patch) => wrap(() => dal.updateAsset(id, patch)),
   deleteAsset: (id) => wrap(() => dal.deleteAsset(id)),

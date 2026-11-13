@@ -66,7 +66,9 @@
     "ended": "Rate ended",
     "equipmentKind": "Equipment",
     "standbyRate": "Standby",
-    "assetUnavailable": "Machine no longer listed"
+    "assetUnavailable": "Machine no longer listed",
+    "assetPageNotLoaded": "Machine name not loaded yet",
+    "moreMachines": "Machine names past this page are not loaded yet."
   },
   "assembly": {
     "title": "Assemble a claim",

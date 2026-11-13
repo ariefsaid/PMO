@@ -13,7 +13,8 @@ function Example() {
   const state = useUrlFilters(['q', 'status', 'project']);
   const location = useLocation();
   const navigate = useNavigate();
-  return <><FilterBar filters={filters} searchKey="q" searchLabel="Search records" values={state.values} onChange={state.setFilter} onClear={state.clear} shown={2} total={5} />
+  const total = new URLSearchParams(location.search).get('unknown') === '1' ? undefined : 5;
+  return <><FilterBar filters={filters} searchKey="q" searchLabel="Search records" values={state.values} onChange={state.setFilter} onClear={state.clear} shown={2} total={total} />
     <output data-testid="url">{location.search}</output><button onClick={() => navigate(-1)}>Back</button></>;
 }
 function setup(path = '/?other=keep') { return render(<MemoryRouter initialEntries={[path]}><Example /></MemoryRouter>); }
@@ -35,6 +36,10 @@ describe('FilterBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open' }));
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByRole('button', { name: 'Closed', pressed: true })).toBeInTheDocument();
+  });
+  it('does not show a partial loaded-row count as the total when the total is unknown', () => {
+    setup('/?unknown=1');
+    expect(screen.queryByText(/Showing 2 of/)).not.toBeInTheDocument();
   });
   it('collapses into a filters sheet on phones', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));

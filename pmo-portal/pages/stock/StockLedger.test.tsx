@@ -110,6 +110,20 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
   });
 
+  it('C8 StockLedger.tsx:108 labels loaded rows as partial and uses the same total at the end', async () => {
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(9)], nextBeforeSeq: 9 });
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(8, { documentNumber: 'ISS-8' })], nextBeforeSeq: null });
+    renderPage();
+    await screen.findByText('ISS-9');
+
+    expect(screen.getByText('1 loaded, more available')).toBeInTheDocument();
+    expect(screen.queryByText('Ledger 1')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByText('ISS-8')).toBeInTheDocument();
+    expect(screen.getByText('Showing 2 of 2')).toBeInTheDocument();
+    expect(screen.getByTestId('list-page-count')).toHaveTextContent('2');
+  });
+
   it('AC-STK-020 value columns appear only when the server sent value keys', async () => {
     renderPage();
     await screen.findByText('Eka Engineer');
