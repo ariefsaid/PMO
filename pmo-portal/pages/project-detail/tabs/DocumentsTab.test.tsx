@@ -1211,3 +1211,26 @@ describe('DocumentsTab — one toolbar row (move 1)', () => {
     expect(within(toolbar).getByRole('button', { name: 'Register' })).toBeInTheDocument();
   });
 });
+
+/**
+ * Move 2 (judging: "the table sits unframed while every other tab's table sits in a card assembly"):
+ * the register's toolbar and its rows share ONE framed surface — at rest and in every async state —
+ * instead of a bare table under a floating toolbar.
+ */
+describe('DocumentsTab — one card assembly (move 2)', () => {
+  it('move 2: the register toolbar, filters and rows sit in one card assembly', () => {
+    renderTab('Admin', 'admin-1');
+    const assembly = screen.getByTestId('documents-register-assembly');
+    expect(within(assembly).getByTestId('documents-register-toolbar')).toBeInTheDocument();
+    expect(within(assembly).getByRole('combobox', { name: 'Filter by category' })).toBeInTheDocument();
+    expect(within(assembly).getByRole('table')).toBeInTheDocument();
+  });
+
+  it('move 2: the loading state keeps the same one surface as the loaded register', () => {
+    listState.isPending = true;
+    renderTab('Admin', 'admin-1');
+    const assembly = screen.getByTestId('documents-register-assembly');
+    expect(within(assembly).getByTestId('documents-register-toolbar')).toBeInTheDocument();
+    expect(within(assembly).getByTestId('liststate-loading')).toBeInTheDocument();
+  });
+});
