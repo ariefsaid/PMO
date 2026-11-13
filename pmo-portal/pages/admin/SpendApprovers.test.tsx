@@ -3,13 +3,14 @@
  * can('manage','orgAccounting'); UX only — the spend_approvers RLS is the authority (ADR-0016).
  * Idiom copied from OrgTaxDefault.test.tsx (react-query + repository seam mocked directly).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { toast as sonnerToast } from 'sonner';
 
 const { listSpendApprovers, addSpendApprover, removeSpendApprover, listOrgProfiles } = vi.hoisted(() => ({
   listSpendApprovers: vi.fn(),
@@ -76,6 +77,13 @@ beforeEach(() => {
     { id: 'u-eng', full_name: 'Eli Eng', role: 'Engineer', status: 'active' },
     { id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' },
   ]);
+});
+
+// The toast store outlives a render: sonner replays a still-active toast into the next provider, so
+// the remove/approve cases would leak a person's name (their toast description) into every later
+// case. Dismiss between cases, exactly as BudgetAccountMap.test.tsx does.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
 });
 
 describe('AC-APR-034 Spend approvers admin card', () => {
@@ -327,8 +335,11 @@ describe('UX-081 resolved approval route (S-32)', () => {
     renderPanel('Admin');
 
     expect(await screen.findByText("Couldn't read the people this screen checks")).toBeInTheDocument();
-    expect(await screen.findByText('Fiona Finance')).toBeInTheDocument();
-    expect(screen.getAllByText('Pat PM').length).toBeGreaterThan(0);
+    // The approver lists stay readable. Scoped to a row and a project group rather than a page-wide
+    // text query: a toast from an earlier case is still in the store and carries the same person's
+    // name as its description, which a page-wide query would match too.
+    expect(screen.getByRole('button', { name: 'Remove Fiona Finance' })).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'HQ Fit-Out' })).getByText('Pat PM')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(listOrgProfiles).toHaveBeenCalledTimes(2));
