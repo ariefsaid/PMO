@@ -145,8 +145,10 @@ const StockOnHand: React.FC = () => {
             /* The count is a count OF BALANCES: the title says so, so "21" never stands alone. */
             <span className="ml-2.5 align-middle text-control font-semibold tabular-nums text-muted-foreground">
               {rows.length < allRows.length
-                ? t('onHand.countOfTotal', 'Showing {{count}} of {{total}} balances', { count: rows.length, total: allRows.length })
-                : t('onHand.count', '{{count}} balances', { count: rows.length })}
+                ? t('onHand.countOfTotal', 'Showing {{shown}} of {{total}} balances', { shown: rows.length, total: allRows.length })
+                : rows.length === 1
+                  ? t('onHand.countOne', '1 balance')
+                  : t('onHand.count', '{{shown}} balances', { shown: rows.length })}
             </span>
           )}
         </>
