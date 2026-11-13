@@ -188,31 +188,31 @@ describe('WorkCalendar (#1982)', () => {
 describe('WorkCalendar — ruled screen notes are opt-in', () => {
   it('states the empty month and shows the host action when the host opts in', () => {
     renderCal({ tasks: [], milestones: [], emptyMonth: { action: <a href="/my-tasks">My Tasks</a> } });
-    expect(screen.getByText('No tasks or milestones due in November 2026')).toBeInTheDocument();
+    expect(screen.getByText('No tasks or phases due in November 2026')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'My Tasks' })).toHaveAttribute('href', '/my-tasks');
   });
 
   it('says nothing about an empty month when the host does not opt in', () => {
     renderCal({ tasks: [], milestones: [] });
-    expect(screen.queryByText(/No tasks or milestones due/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No tasks or phases due/)).not.toBeInTheDocument();
   });
 
   it('waits while the host says the window read is in flight', () => {
     renderCal({ tasks: [], milestones: [], emptyMonth: { pending: true } });
-    expect(screen.queryByText(/No tasks or milestones due/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No tasks or phases due/)).not.toBeInTheDocument();
   });
 
   it('leaves the empty period to the agenda’s own sentence', () => {
     renderCal({ tasks: [], milestones: [], emptyMonth: {} });
     fireEvent.click(screen.getByRole('tab', { name: 'Agenda' }));
-    expect(screen.queryByText(/No tasks or milestones due/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No tasks or phases due/)).not.toBeInTheDocument();
     expect(screen.getByText('Nothing due in this period')).toBeInTheDocument();
   });
 
   it('shows the scope line the host supplies, inside the toolbar', () => {
-    renderCal({ scopeNote: 'Tasks and milestones only — meetings are not on this calendar.' });
+    renderCal({ scopeNote: 'Tasks and phases only — meetings are not on this calendar.' });
     const toolbar = screen.getByTestId('work-calendar-toolbar');
-    expect(within(toolbar).getByText('Tasks and milestones only — meetings are not on this calendar.')).toBeInTheDocument();
+    expect(within(toolbar).getByText('Tasks and phases only — meetings are not on this calendar.')).toBeInTheDocument();
   });
 
   it('adds no scope line of its own', () => {

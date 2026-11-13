@@ -85,7 +85,7 @@ const EmptyMonth: React.FC<{ action?: React.ReactNode }> = ({ action }) => {
       data-testid="work-calendar-empty-month"
       className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-control text-muted-foreground"
     >
-      {t('emptyMonth', 'No tasks or milestones due in {{range}}', { range: title })}
+      {t('emptyMonth', 'No tasks or phases due in {{range}}', { range: title })}
       {action}
     </p>
   );

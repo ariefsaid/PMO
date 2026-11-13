@@ -290,21 +290,21 @@ describe('Calendar — move 1: an empty month says so, a failed read retries', (
 
   it('names the empty month and offers the list where every task lives', () => {
     renderPage();
-    expect(screen.getByText('No tasks or milestones due in November 2026')).toBeInTheDocument();
+    expect(screen.getByText('No tasks or phases due in November 2026')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'My Tasks' })).toHaveAttribute('href', '/my-tasks');
   });
 
   it('does not claim emptiness while the window read is still in flight', () => {
     calendarState.tasksFetching = true;
     renderPage();
-    expect(screen.queryByText(/No tasks or milestones due/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No tasks or phases due/)).not.toBeInTheDocument();
   });
 
   it('does not claim emptiness when the phase read failed (that warning already speaks)', () => {
     calendarState.projectsError = true;
     renderPage();
     expect(screen.getByText(/Phases could not be loaded/i)).toBeInTheDocument();
-    expect(screen.queryByText(/No tasks or milestones due/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No tasks or phases due/)).not.toBeInTheDocument();
   });
 
   it('shows nothing once the month holds an item', () => {
@@ -313,7 +313,7 @@ describe('Calendar — move 1: an empty month says so, a failed read retries', (
       start_date: null, end_date: '2026-11-12', assignee_id: null, assignee_name: null, created_by: null,
     }];
     renderPage();
-    expect(screen.queryByText(/No tasks or milestones due/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No tasks or phases due/)).not.toBeInTheDocument();
   });
 
   it('reads the visible window once on a normal load and adds no request', () => {
@@ -344,7 +344,7 @@ describe('Calendar — move 2: the scope says what is not on this calendar', () 
 
   it('says meetings are not on this calendar', () => {
     renderPage();
-    expect(screen.getByText('Tasks and milestones only — meetings are not on this calendar.')).toBeInTheDocument();
+    expect(screen.getByText('Tasks and phases only — meetings are not on this calendar.')).toBeInTheDocument();
   });
 });
 
