@@ -439,15 +439,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </h2>
       </div>
 
-      {/* Below the header, so a folder notice never pushes the primary actions down or off-screen (empty for non-writers). */}
-      <div className="mb-3.5 empty:hidden">
-        <RecordFolderAction
-          target={{ kind: 'project', id: projectId }}
-          hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
-          onChooseExisting={() => { if (canCreateMicrosoftReference) setMicrosoftEntry({ kind: 'create' }); }}
-        />
-      </div>
-
       {microsoftEntry && (
         <MicrosoftEntry code={projectCode} onClose={() => setMicrosoftEntry(null)} onSelect={onSelectReference} />
       )}
@@ -481,6 +472,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </GateNotice>
       )}
 
+      {/* The folder action shares the toolbar row with the other create/link controls (empty for non-writers). */}
       <DocumentsToolbar
         registerSize={all.length}
         search={search}
@@ -496,6 +488,13 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         setDocumentsView={setDocumentsView}
         canCreateMicrosoftReference={canCreateMicrosoftReference}
         canCreate={canCreate}
+        folderAction={(
+          <RecordFolderAction
+            target={{ kind: 'project', id: projectId }}
+            hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
+            onChooseExisting={() => { if (canCreateMicrosoftReference) setMicrosoftEntry({ kind: 'create' }); }}
+          />
+        )}
         onLinkMicrosoft={() => setMicrosoftEntry({ kind: 'create' })}
         onAddDocument={() => setFormTarget({ doc: null })}
       />
