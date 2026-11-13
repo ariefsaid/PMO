@@ -36,6 +36,27 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   expect(within(allocation).getByLabelText('Project')).toBeInTheDocument();
   expect(within(allocation).getByLabelText('Budget category')).toBeInTheDocument();
  });
+ it('keeps each expense line grouped and shows the already computed total', () => {
+  h.orgCurrency = { currency: 'USD', isResolved: true, isError: false };
+  renderPage();
+  fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-10-20' } });
+  fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } });
+  fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Train fare' } });
+  fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '10' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add line' }));
+  fireEvent.change(screen.getAllByLabelText(/^Date/)[1], { target: { value: '2026-10-21' } });
+  fireEvent.change(screen.getAllByLabelText(/^Type/)[1], { target: { value: 'Meals' } });
+  fireEvent.change(screen.getAllByLabelText(/^Description/)[1], { target: { value: 'Lunch' } });
+  fireEvent.change(screen.getAllByLabelText(/^Amount/)[1], { target: { value: '2.50' } });
+
+  const firstLine = screen.getByRole('group', { name: 'Expense line 1' });
+  expect(within(firstLine).getByLabelText(/^Date/)).toBeInTheDocument();
+  expect(within(firstLine).getByLabelText(/^Type/)).toBeInTheDocument();
+  expect(within(firstLine).getByLabelText(/^Description/)).toBeInTheDocument();
+  expect(within(firstLine).getByLabelText(/^Amount/)).toBeInTheDocument();
+  expect(screen.getByText('Total')).toBeInTheDocument();
+  expect(screen.getByText(formatCurrency(12.5, 'USD', { precision: 'minor' }))).toBeInTheDocument();
+ });
  it('keeps the primary action in ONE place: the sticky form footer, Cancel to its left, no copy at the top', () => { renderPage(); const saves = screen.getAllByRole('button', { name: 'Save' }); expect(saves).toHaveLength(1); expect(saves[0]).toHaveAttribute('type', 'submit'); const footer = screen.getByTestId('form-footer'); expect(footer).toContainElement(saves[0]); expect(footer.className).toContain('sticky'); expect(footer.className).toContain('bottom-[var(--phone-nav-height)]'); const cancel = screen.getByRole('button', { name: 'Cancel' }); expect(cancel.compareDocumentPosition(saves[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); });
  it('AC-EXP1-001 renders editable header, lines and receipts without a separate claim amount', () => { renderPage(); expect(screen.getByLabelText(/Title/)).toBeInTheDocument(); expect(screen.getByLabelText('Project')).toBeInTheDocument(); expect(screen.getByLabelText('Budget category')).toBeInTheDocument(); expect(screen.getByLabelText('Purpose')).toBeInTheDocument(); expect(screen.getByText('Lines')).toBeInTheDocument(); expect(screen.getByLabelText('Receipt (optional)')).toBeInTheDocument(); expect(screen.getAllByLabelText(/^Amount/)).toHaveLength(1); });
  it.each(['0', 'not-an-amount'])('C1: a populated invalid amount (%s) is reported as invalid, not missing', (amount) => {
