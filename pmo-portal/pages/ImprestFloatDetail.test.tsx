@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor, cleanup } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
@@ -122,12 +122,33 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     expect(screen.queryByRole('button', { name: 'Request replenishment' })).toBeNull();
   });
 
-  it('AC-IMP-082 a failed position read shows the error state, not zeros', () => {
-    h.position = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+  it('AC-IMP-082 a failed position read shows its cause and retries that read, not zeros', async () => {
+    const retry = vi.fn();
+    h.position = { data: undefined, isPending: false, isError: true, refetch: retry };
     renderPage();
-    expect(screen.getByText("Couldn't load this float's position")).toBeInTheDocument();
+    const errorTitle = screen.getByText("Couldn't load this float's position");
+    const error = errorTitle.closest('[role="alert"]') as HTMLElement | null;
+    expect(error).not.toBeNull();
+    expect(within(error!).getByText(/No figure is shown/)).toBeInTheDocument();
     expect(screen.queryByText(/Books do not balance/)).toBeNull();
     expect(screen.queryByRole('row', { name: /Vehicle/ })).toBeNull();
+    await userEvent.click(within(error!).getByRole('button', { name: 'Retry' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('C1: failed receipts and counts reads each have their own retry', async () => {
+    const receiptsRetry = vi.fn();
+    const countsRetry = vi.fn();
+    h.claims = { data: undefined, isPending: false, isError: true, refetch: receiptsRetry };
+    h.counts = { data: undefined, isPending: false, isError: true, refetch: countsRetry };
+    renderPage();
+
+    const receiptsError = await screen.findByText("Couldn't load the float's records");
+    const countsError = await screen.findByText("Couldn't load counts");
+    await userEvent.click(within(receiptsError.closest('[role="alert"]') as HTMLElement).getByRole('button', { name: 'Retry' }));
+    await userEvent.click(within(countsError.closest('[role="alert"]') as HTMLElement).getByRole('button', { name: 'Retry' }));
+    expect(receiptsRetry).toHaveBeenCalledTimes(1);
+    expect(countsRetry).toHaveBeenCalledTimes(1);
   });
 
   it('AC-IMP-082 receipts already in an open replenishment request cannot be requested again', () => {
@@ -278,7 +299,12 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
   it('AC-IMP-072 an unreadable posting status says so rather than implying everything posted', () => {
     h.postings = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
     renderPage();
-    expect(screen.getByText("Couldn't load the ERP posting status")).toHaveAttribute('role', 'alert');
+    // C1 fix round: this failure is the SHARED error card (same anatomy as the records/counts
+    // reads beside it), so the alert is the enclosing card and Retry re-reads only this read.
+    const alert = screen.getByText("Couldn't load the ERP posting status").closest('[role="alert"]') as HTMLElement;
+    expect(alert).toBeInTheDocument();
+    fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }));
+    expect(h.postings.refetch).toHaveBeenCalledTimes(1);
   });
 
   it('AC-IMP-072 a posting list past the cap says so rather than reading as the complete truth', () => {

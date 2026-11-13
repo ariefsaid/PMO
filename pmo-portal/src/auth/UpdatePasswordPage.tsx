@@ -56,9 +56,10 @@ const UpdatePasswordPage: React.FC = () => {
       RECOVERY_PARAMS.some((k) => u.hash.includes(`${k}=`))
     );
   }, []);
-  const [phase, setPhase] = useState<'verifying' | 'active' | 'expired'>(
+  const [phase, setPhase] = useState<'verifying' | 'active' | 'expired' | 'loadError'>(
     hasRecoveryParams ? 'verifying' : 'expired'
   );
+  const [verificationAttempt, setVerificationAttempt] = useState(0);
 
   useEffect(() => {
     let settled = false;
@@ -84,6 +85,11 @@ const UpdatePasswordPage: React.FC = () => {
           settled = true;
           setPhase('expired');
         }
+      }).catch(() => {
+        if (!settled) {
+          settled = true;
+          setPhase('loadError');
+        }
       });
       return;
     }
@@ -96,9 +102,14 @@ const UpdatePasswordPage: React.FC = () => {
         settled = true;
         setPhase('expired');
       }
+    }).catch(() => {
+      if (!settled) {
+        settled = true;
+        setPhase('loadError');
+      }
     });
     return () => sub.subscription.unsubscribe();
-  }, [hasRecoveryParams]);
+  }, [hasRecoveryParams, verificationAttempt]);
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -112,7 +123,11 @@ const UpdatePasswordPage: React.FC = () => {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (password !== confirm || !password) {
+    if (!password) {
+      setConfirmError('Enter a password to continue.');
+      return;
+    }
+    if (password !== confirm) {
       setConfirmError('Passwords do not match'); // FR-AUTHF-022
       return;
     }
@@ -172,6 +187,21 @@ const UpdatePasswordPage: React.FC = () => {
           loadingRole="status"
           loadingAriaLabel="Verifying your link…"
           className="mx-auto w-full max-w-sm px-4 py-10"
+        />
+      </div>
+    );
+  }
+
+  if (phase === 'loadError') {
+    return (
+      <div className="min-h-[100dvh] bg-secondary/35 px-4 py-10">
+        <ListState
+          variant="error"
+          title="Could not verify your password link."
+          sub="Check your connection and try verification again."
+          retryLabel="Retry verification"
+          onRetry={() => { setPhase('verifying'); setVerificationAttempt((attempt) => attempt + 1); }}
+          className="mx-auto w-full max-w-sm"
         />
       </div>
     );

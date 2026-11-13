@@ -267,6 +267,8 @@
     "expandGroup": "Expand {{group}}",
     "collapseAll": "Collapse all",
     "expandAll": "Expand all",
+    "projectNameLoadFailed": "Couldn't load the selected project's name",
+    "projectNameLoadFailedDescription": "The selected project name could not be read. Retry to restore this project scope.",
     "setUp": "Set up accounting"
   },
   "erpPurchases": {
@@ -724,7 +726,11 @@
       "askAdmin": "An administrator can finish the setup."
     }
   },
+  "financialStatements": {
+    "selectedProjectNameUnavailable": "Selected project name unavailable"
+  },
   "financeCopy": {
+    "invoiceNumbersLoadFailed": "Couldn't load invoice numbers",
     "budget": "Budget",
     "activateEditorBlocked": "You drafted or edited this version, so someone else must activate it.",
     "activateNeedsAdminOrFinance": "No drafter is recorded for this version. Ask an Admin or Finance user to activate it.",

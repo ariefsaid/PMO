@@ -81,6 +81,14 @@ beforeEach(() => {
 });
 
 describe('StockCount', () => {
+  it('C1: tells a keeper who owns a colleague draft before they try to save it', async () => {
+    documents.get.mockResolvedValue(draft({ created_by: 'author-2', author: { full_name: 'Alex' } }));
+    renderAt('/stock/documents/d1/edit', 'Project Manager');
+
+    expect(await screen.findByText('This draft was created by Alex. Only its author can save changes.')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Save draft' })).toBeEnabled();
+  });
+
   it('C16 an opened draft says it is being edited, and a new sheet does not', async () => {
     renderAt('/stock/documents/d1/edit');
     expect(await screen.findByText(/Editing a saved draft: nothing changes in stock until you post it\./)).toBeInTheDocument();

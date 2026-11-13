@@ -90,6 +90,18 @@ describe('OAuthConsentPage (AC-CLI-006)', () => {
     }
   });
 
+  it('C1: a failed request read can be retried in place', async () => {
+    consent.getConsentDetails
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(DETAILS);
+    renderAt('/oauth/consent?authorization_id=auth-1');
+
+    expect(await screen.findByText('This sign-in request could not be loaded.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry request/i }));
+    expect(await screen.findByRole('button', { name: 'Allow' })).toBeInTheDocument();
+    expect(consent.getConsentDetails).toHaveBeenCalledTimes(2);
+  });
+
   it('AC-CLI-006: shows a loading state while the request is fetched', () => {
     consent.getConsentDetails.mockReturnValue(new Promise(() => {}));
     renderAt('/oauth/consent?authorization_id=auth-1');

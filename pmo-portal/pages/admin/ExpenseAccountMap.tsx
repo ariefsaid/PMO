@@ -134,6 +134,7 @@ const ExpenseAccountMap: React.FC = () => {
   return (
     <section id="expense-account-map" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.expenseMap.title', 'Expense account map')}>
       <h2 className="text-group font-semibold tracking-[-0.01em]">{t('admin.expenseMap.title', 'Expense account map')}</h2>
+      {!canManage && <p className="mt-2 text-control text-muted-foreground">{t('administration:admin.accountMap.adminOnly', 'Only an Admin can change this.')}</p>}
       {/* S-12 (UX-080/RF-053): one gate banner per readiness state, each naming its own missing step.
           The map stays readable in every state; only mapping actions wait for readiness. */}
       {readiness.state === 'notConnected' && (

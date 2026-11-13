@@ -3,8 +3,7 @@ import { ListState } from '@/src/components/ui/ListState';
 
 export type ChartState = 'ready' | 'loading' | 'empty' | 'error';
 
-export interface ChartFrameProps {
-  state: ChartState;
+interface ChartFramePropsBase {
   /** Skeleton row count for the loading variant (sized to the card body). */
   loadingRows?: number;
   emptyTitle?: string;
@@ -12,9 +11,13 @@ export interface ChartFrameProps {
   emptyIcon?: import('@/src/components/ui/icons').IconName;
   errorTitle?: string;
   errorSub?: string;
-  onRetry?: () => void;
   children: React.ReactNode;
 }
+
+export type ChartFrameProps = ChartFramePropsBase & (
+  | { state: ChartState; onRetry: () => void }
+  | { state: Exclude<ChartState, 'error'>; onRetry?: () => void }
+);
 
 /**
  * The single async wrapper for every chart/visual card. No card ever shows a

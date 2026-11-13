@@ -173,10 +173,10 @@ const BudgetAccountMap: React.FC = () => {
       }
     }
     await invalidate();
-    setConfirmProposals(false);
     if (failures.length) {
       setProposalError(t('uxs10.proposalPartial', { defaultValue: 'Some proposals were not saved ({{categories}}). Existing choices remain unchanged; review those categories and try again.', categories: failures.join(', ') }));
     } else {
+      setConfirmProposals(false);
       toast(t('uxs10.proposalSaved', 'Posting map confirmed'), t('uxs10.proposalSavedDetail', { defaultValue_one: '{{count}} category choice was saved.', defaultValue_other: '{{count}} category choices were saved.', count: saved }), 'success');
     }
   };
@@ -333,6 +333,7 @@ const BudgetAccountMap: React.FC = () => {
       <h2 className="text-group font-semibold tracking-[-0.01em]">
         {t('admin.budgetMap.title', 'Budget account map')}
       </h2>
+      {!canManage && <p className="mt-2 text-control text-muted-foreground">{t('administration:admin.accountMap.adminOnly', 'Only an Admin can change this.')}</p>}
 
       {categoriesNeedingPosting.length > 0 && <div className="mt-4 border-y border-border py-3" role="region" aria-label={t('uxs10.proposalsLabel', 'Suggested posting accounts')}>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -346,10 +347,10 @@ const BudgetAccountMap: React.FC = () => {
           )}
         </div>
         {catalogueQuery.isPending && <p className="mt-2 text-control text-muted-foreground" role="status">{t('uxs10.catalogueLoading', 'Loading the account chart…')}</p>}
-        {catalogueQuery.isError && <div className="mt-2 flex flex-wrap items-center gap-2"><p className="text-control text-destructive-text" role="alert">{t('uxs10.catalogueError', 'The account chart is unavailable.')}</p><Button variant="outline" size="sm" onClick={() => void catalogueQuery.refetch()}>{t('admin.retry', 'Retry')}</Button></div>}
+        {catalogueQuery.isError && <div className="mt-2"><ListState variant="error" title={t('uxs10.catalogueError', 'The account chart is unavailable.')} retryLabel={t('admin.retry', 'Retry')} onRetry={() => void catalogueQuery.refetch()} /></div>}
         {catalogue?.source === 'erp-fallback' && <p className="mt-2 text-control text-muted-foreground">{t('uxs10.catalogueFallback', 'The saved account chart is empty; choices come from the current ERP chart.')}</p>}
         {catalogue && proposals.length === 0 && <p className="mt-2 text-control text-muted-foreground">{t('uxs10.noProposal', 'No clear direct-cost match. Resolve it with your operator.')}</p>}
-        {proposalError && <p className="mt-2 text-control text-destructive-text" role="alert">{proposalError}</p>}
+        {proposalError && !confirmProposals && <p className="mt-2 text-control text-destructive-text" role="alert">{proposalError}</p>}
       </div>}
       <div className="mt-3.5">
         <DataTable
@@ -416,6 +417,7 @@ const BudgetAccountMap: React.FC = () => {
         description={t('uxs10.confirmDescription', { defaultValue: 'This will set the proposed direct-cost account for: {{choices}}. Your existing mappings will not change.', choices: proposals.map((item) => `${categoryLabel(item.category)} → ${item.account}`).join('; ') })}
         confirmLabel={t('uxs10.confirmAction', 'Confirm proposals')}
         loading={createMutation.isPending}
+        error={proposalError}
         onConfirm={() => void onProposalConfirm()}
         onCancel={() => setConfirmProposals(false)}
       />

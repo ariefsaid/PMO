@@ -22,7 +22,7 @@ import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/er
  * DESIGN.md tokens + the shared Card/DataTable/ListState primitives only.
  */
 
-export interface AccountingSnapshotsSectionProps {
+interface AccountingSnapshotsSectionPropsBase {
   showActuals?: boolean;
   showApAging?: boolean;
   showArAging?: boolean;
@@ -31,21 +31,24 @@ export interface AccountingSnapshotsSectionProps {
   actualsCollapsed?: boolean;
   actuals: ErpActualsSnapshotRow[];
   actualsPending?: boolean;
-  actualsError?: boolean;
-  onRetryActuals?: () => void;
 
   apAging: ErpAgingSnapshotRow[];
   apAgingPending?: boolean;
-  apAgingError?: boolean;
-  onRetryApAging?: () => void;
 
   arAging: ErpAgingSnapshotRow[];
   arAgingPending?: boolean;
-  arAgingError?: boolean;
-  onRetryArAging?: () => void;
   customerLinks?: ReadonlyMap<string, string>;
   actualProjectNames?: ReadonlyMap<string, string>;
 }
+
+type ErrorRetryState<ErrorKey extends string, RetryKey extends string> =
+  | ({ [Key in ErrorKey]?: boolean } & { [Key in RetryKey]: () => void })
+  | ({ [Key in ErrorKey]?: false } & { [Key in RetryKey]?: () => void });
+
+export type AccountingSnapshotsSectionProps = AccountingSnapshotsSectionPropsBase
+  & ErrorRetryState<'actualsError', 'onRetryActuals'>
+  & ErrorRetryState<'apAgingError', 'onRetryApAging'>
+  & ErrorRetryState<'arAgingError', 'onRetryArAging'>;
 
 const agingValue = (value: number | null, currency: string | null, unavailable: string) => {
   if (value === null || !currency || !/^[A-Z]{3}$/.test(currency)) {
@@ -167,30 +170,12 @@ const actualsColumns = (orgCurrency: string, t: (key: string, fallback: string) 
 /** One snapshot subsection: title, provenance strip (from the first row — snapshot-replace keeps
  *  every own-org row on one shared `snapshot_id`/`as_of`), and either the empty/loading/error state
  *  or the populated table. */
-function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }>({
-  title,
-  emptyLabel,
-  emptyDescription,
-  rows,
-  pending,
-  isError,
-  onRetry,
-  columns,
-  rowKey,
-  reportVersion,
-  tableId,
-  errorLabel,
-  detail,
-  embedded = false,
-  collapsedSummary,
-}: {
+type SnapshotBlockProps<Row> = {
   title: string;
   emptyLabel: string;
   emptyDescription: string;
   rows: Row[];
   pending?: boolean;
-  isError?: boolean;
-  onRetry?: () => void;
   columns: Column<Row>[];
   rowKey: (r: Row) => string;
   reportVersion?: string | null;
@@ -202,7 +187,26 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   embedded?: boolean;
   /** Index pages: the block starts closed behind this one-line summary (native disclosure). */
   collapsedSummary?: string;
-}) {
+} & ErrorRetryState<'isError', 'onRetry'>;
+
+function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }>(props: SnapshotBlockProps<Row>) {
+  const {
+    title,
+    emptyLabel,
+    emptyDescription,
+    rows,
+    pending,
+    isError,
+    onRetry,
+    columns,
+    rowKey,
+    reportVersion,
+    tableId,
+    errorLabel,
+    detail,
+    embedded = false,
+    collapsedSummary,
+  } = props;
   const first = rows[0];
   const content = <>
     {first && (
@@ -292,7 +296,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
         : undefined}
       pending={actualsPending}
       isError={actualsError}
-      onRetry={onRetryActuals}
+      onRetry={onRetryActuals!}
       tableId="components-dashboard-accountingsnapshotssection-actuals-table"
       columns={actualsColumns(orgCurrency, t, actualProjectNames)}
       // ⚑ Audit round 11 (NEW-2): the key must carry the WHOLE grain. `erp_actuals_snapshot` is keyed
@@ -312,7 +316,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       rows={apAging}
       pending={apAgingPending}
       isError={apAgingError}
-      onRetry={onRetryApAging}
+      onRetry={onRetryApAging!}
       tableId="components-dashboard-accountingsnapshotssection-aging-table"
       columns={agingColumns(agingLabels)}
       rowKey={agingRowKey}
@@ -328,7 +332,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       rows={arAging}
       pending={arAgingPending}
       isError={arAgingError}
-      onRetry={onRetryArAging}
+      onRetry={onRetryArAging!}
       tableId="components-dashboard-accountingsnapshotssection-aging-table"
       columns={agingColumns(agingLabels, customerLinks)}
       rowKey={agingRowKey}

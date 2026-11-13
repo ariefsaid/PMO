@@ -11,7 +11,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import i18next from 'i18next';
 import stockEn from '@/public/locales/en/stock.json';
 
-const { master, profile, project } = vi.hoisted(() => ({
+const { master, profile, project, reports } = vi.hoisted(() => ({
   master: {
     listUnits: vi.fn(), listItems: vi.fn(), listWarehouses: vi.fn(), listKeepers: vi.fn(),
     createUnit: vi.fn(), updateUnit: vi.fn(), createItem: vi.fn(), updateItem: vi.fn(),
@@ -19,8 +19,9 @@ const { master, profile, project } = vi.hoisted(() => ({
   },
   profile: { listOrgProfiles: vi.fn() },
   project: { listIdentity: vi.fn() },
+  reports: { onHand: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master }, profile, project } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, reports }, profile, project } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 
 let realRole: Role = 'Admin';
@@ -71,6 +72,7 @@ beforeEach(() => {
   for (const k of ['createUnit', 'updateUnit', 'createItem', 'updateItem', 'createWarehouse', 'updateWarehouse', 'archive', 'setKeeper'] as const) master[k].mockResolvedValue(undefined);
   profile.listOrgProfiles.mockResolvedValue(members);
   project.listIdentity.mockResolvedValue([{ id: 'pr1', name: 'Tower A' }]);
+  reports.onHand.mockResolvedValue([]);
 });
 
 describe('StockSetup screen states (AC-STK-032)', () => {
@@ -107,6 +109,19 @@ describe('StockSetup screen states (AC-STK-032)', () => {
 });
 
 describe('StockSetup tabs a11y', () => {
+  it('C1: shows on-hand quantity beside an item before its archive rule is needed', async () => {
+    reports.onHand.mockResolvedValue([
+      { itemId: 'i1', itemCode: 'CEM-50', itemName: 'Cement 50kg', unitCode: 'bag', wholeOnly: true, warehouseId: 'w1', warehouseCode: 'CENTRAL', warehouseName: 'Central store', warehouseKind: 'central', qtyOnHand: '7' },
+      { itemId: 'i1', itemCode: 'CEM-50', itemName: 'Cement 50kg', unitCode: 'bag', wholeOnly: true, warehouseId: 'w2', warehouseCode: 'SITE', warehouseName: 'Site store', warehouseKind: 'site', qtyOnHand: '5' },
+    ]);
+    renderPage();
+    await userEvent.click(await screen.findByRole('tab', { name: 'Items' }));
+    const table = await screen.findByRole('table', { name: 'Items' });
+
+    expect(within(table).getByRole('columnheader', { name: 'On hand' })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /CEM-50/ })).toHaveTextContent('12');
+  });
+
   it('AC-STK-032 each tab points at a real tabpanel labelled by it (axe aria-valid-attr-value)', async () => {
     renderPage();
     await screen.findByText('Bag');
@@ -137,6 +152,12 @@ describe('C10 StockSetup.tsx:45-46 URL-owned filters', () => {
 });
 
 describe('StockSetup permissions (AC-STK-033)', () => {
+  it('C1: the read-only hint names Finance as a role that can change stock setup', async () => {
+    renderPage('Engineer');
+    await screen.findByText('Bag');
+    expect(screen.getByText(/Finance, Project Managers, Executives, and Admins can change it/)).toBeInTheDocument();
+  });
+
   it('AC-STK-033 an Engineer sees the data but no Add / Edit affordance', async () => {
     renderPage('Engineer');
     await screen.findByText('Bag');
@@ -144,7 +165,7 @@ describe('StockSetup permissions (AC-STK-033)', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Items' }));
     await screen.findByText('Cement 50kg');
     expect(screen.queryByRole('button', { name: 'New item' })).not.toBeInTheDocument();
-    expect(screen.getByText(/Project Managers and above can change it/)).toBeInTheDocument();
+    expect(screen.getByText(/Finance, Project Managers, Executives, and Admins can change it/)).toBeInTheDocument();
   });
 
   it('AC-STK-033 a Project Manager can add an item but sees no keepers control', async () => {

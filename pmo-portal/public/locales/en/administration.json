@@ -214,6 +214,8 @@
     "warehouse": {
       "current": "Default receiving warehouse",
       "save": "Save",
+      "archivedReadOnly": "The default warehouse was archived in Odoo. An administrator needs to choose another.",
+      "deletedReadOnly": "The default warehouse was deleted in Odoo. An administrator needs to choose another.",
       "archived": "Needs attention: the default warehouse was archived in Odoo. Choose another.",
       "deleted": "Needs attention: the default warehouse was deleted in Odoo. Choose another."
     },
@@ -269,6 +271,11 @@
     "description": "A Feedback button in the header and, at most every 30 days, a short survey. Never while filling in a form."
   },
   "integrations": {
+    "personalM365": {
+      "action": {
+        "retryStatus": "Retry status"
+      }
+    },
     "identityIncomplete": "Setup incomplete",
     "identityRetry": "Retry",
     "send": {
@@ -408,6 +415,9 @@
     "retry": "Retry"
   },
   "admin": {
+    "accountMap": {
+      "adminOnly": "Only an Admin can change this."
+    },
     "receiptWithholding": {
       "defaultLabel": "Default account",
       "defaultNoun": "default account",

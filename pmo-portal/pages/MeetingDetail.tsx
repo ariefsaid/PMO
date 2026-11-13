@@ -212,9 +212,11 @@ const MeetingDetail: React.FC = () => {
           {actionItemsQuery.isPending ? (
             <div data-testid="meeting-action-items-loading"><ListState variant="loading" rows={2} /></div>
           ) : actionItemsQuery.isError ? (
-            <p role="alert" className="text-sm text-muted-foreground">
-              {t('meetingDetail.actionItems.error', "Couldn't load this meeting's action items.")}
-            </p>
+            <ListState
+              variant="error"
+              title={t('meetingDetail.actionItems.error', "Couldn't load this meeting's action items.")}
+              onRetry={() => void actionItemsQuery.refetch()}
+            />
           ) : actionItems.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {t('meetingDetail.actionItems.empty', 'No action items yet. Type /action in the minutes to create one.')}

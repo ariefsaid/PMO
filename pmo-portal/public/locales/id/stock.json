@@ -14,6 +14,7 @@
       "code": "Kode",
       "name": "Nama",
       "unit": "Satuan",
+      "onHand": "Stok tersedia",
       "wholeOnly": "Jumlah",
       "leadTime": "Waktu tunggu",
       "kind": "Jenis",
@@ -107,7 +108,7 @@
         "sub": "Tambahkan gudang pusat dan gudang lokasi proyek.",
         "action": "Tambah gudang pertama"
       },
-      "readOnlyHint": "Anda dapat melihat pengaturan stok. Manajer Proyek ke atas dapat mengubahnya."
+      "readOnlyHint": "Anda dapat melihat pengaturan stok. Finance, Manajer Proyek, Eksekutif, dan Admin dapat mengubahnya."
     },
     "confirm": {
       "archiveTitle": "Arsipkan data ini?",
@@ -246,6 +247,7 @@
       "sub": "Dokumen mungkin milik organisasi lain atau sudah tidak ada."
     },
     "backToList": "Kembali ke dokumen",
+    "keepersError": "Data penjaga stok tidak dapat dimuat, jadi tindakan Posting tidak tersedia.",
     "fields": {
       "warehouse": "Gudang",
       "project": "Proyek",
@@ -401,6 +403,8 @@
     "in": "Tambah stok",
     "costDefault": "Kosongkan untuk memakai biaya rata-rata.",
     "anotherPerson": "Orang lain harus mem-posting ini: Manajer Proyek atau di atasnya yang bukan pembuatnya.",
+    "otherAuthorDraft": "Draf ini dibuat oleh {{name}}. Hanya pembuatnya yang dapat menyimpan perubahan.",
+    "anotherPersonName": "orang lain",
     "saveDraft": "Simpan draf",
     "post": "Posting hitungan",
     "saved": "Draf disimpan",
@@ -480,6 +484,7 @@
   "issueOverAllowance": "Melebihi jatah: {{workItem}} kini memakai {{used}} dari {{planned}} {{unit}} yang direncanakan. Pengeluaran tetap tercatat; ini penanda, bukan penghalang.",
   "reorder": {
     "title": "Pemesanan ulang",
+    "readOnlyHint": "Hanya Finance, Manajer Proyek, Eksekutif, dan Admin yang dapat mengubah level pemesanan ulang.",
     "panel": {
       "title": "Atur level pemesanan ulang",
       "item": "Barang",

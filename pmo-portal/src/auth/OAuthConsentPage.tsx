@@ -30,6 +30,7 @@ const OAuthConsentPage: React.FC = () => {
   const [view, setView] = useState<View>(authorizationId ? { kind: 'loading' } : { kind: 'invalid' });
   const [busy, setBusy] = useState(false);
   const [decideError, setDecideError] = useState(false);
+  const [readAttempt, setReadAttempt] = useState(0);
   // Read each request ONCE: for an already-approved client the read itself issues the code, and a
   // second read is refused. StrictMode runs this effect twice, so the second run reuses the first
   // run's promise instead of reading again.
@@ -56,13 +57,16 @@ const OAuthConsentPage: React.FC = () => {
         }
       },
       () => {
-        if (active) setView({ kind: 'loadError' });
+        if (active) {
+          pending.current = null;
+          setView({ kind: 'loadError' });
+        }
       },
     );
     return () => {
       active = false;
     };
-  }, [authorizationId]);
+  }, [authorizationId, readAttempt]);
 
   const decide = async (decision: 'approve' | 'deny') => {
     if (view.kind !== 'consent' || busy) return;
@@ -108,6 +112,9 @@ const OAuthConsentPage: React.FC = () => {
       body = (
         <div className="space-y-3">
           <ErrorBanner message={t('oauthConsent.loadError', 'This sign-in request could not be loaded.')} />
+          <Button type="button" variant="outline" onClick={() => setReadAttempt((attempt) => attempt + 1)}>
+            {t('auth:oauthConsent.retryRequest', 'Retry request')}
+          </Button>
           {restartHint}
         </div>
       );

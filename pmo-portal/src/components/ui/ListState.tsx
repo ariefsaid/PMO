@@ -13,8 +13,7 @@ interface ActionSpec {
 /** Loading silhouettes shaped like the content they stand in for. */
 export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'chart';
 
-export interface ListStateProps {
-  variant: 'loading' | 'empty' | 'error' | 'partial';
+interface ListStateBaseProps {
   /** Table footer alignment that keeps the continuation action in the familiar centered position. */
   partialLayout?: 'row' | 'centeredAction';
   /** Empty/error heading. */
@@ -27,8 +26,6 @@ export interface ListStateProps {
   icon?: IconName;
   /** Empty-state populating action (empty-states guideline). */
   action?: ActionSpec;
-  /** Error-state retry handler (error-recovery: cause + fix + retry). */
-  onRetry?: () => void;
   /** Override the retry label for the current locale. */
   retryLabel?: string;
   /** Number of skeleton rows for the loading variant. */
@@ -58,6 +55,12 @@ export interface ListStateProps {
   /** See `stateId`. The module this empty state belongs to (e.g. 'companies'). */
   module?: string;
 }
+
+/** A failed read must always be recoverable from the state that explains it. */
+export type ListStateProps = ListStateBaseProps & (
+  | { variant: 'error'; onRetry: () => void }
+  | { variant: 'loading' | 'empty' | 'partial'; onRetry?: never }
+);
 
 /**
  * The loading silhouette. Every block is the shared `.skel` shimmer utility — the
@@ -259,12 +262,10 @@ export const ListState: React.FC<ListStateProps> = ({
             : <div className="text-control font-semibold text-destructive-text">{title}</div>)}
           {sub && <div className="mt-px text-control text-muted-foreground">{sub}</div>}
         </div>
-        {onRetry && (
-          <Button variant="outline" size="sm" onClick={onRetry}>
-            <Icon name="refresh" />
-            {resolvedRetryLabel}
-          </Button>
-        )}
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <Icon name="refresh" />
+          {resolvedRetryLabel}
+        </Button>
       </div>
     );
   }

@@ -81,6 +81,20 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     expect(await screen.findByText('Document not found')).toBeInTheDocument();
   });
 
+  it('C1: explains that a failed keeper read prevents Post and retries that read', async () => {
+    documents.get.mockResolvedValue(detail({ kind: 'issue', status: 'Draft', created_by: 'another-user' }));
+    master.listKeepers.mockRejectedValueOnce(new Error('offline'));
+    renderPage('Project Manager');
+
+    const errorTitle = await screen.findByText('Could not load stock keepers, so Post is unavailable.');
+    const error = errorTitle.closest('[role="alert"]') as HTMLElement | null;
+    expect(error).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Post' })).not.toBeInTheDocument();
+    master.listKeepers.mockResolvedValue([{ warehouse_id: 'w1', user_id: 'me', org_id: 'org-1' }]);
+    await userEvent.click(within(error!).getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('button', { name: 'Post' })).toBeInTheDocument();
+  });
+
   it('AC-STK-020 entry value is hidden when the entries carry no value key', async () => {
     renderPage();
     await screen.findByText('ISS-1');

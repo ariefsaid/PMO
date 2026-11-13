@@ -55,6 +55,7 @@ const StockDocumentDetail: React.FC = () => {
   const ctx = { currentUserId: me, record };
   const canCancel = may('withdraw', 'stockDocument', ctx);
   const canPost = d?.status === 'Draft' && may('post', 'stockDocument', ctx);
+  const keeperReadBlocksPost = Boolean(d?.status === 'Draft' && keepers.isError && !canPost && may('post', 'stockDocument', { ...ctx, record: { ...record, isKeeper: true } }));
   const writeOff = d?.kind === 'adjustment' || d?.kind === 'count';
   const isAuthor = !!me && d?.created_by === me;
   // FR-STK-062: the author of a write-off Draft reopens it; another person (rank >= 20) posts it.
@@ -167,6 +168,11 @@ const StockDocumentDetail: React.FC = () => {
               ...(canCancel ? [{ key: 'cancel', label: t('detail.cancelDraft'), danger: true, onSelect: () => setConfirmCancel(true) }] : []),
             ]}
           />
+          {keeperReadBlocksPost && <ListState
+            variant="error"
+            title={t('detail.keepersError', 'Could not load stock keepers, so Post is unavailable.')}
+            onRetry={() => void keepers.refetch()}
+          />}
           {d.kind === 'issue' && d.status === 'Posted' && d.project_id && <OverAllowanceNotice projectId={d.project_id} on={d.occurred_on} lines={d.lines} />}
           {writeOff && d.status === 'Draft' && isAuthor && <p className="text-sm text-muted-foreground">{t('count.anotherPerson')}</p>}
           <dl className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-card p-4 text-sm md:grid-cols-4">

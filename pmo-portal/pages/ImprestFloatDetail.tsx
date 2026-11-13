@@ -222,7 +222,7 @@ const ImprestFloatDetail: React.FC = () => {
       <Card className="mb-4">
         <CardHead>{t('imprest:receipts.title', 'Receipts')}</CardHead>
         <CardPad className="pt-0">
-          {claims.isError ? <p role="alert" className="text-sm text-destructive-text">{t('imprest:receipts.error', "Couldn't load the float's records")}</p>
+          {claims.isError ? <ListState variant="error" title={t('imprest:receipts.error', "Couldn't load the float's records")} onRetry={() => void claims.refetch()} />
             : claims.isPending ? <ListState variant="loading" rows={2} />
             : (claims.data?.rows ?? []).length === 0 ? <p className="text-sm text-muted-foreground">{t('imprest:receipts.none', 'Nothing has been charged to this float yet.')}</p>
             : <ul className="divide-y divide-border text-sm">
@@ -251,7 +251,9 @@ const ImprestFloatDetail: React.FC = () => {
       <Card className="mb-4">
         <CardHead>{t('imprest:rep.title', 'Replenishments')}</CardHead>
         <CardPad className="pt-0">
-          {postings.isError && <p role="alert" className="mb-2 text-sm text-destructive-text">{t('imprest:posting.error', "Couldn't load the ERP posting status")}</p>}
+          {postings.isError
+            ? <ListState variant="error" title={t('imprest:posting.error', "Couldn't load the ERP posting status")} retryLabel={t('common.retry', 'Retry')} onRetry={() => void postings.refetch()} />
+            : null}
           {postings.data?.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
             {t('imprest:posting.truncated', 'Showing posting status for the first {{count}} movements only.', { count: LIST_LIMIT })}
           </p>}
@@ -266,7 +268,7 @@ const ImprestFloatDetail: React.FC = () => {
       <Card className="mb-4">
         <CardHead>{t('imprest:counts.title', 'Cash counts')}</CardHead>
         <CardPad className="pt-0">
-          {counts.isError ? <p role="alert" className="text-sm text-destructive-text">{t('imprest:counts.error', "Couldn't load counts")}</p>
+          {counts.isError ? <ListState variant="error" title={t('imprest:counts.error', "Couldn't load counts")} onRetry={() => void counts.refetch()} />
             : (counts.data?.rows ?? []).length === 0 ? <p className="text-sm text-muted-foreground">{t('imprest:counts.none', 'No cash count recorded yet.')}</p>
             : <ul className="divide-y divide-border text-sm">
               {(counts.data?.rows ?? []).map((c) => (

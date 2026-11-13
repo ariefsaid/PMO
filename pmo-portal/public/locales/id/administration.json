@@ -214,6 +214,8 @@
     "warehouse": {
       "current": "Gudang penerimaan utama",
       "save": "Simpan",
+      "archivedReadOnly": "Gudang utama diarsipkan di Odoo. Admin perlu memilih gudang lain.",
+      "deletedReadOnly": "Gudang utama dihapus di Odoo. Admin perlu memilih gudang lain.",
       "archived": "Perlu perhatian: gudang utama diarsipkan di Odoo. Pilih yang lain.",
       "deleted": "Perlu perhatian: gudang utama dihapus di Odoo. Pilih yang lain."
     },
@@ -269,6 +271,11 @@
     "description": "Tombol Masukan di header dan, paling sering tiap 30 hari, survei singkat. Tidak pernah saat mengisi formulir."
   },
   "integrations": {
+    "personalM365": {
+      "action": {
+        "retryStatus": "Coba lagi untuk memeriksa status"
+      }
+    },
     "identityIncomplete": "Penyiapan belum selesai",
     "identityRetry": "Coba lagi",
     "send": {
@@ -408,6 +415,9 @@
     "retry": "Coba lagi"
   },
   "admin": {
+    "accountMap": {
+      "adminOnly": "Hanya Admin yang dapat mengubah ini."
+    },
     "receiptWithholding": {
       "defaultLabel": "Akun bawaan",
       "defaultNoun": "akun bawaan",

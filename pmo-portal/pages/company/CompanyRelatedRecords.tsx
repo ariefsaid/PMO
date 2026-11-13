@@ -32,7 +32,7 @@ interface RelatedListProps {
   hrefFor: (id: string) => string;
   emptyLabel: string;
   listAriaLabel: string;
-  onRetry?: () => void;
+  onRetry: () => void;
 }
 
 /**

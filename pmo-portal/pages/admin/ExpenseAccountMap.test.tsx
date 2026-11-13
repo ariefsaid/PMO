@@ -9,6 +9,7 @@ import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
 const h = vi.hoisted(() => ({
+  canManage: true,
   binding: null as { status: string } | null,
   bindingPending: false,
   bindingError: false,
@@ -27,7 +28,7 @@ vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({
   data: h.ownership, isPending: h.ownershipPending, isError: h.ownershipError, refetch: h.ownershipRefetch,
 }) }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canManage }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: {
   expensePostings: { listAccountMap: h.list },
   integrations: { saveExpenseAccount: h.save, clearExpenseAccount: vi.fn() },
@@ -57,9 +58,17 @@ beforeEach(async () => {
   h.list.mockResolvedValue([]);
   h.save.mockResolvedValue(undefined);
   h.toast.mockClear();
+  h.canManage = true;
 });
 
 describe('expense account readiness (AD-2, S-12)', () => {
+  it('C1: a read-only viewer is told that only an Admin can change the expense account map', async () => {
+    h.canManage = false;
+    renderMap();
+    expect(await screen.findByText('Expense account map')).toBeInTheDocument();
+    expect(screen.getByText('Only an Admin can change this.')).toBeInTheDocument();
+  });
+
   it('names connecting ERPNext only when the org is actually not connected', async () => {
     renderMap();
     expect(await screen.findByText('Connect ERPNext before mapping expense accounts.')).toBeInTheDocument();

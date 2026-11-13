@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { useAuth } from './useAuth';
 import { Button } from '../components/ui/Button';
@@ -32,30 +33,28 @@ const AuthLoading: React.FC = () => (
   </div>
 );
 
-/** Full-page profile-error state — destructive tinted banner + retry */
-const ProfileErrorPage: React.FC<{ message: string }> = ({ message }) => (
-  <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
-    <div className="w-full max-w-sm rounded-lg border border-destructive/30 bg-destructive/[0.07] p-5">
-      <p
-        className="text-[14px] font-semibold"
-        style={{ color: 'hsl(0 72% 42%)' }}
-        role="alert"
-        aria-live="assertive"
-      >
-        Unable to load your profile.
-      </p>
-      <p className="mt-1 text-[12.5px] text-muted-foreground">{message}</p>
-      <Button
-        variant="outline"
-        size="sm"
-        className="mt-4"
-        onClick={() => window.location.reload()}
-      >
-        Retry
-      </Button>
+/**
+ * Full-page profile error — retry the failed profile read through the shared auth context.
+ *
+ * The body is FIXED recovery copy, never the raw read error: `TypeError: Failed to fetch` told a
+ * user nothing they could act on, and it leaked the failure's English internals into both locales.
+ * The technical message is logged where the read fails (`AuthProvider`), not rendered.
+ */
+const ProfileErrorPage: React.FC<{ onRetry: () => void }> = ({ onRetry }) => {
+  const { t } = useTranslation();
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
+      <ListState
+        variant="error"
+        title="Unable to load your profile."
+        sub={t('auth:profileLoadError.body', 'Check your connection and try again.')}
+        retryLabel={t('ui.listState.retry', 'Retry')}
+        onRetry={onRetry}
+        className="w-full max-w-sm"
+      />
     </div>
-  </div>
-);
+  );
+};
 
 /** Full-page not-provisioned state — the session is valid but no profiles row exists yet. */
 const NotProvisionedPage: React.FC = () => {
@@ -88,14 +87,14 @@ const NotProvisionedPage: React.FC = () => {
 };
 
 export const RequireAuth: React.FC = () => {
-  const { session, loading, profileError, profileErrorKind } = useAuth();
+  const { session, loading, profileError, profileErrorKind, refreshCurrentUser } = useAuth();
   const location = useLocation();
 
   if (loading) return <AuthLoading />;
   // AC-CLI-012: carry the page being visited so sign-in can return to it (router state, not URL).
   if (!session) return <Navigate to="/login" replace state={returnToState(location)} />;
   if (profileErrorKind === 'not_provisioned') return <NotProvisionedPage />;
-  if (profileError) return <ProfileErrorPage message={profileError} />;
+  if (profileError) return <ProfileErrorPage onRetry={() => { void refreshCurrentUser(); }} />;
 
   return <Outlet />;
 };

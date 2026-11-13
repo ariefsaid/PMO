@@ -6,6 +6,7 @@ import {
   CardHead,
   CardPad,
   GateNotice,
+  FieldError,
   ListState,
   useToast,
 } from '@/src/components/ui';
@@ -45,6 +46,7 @@ const MeetingMinutes = React.forwardRef<MeetingMinutesHandle, MeetingMinutesProp
   const editorRef = useRef<MinutesEditorHandle>(null);
   const [blocks, setBlocks] = useState<NoteBlock[] | null>(null);
   const [baseline, setBaseline] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const previousMeetingId = useRef(meeting.id);
   const savedBlocks = useMemo(
     () => upgradeNotes(meeting.notes, meeting.notes_schema_version),
@@ -81,9 +83,11 @@ const MeetingMinutes = React.forwardRef<MeetingMinutesHandle, MeetingMinutesProp
       await update.mutateAsync({ id: meeting.id, patch: { notes: document } });
       setBlocks(document);
       setBaseline(JSON.stringify(document));
+      setSaveError(null);
       toast(t('meetingDetail.toast.minutesSaved', 'Minutes saved'), meeting.title, 'success');
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
+      setSaveError(detail ? `${headline}. ${detail}` : headline);
       toast(headline, detail, 'warning');
     }
   };
@@ -106,6 +110,7 @@ const MeetingMinutes = React.forwardRef<MeetingMinutesHandle, MeetingMinutesProp
         {t('meetingDetail.minutes.title', 'Minutes')}
       </CardHead>
       <CardPad>
+        <FieldError id="meeting-minutes-save-error" className="mb-3">{saveError}</FieldError>
         {tasksExternal && canEdit && (
           <GateNotice variant="blocked" className="mb-2" data-testid="minutes-external-gate">
             {t('meetingDetail.action.externalGate', 'Tasks are managed by the connected task system, so action items cannot be created from these minutes.')}

@@ -79,7 +79,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   const native = mode === 'native';
   const statusFilters = native ? NATIVE_STATUS_FILTERS : data?.some((p) => displayStatus(p) === 'Cancelled') ? [...ERP_STATUS_FILTERS, 'Cancelled' as const] : ERP_STATUS_FILTERS;
   // I-5: the invoice each receipt settles, by its number (the list read already holds them).
-  const { data: invoiceList, isPending: invoiceListPending } = useSalesInvoices();
+  const { data: invoiceList, isPending: invoiceListPending, isError: invoiceListError, refetch: refetchInvoiceList } = useSalesInvoices();
   const projectOptions = useInvoiceProjectOptions().data ?? [];
   const invoiceNumberById = useMemo(
     () => new Map((invoiceList ?? []).map((inv) => [inv.id, invoiceNumber(inv)])),
@@ -347,6 +347,11 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
       ) : undefined}
     >
       {/* Body */}
+      {invoiceListError && <ListState
+        variant="error"
+        title={t('finance:financeCopy.invoiceNumbersLoadFailed', "Couldn't load invoice numbers")}
+        onRetry={() => void refetchInvoiceList()}
+      />}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />

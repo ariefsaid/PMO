@@ -112,7 +112,7 @@ function localizedError(t: TFunction, code: string | undefined, origin: ErrorOri
       knownM365ErrorReason(t, code) ??
       t(
         'integrations.personalM365.errors.statusFallback',
-        "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",
+        "We couldn't confirm your Microsoft 365 connection status. Retry status to try again.",
       )
     );
   }
@@ -191,6 +191,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
   // Ensures the status fetch fires at most once per mount (entitlement may load async, so the effect
   // depends on [entitled] — this ref prevents a double-fetch if it toggles).
   const statusFetchedRef = useRef(false);
+  const [statusFetchAttempt, setStatusFetchAttempt] = useState(0);
 
   // One-shot: consume the callback return (?m365_connected=true | ?m365_org_approved=true |
   // ?m365_error=<msg>) and clean the
@@ -265,7 +266,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
       statusFetchedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entitled]);
+  }, [entitled, statusFetchAttempt]);
 
   const applyStatus = useCallback((status: ConnectionStatus) => {
     keepFoldersRef.current = status.connected && keepsFolderPermission(status);
@@ -460,9 +461,22 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
               ? localizedError(t, errorState.code, 'status')
               : t(
                   'integrations.personalM365.state.unknown',
-                  "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",
+                  "We couldn't confirm your Microsoft 365 connection status. Retry status to try again.",
                 )}
           </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="ml-1"
+            onClick={() => {
+              setErrorState(null);
+              setPhase('loading');
+              setStatusFetchAttempt((attempt) => attempt + 1);
+            }}
+          >
+            {t('administration:integrations.personalM365.action.retryStatus', 'Retry status')}
+          </Button>
         </p>
       ) : phase === 'loading' ? (
         <p className="mt-2 text-sm text-muted-foreground" data-testid="m365-loading-msg">

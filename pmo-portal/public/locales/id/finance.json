@@ -267,6 +267,8 @@
     "expandGroup": "Bentangkan {{group}}",
     "collapseAll": "Ciutkan semua",
     "expandAll": "Bentangkan semua",
+    "projectNameLoadFailed": "Nama proyek yang dipilih tidak dapat dimuat",
+    "projectNameLoadFailedDescription": "Nama proyek pilihan belum dapat dibaca. Coba lagi untuk memulihkan cakupan proyek ini.",
     "setUp": "Atur akuntansi"
   },
   "erpPurchases": {
@@ -724,7 +726,11 @@
       "askAdmin": "Administrator dapat menyelesaikan penyiapan."
     }
   },
+  "financialStatements": {
+    "selectedProjectNameUnavailable": "Nama proyek yang dipilih tidak tersedia"
+  },
   "financeCopy": {
+    "invoiceNumbersLoadFailed": "Nomor faktur tidak dapat dimuat",
     "budget": "Anggaran",
     "activateEditorBlocked": "Anda menyusun atau mengedit versi ini, jadi orang lain harus mengaktifkannya.",
     "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat. Minta Admin atau Finance untuk mengaktifkannya.",

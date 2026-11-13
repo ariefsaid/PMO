@@ -92,8 +92,9 @@ vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' })
 const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
 vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => ({ data: { plans: [], replenishments: [] }, isPending: false, isError: false, refetch: vi.fn() }) }));
+const correctionState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
+  useReopenableApprovedTimesheets: () => correctionState,
   useTimesheetsAwaitingApproval: () => queryState,
   useTimesheetMutations: () => ({
     approve: approveMutation,
@@ -212,6 +213,10 @@ beforeEach(() => {
   expenseState.data = [];
   expenseState.isPending = false;
   expenseState.isError = false;
+  correctionState.data = [];
+  correctionState.isPending = false;
+  correctionState.isError = false;
+  correctionState.refetch = vi.fn();
   queryState.data = undefined;
   queryState.isPending = false;
   queryState.isError = false;
@@ -249,6 +254,17 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('Approvals page states', () => {
+  it('C1: the preview failure retries the correction read it names', async () => {
+    correctionState.isError = true;
+    renderPage('timesheets');
+
+    const previewTitle = screen.getByText("Couldn't load the selected queue");
+    const previewError = previewTitle.closest('[role="alert"]');
+    expect(previewError).not.toBeNull();
+    await userEvent.click(within(previewError as HTMLElement).getByRole('button', { name: 'Retry' }));
+    expect(correctionState.refetch).toHaveBeenCalledTimes(1);
+  });
+
   it('PERF-APPR-1: the queue reads only Requested procurements, not the whole org list', () => {
     renderPage('procurement');
     expect(procurementReads).toHaveBeenCalledWith({ status: 'Requested' });

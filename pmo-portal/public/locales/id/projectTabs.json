@@ -149,6 +149,7 @@
         "edit": "Ubah baris",
         "errors": {
           "belowAccepted": "BAST yang sudah dikonfirmasi telah menerima {{qty}} {{unit}}. Alokasi tidak boleh lebih rendah.",
+          "removeAccepted": "BAST yang dikonfirmasi telah menerima {{qty}} {{unit}}, jadi alokasi ini tidak dapat dihapus.",
           "quantity": "Isi kuantitas di atas 0 dengan paling banyak 3 angka desimal"
         },
         "frozen": "Work Order ini berstatus {{status}}: alokasinya dibekukan.",

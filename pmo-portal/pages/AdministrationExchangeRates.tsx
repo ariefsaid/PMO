@@ -168,7 +168,7 @@ const AdministrationExchangeRates: React.FC = () => {
       <div className="mb-[var(--space-group)] flex flex-wrap items-center justify-end gap-2">
         <h2 id="fx-rates-heading" className="sr-only">{t('admin.nav.exchangeRates', 'Exchange rates')}</h2>
         {canUpload && !listEmpty && (
-          <Button disabled={busy} onClick={openUpload}>
+          <Button disabled={busy} aria-describedby={busy ? 'fx-actions-unavailable' : undefined} onClick={openUpload}>
             {t('fx.upload', 'Upload rates')}
           </Button>
         )}
@@ -176,6 +176,7 @@ const AdministrationExchangeRates: React.FC = () => {
           <Button
             variant="outline"
             disabled={busy}
+            aria-describedby={busy ? 'fx-actions-unavailable' : undefined}
             onClick={() => {
               if (!may('create', 'fxRate', { record: { viewOnly } })) return;
               setManualError(null);
@@ -186,6 +187,11 @@ const AdministrationExchangeRates: React.FC = () => {
           </Button>
         )}
       </div>
+      {busy && <p id="fx-actions-unavailable" role="status" className="mb-3 text-control text-muted-foreground">
+        {orgDay.isError
+          ? t('fx.actionsUnavailableError', 'Actions are unavailable because organization currency could not be read.')
+          : t('fx.actionsUnavailableLoading', 'Wait for the organization currency to load before using these actions.')}
+      </p>}
 
       {orgDay.isPending ? (
         <ListState variant="loading" rows={1} testId="fx-org-day-loading" />
@@ -223,7 +229,9 @@ const AdministrationExchangeRates: React.FC = () => {
                   'Accounting records never change.',
                 )} ${t(
                   'uxs38.emptyNeedRole',
-                  'Admin or Finance can upload them.',
+                  viewOnly
+                    ? 'Stop viewing as another role to upload rates.'
+                    : 'Admin or Finance can upload them.',
                 )}`
           }
           stateId="fx-rates-empty"

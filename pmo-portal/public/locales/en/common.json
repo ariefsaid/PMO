@@ -3484,7 +3484,7 @@
         "organizationApproved": "Your organization has approved the PMO Portal app in Microsoft 365. Connect your own Microsoft 365 account to continue.",
         "reconnect": "The Microsoft 365 connection expired. Please reconnect to continue.",
         "revoked": "The Microsoft 365 connection was revoked. Connect again to continue.",
-        "unknown": "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again."
+        "unknown": "We couldn't confirm your Microsoft 365 connection status. Retry status to try again."
       },
       "action": {
         "connect": "Connect Microsoft 365",
@@ -3519,7 +3519,7 @@
         "recordFolderUnavailable": "This record's Microsoft 365 folder isn't available. Check the folder link, then try again.",
         "disconnectFailureHeadline": "We couldn't confirm the disconnect. The last confirmed status is still connected.",
         "disconnectFailureGuidance": "You can retry or cancel.",
-        "statusFallback": "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",
+        "statusFallback": "We couldn't confirm your Microsoft 365 connection status. Retry status to try again.",
         "generic": "Microsoft 365 could not be connected. Please try again."
       }
     },
