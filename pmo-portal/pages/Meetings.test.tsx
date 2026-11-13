@@ -352,6 +352,15 @@ describe('Meetings — row menu gating', () => {
     await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
     expect(screen.queryByRole('menuitem', { name: 'Restore' })).not.toBeInTheDocument();
   });
+
+  it('C13 Meetings.tsx:179-193 says why a row cannot be archived instead of silently omitting it', async () => {
+    renderPage('Engineer');
+    const row = screen.getByText('Supplier dispute call').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
+    // The known rule (author or Admin) is rendered, so the missing action is explainable from the list.
+    expect(screen.getByRole('menuitem', { name: /author or Admin/i })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Archive' })).not.toBeInTheDocument();
+  });
 });
 
 describe('Meetings — states', () => {
