@@ -22,6 +22,8 @@ interface PanelState {
 }
 
 const linkClass = 'inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+/** A finding clause: the fact and its way into the list that owns it, in the line itself. */
+const findingLinkClass = 'tabular underline decoration-border underline-offset-4 hover:decoration-current focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 const CardLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
   <Link to={to} className={linkClass}><span>{children}</span><Icon name="chev" className="size-4" /></Link>
 );
@@ -110,13 +112,13 @@ export function EngineerTasksCard({
   // Without the organisation's day nothing can be called late or due, so the rows are listed undated instead.
   const rows = (today ? [...oldestFirst, ...dueThisWeek] : undated).slice(0, 5);
   // Both of the person's own counts, stated where the list starts: overdue in the shared late tone (the group's
-  // one exception), due today plain. The rows below stay plain except the single most urgent one
-  // (screen-rules: exception colour once per group).
+  // one exception), due today plain; each clause links to the list it counts (screen-rules: the finding line's
+  // clauses link to their place). The rows below stay plain except the single most urgent one.
   const overdueFinding = overdue.length > 0
-    ? <span data-testid="engineer-tasks-overdue" className="tabular text-destructive-text">{t('home.eng.tasksOverdueFinding', { count: overdue.length, defaultValue_one: '{{count}} overdue', defaultValue_other: '{{count}} overdue' })}</span>
+    ? <Link to="/my-tasks" data-testid="engineer-tasks-overdue" className={`${findingLinkClass} text-destructive-text`}>{t('home.eng.tasksOverdueFinding', { count: overdue.length, defaultValue_one: '{{count}} overdue', defaultValue_other: '{{count}} overdue' })}</Link>
     : null;
   const dueTodayFinding = dueToday > 0
-    ? <span data-testid="engineer-tasks-due-today" className="tabular text-foreground">{t('home.eng.dueTodayFinding', { count: dueToday, defaultValue_one: '{{count}} due today', defaultValue_other: '{{count}} due today' })}</span>
+    ? <Link to="/my-tasks" data-testid="engineer-tasks-due-today" className={`${findingLinkClass} text-foreground`}>{t('home.eng.dueTodayFinding', { count: dueToday, defaultValue_one: '{{count}} due today', defaultValue_other: '{{count}} due today' })}</Link>
     : null;
   const finding = overdueFinding || dueTodayFinding
     ? <>{overdueFinding}{overdueFinding && dueTodayFinding && <span aria-hidden className="mx-1.5 text-muted-foreground">·</span>}{dueTodayFinding}</>
