@@ -263,6 +263,39 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(within(header as HTMLElement).getByRole('button', { name: 'Change type' })).toBeVisible();
   });
 
+  it('keeps quantity and unit-price labels with the line row and the estimate above the phone footer', () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn((media: string) => ({
+        matches: false,
+        media,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      } as unknown as MediaQueryList)),
+    });
+
+    try {
+      renderCreate();
+      const quantity = screen.getByLabelText('New item quantity');
+      const unitPrice = screen.getByLabelText('New item unit price');
+      const quantityDefinition = quantity.closest('dd');
+      const priceDefinition = unitPrice.closest('dd');
+      expect(quantityDefinition?.previousElementSibling).toHaveTextContent('Qty');
+      expect(priceDefinition?.previousElementSibling).toHaveTextContent('Unit price');
+
+      const estimate = screen.getByText('Estimated total');
+      const footer = screen.getByTestId('form-footer');
+      expect(estimate.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: originalMatchMedia });
+    }
+  });
+
   it('AC-PROC1-002 choosing a new need saves the request and its entered line before replacing to detail', async () => {
     renderCreate('/procurement/new');
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
