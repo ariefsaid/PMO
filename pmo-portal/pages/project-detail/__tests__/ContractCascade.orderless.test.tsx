@@ -118,10 +118,11 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.billing = { data: undefined, isPending: false, isError: false, refetch: refetchBilling };
     h.orders = { data: [], isPending: false, isError: false, refetch: refetchOrders };
 
-    render(<MemoryRouter><FinanceI18nTestProvider><ContractCascade project={project} contractTools={<button type="button">Open customer orders</button>} /></FinanceI18nTestProvider></MemoryRouter>);
+    render(<MemoryRouter><FinanceI18nTestProvider><ContractCascade project={project} contractTools={<button type="button">Open contract tools</button>}><button type="button">Open customer orders</button></ContractCascade></FinanceI18nTestProvider></MemoryRouter>);
 
     const alert = screen.getByRole('alert');
     expect(within(alert).getByText("Couldn't load the contract")).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Open contract tools' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Open customer orders' })).toBeVisible();
     await user.click(within(alert).getByRole('button', { name: 'Retry' }));
     expect(refetchBoq).toHaveBeenCalledTimes(1);

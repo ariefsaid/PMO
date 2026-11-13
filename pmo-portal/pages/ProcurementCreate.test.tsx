@@ -96,7 +96,7 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.getAllByText('Unknown')).toHaveLength(3);
     expect(screen.queryByText(/\$200/)).not.toBeInTheDocument();
     expect(screen.getByText("Couldn't load your organisation's currency.")).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry currency' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(mocks.orgFxContext.refetch).toHaveBeenCalledTimes(1);
   });
 
@@ -497,7 +497,7 @@ describe('AC-PROC1 one-page request creation', () => {
   });
 
   it('AC-PROC1-008 formats draft line totals in the organization currency', () => {
-    mocks.currency = 'IDR';
+    mocks.orgFxContext.data = { currency: 'IDR' };
     renderCreate();
     fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
