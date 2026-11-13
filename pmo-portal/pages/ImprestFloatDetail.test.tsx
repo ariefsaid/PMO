@@ -235,6 +235,17 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     expect(within(screen.getByText('EXP-2').closest('li') as HTMLElement).getByText('Waiting')).toBeInTheDocument();
   });
 
+  it('C16 a receipt in an open replenishment names the request it sits in', () => {
+    h.reps = ok({ rows: [{ ...REP, id: 'r5', number: 'REP-5', status: 'Requested' }], truncated: false });
+    h.claims = ok({ rows: [
+      { id: 'c3', claim_number: 'EXP-3', kind: 'claim', title: 'Oil', amount: 100000, status: 'Paid', imprest_replenishment_id: 'r5', is_plan_exception: false, currency: 'IDR' },
+    ], truncated: false });
+    renderPage();
+    const li = screen.getByText('EXP-3').closest('li') as HTMLElement;
+    expect(within(li).getByText('In a replenishment request')).toBeInTheDocument();
+    expect(li).toHaveTextContent('REP-5');
+  });
+
   it('AC-IMP-082 a settled receipt is marked replenished', () => {
     h.reps = ok({ rows: [{ ...REP, id: 'r0', status: 'Paid' }], truncated: false });
     h.claims = ok({ rows: [

@@ -10,6 +10,18 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.38.0](https://github.com/ariefsaid/PMO/compare/v0.37.0...v0.38.0) (2026-11-12)
+
+
+### Features
+
+* **procurement:** record a purchase from existing ERP journal cost lines ([#2195](https://github.com/ariefsaid/PMO/issues/2195)) ([03f7c47](https://github.com/ariefsaid/PMO/commit/03f7c47e85563ff59eae7e8cc74de55358dcaf82))
+
+
+### Chores
+
+* release 0.38.0 ([d2c2237](https://github.com/ariefsaid/PMO/commit/d2c223789e4a28daf29da9fc1d57672ab0eab7e3))
+
 ## [0.37.0](https://github.com/ariefsaid/PMO/compare/v0.36.0...v0.37.0) (2026-11-12)
 
 

@@ -802,6 +802,19 @@ describe('MeetingDetail — states', () => {
     expect(screen.getByTestId('meeting-delete')).toBeInTheDocument();
   });
 
+  it('C10 MeetingDetail.tsx:149-152: a failed delete stays open with a visible retry path', async () => {
+    mutations.remove.mutateAsync.mockRejectedValueOnce(new Error('delete failed'));
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    await userEvent.click(await screen.findByTestId('meeting-delete'));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /delete meeting/i }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/failed/i);
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /delete meeting/i })).toBeEnabled();
+  });
+
   it('restores an archived meeting for its author and hides restore from another viewer', async () => {
     meetingState.data = { ...baseMeeting, archived_at: '2026-08-21T09:00:00Z' };
     const view = renderPage('Engineer');

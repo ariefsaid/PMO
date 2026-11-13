@@ -23,16 +23,40 @@
 #   PMO_TEST_LOCK_TIMEOUT  seconds to wait before giving up (default: wait forever)
 set -euo pipefail
 
+DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# The wrappers' own tests (temp lock paths only; they never touch the machine locks).
+if [ "${1:-}" = "--self-test" ]; then
+  [ "$#" -eq 1 ] || { echo "usage: $0 --self-test" >&2; exit 2; }
+  exec node --test --test-name-pattern 'lock' "$DIR/parallel-infra.test.mjs"
+fi
+
 LOCK="${PMO_TEST_LOCK:-$HOME/.pmo-test.lock}"
 TIMEOUT="${PMO_TEST_LOCK_TIMEOUT:-0}"
 
 if [ "$#" -eq 0 ]; then
   echo "usage: $0 <command...>   (wraps a heavy test-suite command in the shared lock)" >&2
+  echo "       $0 --self-test    (runs the wrappers' own lock tests on temp paths)" >&2
   exit 2
 fi
 
-DIR="$(cd "$(dirname "$0")" && pwd)"
 # 3 concurrent heavy suites machine-wide (PMO + MOS share these files): owner 2026-10-16, "skip the
 # lock but mind OOM/CPU" on a 10-core/24 GB Mac with local vitest maxWorkers=2. PMO_TEST_LOCK_SLOTS=1 restores the mutex.
-FLOCK_SLOTS="${PMO_TEST_LOCK_SLOTS:-3}" exec "$DIR/lib/flock-run.sh" "test-lock" "$LOCK" "$TIMEOUT" "PMO_TEST_LOCK_HELD" \
+SLOTS="${PMO_TEST_LOCK_SLOTS:-3}"
+# #2217: a DATABASE job holds the db lock (outer) while it waits here (inner), doing no DB work — and
+# every other DB job on the machine is blocked behind it. Give a DB-lock holder at least two slots so
+# it can never queue behind a unit/typecheck/build job, whatever PMO_TEST_LOCK_SLOTS the caller passed.
+# Callers that hold no db lock (unit, typecheck, build) keep the slot count they asked for.
+if [ -n "${PMO_DB_LOCK_HELD:-}" ]; then
+  case "${PMO_DB_LOCK_HELD}" in
+    0) ;;  # a defensive =0 means "not held": keep the slot count the caller asked for
+    *)
+      case "$SLOTS" in
+        '' | *[!0-9]*) SLOTS=2 ;;
+        *) if [ "$SLOTS" -lt 2 ]; then SLOTS=2; fi ;;
+      esac
+      ;;
+  esac
+fi
+FLOCK_SLOTS="$SLOTS" exec "$DIR/lib/flock-run.sh" "test-lock" "$LOCK" "$TIMEOUT" "PMO_TEST_LOCK_HELD" \
   "the shared test suite" -- "$@"

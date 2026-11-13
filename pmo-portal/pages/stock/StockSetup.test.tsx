@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -38,14 +38,20 @@ const members = [
   { id: 'p2', full_name: 'Bima Gone', status: 'disabled' },
 ];
 
-const renderPage = (role: Role = 'Admin', viewingAs: Role = role) => {
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="location" data-search={location.search} />;
+};
+
+const renderPage = (role: Role = 'Admin', viewingAs: Role = role, initialEntry = '/stock/setup') => {
   realRole = role;
   effectiveRole = viewingAs;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <ToastProvider>
-        <MemoryRouter initialEntries={['/stock/setup']}>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <LocationProbe />
           <StockSetup />
         </MemoryRouter>
       </ToastProvider>
@@ -127,6 +133,21 @@ describe('StockSetup tabs a11y', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Items' }));
     await screen.findByText('Cement 50kg');
     expect(document.getElementById('stock-setup-tabpanel-items')).not.toBeNull();
+  });
+});
+
+describe('C10 StockSetup.tsx:45-46 URL-owned filters', () => {
+  it('restores the selected tab and archived filter, then preserves unrelated URL state', async () => {
+    renderPage('Admin', 'Admin', '/stock/setup?keep=preserve&tab=items&archived=true');
+    await screen.findByText('Cement 50kg');
+    expect(screen.getByRole('tab', { name: 'Items' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('checkbox', { name: /show archived/i })).toBeChecked();
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Warehouses' }));
+    const changed = new URLSearchParams(screen.getByTestId('location').getAttribute('data-search') ?? '');
+    expect(changed.get('keep')).toBe('preserve');
+    expect(changed.get('tab')).toBe('warehouses');
+    expect(changed.get('archived')).toBe('true');
   });
 });
 

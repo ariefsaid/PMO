@@ -80,6 +80,73 @@ export interface ManagementPack {
   undatedInvoiceCount: number;
 }
 
+export interface BilledWorkTotal {
+  currency: string;
+  /** Currency units, matching the dashboard figure selectors. */
+  amount: number;
+}
+
+const monthKey = (month: string): string => month.slice(0, 7);
+
+/** Billed work dated inside the selected month range, in each currency. */
+export function selectBilledWorkInPeriod(
+  pack: ManagementPack | undefined,
+  from: string | null,
+  to: string | null,
+): BilledWorkTotal[] | undefined {
+  if (!pack || !from || !to) return undefined;
+  const fromMonth = monthKey(from);
+  const toMonth = monthKey(to);
+  return pack.totals.map((row) => ({
+    currency: row.currency,
+    amount: row.months
+      .filter((month) => monthKey(month.month) >= fromMonth && monthKey(month.month) <= toMonth)
+      .reduce((sum, month) => sum + month.invoiced, 0) / 100,
+  }));
+}
+
+/** Billed work for each month in one currency; a missing period or currency is unknown. */
+export function selectBilledWorkByMonth(
+  pack: ManagementPack | undefined,
+  from: string | null,
+  to: string | null,
+  currency: string,
+): Array<{ month: string; amount: number }> | undefined {
+  const series = pack?.totals.find((row) => row.currency === currency);
+  if (!series || !from || !to) return undefined;
+  const fromMonth = monthKey(from);
+  const toMonth = monthKey(to);
+  return series.months
+    .filter((month) => monthKey(month.month) >= fromMonth && monthKey(month.month) <= toMonth)
+    .map((month) => ({ month: monthKey(month.month), amount: month.invoiced / 100 }));
+}
+
+/** All-history billed work through the as-at month, deliberately based on the cumulative reader. */
+export function selectBilledWorkCumulative(
+  pack: ManagementPack | undefined,
+  asAt: string | null,
+): BilledWorkTotal[] | undefined {
+  if (!pack || !asAt) return undefined;
+  const targetMonth = monthKey(asAt);
+  return pack.totals.flatMap((row) => {
+    const month = row.months.find((entry) => monthKey(entry.month) === targetMonth);
+    return month ? [{ currency: row.currency, amount: month.invoicedToDate / 100 }] : [];
+  });
+}
+
+/** All-history billed work before the selected period's first month. */
+export function selectBilledWorkOpening(
+  pack: ManagementPack | undefined,
+  from: string | null,
+): BilledWorkTotal[] | undefined {
+  if (!pack || !from) return undefined;
+  const startMonth = monthKey(from);
+  return pack.totals.flatMap((row) => {
+    const month = row.months.find((entry) => monthKey(entry.month) === startMonth);
+    return month ? [{ currency: row.currency, amount: (month.invoicedToDate - month.invoiced) / 100 }] : [];
+  });
+}
+
 /** Contract value less invoiced value for signed contract rows, in the row currency. */
 export function leftToBillAt(rows: readonly PackRow[], currency: string, month: string): number | null {
   const contracts = rows.filter((row) => row.kind === 'contract' && row.currency === currency);

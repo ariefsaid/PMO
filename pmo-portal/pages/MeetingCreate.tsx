@@ -1,4 +1,4 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import { projectDisplayName, sortProjectOptions } from '@/src/lib/projectDisplayName';
 import React, { Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -60,6 +60,8 @@ const MeetingCreate: React.FC = () => {
   const when = form.fieldProps('occurredAt');
   const location = form.fieldProps('location');
   const project = form.fieldProps('projectId');
+  const normalizedGuest = guestName.trim().toLocaleLowerCase();
+  const guestAlreadyAdded = normalizedGuest !== '' && guests.some((guest) => guest.trim().toLocaleLowerCase() === normalizedGuest);
   const dirty = form.isDirty || guestName.trim().length > 0 || guests.length > 0 || members.length > 0 || minutesPending;
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: (leave) => setPendingLeave(() => leave) });
@@ -96,7 +98,7 @@ const MeetingCreate: React.FC = () => {
       const failedGuests: string[] = [];
       let failedMinutes = false;
       const pendingGuest = guestName.trim();
-      const submittedGuests = pendingGuest && !guests.includes(pendingGuest)
+      const submittedGuests = pendingGuest && !guests.some((guest) => guest.trim().toLocaleLowerCase() === pendingGuest.toLocaleLowerCase())
         ? [...guests, pendingGuest]
         : guests;
       for (const member of members) {
@@ -138,7 +140,7 @@ const MeetingCreate: React.FC = () => {
         <TextField id={title.id} label={t('meetings.form.title.label', 'Title')} required placeholder={t('meetings.form.title.placeholder', 'e.g. Weekly site coordination')} value={title.value} onChange={title.onChange} onBlur={title.onBlur} error={title.error} fullWidth disabled={Boolean(savedMeetingId) || form.isSubmitting} />
         <TextField id={when.id} label={t('meetings.form.when.label', 'When')} type="datetime-local" value={when.value} onChange={when.onChange} onBlur={when.onBlur} error={when.error} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
         <TextField id={location.id} label={t('meetings.form.location.label', 'Location')} placeholder={t('meetings.form.location.placeholder', 'e.g. Site office, Teams call')} value={location.value} onChange={location.onChange} onBlur={location.onBlur} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
-        <SelectField id={project.id} label={t('meetings.form.project.label', 'Project')} value={project.value} onChange={project.onChange} options={[{ value: '', label: t('meetings.form.project.none', 'No project') }, ...(projects ?? []).map((item) => ({ value: item.id, label: projectDisplayName(item) }))]} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
+        <SelectField id={project.id} label={t('meetings.form.project.label', 'Project')} value={project.value} onChange={project.onChange} options={[{ value: '', label: t('meetings.form.project.none', 'No project') }, ...sortProjectOptions(projects ?? []).map((item) => ({ value: item.id, label: projectDisplayName(item) }))]} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
       </FormGrid>
     </section>
     <Card variant="bare" className="mb-4"><CardHead>{t('meetingDetail.minutes.title', 'Minutes')}</CardHead><CardPad><Suspense fallback={<ListState variant="loading" rows={3} />}><MinutesEditor ref={editorRef} initialBlocks={[]} editable={!form.isSubmitting} tasksExternal={false} onReady={onEditorReady} onChange={(blocks) => { setMinutes(blocks); setMinutesPending(true); }} onRequestAction={() => undefined} /></Suspense></CardPad></Card>
@@ -150,7 +152,8 @@ const MeetingCreate: React.FC = () => {
       </ul>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1"><Combobox label={t('meetingDetail.attendees.addMember', 'Add attendee')} value={null} onChange={(_value, option) => setMembers((existing) => [...existing, option])} loadOptions={loadMembers} placeholder={t('meetingDetail.attendees.addMemberPlaceholder', 'Pick an organisation member…')} noun={t('meetingDetail.attendees.memberNoun', 'member')} /></div>
-        <div className="flex min-w-0 flex-1 items-end gap-2"><div className="min-w-0 flex-1"><TextField id="meeting-create-guest" label={t('meetingDetail.attendees.guestLabel', 'External guest')} value={guestName} onChange={setGuestName} /></div><Button type="button" variant="outline" disabled={!guestName.trim()} onClick={() => { setGuests((existing) => [...existing, guestName.trim()]); setGuestName(''); }}>{t('meetingDetail.attendees.addGuest', 'Add')}</Button></div>
+        <div className="flex min-w-0 flex-1 items-end gap-2"><div className="min-w-0 flex-1"><TextField id="meeting-create-guest" label={t('meetingDetail.attendees.guestLabel', 'External guest')} value={guestName} onChange={setGuestName} /></div><Button type="button" variant="outline" disabled={!guestName.trim() || guestAlreadyAdded} onClick={() => { const next = guestName.trim(); if (!next || guests.some((guest) => guest.trim().toLocaleLowerCase() === next.toLocaleLowerCase())) return; setGuests((existing) => [...existing, next]); setGuestName(''); }}>{t('meetingDetail.attendees.addGuest', 'Add')}</Button></div>
+        {guestAlreadyAdded && <p role="status" className="text-sm text-muted-foreground">{tCreate('duplicateGuest', 'This guest is already on the list.')}</p>}
       </div>
       </fieldset>
     </CardPad></Card>

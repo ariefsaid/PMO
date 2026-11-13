@@ -13269,6 +13269,25 @@ export type Database = {
           project_id: string
         }[]
       }
+      project_budget_positions: {
+        Args: { p_project_ids?: string[] | null }
+        Returns: {
+          project_id: string | null
+          ledger_basis: string | null
+          currency: string | null
+          budget_currency: string | null
+          active_budget_amount: string | null
+          spent: string | null
+          open_commitment: string | null
+          consumption: string | null
+          complete: boolean | null
+          used_ratio: string | null
+          used_percent: string | null
+          consumption_variance: string | null
+          risk_eligible: boolean | null
+          at_risk: boolean | null
+        }[]
+      }
       get_project_milestones: {
         Args: { p_project_id: string }
         Returns: {

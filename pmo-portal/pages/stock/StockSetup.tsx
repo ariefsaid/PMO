@@ -13,6 +13,7 @@ import {
 } from '@/src/hooks/useStock';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseStockError } from '@/src/lib/stockErrors';
+import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 import { categoryVariant } from '@/src/lib/status/statusVariants';
 import { formatQuantity, sumDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -44,8 +45,11 @@ const StockSetup: React.FC = () => {
   const ctx = { record: { viewOnly: realRole !== effectiveRole } };
   const { toast } = useToast();
   const errorCopy = useErrorCopy();
-  const [tab, setTab] = useState<Tab>('units');
-  const [showArchived, setShowArchived] = useState(false);
+  const { values: filters, setFilter } = useUrlFilters(['tab', 'archived']);
+  const tab: Tab = filters.tab === 'items' || filters.tab === 'warehouses' ? filters.tab : 'units';
+  const showArchived = filters.archived === 'true';
+  const setTab = (next: Tab) => setFilter('tab', next === 'units' ? '' : next);
+  const setShowArchived = (next: boolean) => setFilter('archived', next ? 'true' : '');
   const [form, setForm] = useState<{ tab: Tab; row: StockUnitRow | StockItemRow | StockWarehouseRow | null } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<{ tab: Tab; id: string; archived: boolean } | null>(null);
   const [keepersFor, setKeepersFor] = useState<StockWarehouseRow | null>(null);

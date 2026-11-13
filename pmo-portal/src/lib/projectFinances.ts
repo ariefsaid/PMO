@@ -368,6 +368,34 @@ export function moneyText(units: bigint): ExactMoney {
   return formatExactCents(units);
 }
 
+export interface ContractInvoiceFigure {
+  amount: ExactMoney | null;
+  denominator: ExactMoney | null;
+  percentage: number | null;
+}
+
+/** Selects the contract drawdown reading and denominator from the authoritative finance projection. */
+export function selectContractInvoiceFigure(
+  reading: Pick<ProjectFinances, 'contract_invoiced' | 'remaining_to_invoice'> | null | undefined,
+): ContractInvoiceFigure {
+  const amount = reading?.contract_invoiced ?? null;
+  const amountUnits = moneyUnits(amount);
+  const remainingUnits = moneyUnits(reading?.remaining_to_invoice ?? null);
+  if (amountUnits === null || remainingUnits === null) return { amount, denominator: null, percentage: null };
+
+  const denominatorUnits = amountUnits + remainingUnits;
+  const denominator = moneyText(denominatorUnits);
+  if (denominatorUnits <= 0n) return { amount, denominator, percentage: null };
+
+  const scaled = amountUnits * 100n;
+  const magnitude = scaled < 0n ? -scaled : scaled;
+  const roundedMagnitude = (magnitude + denominatorUnits / 2n) / denominatorUnits;
+  if (amountUnits < 0n && roundedMagnitude === 0n) return { amount, denominator, percentage: null };
+  if (roundedMagnitude > BigInt(Number.MAX_SAFE_INTEGER)) return { amount, denominator, percentage: null };
+  const percentage = Number(scaled < 0n ? -roundedMagnitude : roundedMagnitude);
+  return { amount, denominator, percentage };
+}
+
 const receiptCashReasons: readonly ReceiptCashReason[] = [
   'allocation-unreported', 'allocation-unresolved', 'allocation-invalid', 'currency-mismatch',
   'ambiguous-withholding', 'source-inconsistent', 'invoice-lifecycle', 'posting-unconfirmed',

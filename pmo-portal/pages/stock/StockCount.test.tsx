@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -87,6 +87,15 @@ describe('StockCount', () => {
 
     expect(await screen.findByText('This draft was created by Alex. Only its author can save changes.')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Save draft' })).toBeEnabled();
+  });
+
+  it('C16 an opened draft says it is being edited, and a new sheet does not', async () => {
+    renderAt('/stock/documents/d1/edit');
+    expect(await screen.findByText(/Editing a saved draft: nothing changes in stock until you post it\./)).toBeInTheDocument();
+    cleanup();
+    renderAt('/stock/new/count');
+    expect(await screen.findByLabelText(/^Warehouse/)).toBeInTheDocument();
+    expect(screen.queryByText(/Editing a saved draft/)).not.toBeInTheDocument();
   });
 
   it('FR-STK-025 the count sheet shows the system quantity next to each counted quantity and the variance preview', async () => {
