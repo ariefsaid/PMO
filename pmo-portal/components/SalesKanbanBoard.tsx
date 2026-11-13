@@ -132,9 +132,9 @@ const DealCard: React.FC<{
       code={null}
       status={null}
       // The head (first child) keeps clear of the card menu's trigger.
-      className="[&>div:first-child]:pr-7"
+      className="[&>div:first-child]:pr-7 [&_span.truncate]:overflow-visible [&_span.truncate]:text-clip [&_span.truncate]:whitespace-normal [&_span.truncate]:break-words"
       body={
-        // #696: the money row WRAPS. A column is ~258px wide, and in Bahasa (longer grouped
+        // #696: the money row WRAPS. Fit columns can be ~148px wide, and in Bahasa (longer grouped
         // amounts + the PPN label) amount, basis and the probability pill do not
         // fit on one line — non-wrapping, they overran the card and gave every column's card list
         // its own sideways scrollbar. `min-w-0` lets each group shrink to the card, `shrink-0` keeps
@@ -168,13 +168,13 @@ const DealCard: React.FC<{
                 go: formatPercent(project.go_probability ?? project.win_probability),
                 get: formatPercent(project.get_probability ?? 1),
               })} className="px-1.5">
-                {t('sales:chanceValue', '{{pct}}%', { pct: chanceNumber(project) })}
+                <span className="text-control">{t('sales:chanceValue', '{{pct}}%', { pct: chanceNumber(project) })}</span>
               </Badge>
             </div>
           </div>
           {isStaleBid(project) && (
             <Badge role="status" data-testid={`stale-bid-${project.id}`} className="px-1.5">
-              {t('sales:pipeline.staleBid', 'Stale bid · stage unchanged for 90+ days')}
+              <span className="break-words text-control">{t('sales:pipeline.staleBid', 'Stale bid · stage unchanged for 90+ days')}</span>
             </Badge>
           )}
         </div>
@@ -406,7 +406,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
           the actual .kanban-scroll element. scroll events do NOT bubble, so attaching the
           handler to any ancestor wrapper would never fire on a swipe gesture. */}
       {withDnd(
-      <Kanban narrowEmpty aria-label={t('sales.board.ariaLabel', 'Sales pipeline board')} className="px-2" onScroll={onScroll}>
+      <Kanban narrowEmpty fitColumns aria-label={t('sales.board.ariaLabel', 'Sales pipeline board')} className="px-2" onScroll={onScroll}>
         {SALES_COLUMNS.map((col, colIdx) => {
           const colProjects = byColumn(col);
           const colTitle = stageLabel(col);
