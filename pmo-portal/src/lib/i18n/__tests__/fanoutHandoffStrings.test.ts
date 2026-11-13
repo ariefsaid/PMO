@@ -87,7 +87,26 @@ const C4_LEFTOVER: Handoff[] = [
   ['auth', 'update.empty', 'Enter a password to continue.', 'Masukkan kata sandi untuk melanjutkan.'],
 ];
 
-const HANDOFF: Handoff[] = [...A5, ...A6, ...A9, ...C4_LEFTOVER];
+/**
+ * A3 — the claim status "Unpaid" in the BillingTab claim drawer. A3's source edit is deferred to
+ * round 2 by the round-1 drop, so this key lands ahead of its call site (see the note below).
+ */
+const A3: Handoff[] = [
+  ['project', 'projectDetail.billing.claims.status.unpaid', 'Unpaid', 'Belum dibayar'],
+];
+
+/** A7 — imprest float record, procurement create currency, and the unknown-currency amount. */
+const A7: Handoff[] = [
+  ['imprest', 'detail.floatName', 'Float {{id}}', 'Kas kecil {{id}}'],
+  ['imprest', 'detail.archived', 'Archived', 'Diarsipkan'],
+  ['imprest', 'detail.positionErrorSub', 'The position read failed. Float actions are unavailable until it is available. No figure is shown. Retry the position read.', 'Pembacaan posisi gagal. Tindakan kas kecil tidak tersedia sampai pembacaan berhasil. Angka tidak ditampilkan. Coba ulangi pembacaan posisi.'],
+  ['imprest', 'counts.loading', 'Loading cash counts…', 'Memuat hitungan kas…'],
+  ['procurementCreate', 'currencyError', "Couldn't load your organisation's currency.", 'Mata uang organisasi tidak dapat dimuat.'],
+  ['procurementCreate', 'currencyLoading', 'Loading organisation currency…', 'Memuat mata uang organisasi…'],
+  ['procurement', 'lineItems.unknownCurrencyAmount', 'Unknown', 'Tidak diketahui'],
+];
+
+const HANDOFF: Handoff[] = [...A5, ...A6, ...A9, ...A3, ...A7, ...C4_LEFTOVER];
 
 const catalogue = (locale: 'en' | 'id', namespace: string) =>
   JSON.parse(readFileSync(join(process.cwd(), 'public/locales', locale, `${namespace}.json`), 'utf8')) as Record<string, unknown>;
