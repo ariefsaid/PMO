@@ -13,6 +13,7 @@ import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 import type { ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
 import { claimNet } from '@/src/lib/progressBilling';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { invoiceBalanceFigures, QuantityFigure, type InvoiceWithWorkOrder, type OrderLineView, basisNote } from './workOrdersTabFigures';
 import { ClaimEvidenceList } from './ClaimEvidenceList';
 
@@ -137,7 +138,7 @@ export const WorkOrderInvoiceDrawer: React.FC<{
   const figures = invoiceBalanceFigures(invoice);
   const invoiceCurrency = invoice.currency || currency;
   return <Drawer open title={invoice.si_number ?? t('projectDetail.cascade.invoiceDraft', 'Invoice draft')}
-    status={<StatusPill variant={invoice.status === 'Paid' ? 'won' : invoice.status === 'Unpaid' || invoice.status === 'Submitted' ? 'warn' : invoice.status === 'Cancelled' ? 'lost' : 'neutral'}>{invoice.status}</StatusPill>}
+    status={<StatusPill variant={invoice.status === 'Paid' ? 'won' : invoice.status === 'Unpaid' || invoice.status === 'Submitted' ? 'warn' : invoice.status === 'Cancelled' ? 'lost' : 'neutral'}>{statusLabel('salesInvoice', invoice.status, t)}</StatusPill>}
     onClose={onClose}
     headerActions={<Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(invoice.id)}`} onClick={onClose}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>}>
     <dl className="grid grid-cols-2 gap-4 p-4 text-sm">

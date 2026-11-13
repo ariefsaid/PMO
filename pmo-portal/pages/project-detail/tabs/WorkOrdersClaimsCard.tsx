@@ -16,6 +16,7 @@ import {
 import { formatDay, formatNumberExact, formatNumberWhole, formatUtcMonthYear } from '@/src/lib/format';
 import type { ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
 import { claimNet } from '@/src/lib/progressBilling';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { invoiceBalanceFigures, MoneyFigure, type InvoiceWithWorkOrder } from './workOrdersTabFigures';
 
 /** The claims & down payment card on the work orders tab (#913/#1640 family). */
@@ -189,7 +190,7 @@ export const WorkOrdersOrderlessInvoices: React.FC<{
       cell: (invoice) => invoice.amount === null ? null : <Tooltip content={t('projectDetail.cascade.source.invoiceAmount', 'Source: invoice amount mirrored from accounting.')}><span className="cursor-help tabular-nums">{formatNumberWhole(invoice.amount)}</span></Tooltip>,
       exportValue: (invoice) => invoice.amount ?? '' },
     { key: 'status', header: t('projectDetail.cascade.invoiceStatus', 'Status'), kind: 'status',
-      cell: (invoice) => <StatusPill variant={invoice.status === 'Paid' ? 'won' : invoice.status === 'Unpaid' || invoice.status === 'Submitted' ? 'warn' : invoice.status === 'Cancelled' ? 'lost' : 'neutral'}>{invoice.status}</StatusPill>,
+      cell: (invoice) => <StatusPill variant={invoice.status === 'Paid' ? 'won' : invoice.status === 'Unpaid' || invoice.status === 'Submitted' ? 'warn' : invoice.status === 'Cancelled' ? 'lost' : 'neutral'}>{statusLabel('salesInvoice', invoice.status, t)}</StatusPill>,
       exportValue: (invoice) => invoice.status },
     { key: 'paid', header: t('projectDetail.cascade.paid', 'Paid'), kind: 'money', align: 'num',
       cell: (invoice) => {
