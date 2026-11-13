@@ -46,7 +46,19 @@ const kindLabel = (kind: string, t: TFunction): string =>
 /** formatDay renders unparseable input as an em-dash — never echo a raw ISO string. */
 const formatOccurred = (iso: string): string => formatDay(iso);
 
-export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) => {
+interface ContactActivityPanelProps {
+  contactId: string;
+  canLog: boolean;
+  logFormOpen: boolean;
+  onLogFormOpenChange: (open: boolean) => void;
+}
+
+export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
+  contactId,
+  canLog,
+  logFormOpen,
+  onLogFormOpenChange,
+}) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { toast } = useToast();
@@ -57,7 +69,6 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
   // viewers legitimately see none, so empty is a normal state, never an error.
   const meetingsQuery = useContactMeetings(contactId);
   const { logActivity, updateActivity, deleteActivity } = useContactMutations();
-  const canLog = may('create', 'contactActivity');
   const canEdit = may('edit', 'contactActivity');
   const canDelete = may('delete', 'contactActivity');
 
@@ -105,6 +116,7 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
       setSubject('');
       setBody('');
       setKind('Call');
+      onLogFormOpenChange(false);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
@@ -125,7 +137,7 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
 
   return (
     <div>
-      {canLog && (
+      {canLog && logFormOpen && (
         <form onSubmit={onSubmit} className="mb-5 flex flex-col gap-3 rounded-md border border-border bg-card p-3">
           <FormGrid>
             <SelectField

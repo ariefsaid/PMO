@@ -53,6 +53,7 @@ const ContactDetail: React.FC = () => {
 
   const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [logFormOpen, setLogFormOpen] = useState(false);
 
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
   // follow-up like "summarize this" grounds to the viewed contact — grounding only
@@ -70,6 +71,7 @@ const ContactDetail: React.FC = () => {
   const canView = may('view', 'contact');
   const canEdit = ownershipReady && may('edit', 'contact');
   const canArchive = ownershipReady && may('archive', 'contact');
+  const canLog = may('create', 'contactActivity');
 
   const companies = useMemo(() => companyData ?? [], [companyData]);
   const companyById = useMemo(() => new Map(companies.map((c) => [c.id, companyDisplayName(c)])), [companies]);
@@ -174,7 +176,6 @@ const ContactDetail: React.FC = () => {
         <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
       </div>
 
-      {/* Keep Archive's existing location; give the ordinary Edit action the primary emphasis. */}
       <RecordHeader
         name={contact.full_name}
         icon={(contact.full_name.trim().charAt(0) || '•').toUpperCase()}
@@ -182,17 +183,31 @@ const ContactDetail: React.FC = () => {
           ? <StatusPill variant="neutral">{t('contactDetail.pillArchived', 'Archived')}</StatusPill>
           : <StatusPill variant="violet">{t('contactDetail.pill', 'Contact')}</StatusPill>}
         meta={contact.title ? <span>{contact.title}</span> : undefined}
-        primaryAction={canEdit ? (
-          <Button variant="primary" size="sm" data-testid="contact-edit" onClick={() => setEditOpen(true)}>
-            {t('contactDetail.edit', 'Edit')}
+        primaryAction={canLog ? (
+          <Button
+            variant="primary"
+            size="sm"
+            data-testid="contact-log-activity"
+            aria-expanded={logFormOpen}
+            onClick={() => setLogFormOpen((open) => !open)}
+          >
+            {t('contactDetail.activity.logAction', 'Log activity')}
           </Button>
         ) : undefined}
-        actionsAfterPrimary
-        actions={canArchive ? (
-          <Button variant="ghost" size="sm" data-testid="contact-archive" onClick={() => setArchiveOpen(true)}>
-            {t('contactDetail.archive', 'Archive')}
-          </Button>
-        ) : undefined}
+        menuItems={[
+          ...(canEdit ? [{
+            key: 'edit',
+            label: t('contactDetail.edit', 'Edit'),
+            onSelect: () => setEditOpen(true),
+            testId: 'contact-edit',
+          }] : []),
+          ...(canArchive ? [{
+            key: 'archive',
+            label: t('contactDetail.archive', 'Archive'),
+            onSelect: () => setArchiveOpen(true),
+            testId: 'contact-archive',
+          }] : []),
+        ]}
       />
 
       {/* Body — the contact's fields (read-only; edit-in-modal). */}
@@ -254,7 +269,12 @@ const ContactDetail: React.FC = () => {
       <Card variant="bare">
         <CardHead>{t('contactDetail.activity.title', 'Activity')}</CardHead>
         <CardPad>
-          <ContactActivityPanel contactId={contact.id} />
+          <ContactActivityPanel
+            contactId={contact.id}
+            canLog={canLog}
+            logFormOpen={logFormOpen}
+            onLogFormOpenChange={setLogFormOpen}
+          />
         </CardPad>
       </Card>
 

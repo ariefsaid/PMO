@@ -40,8 +40,30 @@ const { detailState, activitiesState, mutations, companiesState, companyRefState
     isError: false,
   },
 }));
+const permissionOverrides = vi.hoisted(() => ({
+  contactView: null as boolean | null,
+  contactActivityCreate: null as boolean | null,
+}));
 
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/auth/usePermission', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/auth/usePermission')>();
+  return {
+    ...actual,
+    usePermission: () => {
+      const may = actual.usePermission();
+      return (action: Parameters<typeof may>[0], entity: Parameters<typeof may>[1], context?: Parameters<typeof may>[2]) => {
+        if (action === 'view' && entity === 'contact' && permissionOverrides.contactView !== null) {
+          return permissionOverrides.contactView;
+        }
+        if (action === 'create' && entity === 'contactActivity' && permissionOverrides.contactActivityCreate !== null) {
+          return permissionOverrides.contactActivityCreate;
+        }
+        return may(action, entity, context);
+      };
+    },
+  };
+});
 
 vi.mock('@/src/hooks/useContacts', () => ({
   useContact: () => detailState,
@@ -130,7 +152,13 @@ const renderPageWithReturnContext = (role: Role = 'Admin') => {
   );
 };
 
+const openRecordActions = async () => {
+  await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+};
+
 beforeEach(() => {
+  permissionOverrides.contactView = null;
+  permissionOverrides.contactActivityCreate = null;
   ownershipMock.override = null;
   ownershipMock.retry.mockClear();
   clearOwnershipCache();
@@ -170,15 +198,22 @@ describe('ContactDetail', () => {
     expect(screen.getByText('jane@example.com')).toBeInTheDocument();
   });
 
-  it('C2 ContactDetail.tsx:186-201 makes Edit primary while retaining the confirmed Archive action', async () => {
+  it('C2 puts Log activity in the header and Edit and Archive in the action menu', async () => {
     renderPage();
     const header = screen.getByTestId('record-header');
-    expect(within(header).getByRole('button', { name: /^edit$/i }).className).toContain('bg-primary');
-    expect(within(header).getByRole('button', { name: /^archive$/i })).toBeInTheDocument();
-    expect(within(header).getAllByRole('button').map((button) => button.textContent)).toEqual(['Edit', 'Archive']);
-    await userEvent.click(within(header).getByRole('button', { name: /^archive$/i }));
-    const dialog = await screen.findByRole('dialog', { name: 'Archive Jane Doe?' });
-    expect(dialog).toHaveTextContent(/hidden from the default list/i);
+    expect(within(header).getByRole('button', { name: /log activity/i })).toBeInTheDocument();
+    await openRecordActions();
+    expect(screen.getByRole('menuitem', { name: /^edit$/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^archive$/i })).toBeInTheDocument();
+  });
+
+  it('hides Log activity when the viewer may see contacts but cannot create contact activities', () => {
+    permissionOverrides.contactView = true;
+    permissionOverrides.contactActivityCreate = false;
+    renderPage('Engineer');
+    expect(screen.getByRole('heading', { name: 'Jane Doe' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /log activity/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/subject/i)).not.toBeInTheDocument();
   });
 
   it('explains an unavailable company in visible text', () => {
@@ -273,7 +308,8 @@ describe('ContactDetail', () => {
 
   it('CW-4b: a manager can open the edit modal from the header and save an update', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    await openRecordActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^edit$/i }));
     const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
     const nameField = within(dialog).getByLabelText(/full name/i);
     await userEvent.clear(nameField);
@@ -288,7 +324,8 @@ describe('ContactDetail', () => {
   it('keeps mirrored contact details read-only and enhancements editable', async () => {
     setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    await openRecordActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^edit$/i }));
     const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
     for (const label of [/full name/i, /^company/i, /^email/i, /^phone/i]) {
       expect(within(dialog).getByLabelText(label)).toBeDisabled();
@@ -300,7 +337,8 @@ describe('ContactDetail', () => {
 
   it('preserves unsaved contact identity edits when ownership changes', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    await openRecordActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^edit$/i }));
     const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
     const name = within(dialog).getByLabelText(/full name/i);
     await userEvent.clear(name);
@@ -311,6 +349,7 @@ describe('ContactDetail', () => {
 
   it('CW-4b: a manager can archive from the header (confirm-before-write)', async () => {
     renderPage('Admin');
+    await openRecordActions();
     await userEvent.click(screen.getByTestId('contact-archive'));
     const dialog = await screen.findByRole('dialog', { name: 'Archive Jane Doe?' });
     await userEvent.click(within(dialog).getByRole('button', { name: /archive contact/i }));
@@ -337,6 +376,7 @@ describe('ContactDetail — list-return context (AC-LRC-007)', () => {
 
   it('AC-LRC-007: archive-success also returns to the SAME filtered list context, not a bare reset', async () => {
     renderPageWithReturnContext();
+    await openRecordActions();
     await userEvent.click(screen.getByTestId('contact-archive'));
     const dialog = await screen.findByRole('dialog', { name: 'Archive Jane Doe?' });
     await userEvent.click(within(dialog).getByRole('button', { name: /archive contact/i }));
