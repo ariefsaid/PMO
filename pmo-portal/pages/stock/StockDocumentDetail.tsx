@@ -75,10 +75,12 @@ const StockDocumentDetail: React.FC = () => {
   // The approver of a Draft write-off reviews what it WILL post: live system quantity, difference and, at rank >= 20, value (FR-STK-062/063).
   const liveDraft = writeOff && d?.status === 'Draft';
   const seeCost = may('create', 'stockItem');
-  const onHand = useStockOnHand({ warehouseId: d?.warehouse_id, includeZero: true }, Boolean(liveDraft && d?.warehouse_id));
   // C13: the line unit costs are stamped on the lines and stay readable after posting, so a
-  // write-off's per-line money does not vanish from the record the moment it posts.
-  const costs = useStockDocumentCosts(d?.id, seeCost && writeOff);
+  // write-off's per-line money does not vanish from the record the moment it posts. A Draft reads them
+  // for its value column; a posted ADJUSTMENT reads them for its unit-cost column.
+  const readsLineCosts = seeCost && (liveDraft || d?.kind === 'adjustment');
+  const onHand = useStockOnHand({ warehouseId: d?.warehouse_id, includeZero: true }, Boolean(liveDraft && d?.warehouse_id));
+  const costs = useStockDocumentCosts(d?.id, Boolean(readsLineCosts));
   const balanceOf = (itemId: string) => (onHand.data ? onHand.data.find((r) => r.itemId === itemId && r.warehouseId === d?.warehouse_id) ?? { qtyOnHand: '0', valueOnHand: '0' } : undefined);
   const costOf = (lineId: string) => costs.data?.find((c) => c.lineId === lineId)?.unitCost;
   const systemOf = (l: StockDocumentLine) => (liveDraft ? balanceOf(l.item_id)?.qtyOnHand ?? null : l.expected_quantity);
@@ -207,7 +209,7 @@ const StockDocumentDetail: React.FC = () => {
           <section aria-labelledby="lines-h">
             <h2 id="lines-h" className="mb-2 text-group font-semibold">{t('detail.lines')}</h2>
             <DataTable<StockDocumentLine> rows={d.lines} columns={lineCols} rowKey={(l) => l.id} tableId="stock-document-lines" accessibleName={t('detail.lines')} embedded />
-            {seeCost && writeOff && costs.isError && (
+            {readsLineCosts && costs.isError && (
               /* C1: a failed cost read leaves the money cells blank — say why, and let it be re-run. */
               <div className="mt-3">
                 <ListState
