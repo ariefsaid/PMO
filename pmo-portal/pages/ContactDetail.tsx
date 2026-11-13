@@ -30,8 +30,8 @@ import { ContactFormModal } from './contact/ContactFormModal';
  * ContactDetail — the routable `/contacts/:id` master-data record page (CW-4b).
  *
  * Mirrors the CW-4a `IncidentDetail` / sibling `CompanyDetail` pattern: the shared `RecordHeader`
- * (page variant: icon + name + the categorical "Contact" pill + the role-allowed Edit/Archive
- * action zone), a `BackBar` "Back to Contacts", read-only field sections with edit-in-modal, and
+ * (page variant: icon + name + archived-only state + key contact facts + role-allowed actions),
+ * a `BackBar` "Back to Contacts", read-only fields with edit-in-modal, and
  * the CRM activity timeline + Log-activity form on the page.
  * RLS is the enforcement authority; `can()` (via `usePermission`) gates affordances for clarity.
  */
@@ -181,8 +181,8 @@ const ContactDetail: React.FC = () => {
         icon={(contact.full_name.trim().charAt(0) || '•').toUpperCase()}
         status={contact.archived_at
           ? <StatusPill variant="neutral">{t('contactDetail.pillArchived', 'Archived')}</StatusPill>
-          : <StatusPill variant="violet">{t('contactDetail.pill', 'Contact')}</StatusPill>}
-        meta={contact.title ? <span>{contact.title}</span> : undefined}
+          : null}
+        meta={<span>{contact.title || '—'}</span>}
         stats={[
           {
             label: t('contactDetail.field.company', 'Company'),

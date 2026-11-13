@@ -193,7 +193,7 @@ describe('ContactDetail', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
     expect(within(header).getByText('Jane Doe')).toBeInTheDocument();
-    expect(within(header).getByText('Contact')).toBeInTheDocument();
+    expect(within(header).queryByText('Contact')).not.toBeInTheDocument();
     expect(within(header).getByText('Procurement Lead')).toBeInTheDocument();
     expect(screen.getAllByText('Procurement Lead')).toHaveLength(1);
     expect(within(header).getByText('Company')).toBeInTheDocument();
@@ -203,6 +203,12 @@ describe('ContactDetail', () => {
     expect(within(header).getByRole('link', { name: 'jane@example.com' })).toHaveAttribute('href', 'mailto:jane@example.com');
     expect(within(header).getByRole('link', { name: '+1 555 010 0000' })).toHaveAttribute('href', 'tel:+15550100000');
     expect(screen.getByText('Key contact')).toBeInTheDocument();
+  });
+
+  it('keeps the title fact visible when the contact has no title value', () => {
+    detailState.data = { ...contact, title: null };
+    renderPage();
+    expect(within(screen.getByTestId('record-header')).getByText('—')).toBeInTheDocument();
   });
 
   it('C2 puts Log activity in the header and Edit and Archive in the action menu', async () => {
