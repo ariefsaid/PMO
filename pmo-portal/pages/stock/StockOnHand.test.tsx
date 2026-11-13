@@ -181,6 +181,32 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     expect(screen.getAllByText(/3,500/).length).toBeGreaterThan(0);
   });
 
+  it('opens an item ledger from the row by pointer and keyboard while keeping the code link', async () => {
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: true, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    const desktop = renderRouted();
+    await screen.findByText('CEM');
+    const codeLink = screen.getByRole('link', { name: 'CEM' });
+    expect(codeLink).toHaveAttribute('href', '/stock/ledger?item=i1');
+    const balanceRow = within(screen.getByRole('table')).getByRole('row', { name: /CEM/ });
+    await userEvent.click(within(balanceRow).getByText('Site A'));
+    expect(await screen.findByText('ledger page')).toBeInTheDocument();
+    desktop.unmount();
+
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    renderRouted();
+    await screen.findByText('CEM');
+    const openLedger = screen.getByRole('button', { name: 'Open ledger for Cement 50kg' });
+    openLedger.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(await screen.findByText('ledger page')).toBeInTheDocument();
+  });
+
   it('FR-STK-040 the "Below reorder level" filter keeps only balances on the reorder worklist', async () => {
     const other = { ...row, itemId: 'i2', itemCode: 'CAB', itemName: 'Cable 4mm' };
     reports.onHand.mockResolvedValue([row, other]);
