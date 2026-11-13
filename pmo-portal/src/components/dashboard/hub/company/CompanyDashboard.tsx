@@ -51,7 +51,7 @@ import { ApprovalItems } from './ApprovalItems';
 import { FindingLine, PipelineCurrencyReport, UncheckedReport } from './FindingLine';
 import { ProjectHealthCard } from './ProjectHealthCard';
 import { FinancesCard } from './FinancesCard';
-import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
+import { healthOrder, isOffTrack, overBudget, overdueTaskCount } from './homeHealth';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
@@ -92,18 +92,17 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
 
   // Projects off track: over budget or with overdue work, worst first (the server's order), at most five.
   const attention = data?.attention_projects ?? [];
-  const offTrack = attention.filter((row) => overBudget(row) || row.overdue_items > 0)
-    .sort((a, b) => (overdueTaskCount(b) ?? -1) - (overdueTaskCount(a) ?? -1))
-    .slice(0, 5);
+  const offTrackRows = attention.filter(isOffTrack)
+    .sort((a, b) => (overdueTaskCount(b) ?? -1) - (overdueTaskCount(a) ?? -1));
   // Project health (overview): every attention project, worst first; one delivery read covers both layouts.
   const healthRows = healthOrder(attention);
   const healthDelivery = useProjectsDelivery(attention.map((row) => row.id));
   const deliveryQuery = healthDelivery;
-  const offTrackCount = attention.filter((row) => overBudget(row) || row.overdue_items > 0).length;
+  const offTrackCount = offTrackRows.length;
   // The server sends the top five by attention; when all five are off track there may be more.
   const offTrackSaturated = attention.length >= 5 && offTrackCount === attention.length;
   const activeProjectCount = data?.active_delivery_projects ?? data?.active_projects;
-  const projectRows: ProjectRow[] = offTrack.map((row) => {
+  const projectRows: ProjectRow[] = offTrackRows.slice(0, 5).map((row) => {
     // F2: an unknown count stays unknown (null), never a printed 0.
     const overdueTasks = overdueTaskCount(row);
     return {
