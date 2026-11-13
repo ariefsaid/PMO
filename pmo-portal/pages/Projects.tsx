@@ -260,7 +260,7 @@ const Projects: React.FC = () => {
           rows={6}
         />
       )}
-      {secondaryReadPending && <span role="status" className="sr-only">{t('common.ui.listState.loading', 'Loading…')}</span>}
+      {secondaryReadPending && <span role="status" className="sr-only">{t('common:ui.listState.loading', 'Loading…')}</span>}
       {view === 'kanban' ? (
         <ProjectKanbanBoard projects={displayFiltered} onOpen={(p) => onOpen(p, 'card')} />
       ) : view === 'calendar' ? (

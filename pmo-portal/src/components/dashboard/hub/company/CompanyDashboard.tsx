@@ -92,18 +92,17 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
 
   // Projects off track: over budget or with overdue work, worst first (the server's order), at most five.
   const attention = data?.attention_projects ?? [];
-  const offTrack = attention.filter((row) => overBudget(row) || row.overdue_items > 0)
-    .sort((a, b) => (overdueTaskCount(b) ?? -1) - (overdueTaskCount(a) ?? -1))
-    .slice(0, 5);
+  const offTrackRows = attention.filter(isOffTrack)
+    .sort((a, b) => (overdueTaskCount(b) ?? -1) - (overdueTaskCount(a) ?? -1));
   // Project health (overview): every attention project, worst first; one delivery read covers both layouts.
   const healthRows = healthOrder(attention);
   const healthDelivery = useProjectsDelivery(attention.map((row) => row.id));
   const deliveryQuery = healthDelivery;
-  const offTrackCount = attention.filter(isOffTrack).length;
+  const offTrackCount = offTrackRows.length;
   // The server sends the top five by attention; when all five are off track there may be more.
   const offTrackSaturated = attention.length >= 5 && offTrackCount === attention.length;
   const activeProjectCount = data?.active_delivery_projects ?? data?.active_projects;
-  const projectRows: ProjectRow[] = offTrack.map((row) => {
+  const projectRows: ProjectRow[] = offTrackRows.slice(0, 5).map((row) => {
     // F2: an unknown count stays unknown (null), never a printed 0.
     const overdueTasks = overdueTaskCount(row);
     return {
@@ -206,6 +205,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     : [
       moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.projectCount', { count: onHandCount, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }), reason: t('home.reasonContract', 'contract values are missing') }),
       moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
+      moneyTile(collected, collectedOpts),
+      moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' }),
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
       // Known margin is a fifth tile only when the accounting source provides it.
@@ -273,7 +274,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       </CardPad>
     </Card>
   );
-  const analysis = finance ? <FinanceAnalysis /> : (
+  const analysis = finance ? <>{planCard}<FinanceAnalysis /></> : (
     <>
       {planCard}
       <Card><CardPad><WinRateCard currency={orgCurrency} range={figures.winRateRange} hidePeriodControl embedded helpInPage /></CardPad></Card>

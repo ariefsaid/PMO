@@ -65,7 +65,9 @@ describe('UXS-006 localized shell vocabulary', () => {
       await user.type(screen.getByRole('combobox'), query);
       await user.click(await screen.findByRole('option', { name }));
       await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(location));
-      const breadcrumb = screen.getByRole('navigation', { name: /breadcrumb/i });
+      // C4 (fan-out round 1): the breadcrumb landmark is named from the catalogue, so the lookup is
+      // bilingual like the rail's one above — the Indonesian name is "Jejak navigasi".
+      const breadcrumb = screen.getByRole('navigation', { name: /breadcrumb|jejak navigasi/i });
       expect(breadcrumb.querySelector('[aria-current="page"]')).toHaveTextContent(crumb);
     };
     await choose('perusahaan', /^Perusahaan$/, '/companies', 'Perusahaan');
