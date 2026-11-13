@@ -200,8 +200,48 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
   });
 });
 
-/** Floor list (all-screens/floor-tests/stock-on-hand.md): the items this suite did not yet cover. */
-describe('AC-STK-032 floor: every control on the balance list still works', () => {
+/** Judge rows on /stock (all-screens/judging/stock-on-hand.md): the count noun and the phone card. */
+describe('C13/C18 the balance list says what it counts, at both widths', () => {
+  const twoRows = () => [row, { ...row, itemId: 'i2', itemCode: 'CAB', itemName: 'Cable 4mm' }];
+
+  it('the count beside the title says what it counts', async () => {
+    reports.onHand.mockResolvedValue(twoRows());
+    renderPage();
+    await screen.findByText('CEM');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/2 balances/);
+  });
+
+  it('a search that narrows the list says how many of how many, with the noun', async () => {
+    reports.onHand.mockResolvedValue(twoRows());
+    renderPage();
+    await screen.findByText('CAB');
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search items' }), 'cable');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/Showing 1 of 2 balances/);
+  });
+
+  it('at phone width all four filters stay and each balance card keeps every fact', async () => {
+    reports.onHand.mockResolvedValue([{ ...row, valueOnHand: '3500.00', avgCost: '50.0000' }]);
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    renderPage();
+    const cards = await screen.findByTestId('dt-card-branch');
+    expect(screen.getByRole('checkbox', { name: 'Below reorder level' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Show zero balances' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Warehouse' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Search items')).toBeInTheDocument();
+
+    const card = within(cards).getAllByRole('listitem')[0];
+    expect(card).toHaveTextContent('CEM');
+    expect(card).toHaveTextContent('Cement 50kg');
+    expect(card).toHaveTextContent('Site A');
+    expect(card).toHaveTextContent('70 bag');
+    expect(card).toHaveTextContent(/3,500/);
+  });
+});
+
+/** Floor list (all-screens/floor-tests/stock-on-hand.md): the items this suite did not yet cover. */describe('AC-STK-032 floor: every control on the balance list still works', () => {
   it('the stock section strip opens Documents from On hand', async () => {
     renderRouted();
     await screen.findByText('CEM');

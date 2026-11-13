@@ -122,4 +122,15 @@ describe('floor: the balance filters and the item drill still work', () => {
     const link = await screen.findByRole('link', { name: 'CEM' });
     expect(link).toHaveAttribute('href', '/stock/ledger?item=i1');
   });
+
+  it('the filter words toggle their box, so the small box is not the only target', async () => {
+    const user = userEvent.setup();
+    renderPage('/stock');
+    await screen.findByText('CEM');
+    await user.click(screen.getByText('Below reorder level'));
+    expect(screen.getByRole('checkbox', { name: 'Below reorder level' })).toBeChecked();
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?belowReorder=1');
+    await user.click(screen.getByText('Show zero balances'));
+    expect(screen.getByRole('checkbox', { name: 'Show zero balances' })).toBeChecked();
+  });
 });
