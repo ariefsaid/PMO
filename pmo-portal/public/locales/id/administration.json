@@ -171,6 +171,7 @@
       "tabs": "Direktori",
       "unavailable": "Odoo belum memiliki aplikasi yang dibutuhkan daftar ini",
       "unavailableWhy": "Belum tersedia: {{missing}}. Pasang atau izinkan di Odoo, lalu Cek ulang di halaman Integrasi.",
+      "connect": "Hubungkan Odoo",
       "hidden": "{{inactive}} nonaktif · {{deleted}} dihapus di Odoo",
       "locationsCut": "Sebagian lokasi tidak ditampilkan.",
       "asOf": "Per {{when}}",

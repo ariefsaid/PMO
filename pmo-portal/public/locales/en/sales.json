@@ -5,8 +5,6 @@
   "goShort": "Go",
   "chanceShort": "{{pct}} chance",
   "chanceValue": "{{pct}}%",
-  "chanceHeader": "Chance",
-  "boardFigureContext": "Board figure context",
   "chanceBadgeAria": "Chance {{chance}}; % Go {{go}}, % Get {{get}}",
   "exclusiveTaxSummary": "excl. PPN",
   "getShort": "Get",

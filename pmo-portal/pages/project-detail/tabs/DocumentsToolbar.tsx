@@ -28,6 +28,8 @@ const DocumentsToolbar: React.FC<{
   setDocumentsView: (view: 'register' | 'grouped') => void;
   canCreateMicrosoftReference: boolean;
   canCreate: boolean;
+  /** The register's Create-folder action (RecordFolderAction), which shares this row with the other create controls. */
+  folderAction?: React.ReactNode;
   onLinkMicrosoft: () => void;
   onAddDocument: () => void;
 }> = ({
@@ -45,12 +47,16 @@ const DocumentsToolbar: React.FC<{
   setDocumentsView,
   canCreateMicrosoftReference,
   canCreate,
+  folderAction,
   onLinkMicrosoft,
   onAddDocument,
 }) => {
   const { t } = useTranslation('project');
   return (
-    <Toolbar standalone className="min-w-0 border-0 bg-transparent px-[var(--panel-inset)] py-3">
+    <Toolbar
+      data-testid="documents-register-toolbar"
+      className="min-w-0 px-[var(--panel-inset)] py-3"
+    >
       <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
         {/* B7: search earns its place only beyond about ten documents; the filters cover a short register. */}
         {(registerSize > SEARCH_THRESHOLD || search) && <SearchMini
@@ -96,7 +102,7 @@ const DocumentsToolbar: React.FC<{
           <option value="upload">{t('projectDetail.documents.source.upload', 'Upload')}</option>
           <option value="onedrive">{t('projectDetail.documents.source.sharePoint', 'SharePoint')}</option>
         </select>
-        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:ml-auto sm:w-auto sm:justify-end">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
           <ViewToggle<'register' | 'grouped'>
             options={[
               { value: 'register', label: t('projectDetail.documents.view.register', 'Register') },
@@ -107,24 +113,23 @@ const DocumentsToolbar: React.FC<{
             ariaLabel={t('projectDetail.documents.view.ariaLabel', 'Document register view')}
             semantics="toggle"
           />
-          <div className="flex flex-wrap items-center gap-2">
-            {canCreateMicrosoftReference && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-auto min-h-0 px-0 py-0 text-sm text-primary-text underline-offset-4 hover:bg-transparent hover:underline"
-                onClick={onLinkMicrosoft}
-              >
-                {t('m365Documents.link', 'Link from Microsoft 365')}
-              </Button>
-            )}
-            {canCreate && (
-              <Button variant="outline" size="sm" onClick={onAddDocument}>
-                <Icon name="plus" />
-                {t('projectDetail.documents.addDocument', 'Add document')}
-              </Button>
-            )}
-          </div>
+          {/* The quieter create/link controls sit beside the tab's one filled action, never above the filters. */}
+          {folderAction && (
+            // RecordFolderAction keeps a polite status line above its button (space-y-2); cancel that
+            // block's top gap so its button lines up with the row's other controls.
+            <div className="-mt-2 flex min-w-0 items-center">{folderAction}</div>
+          )}
+          {canCreateMicrosoftReference && (
+            <Button variant="outline" size="sm" onClick={onLinkMicrosoft}>
+              {t('m365Documents.link', 'Link from Microsoft 365')}
+            </Button>
+          )}
+          {canCreate && (
+            <Button variant="primary" size="sm" onClick={onAddDocument}>
+              <Icon name="plus" />
+              {t('projectDetail.documents.addDocument', 'Add document')}
+            </Button>
+          )}
         </div>
       </div>
     </Toolbar>

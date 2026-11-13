@@ -1,7 +1,7 @@
 /** FR-ODC-111: the Odoo directory pages: items, units, warehouses and locations, cost accounts, and (Admin, Executive, Finance) accounts and taxes, read from PMO's mirror. */
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Navigate, useNavigate, useParams } from 'react-router';
+import { Navigate, useNavigate, useParams, Link } from 'react-router';
 import { AccessDenied, Button, DataTable, Icon, ListPage, SearchMini, StatusPill, Tabs, tabId, tabPanelId, type Column } from '@/src/components/ui';
 import { useMasterRecords, useMasterSummary, useOdooConnection } from '@/src/hooks/useOdoo';
 import type { DirectoryKind, MasterRecord } from '@/src/lib/repositories/types';
@@ -36,9 +36,11 @@ export default function MasterDataPage() {
   useEffect(() => { setPage(1); setTyped(''); setSearch(''); }, [kind]);
 
   const conn = useOdooConnection().data;
+  // Without an active, activated connection nothing has been read: the banner is the whole state (an unread directory is unknown, never 0).
+  const readable = !conn || (conn.status === 'active' && conn.activated);
   const blocked = kind && FINANCIAL.includes(kind) && !may.viewFinancialDirectory;
   const reasons = kind && conn?.capabilities ? missingForKind(kind, conn.capabilities.missing ?? []) : [];
-  const enabled = Boolean(kind) && !blocked && reasons.length === 0;
+  const enabled = Boolean(kind) && !blocked && reasons.length === 0 && readable;
   const isWarehouses = kind === 'warehouse';
   const list = useMasterRecords({ kind: kind ?? 'product', search: search || undefined, page, pageSize: PAGE_SIZE, includeInactive }, enabled);
   const rows = useMemo(() => list.data?.rows ?? [], [list.data]);
@@ -92,7 +94,19 @@ export default function MasterDataPage() {
     <ListPage
       title={t('administration:odoo.master.title', 'Odoo directories')}
       count={enabled ? total : undefined}
-      banner={conn && <OdooConnectionBanner connection={conn.connection} binding={{ status: conn.status, activated: conn.activated }} />}
+      banner={conn && (
+        <div>
+          <OdooConnectionBanner connection={conn.connection} binding={{ status: conn.status, activated: conn.activated }} />
+          {/* The banner names where to connect Odoo; without a connection it also offers the way there (edit-only: the banner itself is shared). */}
+          {!readable && (
+            <p className="-mt-2 mb-3.5">
+              <Link to="/administration/integrations" className="inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                {t('administration:odoo.master.connect', 'Connect Odoo')}
+              </Link>
+            </p>
+          )}
+        </div>
+      )}
     >
       <div className="flex flex-wrap items-center gap-x-3 border-b border-border">
         <Tabs items={tabs} value={kind} onChange={(k) => navigate(`/master-data/${k}`)} ariaLabel={t('administration:odoo.master.tabs', 'Directories')} idBase="odoo-master" className="mb-0 min-w-0 flex-1 border-b-0" />
@@ -102,7 +116,7 @@ export default function MasterDataPage() {
       </div>
 
       <div role="tabpanel" id={tabPanelId('odoo-master', kind)} aria-labelledby={tabId('odoo-master', kind)}>
-      {reasons.length > 0 ? (
+      {!readable ? null : reasons.length > 0 ? (
         <div role="status" className="mt-3 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/12 px-3.5 py-3 text-control">
           <Icon name="alert" className="mt-px size-[17px] shrink-0" aria-hidden="true" />
           <div>
