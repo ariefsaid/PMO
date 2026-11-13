@@ -280,6 +280,12 @@ describe('Contacts index — server paging (#1989)', () => {
     expect(screen.getByRole('button', { name: /Previous page/i })).toBeEnabled();
   });
 
+  it('move 2: the pager is the only displayed contact count', () => {
+    renderPage();
+    expect(screen.queryByText(/Showing \d+ of \d+/)).not.toBeInTheDocument();
+    expect(screen.getByText('1–2 of 2')).toBeInTheDocument();
+  });
+
   it('a filter/search change lands on page 1 of the new result set', async () => {
     h.directory = bigDirectory;
     renderPage();
