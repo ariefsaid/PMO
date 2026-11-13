@@ -195,6 +195,25 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(within(screen.getByTestId('list-page-header')).getByRole('heading')).toBeInTheDocument();
   });
 
+  it('opens procurement help with the value, stage, and invoice-age definitions', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'About Procurement' }));
+
+    expect(await screen.findByText(/The latest amount recorded/)).toBeInTheDocument();
+    expect(screen.getByText('Days since the procurement entered its current stage.')).toBeInTheDocument();
+    expect(screen.getByText(/oldest unpaid supplier invoice was dated/)).toBeInTheDocument();
+  });
+
+  it('does not show invoice-age help to Engineers', async () => {
+    effRole.value = 'Engineer';
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'About Procurement' }));
+
+    expect(await screen.findByText(/The latest amount recorded/)).toBeInTheDocument();
+    expect(screen.getByText('Days since the procurement entered its current stage.')).toBeInTheDocument();
+    expect(screen.queryByText(/oldest unpaid supplier invoice was dated/)).not.toBeInTheDocument();
+  });
+
   it('QI-6 switches procurement list tabs with the shared arrow-key pattern', async () => {
     renderPage('/procurement?tab=all');
     const tabs = screen.getByRole('tablist', { name: 'Procurement lists' });
