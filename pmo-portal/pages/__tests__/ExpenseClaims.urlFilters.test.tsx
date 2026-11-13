@@ -86,6 +86,22 @@ describe('R2 — expense filters live in the URL', () => {
     expect(filtersSeen.at(-1)).toMatchObject({ budgetCategory: 'Equipment' });
   });
 
+  it('choosing a status writes it into the URL and the server filters', async () => {
+    const user = userEvent.setup();
+    renderExpenses('/expenses');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'Submitted');
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?status=Submitted');
+    expect(filtersSeen.at(-1)).toMatchObject({ status: 'Submitted' });
+  });
+
+  it('choosing a type writes it into the URL and the server filters', async () => {
+    const user = userEvent.setup();
+    renderExpenses('/expenses');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Type' }), 'advance');
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?kind=advance');
+    expect(filtersSeen.at(-1)).toMatchObject({ kind: 'advance' });
+  });
+
   it('status and category restore together from a shared link', () => {
     renderExpenses('/expenses?status=Rejected&category=Labor');
     expect(screen.getByRole('combobox', { name: /status/i })).toHaveValue('Rejected');
