@@ -47,6 +47,16 @@ export type M365KnownCode = keyof typeof M365_ERROR_ENGLISH;
 
 export const M365_ERROR_CODES = Object.keys(M365_ERROR_ENGLISH) as M365KnownCode[];
 
+/**
+ * The UNCONFIRMED-STATUS copy (Director fix round F3). A status read that failed has confirmed
+ * nothing, so the card says what it could not confirm and what the person can do — "Try again" —
+ * instead of the old "Retry status to try again.", which asked the reader to retry a request they
+ * never made. Both call sites (`state.unknown` and `errors.statusFallback`) read this ONE constant
+ * so the two can never drift into two different sentences again.
+ */
+export const M365_STATUS_UNKNOWN_ENGLISH =
+  "We couldn't confirm your Microsoft 365 connection status. Try again.";
+
 /** The localized reason for a known wire code, or `null` for an absent/unrecognized code. */
 export function knownM365ErrorReason(t: TFunction, code: string | undefined): string | null {
   const en = M365_ERROR_ENGLISH;
