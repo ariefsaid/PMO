@@ -20,7 +20,9 @@ const { moveTask, calendarState } = vi.hoisted(() => {
     moveTask: vi.fn(),
     calendarState: {
       tasks: [baseTask] as Array<typeof baseTask>,
-      milestones: [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }],
+      milestones: [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }] as Array<{ id: string; projectId: string; name: string; targetDate: string }>,
+      milestonesError: false,
+      projectsError: false,
       refetch: vi.fn(),
     },
   };
@@ -30,10 +32,10 @@ vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => may }));
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useOwnershipCacheSynced: () => true }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeTaskWrite: () => 'internal' }));
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: [{ id: 'p1' }], isError: false, isPending: false, refetch: calendarState.refetch }),
+  useProjects: () => ({ data: calendarState.projectsError ? undefined : [{ id: 'p1' }], isError: calendarState.projectsError, isPending: false, refetch: calendarState.refetch }),
   useProjectsMilestoneDates: () => ({
-    data: calendarState.milestones,
-    isError: false,
+    data: calendarState.milestonesError ? undefined : calendarState.milestones,
+    isError: calendarState.milestonesError,
     refetch: calendarState.refetch,
   }),
 }));
@@ -62,6 +64,9 @@ describe('Calendar page (#1982)', () => {
       id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
       start_date: null, end_date: '2026-11-12', assignee_id: null, created_by: null,
     }];
+    calendarState.milestones = [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }];
+    calendarState.milestonesError = false;
+    calendarState.projectsError = false;
     HTMLElement.prototype.scrollTo = vi.fn();
     may.mockReturnValue(true);
     moveTask.mockReset().mockResolvedValue(undefined);
@@ -114,12 +119,45 @@ describe('Calendar page (#1982)', () => {
 
 // Floor (all-screens/floor-tests/calendar.md items 2, 7-10): the toolbar navigates the period, and
 // a chip is a doorway to its project — including for a read-only viewer (drag off, open still on).
+// C5 (DS calendar #1 / #3): the calendar may not look complete when a read failed or when work
+// without a due date exists — both are stated.
+describe('Calendar — C5 unknown never shown as nothing', () => {
+  beforeEach(() => {
+    HTMLElement.prototype.scrollTo = vi.fn();
+    may.mockReturnValue(true);
+  });
+
+  it('a failed phase read is named with a retry, not painted as a calendar with no phases', async () => {
+    calendarState.milestonesError = true;
+    renderPage();
+    expect(screen.getByText(/Phases could not be loaded/i)).toBeInTheDocument();
+    expect(screen.queryByText('Handover')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(calendarState.refetch).toHaveBeenCalled());
+  });
+
+  it('a failed project read is named too — the phases hang off that read', () => {
+    calendarState.projectsError = true;
+    renderPage();
+    expect(screen.getByText(/Phases could not be loaded/i)).toBeInTheDocument();
+  });
+
+  it('says which work it cannot show, so the month does not read as the whole plan', () => {
+    renderPage();
+    expect(screen.getByText(/Tasks with no due date are not on the calendar/i)).toBeInTheDocument();
+  });
+});
+
 describe('Calendar — floor: toolbar and chip journeys (floor-tests/calendar.md 2, 7-10)', () => {
   beforeEach(() => {
     calendarState.tasks = [{
       id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
       start_date: null, end_date: '2026-11-12', assignee_id: null, created_by: null,
     }];
+    calendarState.milestones = [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }];
+    calendarState.milestonesError = false;
+    calendarState.projectsError = false;
     HTMLElement.prototype.scrollTo = vi.fn();
     may.mockReturnValue(true);
     moveTask.mockReset().mockResolvedValue(undefined);
