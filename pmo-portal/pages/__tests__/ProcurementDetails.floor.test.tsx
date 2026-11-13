@@ -455,14 +455,19 @@ describe('Procurement record floor controls', () => {
 
   it('floor: More Export case downloads a CSV with the case identifiers and state', async () => {
     detailState.data = { ...baseProcurement, status: 'Approved', requested_by_id: 'u-other', vendor: { name: 'Apex Supply' } };
-    const createObjectURL = vi.fn(() => 'blob:procurement-case');
+    let resolveBlob: (blob: Blob) => void = () => undefined;
+    const blobPromise = new Promise<Blob>((resolve) => { resolveBlob = resolve; });
+    const createObjectURL = vi.fn((blob: Blob) => {
+      resolveBlob(blob);
+      return 'blob:procurement-case';
+    });
     const revokeObjectURL = vi.fn();
     const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'More procurement actions' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Export' }));
-    const blob = createObjectURL.mock.calls[0]?.[0] as Blob;
+    const blob = await blobPromise;
     expect(await blob.text()).toContain('"PROC-2026-001","Workstations for HQ","Approved","HQ Fit-Out","Apex Supply"');
     expect(anchorClick).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:procurement-case');
