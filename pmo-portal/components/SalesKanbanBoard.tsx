@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/src/components/shadcn/dropdown-menu';
@@ -14,6 +14,7 @@ import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import ProjectCardShell from './ProjectCardShell';
+import { SalesKanbanBoardTaxBasisContext } from './salesKanbanBoardTaxBasis';
 import {
   SALES_COLUMNS,
   formatPercent,
@@ -50,9 +51,6 @@ interface SalesKanbanBoardProps {
     onMove: (projectId: string, columnId: string) => void;
   };
 }
-
-/** The summary condition from SalesPipeline's open-deal band, shared with desktop board cards. */
-export const SalesKanbanBoardTaxBasisContext = createContext<boolean | undefined>(undefined);
 
 /**
  * A deal's chance: the product of its Go and Get estimates, with Go falling back to the record's
