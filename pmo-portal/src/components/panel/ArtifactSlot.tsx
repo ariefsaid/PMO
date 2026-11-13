@@ -121,7 +121,7 @@ export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) =>
                     : 'ready'
                 }
                 emptyTitle={(panel.props?.emptyTitle as string | undefined) ?? 'No data'}
-                onRetry={state.error ? () => retryPanel(panel) : undefined}
+                onRetry={() => retryPanel(panel)}
               >
                 <HydratedPrimitive panel={panel} data={data} />
               </ChartFrame>

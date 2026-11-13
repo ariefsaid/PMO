@@ -217,6 +217,13 @@ describe('StockReorder', () => {
     expect(await screen.findByRole('table', { name: 'Below reorder level' })).toBeInTheDocument();
   });
 
+  it('C1: explains why a read-only role has no reorder actions', async () => {
+    renderPage('Engineer');
+    await pickPair();
+    await screen.findByText('Suggested level');
+    expect(screen.getByText('Only Finance, Project Managers, Executives, and Admins can change reorder levels.')).toBeInTheDocument();
+  });
+
   it('FR-STK-064 view-as is view-only: an Admin viewing as an Engineer gets no actions', async () => {
     renderPage('Admin', 'Engineer');
     await pickPair();
@@ -271,6 +278,16 @@ describe('StockReorder', () => {
     await pickPair();
     expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
     expect(screen.queryByTestId('suggested-level')).not.toBeInTheDocument();
+  });
+
+  it('C1 a failed suggestion offers a Retry that reruns that read', async () => {
+    reorder.suggestion.mockRejectedValueOnce(new AppError('STK_NOT_FOUND: nope', 'P0001'));
+    renderPage();
+    await pickPair();
+    expect(await screen.findByText("Couldn't load the reorder suggestion")).toBeInTheDocument();
+    reorder.suggestion.mockResolvedValue(okSuggestion);
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Suggested level')).toBeInTheDocument();
   });
 
   it('AC-STK-030 the page has no axe violation', async () => {

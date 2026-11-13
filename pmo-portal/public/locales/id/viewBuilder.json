@@ -9,7 +9,12 @@
   "serverVersionChanged": "Tampilan tersimpan berubah saat Anda mengedit.",
   "reloadSavedView": "Muat ulang tampilan tersimpan",
   "continueEditing": "Lanjutkan mengedit",
-  "invalidProjectFilter": "Masukkan ID proyek yang valid.",
+  "invalidProjectFilter": "Pilih proyek yang valid.",
+  "serverVersionChangedHelp": "Muat ulang membuang perubahan yang belum Anda simpan; lanjutkan menyimpannya.",
+  "incompleteFilter": "Lengkapi atau hapus setiap baris filter sebelum menyimpan.",
+  "removePanelConfirmTitle": "Hapus panel ini?",
+  "removePanelConfirmDescription": "Panel {{primitive}} untuk {{entity}} akan dihapus dari draf tampilan ini. Panel lain tetap ada.",
+  "removePanelConfirm": "Hapus panel",
   "aggregateFn": {
     "count": "Jumlah baris",
     "sum": "Total",
@@ -46,10 +51,5 @@
     "goToDashboard": "Buka dasbor",
     "invalidTitle": "Definisi tampilan ini tidak sah.",
     "invalidSub": "Tampilan tidak bisa dirender karena spesifikasinya tidak sah."
-  },
-  "serverVersionChangedHelp": "Muat ulang membuang perubahan yang belum Anda simpan; lanjutkan menyimpannya.",
-  "incompleteFilter": "Lengkapi atau hapus setiap baris filter sebelum menyimpan.",
-  "removePanelConfirmTitle": "Hapus panel ini?",
-  "removePanelConfirmDescription": "Panel {{primitive}} untuk {{entity}} akan dihapus dari draf tampilan ini. Panel lain tetap ada.",
-  "removePanelConfirm": "Hapus panel"
+  }
 }

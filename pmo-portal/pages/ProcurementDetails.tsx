@@ -787,6 +787,7 @@ const ProcurementDetails: React.FC = () => {
                   loadOptions={async () => vendorOptions ?? []}
                   disabled={!vendorReferencesReady}
                   placeholder={t('bupot.selectVendor', 'Select a supplier…')}
+                  compact
                 />
                 {!vendorReferencesReady && <div role="status">{vendorQuery.isPending ? t('procurementCreate:references.loadingSuppliers', 'Loading suppliers…') : <>{t('procurementCreate:references.suppliersError', "Couldn't load suppliers.")} <Button type="button" variant="outline" onClick={() => void vendorQuery.refetch()}>{t('procurementCreate:references.retrySuppliers', 'Retry suppliers')}</Button></>}</div>}
                 <Button

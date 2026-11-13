@@ -214,7 +214,7 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
               : t('m365Documents.docsTab.linkedSubtitle', 'Record a drawing, specification, or transmittal. Its file stays in Microsoft 365.')
             : t(
                 'projectDetail.documents.form.newSubtitle',
-                'Record a drawing, specification, or transmittal. Upload a file once the Draft row is created.',
+                'Record a drawing, specification, or transmittal. Upload a file once the draft is created.',
               )}</p>}
     </EntityFormModal>
   );

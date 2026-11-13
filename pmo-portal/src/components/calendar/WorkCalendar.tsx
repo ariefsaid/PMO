@@ -37,6 +37,13 @@ export interface WorkCalendarProps {
   initialDate?: Date;
   /** Prefix task titles with their project (the cross-project view). */
   withProject?: boolean;
+  /**
+   * C13 (DS calendar #4): the org day ('YYYY-MM-DD') and the localised word for a past-due task.
+   * The host supplies both so the chip can say a task is late without this component reading a
+   * clock; omitted = no lateness is claimed.
+   */
+  today?: string;
+  lateLabel?: string;
   /** The real-role edit answer for ONE task (same gate as the edit form). Read-only roles get false. */
   canMoveTask: (task: WorkTask) => boolean;
   /** Persist a moved task; reject to revert the drop. */
@@ -78,9 +85,11 @@ const Toolbar: React.FC = () => {
 };
 
 export const WorkCalendar: React.FC<WorkCalendarProps> = ({
-  tasks, milestones, loading, initialDate, withProject, canMoveTask, onMoveTask, onWindowChange, onOpenItem, onMoveError, onMoveBlocked,
+  tasks, milestones, loading, initialDate, withProject, today, lateLabel, canMoveTask, onMoveTask, onWindowChange, onOpenItem, onMoveError, onMoveBlocked,
 }) => {
   const { t } = useTranslation('calendar');
+  const taskKindLabel = t('eventKind.task', 'Task');
+  const milestoneKindLabel = t('eventKind.milestone', 'Phase');
   // A confirmed move shows on its new day while the host's saved task read catches up.
   const [moved, setMoved] = useState<Record<string, WorkTask>>({});
   const [pendingMove, setPendingMove] = useState<{
@@ -92,8 +101,13 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
 
   const shown = useMemo(() => tasks.map((task) => moved[task.id] ?? task), [tasks, moved]);
   const events = useMemo(
-    () => toWorkEvents(shown, milestones, canMoveTask, { withProject }),
-    [shown, milestones, canMoveTask, withProject],
+    () => toWorkEvents(shown, milestones, canMoveTask, { withProject, today, lateLabel }).map((event) => ({
+      ...event,
+      ariaLabelPrefix: event.data?.kind === 'task'
+        ? taskKindLabel
+        : event.data?.kind === 'milestone' ? milestoneKindLabel : undefined,
+    })),
+    [shown, milestones, canMoveTask, withProject, today, lateLabel, taskKindLabel, milestoneKindLabel],
   );
 
   const handleUpdate = useCallback((update: EventCalendarProposedUpdate<WorkItem>) => {

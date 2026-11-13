@@ -52,7 +52,7 @@ const seedWithWon = [
 const projectsState = { data: seed as unknown as ProjectWithRefs[], isPending: false, isError: false, refetch: vi.fn() };
 // Mutable role box (hoisted) — drives the create/edit/archive affordance gating (ADR-0016)
 // on the REAL JWT role. A test sets `roleBox.value` to render the page as a different role.
-const { roleBox, projectMutations, deliverySummaryState, projectMoneyState } = vi.hoisted(() => ({
+const { roleBox, projectMutations, deliverySummaryState, projectMoneyState, myTasksState } = vi.hoisted(() => ({
   roleBox: { value: 'Project Manager', viewerId: 'u-alice' },
   projectMutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
@@ -70,6 +70,12 @@ const { roleBox, projectMutations, deliverySummaryState, projectMoneyState } = v
     data: {} as Record<string, ProjectMoneyRead> | undefined,
     isPending: false,
     fetchStatus: 'fetching' as 'fetching' | 'idle',
+    isError: false,
+    refetch: vi.fn(),
+  },
+  myTasksState: {
+    data: [] as { project_id: string }[],
+    isPending: false,
     isError: false,
     refetch: vi.fn(),
   },
@@ -106,7 +112,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: roleBox.viewerId, org_id: 'org-1' }, role: roleBox.value }),
 }));
 // B-11 fix: Projects now reads the caller's tasks to scope an Engineer's "My Projects".
-vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => myTasksState }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: deliverySummaryState, isError: deliverySummaryState.isError, isPending: false }),
@@ -135,16 +141,18 @@ const LocationProbe: React.FC = () => {
 // Projects rows embed ProjectStatusControl, which uses useToast — needs a provider.
 // list-working-set-return (#682): the list-return seam captures context only from the list's own
 // canonical index path (`/projects`), so the default entry must be `/projects`, not `/`.
+const projectPage = (initialPath = '/projects') => (
+  <MemoryRouter initialEntries={[initialPath]}>
+    <LocationProbe />
+    <ToastProvider>
+      <Projects />
+    </ToastProvider>
+  </MemoryRouter>
+);
+
 const renderPage = (role = 'Project Manager', initialPath = '/projects') => {
   roleBox.value = role;
-  return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <LocationProbe />
-      <ToastProvider>
-        <Projects />
-      </ToastProvider>
-    </MemoryRouter>,
-  );
+  return render(projectPage(initialPath));
 };
 
 const renderBahasaPage = (role = 'Project Manager', initialPath = '/projects') => {
@@ -422,6 +430,101 @@ describe('Projects index states', () => {
     expect(screen.getByText(/No projects match/i)).toBeInTheDocument();
     // the LIVE "Clear filters" action is kept (it actually does something).
     expect(screen.getByRole('button', { name: /Clear filters/i })).toBeInTheDocument();
+  });
+});
+
+describe('Projects secondary reads keep the active view mounted (C22)', () => {
+  const atRiskMoney = {
+    p1: {
+      actuals: {
+        currency: 'USD', total: '450000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }],
+      },
+      activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+    },
+  };
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+    projectsState.isPending = false;
+    projectsState.isError = false;
+    projectMoneyState.data = atRiskMoney;
+    projectMoneyState.isPending = false;
+    projectMoneyState.fetchStatus = 'fetching';
+    projectMoneyState.isError = false;
+    myTasksState.data = [];
+    myTasksState.isPending = false;
+    myTasksState.isError = false;
+  });
+
+  it.each([
+    ['table', 'projects-table-container'],
+    ['kanban', 'project-kanban-board'],
+  ])('keeps the %s view and its scroll position during an at-risk money refresh', (view, testId) => {
+    const path = `/projects?filter=at-risk&view=${view}`;
+    const rendered = renderPage('Project Manager', path);
+    const viewNode = screen.getByTestId(testId);
+    viewNode.scrollTop = 180;
+    expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+
+    projectMoneyState.isPending = true;
+    rendered.rerender(projectPage(path));
+
+    expect(screen.getByTestId(testId)).toBe(viewNode);
+    expect(viewNode.scrollTop).toBe(180);
+    expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+  });
+
+  it('keeps the calendar view mounted during an at-risk money refresh', () => {
+    const path = '/projects?filter=at-risk&view=calendar';
+    const rendered = renderPage('Project Manager', path);
+    const calendarNode = screen.queryByTestId('calendar-month-grid') ?? screen.getByTestId('calendar-agenda');
+    calendarNode.scrollTop = 120;
+
+    projectMoneyState.isPending = true;
+    rendered.rerender(projectPage(path));
+
+    const refreshedCalendar = screen.queryByTestId('calendar-month-grid') ?? screen.getByTestId('calendar-agenda');
+    expect(refreshedCalendar).toBe(calendarNode);
+    expect(calendarNode.scrollTop).toBe(120);
+  });
+
+  it('keeps expanded phone project references open during an at-risk money refresh', async () => {
+    projectsState.data = [{
+      ...seed[0],
+      pmo_project_number: 'PMO-26-0042',
+      customer_contract_ref: 'CLIENT-PO-1',
+    }] as unknown as ProjectWithRefs[];
+    const path = '/projects?filter=at-risk&view=cards';
+    const rendered = renderPage('Project Manager', path);
+    const referencesToggle = screen.getByLabelText('More project references for Innovate Corp HQ Fit-Out');
+    await userEvent.click(referencesToggle);
+    const referencesDetails = referencesToggle.closest('details');
+    expect(referencesDetails).toHaveAttribute('open');
+
+    projectMoneyState.isPending = true;
+    rendered.rerender(projectPage(path));
+
+    expect(screen.getByLabelText('More project references for Innovate Corp HQ Fit-Out')).toBe(referencesToggle);
+    expect(referencesDetails).toHaveAttribute('open');
+    expect(screen.getByText('CLIENT-PO-1')).toBeInTheDocument();
+  });
+
+  it('keeps the My Projects table and its scroll position when the task read re-enters pending', () => {
+    myTasksState.data = [{ project_id: 'p1' }];
+    const path = '/projects?filter=My%20Projects&view=table';
+    const rendered = renderPage('Engineer', path);
+    const table = screen.getByTestId('projects-table-container');
+    table.scrollTop = 160;
+    expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+
+    myTasksState.isPending = true;
+    rendered.rerender(projectPage(path));
+
+    expect(screen.getByTestId('projects-table-container')).toBe(table);
+    expect(table.scrollTop).toBe(160);
+    expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
   });
 });
 

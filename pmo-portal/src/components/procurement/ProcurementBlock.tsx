@@ -90,7 +90,13 @@ export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: str
   </section>
 );
 
-export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWithRefs>, 'rows' | 'columns' | 'rowKey' | 'tableId'> {
+type DistributiveOmit<T, Keys extends PropertyKey> = T extends unknown ? Omit<T, Keys> : never;
+type ProcurementListTableProps = DistributiveOmit<
+  DataTableProps<ProcurementWithRefs>,
+  'rows' | 'columns' | 'rowKey' | 'tableId'
+>;
+
+export type ProcurementListProps = ProcurementListTableProps & {
   tableId: string;
   label: string;
   rows: ProcurementWithRefs[];
@@ -99,7 +105,7 @@ export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWit
   embedded?: boolean;
   /** N7: with nothing to list at all, the empty state stands alone — no column headers over a void. */
   bareEmpty?: boolean;
-}
+};
 
 /** Shared list surface and DataTable contract, including its controlled selection and row menu. */
 export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, columns, children, embedded = false, bareEmpty = false, tableId, ...tableProps }) => (
@@ -1118,10 +1124,12 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               {detailQuery.isPending ? (
                 <p className="text-sm text-muted-foreground">{t('projectDetail.procurement.detail.loadingDocuments', 'Loading linked documents…')}</p>
               ) : detailQuery.isError ? (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3 text-sm text-muted-foreground">
-                  <span>{t('projectDetail.procurement.detail.documentsError', 'Linked documents could not be loaded.')}</span>
-                  <Button variant="outline" size="sm" onClick={() => { void detailQuery.refetch(); }}>{t('common.retry', 'Retry')}</Button>
-                </div>
+                <ListState
+                  variant="error"
+                  title={t('projectDetail.procurement.detail.documentsError', 'Linked documents could not be loaded.')}
+                  retryLabel={t('common.retry', 'Retry')}
+                  onRetry={() => { void detailQuery.refetch(); }}
+                />
               ) : documents.length > 0 ? (
                 <ul className="divide-y divide-border">
                   {documents.map((document) => (
@@ -1141,7 +1149,12 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               {detailQuery.isPending ? (
                 <p className="text-sm text-muted-foreground">{t('common.loading', 'Loading…')}</p>
               ) : detailQuery.isError ? (
-                <p className="text-sm text-muted-foreground">{t('procurement.lineItemsUnavailable', 'Line items could not be loaded.')}</p>
+                <ListState
+                  variant="error"
+                  title={t('procurement.lineItemsUnavailable', 'Line items could not be loaded.')}
+                  retryLabel={t('common.retry', 'Retry')}
+                  onRetry={() => { void detailQuery.refetch(); }}
+                />
               ) : (drawerDetails?.items?.length ?? 0) > 0 ? (
                 <ul className="divide-y divide-border">
                   {drawerDetails!.items.map((item) => (

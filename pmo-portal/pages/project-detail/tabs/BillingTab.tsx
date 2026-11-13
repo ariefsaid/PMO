@@ -362,7 +362,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       const label = c.withdrawn_at
         ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn')
         : c.invoice
-          ? `${c.invoice.si_number ?? ''} · ${c.invoice.status}`
+          ? `${c.invoice.si_number ?? ''} · ${c.invoice.status === 'Unpaid' ? t('projectDetail.billing.claims.status.unpaid', 'Unpaid') : c.invoice.status}`
           : t('projectDetail.billing.claims.notRaised', 'Not raised');
       const variant = c.withdrawn_at ? 'lost' : c.invoice?.status === 'Paid' ? 'won' : c.invoice?.status === 'Unpaid' || c.invoice?.status === 'Submitted' ? 'warn' : 'neutral';
       return <Tooltip content={t('projectDetail.billing.claims.source.invoice', 'Source: invoice status linked to this claim.') }><span className="cursor-help"><StatusPill variant={variant}>{label}</StatusPill></span></Tooltip>;
@@ -379,7 +379,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             </Button>
           )}
           {open && canBill && (c.evidence.length > 0 ? (
-            <Button variant="primary" size="sm" onClick={() => setRaiseFor({ claim: c, idempotencyKey: crypto.randomUUID() })}>
+            <Button variant="outline" size="sm" onClick={() => setRaiseFor({ claim: c, idempotencyKey: crypto.randomUUID() })}>
               {t('projectDetail.billing.claims.raise', 'Raise invoice')}
             </Button>
           ) : (

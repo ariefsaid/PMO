@@ -12,7 +12,7 @@ import { Combobox as BaseCombobox } from '@base-ui/react/combobox';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
-import { FieldError } from './FormFields';
+import { FieldError, formControlInvalid, formControlShell } from './FormFields';
 
 // ---------------------------------------------------------------------------
 // Combobox — the async FK picker (crud-components §4). A searchable
@@ -99,8 +99,8 @@ export interface ComboboxProps {
   /** Stable DOM id for form error-summary focus links. */
   id?: string;
   className?: string;
-  /** Size/fill the trigger like the shared form controls (SelectField/TextField). */
-  formControl?: boolean;
+  /** Use the compact 30px control when this picker sits beside other compact controls. */
+  compact?: boolean;
 }
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -135,7 +135,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   clearWhileDisabled,
   id,
   className,
-  formControl,
+  compact,
 }) => {
   const { t } = useTranslation();
   const baseId = useId();
@@ -252,7 +252,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   }, [open]);
 
   return (
-    <div className={cn('flex flex-col', formControl ? 'gap-2' : 'gap-1.5', className)}>
+    <div className={cn('flex flex-col', compact ? 'gap-1.5' : 'gap-2', className)}>
       <span id={labelId} className={cn('font-semibold text-foreground', 'text-control')}>
         {label}
         {required && (
@@ -303,21 +303,20 @@ export const Combobox: React.FC<ComboboxProps> = ({
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? errId : helper ? helpId : undefined}
             className={cn(
-              'flex w-full items-center gap-2 rounded-md border text-foreground',
-              formControl
-                ? 'h-auto min-h-[var(--control-height)] bg-card px-3 py-1 text-control [@media(pointer:coarse)]:min-h-11'
-                : 'h-auto min-h-8 bg-background px-[10px] py-1 text-control',
-              'hover:border-primary/50 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground',
-              error ? 'border-destructive' : 'border-border hover:border-input',
+              'flex items-center gap-2 text-left',
+              compact
+                ? 'h-auto min-h-[var(--control-height-sm)] w-full rounded-[var(--control-radius-sm)] border border-border bg-card px-2 py-1 text-control text-foreground hover:enabled:border-input [@media(pointer:coarse)]:min-h-11 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground'
+                : formControlShell,
+              error && formControlInvalid,
             )}
           >
             {selected ? (
-              <span className="flex min-w-0 flex-1 items-start gap-2 text-left">
+              <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
                 {selected.initials && <Avatar name={selected.label} initials={selected.initials} size="xs" decorative />}
-                <span className="break-words">{selected.label}</span>
+                <span className="min-w-0 flex-1 truncate">{selected.label}</span>
               </span>
             ) : (
-              <span className="flex-1 break-words text-left text-muted-foreground">{placeholder}</span>
+              <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{placeholder}</span>
             )}
             {/* Reserves the clear button's 24px slot left of the chevron so the label wraps
                 before it instead of running under it (the button is absolutely positioned). */}

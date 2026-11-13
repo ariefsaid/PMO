@@ -8,7 +8,7 @@ export interface InvoicedTrendCardProps {
   trend: InvoicedTrend | null | undefined;
   pending?: boolean;
   error?: boolean;
-  onRetry?: () => void;
+  onRetry: () => void;
   /** Drawn inside another card: the tile drops its own frame. */
   bare?: boolean;
   /** Small line only, no second headline figure. */

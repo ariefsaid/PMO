@@ -216,7 +216,7 @@ const ProjectDetail: React.FC = () => {
       <>
         <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
         <ListState
-          variant="error"
+          variant="empty"
           icon="inbox"
           titleAsPageHeading
           title={t('projectDetail.notFound.title', 'Project not found')}

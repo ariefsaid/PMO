@@ -134,7 +134,7 @@ export default function OrgWithholdingAccount() {
           {hasActiveBinding && catalogue.isError && <ListState variant="error" title={t('uxs11.catalogueLoadError', "Couldn't load chart accounts")} onRetry={() => void catalogue.refetch()} />}
           {canBrowse && candidates.length === 0 && <p role="status" className="text-control text-muted-foreground">{t('uxs11.noAssetAccounts', 'No enabled Asset accounts in the ERP chart.')}</p>}
           {error && <FieldError>{error}</FieldError>}
-          <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSaveDraft}> {t('uxs11.saveWithholding', 'Save account')}</Button>
+          <Button type="submit" variant="primary" disabled={mutation.isPending || !dirty || !canSaveDraft}> {t('uxs11.saveWithholding', 'Save account')}</Button>
         </form> : <>
           <dl className="space-y-1 text-control">
             {fields.map(({ key, label }, index) => <div key={key}><dt className="inline text-muted-foreground">{label}: </dt><dd className="inline">{readOnlyValues[index] ?? notConfigured}</dd></div>)}

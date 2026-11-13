@@ -121,3 +121,25 @@ describe('FR-L10N — Bahasa Administration breadcrumbs agree with the shell', (
     }
   });
 });
+
+describe('FR-L10N — Bahasa breadcrumbs for the personal routes (C4 second pass)', () => {
+  // These crumbs were English CONSTANTS in routeMatch.ts (no i18nKey), so no catalogue could reach
+  // them: an Indonesian session read "My Views" and "Profile & preferences" above a translated page.
+  it('OD-4/I4: the My Views index crumb reads "Tampilan Saya", not "My Views"', () => {
+    renderBreadcrumb('/views');
+    expect(screen.getByText('Tampilan Saya')).toBeInTheDocument();
+    expect(screen.queryByText('My Views')).not.toBeInTheDocument();
+  });
+
+  it('OD-4: a saved-view record keeps its parent crumb in Bahasa', () => {
+    renderBreadcrumb('/views/view-1');
+    expect(screen.getByText('Tampilan Saya')).toBeInTheDocument();
+    expect(screen.queryByText('My Views')).not.toBeInTheDocument();
+  });
+
+  it('AC-ACCT-001: the profile route crumb reads "Profil & preferensi"', () => {
+    renderBreadcrumb('/settings/profile');
+    expect(screen.getByText('Profil & preferensi')).toBeInTheDocument();
+    expect(screen.queryByText('Profile & preferences')).not.toBeInTheDocument();
+  });
+});

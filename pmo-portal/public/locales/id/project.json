@@ -264,7 +264,10 @@
         "notRaised": "Belum diterbitkan",
         "withdraw": "Tarik",
         "new": "Tagihan baru",
-        "attachEvidence": "Lampirkan bukti"
+        "attachEvidence": "Lampirkan bukti",
+        "status": {
+          "unpaid": "Belum dibayar"
+        }
       },
       "summary": {
         "details": "Rincian ringkasan penagihan",
@@ -487,7 +490,7 @@
       "paidNotReceived": "{{amount}} sudah lunas di akuntansi tetapi belum ada penerimaan yang dicocokkan.",
       "marginOutCurrency": "Margin kotor tidak ditampilkan karena pengeluaran dan pekerjaan yang ditagih memakai mata uang berbeda.",
       "marginOutWork": "Margin kotor tidak ditampilkan sampai pendapatan pekerjaan yang ditagih lengkap.",
-      "marginOutRestricted": "Margin kotor tidak ditampilkan karena pengeluaran tidak mencakup baris yang dibatasi.",
+      "marginOutRestricted": "Margin kotor disembunyikan karena ada pengeluaran terbatas.",
       "marginOutActuals": "Margin kotor tidak ditampilkan sampai pengeluaran tertaut untuk setiap kategori anggaran.",
       "marginOutNoInvoices": "Margin kotor mulai dihitung sejak faktur pertama dalam mata uang proyek.",
       "leadTooltip": "Jumlah yang sudah difakturkan sebagai porsi dari kontrak. Sumber: faktur yang bukan draf dan tidak dibatalkan dalam mata uang proyek.",
@@ -715,7 +718,7 @@
       "atRisk": "Berisiko",
       "categoryNotesUnavailable": "Tidak ada catatan kategori.",
       "chooseFiscalYear": "Pilih tahun fiskal untuk melihat prakiraan ERP",
-      "chooseFiscalYearSub": "Aktifkan dan kirim versi anggaran, lalu pilih tahun fiskalnya. Jika baris buku besar belum tersedia, tunggu posting pertama tersinkron.",
+      "chooseFiscalYearSub": "Aktifkan dan kirim versi anggaran, lalu pilih tahun fiskalnya. Jika entri buku besar belum tersedia, tunggu posting pertama tersinkron.",
       "costToFinish": "Biaya hingga selesai",
       "costToFinishFor": "Biaya hingga selesai untuk {{category}}",
       "editCostToFinish": "Edit biaya hingga selesai",
@@ -913,7 +916,7 @@
         "apply": "Terapkan",
         "cancel": "Batal"
       },
-      "idSource": "Sumber: ID catatan tugas",
+      "idSource": "Dibuat PMO saat tugas dibuat.",
       "prioritySource": "Sumber: bidang prioritas tugas",
       "commentsOpenHint": "Buka tugas untuk membaca atau menambahkan komentar",
       "dueTooltip": "Tenggat berasal dari catatan tugas. Hari keterlambatan dihitung dengan membandingkan tenggat dengan hari ini menurut zona waktu organisasi.",
@@ -954,7 +957,7 @@
       "phaseDatesTooltip": "Rentang dari tanggal mulai tugas paling awal hingga tenggat tugas paling akhir dalam cakupan tugas saat ini. Sumber: catatan tugas pada tahap.",
       "phaseTargetTooltip": "Tanggal sasaran dari catatan tahap proyek.",
       "phaseTargetDate": "Sasaran {{date}}",
-      "phaseProgressTooltip": "Progres tahap manual jika diatur; jika tidak, jumlah tugas tahap yang Selesai dibagi jumlah seluruh tugas pada tahap. Sumber: get_project_milestones.",
+      "phaseProgressTooltip": "Progres manual, atau dihitung dari tugas tahap ini.",
       "phaseProgress": "Progres tahap",
       "phaseLateTooltip": "Jumlah hari setelah tanggal sasaran tahap, dibandingkan dengan hari ini menurut zona waktu organisasi. Sumber: tanggal sasaran tonggak dan hari organisasi.",
       "openCountTooltip": "Jumlah tugas yang terlihat pada tahap ini dengan status selain Selesai. Sumber: daftar tugas proyek dan filter saat ini.",

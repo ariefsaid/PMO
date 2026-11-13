@@ -13,7 +13,9 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { BahasaProvider } from '@/test/bahasa';
 vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
-  useProjectNumberProposal: () => ({ status: 'success', number: 'PMO-TEST-0001', error: null }),
+  useProjectNumberProposal: (clientId: string | null) => clientId
+    ? ({ status: 'success', number: 'PMO-TEST-0001', error: null })
+    : ({ status: 'idle', number: null, error: null }),
 }));
 
 import ProjectFormModal from './ProjectFormModal';
@@ -56,16 +58,20 @@ const renderForm = (mode: 'create' | 'editHeader' = 'create') =>
   );
 
 describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
-  it('#693: the create form renders its title, sections, labels, placeholders and submit in Bahasa', () => {
+  it('#693: the create form renders its title, sections, labels, placeholders and submit in Bahasa', async () => {
     renderForm();
     expect(screen.getByRole('dialog', { name: 'Proyek baru' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Buat proyek' })).toBeInTheDocument();
+    expect(screen.getByText('Terisi otomatis setelah Anda memilih klien.')).toBeInTheDocument();
     expect(screen.getByLabelText(/Nama proyek/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('mis. Terminal Pelabuhan: Pekerjaan Sipil')).toBeInTheDocument();
     expect(screen.getByText(/Perusahaan klien/)).toBeInTheDocument();
     // #758: Client and End customer both use the same company placeholder, so it may appear more
     // than once — at least one is required.
     expect(screen.getAllByText('Pilih perusahaan…').length).toBeGreaterThan(0);
+    await userEvent.click(screen.getByRole('combobox', { name: /Perusahaan klien/ }));
+    await userEvent.click(await screen.findByRole('option', { name: /Innovate Corp/ }));
+    expect(await screen.findByText('Terisi otomatis setelah Anda memilih klien. Anda dapat mengubahnya sebelum membuat proyek.')).toBeInTheDocument();
     expect(screen.getByText(/Manajer proyek/)).toBeInTheDocument();
     expect(screen.getByText('Tetapkan PM…')).toBeInTheDocument();
     expect(screen.getByLabelText('Tahap awal')).toBeInTheDocument();
@@ -108,7 +114,7 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
     expect(screen.getByRole('dialog', { name: 'Edit proyek' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Simpan proyek' })).toBeInTheDocument();
     expect(screen.getByLabelText('Kode Proyek Klien')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Kode opsional yang digunakan organisasi Anda')).toBeInTheDocument();
+    expect(screen.getByText('Kode opsional yang digunakan organisasi Anda untuk proyek klien ini.')).toBeInTheDocument();
   });
 });
 // ── AC-EC-005 (#758) — every new end-customer key ships with a real Bahasa translation. ──────

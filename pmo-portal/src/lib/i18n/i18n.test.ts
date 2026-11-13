@@ -27,6 +27,10 @@ describe('FR-L10N-043: lazy per-locale catalogue load', () => {
     expect(fetchMock).toHaveBeenCalledWith('/locales/en/billingFeature.json');
   });
 
+  it('registers the auth feature namespace for OAuth consent copy', () => {
+    expect(NAMESPACES).toContain('auth');
+  });
+
   it('AC-L10N-043: an en session requests no id catalogue', () => {
     const cb = vi.fn();
     catalogueBackend.read!('en', 'common', cb);

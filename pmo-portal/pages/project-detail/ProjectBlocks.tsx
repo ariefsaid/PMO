@@ -140,7 +140,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
     : margin?.reason === 'work-unavailable'
       ? t('projectDetail.money.marginOutWork', 'Gross margin is left out until billed-work revenue is complete.')
       : margin?.reason === 'restricted-rows'
-        ? t('projectDetail.money.marginOutRestricted', 'Gross margin is left out because spending excludes restricted rows.')
+        ? t('projectDetail.money.marginOutRestricted', 'Gross margin is hidden because some spending is restricted.')
         : margin?.reason === 'actuals-unavailable'
           ? t('projectDetail.money.marginOutActuals', 'Gross margin is left out until spending is linked for every budget category.')
           : t('projectDetail.money.marginOutNoInvoices', 'Gross margin starts with the first invoice in the project currency.');

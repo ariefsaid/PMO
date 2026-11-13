@@ -365,9 +365,46 @@ describe('DataTable', () => {
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
   });
 
+  it('filtered-empty explains that filters matched no rows and clears them on request', async () => {
+    const onClearFilters = vi.fn();
+    render(
+      <DataTable
+        rows={[]}
+        columns={columns}
+        rowKey={(r) => r.id}
+        state="empty"
+        emptyTitle="No projects yet"
+        filteredEmpty={{
+          message: 'No projects match these filters.',
+          clearFiltersLabel: 'Clear filters',
+          onClearFilters,
+        }}
+      />,
+    );
+
+    expect(screen.getByText('No projects match these filters.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(onClearFilters).toHaveBeenCalledOnce();
+  });
+
   it('state="loading" renders the loading ListState', () => {
     render(<DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="loading" />);
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+  });
+
+  it('C5: a pending empty result never renders the empty sentence', () => {
+    render(
+      <DataTable
+        rows={[]}
+        columns={columns}
+        rowKey={(r) => r.id}
+        state="loading"
+        emptyTitle="No projects match these filters"
+      />,
+    );
+
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByText('No projects match these filters')).not.toBeInTheDocument();
   });
 
   it('state="loading" announces loading and rows remain keyboard reachable after load', async () => {
@@ -409,9 +446,26 @@ describe('DataTable', () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
+  it('C5: a failed empty result never renders the empty sentence', () => {
+    render(
+      <DataTable
+        rows={[]}
+        columns={columns}
+        rowKey={(r) => r.id}
+        state="error"
+        emptyTitle="No projects match these filters"
+        errorTitle="Could not load projects"
+        onRetry={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not load projects');
+    expect(screen.queryByText('No projects match these filters')).not.toBeInTheDocument();
+  });
+
   it('F18: the error state does not show the column header row above the error panel', () => {
     const { container } = render(
-      <DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="error" errorTitle="Load failed" />
+      <DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="error" errorTitle="Load failed" onRetry={() => {}} />
     );
     expect(container.querySelector('thead')).toHaveClass('sr-only');
   });

@@ -124,10 +124,10 @@ const FinancialStatements: React.FC = () => {
   }, [admittedProjectIds, projectNames.data, projectNames.isError]);
 
   useEffect(() => {
-    if (selectedScope !== COMPANY_SCOPE && selectedScope !== null && !namedProjectOptions.some((option) => option.value === selectedScope)) {
+    if (!projectNames.isError && selectedScope !== COMPANY_SCOPE && selectedScope !== null && !namedProjectOptions.some((option) => option.value === selectedScope)) {
       setSelectedScope(null);
     }
-  }, [namedProjectOptions, selectedScope]);
+  }, [namedProjectOptions, projectNames.isError, selectedScope]);
 
   const kindPeriods = useMemo(
     () => (catalogue?.state === 'complete' ? catalogue.periods : []).filter((pair) => pair.kind === periodKind),
@@ -200,6 +200,9 @@ const FinancialStatements: React.FC = () => {
   const statementTitle = statementOptions.find((option) => option.value === statement)?.label ?? '';
   const scopeOptions = [
     { value: COMPANY_SCOPE, label: t('financialStatements.companyScope', 'Company') },
+    ...(projectNames.isError && selectedScope && selectedScope !== COMPANY_SCOPE
+      ? [{ value: selectedScope, label: t('finance:financialStatements.selectedProjectNameUnavailable', 'Selected project name unavailable') }]
+      : []),
     ...namedProjectOptions,
   ];
 
@@ -235,6 +238,9 @@ const FinancialStatements: React.FC = () => {
   } else if (catalogueQuery.isError && !catalogue) {
     sectionState = { kind: 'error' };
     sectionRetry = () => { void catalogueQuery.refetch(); };
+  } else if (projectNames.isError && selectedScope !== COMPANY_SCOPE && selectedScope !== null) {
+    sectionState = { kind: 'error' };
+    sectionRetry = () => { void projectNames.refetch(); };
   } else if (!catalogue || catalogue.state === 'unavailable' || selection === null) {
     sectionState = { kind: 'unavailable' };
   } else if (unexpectedResult) {
@@ -314,8 +320,12 @@ const FinancialStatements: React.FC = () => {
     unavailableDescription: t('financialStatements.unavailableDescription', 'Statements come from the accounting system.'),
     noActivity: t('financialStatements.noActivity', 'No activity in this period'),
     noActivityDescription: t('financialStatements.noActivityDescription', 'There was no activity in the selected period.'),
-    error: t('financialStatements.error', "Couldn't load financial statements"),
-    errorDescription: t('financialStatements.errorDescription', 'The request failed. Check your connection and try again.'),
+    error: projectNames.isError && selectedScope !== null && selectedScope !== COMPANY_SCOPE
+      ? tf('statements.projectNameLoadFailed', "Couldn't load the selected project's name")
+      : t('financialStatements.error', "Couldn't load financial statements"),
+    errorDescription: projectNames.isError && selectedScope !== null && selectedScope !== COMPANY_SCOPE
+      ? tf('statements.projectNameLoadFailedDescription', 'The selected project name could not be read. Retry to restore this project scope.')
+      : t('financialStatements.errorDescription', 'The request failed. Check your connection and try again.'),
     retry: t('financialStatements.retry', 'Retry'),
     updated: t('financialStatements.updated', 'Updated'),
     delayed: t('financialStatements.delayed', 'Update delayed'),

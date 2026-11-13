@@ -267,6 +267,8 @@
     "expandGroup": "Expand {{group}}",
     "collapseAll": "Collapse all",
     "expandAll": "Expand all",
+    "projectNameLoadFailed": "Couldn't load the selected project's name",
+    "projectNameLoadFailedDescription": "The selected project name could not be read. Retry to restore this project scope.",
     "setUp": "Set up accounting"
   },
   "erpPurchases": {
@@ -520,7 +522,7 @@
       "retryFailedEtc": "Retry failed edits",
       "editCostToFinish": "Edit cost to finish",
       "chooseFiscalYear": "Choose a fiscal year to view the ERP forecast",
-      "chooseFiscalYearSub": "Activate and push a budget version, then choose its fiscal year. If no ledger rows have arrived yet, wait for the first posting to sync.",
+      "chooseFiscalYearSub": "Activate and push a budget version, then choose its fiscal year. If no ledger entries have arrived yet, wait for the first posting to sync.",
       "forecastError": "Forecast could not be loaded",
       "noForecastRows": "No forecast categories for this fiscal year",
       "noForecastRowsSub": "Activate and push a budget version for this fiscal year. If it is already active and pushed, wait for the first ERP ledger posting to sync.",
@@ -635,7 +637,7 @@
       "budgetVsActual": "Budget vs actual",
       "selectedCategories": "Selected categories",
       "selectedCount": "{{count}} selected",
-      "exportRows": "Export rows",
+      "exportRows": "Export lines",
       "budgetView": "Budget view",
       "fiscalYearInForecast": "Fiscal year in forecast",
       "updateBudget": "Update budget",
@@ -740,7 +742,11 @@
       "askAdmin": "An administrator can finish the setup."
     }
   },
+  "financialStatements": {
+    "selectedProjectNameUnavailable": "Selected project name unavailable"
+  },
   "financeCopy": {
+    "invoiceNumbersLoadFailed": "Couldn't load invoice numbers",
     "budget": "Budget",
     "activateEditorBlocked": "You drafted or edited this version, so someone else must activate it.",
     "activateNeedsAdminOrFinance": "No drafter is recorded for this version. Ask an Admin or Finance user to activate it.",

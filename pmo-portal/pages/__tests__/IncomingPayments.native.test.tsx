@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -12,6 +12,8 @@ const h = vi.hoisted(() => ({
   createPaymentMutate: vi.fn(async (_input: unknown): Promise<{ id: string }> => ({ id: 'ip-new' })),
   applyMutate: vi.fn(async (_input: unknown): Promise<string[]> => ['al-new']),
   unapplyMutate: vi.fn(async (_input: unknown): Promise<void> => undefined),
+  cancelMutate: vi.fn(async (_input: unknown): Promise<void> => undefined),
+  exportXlsx: vi.fn(),
   payments: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   route: 'pmo' as 'pmo' | 'external',
@@ -29,13 +31,14 @@ vi.mock('@/src/components/export', async () => {
     withCurrencyColumn: <Row,>(columns: Row[]) => columns,
   };
 });
+vi.mock('@/src/components/export/useExport', () => ({ useExport: () => ({ exportXlsx: h.exportXlsx, busy: false }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useIncomingPayments: () => h.payments,
   useSalesInvoices: () => h.invoices,
   useRevenueMutations: () => ({
     createPayment: { mutateAsync: h.createPaymentMutate, isPending: false },
-    cancelPayment: { mutateAsync: vi.fn(), isPending: false },
+    cancelPayment: { mutateAsync: h.cancelMutate, isPending: false },
     applyReceipt: { mutateAsync: h.applyMutate, isPending: false },
     unapplyAllocation: { mutateAsync: h.unapplyMutate, isPending: false },
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },
@@ -94,17 +97,26 @@ const receipt = (over: Partial<IncomingPaymentRow> = {}): IncomingPaymentRow => 
   ...over,
 }) as IncomingPaymentRow;
 
-const renderPage = (embedded = false, initialEntry = '/incoming-payments') => render(
+const renderPage = (
+  embedded = false,
+  initialEntry = '/incoming-payments',
+  secondaryAction?: { label: string; onSelect: () => void },
+) => render(
   <FinanceI18nTestProvider>
     <ImpersonationProvider realRole="Finance">
       <MemoryRouter initialEntries={[initialEntry]}>
         <ToastProvider>
-          <IncomingPayments embedded={embedded} />
+          <IncomingPayments embedded={embedded} secondaryAction={secondaryAction} />
+          <LocationProbe />
         </ToastProvider>
       </MemoryRouter>
     </ImpersonationProvider>
   </FinanceI18nTestProvider>,
 );
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="incoming-payments-location">{location.pathname}{location.search}</output>;
+};
 
 afterEach(() => {
   resetActiveLocale();
@@ -133,6 +145,9 @@ beforeEach(async () => {
   h.applyMutate.mockResolvedValue(['al-new']);
   h.unapplyMutate.mockReset();
   h.unapplyMutate.mockResolvedValue(undefined);
+  h.cancelMutate.mockReset();
+  h.cancelMutate.mockResolvedValue(undefined);
+  h.exportXlsx.mockReset();
   h.payments.data = [];
   h.payments.isError = false;
   h.invoices.data = [];
@@ -197,6 +212,56 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     expect(within(drawer).queryByRole('button', { name: 'Apply to an invoice' })).not.toBeInTheDocument();
   });
 
+  it('the row menu View payment action opens that receipt in the drawer', async () => {
+    h.payments.data = [receipt()];
+    const user = userEvent.setup();
+    renderPage(true, '/finance/receivables?view=payments');
+    await user.click(within(rowFor('RCV-2610070001')).getByRole('button', { name: 'Row actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'View payment' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('incoming-payments-location')).toHaveTextContent('/finance/receivables?view=payments&open=ip-1');
+  });
+
+  it('Open full page shows the receipt record and Back returns to the payment list query', async () => {
+    h.payments.data = [receipt()];
+    const user = userEvent.setup();
+    renderAt('/incoming-payments?view=payments&open=ip-1');
+    const drawer = await screen.findByRole('dialog');
+    await user.click(within(drawer).getByRole('button', { name: 'Open full page' }));
+    expect(await screen.findByRole('heading', { name: /RCV-2610070001/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Back to Incoming Payments/i }));
+    expect(screen.getByTestId('incoming-payments-location')).toHaveTextContent('/incoming-payments?view=payments');
+  });
+
+  it('a PMO receipt row menu confirms cancellation before calling the transition', async () => {
+    h.payments.data = [receipt()];
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(within(rowFor('RCV-2610070001')).getByRole('button', { name: 'Row actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Cancel' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(h.cancelMutate).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel payment' }));
+    expect(h.cancelMutate).toHaveBeenCalledWith(expect.objectContaining({
+      ipId: 'ip-1', intent: expect.objectContaining({ id: expect.any(String), idempotencyKey: expect.any(String) }),
+    }));
+  });
+
+  it('Payment actions in the receipt drawer expose Cancel and require its confirmation', async () => {
+    h.payments.data = [receipt()];
+    const user = userEvent.setup();
+    renderPage(true, '/finance/receivables?view=payments&open=ip-1');
+    const drawer = await screen.findByRole('dialog');
+    await user.click(within(drawer).getByRole('button', { name: 'Payment actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Cancel' }));
+    const confirm = await screen.findByRole('alertdialog');
+    expect(h.cancelMutate).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole('button', { name: 'Cancel payment' }));
+    expect(h.cancelMutate).toHaveBeenCalledWith(expect.objectContaining({
+      ipId: 'ip-1', intent: expect.objectContaining({ id: expect.any(String), idempotencyKey: expect.any(String) }),
+    }));
+  });
+
   it('AC-1405 an Executive may view the payment drawer but has no cancel action', () => {
     h.role = 'Executive';
     h.payments.data = [receipt()];
@@ -227,6 +292,53 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Select RCV-A' }));
     await user.click(screen.getByRole('button', { name: 'Export selected' }));
     expect((h.exportedRows as IncomingPaymentRow[]).map((row) => row.id)).toEqual(['ip-a']);
+  });
+
+  it('select all and Clear select and then clear every visible payment', async () => {
+    h.payments.data = [receipt({ id: 'ip-a', pmo_number: 'RCV-A' }), receipt({ id: 'ip-b', pmo_number: 'RCV-B' })];
+    const user = userEvent.setup();
+    renderPage(true, '/finance/receivables?view=payments');
+    await user.click(screen.getByRole('checkbox', { name: 'Select all rows' }));
+    expect(screen.getByRole('checkbox', { name: 'Select RCV-A' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select RCV-B' })).toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.getByRole('checkbox', { name: 'Select RCV-A' })).not.toBeChecked();
+    expect(screen.queryByRole('button', { name: 'Export selected' })).not.toBeInTheDocument();
+  });
+
+  it('exports every receipt in the active status filter', async () => {
+    h.payments.data = [receipt({ id: 'ip-a', pmo_number: 'RCV-A' }), receipt({ id: 'ip-b', pmo_number: 'RCV-B', cancelled_at: '2026-10-08T00:00:00Z' })];
+    const user = userEvent.setup();
+    renderPage(true, '/finance/receivables?view=payments');
+    await user.click(screen.getByRole('tab', { name: 'Received' }));
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect((h.exportedRows as IncomingPaymentRow[]).map((row) => row.id)).toEqual(['ip-a']);
+  });
+
+  it('the phone Filters disclosure exposes status filters and narrows the payment rows', async () => {
+    mockPhoneViewport();
+    h.payments.data = [receipt({ id: 'ip-a', pmo_number: 'RCV-A' }), receipt({ id: 'ip-b', pmo_number: 'RCV-B', cancelled_at: '2026-10-08T00:00:00Z' })];
+    const user = userEvent.setup();
+    renderPage(true, '/finance/receivables?view=payments');
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    const filterRegion = screen.getByRole('region', { name: 'Filters' });
+    await user.click(within(filterRegion).getByRole('tab', { name: 'Cancelled' }));
+    expect(screen.getByText('RCV-B')).toBeInTheDocument();
+    expect(screen.queryByText('RCV-A')).not.toBeInTheDocument();
+  });
+
+  it('the phone More actions menu exports filtered rows and invokes the other create action', async () => {
+    mockPhoneViewport();
+    h.payments.data = [receipt({ id: 'ip-a', pmo_number: 'RCV-A' })];
+    const receive = vi.fn();
+    const user = userEvent.setup();
+    renderPage(true, '/finance/receivables?view=payments', { label: 'New invoice', onSelect: receive });
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Export' }));
+    expect(h.exportXlsx).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'ip-a' })]), expect.any(Array), 'Incoming Payments');
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'New invoice' }));
+    expect(receive).toHaveBeenCalledTimes(1);
   });
 
   it('UX-010 a Project Manager gets the responsible team and a useful project destination', () => {
@@ -561,6 +673,7 @@ const renderAt = (path: string) => render(
             <Route path="/incoming-payments/:receiptId" element={<IncomingPayments />} />
             <Route path="/sales-invoices/:invoiceId" element={<p>invoice record</p>} />
           </Routes>
+          <LocationProbe />
         </ToastProvider>
       </MemoryRouter>
     </ImpersonationProvider>

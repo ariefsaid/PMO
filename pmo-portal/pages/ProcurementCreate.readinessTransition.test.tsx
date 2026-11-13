@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn(),
   canCreate: true,
   currency: 'USD',
+  orgFxContext: { data: { currency: 'USD' } as { currency: string } | undefined, isPlaceholderData: false, isError: false, isPending: false, refetch: vi.fn() },
   realRole: 'Admin' as string,
   projectQuery: { data: [{ value: 'p1', label: 'Project One' }], isPending: false, isError: false, refetch: vi.fn() },
   vendorQuery: { data: [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }], isPending: false, isError: false, refetch: vi.fn() },
@@ -27,7 +28,7 @@ vi.mock('@/src/auth/impersonation', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/src/auth/impersonation')>(),
   useOptionalRealRole: () => mocks.realRole,
 }));
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => mocks.currency }));
+vi.mock('@/src/hooks/useOrgFxContext', () => ({ useOrgFxContext: () => mocks.orgFxContext }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => mocks.projectQuery,
   useVendorOptions: () => mocks.vendorQuery,
@@ -55,6 +56,7 @@ describe('Procurement create readiness transition', () => {
     vi.clearAllMocks();
     mocks.canCreate = true;
     mocks.currency = 'USD';
+    mocks.orgFxContext = { data: { currency: 'USD' }, isPlaceholderData: false, isError: false, isPending: false, refetch: vi.fn() };
     mocks.realRole = 'Admin';
     mocks.projectQuery.isPending = false; mocks.projectQuery.isError = false;
     mocks.vendorQuery.isPending = false; mocks.vendorQuery.isError = false;

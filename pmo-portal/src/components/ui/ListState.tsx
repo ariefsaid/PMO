@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon, type IconName } from './icons';
 import { Button } from './Button';
+import type { ButtonVariant } from './buttonClasses';
 
 interface ActionSpec {
   label: string;
@@ -13,8 +14,7 @@ interface ActionSpec {
 /** Loading silhouettes shaped like the content they stand in for. */
 export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'chart';
 
-export interface ListStateProps {
-  variant: 'loading' | 'empty' | 'error' | 'partial';
+interface ListStateBaseProps {
   /** Table footer alignment that keeps the continuation action in the familiar centered position. */
   partialLayout?: 'row' | 'centeredAction';
   /** Empty/error heading. */
@@ -27,8 +27,8 @@ export interface ListStateProps {
   icon?: IconName;
   /** Empty-state populating action (empty-states guideline). */
   action?: ActionSpec;
-  /** Error-state retry handler (error-recovery: cause + fix + retry). */
-  onRetry?: () => void;
+  /** Use an outline action when the page header already carries the create action. */
+  actionVariant?: ButtonVariant;
   /** Override the retry label for the current locale. */
   retryLabel?: string;
   /** Number of skeleton rows for the loading variant. */
@@ -58,6 +58,12 @@ export interface ListStateProps {
   /** See `stateId`. The module this empty state belongs to (e.g. 'companies'). */
   module?: string;
 }
+
+/** A failed read must always be recoverable from the state that explains it. */
+export type ListStateProps = ListStateBaseProps & (
+  | { variant: 'error'; onRetry: () => void }
+  | { variant: 'loading' | 'empty' | 'partial'; onRetry?: never }
+);
 
 /**
  * The loading silhouette. Every block is the shared `.skel` shimmer utility — the
@@ -158,6 +164,22 @@ const SkeletonBody: React.FC<{ shape: SkeletonShape; rows: number; columns: numb
   );
 };
 
+/** Keep a failed read's body to renderable copy and elements, never raw service objects. */
+function safeErrorBody(content: React.ReactNode): React.ReactNode {
+  if (Array.isArray(content)) return content.map(safeErrorBody);
+  if (
+    content == null ||
+    typeof content === 'string' ||
+    typeof content === 'number' ||
+    typeof content === 'bigint' ||
+    typeof content === 'boolean' ||
+    React.isValidElement(content)
+  ) {
+    return content;
+  }
+  return null;
+}
+
 /**
  * The single source of truth for the three async list states. Consumers render
  * exactly one ListState in place of their content — never hand-roll a spinner
@@ -171,6 +193,7 @@ export const ListState: React.FC<ListStateProps> = ({
   sub,
   icon = 'inbox',
   action,
+  actionVariant = 'primary',
   onRetry,
   retryLabel,
   rows = 5,
@@ -242,6 +265,7 @@ export const ListState: React.FC<ListStateProps> = ({
   }
 
   if (variant === 'error') {
+    const safeSub = safeErrorBody(sub);
     return (
       <div
         role="alert"
@@ -257,14 +281,12 @@ export const ListState: React.FC<ListStateProps> = ({
           {title && (titleAsPageHeading
             ? <h1 className="text-control font-semibold text-destructive-text">{title}</h1>
             : <div className="text-control font-semibold text-destructive-text">{title}</div>)}
-          {sub && <div className="mt-px text-control text-muted-foreground">{sub}</div>}
+          {safeSub && <div className="mt-px text-control text-muted-foreground">{safeSub}</div>}
         </div>
-        {onRetry && (
-          <Button variant="outline" size="sm" onClick={onRetry}>
-            <Icon name="refresh" />
-            {resolvedRetryLabel}
-          </Button>
-        )}
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <Icon name="refresh" />
+          {resolvedRetryLabel}
+        </Button>
       </div>
     );
   }
@@ -281,7 +303,7 @@ export const ListState: React.FC<ListStateProps> = ({
       {title && (titleAsPageHeading ? <h1 className="text-group font-semibold">{title}</h1> : <div className="text-group font-semibold">{title}</div>)}
       {sub && <div className="max-w-[44ch] text-control text-muted-foreground">{sub}</div>}
       {action && (
-        <Button variant="primary" size="sm" onClick={action.onClick} className="mt-1">
+        <Button variant={actionVariant} size="sm" onClick={action.onClick} className="mt-1">
           {action.label}
         </Button>
       )}

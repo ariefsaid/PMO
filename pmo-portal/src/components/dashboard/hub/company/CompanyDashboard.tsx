@@ -20,6 +20,7 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
+import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useCompanyFigures } from '@/src/components/dashboard/restructure/useCompanyFigures';
 import { useNeedsYou } from '@/src/components/dashboard/restructure/useNeedsYou';
@@ -50,7 +51,7 @@ import { ApprovalItems } from './ApprovalItems';
 import { FindingLine, PipelineCurrencyReport, UncheckedReport } from './FindingLine';
 import { ProjectHealthCard } from './ProjectHealthCard';
 import { FinancesCard } from './FinancesCard';
-import { healthOrder, isOffTrack, overBudget, overdueTaskCount } from './homeHealth';
+import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
@@ -79,6 +80,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const finance = role === 'Finance';
   const unpaidOf = useSupplierUnpaid(finance);
   const financePosition = useFinancePosition(finance, { withRoutes: true });
+  // Same query key as the figure hooks, so no extra request; present so Retry can re-run it.
+  const erpPurchases = useErpPurchases();
+  const [refreshToken, setRefreshToken] = React.useState(0);
   const todayFigure = (id: string) => figures.today.find((figure) => figure.id === id);
   const { period } = periodState;
   const periodLabel = period.key === 'custom'
@@ -89,18 +93,17 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
 
   // Projects off track: over budget or with overdue work, worst first (the server's order), at most five.
   const attention = data?.attention_projects ?? [];
-  const offTrack = attention.filter((row) => overBudget(row) || row.overdue_items > 0)
-    .sort((a, b) => (overdueTaskCount(b) ?? -1) - (overdueTaskCount(a) ?? -1))
-    .slice(0, 5);
+  const offTrackRows = attention.filter((row) => overBudget(row) || row.overdue_items > 0)
+    .sort((a, b) => (overdueTaskCount(b) ?? -1) - (overdueTaskCount(a) ?? -1));
   // Project health (overview): every attention project, worst first; one delivery read covers both layouts.
   const healthRows = healthOrder(attention);
   const healthDelivery = useProjectsDelivery(attention.map((row) => row.id));
   const deliveryQuery = healthDelivery;
-  const offTrackCount = attention.filter(isOffTrack).length;
+  const offTrackCount = offTrackRows.length;
   // The server sends the top five by attention; when all five are off track there may be more.
   const offTrackSaturated = attention.length >= 5 && offTrackCount === attention.length;
   const activeProjectCount = data?.active_delivery_projects ?? data?.active_projects;
-  const projectRows: ProjectRow[] = offTrack.map((row) => {
+  const projectRows: ProjectRow[] = offTrackRows.slice(0, 5).map((row) => {
     // F2: an unknown count stays unknown (null), never a printed 0.
     const overdueTasks = overdueTaskCount(row);
     return {
@@ -129,6 +132,11 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const refresh = () => {
     figures.todayRetry(); figures.periodRetry(); figures.dashboardRetry(); figures.pipelineRetry(); needs.refetch();
     void procurements.refetch(); void budgetReview.refetch(); void projects.refetch();
+    if (finance) void financePosition.retry();
+    void erpPurchases.refetch();
+    if (attention.length > 0) void healthDelivery.refetch();
+    figures.trendRetry();
+    setRefreshToken((current) => current + 1);
   };
 
   const hasEvidence = Boolean(data && ((data.projects_by_status ?? []).some((row) => row.count > 0) || (data.procurements_by_status ?? []).some((row) => row.count > 0)))
@@ -165,7 +173,10 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const label = opts.label ?? figure.label;
     const caption = opts.caption ?? (typeof figure.subline === 'string' ? figure.subline : undefined);
     // A1/A4: a tile waits on (and fails with) the one read it is made of; a failed read says so, never blank, never 0.
-    const status = figures.figureStatus(figure.id);
+    const figureStatus = figures.figureStatus(figure.id);
+    const status = figure.id === 'supplier-payables' && erpPurchases.isError
+      ? { ...figureStatus, error: true, retry: () => { figureStatus.retry?.(); void erpPurchases.refetch(); } }
+      : figureStatus;
     if (status.error) {
       return (
         <div key={figure.id} data-testid={`figure-error-${figure.id}`} className="flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4">
@@ -199,6 +210,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     : [
       moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.projectCount', { count: onHandCount, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }), reason: t('home.reasonContract', 'contract values are missing') }),
       moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
+      moneyTile(collected, collectedOpts),
+      moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' }),
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
       // Known margin is a fifth tile only when the accounting source provides it.
@@ -258,15 +271,11 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     <Card>
       <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
       <CardPad className="grid gap-3">
-        <KPIRow className="grid-cols-2">
-          {moneyTile(collected, collectedOpts)}
-          {moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' })}
-        </KPIRow>
         <InvoicedTrendCard bare trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
       </CardPad>
     </Card>
   );
-  const analysis = finance ? <FinanceAnalysis /> : (
+  const analysis = finance ? <>{planCard}<FinanceAnalysis /></> : (
     <>
       {planCard}
       <Card><CardPad><WinRateCard currency={orgCurrency} range={figures.winRateRange} hidePeriodControl embedded helpInPage /></CardPad></Card>
@@ -292,7 +301,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     <Card>
       <CardHead level={2} actions={cardLink('/finance/receivables?overdue=true', t('home.allOverdue', 'All overdue'))}>{t('home.overdueFromClients', 'Client overdue')}</CardHead>
       <div className="overflow-x-auto [--table-cell-inset:var(--panel-inset)]">
-        <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : financePosition.isError ? 'error' : overdueRows.length === 0 ? 'empty' : undefined} onRetry={() => figures.todayRetry()} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} errorTitle={t('home.overdueError', "Couldn't load overdue invoices")} tableId="dashboard-company-overdue-clients" embedded />
+        <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : financePosition.isError ? 'error' : overdueRows.length === 0 ? 'empty' : undefined} onRetry={financePosition.retry} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} errorTitle={t('home.overdueError', "Couldn't load overdue invoices")} tableId="dashboard-company-overdue-clients" embedded />
       </div>
     </Card>
   );
@@ -314,7 +323,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         className="mb-2"
         title={t('dashboard:hub.company.title', 'Dashboard')}
         help={t('home.help.basis', 'Position today in each record currency. Invoiced, collected and won cover the period chosen.')}
-        action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
+        action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} compact /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
       />
       <FigureHiddenLine compact />
     </div>
@@ -350,9 +359,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const financesCard = (
       <FinancesCard className={cn(half, 'max-[899px]:order-5')} currency={orgCurrency}
         receivables={figures.receivables} receivablesPending={figures.receivablesPending} receivablesError={figures.receivablesError}
-        payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError}
-        retry={() => { figures.todayRetry(); figures.periodRetry(); }}
-        chart={<InvoicedCollectedCard embedded chartHeight={188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />}
+        payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError || erpPurchases.isError}
+        retry={() => { figures.todayRetry(); figures.periodRetry(); void erpPurchases.refetch(); }}
+        chart={<InvoicedCollectedCard embedded chartHeight={188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />}
         leftToBill={{ rows: figures.leftToBillByProject, pending: figures.figureStatus('left-to-bill').pending, error: figures.figureStatus('left-to-bill').error }} />
     );
     const healthCard = (
@@ -376,7 +385,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const lowerRow = finance ? (
       <>
         {waits}
-        <ReceivablesAgeCard rowPitch={40} className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />
+        <ReceivablesAgeCard rowPitch={40} className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={financePosition.retry} />
         <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-7')}>{readyCard}</div>
         <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-8')}>{overdueCard}</div>
       </>
@@ -388,7 +397,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           <PurchasingCard className="flex-1 max-[899px]:order-7" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
         </div>
         <SalesOverviewCard wide className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} weighted={weighted} forecastMargin={safeMargin} stages={pipeline.data?.stages ?? []} projects={pipelineProjects} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
-          aside={<LossReasonsCard embedded range={lossRange} />} />
+          aside={<LossReasonsCard embedded range={lossRange} refreshToken={refreshToken} />} />
       </>
     );
     return (
@@ -401,7 +410,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
               className="mb-1"
               title={t('dashboard:hub.company.title', 'Dashboard')}
               help={t('home.help.basis', 'Position today in each record currency. Invoiced, collected and won cover the period chosen.')}
-              action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
+              action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} compact /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
             />
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
               <FindingLine offTrack={figures.dashboardPending || figures.dashboardError ? undefined : { count: offTrackCount, atLeast: offTrackSaturated, total: activeProjectCount, unchecked }} overdue={overdue /* undefined until its own invoices read and the org day resolve */} approvals={needs.approvals?.length} />

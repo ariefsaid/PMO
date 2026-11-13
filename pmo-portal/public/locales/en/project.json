@@ -264,7 +264,10 @@
         "notRaised": "Not raised",
         "withdraw": "Withdraw",
         "new": "New claim",
-        "attachEvidence": "Attach evidence"
+        "attachEvidence": "Attach evidence",
+        "status": {
+          "unpaid": "Unpaid"
+        }
       },
       "summary": {
         "details": "Billing summary details",
@@ -487,7 +490,7 @@
       "paidNotReceived": "{{amount}} is settled in accounting but no receipt is matched to it yet.",
       "marginOutCurrency": "Gross margin is left out because spending and billed work use different currencies.",
       "marginOutWork": "Gross margin is left out until billed-work revenue is complete.",
-      "marginOutRestricted": "Gross margin is left out because spending excludes restricted rows.",
+      "marginOutRestricted": "Gross margin is hidden because some spending is restricted.",
       "marginOutActuals": "Gross margin is left out until spending is linked for every budget category.",
       "marginOutNoInvoices": "Gross margin starts with the first invoice in the project currency.",
       "leadTooltip": "Invoiced amount as a share of the contract. Source: non-draft, non-cancelled invoices in the project currency.",
@@ -715,7 +718,7 @@
       "atRisk": "At risk",
       "categoryNotesUnavailable": "No category notes are recorded.",
       "chooseFiscalYear": "Choose a fiscal year to view the ERP forecast",
-      "chooseFiscalYearSub": "Activate and push a budget version, then choose its fiscal year. If no ledger rows have arrived yet, wait for the first posting to sync.",
+      "chooseFiscalYearSub": "Activate and push a budget version, then choose its fiscal year. If no ledger entries have arrived yet, wait for the first posting to sync.",
       "costToFinish": "Cost to finish",
       "costToFinishFor": "Cost to finish for {{category}}",
       "editCostToFinish": "Edit cost to finish",
@@ -913,7 +916,7 @@
         "apply": "Apply",
         "cancel": "Cancel"
       },
-      "idSource": "Source: task record ID",
+      "idSource": "Numbered by PMO when the task is created.",
       "prioritySource": "Source: task priority field",
       "commentsOpenHint": "Open the task to read or add comments",
       "dueTooltip": "Due date from the task record. Overdue days compare the due date with today in the organization timezone.",
@@ -954,7 +957,7 @@
       "phaseDatesTooltip": "Range from the earliest task start date to the latest task due date in the current task scope. Source: phase task records.",
       "phaseTargetTooltip": "Target date from the project phase record.",
       "phaseTargetDate": "Target {{date}}",
-      "phaseProgressTooltip": "Manual phase progress when set; otherwise Done phase tasks divided by the phase task count. Source: get_project_milestones.",
+      "phaseProgressTooltip": "Manual progress, or calculated from the phase's tasks.",
       "phaseProgress": "Phase progress",
       "phaseLateTooltip": "Days past the phase target date, compared with today in the organization timezone. Source: milestone target date and organization day.",
       "openCountTooltip": "Count of visible tasks in this phase whose status is not Done. Source: current project task list and filters.",

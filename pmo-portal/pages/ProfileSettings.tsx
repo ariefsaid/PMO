@@ -203,8 +203,14 @@ const ProfileSettings: React.FC = () => {
     try {
       await profilePreferencesRepository.setLocalePreferences(currentUser.id, preferences);
     } catch (error) {
-      classifyMutationError(error);
-      setErrorMsg(t('profileSettings.error', 'Could not save your preferences. Please try again.'));
+      const classified = classifyMutationError(error);
+      let message = classified.headline;
+      if (classified.classification === 'unclassified' && message === 'Update failed') {
+        message = t('profileSettings.error', 'Could not save your preferences. Please try again.');
+      } else if (classified.classification !== 'unclassified' && classified.detail) {
+        message = `${classified.headline}. ${classified.detail}`;
+      }
+      setErrorMsg(message);
       setStatus('error');
       return;
     }

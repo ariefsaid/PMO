@@ -7,6 +7,7 @@ import {
   Button,
   ConfirmDialog,
   ListState,
+  RecordReference,
 } from '@/src/components/ui';
 import { useIntegrations } from '@/src/hooks/useIntegrations';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
@@ -131,8 +132,8 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
     const listId = binding.external_container_id;
     const list = clickupLists.find((l) => l.id === listId);
     const saved = isListsPending && !isListsError
-      ? t('uxs21.listDetailsLoading', 'Loading list details; saved list ID: {{listId}}', { listId })
-      : t('uxs21.listUnavailable', 'List unavailable; saved list ID: {{listId}}', { listId });
+      ? t('uxs21.listDetailsLoading', 'Loading list details…')
+      : t('uxs21.listUnavailable', 'List unavailable. Its saved link is kept.');
 
     return (
       <div className="space-y-2" data-tier="clickup">
@@ -143,6 +144,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
               ? t('projectTabs:clickup.linkedTo', 'Linked to {{tier}} list {{name}}', { tier: tierLabel('clickup'), name: list.name })
               : t('projectTabs:clickup.linkedSaved', 'Linked to {{tier}}. {{detail}}', { tier: tierLabel('clickup'), detail: saved })}
           </span>
+          {!list && <RecordReference ids={[listId]} />}
           <CanWrite entity="project" action="edit">
             <span aria-hidden="true" className="text-muted-foreground">·</span>
             <Button
