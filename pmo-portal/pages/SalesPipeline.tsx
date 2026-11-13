@@ -4,6 +4,7 @@ import { FigureContent } from '@/src/components/ui/FigureContent';
 import { formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { PipelineFunnel } from './sales-pipeline/PipelineFunnel';
+import { canSummarizeExclusiveTaxBasis } from '../components/salesPipeline';
 import {
   DealPreview, DealResults, NeedsAttentionCard, NewProjectButton, PhoneControls, PhoneFigures, SalesClassification, SalesExport,
   SalesScope, SalesSearch, SalesViewToggle,
@@ -31,10 +32,16 @@ const PipelineFigures: React.FC<{ total: number | null; weighted: number; curren
           </span>
         )}</dd>
       </div>
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+      <div data-testid="pipeline-open-value" className="flex min-w-0 flex-wrap items-baseline gap-x-2">
         <dt className="text-control font-medium text-muted-foreground">{t('sales:options.openValue', 'Open value')}</dt>
-        <dd className="text-group font-semibold tabular">{total === null ? value : formatTileMoney(total, currency)}</dd>
-        {total !== null && <dd className="text-control text-muted-foreground">{t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}</dd>}
+        <dd data-testid="pipeline-open-value-figure" className="text-group font-semibold tabular">{total === null ? value : formatTileMoney(total, currency)}</dd>
+        {/* The deal count is this figure's caption on its own line (w-full breaks it below the
+            amount): a count never sits in a row of money figures (screen rule "Numbers"). */}
+        {total !== null && (
+          <dd data-testid="pipeline-open-count" className="w-full text-control text-muted-foreground">
+            {t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}
+          </dd>
+        )}
       </div>
     </dl>
   );
@@ -58,6 +65,11 @@ const SalesPipeline: React.FC = () => {
   const cur = m.funnel.effectiveCurrency;
   const ready = m.state === undefined;
   const mixed = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
+  // One tax-basis word for the band's amounts when every priced deal shares the exclusive basis;
+  // otherwise each row states its own basis (the board hides a card's label only under this test).
+  const taxBasis = canSummarizeExclusiveTaxBasis(m.openProjects)
+    ? t('sales:exclusiveTaxSummary', 'excl. PPN')
+    : undefined;
   const figures = <PipelineFigures total={total} weighted={m.funnel.totalWeighted} currency={cur} openCount={m.openProjects.length} mixed={mixed} t={t} />;
   return (
     <FigureScope>
@@ -72,7 +84,7 @@ const SalesPipeline: React.FC = () => {
           <FigureHiddenLine className="mb-3 text-control text-muted-foreground" />
           <div className="mb-2 grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
             <div className="min-w-0">
-              <PipelineFunnel header={figures} projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} onSelectStage={(s) => m.selectStage(s)} />
+              <PipelineFunnel header={figures} projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} taxBasis={taxBasis} onSelectStage={(s) => m.selectStage(s)} />
             </div>
             <NeedsAttentionCard m={m} onOpen={setPreview} />
           </div>

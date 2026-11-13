@@ -22,6 +22,8 @@ export interface AgeingStripProps {
   /** Known receivables with no derivable due date, counted separately from balances. */
   noDueDateCounts?: Record<string, number>;
   unknownTotal?: number;
+  /** Use status-palette hues for payables age buckets on screens that pair this chart with status pills. */
+  payablesStatusColors?: boolean;
 }
 
 const RECEIVABLE_BUCKETS = ['notDue', 'noDueDate', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
@@ -37,10 +39,17 @@ const BUCKET_COLORS: Record<BucketKey, string> = {
   over90: chartTheme.series.destructive,
 };
 
-export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, noDueDateCounts = {}, unknownTotal = 0 }) => {
+const PAYABLE_STATUS_COLORS: Record<BucketKey, string> = {
+  ...BUCKET_COLORS,
+  d31_60: 'hsl(var(--warning) / 0.72)',
+  d61_90: 'hsl(var(--warning) / 0.48)',
+};
+
+export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, noDueDateCounts = {}, unknownTotal = 0, payablesStatusColors = false }) => {
   const { t } = useTranslation();
   const { currency: orgCurrency, isResolved } = useOrgCurrencyState();
   const bucketKeys: readonly BucketKey[] = kind === 'receivables' ? RECEIVABLE_BUCKETS : PAYABLE_BUCKETS;
+  const bucketColors = kind === 'payables' && payablesStatusColors ? PAYABLE_STATUS_COLORS : BUCKET_COLORS;
   const labels: Record<BucketKey, string> = {
     notDue: t('finance:area.notDue', 'Not yet due'),
     noDueDate: t('finance:area.noDueDate', 'No due date'),
@@ -92,7 +101,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
                   <XAxis type="number" hide domain={[0, total]} />
                   <YAxis type="category" dataKey="name" hide />
                   <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key) => [formatCurrency(Number(value) / 100, currency), labels[key as BucketKey]]} />
-                  {bucketKeys.map((key) => <Bar key={key} dataKey={key} stackId="age" fill={BUCKET_COLORS[key]} />)}
+                  {bucketKeys.map((key) => <Bar key={key} dataKey={key} stackId="age" fill={bucketColors[key]} />)}
                 </BarChart>
               </ResponsiveContainer>
             </div>}
@@ -104,7 +113,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
                 const unknownLabel = t('financeHub:hub.fix.ageing.unknownCount', { defaultValue: unknown === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknown });
                 return (
                   <div key={key} data-testid={`ageing-bucket-${currency}-${key}`} className="grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-baseline gap-x-2">
-                    <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ background: BUCKET_COLORS[key] }} />
+                    <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ background: bucketColors[key] }} />
                     <span className="min-w-0 break-words text-control text-muted-foreground">{labels[key]}</span>
                     {unknown > 0 && amount === 0
                       ? <span className="text-right text-control text-muted-foreground">{unknownLabel}</span>

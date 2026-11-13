@@ -89,18 +89,45 @@ const taskHref = (task: MyTask) => task.project_id ? `/projects/${task.project_i
 export function EngineerTasksCard({
   overdue,
   dueThisWeek,
+  undated,
   today,
+  dayError,
   loading,
   error,
   onRetry,
-}: PanelState & { overdue: MyTask[]; dueThisWeek: MyTask[]; today: string | null }) {
+}: PanelState & {
+  overdue: MyTask[];
+  dueThisWeek: MyTask[];
+  /** The person's active tasks while the organisation's day is unknown: listed, never dated. */
+  undated: MyTask[];
+  today: string | null;
+  /** The organisation's day could not be read: the rows stay, with the reason and its Retry beside them. */
+  dayError: boolean;
+}) {
   const { t } = useTranslation('dashboard');
   const oldestFirst = [...overdue].sort((a, b) => String(a.end_date).localeCompare(String(b.end_date)));
-  const rows = [...oldestFirst, ...dueThisWeek].slice(0, 5);
+  const dueToday = today ? dueThisWeek.filter((task) => task.end_date === today).length : 0;
+  // Without the organisation's day nothing can be called late or due, so the rows are listed undated instead.
+  const rows = (today ? [...oldestFirst, ...dueThisWeek] : undated).slice(0, 5);
+  // Both of the person's own counts, stated where the list starts: overdue in the shared late tone (the group's
+  // one exception), due today plain. The rows below stay plain except the single most urgent one
+  // (screen-rules: exception colour once per group).
+  const overdueFinding = overdue.length > 0
+    ? <span data-testid="engineer-tasks-overdue" className="tabular text-destructive-text">{t('home.eng.tasksOverdueFinding', { count: overdue.length, defaultValue_one: '{{count}} overdue', defaultValue_other: '{{count}} overdue' })}</span>
+    : null;
+  const dueTodayFinding = dueToday > 0
+    ? <span data-testid="engineer-tasks-due-today" className="tabular text-foreground">{t('home.eng.dueTodayFinding', { count: dueToday, defaultValue_one: '{{count}} due today', defaultValue_other: '{{count}} due today' })}</span>
+    : null;
+  const finding = overdueFinding || dueTodayFinding
+    ? <>{overdueFinding}{overdueFinding && dueTodayFinding && <span aria-hidden className="mx-1.5 text-muted-foreground">·</span>}{dueTodayFinding}</>
+    : undefined;
   return (
     <Card data-testid="engineer-tasks">
-      <CardHead level={2} actions={<CardLink to="/my-tasks">{t('home.eng.allTasks', 'All tasks')}</CardLink>}>{t('home.eng.myTasks', 'My tasks')}</CardHead>
+      <CardHead level={2} subline={finding} actions={<CardLink to="/my-tasks">{t('home.eng.allTasks', 'All tasks')}</CardLink>}>{t('home.eng.myTasks', 'My tasks')}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
+        {!loading && !error && dayError && (
+          <ListState variant="error" className="mb-2" title={t('home.eng.dayUnread', "Couldn't read today's date")} onRetry={onRetry} />
+        )}
         {loading ? <ListState variant="loading" rows={3} />
           : error ? <ListState variant="error" title={t('hub.engineer.tasksError', "Couldn't load your tasks")} onRetry={onRetry} />
             : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('hub.engineer.noTasksDue', 'No overdue tasks or tasks due this week.')}</p>
@@ -118,7 +145,7 @@ export function EngineerTasksCard({
                           </span>
                           {late !== null
                             ? <LateText className="shrink-0 whitespace-nowrap" emphasis={isUrgent}>{t('hub.engineer.daysLate', { count: late, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</LateText>
-                            : <span className="shrink-0 whitespace-nowrap text-control text-muted-foreground">{t('hub.engineer.dueDate', 'Due {{date}}', { date: formatDay(task.end_date) })}</span>}
+                            : today ? <span className="shrink-0 whitespace-nowrap text-control text-muted-foreground">{t('hub.engineer.dueDate', 'Due {{date}}', { date: formatDay(task.end_date) })}</span> : null}
                         </Link>
                       </li>
                     );
@@ -166,7 +193,7 @@ export function EngineerRecentEntriesPanel({
   const { t } = useTranslation('dashboard');
   const title = t('hub.engineer.recentEntries', 'Recent entries');
   return (
-    <Card aria-label={title}>
+    <Card aria-label={title} data-testid="engineer-recent">
       <CardHead level={2} actions={<CardLink to="/timesheets">{t('home.eng.allTimesheets', 'All timesheets')}</CardLink>}>{title}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
         {loading ? <ListState variant="loading" rows={3} />

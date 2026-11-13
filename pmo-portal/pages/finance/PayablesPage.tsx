@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, LateText, ListPage, ListState, SearchMini, StatusPill, Toolbar, useUrlFilters, isMostUrgentLateRow, type Column } from '@/src/components/ui';
+import { Button, DataTable, ListPage, ListState, SearchMini, StatusPill, Toolbar, useUrlFilters, isMostUrgentLateRow, type Column } from '@/src/components/ui';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
 import { useFinanceAccess } from '@/src/components/finance/useFinanceAccess';
@@ -49,25 +49,30 @@ const PayablesPage: React.FC = () => {
   const home = orgCurrency ?? 'IDR';
   const { exportXlsx, busy } = useExport();
   // R2: the search box is URL-owned (`?q=`) so Back/refresh (and a shared link) keep it.
-  const { values, setFilter } = useUrlFilters(['q']);
+  const { values, setFilter } = useUrlFilters(['q', 'overdue']);
   const search = values.q;
   const setSearch = (value: string) => setFilter('q', value);
+  const overdueFilter = values.overdue === 'true';
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
 
   const projectManagers = useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, project.pm?.full_name ?? ''])), [projects.data]);
   const query = search.trim().toLocaleLowerCase();
-  const filteredRows = useMemo(() => payablesPosition.payables.filter(({ procurement }) => {
+  const searchRows = useMemo(() => payablesPosition.payables.filter(({ procurement }) => {
     if (!query) return true;
     const manager = projectManagers.get(procurement.project_id ?? '') ?? '';
     return [procurement.vendor?.name, procurement.title, procurement.code, procurement.project?.name, procurement.project?.short_name, manager]
       .some((value) => value?.toLocaleLowerCase().includes(query));
   }), [payablesPosition.payables, projectManagers, query]);
   const lateRows = useMemo(
-    () => filteredRows
+    () => searchRows
       .filter((row) => row.ageDays !== null && row.ageDays > 90)
       .sort((a, b) => (b.ageDays ?? 0) - (a.ageDays ?? 0)),
-    [filteredRows],
+    [searchRows],
   );
+  const visibleRows = overdueFilter ? lateRows : searchRows;
+  const tablePending = isPending || (overdueFilter && agePending);
+  const tableError = isError || (overdueFilter && ageError);
+  const overdueCountAvailable = !isPending && !isError && !agePending && !ageError;
 
   const columns = useMemo<Column<PayableRow>[]>(() => [
     {
@@ -107,8 +112,9 @@ const PayablesPage: React.FC = () => {
         ? <span aria-label={t('ui.listState.loading', 'Loading…')} className="text-muted-foreground">…</span>
         : ageError
           ? <span title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} className="text-muted-foreground">—</span>
-          : row.ageDays === null ? null : row.ageDays > 90
-        ? <LateText data-testid="payables-late-age" emphasis={isMostUrgentLateRow(lateRows, row)}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}</LateText>
+        : row.ageDays === null ? null : row.ageDays > 90
+        // Late in words, not only in colour: the pill reads "100 days overdue" to a screen reader.
+        ? <StatusPill variant="overdue" data-testid="payables-late-age" className={isMostUrgentLateRow(lateRows, row) ? 'font-semibold' : undefined}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}<span className="sr-only">{' '}{t('financeHub:hub.overdueWord', 'overdue')}</span></StatusPill>
         : <StatusPill variant={row.ageDays <= 30 ? 'neutral' : 'warn'}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}</StatusPill>,
       exportValue: (row) => agePending || ageError || row.ageDays === null ? '' : `${row.ageDays} days`,
     },
@@ -124,7 +130,7 @@ const PayablesPage: React.FC = () => {
     },
   ], [ageError, agePending, lateRows, projectManagers, t]);
 
-  const totalValues = useMemo(() => currencyTotals(filteredRows), [filteredRows]);
+  const totalValues = useMemo(() => currencyTotals(visibleRows), [visibleRows]);
   const totals = (isPending || isError ? [] : Object.entries(totalValues)).map(([currency, amount]) => ({
     key: `total-${currency}`,
     label: t('financeHub:hub.totalCurrency', 'Total · {{currency}}', { currency }),
@@ -151,7 +157,7 @@ const PayablesPage: React.FC = () => {
     <ListPage
       title={t('financeHub:hub.payablesTitle', 'Payables')}
       help={<p>{t('financeHub:hub.payablesHelp', 'Invoice age is counted from the supplier invoice date.')}</p>}
-      count={isPending || isError ? undefined : filteredRows.length}
+      count={isPending || isError || (overdueFilter && (agePending || ageError)) ? undefined : visibleRows.length}
       total={isPending || isError ? undefined : payablesPosition.payables.length}
     >
       <div className="mb-3"><FigureHiddenLine /></div>
@@ -178,24 +184,33 @@ const PayablesPage: React.FC = () => {
         onRetry={payablesPosition.retry}
         className="mb-5"
       />}
-      {ageingError && !isError && <ListState
+      {ageingError && !isError && !overdueFilter && <ListState
         variant="error"
         title={t('financeHub:hub.positionError', "Couldn't load balance ageings")}
         onRetry={payablesPosition.retryAge}
         className="mb-5"
       />}
-      {!ageingPending && !ageingError && <AgeingStrip kind="payables" heading={t('financeHub:hub.invoiceAge', 'Invoice age')} ariaLabel={t('finance:area.payablesAgeingBasis', 'Invoice age, by days')} values={payablesPosition.payablesAgeing} unknownCounts={payablesPosition.payablesUnknownAgeing} />}
+      {!ageingPending && !ageingError && <AgeingStrip kind="payables" payablesStatusColors heading={t('financeHub:hub.invoiceAge', 'Invoice age')} ariaLabel={t('finance:area.payablesAgeingBasis', 'Invoice age, by days')} values={payablesPosition.payablesAgeing} unknownCounts={payablesPosition.payablesUnknownAgeing} />}
       <div className="min-w-0" data-testid="finance-payables-table-card">
       <Toolbar data-testid="finance-payables-table-toolbar" className="gap-2 sm:gap-3">
-        <SearchMini aria-label={t('financeHub:hub.searchPayables', 'Search payables')} placeholder={t('financeHub:hub.searchPayables', 'Search payables')} value={search} onChange={(event) => setSearch(event.target.value)} searchSurface="finance-payables" module="finance" resultCount={filteredRows.length} />
+        <SearchMini aria-label={t('financeHub:hub.searchPayables', 'Search payables')} placeholder={t('financeHub:hub.searchPayables', 'Search payables')} value={search} onChange={(event) => setSearch(event.target.value)} searchSurface="finance-payables" module="finance" resultCount={visibleRows.length} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {!isPending && !isError && lateRows.length > 0 && <StatusPill variant="overdue" data-testid="payables-overdue-count">{t('finance:area.overdueCount', { defaultValue: '{{count}} overdue', count: lateRows.length })}</StatusPill>}
-          <Button variant="outline" loading={busy} disabled={isPending || isError || agePending || ageError} onClick={() => void exportXlsx(filteredRows, columns, 'Payables')}>{t('financeHub:hub.export', 'Export')}</Button>
+          {/* The overdue filter is the outlined toggle Receivables uses for the same job, with its count
+              in the label: a red pill reads as a status label, never as the control that filters the list. */}
+          {(overdueFilter || (overdueCountAvailable && lateRows.length > 0)) && <Button
+            variant="outline"
+            size="sm"
+            data-testid="payables-overdue-toggle"
+            aria-pressed={overdueFilter}
+            className="aria-pressed:border-primary/40 aria-pressed:bg-primary/10 aria-pressed:text-primary"
+            onClick={() => setFilter('overdue', overdueFilter ? '' : 'true')}
+          >{t('uxs05.overdueOnly', 'Overdue only')}{overdueCountAvailable ? ` · ${lateRows.length}` : null}</Button>}
+          <Button variant="outline" loading={busy} disabled={isPending || isError || agePending || ageError} onClick={() => void exportXlsx(visibleRows, columns, 'Payables')}>{t('financeHub:hub.export', 'Export')}</Button>
           {selectedKeys.size > 0 && <Button variant="outline" loading={busy} disabled={isPending || isError || agePending || ageError} onClick={() => void exportXlsx(payablesPosition.payables.filter((row) => selectedKeys.has(row.procurement.id)), columns, 'Payables')}>{t('financeHub:hub.exportSelected', 'Export selected')}</Button>}
         </div>
       </Toolbar>
       <DataTable
-        rows={filteredRows}
+        rows={visibleRows}
         columns={columns}
         rowKey={(row) => row.procurement.id}
         rowLabel={(row) => t('financeHub:hub.openSupplierInvoice', 'Open supplier invoice for {{supplier}}', { supplier: row.procurement.vendor?.name ?? row.procurement.title })}
@@ -206,10 +221,10 @@ const PayablesPage: React.FC = () => {
           ...(row.procurement.vendor_id ? [{ label: t('financeHub:hub.openSupplier', 'Open supplier'), onClick: () => navigate(`/companies/${row.procurement.vendor_id}`) }] : []),
         ]}
         totals={totals}
-        state={isPending ? 'loading' : isError ? 'error' : filteredRows.length === 0 ? 'empty' : undefined}
-        emptyTitle={search ? t('financeHub:hub.noPayablesMatch', 'No payables match this search.') : t('financeHub:hub.noPayables', 'No supplier invoices waiting to be paid.')}
-        errorTitle={t('financeHub:hub.payablesLoadError', "Couldn't load supplier invoices")}
-        onRetry={payablesPosition.retry}
+        state={tablePending ? 'loading' : tableError ? 'error' : visibleRows.length === 0 ? 'empty' : undefined}
+        emptyTitle={overdueFilter ? t('financeHub:hub.noOverduePayablesMatch', 'No supplier invoices over 90 days match the current filters.') : search ? t('financeHub:hub.noPayablesMatch', 'No payables match this search.') : t('financeHub:hub.noPayables', 'No supplier invoices waiting to be paid.')}
+        errorTitle={overdueFilter && ageError && !isError ? t('financeHub:hub.positionError', "Couldn't load balance ageings") : t('financeHub:hub.payablesLoadError', "Couldn't load supplier invoices")}
+        onRetry={overdueFilter && ageError && !isError ? payablesPosition.retryAge : payablesPosition.retry}
         accessibleName={t('financeHub:hub.payablesTable', 'Supplier invoices waiting to be paid')}
         tableId="finance-payables-table"
         className="rounded-t-none border-t-0"

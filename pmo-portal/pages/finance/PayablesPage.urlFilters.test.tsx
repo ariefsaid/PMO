@@ -1,6 +1,7 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
 
@@ -11,6 +12,7 @@ import type { FinancePosition } from '@/src/lib/finance/financePosition';
 
 const state = vi.hoisted(() => ({
   position: null as FinancePosition | null,
+  exportXlsx: vi.fn(),
 }));
 
 vi.mock('@/src/auth/usePermission', () => ({
@@ -54,7 +56,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   }),
 }));
 vi.mock('@/src/components/export/useExport', () => ({
-  useExport: () => ({ exportXlsx: vi.fn(), busy: false }),
+  useExport: () => ({ exportXlsx: state.exportXlsx, busy: false }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
   useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }),
@@ -102,11 +104,19 @@ function LocationProbe() {
   return <div data-testid="location-probe" data-search={useLocation().search} />;
 }
 
-function renderPage(initialEntry = '/finance/payables') {
-  state.position = payablesFixture();
+function ReturnToPayables() {
+  const navigate = useNavigate();
+  return <button type="button" onClick={() => navigate(-1)}>Back to Payables</button>;
+}
+
+function renderPage(initialEntry = '/finance/payables', position: FinancePosition = payablesFixture()) {
+  state.position = position;
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
-      <PayablesPage />
+      <Routes>
+        <Route path="/finance/payables" element={<PayablesPage />} />
+        <Route path="/procurement/:id" element={<ReturnToPayables />} />
+      </Routes>
       <LocationProbe />
     </MemoryRouter>,
   );
@@ -114,6 +124,7 @@ function renderPage(initialEntry = '/finance/payables') {
 
 beforeEach(() => {
   state.position = payablesFixture();
+  state.exportXlsx.mockClear();
 });
 
 afterEach(() => {
@@ -135,5 +146,67 @@ describe('R2 — payables search lives in the URL', () => {
     const search = screen.getByRole('searchbox', { name: 'Search payables' });
     fireEvent.change(search, { target: { value: 'sinar' } });
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?q=sinar');
+  });
+
+  it('keeps the URL search when opening procurement and returning with Back', async () => {
+    const user = userEvent.setup();
+    renderPage('/finance/payables?q=inspection');
+
+    await user.click(screen.getByRole('button', { name: 'Open supplier invoice for Sinar Supplier' }));
+    expect(screen.getByRole('button', { name: 'Back to Payables' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back to Payables' }));
+
+    expect(screen.getByRole('searchbox', { name: 'Search payables' })).toHaveValue('inspection');
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?q=inspection');
+  });
+
+  it('filters overdue invoices, composes with search, and exports only the visible rows', async () => {
+    const base = payablesFixture();
+    const recent = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-2', title: 'Crane rental', code: 'PR-105', vendor: { name: 'Bumi Rental' }, vendor_id: 'supplier-2' },
+      ageDays: 75,
+      amount: 2_000_000,
+    } as FinancePosition['payables'][number];
+    const user = userEvent.setup();
+    renderPage('/finance/payables', { ...base, payables: [base.payables[0], recent] });
+
+    const overdueToggle = screen.getByRole('button', { name: 'Overdue only · 1' });
+    overdueToggle.focus();
+    await user.keyboard('{Enter}');
+    expect(overdueToggle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?overdue=true');
+    expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toBeInTheDocument();
+    expect(screen.queryByRole('row', { name: /Bumi Rental/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Total · IDR/ })).toHaveTextContent('62,400,000');
+    expect(screen.getByRole('row', { name: /Total · IDR/ })).not.toHaveTextContent('62,420,000');
+
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect(state.exportXlsx).toHaveBeenCalledTimes(1);
+    expect(state.exportXlsx.mock.calls[0][0]).toHaveLength(1);
+    expect(state.exportXlsx.mock.calls[0][0][0].procurement.vendor?.name).toBe('Sinar Supplier');
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search payables' }), 'Bumi');
+    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '').get('overdue')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Overdue only · 0' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('No supplier invoices over 90 days match the current filters.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Overdue only · 0' }));
+    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '').has('overdue')).toBe(false);
+    expect(screen.getByRole('row', { name: /Bumi Rental/ })).toBeInTheDocument();
+  });
+
+  it('keeps the overdue URL filter when opening procurement and returning with Back', async () => {
+    const user = userEvent.setup();
+    renderPage('/finance/payables?q=inspection');
+
+    await user.click(screen.getByRole('button', { name: 'Overdue only · 1' }));
+    await user.click(screen.getByRole('button', { name: 'Open supplier invoice for Sinar Supplier' }));
+    await user.click(screen.getByRole('button', { name: 'Back to Payables' }));
+
+    const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '');
+    expect(params.get('q')).toBe('inspection');
+    expect(params.get('overdue')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Overdue only · 1' })).toHaveAttribute('aria-pressed', 'true');
   });
 });

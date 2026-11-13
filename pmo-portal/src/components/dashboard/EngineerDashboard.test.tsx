@@ -87,7 +87,7 @@ const attentionItems = [
 
 const LocationProbe = () => {
   const location = useLocation();
-  return <output aria-label="Current path">{location.pathname}</output>;
+  return <output aria-label="Current path">{location.pathname}{location.search}</output>;
 };
 
 const renderDashboard = (locale: 'en' | 'id' = 'en') => render(
@@ -127,9 +127,11 @@ describe('Engineer home (one question: is my week on track?)', () => {
     state.orgDay = { day: null, isPending: true, isError: false, retry: vi.fn() };
     renderDashboard();
 
-    expect(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /task overdue/ })).toHaveAttribute('href', '/my-tasks');
+    // The person's work is never hidden behind the day read: the rows show, just without date words.
+    expect(within(tasksCard()).getByRole('link', { name: /Finalize drawings/ })).toBeInTheDocument();
+    expect(within(tasksCard()).queryByText(/days overdue/)).not.toBeInTheDocument();
+    expect(within(tasksCard()).queryByText(/^Due /)).not.toBeInTheDocument();
     expect(within(timesheetCard()).getByTestId('liststate-loading')).toBeInTheDocument();
-    expect(within(tasksCard()).getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
   it('keeps timesheet figures visible when the task read fails', () => {
@@ -138,7 +140,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
     renderDashboard();
 
     expect(timesheetCard()).toHaveTextContent('15.5 h');
-    expect(within(screen.getByTestId('waits-on-you')).getByText("Couldn't load what waits on you")).toBeInTheDocument();
+    expect(within(tasksCard()).getByText("Couldn't load your tasks")).toBeInTheDocument();
     expect(within(tasksCard()).queryByText('Finalize drawings')).not.toBeInTheDocument();
   });
 
@@ -148,21 +150,36 @@ describe('Engineer home (one question: is my week on track?)', () => {
     renderDashboard();
 
     expect(within(tasksCard()).getByRole('link', { name: /Finalize drawings/ })).toBeInTheDocument();
-    expect(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /task overdue/ })).toHaveAttribute('href', '/my-tasks');
     expect(screen.queryByRole('link', { name: /Open timesheet entry for/ })).not.toBeInTheDocument();
   });
 
-  it('keeps the waits card available when only the organization day read fails', () => {
+  it('keeps the task rows available when only the organization day read fails', () => {
     state.orgDay = { day: null, isPending: false, isError: true, retry: vi.fn() };
     renderDashboard();
 
-    expect(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /task overdue/ })).toHaveAttribute('href', '/my-tasks');
-    expect(within(screen.getByTestId('waits-on-you')).queryByText("Couldn't load what waits on you")).not.toBeInTheDocument();
+    // What is late is unknown, so no date words; the work itself, and the way into it, stay.
+    expect(within(tasksCard()).getByRole('link', { name: /Finalize drawings/ })).toBeInTheDocument();
+    expect(within(tasksCard()).queryByText(/days overdue/)).not.toBeInTheDocument();
+    expect(within(tasksCard()).queryByText(/^Due /)).not.toBeInTheDocument();
+    // The failed day read still says so, with its own Retry.
+    expect(within(tasksCard()).getByText("Couldn't read today's date")).toBeInTheDocument();
+    expect(within(tasksCard()).getByRole('button', { name: /Retry|Try again/ })).toBeInTheDocument();
     expect(within(timesheetCard()).getByText("Couldn't load your timesheets")).toBeInTheDocument();
-    expect(within(tasksCard()).getByText("Couldn't load your tasks")).toBeInTheDocument();
   });
 
-  it('shows own overdue and due-today counts in the shared Waits on you rows', () => {
+  it('folds the overdue count into the My tasks header, with no separate waits band above it', () => {
+    state.tasks.data = [
+      { ...tasks[0] },
+      { ...tasks[0], id: 'second-overdue', name: 'Review estimates', end_date: '2026-06-01' },
+      { ...tasks[1] },
+    ];
+    renderDashboard();
+
+    expect(within(tasksCard()).getByTestId('engineer-tasks-overdue')).toHaveTextContent('2 overdue');
+    expect(screen.queryByTestId('waits-on-you')).not.toBeInTheDocument();
+  });
+
+  it('states the person\'s own overdue and due-today counts in the My tasks header', () => {
     state.tasks.data = [
       { id: 'late', name: 'Late task', status: 'In Progress', end_date: '2026-06-02' },
       { id: 'today', name: 'Today task', status: 'To Do', end_date: '2026-06-03' },
@@ -171,12 +188,40 @@ describe('Engineer home (one question: is my week on track?)', () => {
     ];
     renderDashboard();
 
-    const waits = within(screen.getByTestId('waits-on-you'));
-    expect(waits.getByRole('link', { name: /1\s*task overdue/ })).toHaveAttribute('href', '/my-tasks');
-    expect(waits.getByRole('link', { name: /1\s*task due today/ })).toHaveAttribute('href', '/my-tasks');
+    // Both counts the old band carried are here: overdue is the exception, due today is plain.
+    expect(within(tasksCard()).getByTestId('engineer-tasks-overdue')).toHaveTextContent('1 overdue');
+    expect(within(tasksCard()).getByTestId('engineer-tasks-overdue')).toHaveClass('text-destructive-text');
+    expect(within(tasksCard()).getByTestId('engineer-tasks-due-today')).toHaveTextContent('1 due today');
+    expect(within(tasksCard()).getByTestId('engineer-tasks-due-today')).toHaveClass('text-foreground');
   });
 
-  it('leads with Waits on you, then my week, returned claims and recent entries; no company money', () => {
+  it('states no overdue count when nothing is overdue', () => {
+    state.tasks.data = [tasks[1]];
+    const dueOnly = renderDashboard();
+    expect(within(tasksCard()).queryByTestId('engineer-tasks-overdue')).not.toBeInTheDocument();
+    dueOnly.unmount();
+
+    state.tasks.data = [tasks[2]];
+    renderDashboard();
+    expect(tasksCard()).toHaveTextContent('No overdue tasks or tasks due this week.');
+  });
+
+  it('states the overdue finding in the shared late tone, with words not colour alone', () => {
+    state.tasks.data = [
+      { ...tasks[0] },
+      { ...tasks[0], id: 'second-overdue', name: 'Review estimates', end_date: '2026-06-01' },
+    ];
+    renderDashboard();
+
+    const finding = within(tasksCard()).getByTestId('engineer-tasks-overdue');
+    expect(finding).toHaveTextContent('2 overdue');
+    expect(finding).toHaveClass('text-destructive-text');
+    // Exception colour once per group: the count, and the single most urgent row — the rest stay plain.
+    expect(screen.getByText('3 days overdue')).toHaveClass('text-destructive-text');
+    expect(screen.getByText('2 days overdue')).toHaveClass('text-foreground');
+  });
+
+  it('leads with My tasks, then my week, returned claims and recent entries; no company money', () => {
     renderDashboard();
 
     expect(screen.getByRole('heading', { level: 1, name: 'My dashboard' })).toBeInTheDocument();
@@ -186,9 +231,9 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(card).not.toHaveTextContent('99');
     expect(card).toHaveTextContent('Returned');
     expect(card).toHaveTextContent('Sent back for correction.');
-    expect(screen.getByTestId('waits-on-you').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(timesheetCard().compareDocumentPosition(tasksCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(tasksCard().compareDocumentPosition(screen.getByTestId('engineer-returned')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The first block is the person's own work; the week's timesheet sits beside it.
+    expect(tasksCard().compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.compareDocumentPosition(screen.getByTestId('engineer-returned')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const text = document.body.textContent ?? '';
     expect(text).not.toMatch(/(?:Rp|USD|IDR|\$|invoice|budget|revenue|spending)/i);
@@ -405,5 +450,99 @@ describe('Engineer home — Overview layout', () => {
     renderDashboard();
     expect(within(timesheetCard()).getByRole('list', { name: 'Hours by day this week' })).toBeInTheDocument();
     expect(screen.queryByTestId('chart-hours-by-project')).not.toBeInTheDocument();
+  });
+
+  it('floor: the hours-by-project Retry re-reads the timesheets', () => {
+    state.timesheets.data = undefined;
+    state.timesheets.isError = true;
+    renderDashboard();
+    fireEvent.click(within(screen.getByTestId('chart-hours-by-project')).getByRole('button', { name: /Retry|Try again/ }));
+    expect(state.timesheets.refetch).toHaveBeenCalled();
+  });
+});
+
+// Step 0 of the screen repair: every control this screen offers acts. These pin the floor that the
+// recomposition must keep working; they assert the outcome (the route the person lands on, the read
+// that is re-run), never the arrangement of the blocks.
+describe('Engineer home — floor: every control acts', () => {
+  const path = () => screen.getByLabelText('Current path').textContent;
+
+  it('opens the timesheet from whichever action this week offers', () => {
+    state.timesheets.data = [{ ...sheets[1], status: 'Draft' }];
+    const submit = renderDashboard();
+    fireEvent.click(within(timesheetCard()).getByRole('link', { name: 'Submit week' }));
+    expect(path()).toContain('/timesheets');
+    submit.unmount();
+
+    state.timesheets.data = [{ ...sheets[1], status: 'Draft', entries: [] }];
+    const log = renderDashboard();
+    fireEvent.click(within(timesheetCard()).getByRole('link', { name: 'Log time' }));
+    expect(path()).toContain('/timesheets');
+    log.unmount();
+
+    state.timesheets.data = [{ ...sheets[1], status: 'Submitted' }];
+    renderDashboard();
+    fireEvent.click(within(timesheetCard()).getByRole('link', { name: 'Open timesheet' }));
+    expect(path()).toContain('/timesheets');
+  });
+
+  it('opens My Tasks from All tasks', () => {
+    renderDashboard();
+    fireEvent.click(within(tasksCard()).getByRole('link', { name: 'All tasks' }));
+    expect(path()).toContain('/my-tasks');
+  });
+
+  it('opens a task in its project task drawer, with that task open', () => {
+    renderDashboard();
+    fireEvent.click(screen.getByRole('link', { name: /Finalize drawings/ }));
+    expect(path()).toContain('/projects/p1/tasks?open=overdue');
+  });
+
+  it('opens Expenses on the returned filter from a returned claim and from All returned', () => {
+    const claim = renderDashboard();
+    fireEvent.click(within(screen.getByTestId('engineer-returned')).getByRole('link', { name: /Travel receipt/ }));
+    expect(path()).toContain('/expenses?status=Rejected');
+    claim.unmount();
+
+    renderDashboard();
+    fireEvent.click(within(screen.getByTestId('engineer-returned')).getByRole('link', { name: 'All returned' }));
+    expect(path()).toContain('/expenses?status=Rejected');
+  });
+
+  it('opens Timesheets from All timesheets', () => {
+    renderDashboard();
+    fireEvent.click(within(screen.getByTestId('engineer-recent')).getByRole('link', { name: 'All timesheets' }));
+    expect(path()).toContain('/timesheets');
+  });
+
+  it('re-reads the organization day from the date-unread Retry in My tasks', () => {
+    state.orgDay = { day: null, isPending: false, isError: true, retry: vi.fn() };
+    renderDashboard();
+    fireEvent.click(within(tasksCard()).getByRole('button', { name: /Retry|Try again/ }));
+    expect(state.orgDay.retry).toHaveBeenCalled();
+  });
+
+  it('re-reads the timesheet from its own card Retry', () => {
+    state.timesheets.data = undefined;
+    state.timesheets.isError = true;
+    renderDashboard();
+    fireEvent.click(within(timesheetCard()).getByRole('button', { name: /Retry|Try again/ }));
+    expect(state.timesheets.refetch).toHaveBeenCalled();
+  });
+
+  it('re-reads the tasks from the My tasks card Retry', () => {
+    state.tasks.data = undefined;
+    state.tasks.isError = true;
+    renderDashboard();
+    fireEvent.click(within(tasksCard()).getByRole('button', { name: /Retry|Try again/ }));
+    expect(state.tasks.refetch).toHaveBeenCalled();
+  });
+
+  it('re-reads the recent entries from their own Retry', () => {
+    state.timesheets.data = undefined;
+    state.timesheets.isError = true;
+    renderDashboard();
+    fireEvent.click(within(screen.getByTestId('engineer-recent')).getByRole('button', { name: /Retry|Try again/ }));
+    expect(state.timesheets.refetch).toHaveBeenCalled();
   });
 });
