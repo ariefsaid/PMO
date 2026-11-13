@@ -4,8 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
-const { mutations, permission, projectsState } = vi.hoisted(() => ({
+const { mutations, permission, projectsState, editorConfig } = vi.hoisted(() => ({
   permission: { allowed: true },
+  /** What the page hands the minutes editor — the flag that withholds the /action entry (C9). */
+  editorConfig: { tasksExternal: null as boolean | null },
   /** The picker read's rows, in whatever order the reader returns them (C18 order is the page's). */
   projectsState: {
     data: [] as Array<{ id: string; name: string; short_name?: string | null }>,
@@ -32,7 +34,8 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { profile: { listOrgPro
 vi.mock('@/src/components/meetings/MinutesEditor', async () => {
   const React = await import('react');
   const liveDocument: never[] = [];
-  const EditorStub = React.forwardRef(({ onReady, onChange, editable }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void; editable: boolean }, ref: React.Ref<{ getDocument: () => never[]; insertActionItem: () => void }>) => {
+  const EditorStub = React.forwardRef(({ onReady, onChange, editable, tasksExternal }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void; editable: boolean; tasksExternal: boolean }, ref: React.Ref<{ getDocument: () => never[]; insertActionItem: () => void }>) => {
+    editorConfig.tasksExternal = tasksExternal;
     React.useImperativeHandle(ref, () => ({ getDocument: () => liveDocument, insertActionItem: () => undefined }), []);
     React.useEffect(() => {
       liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [] } as never);
@@ -56,6 +59,7 @@ beforeEach(() => {
   Object.values(mutations).forEach((mutation) => { mutation.mutateAsync.mockReset().mockResolvedValue(undefined); mutation.isPending = false; });
   mutations.create.mutateAsync.mockResolvedValue({ id: 'meeting-new' });
   permission.allowed = true;
+  editorConfig.tasksExternal = null;
 });
 
 describe('AC-MTG1-001 one-page meeting creation', () => {
@@ -400,5 +404,27 @@ describe('rule 1 — the create shell', () => {
     const footer = screen.getByTestId('form-footer');
     expect(within(footer).getByRole('button', { name: 'Save meeting' })).toBeEnabled();
     expect(screen.getAllByRole('button', { name: 'Save meeting' })).toHaveLength(1);
+  });
+});
+
+/**
+ * Rule 2 (judging move 2, C9): the palette offered "Action item — Create a task from this line" and it
+ * created nothing. A meeting has no record to attach a task to until it is saved, so the entry is
+ * withheld here; the record's editor owns the real task flow (minutesSlashMenu.test.ts proves the flag
+ * removes the entry, and the record page's suite proves the entry still exists there).
+ */
+describe('rule 2 — no dead action-item entry', () => {
+  it('rule 2: the create page withholds the action-item entry instead of mounting a no-op control', () => {
+    renderPage();
+    expect(editorConfig.tasksExternal).toBe(true);
+  });
+
+  it('rule 2: saving still works with the entry withheld (minutes and attendees are unaffected)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(editorConfig.tasksExternal).toBe(true);
   });
 });

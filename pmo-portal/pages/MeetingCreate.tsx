@@ -145,7 +145,9 @@ const MeetingCreate: React.FC = () => {
         <SelectField id={project.id} label={t('meetings.form.project.label', 'Project')} value={project.value} onChange={project.onChange} options={[{ value: '', label: t('meetings.form.project.none', 'No project') }, ...sortProjectOptions(projects ?? []).map((item) => ({ value: item.id, label: projectDisplayName(item) }))]} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
       </FormGrid>
     </section>
-    <Card variant="bare" className="mb-4"><CardHead>{t('meetingDetail.minutes.title', 'Minutes')}</CardHead><CardPad><Suspense fallback={<ListState variant="loading" rows={3} />}><MinutesEditor ref={editorRef} initialBlocks={[]} editable={!form.isSubmitting} tasksExternal={false} onReady={onEditorReady} onChange={(blocks) => { setMinutes(blocks); setMinutesPending(true); }} onRequestAction={() => undefined} /></Suspense></CardPad></Card>
+    {/* C9: the meeting does not exist until Save, so /action here could only remember a block and drop
+        the line — the palette withholds the entry (the record's editor owns the real task flow). */}
+    <Card variant="bare" className="mb-4"><CardHead>{t('meetingDetail.minutes.title', 'Minutes')}</CardHead><CardPad><Suspense fallback={<ListState variant="loading" rows={3} />}><MinutesEditor ref={editorRef} initialBlocks={[]} editable={!form.isSubmitting} tasksExternal onReady={onEditorReady} onChange={(blocks) => { setMinutes(blocks); setMinutesPending(true); }} onRequestAction={() => undefined} /></Suspense></CardPad></Card>
     <Card variant="bare" className="mb-4"><CardHead>{t('meetingDetail.attendees.title', 'Attendees')}</CardHead><CardPad>
       <fieldset disabled={form.isSubmitting}>
       <ul className="mb-3 flex flex-col gap-1.5" data-testid="attendees-list">
