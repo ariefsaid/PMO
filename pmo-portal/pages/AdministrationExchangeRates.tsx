@@ -14,8 +14,9 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useFxRates, useFxRateMutations } from '@/src/hooks/useFxRates';
 import { FX_RATE_PAGE_SIZE } from '@/src/lib/db/fxRates';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
+import { useUsers } from '@/src/hooks/useUsers';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDay, formatNumberExact } from '@/src/lib/format';
+import { formatDay, formatInstantDate, formatNumberExact } from '@/src/lib/format';
 import { missingFxRateDates } from '@/src/lib/import/fxRatePreview';
 import { repositories } from '@/src/lib/repositories';
 import type { FxCommitCounts, FxRateInput, FxRateRow } from '@/src/lib/repositories/types';
@@ -38,6 +39,11 @@ const AdministrationExchangeRates: React.FC = () => {
   const [cursorStack, setCursorStack] = useState<string[]>([]);
   const cursor = cursorStack.at(-1);
   const rates = useFxRates(cursor);
+  // C13 (#1012, migration 0291): the rate trigger stamps `created_by` / `updated_by` / `updated_at`
+  // on every row and the screen never rendered them, so "who set this rate" had no answer here.
+  // The directory is a SECOND, independent read: if it fails the rates stay readable and the person
+  // is named as unknown (with the error card and its own Retry under the table), never left blank.
+  const users = useUsers();
   const [formTarget, setFormTarget] = useState<FormTarget | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [manualError, setManualError] = useState<SubmitError | null>(null);
@@ -141,6 +147,18 @@ const AdministrationExchangeRates: React.FC = () => {
     void commitManual(pendingManual, target);
   };
 
+  // Who last wrote this rate, in words: the directory name when it is known, and an actor the
+  // directory cannot resolve is said as unknown rather than left blank (C5/C13) — never a raw id.
+  const changedBy = (row: FxRateRow): string => {
+    const actorId = row.updated_by ?? row.created_by;
+    if (!actorId) return t('fx.actorNotRecorded', 'Not recorded');
+    const person = users.data?.find((user) => user.id === actorId)?.full_name?.trim();
+    if (person) return person;
+    return users.isPending
+      ? t('fx.actorResolving', 'Loading the name…')
+      : t('history.unknownUser', 'Unknown user');
+  };
+
   const columns: Column<FxRateRow>[] = [
     {
       key: 'rate_date',
@@ -160,6 +178,18 @@ const AdministrationExchangeRates: React.FC = () => {
       header: t('fx.source', 'Source'),
       cell: (row) => row.source,
       exportValue: (row) => row.source,
+    },
+    {
+      key: 'changed_by',
+      header: t('fx.setBy', 'Set by'),
+      cell: (row) => changedBy(row),
+      exportValue: (row) => changedBy(row),
+    },
+    {
+      key: 'changed_at',
+      header: t('fx.lastChange', 'Last change'),
+      cell: (row) => <span className="tabular-nums">{formatInstantDate(row.updated_at)}</span>,
+      exportValue: (row) => row.updated_at,
     },
   ];
 
@@ -297,6 +327,17 @@ const AdministrationExchangeRates: React.FC = () => {
             }
             tableId="administrationexchangerates-table"
             accessibleName={t('admin.nav.exchangeRates', 'Exchange rates')} />
+          {users.isError && (
+            <div className="mt-2">
+              <ListState
+                variant="error"
+                title={t('fx.actorDirectoryError', "Couldn't read the people who changed these rates")}
+                sub={t('fx.actorDirectoryErrorSub', 'Each rate still shows the day it changed; the person is not named until this read succeeds.')}
+                retryLabel={t('fx.retry', 'Retry')}
+                onRetry={() => void users.refetch()}
+              />
+            </div>
+          )}
           <div className="mt-3 flex items-center justify-between gap-3">
             {rates.data.total !== null && (
               <span
