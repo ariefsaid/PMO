@@ -89,4 +89,35 @@ describe('StockDocuments repair controls', () => {
     await user.keyboard('{Enter}');
     expect(await screen.findByText('record d1')).toBeInTheDocument();
   });
+
+  it.each([
+    ['Receive', 'receive'],
+    ['Transfer', 'transfer'],
+    ['Issue to project', 'issue'],
+    ['Return from project', 'return'],
+    ['Stock count', 'count'],
+    ['Adjustment', 'adjustment'],
+  ])('New document offers %s at its existing destination', async (label, kind) => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'New document' }));
+    await user.click(screen.getByRole('menuitem', { name: label }));
+
+    expect(await screen.findByText(`new ${kind}`)).toBeInTheDocument();
+  });
+
+  it('uses the On hand create gate with the same keeper and view-only context', async () => {
+    role.realRole = 'Admin';
+    role.effectiveRole = 'Engineer';
+    listKeepers.mockResolvedValue([{ user_id: 'someone-else' }]);
+    may.mockReturnValue(false);
+    renderPage();
+
+    await screen.findByText('DOC-1');
+    expect(may).toHaveBeenCalledWith('create', 'stockDocument', {
+      record: { isKeeper: false, viewOnly: true },
+    });
+    expect(screen.queryByRole('button', { name: 'New document' })).not.toBeInTheDocument();
+  });
 });
