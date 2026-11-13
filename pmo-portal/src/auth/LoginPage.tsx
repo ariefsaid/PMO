@@ -5,7 +5,7 @@ import { useAuth } from './useAuth';
 import { useServiceMessageText } from './useServiceMessageText';
 import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
-import { SuccessNotice, ErrorBanner, AuthInput } from './authFormPrimitives';
+import { AuthHeader, SuccessNotice, ErrorBanner, AuthInput } from './authFormPrimitives';
 import {
   trackDemoPersonaSelected,
   trackAuthLoginSucceeded,
@@ -90,6 +90,7 @@ const LoginPage: React.FC = () => {
   const [confirmRequired, setConfirmRequired] = useState(false);
   const [resendBusy, setResendBusy] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
+  const magicLinkDisabled = busy || !email;
   // A rate-limited resend cools down for the server's retry interval, then the action re-enables.
   // The timer is cleared on unmount and whenever the state it drives is left, so no stale
   // callback flips `rateLimited` for a state nobody is looking at.
@@ -185,28 +186,13 @@ const LoginPage: React.FC = () => {
 
   return (
     // Tinted ground (secondary/35%) — DESIGN.md neutral: "main scroll area uses secondary at 35%"
-    <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
+    <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
-        {/* Brand lockup — mark + wordmark, then heading + subtext. A subtitle reads more
-            considered than a bare heading and sets expectation before the form. */}
+        <AuthHeader className="mb-4" />
         <div className="mb-6 text-center">
-          <div className="mb-4 inline-flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="flex size-8 items-center justify-center rounded-md bg-primary text-[15px] font-bold text-primary-foreground"
-            >
-              P
-            </span>
-            <span className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">
-              PMO Portal
-            </span>
-          </div>
-          <h1 className="text-[24px] font-bold leading-[1.15] tracking-[-0.02em] text-foreground">
+          <h1 className="text-page font-bold tracking-[-0.02em] text-foreground">
             {t('login.title', 'Sign in to your account')}
           </h1>
-          <p className="mt-1.5 text-[13px] text-muted-foreground">
-            {t('login.subtitle', 'Welcome back. Use your work account or email to continue.')}
-          </p>
         </div>
 
         {/* Card: border + white surface, no rest shadow (Flat-By-Default Rule) */}
@@ -222,11 +208,11 @@ const LoginPage: React.FC = () => {
                 sign-in with "email not confirmed" (prod only — unreachable in dev by construction). */}
             {confirmRequired ? (
               <div className="space-y-4">
-                <p className="text-[13.5px] text-foreground">
+                <p className="text-control text-foreground">
                   {t('login.confirmRequired', 'Confirm your email to finish signing in. We can resend the confirmation link.')}
                 </p>
                 {rateLimited && (
-                  <p className="text-[12.5px] text-muted-foreground">
+                  <p className="text-control text-muted-foreground">
                     {t('login.rateLimited', 'Too many requests. Try again in a minute.')}
                   </p>
                 )}
@@ -264,7 +250,7 @@ const LoginPage: React.FC = () => {
             {/* Divider — names the alternative rather than a bare "or" */}
             <div className="flex items-center gap-3">
               <span className="h-px flex-1 bg-border" aria-hidden="true" />
-              <span className="text-[11px] font-semibold text-muted-foreground">
+              <span className="text-control font-semibold text-muted-foreground">
                 {t('login.orEmail', 'or continue with email')}
               </span>
               <span className="h-px flex-1 bg-border" aria-hidden="true" />
@@ -295,7 +281,7 @@ const LoginPage: React.FC = () => {
                 <div className="flex justify-end">
                   <Link
                     to="/reset-password"
-                    className="text-[12px] font-semibold text-primary-text hover:underline"
+                    className="touch-target inline-flex min-h-[var(--control-height)] items-center text-control font-semibold text-primary-text hover:underline"
                   >
                     {t('login.forgot', 'Forgot password?')}
                   </Link>
@@ -316,26 +302,34 @@ const LoginPage: React.FC = () => {
 
             {/* TERTIARY — passwordless magic link. A quiet text button under the form, not a
                 third full-width bar competing with the two real actions above. */}
-            <p className="text-center text-[12.5px] text-muted-foreground">
+            <p className="text-center text-control text-muted-foreground">
               {t('login.noPassword', 'No password?')}{' '}
               <button
                 type="button"
                 onClick={onMagicLink}
-                disabled={busy || !email}
-                className="font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
+                disabled={magicLinkDisabled}
+                aria-describedby={magicLinkDisabled ? 'magic-link-disabled-reason' : undefined}
+                className="touch-target inline-flex min-h-[var(--control-height)] items-center font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {t('login.magicLink', 'Email me a magic link')}
               </button>
             </p>
+            {magicLinkDisabled && (
+              <p id="magic-link-disabled-reason" className="text-center text-control text-muted-foreground">
+                {busy
+                  ? t('login.magicLinkBusy', 'Wait for the current sign-in attempt to finish before requesting a link.')
+                  : t('login.magicLinkEmailRequired', 'Enter an email above to request a sign-in link.')}
+              </p>
+            )}
 
             {/* Demo-login panel — local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
                 Lists all 5 role personas; click any to one-click fill credentials. */}
             {showDemoLogin && (
-              <div className="space-y-2 rounded-md border border-border bg-secondary/40 px-3 py-2.5">
-                <p className="text-center text-[11px] font-semibold text-muted-foreground">
+              <div className="space-y-2 border-t border-border pt-4">
+                <p className="text-center text-control font-semibold text-muted-foreground">
                   {t('login.demo.label', 'Demo login')}
                 </p>
-                <p className="text-center font-mono text-[11px] text-muted-foreground">
+                <p className="text-center font-mono text-control text-muted-foreground">
                   {t('login.demo.password', 'password: {{password}}', { password: DEMO_PASSWORD })}
                 </p>
                 <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
@@ -351,7 +345,7 @@ const LoginPage: React.FC = () => {
                         setError(null);
                       }}
                       disabled={busy}
-                      className="min-h-8 py-2 text-[11.5px] font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
+                      className="touch-target inline-flex min-h-[var(--control-height)] items-center py-2 text-control font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       {t(labelKey, label)}
                     </button>
@@ -367,12 +361,12 @@ const LoginPage: React.FC = () => {
         {/* Footer — Terms · Privacy · Help (FR-LEG-023, AC-LEG-021).
             Help opens the wa.me URL in a new tab; omitted entirely when HELP_WHATSAPP
             is unset so no broken link renders (FR-LEG-010). */}
-        <footer className="mt-5 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[12px] text-muted-foreground">
-          <Link to="/terms" className="font-medium text-primary-text hover:underline">
+        <footer className="mt-5 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-control text-muted-foreground [&_[data-testid=app-version]]:text-control">
+          <Link to="/terms" className="touch-target inline-flex min-h-[var(--control-height)] items-center font-medium text-primary-text hover:underline">
             {t('login.footer.terms', 'Terms')}
           </Link>
           <span aria-hidden>·</span>
-          <Link to="/privacy" className="font-medium text-primary-text hover:underline">
+          <Link to="/privacy" className="touch-target inline-flex min-h-[var(--control-height)] items-center font-medium text-primary-text hover:underline">
             {t('login.footer.privacy', 'Privacy')}
           </Link>
           {HELP_URL && (
@@ -383,7 +377,7 @@ const LoginPage: React.FC = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={t('login.footer.helpAria', 'Contact support via WhatsApp')}
-                className="font-medium text-primary-text hover:underline"
+                className="touch-target inline-flex min-h-[var(--control-height)] items-center font-medium text-primary-text hover:underline"
               >
                 {t('login.footer.help', 'Help')}
               </a>
@@ -392,7 +386,7 @@ const LoginPage: React.FC = () => {
           <AppVersion />
         </footer>
       </div>
-    </div>
+    </main>
   );
 };
 

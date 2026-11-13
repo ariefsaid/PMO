@@ -16,7 +16,7 @@ export const SuccessNotice: React.FC<{ children: React.ReactNode }> = ({ childre
   <div
     role="status"
     aria-live="polite"
-    className="flex items-start gap-2 rounded-md border border-success/30 bg-success/[0.07] px-3 py-2.5 text-[13px]"
+    className="flex items-start gap-2 rounded-md border border-success/30 bg-success/[0.07] px-3 py-2.5 text-control"
   >
     <Icon name="check" className="mt-px size-4 shrink-0 text-success" aria-hidden="true" />
     <span style={{ color: 'hsl(142 60% 30%)' }}>{children}</span>
@@ -28,11 +28,28 @@ export const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
   <div
     role="alert"
     aria-live="assertive"
-    className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-2.5 text-[13px]"
+    className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-2.5 text-control"
   >
     <Icon name="alert" className="mt-px size-4 shrink-0 text-destructive" aria-hidden="true" />
     <span className="text-destructive-text">{message}</span>
   </div>
+);
+
+/** Shared small product line for every shell-less auth screen. */
+export const AuthHeader: React.FC<{ className?: string; productName?: string }> = ({ className, productName = 'PMO Portal' }) => (
+  <header className={cn('flex justify-center', className)}>
+    <div className="inline-flex items-center gap-2">
+      <span
+        aria-hidden="true"
+        className="flex size-8 items-center justify-center rounded-md bg-primary text-control font-bold text-primary-foreground"
+      >
+        P
+      </span>
+      <span className="text-control font-semibold tracking-[-0.01em] text-foreground">
+        {productName}
+      </span>
+    </div>
+  </header>
 );
 
 /** Single labeled input block — label above, value controlled by parent. */
@@ -59,7 +76,7 @@ export const AuthInput: React.FC<{
   <div className="flex flex-col gap-1.5">
     <label
       htmlFor={id}
-      className="text-[12px] font-semibold text-muted-foreground"
+      className="text-control font-semibold text-muted-foreground"
     >
       {label}
     </label>
@@ -74,11 +91,11 @@ export const AuthInput: React.FC<{
       disabled={disabled}
       aria-describedby={errorId}
       className={cn(
-        'h-8 w-full rounded-md border border-border hover:enabled:border-input bg-card px-2.5 text-[13.5px] text-foreground',
+        'h-[var(--control-height)] w-full rounded-md border border-border hover:enabled:border-input bg-card px-2.5 text-control text-foreground',
         'placeholder:text-muted-foreground',
         'transition-[border-color,box-shadow] duration-100',
         'disabled:cursor-not-allowed disabled:opacity-45',
-        isSecret && 'pr-8',
+        isSecret && 'pr-11',
       )}
     />
       {isSecret && (
@@ -91,7 +108,7 @@ export const AuthInput: React.FC<{
           aria-label={revealed ? t('field.hideValue', 'Hide value') : t('field.showValue', 'Show value')}
           aria-pressed={revealed}
           disabled={disabled}
-          className="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"
+          className="touch-target absolute inset-y-0 right-0 flex w-8 items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"
         >
           <Icon name={revealed ? 'eye-off' : 'eye'} className="size-3.55" aria-hidden="true" />
         </button>
