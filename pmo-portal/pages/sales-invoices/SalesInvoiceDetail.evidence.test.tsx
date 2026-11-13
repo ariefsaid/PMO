@@ -95,7 +95,7 @@ describe('SalesInvoiceDetail invoice evidence', () => {
 
   afterEach(cleanup);
 
-  it('hides tax and total while invoice-line evidence is unavailable, then retries the same read', async () => {
+  it('C2 keeps tax and total due when the invoice-line evidence read fails, and Retry re-runs that read only', async () => {
     h.getEvidence.mockReset()
       .mockRejectedValueOnce(new Error('evidence unavailable'))
       .mockResolvedValueOnce({ lines: [{ item_code: 'SVC', description: 'Site survey', qty: 1, rate: 1_110_000, amount: 1_110_000 }] });
@@ -103,18 +103,33 @@ describe('SalesInvoiceDetail invoice evidence', () => {
     renderDetail();
 
     expect(await screen.findByRole('button', { name: 'Retry invoice evidence' })).toBeInTheDocument();
+    // Tax and total due are stored invoice facts: they never depend on the evidence read.
     expect(screen.getByText('Net (before tax)')).toBeInTheDocument();
-    expect(screen.queryByText('Tax')).not.toBeInTheDocument();
-    expect(screen.queryByText('Total due')).not.toBeInTheDocument();
+    expect(screen.getByText('Tax')).toBeInTheDocument();
+    expect(screen.getByText('Total due')).toBeInTheDocument();
+    // Only the lines section is affected by the failed read.
+    expect(screen.queryByText('Site survey')).not.toBeInTheDocument();
     expect(h.getEvidence).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('button', { name: 'Retry invoice evidence' }));
 
-    expect(await screen.findByText('Total due')).toBeInTheDocument();
+    expect(await screen.findByText('Site survey')).toBeInTheDocument();
+    expect(screen.getByText('Tax')).toBeInTheDocument();
+    expect(screen.getByText('Total due')).toBeInTheDocument();
     await waitFor(() => expect(h.getEvidence).toHaveBeenCalledTimes(2));
   });
 
-  it('shares one evidence request between the record and its evidence section on a normal load', async () => {
+  it('C2 keeps tax and total due while the invoice-line evidence read is pending', async () => {
+    h.getEvidence.mockReset().mockReturnValue(new Promise(() => {}));
+    renderDetail();
+
+    expect(await screen.findByText('Loading invoice evidence…')).toBeInTheDocument();
+    expect(screen.getByText('Tax')).toBeInTheDocument();
+    expect(screen.getByText('Total due')).toBeInTheDocument();
+    expect(h.getEvidence).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes one evidence request on a normal load, with no extra read of its own', async () => {
     renderDetail();
 
     expect(await screen.findByText('Tax')).toBeInTheDocument();
