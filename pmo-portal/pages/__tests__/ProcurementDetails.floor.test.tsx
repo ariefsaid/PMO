@@ -606,4 +606,3 @@ beforeEach(() => {
   recordPush.status = 'idle';
   sessionStorage.clear();
 });
-
