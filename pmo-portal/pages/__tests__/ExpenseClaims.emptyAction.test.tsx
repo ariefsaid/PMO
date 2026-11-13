@@ -26,8 +26,8 @@ vi.mock('@/src/components/ui/Button', async () => {
     Button: ({
       variant = 'primary',
       loading,
-      size,
-      iconOnly,
+      size: _size,
+      iconOnly: _iconOnly,
       children,
       ...rest
     }: {
