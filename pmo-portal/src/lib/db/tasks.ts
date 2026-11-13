@@ -422,6 +422,17 @@ export interface MyTask {
   meeting_id?: string | null;
   start_date: string | null;
   end_date: string | null;
+  /**
+   * C13 (DS my-tasks #4): the priority the record already holds — the queue shows it, so two tasks
+   * due the same day can be ordered by what the record knows. NULL = no priority set (a real state,
+   * never rendered as a made-up "Normal").
+   */
+  priority: TaskPriority | null;
+  /**
+   * C13 (DS my-tasks #1): an archived task stays in the assignee's queue (its project hides it), so
+   * the row must SAY it is archived instead of looking like ordinary open work.
+   */
+  archived_at: string | null;
 }
 
 /**
@@ -435,7 +446,7 @@ export interface MyTask {
 export async function listMyTasks(userId: string): Promise<MyTask[]> {
   const data = await fetchAllPages((from, to) => supabase
     .from('tasks')
-    .select('id, name, status, assignee_id, project_id, meeting_id, start_date, end_date, project:projects!tasks_project_id_fkey(name, short_name)')
+    .select('id, name, status, assignee_id, project_id, meeting_id, start_date, end_date, priority, archived_at, project:projects!tasks_project_id_fkey(name, short_name)')
     .eq('assignee_id', userId)
     .is('tombstoned_at', null)
     .order('created_at', { ascending: true })
@@ -451,6 +462,8 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     meeting_id: string | null;
     start_date: string | null;
     end_date: string | null;
+    priority: TaskPriority | null;
+    archived_at: string | null;
     project: { name: string; short_name?: string | null } | null;
   }>).map((t) => ({
     id: t.id,
@@ -466,5 +479,7 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     ...(t.project && projectDisplayName(t.project) !== t.project.name ? { project_contractual_name: t.project.name } : {}),
     start_date: t.start_date,
     end_date: t.end_date,
+    priority: t.priority ?? null,
+    archived_at: t.archived_at ?? null,
   }));
 }
