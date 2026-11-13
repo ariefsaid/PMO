@@ -1,7 +1,8 @@
 {
   "actions": {
     "restore": "Restore",
-    "restoring": "Restoring…"
+    "restoring": "Restoring…",
+    "archiveRestricted": "Archive — author or Admin only"
   },
   "attendees": {
     "loadError": "Attendees could not be loaded. Retry to view the access list.",

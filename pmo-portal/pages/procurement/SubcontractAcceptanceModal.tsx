@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import {
   Button, EntityFormModal, FormGrid, FormSection, NumberField, SelectField, TextArea, TextField, type SubmitError,
 } from '@/src/components/ui';
@@ -109,7 +110,7 @@ const SubcontractAcceptanceModal: React.FC<SubcontractAcceptanceModalProps> = ({
   const mayConfirm = Boolean(draft && onConfirm && canConfirm && (!preparedByMe || soleOperator));
   const docOptions = [
     { value: '', label: t('subcontract.acceptance.form.noDocument', 'None yet') },
-    ...eligibleDocs.map((d) => ({ value: d.id, label: `${d.code ? `${d.code} · ` : ''}${d.title} (${d.status})` })),
+    ...eligibleDocs.map((d) => ({ value: d.id, label: `${d.code ? `${d.code} · ` : ''}${d.title} (${statusLabel('document', d.status, t)})` })),
   ];
 
   return (

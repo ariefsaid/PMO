@@ -9,6 +9,15 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
+vi.mock('@/src/components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/ui')>();
+  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => React.createElement(actual.Button, {
+    ...props,
+    'data-variant': props.variant ?? 'primary',
+  });
+  return { ...actual, Button: ButtonWithVariant };
+});
+
 /**
  * AC-IXD-DASH-005 (Area 4, plan task 21): confirm against the money. The mark-won capture panel
  * shows the value being booked ("Booking $X to contract value on win") above the contract-ref /
@@ -127,25 +136,24 @@ beforeEach(() => {
 });
 
 describe('DealBand — mark-won shows the booked value (AC-IXD-DASH-005)', () => {
-  it('AC-1796: edits the independent % Get estimate for this opportunity', async () => {
+  it('C21: one Save sends both probability estimates through their existing save paths', async () => {
     const user = userEvent.setup();
     renderLens();
-    const input = screen.getByLabelText('Chance we win if the client proceeds (%)');
-    await user.clear(input);
-    await user.type(input, '40');
-    await user.click(input.closest('form')!.querySelector('button')!);
-    await vi.waitFor(() => expect(repositoryUpdateGetProbability).toHaveBeenCalledWith('d1', 0.4));
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['sales-pipeline', 'org-1'] });
-  });
+    await user.clear(screen.getByLabelText('Chance the project proceeds (%)'));
+    await user.type(screen.getByLabelText('Chance the project proceeds (%)'), '65');
+    await user.clear(screen.getByLabelText('Chance we win if the client proceeds (%)'));
+    await user.type(screen.getByLabelText('Chance we win if the client proceeds (%)'), '40');
 
-  it('AC-1796: edits the per-project % Go override separately from % Get', async () => {
-    const user = userEvent.setup();
-    renderLens();
-    const input = screen.getByLabelText('Chance the project proceeds (%)');
-    await user.clear(input);
-    await user.type(input, '65');
-    await user.click(input.closest('form')!.querySelector('button')!);
-    await vi.waitFor(() => expect(repositoryUpdateGoProbability).toHaveBeenCalledWith('d1', 0.65));
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(1);
+    expect(save).toHaveAttribute('data-variant', 'outline');
+    await user.click(save);
+
+    await vi.waitFor(() => {
+      expect(repositoryUpdateGoProbability).toHaveBeenCalledWith('d1', 0.65);
+      expect(repositoryUpdateGetProbability).toHaveBeenCalledWith('d1', 0.4);
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['sales-pipeline', 'org-1'] });
   });
 
   it('AC-1796: terminal opportunities do not expose editable probability controls', () => {
@@ -197,7 +205,12 @@ describe('DealBand — mark-won shows the booked value (AC-IXD-DASH-005)', () =>
 
   it('AC-IXD-DASH-005: the won-capture panel states the value being booked to contract value', async () => {
     renderLens();
-    await userEvent.click(screen.getByRole('button', { name: /Mark won/i }));
+    const markWon = screen.getByRole('button', { name: 'Mark won' });
+    expect(markWon).toHaveAttribute('data-variant', 'primary');
+    await userEvent.click(markWon);
+
+    expect(screen.getByRole('button', { name: 'Mark won' })).toHaveAttribute('data-variant', 'outline');
+    expect(screen.getByRole('button', { name: 'Confirm won' })).toHaveAttribute('data-variant', 'primary');
 
     // The capture panel restates the figure the user is committing against.
     const refInput = screen.getByLabelText(/Customer contract reference/i);

@@ -75,7 +75,8 @@
     "accountSearch": "Cari nama atau nomor akun",
     "accountNoun": "akun",
     "noPostingAccounts": "Tidak ada akun buku besar biaya langsung yang belum dipakai.",
-    "countOnlyHelp": "Dihitung ke realisasi; anggaran tidak pernah diposting ke sini."
+    "countOnlyHelp": "Dihitung ke realisasi; anggaran tidak pernah diposting ke sini.",
+    "proposalRetry": "Coba lagi"
   },
   "uxs11": {
     "accountNoun": "akun",
@@ -259,7 +260,13 @@
     "confirmUpload": "Simpan kurs JISDOR ini?",
     "confirmUploadDescription": "USD → IDR · JISDOR: {{new}} baru, {{changed}} diubah, {{unchanged}} tidak berubah.",
     "rateError": "Kurs JISDOR tidak dapat dimuat.",
-    "noRateForDate": "Kurs JISDOR untuk {{date}} tidak tersedia."
+    "noRateForDate": "Kurs JISDOR untuk {{date}} tidak tersedia.",
+    "setBy": "Diubah oleh",
+    "lastChange": "Perubahan terakhir",
+    "actorNotRecorded": "Tidak tercatat",
+    "actorResolving": "Memuat nama…",
+    "actorDirectoryError": "Tidak bisa membaca orang yang mengubah kurs ini",
+    "actorDirectoryErrorSub": "Setiap kurs tetap menampilkan hari perubahannya; nama orang muncul setelah pembacaan ini berhasil."
   },
   "toast": {
     "dismiss": "Tutup notifikasi"
@@ -413,7 +420,8 @@
     "expenseMap": {
       "notReady": "Hubungkan ERPNext sebelum memetakan akun biaya.",
       "error": {
-        "title": "Tidak dapat memuat peta akun biaya"
+        "title": "Tidak dapat memuat peta akun biaya",
+        "noCauseRemedy": "Akun tidak tersimpan. Isian Anda tetap ada; coba lagi."
       },
       "openIntegrations": "Buka integrasi",
       "change": "Ubah {{key}}",
@@ -490,7 +498,7 @@
     "retry": "Coba lagi",
     "loadErrorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
     "roles": {
-      "engineer": "Engineer",
+      "engineer": "Insinyur",
       "projectManager": "Manajer proyek",
       "finance": "Keuangan",
       "executive": "Eksekutif",
@@ -507,7 +515,7 @@
       "invite": "Undang pengguna",
       "columns": {
         "user": "Pengguna",
-        "role": "Role",
+        "role": "Peran",
         "status": "Status",
         "manager": "Manajer"
       },
@@ -517,7 +525,7 @@
       },
       "noManager": "Tanpa manajer",
       "menu": {
-        "editRole": "Edit role",
+        "editRole": "Ubah peran",
         "changeManager": "Ubah manajer",
         "reEnable": "Aktifkan kembali",
         "disable": "Nonaktifkan"
@@ -624,7 +632,7 @@
       "noPush": "Tanpa akun pengiriman",
       "pushBadge": "Pengiriman anggaran",
       "addAccount": "Tambah akun ke {{category}}",
-      "editAccount": "Edit {{account}}",
+      "editAccount": "Ubah {{account}}",
       "usePush": "Gunakan {{account}} untuk pengiriman anggaran",
       "removeAccount": "Hapus {{account}}",
       "removePushHint": "Jadikan akun lain sebagai akun pengiriman untuk menghapus akun ini.",
@@ -716,7 +724,8 @@
         "project": "Proyek",
         "projectPlaceholder": "Pilih proyek…",
         "projectRequired": "Pilih proyek.",
-        "save": "Tambah"
+        "save": "Tambah",
+        "projectLoadError": "Tidak bisa memuat daftar proyek"
       }
     }
   },
@@ -887,7 +896,7 @@
     "actions": {
       "archive": "Arsipkan",
       "delete": "Hapus",
-      "edit": "Edit",
+      "edit": "Ubah",
       "new": "Perusahaan baru"
     },
     "columns": {
@@ -1005,7 +1014,7 @@
     "activityKind": {
       "call": "Telepon",
       "email": "Email",
-      "meeting": "Meeting",
+      "meeting": "Rapat",
       "note": "Catatan"
     },
     "addContact": {},
@@ -1029,7 +1038,7 @@
       "openRow": "Buka",
       "title": "Kontak"
     },
-    "edit": "Edit",
+    "edit": "Ubah",
     "error": {
       "sub": "Terjadi kesalahan saat mengambil data perusahaan ini.",
       "title": "Gagal memuat perusahaan"
@@ -1113,7 +1122,7 @@
     "activityKind": {
       "call": "Telepon",
       "email": "Email",
-      "meeting": "Meeting",
+      "meeting": "Rapat",
       "note": "Catatan"
     },
     "archive": "Arsipkan",
@@ -1123,7 +1132,7 @@
       "title": "Arsipkan {{name}}?"
     },
     "backToContacts": "Kontak",
-    "edit": "Edit",
+    "edit": "Ubah",
     "editActivity": {
       "legend": "Detail",
       "submitLabel": "Simpan",
@@ -1152,6 +1161,7 @@
       "title": "Kontak tidak ditemukan"
     },
     "pill": "Kontak",
+    "pillArchived": "Diarsipkan",
     "sectionTitle": "Detail kontak",
     "toast": {
       "activityDeleted": "Aktivitas dihapus",
@@ -1169,7 +1179,7 @@
     "actions": {
       "archive": "Arsipkan",
       "delete": "Hapus",
-      "edit": "Edit",
+      "edit": "Ubah",
       "new": "Kontak baru"
     },
     "columns": {
@@ -1632,7 +1642,7 @@
     "actionItems": {
       "empty": "Belum ada action item. Ketik /action di notulen untuk membuatnya.",
       "error": "Gagal memuat action item rapat ini.",
-      "title": "Action item"
+      "title": "Item tindakan"
     },
     "archive": "Arsipkan",
     "attendees": {
@@ -1696,7 +1706,7 @@
       "empty": "Tidak ada notulen yang tercatat untuk rapat ini.",
       "save": "Simpan notulen",
       "slash": {
-        "actionTitle": "Action item",
+        "actionTitle": "Item tindakan",
         "actionSubtext": "Buat tugas dari baris ini",
         "actionGroup": "Tindakan",
         "actionAliases": "action,aksi,tindakan,tugas,todo"
@@ -1820,7 +1830,14 @@
     "noSearchResults": "Tidak ada tugas yang cocok dengan pencarian",
     "noTasksInView": "Tidak ada tugas dalam tampilan ini",
     "start": "Mulai {{date}}",
-    "title": "Tugas"
+    "title": "Tugas",
+    "archived": "Diarsipkan",
+    "priority": {
+      "urgent": "Prioritas: Mendesak",
+      "high": "Prioritas: Tinggi",
+      "normal": "Prioritas: Normal",
+      "low": "Prioritas: Rendah"
+    }
   },
   "procurement": {
     "columns": {
@@ -2208,7 +2225,7 @@
         "approve": "Setujui",
         "close": "Tutup dokumen",
         "delete": "Hapus",
-        "edit": "Edit",
+        "edit": "Ubah",
         "issue": "Terbitkan",
         "reject": "Tolak",
         "reopen": "Buka kembali untuk revisi",
@@ -2220,7 +2237,7 @@
         "code": "Kode",
         "document": "Dokumen",
         "status": "Status",
-        "file": "File"
+        "file": "Berkas"
       },
       "deleteConfirm": {
         "body": "Ini menghapus entri register dokumen secara permanen. Tindakan ini tidak dapat dibatalkan.",
@@ -2236,7 +2253,7 @@
         "category": "Kategori",
         "code": "Kode",
         "docDate": "Tanggal dokumen",
-        "file": "File",
+        "file": "Berkas",
         "lineage": "Riwayat revisi",
         "revision": "Revisi",
         "supersededBy": "Digantikan oleh"
@@ -2310,7 +2327,7 @@
       },
       "ceiling": "Pagu kontrak",
       "committed": "Sudah diterbitkan",
-      "draft": "Draft",
+      "draft": "Draf",
       "error": {
         "sub": "Total komitmen terhadap kontrak ini tidak dapat dibaca. Coba lagi, atau buka ulang proyek.",
         "title": "Gagal memuat penyerapan"
@@ -2349,8 +2366,8 @@
         "milestones_one": "{{count}} fase",
         "milestones_other": "{{count}} fase",
         "scale": "skala: {{scale}}",
-        "tasks_one": "{{count}} task",
-        "tasks_other": "{{count}} task"
+        "tasks_one": "{{count}} tugas",
+        "tasks_other": "{{count}} tugas"
       },
       "taskColumn": "Tugas",
       "tasksOnTimeline_one": "{{count}} task di timeline",
@@ -2364,7 +2381,7 @@
         "archive": "Arsipkan",
         "cancel": "Batal",
         "delete": "Hapus",
-        "edit": "Edit",
+        "edit": "Ubah",
         "save": "Simpan"
       },
       "archiveConfirm": {
@@ -2447,7 +2464,7 @@
         "titleFallback": "Hapus fase ini?"
       },
       "deleteMilestone": "Hapus fase",
-      "edit": "Edit",
+      "edit": "Ubah",
       "editInputPct": "Ubah progres penggantian",
       "editMilestone": "Edit fase",
       "editProgress": "Ubah progres",
@@ -2583,7 +2600,7 @@
       "action": {
         "archive": "Arsipkan",
         "delete": "Hapus",
-        "edit": "Edit",
+        "edit": "Ubah",
         "unarchive": "Pulihkan"
       },
       "addTask": "Tambah tugas",
@@ -2660,7 +2677,7 @@
       "view": {
         "board": "Papan",
         "list": "Daftar",
-        "timeline": "Timeline",
+        "timeline": "Linimasa",
         "calendar": "Kalender"
       },
       "viewAriaLabel": "Tampilan tugas",
@@ -2819,7 +2836,7 @@
       "status": {
         "cancelled": "Dibatalkan",
         "closed": "Ditutup",
-        "draft": "Draft",
+        "draft": "Draf",
         "issued": "Diterbitkan"
       },
       "tax": {
@@ -2990,7 +3007,7 @@
     "card": {
       "delivery": "Penyelesaian",
       "deliveryPercent": "Penyelesaian {{percent}}%",
-      "editProject": "Edit {{name}}"
+      "editProject": "Ubah {{name}}"
     },
     "kanban": {
       "won": "Menang",
@@ -3158,7 +3175,7 @@
       "label": "Kembali ke {{label}}"
     },
     "breadcrumb": {
-      "label": "Breadcrumb",
+      "label": "Jejak navigasi",
       "recordLoading": "Memuat…",
       "recordNotFound": "Tidak ditemukan"
     },
@@ -3188,7 +3205,7 @@
       "approvals": "Persetujuan",
       "companies": "Perusahaan",
       "contacts": "Kontak",
-      "dashboard": "Dashboard",
+      "dashboard": "Dasbor",
       "incidents": "Insiden",
       "incomingPayments": "Pembayaran Masuk",
       "integrations": "Integrasi saya",
@@ -3279,10 +3296,10 @@
   },
   "task": {
     "status": {
-      "blocked": "Blocked",
-      "done": "Done",
-      "inProgress": "In Progress",
-      "toDo": "To Do"
+      "blocked": "Terhambat",
+      "done": "Selesai",
+      "inProgress": "Sedang dikerjakan",
+      "toDo": "Akan dikerjakan"
     }
   },
   "tax": {
@@ -3559,7 +3576,7 @@
         "inherit": "Default organisasi",
         "inheritWithEffective": "Default organisasi: {{value}}",
         "id": "Bahasa Indonesia",
-        "en": "English"
+        "en": "Inggris"
       },
       "effective": "Bahasa aktif: {{value}}"
     },
@@ -3736,7 +3753,6 @@
     "salesInvoices": "Faktur Penjualan",
     "newInvoice": "Faktur Baru",
     "filterByStatus": "Filter berdasarkan status",
-    
     "searchInvoices": "Cari faktur…",
     "searchSalesInvoices": "Cari faktur penjualan",
     "noSalesInvoicesYet": "Belum ada faktur",
@@ -3896,7 +3912,11 @@
     "activateEditorBlocked": "Anda menyusun draf atau mengedit versi ini, jadi orang lain yang harus mengaktifkannya.",
     "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkannya.",
     "recordYourFirstPaymentReceivedFromAClient": "Gunakan Terima pembayaran saat klien membayar.",
-    "createYourFirstInvoiceToStartBillingClients": "Gunakan Faktur Baru untuk mulai menagih."
+    "createYourFirstInvoiceToStartBillingClients": "Gunakan Faktur Baru untuk mulai menagih.",
+    "owner": "Pemilik",
+    "ownerYou": "Anda",
+    "ownerTeammate": "Rekan tim",
+    "sharedWithOrg": "dibagikan ke organisasi"
   },
   "viewBuilder": {
     "privateScope": "Pribadi: hanya Anda",
@@ -3923,11 +3943,11 @@
     "panelList": "Daftar panel",
     "movePanelUp": "Pindahkan panel {{number}} ke atas",
     "movePanelDown": "Pindahkan panel {{number}} ke bawah",
-    "editPanel": "Edit panel {{number}}",
-    "edit": "Edit",
+    "editPanel": "Ubah panel {{number}}",
+    "edit": "Ubah",
     "removePanel": "Hapus panel {{number}}",
     "remove": "Hapus",
-    "editPanelTitle": "Edit panel",
+    "editPanelTitle": "Ubah panel",
     "addPanelTitle": "Tambah panel",
     "configurePanel": "Atur sumber data panel ini",
     "updatePanel": "Perbarui panel",
@@ -4420,7 +4440,9 @@
     "holdersUnavailable": "Belum bisa memeriksa siapa yang memegang peran ini.",
     "routeUnavailable": "Belum bisa memastikan siapa yang dapat menyetujui saat ini.",
     "noEligible": "Tidak ada yang terdaftar dapat menyetujui saat ini. Hanya Admin yang dapat memutuskan.",
-    "escalate": "Tidak ada yang terdaftar dapat menyetujui saat ini. Penyetuju overhead yang memutuskan."
+    "escalate": "Tidak ada yang terdaftar dapat menyetujui saat ini. Penyetuju overhead yang memutuskan.",
+    "peopleLoadError": "Tidak bisa membaca daftar orang yang diperiksa layar ini",
+    "peopleLoadErrorSub": "Siapa yang bisa menyetujui sekarang tidak dapat diverifikasi. Daftar penyetuju di bawah tidak terpengaruh."
   },
   "uxs38": {
     "emptyScope": "Catatan akuntansi tidak pernah berubah.",
@@ -4585,7 +4607,7 @@
   },
   "uxs21": {
     "listUnavailable": "Daftar tidak tersedia. Tautan tersimpan tetap ada.",
-    "listDetailsLoading": "Memuat detail daftar\u2026",
+    "listDetailsLoading": "Memuat detail daftar…",
     "initialSourceLabel": "Sumber awal",
     "sourcePmo": "Mulai dengan tugas PMO",
     "sourceClickUp": "Mulai dengan tugas yang sudah ada di daftar ClickUp",
@@ -4839,5 +4861,14 @@
       "summary": "Tertaut: {{linked}} · Perlu pilihan Anda: {{needsChoice}} · Tidak ada folder yang cocok atau tanpa kode: {{missing}} · Gagal: {{failed}} · Sudah tertaut: {{skipped}}",
       "resolve": "Untuk menyelesaikannya, buka proyek atau kasus, lalu gunakan \"Pilih folder yang ada\" atau \"Buat folder di SharePoint\"."
     }
+  },
+  "export": {
+    "failed": "Ekspor tidak dapat diselesaikan. Coba lagi."
+  },
+  "notFound": {
+    "region": "Halaman tidak ditemukan",
+    "title": "Halaman tidak ditemukan",
+    "body": "Halaman yang Anda cari tidak ada atau sudah dipindahkan.",
+    "back": "Kembali ke Dasbor"
   }
 }

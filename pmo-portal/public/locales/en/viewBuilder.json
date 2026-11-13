@@ -14,5 +14,42 @@
   "incompleteFilter": "Complete or remove each filter row before saving.",
   "removePanelConfirmTitle": "Remove this panel?",
   "removePanelConfirmDescription": "The {{primitive}} panel for {{entity}} will be removed from this view draft. Other panels stay.",
-  "removePanelConfirm": "Remove panel"
+  "removePanelConfirm": "Remove panel",
+  "aggregateFn": {
+    "count": "Count",
+    "sum": "Sum",
+    "average": "Average",
+    "lowest": "Lowest",
+    "highest": "Highest"
+  },
+  "validation": {
+    "generic": "The view is not valid yet. Review the panels and save again.",
+    "unknownEntity": "A panel asks for a data source the app does not have. Open that panel and choose an existing data source.",
+    "unknownColumn": "A panel uses a column the app does not have. Open that panel and choose an existing column.",
+    "unknownOp": "A filter compares in a way the app does not support. Open that filter and choose another comparison.",
+    "nonNumericAggregate": "A total is asked for on a column that is not a number. Choose a numeric column for the total.",
+    "invalidLimit": "The row limit is not a valid number. Set a row limit and save again.",
+    "unknownToken": "A filter value uses a token the app does not know. Remove it, or use $current_team or $current_project.",
+    "missingRequiredFilter": "This view needs a filter. Add one and save again.",
+    "unresolvableToken": "A filter uses a token that cannot be filled in here. Replace it with a value.",
+    "notGroupableColumn": "This view groups by a column that cannot be grouped. Choose another column.",
+    "unknownPrimitive": "A panel type is not available in the app. Remove that panel or choose another type.",
+    "unsupportedVersion": "This view was built by another version of the builder. Rebuild it and save again."
+  },
+  "ai": {
+    "errorInvalidView": "Couldn't generate a valid view for that description. Try rephrasing or being more specific.",
+    "errorLimit": "You've reached the AI compose limit. Try again later.",
+    "errorAuth": "Authentication required. Please sign in again.",
+    "errorUnavailable": "AI compose is temporarily unavailable. Please try again later.",
+    "errorClientValidation": "The composed view failed client-side validation. Try rephrasing."
+  },
+  "renderer": {
+    "loadErrorTitle": "Could not load this view.",
+    "loadErrorSub": "A network or server error occurred. Please try again.",
+    "notFoundTitle": "This view was not found.",
+    "notFoundSub": "The view may have been removed, or you may not have access.",
+    "goToDashboard": "Go to Dashboard",
+    "invalidTitle": "This view's definition is invalid.",
+    "invalidSub": "The view cannot be rendered because its specification is invalid."
+  }
 }

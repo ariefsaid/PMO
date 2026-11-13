@@ -208,6 +208,16 @@ describe('StockSetup view-as and failed loads', () => {
   });
 });
 
+describe('C13 the keepers fact reaches the writer, not only the reader', () => {
+  it("C13 the keepers cell names them for a writer too, instead of showing a count", async () => {
+    master.listKeepers.mockResolvedValue([{ warehouse_id: 'w1', user_id: 'p1', org_id: 'org-1' }]);
+    renderPage('Admin');
+    await userEvent.click(await screen.findByRole('tab', { name: 'Warehouses' }));
+    const table = await screen.findByRole('table', { name: 'Warehouses' });
+    expect(within(table).getByRole('button', { name: /^Keepers/ })).toHaveTextContent(/Ayu Keeper/);
+  });
+});
+
 describe('StockSetup writes', () => {
   it('FR-STK-007 creating a unit passes the typed text and the whole-number flag, never an org id', async () => {
     renderPage('Project Manager');

@@ -1,8 +1,8 @@
 import { formatDay } from '@/src/lib/format';
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import i18next from 'i18next';
@@ -29,7 +29,19 @@ const entry = (seq: number, over: Record<string, unknown> = {}) => ({
 
 const renderPage = (path = '/stock/ledger', props: { projectId?: string; embedded?: boolean } = {}) => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={qc}><ToastProvider><MemoryRouter initialEntries={[path]}><StockLedger {...props} /></MemoryRouter></ToastProvider></QueryClientProvider>);
+  return render(
+    <QueryClientProvider client={qc}>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/stock/documents" element={<p>documents page</p>} />
+            <Route path="/stock/documents/:documentId" element={<p>document page</p>} />
+            <Route path="*" element={<StockLedger {...props} />} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
+    </QueryClientProvider>,
+  );
 };
 
 beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true); });
@@ -140,5 +152,81 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     renderPage('/projects/p1', { projectId: 'p1', embedded: true });
     await screen.findByText('Eka Engineer');
     expect(reports.ledgerPage.mock.calls[0][0]).toMatchObject({ projectId: 'p1' });
+  });
+});
+
+/** Floor list (all-screens/floor-tests/stock-ledger.md): the items this suite did not yet cover. */
+describe('FR-STK-041 floor: every control on the trace still works', () => {
+  it('the stock section strip opens Documents from the ledger', async () => {
+    renderPage();
+    await screen.findByText('Eka Engineer');
+    await userEvent.click(screen.getByRole('link', { name: 'Documents' }));
+    expect(await screen.findByText('documents page')).toBeInTheDocument();
+  });
+
+  it('choosing an item and then a warehouse narrows the trace and the URL', async () => {
+    master.listItems.mockResolvedValue([
+      { id: 'i1', code: 'CEM', name: 'Cement 50kg', archived_at: null },
+      { id: 'i2', code: 'CAB', name: 'Cable 4mm', archived_at: null },
+    ]);
+    master.listWarehouses.mockResolvedValue([
+      { id: 'w1', code: 'SITE-A', name: 'Site A', archived_at: null },
+      { id: 'w2', code: 'SITE-B', name: 'Site B', archived_at: null },
+    ]);
+    renderPage();
+    await screen.findByText('Eka Engineer');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Item' }), 'i2');
+    await vi.waitFor(() => expect(reports.ledgerPage.mock.calls.at(-1)?.[0]).toMatchObject({ itemId: 'i2' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Warehouse' }), 'w2');
+    await vi.waitFor(() => expect(reports.ledgerPage.mock.calls.at(-1)?.[0]).toMatchObject({ itemId: 'i2', warehouseId: 'w2' }));
+  });
+
+  it('From and To set the window the trace reads, and entries outside it leave the table', async () => {
+    reports.ledgerPage.mockImplementation((f?: { from?: string; to?: string }) => Promise.resolve(
+      f?.from || f?.to
+        ? { rows: [entry(2)], nextBeforeSeq: null }
+        : { rows: [entry(2), entry(1, { id: 'e1', documentNumber: 'ISS-1' })], nextBeforeSeq: null },
+    ));
+    renderPage();
+    await screen.findByText('ISS-1');
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-10-01' } });
+    await vi.waitFor(() => expect(reports.ledgerPage.mock.calls.at(-1)?.[0]).toMatchObject({ from: '2026-10-01' }));
+    expect(screen.queryByText('ISS-1')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-10-31' } });
+    await vi.waitFor(() => expect(reports.ledgerPage.mock.calls.at(-1)?.[0]).toMatchObject({ from: '2026-10-01', to: '2026-10-31' }));
+  });
+
+  it('the document number opens that stock document record', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole('link', { name: 'ISS-2' }));
+    expect(await screen.findByText('document page')).toBeInTheDocument();
+  });
+
+  it('C13 the From and To fields say which date they bound, and the date they bound is on the table', async () => {
+    renderPage();
+    await screen.findByText('Eka Engineer');
+    expect(screen.getByText('From and To filter the movement date (the Date column), not when the entry was posted.')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Date' })).toBeInTheDocument();
+  });
+
+  it('C13 a cost-rank role always sees the value columns, never a ledger with no money', async () => {
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(2, { valueDelta: '-1500000.00', valueAfter: '3500000.00' })], nextBeforeSeq: null });
+    renderPage();
+    const table = await screen.findByRole('table');
+    expect(within(table).getByRole('columnheader', { name: 'Value change' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Value balance' })).toBeInTheDocument();
+  });
+
+  it('C1 a failed next page says so, and its Retry follows the cursor again', async () => {
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(9)], nextBeforeSeq: 9 });
+    reports.ledgerPage.mockRejectedValueOnce(new AppError('boom'));
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(8, { documentNumber: 'ISS-8' })], nextBeforeSeq: null });
+    renderPage();
+    await screen.findByText('ISS-9');
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByText("Couldn't load more entries")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('ISS-8')).toBeInTheDocument();
+    expect(reports.ledgerPage.mock.calls[2][0]).toMatchObject({ beforeSeq: 9 });
   });
 });
