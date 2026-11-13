@@ -5,8 +5,6 @@
   "goShort": "Go",
   "chanceShort": "Peluang {{pct}}",
   "chanceValue": "{{pct}}%",
-  "chanceHeader": "Peluang",
-  "boardFigureContext": "Konteks angka papan",
   "chanceBadgeAria": "Peluang {{chance}}; % Go {{go}}, % Get {{get}}",
   "exclusiveTaxSummary": "tidak termasuk PPN",
   "getShort": "Get",

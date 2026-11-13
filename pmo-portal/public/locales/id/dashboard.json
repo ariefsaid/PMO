@@ -750,7 +750,12 @@
       "weekStrip": "Jam per hari minggu ini",
       "otherProjects": "Lainnya",
       "hoursByProject": "Jam per proyek minggu ini",
-      "reasonNoHours": "belum ada waktu dicatat minggu ini"
+      "reasonNoHours": "belum ada waktu dicatat minggu ini",
+      "dayUnread": "Tanggal hari ini tidak dapat dibaca",
+      "dueTodayFinding_one": "{{count}} jatuh tempo hari ini",
+      "dueTodayFinding_other": "{{count}} jatuh tempo hari ini",
+      "tasksOverdueFinding_one": "{{count}} terlambat",
+      "tasksOverdueFinding_other": "{{count}} terlambat"
     },
     "help": {
       "basis": "Posisi hari ini dalam mata uang tiap catatan. Ditagih, diterima, dan menang mengikuti periode yang dipilih.",

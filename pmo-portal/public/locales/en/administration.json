@@ -171,6 +171,7 @@
       "tabs": "Directories",
       "unavailable": "Odoo is missing an app this list needs",
       "unavailableWhy": "Missing: {{missing}}. Install or allow it in Odoo, then Re-check on the Integrations page.",
+      "connect": "Connect Odoo",
       "hidden": "{{inactive}} inactive · {{deleted}} deleted in Odoo",
       "locationsCut": "Some locations are not shown.",
       "asOf": "As of {{when}}",
