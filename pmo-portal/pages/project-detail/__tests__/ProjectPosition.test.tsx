@@ -573,6 +573,30 @@ describe('contract billing block', () => {
     expect(screen.getByTestId('project-finances-contract-basis')).toHaveTextContent('excl. PPN');
   });
 
+  it('floor: Money position Details opens and collapses the full finance breakdown', async () => {
+    state.role = 'Finance';
+    state.finances = {
+      contract_invoiced: '250', remaining_to_invoice: '750',
+      invoices: [{ currency: 'USD', invoice_count: 2, invoiced: '250', settled: '100', outstanding: '150', missing_outstanding: 0, work_revenue: '230', tax_basis: 'mixed' }],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '100' }] },
+      actuals: { currency: 'USD', total: '100.00', as_of: '2026-10-25T00:00:00Z', excludes_restricted_rows: true, tagged_total: '80.00', attributed_total: '20.00', categories: [{ category: 'Labor', mapped: true, amount: '100.00', attributed_amount: '20.00' }] },
+    };
+
+    renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
+    const details = screen.getByRole('button', { name: 'Details' });
+    expect(details).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('heading', { name: 'Project finances' })).not.toBeInTheDocument();
+
+    await userEvent.click(details);
+    expect(details).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('heading', { name: 'Project finances' })).toBeInTheDocument();
+    expect(screen.getByText('2 invoices')).toBeInTheDocument();
+
+    await userEvent.click(details);
+    expect(details).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('heading', { name: 'Project finances' })).not.toBeInTheDocument();
+  });
+
   it('shows the contract-to-paid cascade from BoQ, work-order allocation, and invoice facts', () => {
     state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
     state.billing = { contractLines: [{ allocations: [
