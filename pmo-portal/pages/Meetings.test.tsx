@@ -650,7 +650,8 @@ describe('Meetings — floor: row menu actions (floor-tests/meetings.md 7-9)', (
     await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
 
-    const dialog = await screen.findByRole('dialog', { name: /Delete Kickoff with Acme\?/ });
+    // The delete confirm keeps the destructive tone, which renders role="alertdialog".
+    const dialog = await screen.findByRole('alertdialog', { name: /Delete Kickoff with Acme\?/ });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Delete meeting' }));
 
     await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('m1'));
