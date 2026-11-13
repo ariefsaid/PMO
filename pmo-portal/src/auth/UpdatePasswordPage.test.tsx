@@ -106,6 +106,9 @@ describe('UpdatePasswordPage', () => {
     await waitFor(() => expect(screen.getByLabelText(/new password/i)).toBeVisible());
     expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /set new password/i })).toBeInTheDocument();
+    expect(screen.getByText('PMO Portal')).toBeInTheDocument();
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
   it('AC-AUTHF-011: mismatched passwords show an inline error and do NOT call updateUser', async () => {
@@ -183,12 +186,15 @@ describe('UpdatePasswordPage', () => {
       'href',
       '/reset-password'
     );
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toHaveAttribute('href', '/login');
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     // The 'Request a new link' control is a SINGLE <Link> — no <button> nested in an <a>
     // (invalid HTML; interactive-in-interactive; was producing two tab stops, same name).
     expect(screen.queryByRole('button', { name: /request a new link/i })).toBeNull();
     // Landmark: the page exposes a single <main> around the card content.
     expect(screen.getByRole('main')).toBeInTheDocument();
-    expect(screen.queryByText('PMO Portal')).toBeNull();
+    expect(screen.getByText('PMO Portal')).toBeInTheDocument();
     expect(screen.queryByLabelText(/new password/i)).toBeNull();
   });
 
@@ -204,6 +210,57 @@ describe('UpdatePasswordPage', () => {
     expect(screen.getByText(/invalid or expired/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/new password/i)).toBeNull();
     expect(screen.queryByLabelText(/confirm password/i)).toBeNull();
+  });
+
+  it('a signed-in person gets Back to the app at / from the expired view', async () => {
+    window.history.replaceState({}, '', '/update-password');
+    auth.getSession.mockResolvedValue({
+      data: { session: { user: { id: 'u1', user_metadata: {} } } },
+    });
+    renderPage();
+    const backToApp = await screen.findByRole('link', { name: 'Back to the app' });
+    expect(backToApp).toHaveAttribute('href', '/');
+    expect(screen.queryByLabelText(/new password/i)).toBeNull();
+  });
+
+  it('a blank password submission says the password is missing and does not call updateUser', async () => {
+    window.history.replaceState({}, '', '/update-password?type=recovery&token=abc');
+    auth.getSession.mockResolvedValue({
+      data: { session: { user: { id: 'u1', user_metadata: {} } } },
+    });
+    renderPage();
+    await waitFor(() => expect(screen.getByLabelText(/new password/i)).toBeVisible());
+    await userEvent.click(screen.getByRole('button', { name: /set new password/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter a new password.');
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/passwords do not match/i);
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('a rejected recovery-session read settles on the existing expired view', async () => {
+    window.history.replaceState({}, '', '/update-password?type=recovery&token=abc');
+    auth.getSession
+      .mockRejectedValueOnce(new Error('page recovery session read failed'))
+      .mockResolvedValueOnce({ data: { session: null } });
+    renderPage();
+    await waitFor(() => expect(auth.getSession).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(/invalid or expired/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Set your password' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /request a new link/i })).toHaveAttribute(
+      'href',
+      '/reset-password',
+    );
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toHaveAttribute('href', '/login');
+    expect(screen.queryByText(/verifying your link/i)).toBeNull();
+    expect(screen.queryByLabelText(/new password/i)).toBeNull();
+  });
+
+  it('the verifying view has one main landmark and one page heading', async () => {
+    window.history.replaceState({}, '', '/update-password?type=recovery&token=abc');
+    auth.getSession.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Verifying your link' })).toBeInTheDocument();
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
   it('AC-AUTHF-015: params + no session (invalid/expired token) renders the expired state', async () => {
@@ -267,6 +324,29 @@ describe('C4: the password-setting flow reads in Indonesian', () => {
     );
   }
 
+  async function renderLocalizedSignedInExpired() {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: false,
+      defaultNS: 'auth',
+      resources: { en: { auth: authEn }, id: { auth: authId } },
+    });
+    window.history.replaceState({}, '', '/update-password');
+    auth.getSession.mockResolvedValue({
+      data: { session: { user: { id: 'u1', user_metadata: {} } } },
+    });
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <AuthProvider>
+          <MemoryRouter>
+            <UpdatePasswordPage />
+          </MemoryRouter>
+        </AuthProvider>
+      </I18nextProvider>,
+    );
+  }
+
   it('the form, its labels and its mismatch message come from the auth catalogue', async () => {
     const user = userEvent.setup();
     await renderLocalized();
@@ -290,5 +370,21 @@ describe('C4: the password-setting flow reads in Indonesian', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Pilih kata sandi yang lebih kuat.');
     expect(alert.textContent ?? '').not.toMatch(/at least 10 characters/);
+  });
+
+  it('the missing-password message and signed-in return link read in Indonesian', async () => {
+    await renderLocalizedSignedInExpired();
+    const backToApp = await screen.findByRole('link', { name: 'Kembali ke aplikasi' });
+    expect(backToApp).toHaveAttribute('href', '/');
+    expect(screen.queryByRole('link', { name: 'Back to the app' })).toBeNull();
+    expect(screen.queryByLabelText(/kata sandi baru/i)).toBeNull();
+  });
+
+  it('a blank password submission names the missing password in Indonesian', async () => {
+    await renderLocalized();
+    await userEvent.click(await screen.findByRole('button', { name: 'Simpan kata sandi baru' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Masukkan kata sandi baru.');
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/kata sandi tidak sama/i);
+    expect(auth.updateUser).not.toHaveBeenCalled();
   });
 });
