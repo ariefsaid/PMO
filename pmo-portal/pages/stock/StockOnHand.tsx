@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, useUrlFilters, type Column } from '@/src/components/ui';
+import { Button, Checkbox, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, useUrlFilters, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -138,9 +138,21 @@ const StockOnHand: React.FC = () => {
 
   return (
     <ListPage
-      title={t('onHand.title')}
-      count={state === undefined ? rows.length : undefined}
-      total={state === undefined ? allRows.length : undefined}
+      title={
+        <>
+          {t('onHand.title')}
+          {state === undefined && (
+            /* The count is a count OF BALANCES: the title says so, so "21" never stands alone. */
+            <span className="ml-2.5 align-middle text-control font-semibold tabular-nums text-muted-foreground">
+              {rows.length < allRows.length
+                ? t('onHand.countOfTotal', 'Showing {{shown}} of {{total}} balances', { shown: rows.length, total: allRows.length })
+                : rows.length === 1
+                  ? t('onHand.countOne', '1 balance')
+                  : t('onHand.count', '{{shown}} balances', { shown: rows.length })}
+            </span>
+          )}
+        </>
+      }
       primaryAction={canMove && (
         <div className="flex items-center gap-2">
           <Link to="/stock/new/issue" className="inline-flex">
@@ -156,10 +168,9 @@ const StockOnHand: React.FC = () => {
     >
       <StockTabs />
       <StockFilters>
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <input type="checkbox" checked={belowOnly} onChange={(e) => setBelowOnly(e.target.checked)} />
-            {t('onHand.filters.belowReorder')}
-          </label>
+        {/* One row of fields on a phone (the labels are hidden), then the two boxes on one line,
+            so the four filters take two rows instead of half of the first screen. */}
+        <div className="grid w-full grid-cols-2 gap-2 md:contents">
           <SelectField
             label={t('onHand.filters.warehouse')}
             hideLabel
@@ -169,10 +180,23 @@ const StockOnHand: React.FC = () => {
             placeholder={t('onHand.filters.allWarehouses')}
           />
           <TextField label={t('onHand.filters.search')} hideLabel value={search} onChange={setSearch} placeholder={t('onHand.filters.search')} type="search" />
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={includeZero} onChange={(e) => setIncludeZero(e.target.checked)} />
-            {t('onHand.filters.includeZero')}
-          </label>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          {/* The shared Checkbox, in a row the same height as the fields beside it, so the box and the
+              select share one baseline instead of the box sitting lower. */}
+          <div className="flex min-h-8 items-center gap-2">
+            <Checkbox checked={belowOnly} onChange={setBelowOnly} labelledBy="stock-on-hand-below-reorder" />
+            <span id="stock-on-hand-below-reorder" className="cursor-pointer select-none text-sm font-medium" onClick={() => setBelowOnly(!belowOnly)}>
+              {t('onHand.filters.belowReorder')}
+            </span>
+          </div>
+          <div className="flex min-h-8 items-center gap-2">
+            <Checkbox checked={includeZero} onChange={setIncludeZero} labelledBy="stock-on-hand-include-zero" />
+            <span id="stock-on-hand-include-zero" className="cursor-pointer select-none text-sm" onClick={() => setIncludeZero(!includeZero)}>
+              {t('onHand.filters.includeZero')}
+            </span>
+          </div>
+        </div>
       </StockFilters>
       {state === undefined && (
         <p className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
@@ -208,6 +232,30 @@ const StockOnHand: React.FC = () => {
           rowKey={(r) => `${r.itemId}:${r.warehouseId}`}
           tableId="stock-on-hand"
           accessibleName={t('onHand.title')}
+          // A balance is one line of identity and one line of figures on a phone — not a five-line
+          // card per balance. Every fact of the row stays: code, name, store, quantity with its unit, value.
+          mobileCardTitle={(r) => (
+            <div className="min-w-0">
+              <span className="block font-mono text-sm font-semibold">{r.itemCode}</span>
+              <span className="block text-sm font-normal text-muted-foreground">{r.itemName}</span>
+            </div>
+          )}
+          mobileCardDetails={(r) => (
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
+              <span className="min-w-0">
+                <span className="text-muted-foreground">{t('onHand.columns.warehouse')} </span>
+                {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="font-mono text-muted-foreground"> · {r.warehouseCode}</span>}
+              </span>
+              <span className="tabular-nums font-semibold">
+                {formatQuantity(r.qtyOnHand, loc)} <span className="font-normal text-muted-foreground">{r.unitCode}</span>
+              </span>
+              {showCost && (
+                <span className="tabular-nums text-muted-foreground">
+                  {t('onHand.columns.value')} {formatStockValue(r.valueOnHand, currency, loc)}
+                </span>
+              )}
+            </div>
+          )}
         />
       )}
     </ListPage>

@@ -21,7 +21,9 @@ export const StockTabs: React.FC = () => {
     ...(may('create', 'stockItem') ? [{ to: '/stock/setup', label: t('tabs.setup'), end: true }] : []),
   ];
   return (
-    <nav aria-label={t('tabs.label')} className="mb-4 flex gap-1 overflow-x-auto border-b border-border">
+    // The strip scrolls sideways at phone width; scroll-fade-x is the shared right-edge fade that says
+    // so, so the last tab (Setup) is never simply cut off with no hint that there is more.
+    <nav aria-label={t('tabs.label')} className="scroll-fade-x mb-4 flex gap-1 overflow-x-auto border-b border-border">
       {tabs.map((x) => (
         <NavLink
           key={x.to}
