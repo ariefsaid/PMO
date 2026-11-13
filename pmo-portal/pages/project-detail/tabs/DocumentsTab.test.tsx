@@ -1141,7 +1141,11 @@ describe('DocumentsTab — floor (register controls)', () => {
     expect(screen.getByText('1 selected')).toBeInTheDocument();
 
     await userEvent.selectOptions(screen.getByLabelText('Filter by category'), 'Drawing');
-    expect(screen.queryByText('Steel Spec')).not.toBeInTheDocument();
+    // Scope the text query to the register table: toasts render into a body portal and Sonner keeps
+    // a still-live earlier toast (its description is a document title), so the whole body is not the
+    // register. The user outcome is that the row left the register while the selection stayed.
+    expect(within(screen.getByRole('table')).queryByText('Steel Spec')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'View Steel Spec' })).not.toBeInTheDocument();
     expect(screen.getByText('1 selected')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
@@ -1155,7 +1159,9 @@ describe('DocumentsTab — floor (register controls)', () => {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     try {
       renderTab('Admin', 'admin-1');
-      const row = screen.getByText('Site Plan').closest('tr')!;
+      // Locate the row by its activation control, not by loose page text: a toast portal can also
+      // carry a document title, and this suite's own toasts outlive their provider for a few seconds.
+      const row = screen.getByRole('button', { name: 'View Site Plan' }).closest('tr')!;
       await user.click(within(row).getByRole('button', { name: /Row actions/i }));
       await user.click(await screen.findByRole('menuitem', { name: 'Copy link' }));
       await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
@@ -1168,7 +1174,7 @@ describe('DocumentsTab — floor (register controls)', () => {
 
   it('floor: the SoD notice explains why review is unavailable and can be dismissed', async () => {
     renderTab('Project Manager', 'pm-1');
-    const row = screen.getByText('Steel Spec').closest('tr')!;
+    const row = screen.getByRole('button', { name: 'View Steel Spec' }).closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(await screen.findByRole('menuitem', { name: /Why is review unavailable/i }));
     const gate = screen.getByTestId('document-sod-gate');
