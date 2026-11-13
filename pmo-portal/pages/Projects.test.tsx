@@ -441,7 +441,7 @@ describe('Projects secondary reads keep the active view mounted (C22)', () => {
         categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }],
       },
       activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
-      ledgerBasis: 'erp',
+      ledgerBasis: 'erp' as const,
       budgetPosition: canonicalPosition({ spent: '450000.00', consumption: '450000.00', usedRatio: '0.9', usedPercent: '90', consumptionVariance: '-50000.00', atRisk: true }),
     },
   };
