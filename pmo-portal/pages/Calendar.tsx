@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, PageHeader, useToast } from '@/src/components/ui';
 import { WorkCalendar } from '@/src/components/calendar/WorkCalendar';
@@ -55,6 +55,10 @@ const CalendarPage: React.FC = () => {
   const currentUserId = currentUser?.id;
   const taskList = useMemo(() => tasks.data ?? [], [tasks.data]);
   const milestoneList = useMemo(() => milestones.data ?? [], [milestones.data]);
+  // Move 1: the empty-month line waits for both reads to answer — work in flight is not "nothing
+  // due", and a failed phase read is unknown, not empty (its own warning already speaks).
+  const emptyMonthPending = tasks.isFetching || !tasks.data
+    || Boolean(projects.isFetching || milestones.isFetching);
 
   const canMoveTask = useCallback((task: WorkTask) => synced && may('edit', 'task', {
     currentUserId,
@@ -137,6 +141,17 @@ const CalendarPage: React.FC = () => {
           onMoveError={onMoveError}
           onWindowChange={setWindow}
           onOpenItem={onOpenItem}
+          emptyMonth={phasesUnavailable ? undefined : {
+            pending: emptyMonthPending,
+            action: (
+              <Link
+                to="/my-tasks"
+                className="rounded font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t('emptyMonthAction', 'My Tasks')}
+              </Link>
+            ),
+          }}
         />
       )}
     </div>

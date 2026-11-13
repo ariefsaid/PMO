@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import {
   EventCalendar,
   useEventCalendarNavigation,
+  useEventCalendarOccurrences,
   useEventCalendarView,
 } from '@/src/components/reui/event-calendar/event-calendar';
 import { EventCalendarContent } from '@/src/components/reui/event-calendar/event-calendar-content';
@@ -55,7 +56,35 @@ export interface WorkCalendarProps {
   onMoveError?: (err: unknown, task: WorkTask) => void;
   /** Called after a drag that the viewer may not make. */
   onMoveBlocked?: () => void;
+  /**
+   * Judging calendar #1: the host's ruled empty state for a month with nothing due. Presence opts
+   * in (the project Tasks tab renders this calendar too and passes nothing). `pending` holds the
+   * line back while the window's read is in flight — an answer in flight is not "nothing due".
+   */
+  emptyMonth?: { action?: React.ReactNode; pending?: boolean };
 }
+
+/**
+ * One line under the toolbar when the visible month holds no task and no milestone, plus the
+ * host's action (the calendar route links to My Tasks). Month view only: the agenda already names
+ * its own empty period, so this would be the same sentence twice.
+ */
+const EmptyMonth: React.FC<{ action?: React.ReactNode }> = ({ action }) => {
+  const { t } = useTranslation('calendar');
+  const { title } = useEventCalendarNavigation();
+  const { view } = useEventCalendarView();
+  const occurrences = useEventCalendarOccurrences<WorkItem>();
+  if (view !== 'month' || occurrences.length > 0) return null;
+  return (
+    <p
+      data-testid="work-calendar-empty-month"
+      className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-control text-muted-foreground"
+    >
+      {t('emptyMonth', 'No tasks or milestones due in {{range}}', { range: title })}
+      {action}
+    </p>
+  );
+};
 
 const Toolbar: React.FC = () => {
   const { t } = useTranslation('calendar');
@@ -85,7 +114,7 @@ const Toolbar: React.FC = () => {
 };
 
 export const WorkCalendar: React.FC<WorkCalendarProps> = ({
-  tasks, milestones, loading, initialDate, withProject, today, lateLabel, canMoveTask, onMoveTask, onWindowChange, onOpenItem, onMoveError, onMoveBlocked,
+  tasks, milestones, loading, initialDate, withProject, today, lateLabel, canMoveTask, onMoveTask, onWindowChange, onOpenItem, onMoveError, onMoveBlocked, emptyMonth,
 }) => {
   const { t } = useTranslation('calendar');
   const taskKindLabel = t('eventKind.task', 'Task');
@@ -173,6 +202,7 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
         className="min-h-[34rem] flex-1 text-control!"
       >
         <Toolbar />
+        {emptyMonth && !emptyMonth.pending && !loading && <EmptyMonth action={emptyMonth.action} />}
         <EventCalendarContent className="rounded-lg border border-border bg-card" />
       </EventCalendar>
       <ConfirmDialog
