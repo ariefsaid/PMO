@@ -312,8 +312,7 @@
       "allWarehouses": "Semua gudang",
       "from": "Dari",
       "to": "Sampai",
-      "oneDocument": "Satu dokumen",
-      "dateHelp": "Dari dan Sampai menyaring tanggal pergerakan (kolom Tanggal), bukan waktu pencatatannya."
+      "oneDocument": "Satu dokumen"
     },
     "loadMore": "Muat lebih banyak",
     "end": "{{count}} catatan, akhir buku stok",
