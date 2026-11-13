@@ -68,7 +68,8 @@ const dealChance = (project: PipelineProject): number =>
 const chanceNumber = (project: PipelineProject): string => formatPercent(dealChance(project)).replace(/\s*%$/, '');
 
 /** #1638 FR-PSH-013: one line for the latest stage entry; lost deals date from decided_at (an instant). */
-const DealStageLine: React.FC<{ project: PipelineProject }> = ({ project }) => {  const { t } = useTranslation();
+const DealStageLine: React.FC<{ project: PipelineProject }> = ({ project }) => {
+  const { t } = useTranslation();
   const today = useOrgToday();
   const lost = project.status === 'Loss Tender' || project.status === 'Declined';
   const enteredOn = lost

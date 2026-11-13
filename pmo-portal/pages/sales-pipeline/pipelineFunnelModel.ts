@@ -74,9 +74,9 @@ export function projectFunnelModel(
       totalValue: s?.total_value ?? 0,
       weightedValue: weighted,
       // ONE scale across the band: the largest stage is the full bar. A stage whose figure is
-      // withheld (two currencies in it, or a mixed pipeline) draws no bar — a bar over a sum the
-      // band refuses to print would be a second, invented number.
-      barPct: mixedPipeline || mixedStage || !s || s.count === 0
+      // withheld (a mixed pipeline) draws no bar — a bar over a sum the band refuses to print
+      // would be a second, invented number.
+      barPct: mixedPipeline || !s || s.count === 0
         ? undefined
         : maxTotalValue > 0
           ? (s.total_value / maxTotalValue) * 100

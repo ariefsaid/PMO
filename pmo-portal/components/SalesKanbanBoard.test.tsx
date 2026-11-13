@@ -327,7 +327,8 @@ describe('the chance badge states the percent once', () => {
   });
 });
 
-describe('SalesKanbanBoard stage line + Signed pill (#1638)', () => {  beforeEach(() => { vi.useFakeTimers({ now: new Date('2026-11-01T05:00:00Z'), toFake: ['Date'] }); });
+describe('SalesKanbanBoard stage line + Signed pill (#1638)', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: new Date('2026-11-01T05:00:00Z'), toFake: ['Date'] }); });
   afterEach(() => { vi.useRealTimers(); });
 
   it('AC-PSH-011: an open deal card shows one stage line for its latest entry', () => {

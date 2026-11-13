@@ -1013,6 +1013,7 @@ describe('SalesPipeline tax basis: once in the band caption (move 4)', () => {
 
     const words = screen.getAllByText('excl. PPN', { exact: true });
     expect(words).toHaveLength(1);
+    expect(within(screen.getByLabelText('Pipeline summary')).getByTestId('pipeline-funnel-taxbasis')).toHaveTextContent('excl. PPN');
     expect(within(screen.getByLabelText('Pipeline summary')).getByTestId('pipeline-funnel-scale')).toContainElement(words[0]);
     expect(screen.queryByText('Chance', { exact: true })).toBeNull();
     // The cards are still qualified — the one shared word covers them, so none repeats it.

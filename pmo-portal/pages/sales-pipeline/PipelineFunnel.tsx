@@ -79,7 +79,12 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
           board that named a column the board does not have. */}
       <p data-testid="pipeline-funnel-scale" className="mt-2 text-control text-muted-foreground">
         {t('sales:pipeline.funnelScale', 'Open value, one scale')}
-        {taxBasis && <>{' · '}{taxBasis}</>}
+        {taxBasis && (
+          <>
+            {' · '}
+            <span data-testid="pipeline-funnel-taxbasis">{taxBasis}</span>
+          </>
+        )}
       </p>
     </section>
   );
