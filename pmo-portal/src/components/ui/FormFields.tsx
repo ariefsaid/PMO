@@ -250,6 +250,7 @@ export const TextField: React.FC<TextFieldProps> = ({
           <input
             {...rest}
             {...ctl}
+            aria-invalid={ctl['aria-invalid'] ?? rest['aria-invalid']}
             type={effectiveType}
             value={value}
             onChange={(e) => onChange(e.target.value)}
