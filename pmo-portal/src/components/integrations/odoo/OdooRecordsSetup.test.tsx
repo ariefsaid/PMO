@@ -96,6 +96,20 @@ describe('AC-ODS-004 the analytic plan is chosen once, inside setup', () => {
     expect(screen.queryByRole('button', { name: /Use/ })).toBeNull();
   });
 
+  it('formC keeps Use <name> and Use this plan outlined, as on dev', () => {
+    h.links.data = { planId: null, plans: [{ id: '3', name: 'Projects' }], accounts: [], linked: [] };
+    const { unmount } = renderIt();
+    const named = screen.getByRole('button', { name: 'Use Projects' });
+    expect(named).toHaveClass('bg-card', 'border-border');
+    expect(named).not.toHaveClass('bg-primary');
+    unmount();
+    h.links.data = { planId: null, plans: [{ id: '3', name: 'Projects' }, { id: '5', name: 'Sites' }], accounts: [], linked: [] };
+    renderIt();
+    const usePlan = screen.getByRole('button', { name: 'Use this plan' });
+    expect(usePlan).toHaveClass('bg-card', 'border-border');
+    expect(usePlan).not.toHaveClass('bg-primary');
+  });
+
   it('AC-ODS-004 once a plan is chosen the plan block is gone and the review stays', () => {
     h.links.data = { planId: 7, plans: [], accounts: [], linked: [] };
     renderIt();

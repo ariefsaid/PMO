@@ -61,14 +61,14 @@ function OdooPlanChoice() {
           {plans.length === 1 ? (
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="min-w-0 break-words text-muted-foreground">{t('administration:odoo.records.planProposed', 'Proposed: {{name}}', { name: plans[0].name })}</span>
-              <Button size="sm" variant="primary" loading={busy} onClick={() => { void choose(plans[0].id); }}>
+              <Button size="sm" variant="outline" loading={busy} onClick={() => { void choose(plans[0].id); }}>
                 {t('administration:odoo.records.planUseNamed', 'Use {{name}}', { name: plans[0].name })}
               </Button>
             </div>
           ) : (
             <div className="flex flex-wrap items-end gap-2">
               <SelectField label={t('administration:odoo.projectLink.plan', 'Analytic plan')} value={picked} onChange={setPicked} options={plans.map((p) => ({ value: p.id, label: p.name }))} placeholder={t('administration:odoo.mapOnce.choose', 'Choose…')} />
-              <Button size="sm" variant="primary" loading={busy} disabled={!picked} onClick={() => { void choose(picked); }}>{t('administration:odoo.projectLink.usePlan', 'Use this plan')}</Button>
+              <Button size="sm" variant="outline" loading={busy} disabled={!picked} onClick={() => { void choose(picked); }}>{t('administration:odoo.projectLink.usePlan', 'Use this plan')}</Button>
             </div>
           )}
         </>
