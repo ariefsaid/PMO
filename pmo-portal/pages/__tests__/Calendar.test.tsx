@@ -2,7 +2,7 @@
  * #1982 — the cross-project Calendar page: shows a task on its due date, opens on ?date=, and the
  * drag gate follows the real role's edit permission. REAL WorkCalendar; only hooks/auth are mocked.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -345,6 +345,44 @@ describe('Calendar — move 2: the scope says what is not on this calendar', () 
   it('says meetings are not on this calendar', () => {
     renderPage();
     expect(screen.getByText('Tasks and milestones only — meetings are not on this calendar.')).toBeInTheDocument();
+  });
+});
+
+// Move 3 (judging calendar.md #3): the day number leads the cell (top-left, so position and reading
+// order agree) and today is a ring around the number, exposed as the current date, not colour alone.
+describe('Calendar — move 3: the day number leads the cell, today is marked', () => {
+  beforeEach(() => {
+    // the grid's own "today" reads the clock; pin it so the marker is deterministic
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 10, 10, 9, 0, 0) });
+    calendarState.tasks = [{
+      id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
+      start_date: null, end_date: '2026-11-12', assignee_id: null, assignee_name: null, created_by: null,
+    }];
+    calendarState.milestones = [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }];
+    calendarState.milestonesError = false;
+    calendarState.projectsError = false;
+    resetReads();
+    HTMLElement.prototype.scrollTo = vi.fn();
+    may.mockReturnValue(true);
+    moveTask.mockReset().mockResolvedValue(undefined);
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  const cellFor = (day: number) =>
+    document.querySelector<HTMLElement>(`[data-ec-day="${new Date(2026, 10, day).getTime()}"]`)!;
+  const dayNumber = (day: number) =>
+    cellFor(day).querySelector<HTMLElement>('[data-slot="event-calendar-month-day-number"]')!;
+
+  it('puts the day number first in the cell, before the day it is', () => {
+    renderPage();
+    expect(cellFor(12).firstElementChild).toBe(dayNumber(12).parentElement);
+  });
+
+  it('marks today as the current date on its day number', () => {
+    renderPage();
+    expect(cellFor(10)).toHaveAttribute('data-today');
+    expect(dayNumber(10)).toHaveAttribute('aria-current', 'date');
+    expect(dayNumber(11)).not.toHaveAttribute('aria-current');
   });
 });
 
