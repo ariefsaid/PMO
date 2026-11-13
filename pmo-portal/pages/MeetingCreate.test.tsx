@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
@@ -270,6 +270,112 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     renderPage();
     expect(screen.getByText('You do not have permission to create meetings.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save meeting' })).not.toBeInTheDocument();
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Floor (restructure step 0): every control a person can press, type into or choose on this form
+ * keeps working. One test per control, each asserting the action and its outcome — never a class.
+ */
+describe('floor — the new-meeting controls keep working', () => {
+  it('floor 1: the back control opens the meetings list and creates nothing', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Back to Meetings' }));
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings');
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 3: the When field saves the wall-clock time the person typed', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Design review');
+    fireEvent.change(screen.getByLabelText('When'), { target: { value: '2026-11-13T09:30' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
+    const [payload] = mutations.create.mutateAsync.mock.calls[0] as [{ occurred_at: string }];
+    // The suite pins the form's zone to UTC (test/setup.ts), so 09:30 on that day is that instant.
+    expect(payload.occurred_at).toBe('2026-11-13T09:30:00.000Z');
+  });
+
+  it('floor 4: the Location field is saved with the meeting', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Design review');
+    await userEvent.type(screen.getByLabelText('Location'), 'Site office');
+    await userEvent.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Design review', location: 'Site office' }),
+    ));
+  });
+
+  it('floor 5: the Project select saves the chosen project', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Design review');
+    await userEvent.selectOptions(screen.getByLabelText('Project', { selector: 'select' }), 'p1');
+    await userEvent.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ project_id: 'p1' }),
+    ));
+  });
+
+  it('floor 9: an organisation member can be added and is written as an attendee', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('combobox', { name: 'Add attendee' }));
+    await user.click(await screen.findByRole('option', { name: 'Sam Member' }));
+
+    const list = screen.getByTestId('attendees-list');
+    expect(within(list).getByText('Sam Member')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    await waitFor(() => expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledWith({
+      meetingId: 'meeting-new', identity: { profile_id: 'u2' },
+    }));
+  });
+
+  it('floor 10: a member can be removed from the list before saving', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('combobox', { name: 'Add attendee' }));
+    await user.click(await screen.findByRole('option', { name: 'Sam Member' }));
+    const list = screen.getByTestId('attendees-list');
+    await user.click(within(list).getByRole('button', { name: 'Remove attendee' }));
+    expect(within(list).queryByText('Sam Member')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 13: an added guest can be removed from the list before saving', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.type(screen.getByLabelText(/External guest/), 'Guest One');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    const list = screen.getByTestId('attendees-list');
+    await user.click(within(list).getByRole('button', { name: 'Remove attendee' }));
+    expect(within(list).queryByText('Guest One')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 15: Keep editing stays on the filled form and writes nothing', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Unsaved meeting');
+    await user.click(screen.getByRole('link', { name: 'Meetings' }));
+    await user.click(await screen.findByRole('button', { name: 'Keep editing' }));
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+    expect(screen.getByLabelText(/Title/)).toHaveValue('Unsaved meeting');
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
 });
