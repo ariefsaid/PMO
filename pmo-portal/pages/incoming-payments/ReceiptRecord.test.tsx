@@ -109,6 +109,18 @@ describe('ReceiptRecord', () => {
     expect(screen.getByTestId('receipt-unapplied')).toHaveTextContent('$100.00');
   });
 
+  it('names each missing receipt figure once in the unreported summary', () => {
+    const receipt = {
+      id: 'receipt-missing', org_id: 'org-1', customer_id: null, customer_name: 'Example customer',
+      sales_invoice_id: null, ip_number: 'RCP-MISSING', reference_number: null, date: '2026-10-01',
+      amount: null, currency: 'USD', status: 'Paid', erp_docstatus: 1, erp_modified: null, erp_amended_from: null,
+      erp_cancelled_at: null, created_at: '2026-10-01T00:00:00Z', received_amount: null, withheld_amount: null,
+    } as IncomingPaymentRow;
+    render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={null} onBack={() => {}} /></MemoryRouter>);
+
+    expect(screen.getByText('Not reported: Receipt total, Cash received, Tax withheld, Not yet applied.')).toBeInTheDocument();
+  });
+
   it('AC-WHA-006: a receipt with tax withheld names its withholding article, or says it was not stated', () => {
     const base = {
       id: 'receipt-3', org_id: 'org-1', customer_id: null, customer_name: 'Example customer',
