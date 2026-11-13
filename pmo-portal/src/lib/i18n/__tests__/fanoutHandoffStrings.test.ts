@@ -99,7 +99,9 @@ const A3: Handoff[] = [
 const A7: Handoff[] = [
   ['imprest', 'detail.floatName', 'Float {{id}}', 'Kas kecil {{id}}'],
   ['imprest', 'detail.archived', 'Archived', 'Diarsipkan'],
-  ['imprest', 'detail.positionErrorSub', 'The position read failed. Float actions are unavailable until it is available. No figure is shown. Retry the position read.', 'Pembacaan posisi gagal. Tindakan kas kecil tidak tersedia sampai pembacaan berhasil. Angka tidak ditampilkan. Coba ulangi pembacaan posisi.'],
+  // F2 (Director sitting 11-13): one sentence, no "read", and the Retry button stays — the copy
+  // names what a person sees (no figure) and what is paused, instead of four sentences about a read.
+  ['imprest', 'detail.positionErrorSub', 'No figure is shown and float actions are paused until the position loads.', 'Angka tidak ditampilkan dan tindakan kas kecil dijeda sampai posisi dimuat.'],
   ['imprest', 'counts.loading', 'Loading cash counts…', 'Memuat hitungan kas…'],
   ['procurementCreate', 'currencyError', "Couldn't load your organisation's currency.", 'Mata uang organisasi tidak dapat dimuat.'],
   ['procurementCreate', 'currencyLoading', 'Loading organisation currency…', 'Memuat mata uang organisasi…'],
