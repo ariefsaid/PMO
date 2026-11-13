@@ -3,7 +3,7 @@ import { AccessDenied, FigureHiddenLine, FigureScope, ListPage, ListState, useFi
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import { formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
-import { SalesKanbanBoardTaxBasisContext } from '../components/SalesKanbanBoard';
+import { SalesKanbanBoardTaxBasisContext } from '../components/salesKanbanBoardTaxBasis';
 import { PipelineFunnel } from './sales-pipeline/PipelineFunnel';
 import { canSummarizeExclusiveTaxBasis } from '../components/salesPipeline';
 import {
