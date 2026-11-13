@@ -322,14 +322,18 @@ describe('ContactDetail', () => {
     const date = '2026-06-14';
     const dateField = screen.getByLabelText(/^date$/i);
     fireEvent.change(dateField, { target: { value: date } });
+    await userEvent.selectOptions(screen.getByLabelText(/activity type/i), 'Email');
     const subject = screen.getByLabelText(/subject/i);
     await userEvent.type(subject, 'Followup');
+    await userEvent.type(screen.getByLabelText(/^notes$/i), 'Discussed next steps');
     const form = subject.closest('form')!;
     await userEvent.click(within(form).getByRole('button', { name: /log activity/i }));
     const input = mutations.logActivity.mutateAsync.mock.calls[0][0];
     expect(input).toEqual(expect.objectContaining({
       contact_id: 'ct1',
+      kind: 'Email',
       subject: 'Followup',
+      body: 'Discussed next steps',
       occurred_at: firstInstantOfZonedCalendarDay(date)?.toISOString(),
     }));
     expect(formatDay(input.occurred_at)).toBe(formatDay(date));
