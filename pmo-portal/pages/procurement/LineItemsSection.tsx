@@ -6,7 +6,7 @@ import {
   type Column,
 } from '@/src/components/ui';
 import {
-  formatCurrency, formatCurrencyCents, formatMoneyInputValue, moneyInputErrorKind, numberSymbols, parseMoneyInputAtScale,
+  currencySymbol, formatCurrency, formatCurrencyCents, formatMoneyInputValue, moneyInputErrorKind, numberSymbols, parseMoneyInputAtScale,
 } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
@@ -163,13 +163,16 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
       },
     },
     { key: 'quantity', header: t('lineItems.quantity', 'Qty'), kind: 'number', align: 'num', size: 88, cell: (row) => {
-      if (row.kind === 'add') return <div className="space-y-1"><CellInput createForm numeric aria-label={t('lineItems.newItemQuantity', 'New item quantity')} placeholder="0" value={draft.quantity} onChange={(e) => { setDraft((d) => ({ ...d, quantity: e.target.value })); setAddErrors((p) => ({ ...p, quantity: undefined })); }} onKeyDown={handleAddKeyDown} /><FieldError>{addErrors.quantity}</FieldError></div>;
+      if (row.kind === 'add') return <div className="space-y-1"><CellInput createForm numeric aria-label={t('lineItems.newItemQuantity', 'New item quantity')} placeholder={t('lineItems.quantity', 'Qty')} value={draft.quantity} onChange={(e) => { setDraft((d) => ({ ...d, quantity: e.target.value })); setAddErrors((p) => ({ ...p, quantity: undefined })); }} onKeyDown={handleAddKeyDown} /><FieldError>{addErrors.quantity}</FieldError></div>;
       const it = row.item;
       return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit quantity for ${it.name}`} value={editDraft.quantity} onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div> : Number(it.quantity);
     } },
     { key: 'rate', header: t('lineItems.unitPrice', 'Unit price'), kind: 'money', align: 'num', size: 150, cell: (row) => {
       if (row.kind === 'add') return <div className="space-y-1">
-        <CellInput createForm numeric aria-label={t('lineItems.newItemUnitPrice', 'New item unit price')} placeholder={`0${numberSymbols().decimal}00`} ref={addRateMask.ref} value={draft.rate} onChange={addRateMask.onChange} onKeyDown={handleAddKeyDown} />
+        <div className="relative">
+          {currencyKnown && <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-control text-muted-foreground">{currencySymbol(currency)}</span>}
+          <CellInput createForm numeric aria-label={t('lineItems.newItemUnitPrice', 'New item unit price')} placeholder={t('lineItems.unitPrice', 'Unit price')} ref={addRateMask.ref} value={draft.rate} onChange={addRateMask.onChange} onKeyDown={handleAddKeyDown} className={currencyKnown ? 'pl-12' : undefined} />
+        </div>
         <FieldError>{addErrors.rate}</FieldError>
       </div>;
       const it = row.item;

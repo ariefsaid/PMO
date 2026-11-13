@@ -190,6 +190,24 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(screen.queryByText(/No line items yet/i)).not.toBeInTheDocument();
   });
 
+  it('keeps unknown quantity and price blank and shows the resolved currency prefix', () => {
+    renderSection({ items: [], createFormLayout: true, currency: 'IDR' });
+    const quantity = screen.getByLabelText('New item quantity');
+    const rate = screen.getByLabelText('New item unit price');
+    expect(quantity).toHaveValue('');
+    expect(quantity).toHaveAttribute('placeholder', 'Qty');
+    expect(rate).toHaveValue('');
+    expect(rate).toHaveAttribute('placeholder', 'Unit price');
+    expect(rate.parentElement).toHaveTextContent('IDR');
+  });
+
+  it('does not show a currency prefix before the organisation currency resolves', () => {
+    renderSection({ items: [], createFormLayout: true, currency: 'USD', currencyKnown: false });
+    const rate = screen.getByLabelText('New item unit price');
+    expect(rate.parentElement).not.toHaveTextContent('USD');
+    expect(rate.parentElement).not.toHaveTextContent('$');
+  });
+
   it('AC-PROC-003: Edit flips the row to inputs and Save delegates the patch', async () => {
     const { onUpdate } = renderSection();
     await userEvent.click(screen.getByRole('button', { name: /edit mig welding wire/i }));
