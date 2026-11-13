@@ -20,6 +20,18 @@ const OverAllowanceNotice: React.FC<{ projectId: string; on: string; lines: Stoc
   const { t } = useTranslation('stock');
   const loc = getNumberLocale();
   const report = useProjectConsumption(projectId, on, on);
+  // C5: a check that could not run is not a clean bill of health — say so, and let it be re-run.
+  if (report.isError) {
+    return (
+      <ListState
+        variant="error"
+        title={t('detail.overAllowanceFailed', 'Could not check whether this issue is over its work-item allowance.')}
+        sub={t('states.errorSub')}
+        retryLabel={t('actions.retry')}
+        onRetry={() => void report.refetch()}
+      />
+    );
+  }
   const over = (report.data?.allowances ?? []).filter((a) => a.overAllowance && lines.some((l) => l.boq_item_id === a.boqItemId && l.item_id === a.itemId));
   if (over.length === 0) return null;
   return (
