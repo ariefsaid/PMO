@@ -20,7 +20,12 @@ const {
   const aiComposerModalCallbacks = { onComposed: null as null | ((spec: unknown) => void) };
   return {
     mockIsFeatureEnabled: vi.fn((key: string) => key === 'userViews' || key === 'aiComposer'),
-    mockUseUserViews: vi.fn(() => ({ data: [], isPending: false, isError: false, refetch: vi.fn() })),
+    mockUseUserViews: vi.fn(() => ({
+      data: [] as Array<Record<string, unknown>>,
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    })),
     mockUsePermission: vi.fn(() => () => true),
     mockArchive: vi.fn(),
     mockToast: vi.fn(),
