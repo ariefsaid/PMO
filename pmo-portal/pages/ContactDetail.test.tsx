@@ -1,12 +1,13 @@
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { ownershipMock } from '@/test/domainOwnershipMock';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { firstInstantOfZonedCalendarDay, formatDay } from '@/src/lib/format';
 
 // ── The single-contact hook + activities + mutations + the companies list are mocked. ──
 const { detailState, activitiesState, mutations, companiesState, companyRefState } = vi.hoisted(() => ({
@@ -302,14 +303,25 @@ describe('ContactDetail', () => {
     expect(activitiesState.refetch).toHaveBeenCalled();
   });
 
-  it('CW-4b: a manager can log an activity from the form on the page', async () => {
+  it('opens the activity form from the header and logs it on the selected date', async () => {
     renderPage('Admin');
+    expect(screen.queryByLabelText(/subject/i)).not.toBeInTheDocument();
+    await userEvent.click(within(screen.getByTestId('record-header')).getByRole('button', { name: /log activity/i }));
+    const date = '2026-06-14';
+    const dateField = screen.getByLabelText(/^date$/i);
+    fireEvent.change(dateField, { target: { value: date } });
     const subject = screen.getByLabelText(/subject/i);
     await userEvent.type(subject, 'Followup');
-    await userEvent.click(screen.getByRole('button', { name: /log activity/i }));
-    expect(mutations.logActivity.mutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({ contact_id: 'ct1', subject: 'Followup' }),
-    );
+    const form = subject.closest('form')!;
+    await userEvent.click(within(form).getByRole('button', { name: /log activity/i }));
+    const input = mutations.logActivity.mutateAsync.mock.calls[0][0];
+    expect(input).toEqual(expect.objectContaining({
+      contact_id: 'ct1',
+      subject: 'Followup',
+      occurred_at: firstInstantOfZonedCalendarDay(date)?.toISOString(),
+    }));
+    expect(formatDay(input.occurred_at)).toBe(formatDay(date));
+    expect(screen.queryByLabelText(/subject/i)).not.toBeInTheDocument();
   });
 
   it('CW-4b: a manager can open the edit modal from the header and save an update', async () => {

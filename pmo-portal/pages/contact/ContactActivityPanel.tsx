@@ -18,7 +18,8 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useContactActivities, useContactMeetings, useContactMutations } from '@/src/hooks/useContacts';
 import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDay } from '@/src/lib/format';
+import { firstInstantOfZonedCalendarDay, formatCalendarDayInTimeZone, formatDay } from '@/src/lib/format';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/lib/db/crmActivities';
 import { EditActivityModal } from '@/pages/activity/EditActivityModal';
@@ -45,6 +46,9 @@ const kindLabel = (kind: string, t: TFunction): string =>
 
 /** formatDay renders unparseable input as an em-dash — never echo a raw ISO string. */
 const formatOccurred = (iso: string): string => formatDay(iso);
+
+const todayInActiveTimeZone = (): string =>
+  formatCalendarDayInTimeZone(new Date(), getActiveLocale().timezone);
 
 interface ContactActivityPanelProps {
   contactId: string;
@@ -73,6 +77,7 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
   const canDelete = may('delete', 'contactActivity');
 
   const [kind, setKind] = useState<CrmActivityKind>('Call');
+  const [activityDate, setActivityDate] = useState(() => todayInActiveTimeZone());
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
 
@@ -101,12 +106,14 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim() && !body.trim()) return;
+    const occurredAt = firstInstantOfZonedCalendarDay(activityDate);
+    if (!occurredAt) return;
     const input: CrmActivityInput = {
       contact_id: contactId,
       kind,
       subject: subject.trim() || null,
       body: body.trim() || null,
-      occurred_at: new Date().toISOString(),
+      occurred_at: occurredAt.toISOString(),
       company_id: null,
       project_id: null,
     };
@@ -116,6 +123,7 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
       setSubject('');
       setBody('');
       setKind('Call');
+      setActivityDate(todayInActiveTimeZone());
       onLogFormOpenChange(false);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -137,39 +145,6 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
 
   return (
     <div>
-      {canLog && logFormOpen && (
-        <form onSubmit={onSubmit} className="mb-5 flex flex-col gap-3 rounded-md border border-border bg-card p-3">
-          <FormGrid>
-            <SelectField
-              label={t('contactDetail.activity.type', 'Activity type')}
-              value={kind}
-              onChange={(v) => setKind(v as CrmActivityKind)}
-              options={kindOptions(t)}
-            />
-            <TextField label={t('contactDetail.activity.subject', 'Subject')} value={subject} onChange={setSubject} placeholder={t('contactDetail.activity.subjectPlaceholder', 'e.g. Kickoff call')} />
-          </FormGrid>
-          <TextArea
-            label={t('contactDetail.activity.notes', 'Notes')}
-            value={body}
-            onChange={setBody}
-            rows={2}
-            fullWidth
-            placeholder={t('contactDetail.activity.notesPlaceholder', 'What was discussed?')}
-          />
-          <div className="flex justify-end">
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              loading={logActivity.isPending}
-              disabled={!subject.trim() && !body.trim()}
-            >
-              {t('contactDetail.activity.logAction', 'Log activity')}
-            </Button>
-          </div>
-        </form>
-      )}
-
       {isPending && <ListState variant="loading" rows={3} />}
 
       {!isPending && isError && (
@@ -284,6 +259,51 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
             if (meetingsQuery.hasNextPage) void meetingsQuery.fetchNextPage();
           }}
         />
+      )}
+
+      {canLog && logFormOpen && (
+        <form onSubmit={onSubmit} className="mt-5 flex flex-col gap-3 rounded-md border border-border bg-card p-3">
+          <FormGrid>
+            <SelectField
+              label={t('contactDetail.activity.type', 'Activity type')}
+              value={kind}
+              onChange={(v) => setKind(v as CrmActivityKind)}
+              options={kindOptions(t)}
+            />
+            <TextField
+              label={t('contactDetail.activity.date', 'Date')}
+              type="date"
+              value={activityDate}
+              onChange={setActivityDate}
+              required
+            />
+            <TextField
+              label={t('contactDetail.activity.subject', 'Subject')}
+              value={subject}
+              onChange={setSubject}
+              placeholder={t('contactDetail.activity.subjectPlaceholder', 'e.g. Kickoff call')}
+            />
+          </FormGrid>
+          <TextArea
+            label={t('contactDetail.activity.notes', 'Notes')}
+            value={body}
+            onChange={setBody}
+            rows={2}
+            fullWidth
+            placeholder={t('contactDetail.activity.notesPlaceholder', 'What was discussed?')}
+          />
+          <div className="flex justify-end">
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              loading={logActivity.isPending}
+              disabled={!activityDate || (!subject.trim() && !body.trim())}
+            >
+              {t('contactDetail.activity.logAction', 'Log activity')}
+            </Button>
+          </div>
+        </form>
       )}
 
       {/* Edit activity modal — the ONE shared CRM activity edit form (PGA02-006/CROSS-69). */}
