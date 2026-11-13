@@ -183,6 +183,34 @@ const ContactDetail: React.FC = () => {
           ? <StatusPill variant="neutral">{t('contactDetail.pillArchived', 'Archived')}</StatusPill>
           : <StatusPill variant="violet">{t('contactDetail.pill', 'Contact')}</StatusPill>}
         meta={contact.title ? <span>{contact.title}</span> : undefined}
+        stats={[
+          {
+            label: t('contactDetail.field.company', 'Company'),
+            value: contact.company_id ? <CompanyNameRefValue companyId={contact.company_id} /> : companyName,
+          },
+          {
+            label: t('contactDetail.field.email', 'Email'),
+            value: contact.email ? (
+              <a
+                href={`mailto:${contact.email}`}
+                className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                {contact.email}
+              </a>
+            ) : '—',
+          },
+          {
+            label: t('contactDetail.field.phone', 'Phone'),
+            value: contact.phone ? (
+              <a
+                href={`tel:${contact.phone.replace(/[^+\d]/g, '')}`}
+                className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                {contact.phone}
+              </a>
+            ) : '—',
+          },
+        ]}
         primaryAction={canLog ? (
           <Button
             variant="primary"
@@ -210,58 +238,16 @@ const ContactDetail: React.FC = () => {
         ]}
       />
 
-      {/* Body — the contact's fields (read-only; edit-in-modal). */}
-      <Card variant="bare" className="mb-4">
-        <CardHead>{t('contactDetail.sectionTitle', 'Contact detail')}</CardHead>
-        <CardPad>
-          <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            <Field
-              label={t('contactDetail.field.company', 'Company')}
-              value={
-                contact.company_id ? (
-                  <CompanyNameRefValue companyId={contact.company_id} />
-                ) : (
-                  companyName
-                )
-              }
-            />
-            <Field label={t('contactDetail.field.title', 'Title')} value={contact.title || '—'} />
-            <Field
-              label={t('contactDetail.field.email', 'Email')}
-              value={
-                contact.email ? (
-                  <a
-                    href={`mailto:${contact.email}`}
-                    className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  >
-                    {contact.email}
-                  </a>
-                ) : (
-                  '—'
-                )
-              }
-            />
-            <Field
-              label={t('contactDetail.field.phone', 'Phone')}
-              value={
-                contact.phone ? (
-                  <a
-                    href={`tel:${contact.phone.replace(/[^+\d]/g, '')}`}
-                    className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  >
-                    {contact.phone}
-                  </a>
-                ) : (
-                  '—'
-                )
-              }
-            />
-            {contact.notes && (
+      {contact.notes && (
+        <Card variant="bare" className="mb-4">
+          <CardHead>{t('contactDetail.sectionTitle', 'Contact detail')}</CardHead>
+          <CardPad>
+            <dl className="grid grid-cols-1 gap-x-8 gap-y-4">
               <Field label={t('contactDetail.field.notes', 'Notes')} value={contact.notes} />
-            )}
-          </dl>
-        </CardPad>
-      </Card>
+            </dl>
+          </CardPad>
+        </Card>
+      )}
 
       {!ownershipReady && <p className="mb-3 text-sm text-muted-foreground">{ownership.mode === 'error' ? t('crm:ownershipError', 'Ownership could not be loaded. Try again.') : t('crm:ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('crm:retry', 'Retry')}</Button>}</p>}
 

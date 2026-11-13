@@ -188,14 +188,20 @@ describe('ContactDetail', () => {
     expect(ownershipMock.retry).toHaveBeenCalled();
   });
 
-  it('CW-4b: renders the shared RecordHeader with the contact name + the categorical pill, and its fields', () => {
+  it('renders the contact name and all key contact facts in the record header', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
     expect(within(header).getByText('Jane Doe')).toBeInTheDocument();
     expect(within(header).getByText('Contact')).toBeInTheDocument();
-    // Body fields are present.
-    expect(screen.getByText('Cascade Port Authority')).toBeInTheDocument();
-    expect(screen.getByText('jane@example.com')).toBeInTheDocument();
+    expect(within(header).getByText('Procurement Lead')).toBeInTheDocument();
+    expect(screen.getAllByText('Procurement Lead')).toHaveLength(1);
+    expect(within(header).getByText('Company')).toBeInTheDocument();
+    expect(within(header).getByText('Email')).toBeInTheDocument();
+    expect(within(header).getByText('Phone')).toBeInTheDocument();
+    expect(within(header).getByRole('link', { name: 'Cascade Port Authority' })).toBeInTheDocument();
+    expect(within(header).getByRole('link', { name: 'jane@example.com' })).toHaveAttribute('href', 'mailto:jane@example.com');
+    expect(within(header).getByRole('link', { name: '+1 555 010 0000' })).toHaveAttribute('href', 'tel:+15550100000');
+    expect(screen.getByText('Key contact')).toBeInTheDocument();
   });
 
   it('C2 puts Log activity in the header and Edit and Archive in the action menu', async () => {
