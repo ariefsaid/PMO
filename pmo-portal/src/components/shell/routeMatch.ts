@@ -310,8 +310,6 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/sales-invoices': 'Sales Invoices',
   '/incoming-payments': 'Incoming Payments',
   '/revenue-by-project': 'Revenue by Project',
-  // #1512: the Stock module's sub-pages that are not detail records.
-  '/stock/setup': 'Stock setup',
   // #2061: the phone Home (my queue) is a composition of already-modular surfaces, not a module
   // of its own — register its title so the breadcrumb reads "Home", never "Not found".
   '/home': 'Home',
@@ -540,7 +538,6 @@ export function breadcrumbForPath(
       '/incoming-payments': 'shell.nav.incomingPayments',
       '/revenue-by-project': 'shell.nav.revenueByProject',
       '/my-tasks': 'shell.nav.myTasks',
-      '/stock/setup': 'stock:setup.title',
       // C4 (fan-out round 1): the two personal routes are REAL pages whose titles the shell already
       // translates — the rail's "My Views" entry and the account menu's "Profile & preferences".
       // Without the key an Indonesian session read the English constant above a translated page.
