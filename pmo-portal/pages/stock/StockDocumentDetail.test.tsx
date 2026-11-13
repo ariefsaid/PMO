@@ -236,6 +236,19 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
   });
 });
 
+/** C5: an allowance check that could not run is not a clean bill of health. */
+describe('C5 the over-allowance check is never silent', () => {
+  it('a failed allowance read says the check could not run and offers a Retry that runs it', async () => {
+    const allowance = { boqItemId: 'b1', boqItemCode: 'W-1', boqDescription: 'Slab', itemId: 'i1', itemCode: 'CEM', itemName: 'Cement 50kg', unitCode: 'bag', id: 'a1', plannedQuantity: '60', netToDate: '64', variance: '4' };
+    consumption.report.mockRejectedValueOnce(new AppError('boom'));
+    renderPage();
+    expect(await screen.findByText('Could not check whether this issue is over its work-item allowance.')).toBeInTheDocument();
+    consumption.report.mockResolvedValue({ from: '2026-10-30', to: '2026-10-30', months: [], unplanned: [], allowances: [{ ...allowance, overAllowance: true }] });
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText(/Over allowance: W-1 has now used 64 of 60 bag planned/)).toBeInTheDocument();
+  });
+});
+
 /** Floor list (all-screens/floor-tests/stock-document-record.md): the items this suite did not yet cover. */
 describe('AC-STK-032 floor: every control on the document record still works', () => {
   it('the stock section strip opens the ledger from a document record', async () => {
