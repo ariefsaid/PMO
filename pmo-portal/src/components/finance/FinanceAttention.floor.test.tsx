@@ -53,7 +53,7 @@ function invoice(id: string) {
     received_date: null,
     efaktur_number: null,
     efaktur_date: null,
-  } as FinancePosition['overdue'][number]['invoice'];
+  } as unknown as FinancePosition['overdue'][number]['invoice'];
 }
 
 function mount(position: FinancePosition, onRetry = vi.fn()) {
