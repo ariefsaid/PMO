@@ -26,6 +26,9 @@ import { thisMonth, type PendingTransition } from './workOrdersTabFigures';
 const WorkOrdersModals: React.FC<{
   boqRows: BoqItemRow[];
   documentRows: ProjectDocumentRow[];
+  documentsPending: boolean;
+  documentsError: boolean;
+  onRetryDocuments: () => void;
   rows: WorkOrderRow[];
   /** Raw allocation rows (`lines.data`). */
   allocations: WorkOrderLineRow[];
@@ -119,7 +122,7 @@ const WorkOrdersModals: React.FC<{
     currentValueText, onCloseValue, onSaveValue,
     onCloseInvoice, onInvoiceCreated,
     onCloseClaim, onSaveClaim, onClaimError,
-    onCloseEvidence, onAttachEvidence, onEvidenceError,
+    onCloseEvidence, onAttachEvidence, onEvidenceError, documentsPending, documentsError, onRetryDocuments,
     onRaise, onCloseRaise, onWithdrawClaimConfirm, onCloseWithdrawClaim,
     onTransition, onCloseTransition, onAcknowledgedIssue, onCloseOverCommit,
   } = props;
@@ -294,6 +297,9 @@ const WorkOrdersModals: React.FC<{
         <ClaimEvidenceModal
           documents={documentRows}
           attachedDocumentIds={evidenceAttachedIds}
+          sourcePending={documentsPending}
+          sourceError={documentsError ? t('projectDetail.billing.evidence.documentsError', "Couldn't load evidence documents") : null}
+          onRetry={onRetryDocuments}
           onClose={onCloseEvidence}
           onAttach={onAttachEvidence}
           onError={onEvidenceError}

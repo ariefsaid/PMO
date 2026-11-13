@@ -322,9 +322,10 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     await user.click(summary);
     expect(details).toHaveAttribute('open');
     expect(within(details).getByText('Reviewer')).toBeVisible();
+    expect(within(details).getByRole('button', { name: 'Re-open for correction' })).toBeVisible();
     await user.click(summary);
     expect(details).not.toHaveAttribute('open');
-    expect(within(details).queryByText('Reviewer')).not.toBeInTheDocument();
+    expect(within(details).queryByRole('button', { name: 'Re-open for correction' })).not.toBeInTheDocument();
   });
 
   it('procurement row checkbox selects the request and Clear returns to the queue', async () => {

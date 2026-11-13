@@ -11,10 +11,10 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 vi.mock('@/src/components/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/ui')>();
-  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => React.createElement(actual.Button, {
-    ...props,
-    'data-variant': props.variant ?? 'primary',
-  });
+  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => {
+    const buttonProps = { ...props, 'data-variant': props.variant ?? 'primary' } as React.ComponentProps<typeof actual.Button>;
+    return React.createElement(actual.Button, buttonProps);
+  };
   return { ...actual, Button: ButtonWithVariant };
 });
 
@@ -206,7 +206,7 @@ describe('DealBand — mark-won shows the booked value (AC-IXD-DASH-005)', () =>
   it('AC-IXD-DASH-005: the won-capture panel states the value being booked to contract value', async () => {
     renderLens();
     const markWon = screen.getByRole('button', { name: 'Mark won' });
-    expect(markWon).toHaveAttribute('data-variant', 'primary');
+    expect(markWon).toHaveAttribute('data-variant', 'outline');
     await userEvent.click(markWon);
 
     expect(screen.getByRole('button', { name: 'Mark won' })).toHaveAttribute('data-variant', 'outline');

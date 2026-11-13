@@ -38,6 +38,11 @@ const countDraft = (over: Record<string, unknown> = {}) => detail({
   lines: [{ id: 'l1', line_no: 1, item_id: 'i2', quantity: null, counted_quantity: '92', expected_quantity: null, direction: null, boq_item_id: null, source_line_id: null, item: { code: 'CAB', name: 'Cable 4mm', unit: { code: 'm', whole_only: false } } }],
   ...over,
 });
+const adjDraft = (over: Record<string, unknown> = {}) => detail({
+  number: 'ADJ-1', kind: 'adjustment', status: 'Draft', created_by: 'someone-else', reason: 'found in the yard', project_id: null, project: null, posted_by: null, posted_at: null,
+  lines: [{ id: 'l1', line_no: 1, item_id: 'i2', quantity: '10', counted_quantity: null, expected_quantity: null, direction: 'in', boq_item_id: null, source_line_id: null, item: { code: 'CAB', name: 'Cable 4mm', unit: { code: 'm', whole_only: false } } }],
+  ...over,
+});
 const renderPage = (r: Role = 'Engineer') => {
   role = r;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -188,11 +193,6 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     expect(within(table).queryByText('Value')).not.toBeInTheDocument();
   });
 
-  const adjDraft = (over: Record<string, unknown> = {}) => detail({
-    number: 'ADJ-1', kind: 'adjustment', status: 'Draft', created_by: 'someone-else', reason: 'found in the yard', project_id: null, project: null, posted_by: null, posted_at: null,
-    lines: [{ id: 'l1', line_no: 1, item_id: 'i2', quantity: '10', counted_quantity: null, expected_quantity: null, direction: 'in', boq_item_id: null, source_line_id: null, item: { code: 'CAB', name: 'Cable 4mm', unit: { code: 'm', whole_only: false } } }],
-    ...over,
-  });
   it('FR-STK-063 the approver (rank >= 20) sees an adjust-in line\'s unit cost and the value it adds', async () => {
     documents.get.mockResolvedValue(adjDraft());
     documents.costs.mockResolvedValue([{ lineId: 'l1', hasCost: true, unitCost: '1000000.0000' }]);

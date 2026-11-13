@@ -179,7 +179,7 @@ const ContactDetail: React.FC = () => {
         name={contact.full_name}
         icon={(contact.full_name.trim().charAt(0) || '•').toUpperCase()}
         status={contact.archived_at
-          ? <StatusPill variant="neutral">{t('contactDetail.pill.archived', 'Archived')}</StatusPill>
+          ? <StatusPill variant="neutral">{t('contactDetail.pillArchived', 'Archived')}</StatusPill>
           : <StatusPill variant="violet">{t('contactDetail.pill', 'Contact')}</StatusPill>}
         meta={contact.title ? <span>{contact.title}</span> : undefined}
         primaryAction={canEdit ? (
