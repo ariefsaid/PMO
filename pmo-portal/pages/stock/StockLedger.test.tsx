@@ -90,6 +90,20 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(change).toHaveTextContent('+500 metric tons');
   });
 
+  it('F9 a code is never broken mid-code in the table: the row scrolls sideways instead', async () => {
+    // A code has no spaces to break at, so the only thing that can break it is a CSS wrapping class.
+    // This pins the two cells the picture showed snapped over three lines; the phone card below md is
+    // asserted separately (it must still break a long code rather than push it out of the card).
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(3, {
+      itemCode: 'CEMENTAL-MIX-50-KILOGRAM-BAG',
+      warehouseCode: 'WAREHOUSE-SITE-A-REAR-STORE',
+    })], nextBeforeSeq: null });
+    renderPage();
+    const table = await screen.findByRole('table');
+    expect(within(table).getByTestId('stock-ledger-warehouse-code')).toHaveClass('md:whitespace-nowrap');
+    expect(within(table).getByText('CEMENTAL-MIX-50-KILOGRAM-BAG')).toHaveClass('md:whitespace-nowrap');
+  });
+
   it('FR-STK-041 a back-dated movement shows its occurred date apart from the post time', async () => {
     renderPage();
     await screen.findByText('Eka Engineer');

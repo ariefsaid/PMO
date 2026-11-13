@@ -20,10 +20,33 @@ export const StockTabs: React.FC = () => {
     { to: '/stock/reorder', label: t('tabs.reorder'), end: true },
     ...(may('create', 'stockItem') ? [{ to: '/stock/setup', label: t('tabs.setup'), end: true }] : []),
   ];
+  // F10: the grey rule under the strip IS this nav's own bottom border, so a permanent right-edge mask
+  // faded the rule's last pixels away although nothing overflowed. The mask now appears only while there
+  // is still something to the right to scroll to; when every tab fits, the rule runs edge to edge as on dev.
+  const scrollerRef = React.useRef<HTMLElement | null>(null);
+  const [moreToRight, setMoreToRight] = React.useState(false);
+  React.useLayoutEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const measure = () => setMoreToRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    measure();
+    el.addEventListener('scroll', measure, { passive: true });
+    let observer: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(measure);
+      observer.observe(el);
+    }
+    return () => {
+      el.removeEventListener('scroll', measure);
+      observer?.disconnect();
+    };
+  });
   return (
-    // The strip scrolls sideways at phone width; scroll-fade-x is the shared right-edge fade that says
-    // so, so the last tab (Setup) is never simply cut off with no hint that there is more.
-    <nav aria-label={t('tabs.label')} className="scroll-fade-x mb-4 flex gap-1 overflow-x-auto border-b border-border">
+    <nav
+      ref={scrollerRef}
+      aria-label={t('tabs.label')}
+      className={cn('mb-4 flex gap-1 overflow-x-auto border-b border-border', moreToRight && 'scroll-fade-x')}
+    >
       {tabs.map((x) => (
         <NavLink
           key={x.to}

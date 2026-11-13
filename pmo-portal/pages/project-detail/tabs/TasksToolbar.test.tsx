@@ -86,10 +86,21 @@ describe('TasksToolbar — form B shared controls', () => {
 
   it('the search field keeps its accessible name, value and change behaviour', async () => {
     const props = renderToolbar({ searchText: 'slab' });
-    const search = screen.getByRole('textbox', { name: 'Search tasks' });
+    const search = screen.getByRole('searchbox', { name: 'Search tasks' });
     expect(search).toHaveValue('slab');
     await userEvent.type(search, '!');
     expect(props.onSearchText).toHaveBeenCalled();
+  });
+
+  // F6 (Director picture sitting): moving the field to TextField dropped the magnifier that every
+  // other search field in the app carries. It is now the SAME shared search field the list toolbars
+  // use: the magnifier icon inside its shell, and the searchbox role an <input type="search"> gives.
+  it('F6: the search field is the shared list-toolbar search — magnifier plus searchbox role', () => {
+    renderToolbar({ searchText: 'slab' });
+    const search = screen.getByRole('searchbox', { name: 'Search tasks' });
+    expect(search).toHaveValue('slab');
+    const shell = search.parentElement;
+    expect(shell?.querySelector('svg[data-icon="search"]')).not.toBeNull();
   });
 
   it('a status filter value on the screen is what the control shows', () => {

@@ -3501,7 +3501,7 @@
         "organizationApproved": "Organisasi Anda telah menyetujui aplikasi PMO Portal di Microsoft 365. Hubungkan akun Microsoft 365 Anda sendiri untuk melanjutkan.",
         "reconnect": "Koneksi Microsoft 365 telah kedaluwarsa. Hubungkan ulang untuk melanjutkan.",
         "revoked": "Koneksi Microsoft 365 telah dicabut. Hubungkan kembali untuk melanjutkan.",
-        "unknown": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Coba lagi periksa status."
+        "unknown": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Coba lagi."
       },
       "action": {
         "connect": "Hubungkan Microsoft 365",
@@ -3536,7 +3536,7 @@
         "recordFolderUnavailable": "Folder Microsoft 365 untuk catatan ini tidak tersedia. Periksa tautan folder, lalu coba lagi.",
         "disconnectFailureHeadline": "Kami tidak dapat memastikan pemutusan koneksi. Status koneksi terakhir yang terkonfirmasi masih terhubung.",
         "disconnectFailureGuidance": "Anda dapat mencoba lagi atau membatalkan.",
-        "statusFallback": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Coba lagi untuk memeriksa status.",
+        "statusFallback": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Coba lagi.",
         "generic": "Microsoft 365 tidak dapat dihubungkan. Silakan coba lagi."
       }
     },
@@ -4773,7 +4773,7 @@
       "emptyTitle": "Tidak ada versi",
       "emptySub": "Microsoft tidak mencantumkan versi sebelumnya dari file ini.",
       "list": "Versi",
-      "version": "Versi {{number}}",
+      "version": "Versi {{id}}",
       "loadMore": "Muat lebih banyak"
     },
     "history": {

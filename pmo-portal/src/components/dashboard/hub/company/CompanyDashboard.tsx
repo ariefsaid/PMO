@@ -316,7 +316,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         className="mb-2"
         title={t('dashboard:hub.company.title', 'Dashboard')}
         help={t('home.help.basis', 'Position today in each record currency. Invoiced, collected and won cover the period chosen.')}
-        action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
+        action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} compact /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
       />
       <FigureHiddenLine compact />
     </div>
@@ -403,7 +403,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
               className="mb-1"
               title={t('dashboard:hub.company.title', 'Dashboard')}
               help={t('home.help.basis', 'Position today in each record currency. Invoiced, collected and won cover the period chosen.')}
-              action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
+              action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} compact /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
             />
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
               <FindingLine offTrack={figures.dashboardPending || figures.dashboardError ? undefined : { count: offTrackCount, atLeast: offTrackSaturated, total: activeProjectCount, unchecked }} overdue={overdue /* undefined until its own invoices read and the org day resolve */} approvals={needs.approvals?.length} />

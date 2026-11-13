@@ -275,7 +275,7 @@
   "integrations": {
     "personalM365": {
       "action": {
-        "retryStatus": "Retry status"
+        "retryStatus": "Retry"
       }
     },
     "identityIncomplete": "Setup incomplete",

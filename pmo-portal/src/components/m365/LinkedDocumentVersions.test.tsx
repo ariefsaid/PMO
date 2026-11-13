@@ -1,3 +1,10 @@
+/**
+ * F1 (Director sitting 2026-11-13): the version list shows the version label MICROSOFT gives —
+ * "Version 5.0" — never a number invented from the row's position. Numbering by index (index + 1)
+ * read wrong in a real library: Microsoft lists newest first, so the newest file said "Version 1",
+ * a number nobody sees in SharePoint. The opaque id is also no longer repeated beside the label
+ * behind a reference disclosure: it was the same value printed twice.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { formatDay } from '@/src/lib/format';
@@ -18,16 +25,16 @@ const reference: MicrosoftReference = {
   last_verified_at: null,
 };
 
-/** Microsoft Graph version ids are opaque strings (graphClient.ts `GraphVersion.id`), never numbers. */
-const GRAPH_VERSION_IDS = ['3058fe1c-4c2a-4a4f-9f3b-6b9d1a2c8e11', 'a71e0b52-8e0f-4a1d-a0d3-2b6b7c9f4d21'];
+/** SharePoint numbers document versions "5.0", "4.0" — the label a person reads in the library. */
+const VERSIONS = [
+  { id: '5.0', modified_at: '2026-09-02T10:00:00Z' },
+  { id: '4.0', modified_at: '2026-09-01T10:00:00Z' },
+];
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(listVersions).mockResolvedValue({
-    value: [
-      { id: GRAPH_VERSION_IDS[0], modified_at: '2026-09-02T10:00:00Z' },
-      { id: GRAPH_VERSION_IDS[1], modified_at: '2026-09-01T10:00:00Z' },
-    ],
+    value: VERSIONS,
     next: null,
     unsupported_count: 0,
   } as never);
@@ -35,24 +42,27 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
-describe('LinkedDocumentVersionsModal (plain-words C20-3d)', () => {
-  it('C20-3d: numbers versions by their order and keeps each date, never printing the opaque version id as the label', async () => {
+describe('LinkedDocumentVersionsModal (F1 — the version label Microsoft gives)', () => {
+  it('F1: a version with id 5.0 renders "Version 5.0" beside its date', async () => {
     render(<LinkedDocumentVersionsModal reference={reference} onClose={vi.fn()} />);
 
-    const first = await screen.findByText('Version 1');
-    expect(first.closest('li')).toHaveTextContent(formatDay('2026-09-02T10:00:00Z'));
-    expect(screen.getByText('Version 2').closest('li')).toHaveTextContent(formatDay('2026-09-01T10:00:00Z'));
+    const newest = await screen.findByText('Version 5.0');
+    expect(newest.closest('li')).toHaveTextContent(formatDay('2026-09-02T10:00:00Z'));
+    expect(screen.getByText('Version 4.0').closest('li')).toHaveTextContent(formatDay('2026-09-01T10:00:00Z'));
+  });
 
-    // The opaque id is reference material, not the version's name: each row keeps it behind the
-    // same closed Reference disclosure the other C20 surfaces use (ruling 3b/3c/3d).
-    for (const [rowText, id] of [['Version 1', GRAPH_VERSION_IDS[0]], ['Version 2', GRAPH_VERSION_IDS[1]]] as const) {
-      const row = screen.getByText(rowText).closest('li') as HTMLElement;
-      const disclosure = within(row).getByTestId('record-reference') as HTMLDetailsElement;
-      expect(disclosure.tagName).toBe('DETAILS');
-      expect(disclosure.open).toBe(false);
-      expect(disclosure).toHaveTextContent(id);
-      expect(row).not.toHaveTextContent(new RegExp(`^Version ${id}`));
-    }
-    expect(screen.queryByText(/Version 3058fe1c/)).not.toBeInTheDocument();
+  it('F1: the list never numbers versions by their position', async () => {
+    render(<LinkedDocumentVersionsModal reference={reference} onClose={vi.fn()} />);
+
+    await screen.findByText('Version 5.0');
+    expect(screen.queryByText('Version 1')).not.toBeInTheDocument();
+    expect(screen.queryByText('Version 2')).not.toBeInTheDocument();
+  });
+
+  it('F1: the row does not print the same version value twice behind a reference disclosure', async () => {
+    render(<LinkedDocumentVersionsModal reference={reference} onClose={vi.fn()} />);
+
+    const row = (await screen.findByText('Version 5.0')).closest('li') as HTMLElement;
+    expect(within(row).queryByTestId('record-reference')).toBeNull();
   });
 });
