@@ -25,6 +25,7 @@ const h = vi.hoisted(() => ({
   erpConnected: true,
   loadItems: vi.fn(async () => [] as Array<{ value: string; label: string; sub?: string }>),
   mutations: {} as Record<string, ReturnType<typeof vi.fn>>,
+  cascadePending: false,
 }));
 
 vi.mock('@/src/auth/impersonation', () => ({
@@ -51,8 +52,34 @@ vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssets: () => ({ data: 
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: h.profiles, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.documents, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.erpConnected, loadOptions: h.loadItems }) }));
+vi.mock('@/src/hooks/useProgressBilling', () => ({
+  useBoqItems: () => ({ data: [], isPending: h.cascadePending, isError: false, refetch: vi.fn() }),
+  useProjectBilling: () => ({
+    data: { contractLines: [], contractNet: 500_000, dpBilled: 0, dpRecovered: 0 },
+    isPending: h.cascadePending,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
+vi.mock('@/src/hooks/useWorkOrders', () => ({
+  useProjectWorkOrders: () => ({ data: [], isPending: h.cascadePending, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
+  useWorkOrderBilling: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({ data: { contract_invoiced: 0, remaining_to_invoice: 500_000 }, isPending: false, isError: false }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-11-13', isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('./ProjectDrawdown', () => ({ default: () => null }));
 
 import TimeAndMaterials from './TimeAndMaterials';
+import { ContractCascade } from './ContractCascade';
 import { formatDay } from '@/src/lib/format';
 
 const rate = {
@@ -148,6 +175,79 @@ describe('TimeAndMaterials', () => {
     expect(flatten(en)).not.toHaveLength(0);
     expect(flatten(id)).toEqual(flatten(en));
     expect([...Object.values(en), ...Object.values(id)].every(Boolean)).toBe(true);
+  });
+
+  it('keeps typed claim dates after the Contract cascade settles', async () => {
+    h.cascadePending = true;
+    const i18n = page();
+    const tree = (tools: React.ReactNode) => (
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter>
+          <ToastProvider>
+            <ContractCascade
+              project={{
+                id: 'p1', code: 'PRJ-1', name: 'Project One', currency: 'IDR', contract_value: 500_000,
+                tax_treatment: 'exclusive', tax_amount: 0, tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1,
+                client: null, end_client: null, pm: null, project_manager_id: 'u-pm',
+              } as never}
+              contractTools={tools}
+            />
+          </ToastProvider>
+        </MemoryRouter>
+      </I18nextProvider>
+    );
+    const tools = <TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" embedded onCreateInvoice={vi.fn()} />;
+    const view = render(tree(tools));
+    const user = userEvent.setup();
+    const from = screen.getByLabelText('From');
+    const to = screen.getByLabelText('To');
+
+    await user.clear(from);
+    await user.type(from, '2026-11-10');
+    await user.clear(to);
+    await user.type(to, '2026-11-12');
+
+    h.cascadePending = false;
+    view.rerender(tree(tools));
+
+    expect(await screen.findByRole('heading', { name: 'Contract' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByLabelText('From')).toHaveValue('2026-11-10');
+      expect(screen.getByLabelText('To')).toHaveValue('2026-11-12');
+    });
+  });
+
+  it('keeps an open claim drawer after the Contract cascade settles', async () => {
+    h.cascadePending = true;
+    const i18n = page();
+    const tree = (tools: React.ReactNode) => (
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter>
+          <ToastProvider>
+            <ContractCascade
+              project={{
+                id: 'p1', code: 'PRJ-1', name: 'Project One', currency: 'IDR', contract_value: 500_000,
+                tax_treatment: 'exclusive', tax_amount: 0, tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1,
+                client: null, end_client: null, pm: null, project_manager_id: 'u-pm',
+              } as never}
+              contractTools={tools}
+            />
+          </ToastProvider>
+        </MemoryRouter>
+      </I18nextProvider>
+    );
+    const tools = <TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" embedded onCreateInvoice={vi.fn()} />;
+    const view = render(tree(tools));
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    expect(await screen.findByRole('dialog', { name: /Time-and-materials claim/ })).toBeInTheDocument();
+
+    h.cascadePending = false;
+    view.rerender(tree(tools));
+
+    expect(await screen.findByRole('heading', { name: 'Contract' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: /Time-and-materials claim/ })).toBeInTheDocument();
   });
 
   it('AC-TM-016 saves a rate, assigns a person, previews rated and unrated hours, assembles, and drills into claim sources', async () => {
