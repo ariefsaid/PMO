@@ -1,9 +1,15 @@
 import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { ReceiptRecord } from './ReceiptRecord';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
+
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="record-link-location">{location.pathname}{location.search}</output>;
+}
 
 describe('ReceiptRecord', () => {
   it('keeps receipt evidence and applied allocation amounts exact to cents for reconciliation', () => {
@@ -119,6 +125,30 @@ describe('ReceiptRecord', () => {
     render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={null} onBack={() => {}} /></MemoryRouter>);
 
     expect(screen.getByText('Not reported: Receipt total, Cash received, Tax withheld, Not yet applied.')).toBeInTheDocument();
+  });
+
+  it('opens the client invoice list with the list-supported customer filter', async () => {
+    const user = userEvent.setup();
+    const receipt = {
+      id: 'receipt-client', org_id: 'org-1', customer_id: 'client-42', customer_name: 'Example customer',
+      sales_invoice_id: null, ip_number: 'RCP-CLIENT', reference_number: null, date: '2026-10-01', amount: 100,
+      currency: 'USD', status: 'Paid', erp_docstatus: 1, erp_modified: null, erp_amended_from: null,
+      erp_cancelled_at: null, created_at: '2026-10-01T00:00:00Z', received_amount: 100, withheld_amount: 0,
+    } as IncomingPaymentRow;
+    render(
+      <MemoryRouter initialEntries={['/incoming-payments/receipt-client']}>
+        <Routes>
+          <Route path="/incoming-payments/:receiptId" element={<ReceiptRecord receipt={receipt} allocations={[]} onBack={() => {}} />} />
+          <Route path="/finance/receivables" element={<p>Client invoices</p>} />
+        </Routes>
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('link', { name: "Open client's invoices" }));
+
+    expect(screen.getByText('Client invoices')).toBeInTheDocument();
+    expect(screen.getByTestId('record-link-location')).toHaveTextContent('/finance/receivables?view=invoices&customer=client-42');
   });
 
   it('AC-WHA-006: a receipt with tax withheld names its withholding article, or says it was not stated', () => {
