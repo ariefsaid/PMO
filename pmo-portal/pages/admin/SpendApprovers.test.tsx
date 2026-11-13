@@ -31,8 +31,19 @@ let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole, effectiveRole: realRole }),
 }));
+const fk = vi.hoisted(() => ({
+  projectOptions: {
+    data: [{ value: 'p-1', label: 'HQ Fit-Out' }],
+    isError: false,
+    refetch: async () => undefined,
+  } as {
+    data: { value: string; label: string }[] | undefined;
+    isError: boolean;
+    refetch: () => Promise<void>;
+  },
+}));
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useProjectOptions: () => ({ data: [{ value: 'p-1', label: 'HQ Fit-Out' }] }),
+  useProjectOptions: () => fk.projectOptions,
 }));
 
 import SpendApprovers from './SpendApprovers';
@@ -49,6 +60,11 @@ const renderPanel = (role: Role) => {
 };
 
 beforeEach(() => {
+  fk.projectOptions = {
+    data: [{ value: 'p-1', label: 'HQ Fit-Out' }],
+    isError: false,
+    refetch: async () => undefined,
+  };
   listSpendApprovers.mockReset().mockResolvedValue([
     { id: 'sa-1', projectId: null, projectName: null, profileId: 'u-fin', fullName: 'Fiona Finance' },
     { id: 'sa-2', projectId: 'p-1', projectName: 'HQ Fit-Out', profileId: 'u-pm', fullName: 'Pat PM' },
@@ -285,6 +301,19 @@ describe('UX-081 resolved approval route (S-32)', () => {
     renderPanel('Admin');
     await waitFor(() => expect(screen.getByTestId('spend-route-org')).toHaveTextContent('Only an Admin can decide'));
     expect(screen.getByTestId('spend-route-project')).toHaveTextContent('Only an Admin can decide');
+  });
+
+  it('C1: a failed project read is said in the add dialog with a Retry, never an empty picker', async () => {
+    const refetch = vi.fn(async () => undefined);
+    fk.projectOptions = { data: undefined, isError: true, refetch };
+    const user = userEvent.setup();
+    renderPanel('Admin');
+    await user.click(await screen.findByRole('button', { name: 'Add project approver' }));
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).getByText("Couldn't load the projects")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Retry' }));
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 
   it('C1: a failed people read has its own Retry that refetches THAT read, and the approver lists stay readable', async () => {
