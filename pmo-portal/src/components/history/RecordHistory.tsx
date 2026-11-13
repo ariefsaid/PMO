@@ -27,6 +27,12 @@ interface RecordHistoryProps {
   includeChildren?: boolean;
   /** Show the All / Project / Budget / … kind chips (project History, FR-CHG-012). */
   kindFilters?: boolean;
+  /**
+   * Controlled kind filter. The project Activity drawer owns ONE filter row whose chips include the
+   * comment view, so it names the kind here and this component draws no chips of its own. Omit it and
+   * the chips below stay the filter, exactly as before.
+   */
+  kind?: string;
 }
 
 type EnumLabel = ReturnType<typeof useHistoryEnumLabel>;
@@ -247,11 +253,12 @@ function companyIdsOf(events: HistoryEvent[]): string[] {
  * record's own RLS (the RPC); the FE filters nothing on its behalf and sends no org_id.
  */
 export const RecordHistory: React.FC<RecordHistoryProps> = ({
-  entityType, entityId, includeChildren = false, kindFilters = false,
+  entityType, entityId, includeChildren = false, kindFilters = false, kind: controlledKind,
 }) => {
   const { t } = useTranslation();
-  const [kind, setKind] = useState('all');
-  const entityTypes = KIND_FILTERS.find((k) => k.key === kind)?.types ?? null;
+  const [ownKind, setOwnKind] = useState('all');
+  const kindKey = controlledKind ?? ownKind;
+  const entityTypes = KIND_FILTERS.find((k) => k.key === kindKey)?.types ?? null;
   const q = useRecordHistory({ entityType, entityId, includeChildren, entityTypes });
   const filters = useMemo(() => filterLabels(t), [t]);
   const events = useMemo(() => q.data?.pages.flatMap((p) => p.events) ?? [], [q.data]);
@@ -278,7 +285,8 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
     return ids;
   }, [events]);
   // SUB-G: kind chips only earn their place when the loaded events span two kinds, or a filter is on
-  // (a filtered list is one kind by construction, and the chips are the way back to "All").
+  // (a filtered list is one kind by construction, and the chips are the way back to "All"). A caller
+  // that owns the one filter row (the Activity drawer) gets no chips here.
   const kindsPresent = useMemo(() => {
     const present = new Set<string>();
     for (const event of events) {
@@ -286,7 +294,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
     }
     return present.size;
   }, [events]);
-  const showKindChips = kindFilters && (kind !== 'all' || kindsPresent >= 2);
+  const showKindChips = controlledKind === undefined && kindFilters && (kindKey !== 'all' || kindsPresent >= 2);
   const { refs, nameLookupFailed } = useHistoryRefs({ entityType, entityId, enabled: true, companyIds, recordIdsByType });
   const enumLabel = useHistoryEnumLabel();
   const loadingOlder = q.isFetchingNextPage;
@@ -299,12 +307,12 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
             <button
               key={k.key}
               type="button"
-              aria-pressed={kind === k.key}
-              onClick={() => setKind(k.key)}
+              aria-pressed={kindKey === k.key}
+              onClick={() => setOwnKind(k.key)}
               className={
                 'inline-flex h-7 items-center rounded-full border px-2.5 text-sm font-medium transition-colors ' +
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ' +
-                (kind === k.key
+                (kindKey === k.key
                   ? 'border-primary/30 bg-primary/10 text-nav-active-text'
                   : 'border-input bg-background text-muted-foreground hover:text-foreground')
               }
@@ -323,8 +331,8 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
           onRetry={() => void q.refetch()}
           retryLabel={t('history.retry', 'Retry')}
         />
-      ) : events.length === 0 && kind !== 'all' ? (
-        <ListState variant="empty" icon="clock" title={filteredEmptyLabels(t)[kind]} />
+      ) : events.length === 0 && kindKey !== 'all' ? (
+        <ListState variant="empty" icon="clock" title={filteredEmptyLabels(t)[kindKey]} />
       ) : events.length === 0 ? (
         <ListState
           variant="empty"
