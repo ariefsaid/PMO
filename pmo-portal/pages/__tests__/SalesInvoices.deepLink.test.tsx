@@ -153,6 +153,12 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
 });
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   routeDomainWrite: vi.fn(() => 'pmo'),
+  domainTier: vi.fn((domain: string) => {
+    const owner = hoisted.ownership.find((entry) =>
+      typeof entry === 'object' && entry !== null && 'domain' in entry && entry.domain === domain,
+    ) as { externalTier?: unknown } | undefined;
+    return typeof owner?.externalTier === 'string' ? owner.externalTier : null;
+  }),
 }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: hoisted.ownership, isError: false }) }));
 vi.mock('@/src/hooks/useOdooPurchase', async (orig) => ({ ...(await orig<Record<string, unknown>>()), useOdooUnreachable: (enabled = true) => ({ unreachable: enabled && hoisted.odooUnreachable, lastOkAt: null }) }));
