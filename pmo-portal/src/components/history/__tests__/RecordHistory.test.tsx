@@ -858,3 +858,54 @@ describe('RecordHistory — a system run of updates folds into one entry', () =>
     expect(screen.getAllByTestId('history-event')).toHaveLength(4);
   });
 });
+
+// Move 2 (ruled): the entry row itself opens its evidence. It ADDS to the explicit View details
+// control (kept, same name), the row keeps ONE accessible name and a keyboard path, and a row with
+// nothing to open stays inert.
+describe('RecordHistory — the entry row opens its own details', () => {
+  it('opens the same evidence from the row and from View details, by keyboard and by pointer', async () => {
+    repo.recordHistory.list.mockResolvedValue({
+      events: [ev(1, { entityType: 'task', entityId: 't1', changes: { name: { old: 'Install pump', new: 'Install pump 2' } } })],
+      nextCursor: null,
+    });
+    renderIt({ includeChildren: true });
+
+    const row = await screen.findByTestId('history-event');
+    const evidence = screen.getByText('Install pump → Install pump 2');
+    expect(evidence).not.toBeVisible();
+
+    // One accessible name for the row's own control, and it names the entry it opens.
+    const rowControl = within(row).getByRole('button', { name: 'Task updated' });
+    expect(within(row).getAllByRole('button', { name: /Task updated/ })).toHaveLength(1);
+    rowControl.focus();
+    expect(rowControl).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+    expect(evidence).toBeVisible();
+    expect(rowControl).toHaveAttribute('aria-expanded', 'true');
+
+    // A pointer anywhere on the row's own surface (here the actor line) opens and closes the same region.
+    await userEvent.click(within(row).getByText('Dana PM'));
+    expect(evidence).not.toBeVisible();
+    await userEvent.click(within(row).getByText('Dana PM'));
+    expect(evidence).toBeVisible();
+
+    // The explicit control is still there, still named View details, and still governs the same region.
+    const disclosure = within(row).getByRole('button', { name: 'View details' });
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.click(disclosure);
+    expect(evidence).not.toBeVisible();
+    expect(rowControl).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('leaves a row with nothing to open inert', async () => {
+    repo.recordHistory.list.mockResolvedValue({
+      events: [ev(1, { source: 'audit', seq: null, op: null, action: 'procurement.approval_route', actorId: 'u2', changes: {} })],
+      nextCursor: null,
+    });
+    renderIt();
+
+    const row = await screen.findByTestId('history-event');
+    expect(within(row).queryByRole('button', { name: /Approval route recorded/ })).toBeNull();
+    expect(within(row).queryByRole('button', { name: 'View details' })).toBeNull();
+  });
+});
