@@ -92,8 +92,8 @@ describe('Ageing strip bar', () => {
       const sum = widths.reduce((running, width) => running + width, 0);
       // A bucket takes its exact share of the column: the four shares add up to the whole bar, so
       // every pixel of the bar's width belongs to one bucket (no rounded remainder left unpainted).
-      expect(round(sum)).toBe(100);
-      expect(round(rightOf(painted[painted.length - 1]!))).toBe(100);
+      expect(round(sum), mix.name).toBe(100);
+      expect(round(rightOf(painted[painted.length - 1]!)), mix.name).toBe(100);
 
       view.unmount();
     }
