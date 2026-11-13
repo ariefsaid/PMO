@@ -64,7 +64,9 @@ vi.mock('@/src/hooks/useWorkCalendar', () => ({
 // URL), so a sibling probe reads `useLocation()`.
 const LocationProbe: React.FC = () => {
   const location = useLocation();
-  return <output data-testid="location-probe" data-search={location.search}>{location.pathname}</output>;
+  // A <div>, not <output>: <output> carries the implicit status role, which would collide with the
+  // toast announcement the older move-saves test asserts on.
+  return <div data-testid="location-probe" data-search={location.search}>{location.pathname}</div>;
 };
 
 const renderPage = (url = '/calendar?date=2026-11-10') =>
