@@ -27,12 +27,11 @@ interface Props {
   invoiceDisplayLabel: (invoice: SalesInvoiceRow) => string;
   receiptAwaitingOdoo?: boolean;
   odoo?: boolean;
-  odooOffline?: boolean;
   may: ReturnType<typeof usePermission>;
   pdfDownload: ReturnType<typeof useInvoicePdfDownload>;
   dialogs: React.ReactNode;
 }
-export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, receiptAwaitingOdoo = false, odoo = false, odooOffline = false, may, pdfDownload, dialogs }: Props) {
+export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, receiptAwaitingOdoo = false, odoo = false, may, pdfDownload, dialogs }: Props) {
   const { t } = useTranslation();
   const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
   const dueDate = viewTarget ? deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date) : null;
@@ -45,11 +44,6 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
           <Icon name="back" className="size-4" />
           {t('financeCopy.backToInvoices', 'Back to Receivables')}
         </Button>
-        {viewTarget && odooOffline && (
-          <p role="status" className="mb-3 text-sm text-muted-foreground">
-            {t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}
-          </p>
-        )}
         {mode === undefined || (isPending && !viewTarget) ? (
           <ListState variant="loading" rows={3} />
         ) : isError || !data ? (
