@@ -82,6 +82,31 @@ describe('C18 — the balance list is ordered for scanning', () => {
   });
 });
 
+describe('stock balance identity', () => {
+  it('shows each item name before its muted code link on desktop and phone', async () => {
+    reports.onHand.mockResolvedValue([row]);
+    const desktop = renderPage();
+    const table = await screen.findByRole('table');
+    const desktopRow = within(table).getByRole('row', { name: /CEM/ });
+    const desktopIdentity = within(desktopRow).getByRole('rowheader');
+    const desktopCode = within(desktopIdentity).getByRole('link', { name: 'CEM' });
+    expect(desktopIdentity.textContent!.indexOf('Cement 50kg')).toBeLessThan(desktopIdentity.textContent!.indexOf('CEM'));
+    expect(desktopCode).toHaveAttribute('href', '/stock/ledger?item=i1');
+    desktop.unmount();
+
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    renderPage();
+    const cards = await screen.findByTestId('dt-card-branch');
+    const phoneCard = within(cards).getAllByRole('listitem')[0];
+    const phoneCode = within(phoneCard).getByRole('link', { name: 'CEM' });
+    expect(phoneCard.textContent!.indexOf('Cement 50kg')).toBeLessThan(phoneCard.textContent!.indexOf('CEM'));
+    expect(phoneCode).toHaveAttribute('href', '/stock/ledger?item=i1');
+  });
+});
+
 describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
   it('AC-STK-032 loading, then the populated balance with its quantity and unit', async () => {
     renderPage();
