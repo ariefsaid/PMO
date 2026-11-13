@@ -372,10 +372,8 @@ const EquipmentUsagePage: React.FC = () => {
             state={gridRows.length === 0 ? 'empty' : undefined}
             emptyTitle={noMachines
               ? t('equipment:usage.noMachines', 'No machines registered')
-              : t('equipment:usage.empty', 'No equipment logged this week')}
-            emptySub={noMachines
-              ? (canCreateAsset ? undefined : t('equipment:usage.noMachinesSub', 'An Admin or Project Manager adds the machines.'))
-              : t('equipment:usage.emptySub', 'Add a row for a machine and a project, then type the hours for each day.')}
+              : t('equipment:usage.empty', 'No hours logged this week')}
+            emptySub={noMachines && !canCreateAsset ? t('equipment:usage.noMachinesSub', 'An Admin or Project Manager adds the machines.') : undefined}
             emptyAction={noMachines && canCreateAsset
               ? { label: t('equipment:assets.new', 'New asset'), onClick: () => navigate('/equipment/assets') }
               : undefined} />

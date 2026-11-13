@@ -305,7 +305,7 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     h.query = { isPending: false, isError: false, refetch: vi.fn() };
     h.entries = [];
     renderPage();
-    expect(screen.getByText('No equipment logged this week')).toBeInTheDocument();
+    expect(screen.getByText('No hours logged this week')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add row' })).toBeInTheDocument();
   });
 
@@ -372,13 +372,21 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(screen.queryByRole('row', { name: /Loader 1/ })).toBeNull();
   });
 
+  it('AC-EQU-017 the empty grid states the absence in one line, with Add row as its control', () => {
+    h.entries = [];
+    renderPage();
+    expect(screen.getByText('No hours logged this week')).toBeInTheDocument();
+    expect(screen.queryByText(/Add a row for a machine and a project/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add row' })).toBeInTheDocument();
+  });
+
   it('AC-EQU-017 with no machines registered the empty grid names the absence and leads to New asset', async () => {
     h.assets = [];
     h.entries = [];
     const user = userEvent.setup();
     renderPage('Admin');
     expect(screen.getByText('No machines registered')).toBeInTheDocument();
-    expect(screen.queryByText('No equipment logged this week')).toBeNull();
+    expect(screen.queryByText('No hours logged this week')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'New asset' }));
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/equipment/assets');
   });
