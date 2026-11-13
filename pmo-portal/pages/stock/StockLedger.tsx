@@ -108,10 +108,9 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
     },
     {
       key: 'delta', header: t('ledger.columns.change'), align: 'num',
-      // F9d: the figure is one token — the sign travels inside the same unbreakable element as its
-      // amount, so a narrow column never shows a lone "−" above a number. The unit may take the next
-      // line on the phone card; the figure itself never breaks.
-      cell: (r) => <span data-testid="stock-ledger-change" className={`inline-flex min-w-0 max-w-full flex-wrap items-baseline gap-x-1 break-words tabular-nums ${r.qtyDelta.startsWith('-') ? 'text-destructive-text' : ''}`}><span className="whitespace-nowrap">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)}</span>{' '}<span className="whitespace-nowrap">{r.unitCode}</span></span>,
+      // Keep the signed quantity and its unit together; the full-width flex line also applies the
+      // numeric column's right alignment to the cell content, matching its header.
+      cell: (r) => <span data-testid="stock-ledger-change" className={`flex w-full min-w-0 max-w-full flex-nowrap items-baseline justify-end gap-x-1 whitespace-nowrap tabular-nums ${r.qtyDelta.startsWith('-') ? 'text-destructive-text' : ''}`}><span className="whitespace-nowrap">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)}</span>{' '}<span className="whitespace-nowrap">{r.unitCode}</span></span>,
       exportValue: (r) => r.qtyDelta,
     },
     { key: 'after', header: t('ledger.columns.balance'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatQuantity(r.qtyAfter, loc)}</span>, exportValue: (r) => r.qtyAfter },
