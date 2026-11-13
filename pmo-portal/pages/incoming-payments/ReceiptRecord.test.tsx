@@ -77,7 +77,7 @@ describe('ReceiptRecord', () => {
       created_at: '2026-10-01T00:00:00Z', received_amount: 100, withheld_amount: 0, push_command_state: 'pending',
     } as IncomingPaymentRow;
     render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={null} onBack={() => {}} odoo /></MemoryRouter>);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Payment received, not numbered yet');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Incoming payment, not numbered yet');
     expect(screen.queryByText(/c5000000/)).toBeNull();
   });
 
@@ -89,7 +89,26 @@ describe('ReceiptRecord', () => {
       erp_cancelled_at: null, created_at: '2026-10-01T00:00:00Z', received_amount: 100, withheld_amount: 0,
     } as IncomingPaymentRow;
     render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={[]} onBack={() => {}} /></MemoryRouter>);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Payment received RCP-04');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Incoming payment RCP-04');
+  });
+
+  it.each([
+    { state: 'Expected', status: 'Scheduled' },
+    { state: 'Paid', status: 'Paid' },
+    { state: 'Cancelled', status: 'Paid', cancelled_at: '2026-10-02T00:00:00Z' },
+  ])('C3 titles the $state record as an incoming payment', ({ state, ...statusFields }) => {
+    const receipt = {
+      id: `receipt-${state.toLowerCase()}`, org_id: 'org-1', customer_id: null, customer_name: 'Example customer',
+      sales_invoice_id: null, ip_number: `RCP-${state.toUpperCase()}`, reference_number: null, date: '2026-10-01', amount: 100,
+      currency: 'USD', erp_docstatus: 1, erp_modified: null, erp_amended_from: null,
+      erp_cancelled_at: null, created_at: '2026-10-01T00:00:00Z', received_amount: 100, withheld_amount: 0,
+      ...statusFields,
+    } as IncomingPaymentRow;
+    render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={[]} onBack={() => {}} /></MemoryRouter>);
+
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading).toHaveTextContent(/^Incoming payment/);
+    expect(heading).not.toHaveTextContent(/received/i);
   });
 
   it('uses the shared record header for receipt identity, status, client, date, and total', () => {
@@ -103,7 +122,7 @@ describe('ReceiptRecord', () => {
     render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={[]} onBack={() => {}} /></MemoryRouter>);
 
     const header = screen.getByTestId('record-header');
-    expect(within(header).getByRole('heading', { level: 1 })).toHaveTextContent('Payment received RCP-05');
+    expect(within(header).getByRole('heading', { level: 1 })).toHaveTextContent('Incoming payment RCP-05');
     expect(header).toHaveTextContent('Received');
     expect(header).toHaveTextContent('Example customer');
     expect(header).toHaveTextContent('Date');

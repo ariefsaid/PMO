@@ -210,6 +210,6 @@ describe('Incoming payment record name', () => {
         </MemoryRouter>
       </FinanceI18nTestProvider>,
     );
-    expect(screen.getByText('Payment received')).toBeInTheDocument();
+    expect(screen.getByText('Incoming payment')).toBeInTheDocument();
   });
 });
