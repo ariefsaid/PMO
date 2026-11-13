@@ -329,7 +329,8 @@ const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, eligible, sub
     () => eligible.map((p) => ({ value: p.id, label: p.full_name })),
     [eligible],
   );
-  const { data: projectOptions } = useProjectOptions();
+  const projectQuery = useProjectOptions();
+  const projectOptions = projectQuery.data;
   const loadProjects = useCallback(
     async (): Promise<ComboboxOption[]> => projectOptions ?? [],
     [projectOptions],
@@ -375,6 +376,16 @@ const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, eligible, sub
     >
       <FormSection legend={t('admin.spendApprovers.form.legend', 'Approver')}>
         <FormGrid>
+          {mode === 'project' && projectQuery.isError && (
+            // C1: a failed project read must not read as "no projects exist". Its own retry, in the
+            // dialog that needs the list; the picker itself stays available for a second attempt.
+            <ListState
+              variant="error"
+              title={t('admin.spendApprovers.form.projectLoadError', "Couldn't load the projects")}
+              retryLabel={t('admin.retry', 'Retry')}
+              onRetry={() => void projectQuery.refetch()}
+            />
+          )}
           {mode === 'project' && (
             <Combobox
               label={t('admin.spendApprovers.form.project', 'Project')}

@@ -27,7 +27,8 @@ import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadine
  * Administration › Accounting › Expense account map (#775 phase B, FR-EXP-116). The 8 keys an expense posting needs
  * (OD-EXP-PB-1: a delivery-project claim posts to Project direct cost, other claims to their expense type).
  * Saving goes through `external-set-company`, which reads the account from ERPNext and refuses one that does not fit
- * (FR-EXP-112 — e.g. the supplier payable account, an untyped advance account); its message is shown in the form.
+ * (FR-EXP-112 — e.g. the supplier payable account, an untyped advance account); the form states the remedy for the
+ * cause its stable code names (the account itself, or the binding) and never the server's own text.
  * Admin-only actions via `can('manage', 'integration')`; the table and the edge action are the authority (ADR-0016).
  *
  * S-12 (UX-080, RF-053): the readiness states are distinct — not connected, connected-but-switched-off,
