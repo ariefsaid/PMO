@@ -3356,9 +3356,7 @@
     "returned": {
       "revise": "Revise this week"
     },
-    "save": "Save draft",
     "status": {},
-    "submit": "Submit week",
     "submitConfirm": {
       "confirmLabel": "Submit week",
       "description": "This sends the whole week to your line manager. You can't edit it again until it's returned.",

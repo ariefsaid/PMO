@@ -3356,9 +3356,7 @@
     "returned": {
       "revise": "Revisi minggu ini"
     },
-    "save": "Simpan draf",
     "status": {},
-    "submit": "Ajukan minggu ini",
     "submitConfirm": {
       "confirmLabel": "Ajukan minggu ini",
       "description": "Ini mengirim seluruh minggu ke atasan Anda. Anda tidak dapat mengubahnya lagi sampai dikembalikan.",
