@@ -379,7 +379,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             </Button>
           )}
           {open && canBill && (c.evidence.length > 0 ? (
-            <Button variant="primary" size="sm" onClick={() => setRaiseFor({ claim: c, idempotencyKey: crypto.randomUUID() })}>
+            <Button variant="outline" size="sm" onClick={() => setRaiseFor({ claim: c, idempotencyKey: crypto.randomUUID() })}>
               {t('projectDetail.billing.claims.raise', 'Raise invoice')}
             </Button>
           ) : (
