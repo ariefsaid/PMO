@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
@@ -7,6 +7,8 @@ const { repoMock } = vi.hoisted(() => ({
   repoMock: {
     meeting: {
       list: vi.fn(),
+      listPage: vi.fn(),
+      count: vi.fn(),
       get: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
@@ -32,7 +34,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));
 
-import { useMeetings, useMeetingMutations } from './useMeetings';
+import { useMeetings, useMeetingsPages, useMeetingMutations } from './useMeetings';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <QueryClientProvider
@@ -48,8 +50,29 @@ beforeEach(() => {
 });
 
 describe('useMeetings', () => {
+  it('C8 meetings.ts:84,168,196 loads the next page at the number of rows already shown', async () => {
+    repoMock.meeting.listPage
+      .mockResolvedValueOnce({ rows: Array.from({ length: 25 }, (_, i) => ({ id: `m${i}` })), hasMore: true })
+      .mockResolvedValueOnce({ rows: [{ id: 'm25' }], hasMore: false });
+    repoMock.meeting.count.mockResolvedValue(26);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const stableWrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useMeetingsPages({ projectId: 'p1' }), { wrapper: stableWrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(result.current.total).toBe(26));
+    expect(repoMock.meeting.listPage).toHaveBeenNthCalledWith(1, { projectId: 'p1' }, 0);
+    expect(repoMock.meeting.count).toHaveBeenCalledWith({ projectId: 'p1' });
+    expect(result.current.hasNextPage).toBe(true);
+    await act(async () => { await result.current.fetchNextPage(); });
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+    expect(repoMock.meeting.listPage).toHaveBeenNthCalledWith(2, { projectId: 'p1' }, 25);
+    expect(result.current.data?.pages.flatMap((page) => page.rows.map((row) => row.id))).toHaveLength(26);
+  });
+
   it('passes the project filter + search through to the repository (server-side, DD-MTG-5)', async () => {
-    repoMock.meeting.list.mockResolvedValue([]);
+    repoMock.meeting.list.mockResolvedValue({ rows: [], hasMore: false });
     const { result } = renderHook(
       () => useMeetings({ projectId: 'p1', search: 'pipeline' }),
       { wrapper },
@@ -58,8 +81,30 @@ describe('useMeetings', () => {
     expect(repoMock.meeting.list).toHaveBeenCalledWith({ projectId: 'p1', search: 'pipeline' });
   });
 
+  it('C8b F5 flags the loaded pages as partial when a search leg failed, so no surface can print a total', async () => {
+    repoMock.meeting.listPage.mockResolvedValue({ rows: [{ id: 'm1' }], hasMore: false, partial: true });
+    repoMock.meeting.count.mockResolvedValue(9);
+    const { result } = renderHook(() => useMeetingsPages({ search: 'site' }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(result.current.total).toBe(9));
+    expect(result.current.isPartial).toBe(true);
+  });
+
+  it('keeps the page usable when the exact count is unavailable', async () => {
+    repoMock.meeting.listPage.mockResolvedValue({ rows: [{ id: 'm1' }], hasMore: true });
+    repoMock.meeting.count.mockRejectedValue(new Error('count unavailable'));
+    const { result } = renderHook(() => useMeetingsPages({ search: 'site' }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(repoMock.meeting.count).toHaveBeenCalledWith({ search: 'site' }));
+    expect(result.current.isError).toBe(false);
+    expect(result.current.total).toBeUndefined();
+    expect(result.current.hasNextPage).toBe(true);
+  });
+
   it('requests the full set, including archived rows, through a distinct repository query', async () => {
-    repoMock.meeting.list.mockResolvedValue([]);
+    repoMock.meeting.list.mockResolvedValue({ rows: [], hasMore: false });
     const { result } = renderHook(() => useMeetings({ includeArchived: true }), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(repoMock.meeting.list).toHaveBeenCalledWith({ includeArchived: true });
@@ -71,6 +116,8 @@ describe('useMeetingMutations.restore', () => {
     repoMock.meeting.restore.mockResolvedValue(undefined);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(['meetings', 'org-1', 'all', '', 'archived'], ['stale']);
+    client.setQueryData(['meetings-pages', 'org-1', 'all', '', 'archived'], { pages: [{ rows: ['stale'], hasMore: false }] });
+    client.setQueryData(['meetings-count', 'org-1', 'all', '', 'archived'], 1);
     const localWrapper = ({ children }: { children: React.ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );
@@ -80,6 +127,8 @@ describe('useMeetingMutations.restore', () => {
 
     expect(repoMock.meeting.restore).toHaveBeenCalledWith('m1');
     expect(client.getQueryState(['meetings', 'org-1', 'all', '', 'archived'])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['meetings-pages', 'org-1', 'all', '', 'archived'])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['meetings-count', 'org-1', 'all', '', 'archived'])?.isInvalidated).toBe(true);
   });
 });
 

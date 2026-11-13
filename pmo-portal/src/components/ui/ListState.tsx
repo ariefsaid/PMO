@@ -8,13 +8,16 @@ interface ActionSpec {
   label: string;
   onClick: () => void;
   variant?: ButtonVariant;
+  loading?: boolean;
 }
 
 /** Loading silhouettes shaped like the content they stand in for. */
 export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'chart';
 
 export interface ListStateProps {
-  variant: 'loading' | 'empty' | 'error';
+  variant: 'loading' | 'empty' | 'error' | 'partial';
+  /** Table footer alignment that keeps the continuation action in the familiar centered position. */
+  partialLayout?: 'row' | 'centeredAction';
   /** Empty/error heading. */
   title?: string;
   /** Render the empty-state title as the page's h1 (a whole-page state such as no access). */
@@ -163,6 +166,7 @@ const SkeletonBody: React.FC<{ shape: SkeletonShape; rows: number; columns: numb
  */
 export const ListState: React.FC<ListStateProps> = ({
   variant,
+  partialLayout = 'row',
   title,
   titleAsPageHeading = false,
   sub,
@@ -210,6 +214,30 @@ export const ListState: React.FC<ListStateProps> = ({
       >
         <span className="sr-only">{loadingLabel ?? (ready ? t('ui.listState.loading', 'Loading…') : 'Loading…')}</span>
         <SkeletonBody shape={shape} rows={rows} columns={columns} />
+      </div>
+    );
+  }
+
+  if (variant === 'partial') {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className={cn(
+          partialLayout === 'centeredAction'
+            ? 'grid grid-cols-1 gap-y-2 text-center sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:text-left'
+            : 'flex flex-wrap items-center gap-3',
+          'text-control text-muted-foreground',
+          className,
+        )}
+      >
+        {title && <span className="min-w-0 flex-1">{title}</span>}
+        {sub && <span className="min-w-0">{sub}</span>}
+        {action && (
+          <Button variant="outline" size="sm" loading={action.loading} onClick={action.onClick}>
+            {action.label}
+          </Button>
+        )}
       </div>
     );
   }
