@@ -916,7 +916,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   <button
                     type="button"
                     aria-pressed={selectedStage === key}
-                    onClick={() => setSelectedStage((current) => current === key ? null : current)}
+                    onClick={() => setSelectedStage((current) => current === key ? null : key)}
                     className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring sm:min-h-9 ${selectedStage === key ? 'border-primary/40 bg-accent text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-accent/40 hover:text-foreground'}`}
                   >
                     {stageText(key, t)}

@@ -268,13 +268,56 @@ describe('Procurement list restructure', () => {
     expect(screen.getByRole('button', { name: 'Open Order purchase' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Open Request purchase' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Open Invoice purchase' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear stage filter' }));
 
+    expect(orderStage).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Open Request purchase' })).toBeInTheDocument();
+
+    await userEvent.click(orderStage);
+
+    expect(orderStage).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Open Request purchase' })).not.toBeInTheDocument();
     await userEvent.click(orderStage);
 
     expect(orderStage).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: 'Open Order purchase' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open Request purchase' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open Invoice purchase' })).toBeInTheDocument();
+  });
+
+  it('Move 5: keeps the title medium and the code and supplier muted regular', () => {
+    roleState.role = 'Admin';
+    procState.data = [row({
+      id: 'weighted-row',
+      title: 'Weighted procurement title',
+      code: 'PROC-2026-091',
+      vendor: { name: 'Northstar Supplies' },
+    })];
+    renderPage('/procurement?tab=all');
+
+    const rowElement = screen.getByRole('button', { name: 'Open Weighted procurement title' }).closest('tr') as HTMLElement;
+    const title = within(rowElement).getByRole('button', { name: 'Open Weighted procurement title' });
+    const code = within(rowElement).getByText('PROC-2026-091');
+    const identityLine = code.closest('span.block') as HTMLElement;
+
+    expect(title).toHaveClass('font-medium');
+    expect(code).toHaveClass('font-normal');
+    expect(identityLine).toHaveClass('text-muted-foreground');
+    expect(identityLine).not.toHaveClass('font-medium', 'font-semibold', 'font-bold');
+    expect(identityLine).toHaveTextContent('PROC-2026-091 · Northstar Supplies');
+  });
+
+  it('Move 4: keeps stage meaning on chips without restoring the removed share bar', () => {
+    roleState.role = 'Admin';
+    procState.data = [
+      row({ id: 'request-share', title: 'Request purchase', status: 'Requested' }),
+      row({ id: 'order-share', title: 'Order purchase', status: 'Ordered' }),
+    ];
+    const { container } = renderPage('/procurement?tab=all');
+
+    const stageGroup = screen.getByRole('group', { name: 'Procurement stages' });
+    expect(within(stageGroup).getByRole('button', { name: /Request/ })).toBeInTheDocument();
+    expect(container.querySelector('div[aria-hidden="true"] > span[style*="flex-grow"]')).toBeNull();
   });
 
   it('Project Managers see procurements only for projects they manage', () => {
