@@ -1020,6 +1020,32 @@ describe('SalesPipeline tax basis: once in the band caption (move 4)', () => {
     expect(screen.queryAllByTestId('tax-basis')).toHaveLength(0);
   });
 
+  it('keeps each deal basis visible once when a won deal changes the full-board basis set', () => {
+    pipelineState.data = {
+      stages: seedStages,
+      projects: [{ ...seedProjects[0], tax_treatment: 'inclusive' }],
+    } as never;
+    wonState.data = [{
+      id: 'won-exclusive-basis',
+      name: 'Won Exclusive Deal',
+      short_name: null,
+      client_name: 'Acme',
+      status: 'Close Out',
+      contract_value: 400000,
+      currency: 'USD',
+      tax_treatment: 'exclusive',
+      win_probability: 1,
+    }];
+    renderPage('/sales?view=kanban');
+
+    const summary = screen.getByLabelText('Pipeline summary');
+    expect(within(summary).queryByTestId('pipeline-funnel-caption')).toBeNull();
+    expect(screen.getAllByText('incl. PPN', { exact: true })).toHaveLength(1);
+    expect(screen.getAllByText('excl. PPN', { exact: true })).toHaveLength(1);
+    const wonCard = screen.getByText('Won Exclusive Deal').closest('[data-testid="project-card"]') as HTMLElement;
+    expect(within(wonCard).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+  });
+
   it('states nothing shared when a priced deal carries no basis, and the rows keep their own labels', () => {
     pipelineState.data = {
       stages: seedStages,
