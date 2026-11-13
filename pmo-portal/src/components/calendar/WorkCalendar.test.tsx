@@ -208,5 +208,16 @@ describe('WorkCalendar — ruled screen notes are opt-in', () => {
     expect(screen.queryByText(/No tasks or milestones due/)).not.toBeInTheDocument();
     expect(screen.getByText('Nothing due in this period')).toBeInTheDocument();
   });
+
+  it('shows the scope line the host supplies, inside the toolbar', () => {
+    renderCal({ scopeNote: 'Tasks and milestones only — meetings are not on this calendar.' });
+    const toolbar = screen.getByTestId('work-calendar-toolbar');
+    expect(within(toolbar).getByText('Tasks and milestones only — meetings are not on this calendar.')).toBeInTheDocument();
+  });
+
+  it('adds no scope line of its own', () => {
+    renderCal();
+    expect(screen.queryByText(/meetings are not on this calendar/)).not.toBeInTheDocument();
+  });
 });
 

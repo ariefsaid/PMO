@@ -333,3 +333,18 @@ describe('Calendar — move 1: an empty month says so, a failed read retries', (
   });
 });
 
+// Move 2 (judging calendar.md #2): the calendar states its scope — meetings are not on it, and it
+// reads none (one line, no new read).
+describe('Calendar — move 2: the scope says what is not on this calendar', () => {
+  beforeEach(() => {
+    resetReads();
+    HTMLElement.prototype.scrollTo = vi.fn();
+    may.mockReturnValue(true);
+  });
+
+  it('says meetings are not on this calendar', () => {
+    renderPage();
+    expect(screen.getByText('Tasks and milestones only — meetings are not on this calendar.')).toBeInTheDocument();
+  });
+});
+
