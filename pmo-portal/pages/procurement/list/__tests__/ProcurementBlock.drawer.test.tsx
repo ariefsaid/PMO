@@ -28,11 +28,17 @@ const detailFor = (r: ReturnType<typeof row>) => ({
 const procState = { data: [row()] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 const authState = { userId: 'u-finance', role: 'Finance' };
 const budgetState = { rows: [] as unknown[], hasBudget: false, isPending: false, actualsPending: false };
+const detailState = vi.hoisted(() => ({ isPending: false, isError: false, refetch: vi.fn() }));
+const exportXlsxSpy = vi.hoisted(() => vi.fn());
 
 const transitionSpy = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('@/src/lib/repositories', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
   return { ...actual, repositories: { ...actual.repositories, procurement: { ...actual.repositories.procurement, transition: transitionSpy } } };
+});
+vi.mock('@/src/components/export', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/export')>();
+  return { ...actual, useExport: () => ({ exportXlsx: exportXlsxSpy, busy: false }) };
 });
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({
@@ -44,7 +50,7 @@ vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { id: 'pr
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: (id?: string) => {
     const found = (procState.data as Array<ReturnType<typeof row>>).find((candidate) => candidate.id === id);
-    return { data: found ? detailFor(found) : undefined, isPending: false, isError: false, refetch: vi.fn() };
+    return { data: found ? detailFor(found) : undefined, ...detailState };
   },
 }));
 vi.mock('@/src/hooks/useProjectPosition', () => ({ useBudgetPosition: () => budgetState }));
@@ -62,6 +68,7 @@ const renderBlock = (path = '/procurement?open=p-1') => render(
       <ToastProvider>
         <Routes>
           <Route path="/procurement" element={<ProcurementBlock />} />
+          <Route path="/procurement/:procurementId/documents" element={<RouteProbe />} />
           <Route path="/procurement/:procurementId" element={<RouteProbe />} />
         </Routes>
       </ToastProvider>
@@ -76,6 +83,10 @@ describe('Procurement drawer header (B4)', () => {
     authState.role = 'Finance';
     budgetState.rows = [];
     budgetState.hasBudget = false;
+    detailState.isPending = false;
+    detailState.isError = false;
+    detailState.refetch.mockReset();
+    exportXlsxSpy.mockReset();
   });
 
   it('carries the state main action, Open full page and a more-actions menu', async () => {
@@ -97,6 +108,68 @@ describe('Procurement drawer header (B4)', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
     expect(await screen.findByRole('menuitem', { name: 'Open procurement' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Next action' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the preserved row actions available for a procurement awaiting a decision', async () => {
+    procState.data = [row({ status: 'Requested', procurement_invoices: [], approved_by_id: null })];
+    renderBlock('/procurement');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
+
+    const menu = await screen.findByRole('menu');
+    for (const name of ['Open procurement', 'Record another document', 'Approve', 'Return', 'Link a file', 'Export', 'Copy link', 'Cancel procurement']) {
+      expect(within(menu).getByRole('menuitem', { name })).toBeInTheDocument();
+    }
+  });
+
+  it('copies the row link and announces success', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+
+    try {
+      renderBlock('/procurement');
+      await userEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Copy link' }));
+
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/procurement/p-1`));
+      expect(await screen.findByText('Link copied')).toBeVisible();
+    } finally {
+      if (clipboardDescriptor) Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
+  it('exports the selected row from its menu', async () => {
+    renderBlock('/procurement');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Export' }));
+
+    expect(exportXlsxSpy).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: 'p-1' })],
+      expect.any(Array),
+      'Procurement',
+    );
+  });
+
+  it('opens the linked-documents route from the row menu', async () => {
+    renderBlock('/procurement');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Link a file' }));
+
+    expect(screen.getByTestId('route-probe')).toHaveTextContent('/procurement/p-1/documents');
+  });
+
+  it('confirms cancellation from the row menu before changing the record', async () => {
+    transitionSpy.mockClear();
+    procState.data = [row({ status: 'Requested', procurement_invoices: [], approved_by_id: null })];
+    renderBlock('/procurement');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Cancel procurement' }));
+
+    const confirm = await screen.findByRole('alertdialog', { name: 'Cancel this procurement?' });
+    expect(transitionSpy).not.toHaveBeenCalled();
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Cancel procurement' }));
+    await waitFor(() => expect(transitionSpy).toHaveBeenCalledWith('p-1', 'Cancelled'));
   });
 
   it('offers Approve to a viewer who may decide a waiting procurement', () => {
@@ -202,6 +275,17 @@ describe('Procurement drawer body', () => {
     const drawer = screen.getByRole('dialog');
     expect(within(drawer).getAllByText('$62,000')).toHaveLength(1);
     expect(within(drawer).getByText('Unpaid in full')).toBeInTheDocument();
+  });
+
+  it('retries the drawer detail query after linked documents fail to load', async () => {
+    detailState.isError = true;
+    renderBlock();
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByText('Linked documents could not be loaded.')).toBeInTheDocument();
+
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Retry' }));
+
+    expect(detailState.refetch).toHaveBeenCalledOnce();
   });
 });
 
