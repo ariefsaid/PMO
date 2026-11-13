@@ -370,6 +370,21 @@ describe('DataTable', () => {
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
+  it('C5: a pending empty result never renders the empty sentence', () => {
+    render(
+      <DataTable
+        rows={[]}
+        columns={columns}
+        rowKey={(r) => r.id}
+        state="loading"
+        emptyTitle="No projects match these filters"
+      />,
+    );
+
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByText('No projects match these filters')).not.toBeInTheDocument();
+  });
+
   it('state="loading" announces loading and rows remain keyboard reachable after load', async () => {
     const onActivate = vi.fn();
     const { rerender } = render(<DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="loading" />);
@@ -407,6 +422,23 @@ describe('DataTable', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Load failed');
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(onRetry).toHaveBeenCalled();
+  });
+
+  it('C5: a failed empty result never renders the empty sentence', () => {
+    render(
+      <DataTable
+        rows={[]}
+        columns={columns}
+        rowKey={(r) => r.id}
+        state="error"
+        emptyTitle="No projects match these filters"
+        errorTitle="Could not load projects"
+        onRetry={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not load projects');
+    expect(screen.queryByText('No projects match these filters')).not.toBeInTheDocument();
   });
 
   it('F18: the error state does not show the column header row above the error panel', () => {
