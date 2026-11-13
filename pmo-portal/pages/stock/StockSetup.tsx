@@ -176,9 +176,9 @@ const StockSetup: React.FC = () => {
       )}
     >
       <StockTabs />
-      <div className="mb-4 flex items-center border-b border-border">
+      <div className="mb-4 flex flex-col items-stretch border-b border-border sm:flex-row sm:items-center">
         <Tabs<Tab>
-          className="mb-0 min-w-0 flex-1 border-b-0"
+          className="mb-0 w-full min-w-0 border-b-0 sm:w-auto sm:flex-1"
           idBase="stock-setup"
           ariaLabel={t('setup.tabsLabel')}
           value={tab}
@@ -189,7 +189,7 @@ const StockSetup: React.FC = () => {
             { value: 'warehouses', label: t('setup.tabs.warehouses') },
           ]}
         />
-        <label className="flex shrink-0 items-center gap-2 pl-3 text-sm">
+        <label className="flex min-h-11 w-full shrink-0 items-center gap-2 pl-0 text-sm sm:min-h-0 sm:w-auto sm:pl-3">
           <Checkbox checked={showArchived} onChange={setShowArchived} label={t('setup.showArchived')} />
           <span aria-hidden onClick={() => setShowArchived(!showArchived)}>{t('setup.showArchived')}</span>
         </label>
