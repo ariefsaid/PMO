@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -84,5 +84,30 @@ describe('StockDocuments (AC-STK-032)', () => {
     await screen.findByText('ISS-1');
     await userEvent.selectOptions(screen.getByLabelText('Kind'), 'receive');
     await vi.waitFor(() => expect(documents.list.mock.calls.at(-1)?.[0]).toMatchObject({ kind: 'receive' }));
+  });
+
+  it('the register reads newest movement first, and same-day documents by number', async () => {
+    documents.list.mockResolvedValue([
+      doc(1, { number: 'STK-10', occurred_on: '2026-10-01', created_at: '2026-10-05T00:00:00Z' }),
+      doc(2, { number: 'STK-9', occurred_on: '2026-10-22', created_at: '2026-10-22T00:00:00Z' }),
+      doc(3, { number: 'STK-2', occurred_on: '2026-10-22', created_at: '2026-10-22T01:00:00Z' }),
+    ]);
+    renderPage();
+    await screen.findByText('STK-9');
+    const table = screen.getByRole('table');
+    expect(within(table).getAllByRole('link').map((link) => link.textContent)).toEqual(['STK-9', 'STK-2', 'STK-10']);
+  });
+
+  it('C1 a failed next page says so, and its Retry fetches that page', async () => {
+    const page = Array.from({ length: 50 }, (_, i) => doc(i + 1, { id: `d${i + 1}`, number: `ISS-${i + 1}`, created_at: `2026-10-01T00:00:${String(i).padStart(2, '0')}Z` }));
+    documents.list.mockResolvedValueOnce(page);
+    documents.list.mockRejectedValueOnce(new AppError('boom'));
+    documents.list.mockResolvedValueOnce([doc(51, { number: 'ISS-51' })]);
+    renderPage();
+    await screen.findByText('ISS-1');
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByText("Couldn't load more documents")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('ISS-51')).toBeInTheDocument();
   });
 });

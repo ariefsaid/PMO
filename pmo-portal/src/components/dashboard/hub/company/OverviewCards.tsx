@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
@@ -199,10 +199,17 @@ export const PurchasingCard: React.FC<{ counts: Array<{ status: ProcurementStage
  * Why deals were lost: bars for the reasons that were recorded. With none recorded the chart is left out (and counted in
  * the page's hidden line); win and loss by client stay as rows under their own heading.
  */
-export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string; /** A titled section inside another card. */ embedded?: boolean }> = ({ range, className, embedded = false }) => {
+export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string; /** A titled section inside another card. */ embedded?: boolean; refreshToken?: number }> = ({ range, className, embedded = false, refreshToken = 0 }) => {
   const { t } = useTranslation('dashboard');
   const { t: tl } = useTranslation('lostReason');
   const { data, isPending, isError, refetch } = useLossBreakdown(range);
+  const lastRefreshToken = useRef(refreshToken);
+  useEffect(() => {
+    if (lastRefreshToken.current !== refreshToken) {
+      lastRefreshToken.current = refreshToken;
+      void refetch();
+    }
+  }, [refreshToken, refetch]);
   const reasons = (data?.by_reason ?? []).filter((row) => row.reason !== null).map((row) => ({ ...row, total: row.losses_count + row.declined_count })).filter((row) => row.total > 0);
   const clients = data?.by_client ?? [];
   const title = t('home.whyLost', 'Why deals were lost');

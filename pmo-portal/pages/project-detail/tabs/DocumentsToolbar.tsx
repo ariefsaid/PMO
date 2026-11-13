@@ -8,6 +8,7 @@ import {
   ViewToggle,
 } from '@/src/components/ui';
 import type { DocStatus } from '@/src/lib/db/documents';
+import { statusLabel } from '@/src/lib/status/statusMap';
 
 /** Search shows only when the register is long enough to need it (owner ruling B7: "search only beyond ~10"). */
 export const SEARCH_THRESHOLD = 10;
@@ -81,7 +82,7 @@ const DocumentsToolbar: React.FC<{
         >
           <option value="">{t('projectDetail.documents.filter.allStatuses', 'All statuses')}</option>
           {(['Draft', 'Issued', 'Approved', 'Rejected', 'Closed', 'Superseded'] as DocStatus[]).map((status) => (
-            <option key={status} value={status}>{status}</option>
+            <option key={status} value={status}>{statusLabel('document', status, t)}</option>
           ))}
         </select>
         <label className="sr-only" htmlFor="documents-source-filter">{t('projectDetail.documents.filter.source', 'Filter by source')}</label>

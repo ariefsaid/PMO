@@ -75,7 +75,8 @@
     "error": "Gagal memuat hitung kas",
     "none": "Belum ada hitung kas yang dicatat.",
     "title": "Hitung kas",
-    "variance": "Selisih {{amount}}"
+    "variance": "Selisih {{amount}}",
+    "loading": "Memuat hitungan kas…"
   },
   "note": {
     "readFull": "Baca catatan lengkap"
@@ -89,7 +90,9 @@
     "notFoundSub": "Tidak ada, atau Anda tidak memiliki akses.",
     "position": "Posisi",
     "positionError": "Gagal memuat posisi kas lapangan ini",
-    "positionErrorSub": "Lebih baik tidak menampilkan angka daripada angka yang salah. Coba lagi."
+    "positionErrorSub": "Pembacaan posisi gagal. Tindakan kas kecil tidak tersedia sampai pembacaan berhasil. Angka tidak ditampilkan. Coba ulangi pembacaan posisi.",
+    "floatName": "Kas kecil {{id}}",
+    "archived": "Diarsipkan"
   },
   "establish": {
     "amount": "Jumlah kas lapangan",

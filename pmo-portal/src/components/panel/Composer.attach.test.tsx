@@ -51,6 +51,17 @@ afterEach(() => {
 });
 
 describe('Composer attachment affordance', () => {
+  it('keeps the message field labelled, controlled, and editable through the shared textarea primitive', () => {
+    const onChange = vi.fn();
+    renderComposer({ value: 'still send this', onChange });
+    const input = screen.getByRole('textbox', { name: 'Ask a question' });
+
+    expect(input).toHaveValue('still send this');
+    fireEvent.change(input, { target: { value: 'Check the schedule' } });
+
+    expect(onChange).toHaveBeenCalledWith('Check the schedule');
+  });
+
   it('AC-AT2-002 composer attach rejects oversize and keeps text-send', async () => {
     const user = userEvent.setup();
     const onAttachmentError = vi.fn();

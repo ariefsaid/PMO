@@ -226,15 +226,18 @@ const BudgetPasteRowsDialog: React.FC<BudgetPasteRowsDialogProps> = ({
                 <Checkbox checked={header} onChange={setHeader} label={headerText} labelledBy={headerId} />
                 <span id={headerId} onClick={() => setHeader(!header)}>{headerText}</span>
               </span>
-              <fieldset className="flex flex-wrap items-center gap-4 border-0 p-0 text-sm">
-                <legend className="sr-only">{t('budgetPaste.modeLegend', 'Amount mode')}</legend>
-                {(['amount', 'quantity-rate'] as const).map((value) => (
-                  <label key={value} className="inline-flex items-center gap-2">
-                    <input type="radio" className="accent-primary" name="paste-mode" checked={shownMode === value} onChange={() => setMode(value)} />
-                    {value === 'amount' ? t('budgetPaste.modeAmount', 'Use Amount') : t('budgetPaste.modeProduct', 'Use Quantity × Rate')}
-                  </label>
-                ))}
-              </fieldset>
+              <SelectField
+                label={t('budgetPaste.modeLegend', 'Amount mode')}
+                value={shownMode ?? ''}
+                placeholder={shownMode ? undefined : t('budgetPaste.modeLegend', 'Amount mode')}
+                options={[
+                  { value: 'amount', label: t('budgetPaste.modeAmount', 'Use Amount') },
+                  { value: 'quantity-rate', label: t('budgetPaste.modeProduct', 'Use Quantity × Rate') },
+                ]}
+                onChange={(value) => setMode(value as PasteMode)}
+                wrapperClassName="min-w-48"
+                className="h-9"
+              />
             </div>
 
             {unknownCategories.length > 0 && (

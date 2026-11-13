@@ -210,7 +210,10 @@
       "noMatchSub": "Clear the search or pick another warehouse.",
       "emptySub": "Receive stock into a warehouse and it appears here."
     },
-    "moreMovements": "More"
+    "moreMovements": "More",
+    "count": "{{shown}} balances",
+    "countOne": "1 balance",
+    "countOfTotal": "Showing {{shown}} of {{total}} balances"
   },
   "documents": {
     "title": "Documents",
@@ -239,7 +242,8 @@
       "emptySub": "Receive stock into a warehouse to create the first one.",
       "noMatch": "No documents match",
       "noMatchSub": "Clear a filter to see more."
-    }
+    },
+    "loadMoreFailed": "Couldn't load more documents"
   },
   "detail": {
     "notFound": {
@@ -281,7 +285,9 @@
       "title": "Cancel this draft?",
       "description": "The draft is kept for the record but can no longer be posted.",
       "confirm": "Cancel draft"
-    }
+    },
+    "overAllowanceFailed": "Could not check whether this issue is over its work-item allowance.",
+    "costsFailed": "Couldn't load the line costs"
   },
   "ledger": {
     "title": "Ledger",
@@ -305,7 +311,8 @@
       "allWarehouses": "All warehouses",
       "from": "From",
       "to": "To",
-      "oneDocument": "One document"
+      "oneDocument": "One document",
+      "dateHelp": "From and To filter the movement date (the Date column), not when the entry was posted."
     },
     "loadMore": "Load more",
     "end": "{{count}} entries, end of the ledger",
@@ -314,7 +321,8 @@
       "emptySub": "Postings appear here the moment they are made.",
       "noMatch": "No entries match",
       "noMatchSub": "Clear a filter to see more."
-    }
+    },
+    "loadMoreFailed": "Couldn't load more entries"
   },
   "materials": {
     "title": "Materials",
@@ -505,7 +513,8 @@
       "save": "Save level",
       "cancel": "Cancel",
       "clear": "Clear level",
-      "setManually": "Set a level"
+      "setManually": "Set a level",
+      "suggestionFailed": "Couldn't load the reorder suggestion"
     },
     "worklist": {
       "title": "Below reorder level",

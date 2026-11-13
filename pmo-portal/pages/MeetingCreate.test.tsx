@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { zonedDatetimeLocalToInstant } from '@/src/lib/format';
 
 const { mutations, permission, projectsState } = vi.hoisted(() => ({
   permission: { allowed: true },
@@ -278,6 +279,105 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     renderPage();
     expect(screen.getByText('You do not have permission to create meetings.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save meeting' })).not.toBeInTheDocument();
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+// Floor (all-screens/floor-tests/new-meeting.md items 1, 3, 4, 5, 9, 10, 13, 15): each control a
+// person can press or type into on the one-page capture, asserted through the create payload.
+describe('New meeting — floor: capture controls (floor-tests/new-meeting.md)', () => {
+  const save = async () => userEvent.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+  it('floor 1: the back bar returns to the meetings list without creating anything', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /Back to Meetings/ }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings'));
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 3: the When field’s local date and time reach the payload as that instant', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Site walk');
+    fireEvent.change(screen.getByLabelText(/When/), { target: { value: '2026-11-20T09:30' } });
+    await save();
+
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
+    const [input] = mutations.create.mutateAsync.mock.calls[0];
+    expect(input.occurred_at).toBe(zonedDatetimeLocalToInstant('2026-11-20T09:30')!.toISOString());
+  });
+
+  it('floor 4: a typed location is saved with the meeting', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Site walk');
+    await userEvent.type(screen.getByLabelText(/Location/), 'Site office');
+    await save();
+
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
+    expect(mutations.create.mutateAsync.mock.calls[0][0]).toMatchObject({ location: 'Site office' });
+  });
+
+  it('floor 5: the chosen project id reaches the payload', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Site walk');
+    await userEvent.selectOptions(screen.getByLabelText('Project', { selector: 'select' }), 'p1');
+    await save();
+
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
+    expect(mutations.create.mutateAsync.mock.calls[0][0]).toMatchObject({ project_id: 'p1' });
+  });
+
+  it('floor 9: an organisation member picked from the member picker is saved as an attendee', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('combobox', { name: 'Add attendee' }));
+    await user.click(await screen.findByRole('option', { name: /Sam Member/ }));
+    expect(screen.getByText('Sam Member')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledWith({
+      meetingId: 'meeting-new',
+      identity: { profile_id: 'u2' },
+    }));
+  });
+
+  it('floor 10: removing a member attendee keeps them out of the saved meeting', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('combobox', { name: 'Add attendee' }));
+    await user.click(await screen.findByRole('option', { name: /Sam Member/ }));
+    await user.click(screen.getByRole('button', { name: 'Remove attendee: Sam Member' }));
+    expect(screen.queryByRole('button', { name: 'Remove attendee: Sam Member' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 13: removing a guest keeps them out of the saved meeting', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.type(screen.getByLabelText(/External guest/), 'Asha Noor');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(screen.getByRole('button', { name: 'Remove attendee: Asha Noor' }));
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 15: Keep editing in the leave dialog keeps the draft and writes nothing', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Unsaved meeting');
+    await userEvent.click(screen.getByRole('button', { name: /Back to Meetings/ }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+    expect(screen.getByLabelText(/Title/)).toHaveValue('Unsaved meeting');
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
 });

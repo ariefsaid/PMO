@@ -8,7 +8,7 @@ import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer
 import { formatDay, formatCalendarDayInTimeZone, formatDaysOverdue } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import type { TaskStatus } from '@/src/lib/db/tasks';
+import type { TaskPriority, TaskStatus } from '@/src/lib/db/tasks';
 import { statusLabel } from '@/src/lib/status/statusMap';
 
 /** AC-IFW-TASKS-01 / PGA03-008: Today's calendar date string (YYYY-MM-DD) in user's timezone. */
@@ -107,6 +107,15 @@ const MyTasks: React.FC = () => {
     'In Progress': statusLabel('task', 'In Progress', t),
     Done: statusLabel('task', 'Done', t),
     Blocked: statusLabel('task', 'Blocked', t),
+  };
+
+  // C13 (DS my-tasks #4): the priority the record holds, said in words. An UNSET priority prints
+  // nothing at all — "Normal" is a real, chosen value, so it must never stand in for "not set".
+  const priorityLabels: Record<TaskPriority, string> = {
+    Urgent: t('myTasks.priority.urgent', 'Priority: Urgent'),
+    High: t('myTasks.priority.high', 'Priority: High'),
+    Normal: t('myTasks.priority.normal', 'Priority: Normal'),
+    Low: t('myTasks.priority.low', 'Priority: Low'),
   };
 
   const visibleTasks = React.useMemo(() => {
@@ -326,6 +335,17 @@ const MyTasks: React.FC = () => {
                           >
                             {task.name}
                           </span>
+                        )}
+                        {/* C13 (DS my-tasks #1/#4): the queue's own record facts — an archived
+                            task says so (its project hides it), and a priority is printed in words.
+                            Both are named, never left to a colour. */}
+                        {task.archived_at && (
+                          <StatusPill variant="neutral">{t('myTasks.archived', 'Archived')}</StatusPill>
+                        )}
+                        {task.priority && (
+                          <StatusPill variant={task.priority === 'Urgent' ? 'overdue' : task.priority === 'High' ? 'warn' : 'neutral'}>
+                            {priorityLabels[task.priority]}
+                          </StatusPill>
                         )}
                         {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA).
                             Words (docs/ux/screen-rules.md): a task past its due date is "overdue"

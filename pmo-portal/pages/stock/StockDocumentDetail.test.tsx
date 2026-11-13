@@ -43,7 +43,13 @@ const renderPage = (r: Role = 'Engineer') => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}><ToastProvider><MemoryRouter initialEntries={['/stock/documents/d1']}>
-      <Routes><Route path="/stock/documents/:documentId" element={<StockDocumentDetail />} /><Route path="/stock/documents" element={<p>list page</p>} /><Route path="/stock/documents/:documentId/edit" element={<p>edit page</p>} /></Routes>
+      <Routes>
+        <Route path="/stock/documents/:documentId" element={<StockDocumentDetail />} />
+        <Route path="/stock/documents" element={<p>list page</p>} />
+        <Route path="/stock/documents/:documentId/edit" element={<p>edit page</p>} />
+        <Route path="/stock/ledger" element={<p>ledger page</p>} />
+        <Route path="/projects/:projectId" element={<p>project page</p>} />
+      </Routes>
     </MemoryRouter></ToastProvider></QueryClientProvider>,
   );
 };
@@ -182,9 +188,10 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     expect(within(table).queryByText('Value')).not.toBeInTheDocument();
   });
 
-  const adjDraft = () => detail({
+  const adjDraft = (over: Record<string, unknown> = {}) => detail({
     number: 'ADJ-1', kind: 'adjustment', status: 'Draft', created_by: 'someone-else', reason: 'found in the yard', project_id: null, project: null, posted_by: null, posted_at: null,
     lines: [{ id: 'l1', line_no: 1, item_id: 'i2', quantity: '10', counted_quantity: null, expected_quantity: null, direction: 'in', boq_item_id: null, source_line_id: null, item: { code: 'CAB', name: 'Cable 4mm', unit: { code: 'm', whole_only: false } } }],
+    ...over,
   });
   it('FR-STK-063 the approver (rank >= 20) sees an adjust-in line\'s unit cost and the value it adds', async () => {
     documents.get.mockResolvedValue(adjDraft());
@@ -227,5 +234,97 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     renderPage();
     await screen.findAllByText('ISS-1');
     expect(consumption.report).not.toHaveBeenCalled();
+  });
+});
+
+/** C5: an allowance check that could not run is not a clean bill of health. */
+describe('C5 the over-allowance check is never silent', () => {
+  it('a failed allowance read says the check could not run and offers a Retry that runs it', async () => {
+    const allowance = { boqItemId: 'b1', boqItemCode: 'W-1', boqDescription: 'Slab', itemId: 'i1', itemCode: 'CEM', itemName: 'Cement 50kg', unitCode: 'bag', id: 'a1', plannedQuantity: '60', netToDate: '64', variance: '4' };
+    consumption.report.mockRejectedValueOnce(new AppError('boom'));
+    renderPage();
+    expect(await screen.findByText('Could not check whether this issue is over its work-item allowance.')).toBeInTheDocument();
+    consumption.report.mockResolvedValue({ from: '2026-10-30', to: '2026-10-30', months: [], unplanned: [], allowances: [{ ...allowance, overAllowance: true }] });
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText(/Over allowance: W-1 has now used 64 of 60 bag planned/)).toBeInTheDocument();
+  });
+});
+
+/** C1: every failed read on the record is visible and can be re-run. */
+describe('C1 a failed line-cost read is not silent', () => {
+  it('the lines keep their place and the failed cost read is shown with a Retry that reruns it', async () => {
+    documents.get.mockResolvedValue(adjDraft());
+    documents.costs.mockRejectedValueOnce(new AppError('boom'));
+    renderPage('Project Manager');
+    expect(await screen.findByText("Couldn't load the line costs")).toBeInTheDocument();
+    documents.costs.mockResolvedValue([{ lineId: 'l1', hasCost: true, unitCost: '1000000.0000' }]);
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    const table = await screen.findByRole('table', { name: 'Lines' });
+    expect(await within(table).findByText(/^\D*1,000,000\.00$/)).toBeInTheDocument();
+  });
+});
+
+/** C13: money the record already knows stays on the line after posting. */
+describe('C13 line money survives posting', () => {
+  it('a posted adjustment still shows the unit cost its lines posted at', async () => {
+    documents.get.mockResolvedValue(adjDraft({ status: 'Posted', posted_by: 'me', posted_at: '2026-10-30T04:00:00Z' }));
+    documents.costs.mockResolvedValue([{ lineId: 'l1', hasCost: true, unitCost: '1000000.0000' }]);
+    renderPage('Project Manager');
+    const table = await screen.findByRole('table', { name: 'Lines' });
+    expect(within(table).getByText('Unit cost')).toBeInTheDocument();
+    expect(await within(table).findByText(/^\D*1,000,000\.00$/)).toBeInTheDocument();
+  });
+});
+
+/** Floor list (all-screens/floor-tests/stock-document-record.md): the items this suite did not yet cover. */
+describe('AC-STK-032 floor: every control on the document record still works', () => {
+  it('the stock section strip opens the ledger from a document record', async () => {
+    renderPage();
+    await screen.findByText('ISS-1');
+    await userEvent.click(screen.getByRole('link', { name: 'Ledger' }));
+    expect(await screen.findByText('ledger page')).toBeInTheDocument();
+  });
+
+  it('the project link opens that project record', async () => {
+    renderPage();
+    await screen.findByText('ISS-1');
+    await userEvent.click(screen.getByRole('link', { name: 'Tower A' }));
+    expect(await screen.findByText('project page')).toBeInTheDocument();
+  });
+
+  it('a failed stock-entries read keeps the record and its Retry refetches only the entries', async () => {
+    reports.ledgerAll.mockRejectedValueOnce(new AppError('boom'));
+    renderPage();
+    await screen.findByText('ISS-1');
+    const section = screen.getByRole('heading', { name: 'Stock entries' }).closest('section') as HTMLElement;
+    expect(await within(section).findByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    await userEvent.click(within(section).getByRole('button', { name: 'Retry' }));
+    expect(await within(section).findByText('SITE-A')).toBeInTheDocument();
+    expect(reports.ledgerAll).toHaveBeenCalledTimes(2);
+    expect(documents.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('Open in the ledger opens the ledger filtered to this document', async () => {
+    renderPage();
+    const link = await screen.findByRole('link', { name: 'Open in the ledger' });
+    expect(link).toHaveAttribute('href', '/stock/ledger?document=d1');
+    await userEvent.click(link);
+    expect(await screen.findByText('ledger page')).toBeInTheDocument();
+  });
+
+  it('a failed document read offers a Retry that shows the record once the read succeeds', async () => {
+    documents.get.mockRejectedValueOnce(new AppError('boom'));
+    renderPage();
+    expect(await screen.findByText("Couldn't load stock")).toBeInTheDocument();
+    documents.get.mockResolvedValue(detail());
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('ISS-1')).toBeInTheDocument();
+  });
+
+  it('a missing document offers the way back to the documents list', async () => {
+    documents.get.mockResolvedValue(null);
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Back to documents' }));
+    expect(await screen.findByText('list page')).toBeInTheDocument();
   });
 });
