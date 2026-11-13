@@ -100,6 +100,13 @@
     "client": {
       "nounPlural": "perusahaan"
     },
+    "clientCode": {
+      "helper": "Kode opsional yang digunakan organisasi Anda untuk proyek klien ini."
+    },
+    "projectNumber": {
+      "assignedOnChooseClient": "Terisi otomatis setelah Anda memilih klien.",
+      "assignedAndEditable": "Terisi otomatis setelah Anda memilih klien. Anda dapat mengubahnya sebelum membuat proyek."
+    },
     "endCustomer": {
       "nounPlural": "perusahaan",
       "helper": "Opsional. Perusahaan yang akhirnya menerima pekerjaan; kosongkan bila sama dengan klien."

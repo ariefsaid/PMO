@@ -26,4 +26,23 @@ describe('unrecorded deal figures', () => {
     render(<DealFigures d={deal()} />);
     expect(figure('% Go').getByText('—')).toBeInTheDocument();
   });
+
+  it('F14 keeps both probability Save actions outlined', () => {
+    const d = {
+      ...deal(),
+      canEditProbability: true,
+      goInput: '80',
+      getInput: '25',
+      setGoInput: () => {},
+      setGetInput: () => {},
+      saving: null,
+    } as DealActions;
+    render(<DealFigures d={d} />);
+    const saveButtons = screen.getAllByRole('button', { name: 'Save' });
+    expect(saveButtons).toHaveLength(2);
+    for (const button of saveButtons) {
+      expect(button).toHaveClass('bg-card', 'border-border');
+      expect(button).not.toHaveClass('bg-primary');
+    }
+  });
 });

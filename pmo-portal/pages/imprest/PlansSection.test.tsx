@@ -71,6 +71,16 @@ describe('FR-IMP-071 plans section', () => {
     renderIt();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
+  it('formC keeps the plan Save line and New plan outlined, as on dev', async () => {
+    const user = userEvent.setup();
+    renderIt();
+    await user.click(screen.getByRole('button', { name: 'Show lines' }));
+    for (const name of ['Save line', 'New plan']) {
+      const button = screen.getByRole('button', { name });
+      expect(button).toHaveClass('bg-card', 'border-border');
+      expect(button).not.toHaveClass('bg-primary');
+    }
+  });
   it('FR-IMP-071 a failed plans read shows an error, not an empty list', () => {
     h.plans = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
     renderIt();

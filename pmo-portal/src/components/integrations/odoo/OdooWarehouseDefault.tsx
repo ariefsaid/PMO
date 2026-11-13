@@ -43,7 +43,7 @@ export function OdooWarehouseDefault() {
         <SelectField label={t('administration:odoo.mapOnce.warehouseLabel', 'Default receiving warehouse')} value={value} onChange={setPicked} placeholder={t('administration:odoo.mapOnce.choose', 'Choose…')}
           options={live.map((r) => ({ value: r.external_id, label: label(r) }))} fullWidth />
       </div>
-      <Button size="sm" variant="outline" loading={save.isPending} disabled={!value || value === savedId} onClick={() => void submit()}>{t('administration:odoo.warehouse.save', 'Save')}</Button>
+      <Button size="sm" variant="primary" loading={save.isPending} disabled={!value || value === savedId} onClick={() => void submit()}>{t('administration:odoo.warehouse.save', 'Save')}</Button>
       {savedState && (
         <p className="flex basis-full flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
           <StatusPill variant="warn">{t('administration:odoo.mapOnce.attention', 'Needs attention')}</StatusPill>

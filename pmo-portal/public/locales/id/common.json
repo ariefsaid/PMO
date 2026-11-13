@@ -2893,12 +2893,10 @@
       "noun": "perusahaan"
     },
     "clientCode": {
-      "label": "Kode Proyek Klien",
-      "placeholder": "Kode opsional yang digunakan organisasi Anda"
+      "label": "Kode Proyek Klien"
     },
     "projectNumber": {
       "label": "Nomor Proyek PMO",
-      "helper": "PMO menetapkan identitas ini. Anda dapat mengubahnya sebelum membuat proyek.",
       "duplicate": "Nomor Proyek PMO tersebut sudah digunakan. Pilih nomor lain.",
       "segmentRequired": "Perusahaan yang dipilih memerlukan segmen nomor klien sebelum Nomor Proyek PMO dapat dibuat.",
       "proposalError": "Nomor Proyek PMO tidak dapat diusulkan. Pilih klien lagi untuk mencoba ulang.",

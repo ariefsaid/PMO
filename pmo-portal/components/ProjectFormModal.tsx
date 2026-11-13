@@ -542,7 +542,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               value={codeField.value}
               onChange={codeField.onChange}
               onBlur={codeField.onBlur}
-              placeholder={t('projectForm.clientCode.placeholder', 'Optional code used by your organization')}
+              helper={t('projects:projectForm.clientCode.helper', 'Optional code your organization uses for this client project.')}
               mono
             />
           ) : (
@@ -567,7 +567,9 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 disabled={numberProposal.status !== 'success'}
                 helper={numberProposal.status === 'error'
                   ? undefined
-                  : t('projectForm.projectNumber.helper', 'PMO assigns this identifier. You can edit it before creating the project.')}
+                  : numberProposal.status === 'success'
+                    ? t('projects:projectForm.projectNumber.assignedAndEditable', 'Assigned once you choose a client. You can change it before creating.')
+                    : t('projects:projectForm.projectNumber.assignedOnChooseClient', 'Assigned automatically once you choose a client.')}
                 mono
               />
               {numberProposal.status === 'loading' && (
@@ -581,7 +583,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 value={codeField.value}
                 onChange={codeField.onChange}
                 onBlur={codeField.onBlur}
-                placeholder={t('projectForm.clientCode.placeholder', 'Optional code used by your organization')}
+                helper={t('projects:projectForm.clientCode.helper', 'Optional code your organization uses for this client project.')}
                 mono
               />
               <SelectField

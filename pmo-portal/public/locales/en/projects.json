@@ -100,6 +100,13 @@
     "client": {
       "nounPlural": "companies"
     },
+    "clientCode": {
+      "helper": "Optional code your organization uses for this client project."
+    },
+    "projectNumber": {
+      "assignedOnChooseClient": "Assigned automatically once you choose a client.",
+      "assignedAndEditable": "Assigned once you choose a client. You can change it before creating."
+    },
     "endCustomer": {
       "nounPlural": "companies",
       "helper": "Optional. The company the work is finally for; leave empty when it is the client."
