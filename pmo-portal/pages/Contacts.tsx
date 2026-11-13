@@ -74,9 +74,9 @@ const Contacts: React.FC = () => {
   });
   const { openRecord } = useListReturn({ list: 'contacts', contentReady: !directory.isPending && !directory.isError });
   const unfiltered = (!companyFilter || companyFilter === 'All') && !search.trim();
-  // "Showing X of Y" keeps its meaning on a filtered view: Y is the whole directory, read as one
-  // head count only while a filter/search is active (unfiltered, X IS Y — one request, not two).
-  const totalCount = useContactsTotal({ enabled: !unfiltered });
+  // Keep the existing whole-directory count read in the filtered state; this repair changes only
+  // which count is displayed, not what the directory reads or counts.
+  useContactsTotal({ enabled: !unfiltered });
   const pageRows = useMemo(() => directory.data?.rows ?? [], [directory.data]);
   const total = directory.data?.total ?? 0;
   // C5 (DS contacts #5): `keepPreviousData` keeps the PREVIOUS page painted while a new query
@@ -84,7 +84,6 @@ const Contacts: React.FC = () => {
   // after Clear filters or Clear search) would otherwise read as "No contacts yet" about a
   // directory that has rows. A body-only skeleton holds the verdict until the real page arrives.
   const awaitingRows = Boolean(directory.isPlaceholderData) && pageRows.length === 0;
-  const directoryTotal = unfiltered ? total : (totalCount.data ?? total);
   const exportAll = useContactsExportAll();
 
   // A committed filter/search change (typing pause, a select change, or a Back-restore of the URL
@@ -297,9 +296,6 @@ const Contacts: React.FC = () => {
                 {t('contacts.filters.clear', 'Clear all')}
               </Button>
             )}
-            <span className="ml-auto text-control text-muted-foreground">
-              Showing {directory.data ? total : 0} of {directory.data ? directoryTotal : 0}
-            </span>
           </div>
         )
       }
