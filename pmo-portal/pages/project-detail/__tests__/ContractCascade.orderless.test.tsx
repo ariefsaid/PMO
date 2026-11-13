@@ -113,7 +113,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(within(screen.getByRole('region', { name: 'Contract' })).getByRole('button', { name: 'Edit contract lines' })).toBeInTheDocument();
   });
 
-  it('C1 keeps typed contract tools and independent customer orders when a cascade read fails, without stale contract money', async () => {
+  it('C1 keeps typed contract tools mounted when a cascade read fails, without showing money figures', async () => {
     const user = userEvent.setup();
     const refetchBoq = vi.fn();
     const refetchBilling = vi.fn();
@@ -134,10 +134,8 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     const alert = screen.getByRole('alert');
     expect(within(alert).getByText("Couldn't load the contract")).toBeVisible();
     expect(screen.getByLabelText('Contract reference')).toHaveValue('typed contract note');
-    expect(screen.getByRole('button', { name: 'Open customer orders' })).toBeVisible();
-    const cascadePanel = alert.closest('section');
-    expect(cascadePanel).not.toBeNull();
-    expect(within(cascadePanel!).queryByText('IDR 500K')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open customer orders' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/IDR/)).not.toBeInTheDocument();
     await user.click(within(alert).getByRole('button', { name: 'Retry' }));
     expect(refetchBoq).toHaveBeenCalledTimes(1);
     expect(refetchBilling).toHaveBeenCalledTimes(1);
