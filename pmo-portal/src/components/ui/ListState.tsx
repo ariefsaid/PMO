@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon, type IconName } from './icons';
 import { Button } from './Button';
+import type { ButtonVariant } from './buttonClasses';
 
 interface ActionSpec {
   label: string;
@@ -26,6 +27,8 @@ interface ListStateBaseProps {
   icon?: IconName;
   /** Empty-state populating action (empty-states guideline). */
   action?: ActionSpec;
+  /** Use an outline action when the page header already carries the create action. */
+  actionVariant?: ButtonVariant;
   /** Override the retry label for the current locale. */
   retryLabel?: string;
   /** Number of skeleton rows for the loading variant. */
@@ -190,6 +193,7 @@ export const ListState: React.FC<ListStateProps> = ({
   sub,
   icon = 'inbox',
   action,
+  actionVariant = 'primary',
   onRetry,
   retryLabel,
   rows = 5,
@@ -299,7 +303,7 @@ export const ListState: React.FC<ListStateProps> = ({
       {title && (titleAsPageHeading ? <h1 className="text-group font-semibold">{title}</h1> : <div className="text-group font-semibold">{title}</div>)}
       {sub && <div className="max-w-[44ch] text-control text-muted-foreground">{sub}</div>}
       {action && (
-        <Button variant="primary" size="sm" onClick={action.onClick} className="mt-1">
+        <Button variant={actionVariant} size="sm" onClick={action.onClick} className="mt-1">
           {action.label}
         </Button>
       )}

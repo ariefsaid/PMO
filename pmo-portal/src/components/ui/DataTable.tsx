@@ -17,6 +17,7 @@ import { DataTableDesktop } from './DataTableDesktop';
 import { DataTableMobile } from './DataTableMobile';
 import { dropBlankColumns } from './dataTableColumns';
 import type { GroupedRowEntry } from './DataTableShared';
+import type { ButtonVariant } from './buttonClasses';
 
 export { RowMenu, MenuButton, type RowMenuItem };
 export { Toolbar, SearchMini, type SearchMiniProps };
@@ -118,6 +119,8 @@ interface DataTablePropsBase<Row> {
   emptyTitle?: string;
   emptySub?: string;
   emptyAction?: { label: string; onClick: () => void };
+  /** Select outline when the page header already carries the create action. */
+  emptyActionVariant?: ButtonVariant;
   errorTitle?: string;
   errorSub?: string;
   /**
@@ -225,6 +228,7 @@ export function DataTable<Row>({
   emptyTitle = 'Nothing here yet',
   emptySub,
   emptyAction,
+  emptyActionVariant,
   errorTitle = 'Could not load',
   errorSub,
   onRetry,
@@ -386,6 +390,7 @@ export function DataTable<Row>({
           title={emptyTitle}
           sub={emptySub}
           action={emptyAction}
+          actionVariant={emptyActionVariant}
         />
       )}
       {state === 'error' && (
