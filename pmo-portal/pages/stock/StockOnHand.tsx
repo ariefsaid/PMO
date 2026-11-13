@@ -135,6 +135,7 @@ const StockOnHand: React.FC = () => {
   const whCount = new Set(rows.map((r) => r.warehouseId)).size;
   // The total of the Value column on screen; absent whenever the server left the value off.
   const totalValue = showCost ? sumDecimal(rows.flatMap((r) => (r.valueOnHand === undefined ? [] : [r.valueOnHand]))) : null;
+  const valueIsScoped = Boolean(warehouseId || includeZero || search.trim() || belowOnly);
 
   return (
     <ListPage
@@ -198,13 +199,24 @@ const StockOnHand: React.FC = () => {
         </div>
       </StockFilters>
       {state === undefined && (
-        <p className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-          <span><b className="font-semibold text-foreground tabular-nums">{itemCount}</b> {t('onHand.tiles.items')}</span>
-          <span><b className="font-semibold text-foreground tabular-nums">{whCount}</b> {t('onHand.tiles.warehouses')}</span>
-          <span><b className="font-semibold text-foreground tabular-nums">{centralCount}</b> {t('onHand.tiles.central')}</span>
-          <span><b className="font-semibold text-foreground tabular-nums">{rows.length - centralCount}</b> {t('onHand.tiles.site')}</span>
-          {totalValue !== null && <span>{t('onHand.columns.value')} <b className="font-semibold text-foreground tabular-nums">{formatStockValue(totalValue, currency, loc)}</b></span>}
-        </p>
+        <div className="mb-3">
+          {totalValue !== null && (
+            <figure className="mb-2">
+              <figcaption className="text-sm font-medium text-muted-foreground">
+                {valueIsScoped ? t('onHand.valueShown', 'Value of shown balances') : t('onHand.columns.value')}
+              </figcaption>
+              <div className="text-[30px] font-semibold leading-tight tabular-nums text-foreground">
+                {formatStockValue(totalValue, currency, loc)}
+              </div>
+            </figure>
+          )}
+          <p className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+            <span><b className="font-semibold text-foreground tabular-nums">{itemCount}</b> {t('onHand.tiles.items')}</span>
+            <span><b className="font-semibold text-foreground tabular-nums">{whCount}</b> {t('onHand.tiles.warehouses')}</span>
+            <span><b className="font-semibold text-foreground tabular-nums">{centralCount}</b> {t('onHand.tiles.central')}</span>
+            <span><b className="font-semibold text-foreground tabular-nums">{rows.length - centralCount}</b> {t('onHand.tiles.site')}</span>
+          </p>
+        </div>
       )}
       {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>}
       {state === 'error' && (
