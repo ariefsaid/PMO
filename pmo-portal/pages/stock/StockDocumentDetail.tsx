@@ -76,7 +76,9 @@ const StockDocumentDetail: React.FC = () => {
   const liveDraft = writeOff && d?.status === 'Draft';
   const seeCost = may('create', 'stockItem');
   const onHand = useStockOnHand({ warehouseId: d?.warehouse_id, includeZero: true }, Boolean(liveDraft && d?.warehouse_id));
-  const costs = useStockDocumentCosts(d?.id, liveDraft && seeCost);
+  // C13: the line unit costs are stamped on the lines and stay readable after posting, so a
+  // write-off's per-line money does not vanish from the record the moment it posts.
+  const costs = useStockDocumentCosts(d?.id, seeCost && writeOff);
   const balanceOf = (itemId: string) => (onHand.data ? onHand.data.find((r) => r.itemId === itemId && r.warehouseId === d?.warehouse_id) ?? { qtyOnHand: '0', valueOnHand: '0' } : undefined);
   const costOf = (lineId: string) => costs.data?.find((c) => c.lineId === lineId)?.unitCost;
   const systemOf = (l: StockDocumentLine) => (liveDraft ? balanceOf(l.item_id)?.qtyOnHand ?? null : l.expected_quantity);
@@ -121,9 +123,16 @@ const StockDocumentDetail: React.FC = () => {
       },
       exportValue: (l: StockDocumentLine) => varianceOf(l) ?? '',
     }] : []),
-    ...(liveDraft && seeCost && d?.kind === 'adjustment' ? [{
+    ...(seeCost && d?.kind === 'adjustment' ? [{
       key: 'cost', header: t('count.detail.unitCost'), align: 'num' as const,
-      cell: (l: StockDocumentLine) => { const c = l.direction === 'in' ? costOf(l.id) : undefined; return c ? <span className="tabular-nums">{formatStockValue(c, currency, loc)}</span> : <span className="text-sm text-muted-foreground">{t('count.detail.atAverage')}</span>; },
+      cell: (l: StockDocumentLine) => {
+        const c = costOf(l.id);
+        if (c) return <span className="tabular-nums">{formatStockValue(c, currency, loc)}</span>;
+        // Only a Draft may still say "at average cost" — that is what posting WILL use.
+        return liveDraft
+          ? <span className="text-sm text-muted-foreground">{t('count.detail.atAverage')}</span>
+          : <span className="text-muted-foreground">—</span>;
+      },
       exportValue: (l: StockDocumentLine) => costOf(l.id) ?? '',
     }] : []),
     ...(liveDraft && seeCost ? [{
