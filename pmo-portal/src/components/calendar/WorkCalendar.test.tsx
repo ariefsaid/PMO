@@ -182,3 +182,31 @@ describe('WorkCalendar (#1982)', () => {
     }
   });
 });
+
+// The project Tasks tab renders this same calendar, so the two ruled screen notes (the scope line and
+// the empty-month line) are opt-in: a host that passes nothing keeps exactly today's grid.
+describe('WorkCalendar — ruled screen notes are opt-in', () => {
+  it('states the empty month and shows the host action when the host opts in', () => {
+    renderCal({ tasks: [], milestones: [], emptyMonth: { action: <a href="/my-tasks">My Tasks</a> } });
+    expect(screen.getByText('No tasks or milestones due in November 2026')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'My Tasks' })).toHaveAttribute('href', '/my-tasks');
+  });
+
+  it('says nothing about an empty month when the host does not opt in', () => {
+    renderCal({ tasks: [], milestones: [] });
+    expect(screen.queryByText(/No tasks or milestones due/)).not.toBeInTheDocument();
+  });
+
+  it('waits while the host says the window read is in flight', () => {
+    renderCal({ tasks: [], milestones: [], emptyMonth: { pending: true } });
+    expect(screen.queryByText(/No tasks or milestones due/)).not.toBeInTheDocument();
+  });
+
+  it('leaves the empty period to the agenda’s own sentence', () => {
+    renderCal({ tasks: [], milestones: [], emptyMonth: {} });
+    fireEvent.click(screen.getByRole('tab', { name: 'Agenda' }));
+    expect(screen.queryByText(/No tasks or milestones due/)).not.toBeInTheDocument();
+    expect(screen.getByText('Nothing due in this period')).toBeInTheDocument();
+  });
+});
+

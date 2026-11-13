@@ -28,6 +28,10 @@ const { moveTask, calendarState } = vi.hoisted(() => {
       projectsError: false,
       today: '2026-11-10',
       refetch: vi.fn(),
+      tasksError: false,
+      tasksFetching: false,
+      /** Every argument `useCalendarTasks` was rendered with, so a test can count the request keys. */
+      taskWindows: [] as Array<{ from: string; to: string } | null>,
     },
   };
 });
@@ -38,15 +42,25 @@ vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useOwnershipCacheSynced: (
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => calendarState.today }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeTaskWrite: () => 'internal' }));
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: calendarState.projectsError ? undefined : [{ id: 'p1' }], isError: calendarState.projectsError, isPending: false, refetch: calendarState.refetch }),
+  useProjects: () => ({ data: calendarState.projectsError ? undefined : [{ id: 'p1' }], isError: calendarState.projectsError, isPending: false, isFetching: false, refetch: calendarState.refetch }),
   useProjectsMilestoneDates: () => ({
     data: calendarState.milestonesError ? undefined : calendarState.milestones,
     isError: calendarState.milestonesError,
+    isPending: false,
+    isFetching: false,
     refetch: calendarState.refetch,
   }),
 }));
 vi.mock('@/src/hooks/useWorkCalendar', () => ({
-  useCalendarTasks: () => ({ data: calendarState.tasks, isError: false, isFetching: false, refetch: calendarState.refetch }),
+  useCalendarTasks: (window: { from: string; to: string } | null) => {
+    calendarState.taskWindows.push(window);
+    return {
+      data: calendarState.tasksError ? undefined : calendarState.tasks,
+      isError: calendarState.tasksError,
+      isFetching: calendarState.tasksFetching,
+      refetch: calendarState.refetch,
+    };
+  },
   useMoveCalendarTask: () => ({ mutateAsync: moveTask }),
 }));
 
@@ -66,6 +80,21 @@ const renderPage = (url = '/calendar?date=2026-11-10') =>
     </MemoryRouter>,
   );
 
+/** Per-test reset of the read state + the request log (a stale refetch would hide a new request). */
+const resetReads = () => {
+  calendarState.tasksError = false;
+  calendarState.tasksFetching = false;
+  calendarState.taskWindows.length = 0;
+  calendarState.refetch.mockClear();
+};
+
+/** The distinct task-read keys the page asked for (one key = one request). */
+const taskWindowKeys = () => new Set(
+  calendarState.taskWindows
+    .filter((window): window is { from: string; to: string } => window !== null)
+    .map((window) => `${window.from}..${window.to}`),
+);
+
 describe('Calendar page (#1982)', () => {
   beforeEach(() => {
     calendarState.tasks = [{
@@ -76,6 +105,7 @@ describe('Calendar page (#1982)', () => {
     calendarState.milestonesError = false;
     calendarState.projectsError = false;
     calendarState.today = '2026-11-10';
+    resetReads();
     HTMLElement.prototype.scrollTo = vi.fn();
     may.mockReturnValue(true);
     moveTask.mockReset().mockResolvedValue(undefined);
@@ -132,6 +162,7 @@ describe('Calendar page (#1982)', () => {
 // without a due date exists — both are stated.
 describe('Calendar — C5 unknown never shown as nothing', () => {
   beforeEach(() => {
+    resetReads();
     HTMLElement.prototype.scrollTo = vi.fn();
     may.mockReturnValue(true);
   });
@@ -178,6 +209,7 @@ describe('Calendar — floor: toolbar and chip journeys (floor-tests/calendar.md
     calendarState.milestonesError = false;
     calendarState.projectsError = false;
     calendarState.today = '2026-11-10';
+    resetReads();
     HTMLElement.prototype.scrollTo = vi.fn();
     may.mockReturnValue(true);
     moveTask.mockReset().mockResolvedValue(undefined);
@@ -240,3 +272,64 @@ describe('Calendar — floor: toolbar and chip journeys (floor-tests/calendar.md
     expect(probe.dataset.search).toBe('?open=t1');
   });
 });
+
+// Move 1 (judging calendar.md #1): an empty month says so in one line and links to where the plan
+// is readable; a failed read says so with a Retry that re-runs the SAME read (no second request).
+describe('Calendar — move 1: an empty month says so, a failed read retries', () => {
+  beforeEach(() => {
+    calendarState.tasks = [];
+    calendarState.milestones = [];
+    calendarState.milestonesError = false;
+    calendarState.projectsError = false;
+    calendarState.today = '2026-11-10';
+    resetReads();
+    HTMLElement.prototype.scrollTo = vi.fn();
+    may.mockReturnValue(true);
+    moveTask.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('names the empty month and offers the list where every task lives', () => {
+    renderPage();
+    expect(screen.getByText('No tasks or milestones due in November 2026')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'My Tasks' })).toHaveAttribute('href', '/my-tasks');
+  });
+
+  it('does not claim emptiness while the window read is still in flight', () => {
+    calendarState.tasksFetching = true;
+    renderPage();
+    expect(screen.queryByText(/No tasks or milestones due/)).not.toBeInTheDocument();
+  });
+
+  it('does not claim emptiness when the phase read failed (that warning already speaks)', () => {
+    calendarState.projectsError = true;
+    renderPage();
+    expect(screen.getByText(/Phases could not be loaded/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No tasks or milestones due/)).not.toBeInTheDocument();
+  });
+
+  it('shows nothing once the month holds an item', () => {
+    calendarState.tasks = [{
+      id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
+      start_date: null, end_date: '2026-11-12', assignee_id: null, assignee_name: null, created_by: null,
+    }];
+    renderPage();
+    expect(screen.queryByText(/No tasks or milestones due/)).not.toBeInTheDocument();
+  });
+
+  it('reads the visible window once on a normal load and adds no request', () => {
+    renderPage();
+    expect(taskWindowKeys().size).toBe(1);
+    expect(calendarState.refetch).not.toHaveBeenCalled();
+  });
+
+  it('a failed read offers Retry, which re-runs the same read', () => {
+    calendarState.tasksError = true;
+    renderPage();
+    expect(screen.getByText('Could not load the calendar')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(calendarState.refetch).toHaveBeenCalledTimes(1);
+    // the retry re-runs the one read already asked for; it never opens a second window
+    expect(taskWindowKeys().size).toBe(1);
+  });
+});
+
