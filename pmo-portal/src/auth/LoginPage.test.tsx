@@ -91,6 +91,12 @@ beforeEach(() => {
 });
 
 describe('LoginPage', () => {
+  it('has one main landmark and a page heading', () => {
+    renderLogin();
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getByRole('heading', { level: 1, name: 'Sign in to your account' })).toBeInTheDocument();
+  });
+
   it('shows an inline error on invalid credentials (AC-AUTH-004)', async () => {
     auth.signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
     renderLogin();

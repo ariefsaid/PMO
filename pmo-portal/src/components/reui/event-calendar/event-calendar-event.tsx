@@ -436,7 +436,8 @@ function EventCalendarEvent<TData = unknown>({
     "data-preview": preview || undefined,
     "data-past": occurrence.end.getTime() < Date.now() || undefined,
     title: preview || tooltipOn ? undefined : label,
-    "aria-label":
+    "aria-label": [
+      event.ariaLabelPrefix,
       settings.i18n.functions.formatEventAriaLabel?.(
         event.title,
         timeLabel,
@@ -447,6 +448,9 @@ function EventCalendarEvent<TData = unknown>({
           ? `, ${settings.i18n.labels.continues}`
           : ""
       }`,
+    ]
+      .filter(Boolean)
+      .join(", "),
     // A background tint alone conveys selection, so the chip is a real toggle
     // wherever it is interactive (agenda rows never select, previews are inert).
     "aria-pressed": interactive ? isSelected : undefined,

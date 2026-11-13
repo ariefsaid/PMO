@@ -72,6 +72,17 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     expect(screen.getByText(/Last count.*variance/)).toHaveTextContent('variance —');
   });
 
+  it('lets a person open the full cash count note', async () => {
+    const note = 'Cash purchase was missing from the receipt log.';
+    h.counts = ok({ rows: [{ id: 'count-1', counted_at: '2026-11-02T00:00:00Z', counted_amount: 990000, book_amount: 1000000, variance: -10000, note }], truncated: false });
+    renderPage();
+    const disclosure = screen.getByText('Read full note').closest('details');
+    expect(disclosure).not.toHaveAttribute('open');
+    await userEvent.click(screen.getByText('Read full note'));
+    expect(disclosure).toHaveAttribute('open');
+    expect(within(disclosure!).getByText(note)).toBeVisible();
+  });
+
   it('AC-RSN-005 shows each returned top-up decision on its own row', () => {
     h.reps = ok({ rows: [{ ...REP, status: 'Rejected', decided_notes: 'More detail needed', rejected_at: '2026-11-03T10:00:00Z', rejecter: { full_name: 'Reviewer' } }, { ...REP, id: 'r2', number: 'REP-2', status: 'Rejected', decided_notes: null, rejecter: null }], truncated: false });
     renderPage();

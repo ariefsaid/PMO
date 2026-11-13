@@ -9,11 +9,14 @@
  * e2e/AC-CLI-001-cli-oauth-login.spec.ts.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import i18next from 'i18next';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { BahasaProvider } from '@/test/bahasa';
+import enOAuthConsent from '../../public/locales/en/oauthConsent.json';
+import idOAuthConsent from '../../public/locales/id/oauthConsent.json';
 
 const consent = vi.hoisted(() => ({ getConsentDetails: vi.fn(), decideConsent: vi.fn() }));
 vi.mock('./oauthConsent', () => consent);
@@ -53,6 +56,40 @@ beforeEach(() => {
 });
 
 describe('OAuthConsentPage (AC-CLI-006)', () => {
+  it('AC-CLI-006: gives loading and error views a page heading', async () => {
+    consent.getConsentDetails.mockReturnValue(new Promise(() => {}));
+    const loading = renderAt('/oauth/consent?authorization_id=auth-1');
+    expect(screen.getByRole('heading', { level: 1, name: 'Sign-in request' })).toBeInTheDocument();
+    loading.unmount();
+
+    const invalid = renderAt('/oauth/consent');
+    expect(screen.getByRole('heading', { level: 1, name: 'Sign-in request' })).toBeInTheDocument();
+    invalid.unmount();
+
+    consent.getConsentDetails.mockRejectedValue(new Error('authorization not found'));
+    const loadError = renderAt('/oauth/consent?authorization_id=auth-1');
+    expect(await screen.findByRole('alert')).toHaveTextContent('This sign-in request could not be loaded.');
+    expect(screen.getByRole('heading', { level: 1, name: 'Sign-in request' })).toBeInTheDocument();
+    loadError.unmount();
+
+    const originalLanguage = i18next.language;
+    i18next.addResourceBundle('en', 'oauthConsent', enOAuthConsent, true, true);
+    i18next.addResourceBundle('id', 'oauthConsent', idOAuthConsent, true, true);
+    try {
+      await act(async () => { await i18next.changeLanguage('en'); });
+      const english = renderAt('/oauth/consent');
+      expect(screen.getByRole('heading', { level: 1, name: 'Sign-in request' })).toBeInTheDocument();
+      english.unmount();
+
+      await act(async () => { await i18next.changeLanguage('id'); });
+      const bahasa = renderAt('/oauth/consent');
+      expect(screen.getByRole('heading', { level: 1, name: 'Permintaan masuk' })).toBeInTheDocument();
+      bahasa.unmount();
+    } finally {
+      await act(async () => { await i18next.changeLanguage(originalLanguage); });
+    }
+  });
+
   it('AC-CLI-006: shows a loading state while the request is fetched', () => {
     consent.getConsentDetails.mockReturnValue(new Promise(() => {}));
     renderAt('/oauth/consent?authorization_id=auth-1');

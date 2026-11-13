@@ -88,6 +88,11 @@ afterEach(() => {
 });
 
 describe('AC-FX-008 Administration exchange-rate list', () => {
+  it('names the exchange rates table', async () => {
+    renderPage();
+    expect(await screen.findByRole('table', { name: 'Exchange rates' })).toBeInTheDocument();
+  });
+
   it('shows 50 newest rows, keys the next page by the last shown date, and returns via Previous', async () => {
     renderPage();
     const table = await screen.findByRole('table');
