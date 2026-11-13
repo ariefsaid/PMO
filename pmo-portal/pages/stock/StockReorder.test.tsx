@@ -130,7 +130,7 @@ describe('StockReorder', () => {
       reorder.suggestion.mockResolvedValue({ ...okSuggestion, current: { reorderLevel: '40', reorderQuantity: '55' } });
       renderPage();
       await pickPair(/^Barang/, /^Gudang/);
-      expect(await screen.findByText(/^Level pemesanan ulang: 40 m/)).toBeInTheDocument();
+      expect(await screen.findByText('Level pemesanan ulang: 40 m. Saran pesanan: 55 m.')).toBeInTheDocument();
       expect(screen.queryByText(/Level in force/)).not.toBeInTheDocument();
     } finally {
       await i18next.changeLanguage('en');
