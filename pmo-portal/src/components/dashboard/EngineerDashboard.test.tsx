@@ -123,12 +123,15 @@ const timesheetCard = () => screen.getByTestId('engineer-timesheet');
 const tasksCard = () => screen.getByTestId('engineer-tasks');
 
 describe('Engineer home (one question: is my week on track?)', () => {
-  it('waits for the organization day before dating the week or the tasks', () => {
+  it('shows task rows while the organization day is pending and date-based cards wait for it', () => {
     state.orgDay = { day: null, isPending: true, isError: false, retry: vi.fn() };
     renderDashboard();
 
+    // The person's work is never hidden behind the day read: the rows show, just without date words.
+    expect(within(tasksCard()).getByRole('link', { name: /Finalize drawings/ })).toBeInTheDocument();
+    expect(within(tasksCard()).queryByText(/days overdue/)).not.toBeInTheDocument();
+    expect(within(tasksCard()).queryByText(/^Due /)).not.toBeInTheDocument();
     expect(within(timesheetCard()).getByTestId('liststate-loading')).toBeInTheDocument();
-    expect(within(tasksCard()).getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
   it('keeps timesheet figures visible when the task read fails', () => {
@@ -150,12 +153,18 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(screen.queryByRole('link', { name: /Open timesheet entry for/ })).not.toBeInTheDocument();
   });
 
-  it('names both failed reads when only the organization day read fails', () => {
+  it('keeps the task rows available when only the organization day read fails', () => {
     state.orgDay = { day: null, isPending: false, isError: true, retry: vi.fn() };
     renderDashboard();
 
+    // What is late is unknown, so no date words; the work itself, and the way into it, stay.
+    expect(within(tasksCard()).getByRole('link', { name: /Finalize drawings/ })).toBeInTheDocument();
+    expect(within(tasksCard()).queryByText(/days overdue/)).not.toBeInTheDocument();
+    expect(within(tasksCard()).queryByText(/^Due /)).not.toBeInTheDocument();
+    // The failed day read still says so, with its own Retry.
+    expect(within(tasksCard()).getByText("Couldn't read today's date")).toBeInTheDocument();
+    expect(within(tasksCard()).getByRole('button', { name: /Retry|Try again/ })).toBeInTheDocument();
     expect(within(timesheetCard()).getByText("Couldn't load your timesheets")).toBeInTheDocument();
-    expect(within(tasksCard()).getByText("Couldn't load your tasks")).toBeInTheDocument();
   });
 
   it('folds the overdue count into the My tasks header, with no separate waits band above it', () => {
@@ -504,6 +513,13 @@ describe('Engineer home — floor: every control acts', () => {
     renderDashboard();
     fireEvent.click(within(screen.getByTestId('engineer-recent')).getByRole('link', { name: 'All timesheets' }));
     expect(path()).toContain('/timesheets');
+  });
+
+  it('re-reads the organization day from the date-unread Retry in My tasks', () => {
+    state.orgDay = { day: null, isPending: false, isError: true, retry: vi.fn() };
+    renderDashboard();
+    fireEvent.click(within(tasksCard()).getByRole('button', { name: /Retry|Try again/ }));
+    expect(state.orgDay.retry).toHaveBeenCalled();
   });
 
   it('re-reads the timesheet from its own card Retry', () => {

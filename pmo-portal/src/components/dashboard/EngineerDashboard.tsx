@@ -92,6 +92,12 @@ export const EngineerDashboard: React.FC = () => {
     && task.end_date < organizationDay.day
   )), [organizationDay.day, tasks.data]);
 
+  // While the organisation's day is unknown nothing can be called late or due, but the person's work is still
+  // theirs to see: the same active tasks, listed without date words.
+  const undatedTasks = useMemo(() => (tasks.data ?? [])
+    .filter((task) => activeTask(task.status))
+    .sort((a, b) => String(a.end_date ?? '~').localeCompare(String(b.end_date ?? '~'))), [tasks.data]);
+
   const returnedClaims = useMemo(() => (claims.data?.rows ?? []).filter((claim) => (
     claim.kind === 'claim' && claim.claimant_id === currentUser?.id && claim.status === 'Rejected'
   )), [claims.data?.rows, currentUser?.id]);
@@ -121,13 +127,13 @@ export const EngineerDashboard: React.FC = () => {
   const timeLoading = timesheets.isPending || organizationDay.isPending;
   const timeError = timesheets.isError || organizationDay.isError
     || (timesheets.data === undefined && !timesheets.isPending);
-  const taskLoading = tasks.isPending || organizationDay.isPending;
-  const taskError = tasks.isError || organizationDay.isError
-    || (tasks.data === undefined && !tasks.isPending);
+  const taskLoading = tasks.isPending;
+  const taskError = tasks.isError || (tasks.data === undefined && !tasks.isPending);
   const claimsError = claims.isError || !currentUser?.id
     || (claims.data === undefined && !claims.isPending);
-  const taskDataError = taskError || (!organizationDay.day && !organizationDay.isPending);
-  const recentError = timeError || (!organizationDay.day && !organizationDay.isPending);
+  // The organisation's day is the source of every "late" and "due" word on this page.
+  const dayError = !organizationDay.day && !organizationDay.isPending;
+  const recentError = timeError || dayError;
   const currentStatus = currentSheet?.status ?? null;
 
   // Hours by project this week: the four biggest, the rest together, as parts of one bar.
@@ -168,7 +174,7 @@ export const EngineerDashboard: React.FC = () => {
         <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
           <div>{header}<FigureHiddenLine compact /></div>
           <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start">
-            <EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} today={organizationDay.day} loading={taskLoading} error={taskDataError || tasks.isError} onRetry={refresh} />
+            <EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} undated={undatedTasks} today={organizationDay.day} dayError={dayError} loading={taskLoading} error={taskError} onRetry={refresh} />
             <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} chart />
           </div>
           <div className={returned ? 'grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start' : undefined}>
@@ -187,7 +193,7 @@ export const EngineerDashboard: React.FC = () => {
     <div className="space-y-[var(--space-panel-gap)]" data-home-layout="focused">
       {header}
       <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start">
-        <EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} today={organizationDay.day} loading={taskLoading} error={taskDataError || tasks.isError} onRetry={refresh} />
+        <EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} undated={undatedTasks} today={organizationDay.day} dayError={dayError} loading={taskLoading} error={taskError} onRetry={refresh} />
         <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} />
       </div>
       {!claimsError && <EngineerReturnedCard claims={returnedClaims} />}
