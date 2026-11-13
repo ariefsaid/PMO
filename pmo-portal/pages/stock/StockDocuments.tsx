@@ -63,7 +63,18 @@ const StockDocuments: React.FC = () => {
     { key: 'status', header: t('documents.columns.status'), cell: (r) => <StatusPill record="stockDocument" state={r.status} />, exportValue: (r) => r.status },
     {
       key: 'warehouse', header: t('documents.columns.warehouse'),
-      cell: (r) => <span className="text-sm">{r.warehouse?.code ?? ''}{r.to_warehouse ? ` → ${r.to_warehouse.code}` : ''}</span>,
+      cell: (r) => {
+        const warehouses = [r.warehouse, r.to_warehouse].filter((warehouse) => warehouse != null);
+        const names = warehouses.map((warehouse) => warehouse.name || warehouse.code || '');
+        const codes = warehouses.map((warehouse) => warehouse.code || '');
+        const hasDistinctName = warehouses.some((warehouse) => Boolean(warehouse.name && warehouse.name !== warehouse.code));
+        return (
+          <div className="min-w-0">
+            <span className="block truncate text-sm">{names.join(' → ')}</span>
+            {hasDistinctName && <span className="block truncate text-sm text-muted-foreground">{codes.join(' → ')}</span>}
+          </div>
+        );
+      },
       exportValue: (r) => r.warehouse?.code ?? '',
     },
     { key: 'project', header: t('documents.columns.project'), colClassName: 'hidden md:table-cell', cell: (r) => (r.project?.name ? <span className="text-sm">{r.project.name}</span> : null), exportValue: (r) => r.project?.name ?? '' },
