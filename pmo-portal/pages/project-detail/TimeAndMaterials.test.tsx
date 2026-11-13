@@ -20,11 +20,14 @@ const h = vi.hoisted(() => ({
   preview: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   sources: { data: { rows: [] as unknown[], truncated: false, totalCount: 0, signoffCurrent: null as boolean | null }, isPending: false, isError: false, refetch: vi.fn() },
   assets: [{ id: 'asset-1', name: 'Excavator 01' }] as unknown[],
+  assetsHasMore: false,
+  fetchAssetPage: vi.fn(),
   profiles: [] as unknown[],
   documents: [] as unknown[],
   erpConnected: true,
   loadItems: vi.fn(async () => [] as Array<{ value: string; label: string; sub?: string }>),
   mutations: {} as Record<string, ReturnType<typeof vi.fn>>,
+  cascadePending: false,
 }));
 
 vi.mock('@/src/auth/impersonation', () => ({
@@ -47,12 +50,44 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useWithdrawTmSignoff: () => ({ mutateAsync: h.mutations.withdraw, isPending: false }),
   useConfirmTmSignoff: () => ({ mutateAsync: h.mutations.confirm, isPending: false }),
 }));
-vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssets: () => ({ data: { rows: h.assets, truncated: false }, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useEquipment', () => ({
+  useEquipmentAssetPages: () => ({
+    data: { pages: [{ rows: h.assets }] },
+    isPending: false, isError: false, hasNextPage: h.assetsHasMore, isFetchingNextPage: false,
+    fetchNextPage: h.fetchAssetPage, refetch: vi.fn(), total: h.assets.length,
+  }),
+}));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: h.profiles, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.documents, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.erpConnected, loadOptions: h.loadItems }) }));
+vi.mock('@/src/hooks/useProgressBilling', () => ({
+  useBoqItems: () => ({ data: [], isPending: h.cascadePending, isError: false, refetch: vi.fn() }),
+  useProjectBilling: () => ({
+    data: { contractLines: [], contractNet: 500_000, dpBilled: 0, dpRecovered: 0 },
+    isPending: h.cascadePending,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
+vi.mock('@/src/hooks/useWorkOrders', () => ({
+  useProjectWorkOrders: () => ({ data: [], isPending: h.cascadePending, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
+  useWorkOrderBilling: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({ data: { contract_invoiced: 0, remaining_to_invoice: 500_000 }, isPending: false, isError: false }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-11-13', isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('./ProjectDrawdown', () => ({ default: () => null }));
 
 import TimeAndMaterials from './TimeAndMaterials';
+import { ContractCascade } from './ContractCascade';
 import { formatDay } from '@/src/lib/format';
 
 const rate = {
@@ -85,11 +120,17 @@ const unrated = {
   user_id: 'u-other', units: 2, amount: null, source_count: 1, unrated_reason: 'no_rate',
 };
 
-const shipped = (locale: 'en' | 'id') => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${locale}/timeAndMaterials.json`), 'utf8')) as Record<string, unknown>;
+const shipped = (locale: 'en' | 'id', ns = 'timeAndMaterials') => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${locale}/${ns}.json`), 'utf8')) as Record<string, unknown>;
+const namespaces = (locale: 'en' | 'id') => ({
+  timeAndMaterials: shipped(locale),
+  // the shared paging line + its Load more action come from the app-wide namespaces
+  projects: shipped(locale, 'projects'),
+  equipment: shipped(locale, 'equipment'),
+});
 
-function page(lng: 'en' | 'id' = 'en', resources: Record<string, { timeAndMaterials: Record<string, unknown> }> = { en: { timeAndMaterials: shipped('en') }, id: { timeAndMaterials: shipped('id') } }) {
+function page(lng: 'en' | 'id' = 'en', resources: Record<string, Record<string, Record<string, unknown>>> = { en: namespaces('en'), id: namespaces('id') }) {
   const instance = i18next.createInstance();
-  void instance.init({ lng, fallbackLng: 'en', defaultNS: 'timeAndMaterials', ns: ['timeAndMaterials'], resources, interpolation: { escapeValue: false } });
+  void instance.init({ lng, fallbackLng: 'en', defaultNS: 'timeAndMaterials', ns: ['timeAndMaterials', 'projects', 'equipment'], resources, interpolation: { escapeValue: false } });
   return instance;
 }
 
@@ -120,6 +161,9 @@ beforeEach(() => {
     { id: 'source-row-3', entry_id: 'entry-3', entry_date: '2026-11-04', person_id: 'u-other', person_name: 'Engineer Two', units: 2, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 2 },
   ], truncated: false, totalCount: 3 }, isPending: false, isError: false, refetch: vi.fn() };
   h.profiles = [profile('u-engineer', 'Site engineer'), profile('u-pm', 'Project manager'), profile('u-fin', 'Finance user')];
+  h.assets = [{ id: 'asset-1', name: 'Excavator 01' }];
+  h.assetsHasMore = false;
+  h.fetchAssetPage.mockClear();
   h.documents = [documentRow];
   h.erpConnected = true;
   h.loadItems = vi.fn(async () => [{ value: 'ITEM-LABOUR', label: 'ITEM-LABOUR', sub: 'Site engineer' }]);
@@ -148,6 +192,96 @@ describe('TimeAndMaterials', () => {
     expect(flatten(en)).not.toHaveLength(0);
     expect(flatten(id)).toEqual(flatten(en));
     expect([...Object.values(en), ...Object.values(id)].every(Boolean)).toBe(true);
+  });
+
+  it('keeps typed claim dates after the Contract cascade settles', async () => {
+    h.cascadePending = true;
+    const i18n = page();
+    const tree = (tools: React.ReactNode) => (
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter>
+          <ToastProvider>
+            <ContractCascade
+              project={{
+                id: 'p1', code: 'PRJ-1', name: 'Project One', currency: 'IDR', contract_value: 500_000,
+                tax_treatment: 'exclusive', tax_amount: 0, tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1,
+                client: null, end_client: null, pm: null, project_manager_id: 'u-pm',
+              } as never}
+              contractTools={tools}
+            />
+          </ToastProvider>
+        </MemoryRouter>
+      </I18nextProvider>
+    );
+    const tools = <TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" embedded onCreateInvoice={vi.fn()} />;
+    const view = render(tree(tools));
+    const user = userEvent.setup();
+    const from = screen.getByLabelText('From');
+    const to = screen.getByLabelText('To');
+
+    await user.clear(from);
+    await user.type(from, '2026-11-10');
+    await user.clear(to);
+    await user.type(to, '2026-11-12');
+
+    h.cascadePending = false;
+    view.rerender(tree(tools));
+
+    expect(await screen.findByRole('heading', { name: 'Contract' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByLabelText('From')).toHaveValue('2026-11-10');
+      expect(screen.getByLabelText('To')).toHaveValue('2026-11-12');
+    });
+  });
+
+  it('keeps an open claim drawer after the Contract cascade settles', async () => {
+    h.cascadePending = true;
+    const i18n = page();
+    const tree = (tools: React.ReactNode) => (
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter>
+          <ToastProvider>
+            <ContractCascade
+              project={{
+                id: 'p1', code: 'PRJ-1', name: 'Project One', currency: 'IDR', contract_value: 500_000,
+                tax_treatment: 'exclusive', tax_amount: 0, tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1,
+                client: null, end_client: null, pm: null, project_manager_id: 'u-pm',
+              } as never}
+              contractTools={tools}
+            />
+          </ToastProvider>
+        </MemoryRouter>
+      </I18nextProvider>
+    );
+    const tools = <TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" embedded onCreateInvoice={vi.fn()} />;
+    const view = render(tree(tools));
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    expect(await screen.findByRole('dialog', { name: /Time-and-materials claim/ })).toBeInTheDocument();
+
+    h.cascadePending = false;
+    view.rerender(tree(tools));
+
+    expect(await screen.findByRole('dialog', { name: /Time-and-materials claim/ })).toBeInTheDocument();
+  });
+
+  it('C8b F2 names a machine the rate card has not loaded yet instead of calling it gone, and counts the rest', async () => {
+    h.rates = { data: { rows: [{ ...equipmentRate, asset_id: 'asset-201' }], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    h.assetsHasMore = true;
+    const { user } = renderPanel();
+    expect(screen.getByText('Machine name not loaded yet')).toBeInTheDocument();
+    expect(screen.queryByText('Machine no longer listed')).toBeNull();
+    expect(screen.getByText('1 loaded, more available')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(h.fetchAssetPage).toHaveBeenCalledOnce();
+  });
+
+  it('C8b F2 with every page loaded, a machine missing from the register is still reported as gone', () => {
+    h.rates = { data: { rows: [{ ...equipmentRate, asset_id: 'asset-201' }], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    renderPanel();
+    expect(screen.getByText('Machine no longer listed')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
   });
 
   it('AC-TM-016 saves a rate, assigns a person, previews rated and unrated hours, assembles, and drills into claim sources', async () => {

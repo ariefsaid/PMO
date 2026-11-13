@@ -18,7 +18,7 @@
  * Does NOT import from src/lib/db/* or src/lib/supabase/client.
  *
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams, useLocation } from 'react-router';
 import {
@@ -30,6 +30,7 @@ import {
   FormGrid,
   FormSection,
   Button,
+  ConfirmDialog,
   useToast,
   type SelectOption,
 } from '@/src/components/ui';
@@ -61,6 +62,19 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
   const may = usePermission();
   const { toast } = useToast();
   const { create, update } = useUserViewMutations();
+
+  const structurallyEqual = (left: unknown, right: unknown): boolean => {
+    if (Object.is(left, right)) return true;
+    if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') return false;
+    if (Array.isArray(left) || Array.isArray(right)) {
+      return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((value, index) => structurallyEqual(value, right[index]));
+    }
+    const leftRecord = left as Record<string, unknown>;
+    const rightRecord = right as Record<string, unknown>;
+    const leftKeys = Object.keys(leftRecord).sort();
+    const rightKeys = Object.keys(rightRecord).sort();
+    return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index] && structurallyEqual(leftRecord[key], rightRecord[key]));
+  };
 
   // ── Edit mode: load existing view ────────────────────────────────────────
   const {
@@ -117,6 +131,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
   });
   const observedServerVersionRef = useRef<{ id: string; updatedAt: string | null } | null>(null);
   const [remoteConflict, setRemoteConflict] = useState<UserViewRow | null>(null);
+  const [panelToRemove, setPanelToRemove] = useState<PanelSpec | null>(null);
 
   // In create mode: any non-empty field or panel counts as dirty.
   // In edit mode: compare against the values loaded from the existing view.
@@ -126,7 +141,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
       : name !== initialValuesRef.current.name ||
         description !== initialValuesRef.current.description ||
         scope !== initialValuesRef.current.scope ||
-        JSON.stringify(panels) !== JSON.stringify(initialValuesRef.current.panels);
+        !structurallyEqual(panels, initialValuesRef.current.panels);
 
   const applyViewToEditor = useCallback((view: UserViewRow) => {
     const loadedName = view.name;
@@ -196,7 +211,14 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
   };
 
   const handleRemovePanel = (idx: number) => {
-    setPanels((prev) => prev.filter((_, i) => i !== idx));
+    const panel = panels[idx];
+    if (panel) setPanelToRemove(panel);
+  };
+
+  const confirmRemovePanel = () => {
+    if (!panelToRemove) return;
+    setPanels((prev) => prev.filter((panel) => panel.id !== panelToRemove.id));
+    setPanelToRemove(null);
   };
 
   const handleMoveUp = (idx: number) => {
@@ -240,7 +262,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
 
   // ── Compile-before-save + save (FR-VB-040/041) ───────────────────────────
 
-  const spec: CompositionSpec = { version: 1, panels };
+  const spec: CompositionSpec = useMemo(() => ({ version: 1, panels }), [panels]);
 
   /** What the author can DO about a refused save, in their language, from the validation code. */
   const validationRemedy = (code: ValidationErrorCode): string => {
@@ -273,6 +295,11 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
   const handleSave = async () => {
     if (!currentUser || (mode === 'edit' && !canEditView)) return;
     setSaveError(null);
+
+    if (panels.length > MAX_PANELS_PER_VIEW) {
+      setSaveError(t('viewBuilder.maximumPanelsReached', 'Maximum of {{count}} panels reached.', { count: MAX_PANELS_PER_VIEW }));
+      return;
+    }
 
     // Compile-before-save invariant (NFR-VB-SEC-004)
     try {
@@ -460,8 +487,9 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
       {remoteConflict && (
         <div role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-[13px]">
           <p>{t('viewBuilder:serverVersionChanged', 'The saved view changed while you were editing.')}</p>
+          <p className="mt-1">{t('viewBuilder:serverVersionChangedHelp', 'Reload drops the edits you have not saved; continue keeps them.')}</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => applyViewToEditor(remoteConflict)}>
+            <Button variant="outline" size="sm" onClick={() => guardLeave(() => applyViewToEditor(remoteConflict))}>
               {t('viewBuilder:reloadSavedView', 'Reload saved view')}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setRemoteConflict(null)}>
@@ -537,6 +565,19 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
           setPanelModalOpen(false);
           setEditingIndex(null);
         }}
+      />
+
+      <ConfirmDialog
+        open={panelToRemove !== null}
+        tone="destructive"
+        title={t('viewBuilder:removePanelConfirmTitle', 'Remove this panel?')}
+        description={t('viewBuilder:removePanelConfirmDescription', 'The {{primitive}} panel for {{entity}} will be removed from this view draft. Other panels stay.', {
+          primitive: panelToRemove?.primitive ?? '',
+          entity: panelToRemove?.querySpec.entity ?? '',
+        })}
+        confirmLabel={t('viewBuilder:removePanelConfirm', 'Remove panel')}
+        onConfirm={confirmRemovePanel}
+        onCancel={() => setPanelToRemove(null)}
       />
 
       {/* AI Composer modal (FR-AS-015, AC-AS-013, AC-AS-017, AC-AS-018) */}

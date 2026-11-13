@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { projectCodedPickerLabel, projectDisplayName, projectOptionSub } from './projectDisplayName';
+import { compareProjectOptions, projectCodedPickerLabel, projectDisplayName, projectOptionSub, sortProjectOptions } from './projectDisplayName';
 
 describe('project display identity (AC-002 #1325)', () => {
   it('prefers a trimmed alias without mutating its row', () => {
@@ -13,6 +13,21 @@ describe('project display identity (AC-002 #1325)', () => {
   it('keeps duplicate aliases distinct by id', () => {
     const records = [{ id: 'p1', name: 'Legal 1', short_name: 'Shared' }, { id: 'p2', name: 'Legal 2', short_name: 'Shared' }];
     expect(records.map((row) => [row.id, projectDisplayName(row)])).toEqual([['p1', 'Shared'], ['p2', 'Shared']]);
+  });
+});
+
+describe('sortProjectOptions (C18 scan order)', () => {
+  it('sorts by the label a person reads, case- and accent-insensitive, numbers by value, id last, without mutating', () => {
+    const rows = [
+      { id: 'b', name: 'phase 10 upgrade' },
+      { id: 'a', name: 'Phase 9 upgrade' },
+      { id: 'd', name: 'Contractual Name', short_name: 'Arun' },
+      { id: 'c', name: 'Legal B', short_name: 'Shared' },
+      { id: 'a2', name: 'Legal A', short_name: 'Shared' },
+    ];
+    expect(sortProjectOptions(rows).map((row) => row.id)).toEqual(['d', 'a', 'b', 'a2', 'c']);
+    expect(rows.map((row) => row.id)).toEqual(['b', 'a', 'd', 'c', 'a2']);
+    expect(compareProjectOptions({ id: 'x', name: 'Same' }, { id: 'x', name: 'Same' })).toBe(0);
   });
 });
 

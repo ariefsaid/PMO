@@ -454,7 +454,8 @@
     }
   },
   "exchangeRates": {
-    "displayOnly": "Display equivalents only"
+    "displayOnly": "Display equivalents only",
+    "pageGapsPartial": "These gaps cover this page only; use the page controls to review other dates."
   },
   "projectNumberPattern": {
     "error": {

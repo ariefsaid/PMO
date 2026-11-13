@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const h = vi.hoisted(() => {
-  const queue: Array<{ data: unknown; error: unknown }> = [];
-  const calls = { from: [] as string[], select: [] as string[], or: [] as string[], limit: [] as number[] };
+  const queue: Array<{ data: unknown; error: unknown; count?: number | null }> = [];
+  const calls = { from: [] as string[], select: [] as string[], selectOptions: [] as unknown[], eq: [] as unknown[], or: [] as string[], limit: [] as number[] };
   const builder: Record<string, unknown> = {};
-  for (const n of ['order', 'eq', 'is', 'range', 'single', 'maybeSingle']) builder[n] = () => builder;
-  builder.select = (s: string) => { calls.select.push(s); return builder; };
+  for (const n of ['order', 'is', 'range', 'single', 'maybeSingle']) builder[n] = () => builder;
+  builder.eq = (...args: unknown[]) => { calls.eq.push(args); return builder; };
+  builder.select = (s: string, options?: unknown) => { calls.select.push(s); calls.selectOptions.push(options); return builder; };
   builder.or = (s: string) => { calls.or.push(s); return builder; };
   builder.limit = (n: number) => { calls.limit.push(n); return builder; };
   builder.then = (resolve: (v: unknown) => unknown) => resolve(queue.shift() ?? { data: [], error: null });
@@ -15,11 +16,11 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
-import { listProjectIssueLines, cancelStockDocument, createStockDocument, getStockDocument, getStockDocumentCosts, listIssuableWorkItems, listStockDocuments, postStockDocument, saveStockDraft } from './stockDocuments';
+import { listProjectIssueLines, cancelStockDocument, countStockDocuments, createStockDocument, getStockDocument, getStockDocumentCosts, listIssuableWorkItems, listStockDocuments, postStockDocument, saveStockDraft } from './stockDocuments';
 
 beforeEach(() => {
   h.queue.length = 0; h.from.mockClear(); h.rpc.mockClear();
-  h.calls.from.length = 0; h.calls.select.length = 0; h.calls.or.length = 0; h.calls.limit.length = 0;
+  h.calls.from.length = 0; h.calls.select.length = 0; h.calls.selectOptions.length = 0; h.calls.eq.length = 0; h.calls.or.length = 0; h.calls.limit.length = 0;
 });
 
 describe('stockDocuments DAL', () => {
@@ -108,6 +109,23 @@ describe('stockDocuments DAL', () => {
     await listStockDocuments({ limit: 5000, before: { createdAt: '2026-10-01T00:00:00Z', id: 'x' } });
     expect(h.calls.limit[0]).toBe(100);
     expect(h.calls.or[0]).toContain('created_at.lt.2026-10-01T00:00:00Z');
+  });
+
+  it('C8 StockDocuments.tsx:56 exact-counts the same active filters without fetching rows', async () => {
+    h.queue.push({ data: null, error: null, count: 19 });
+
+    await expect(countStockDocuments({ kind: 'issue', status: 'Posted', warehouseId: 'w1', projectId: 'p1' })).resolves.toBe(19);
+
+    expect(h.calls.from).toEqual(['stock_documents']);
+    expect(h.calls.select).toEqual(['id']);
+    expect(h.calls.selectOptions).toEqual([{ count: 'exact', head: true }]);
+    expect(h.calls.eq).toEqual([
+      ['kind', 'issue'],
+      ['status', 'Posted'],
+      ['warehouse_id', 'w1'],
+      ['project_id', 'p1'],
+    ]);
+    expect(h.calls.limit).toEqual([]);
   });
 
   it('AC-STK-020 a document is read with an explicit line column list that omits unit_cost', async () => {

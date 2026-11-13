@@ -12,6 +12,7 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useFxRates, useFxRateMutations } from '@/src/hooks/useFxRates';
+import { FX_RATE_PAGE_SIZE } from '@/src/lib/db/fxRates';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay, formatNumberExact } from '@/src/lib/format';
@@ -236,6 +237,14 @@ const AdministrationExchangeRates: React.FC = () => {
         />
       ) : (
         <>
+          {(rates.data.nextCursor || cursorStack.length > 0) &&
+            missingFxRateDates(rates.data.rows.map((row) => row.rate_date)).length > 0 && (
+              <ListState
+                variant="partial"
+                className="mb-2"
+                title={t('exchangeRates.pageGapsPartial', { ns: 'administration', defaultValue: 'These gaps cover this page only; use the page controls to review other dates.' })}
+              />
+            )}
           <p data-testid="fx-page-summary" className="mb-2 text-sm text-muted-foreground">
             {t('uxs38.pageSummary', 'Dates from {{first}} to {{last}}: {{count}} with rates', {
               first: formatDay(rates.data.rows[rates.data.rows.length - 1].rate_date),
@@ -279,24 +288,40 @@ const AdministrationExchangeRates: React.FC = () => {
                 : undefined
             }
           tableId="administrationexchangerates-table" />
-          <div className="mt-3 flex justify-end gap-2">
-            <Button
-              variant="outline"
-              disabled={cursorStack.length === 0}
-              onClick={() => setCursorStack((stack) => stack.slice(0, -1))}
-            >
-              {t('fx.previous', 'Previous')}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={!rates.data.nextCursor}
-              onClick={() => {
-                if (rates.data?.nextCursor)
-                  setCursorStack((stack) => [...stack, rates.data!.nextCursor!]);
-              }}
-            >
-              {t('fx.next', 'Next')}
-            </Button>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            {rates.data.total !== null && (
+              <span
+                data-testid="fx-rates-range"
+                aria-live="polite"
+                aria-atomic="true"
+                className="tabular-nums text-control text-muted-foreground"
+              >
+                {t('fx.pager.range', '{{from}}–{{to}} of {{total}}', {
+                  from: cursorStack.length * FX_RATE_PAGE_SIZE + 1,
+                  to: cursorStack.length * FX_RATE_PAGE_SIZE + rates.data.rows.length,
+                  total: rates.data.total,
+                })}
+              </span>
+            )}
+            <span className="ml-auto flex gap-2">
+              <Button
+                variant="outline"
+                disabled={cursorStack.length === 0}
+                onClick={() => setCursorStack((stack) => stack.slice(0, -1))}
+              >
+                {t('fx.previous', 'Previous')}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!rates.data.nextCursor}
+                onClick={() => {
+                  if (rates.data?.nextCursor)
+                    setCursorStack((stack) => [...stack, rates.data!.nextCursor!]);
+                }}
+              >
+                {t('fx.next', 'Next')}
+              </Button>
+            </span>
           </div>
         </>
       )}

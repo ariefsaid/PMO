@@ -1,10 +1,10 @@
+-- Deploy the previous adapter-dispatch edge function before this database rollback.
+-- Reverse migration 0865 first, after preserving any capture evidence.
 do $$ begin
   if to_regprocedure('public.assert_record_only_rollback_safe()') is not null then
     perform public.assert_record_only_rollback_safe();
   elsif to_regclass('public.erp_purchase_captures') is not null then
     if exists (select 1 from public.erp_purchase_captures) then raise exception 'record_only_history_exists' using errcode='55000'; end if;
-  elsif to_regclass('public.record_only_journal_requests') is not null then
-    if exists (select 1 from public.record_only_journal_requests) then raise exception 'record_only_history_exists' using errcode='55000'; end if;
   end if;
 end $$;
 create or replace function public.transition_procurement(p_id uuid, p_to procurement_status, p_notes text default null)
@@ -609,10 +609,8 @@ drop trigger if exists record_only_child_guard on public.procurement_receipts;
 drop trigger if exists record_only_child_guard on public.procurement_invoices;
 drop trigger if exists record_only_child_guard on public.payments;
 drop function if exists public.guard_record_only_child();
-drop trigger if exists procurements_record_only_source on public.procurements;
 drop trigger if exists procurements_a_record_only_source on public.procurements;
 drop function if exists public.guard_record_only_source();
-drop function if exists public.undo_record_only_purchase(uuid,text,boolean);
 drop function if exists public.undo_captured_purchase(uuid,text,boolean);
 drop trigger if exists procurements_record_only_status on public.procurements;
 drop function if exists public.guard_record_only_status();
@@ -645,7 +643,6 @@ do $$ begin if to_regclass('public.erp_purchase_captures') is not null then exec
 drop function if exists public.guard_erp_purchase_capture_org();
 drop function if exists public.assert_record_only_rollback_safe();
 drop table if exists public.erp_purchase_captures;
-drop table if exists public.record_only_journal_requests;
 update public.record_history_config
    set captured = captured - array['record_only','record_only_stage','record_only_date','record_only_reference']
  where table_name = 'procurements';

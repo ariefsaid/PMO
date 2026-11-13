@@ -41,7 +41,7 @@ describe('stock repository (master data)', () => {
 });
 
 vi.mock('@/src/lib/db/stockDocuments', () => ({
-  listStockDocuments: vi.fn(), getStockDocument: vi.fn(), createStockDocument: vi.fn(), saveStockDraft: vi.fn(),
+  listStockDocuments: vi.fn(), countStockDocuments: vi.fn(), getStockDocument: vi.fn(), createStockDocument: vi.fn(), saveStockDraft: vi.fn(),
   postStockDocument: vi.fn(), cancelStockDocument: vi.fn(), listIssuableWorkItems: vi.fn(), listProjectIssueLines: vi.fn(),
 }));
 vi.mock('@/src/lib/db/stockReports', () => ({ getStockOnHand: vi.fn(), getStockLedgerPage: vi.fn(), getStockLedgerAll: vi.fn(), getProjectConsumption: vi.fn() }));
@@ -51,6 +51,13 @@ import * as reports from '@/src/lib/db/stockReports';
 import * as allowances from '@/src/lib/db/stockAllowances';
 
 describe('stock repository (documents and reports)', () => {
+  it('C8 stock documents count delegates the same filters to the DAL', async () => {
+    vi.mocked(docs.countStockDocuments).mockResolvedValue(51);
+    const filters = { kind: 'issue' as const, status: 'Posted' as const };
+    await expect(repositories.stock.documents.count(filters)).resolves.toBe(51);
+    expect(docs.countStockDocuments).toHaveBeenCalledWith(filters);
+  });
+
   it('FR-STK-015 create delegates the input and the request id', async () => {
     vi.mocked(docs.createStockDocument).mockResolvedValue('d1');
     const input = { kind: 'receive' as const, warehouseId: 'w', lines: [] };

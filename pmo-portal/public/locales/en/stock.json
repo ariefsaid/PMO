@@ -154,7 +154,7 @@
     "STK_RETURN_EXCEEDS": "You cannot return more than was issued.",
     "STK_ARCHIVED": "This record is archived.",
     "STK_FRACTION": "This unit only allows whole numbers.",
-    "STK_BACKDATE": "That date is too far back or in the future.",
+    "STK_BACKDATE": "Only an Admin can date a movement more than 31 days back, and no one can date one in the future.",
     "STK_HAS_STOCK": "Stock is still on hand, so this cannot be archived.",
     "STK_UNIT_LOCKED": "This unit is already used by stock documents, so it cannot be changed.",
     "STK_INVALID": "Some of the details are not valid.",
@@ -271,6 +271,10 @@
     "cancelDraft": "Cancel draft",
     "cancelled": "Draft cancelled",
     "actionFailed": "That didn't work",
+    "postConfirm": {
+      "title": "Post this stock document?",
+      "description": "{{number}} will be posted and stock on hand will change using these lines. This document can no longer be edited."
+    },
     "confirm": {
       "title": "Cancel this draft?",
       "description": "The draft is kept for the record but can no longer be posted.",
@@ -374,7 +378,8 @@
       "source": "Choose the issue line you are returning.",
       "quantity": "Enter a quantity above zero (up to 3 decimals).",
       "unitCost": "Enter the unit cost (zero or more)."
-    }
+    },
+    "qtyUnitHelp": "Enter the quantity in {{unit}}."
   },
   "count": {
     "sections": {
@@ -384,6 +389,11 @@
     "systemNow": "System now",
     "variance": "Difference",
     "fill": "Fill from stock on hand",
+    "fillConfirm": {
+      "title": "Replace the count lines?",
+      "description": "All current lines and entered counts will be replaced by the positive stock-on-hand items.",
+      "confirm": "Replace lines"
+    },
     "reason": "Reason",
     "reasonHelp": "For example: damaged, lost, found in the yard.",
     "direction": "Direction",
@@ -413,7 +423,8 @@
       "counted": "Enter the counted quantity (0 or more, up to 3 decimals).",
       "costNeeded": "Enter the unit cost: the system holds none of this item."
     },
-    "costOnFile": "A unit cost is on file. Leave empty to keep it."
+    "costOnFile": "A unit cost is on file. Leave empty to keep it.",
+    "editingDraft": "Editing a saved draft: nothing changes in stock until you post it."
   },
   "consumption": {
     "from": "From month",
@@ -475,8 +486,8 @@
       "warehouse": "Warehouse",
       "warehousePlaceholder": "Choose a warehouse",
       "pick": "Choose an item and a warehouse to see a suggestion.",
-      "current": "Level in force: {{level}} {{unit}}",
-      "currentQuantity": "order {{quantity}} {{unit}}",
+      "current": "{{label}}: {{level}} {{unit}}.",
+      "currentQuantity": "{{label}}: {{quantity}} {{unit}}.",
       "noCurrent": "No reorder level is set here.",
       "suggestedLevel": "Suggested level",
       "suggestedQuantity": "Suggested order quantity",
