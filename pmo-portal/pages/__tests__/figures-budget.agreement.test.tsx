@@ -245,7 +245,7 @@ describe('S01 budget figure agreement on real screens', () => {
     });
     const view = renderFigureAgreementRoute(projectOverviewRoute);
     await waitFor(() => expect(view.container.querySelector('section[aria-labelledby="pd-cost"]')).toHaveTextContent('Open orders are unknown'));
-    expect(view.container.querySelector('section[aria-labelledby="pd-cost"]')).not.toHaveTextContent(/Left after open orders \$[\d,]+/u);
+    expect(view.container.querySelector('section[aria-labelledby="pd-cost"]')).not.toHaveTextContent(/Left after (?:open )?orders \$[\d,]+/u);
   });
 
   it.each([
@@ -284,7 +284,7 @@ describe('S01 budget figure agreement on real screens', () => {
     const overview = renderFigureAgreementRoute(projectOverviewRoute);
     const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
     await waitFor(() => expect(card()).toHaveTextContent(reason));
-    expect(card()).not.toHaveTextContent(/Left after open orders \$[\d,]+/u);
+    expect(card()).not.toHaveTextContent(/Left after (?:open )?orders \$[\d,]+/u);
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
     const expected = spent === null ? 'Spending is unknown or unavailable.' : 'Budget is unavailable for comparison';
@@ -305,7 +305,7 @@ describe('S01 budget figure agreement on real screens', () => {
     await waitFor(() => expect(card()).toHaveTextContent('Budget is unavailable for comparison'));
     expect(card()).toHaveTextContent('Spending is unavailable');
     expect(card()).toHaveTextContent('Open orders are unknown');
-    expect(card()).not.toHaveTextContent(/Left after open orders \$[\d,]+/u);
+    expect(card()).not.toHaveTextContent(/Left after (?:open )?orders \$[\d,]+/u);
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
     await waitFor(() => expect(budget.container).toHaveTextContent('Budget is unavailable for comparison'));
