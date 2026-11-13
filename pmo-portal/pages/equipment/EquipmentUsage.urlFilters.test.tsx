@@ -123,7 +123,7 @@ describe('R2 — the equipment usage week, tab and asset live in the URL', () =>
     const user = userEvent.setup();
     renderPage('Engineer', '/equipment');
     await user.click(screen.getByRole('combobox', { name: 'Show equipment' }));
-    await user.click(await screen.findByRole('option', { name: 'EQU-1 · Loader 1' }));
+    await user.click(await screen.findByRole('option', { name: /EQU-1 · Loader 1/ }));
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?asset=a1');
   });
 

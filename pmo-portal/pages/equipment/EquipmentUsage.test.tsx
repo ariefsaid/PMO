@@ -347,10 +347,10 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     await user.click(screen.getByRole('button', { name: 'Add row' }));
     expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
     await user.click(screen.getByRole('combobox', { name: 'Equipment' }));
-    await user.click(await screen.findByRole('option', { name: 'EQU-1 · Loader 1' }));
+    await user.click(await screen.findByRole('option', { name: /EQU-1 · Loader 1/ }));
     expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
     await user.click(screen.getByRole('combobox', { name: 'Project' }));
-    await user.click(await screen.findByRole('option', { name: 'EQU P1' }));
+    await user.click(await screen.findByRole('option', { name: /^EQU P1$/ }));
     expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Add' }));
     expect(screen.getByRole('row', { name: /Loader 1/ })).toBeInTheDocument();
