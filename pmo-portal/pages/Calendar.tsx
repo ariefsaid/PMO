@@ -95,13 +95,16 @@ const CalendarPage: React.FC = () => {
         </div>
       )}
       {/* C5 (DS calendar #3): a task with no due date cannot sit on a date, so it is absent — say
-          so, or the month reads as the whole plan while unscheduled work exists. */}
-      <p className="mb-3 text-control text-muted-foreground">
-        {t(
-          'undatedNotice',
-          'Only work with a date appears here. Tasks with no due date are not on the calendar — they stay on their project’s task list.',
-        )}
-      </p>
+          so, or the month reads as the whole plan while unscheduled work exists. (Not shown under
+          the error card: there the calendar itself did not load.) */}
+      {!tasks.isError && (
+        <p className="mb-3 text-control text-muted-foreground">
+          {t(
+            'undatedNotice',
+            "Only work with a date appears here. Tasks with no due date are not on the calendar — they stay on their project's task list.",
+          )}
+        </p>
+      )}
       {tasks.isError ? (
         <ListState
           variant="error"
