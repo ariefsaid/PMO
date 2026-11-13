@@ -137,15 +137,16 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
     expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
   });
 
+  // Wave A W6: the board toolbar's left slot holds the chance caption; with no classification the slot
+  // carries only that caption (no empty classification control).
   it('keeps search and actions without an empty filter group when no deal has classifications', () => {
     renderPage('/sales?view=kanban');
 
     const toolbar = screen.getByTestId('list-page-toolbar');
-    expect(within(toolbar).queryByTestId('list-page-filter-group')).not.toBeInTheDocument();
-    expect(Array.from(toolbar.children).map((child) => (child as HTMLElement).dataset.testid)).toEqual([
-      'list-page-search-group',
-      'list-page-action-group',
-    ]);
+    const filterGroup = within(toolbar).getByTestId('list-page-filter-group');
+    expect(filterGroup.children).toHaveLength(1);
+    expect(filterGroup.firstElementChild?.tagName).toBe('P');
+    expect(filterGroup.textContent).not.toBe('');
     expect(within(toolbar).getByRole('searchbox', { name: 'Search projects' })).toBeInTheDocument();
     expect(within(toolbar).getByRole('tablist', { name: 'Pipeline view' })).toBeInTheDocument();
     expect(within(toolbar).getByRole('button', { name: 'Export' })).toBeInTheDocument();
