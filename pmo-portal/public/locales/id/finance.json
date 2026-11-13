@@ -209,13 +209,13 @@
     "clearProject": "Hapus filter proyek"
   },
   "receipts": {
-    "someUnreported": "Beberapa angka tidak dilaporkan.",
+    "paymentReceivedUnnumbered": "Pembayaran diterima, belum bernomor",
     "confirmOdooTitle": "Catat kuitansi ini di Odoo?",
     "confirmOdooBody": "PMO akan mengirim kuitansi ini ke Odoo. Periksa jumlah yang dilunasi dan pajak yang dipotong sebelum melanjutkan.",
     "statusAwaitingOdoo": "Kuitansi terkirim, menunggu Odoo",
     "statusPaidOdoo": "Lunas",
     "journalLabel": "Diterima di",
-    "titleUnnumbered": "Kuitansi, belum bernomor",
+    "figuresNotReported": "Tidak dilaporkan: {{figures}}.",
     "apply": {
       "title": "Terapkan ke faktur",
       "subtitle": "{{amount}} belum diterapkan",

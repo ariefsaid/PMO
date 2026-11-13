@@ -8,7 +8,12 @@
     "discardStay": "Stay",
     "saving": "Saving…",
     "required": "Required",
-    "amountInvalid": "Enter an amount greater than zero."
+    "amountInvalid": "Enter an amount greater than zero.",
+    "projectCategoryGroup": "Project and budget category",
+    "categoryHelper": "Decides who approves",
+    "lineGroup": "Expense line {{number}}",
+    "total": "Total",
+    "saveDraft": "Save draft"
   },
   "postings": {
     "recordedBeforeConnection": "Recorded before the ERP connection"

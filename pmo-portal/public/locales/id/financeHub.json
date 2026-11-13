@@ -174,7 +174,8 @@
   },
   "nav": {
     "finance": "Keuangan",
-    "paymentRecord": "Detail pembayaran"
+    "paymentRecord": "Detail pembayaran",
+    "paymentReceived": "Pembayaran diterima"
   },
   "managementPack": {
     "basisEarned": "Nilai terealisasi",

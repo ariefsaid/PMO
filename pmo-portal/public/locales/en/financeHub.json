@@ -174,7 +174,8 @@
   },
   "nav": {
     "finance": "Finance",
-    "paymentRecord": "Payment record"
+    "paymentRecord": "Payment record",
+    "paymentReceived": "Payment received"
   },
   "managementPack": {
     "basisEarned": "Earned value",
