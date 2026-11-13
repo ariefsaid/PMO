@@ -31,7 +31,12 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
   const withheldShown = receipt.withheld_amount != null && receipt.withheld_amount > 0;
   const cashDiffers = receipt.received_amount != null && receipt.received_amount !== receipt.amount && (!odoo || withheldShown);
   const unappliedShown = unapplied !== null && unapplied > 0;
-  const someUnreported = receipt.amount == null || receipt.received_amount == null || receipt.withheld_amount == null || unapplied === null;
+  const missingFigures = [
+    receipt.amount == null ? t('uxs06.receiptTotal', 'Receipt total') : null,
+    receipt.received_amount == null ? t('financeCopy.cashReceived', 'Cash received') : null,
+    receipt.withheld_amount == null ? t('financeCopy.taxWithheld', 'Tax withheld') : null,
+    unapplied === null ? t('uxs06.unappliedCol', 'Not yet applied') : null,
+  ].filter((figure): figure is string => figure !== null);
   const facts: Array<{ label: string; testId?: string; value: React.ReactNode }> = [
     ...(cashDiffers ? [{ label: t('financeCopy.cashReceived', 'Cash received'), value: money(receipt.received_amount!) }] : []),
     ...(withheldShown ? [{
@@ -94,8 +99,10 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
           </div>
         ))}
       </dl>
-      {someUnreported && (
-        <p className="-mt-3 mb-6 text-sm text-muted-foreground">{t('finance:receipts.someUnreported', "Some figures weren't reported.")}</p>
+      {missingFigures.length > 0 && (
+        <p className="-mt-3 mb-6 text-sm text-muted-foreground">
+          {t('finance:receipts.figuresNotReported', 'Not reported: {{figures}}.', { figures: missingFigures.join(', ') })}
+        </p>
       )}
 
       <h2 className="mb-2 text-heading font-semibold">{t('uxs06.settledTitle', 'Invoices this receipt settled')}</h2>
