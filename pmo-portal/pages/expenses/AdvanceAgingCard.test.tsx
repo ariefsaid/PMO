@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 import React from 'react';
 import { formatCurrency } from '@/src/lib/format';
 // The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
@@ -38,6 +39,26 @@ describe('AdvanceAgingCard', () => {
     expect(within(table).getByRole('columnheader', { name: 'Outstanding' })).toBeInTheDocument();
     expect(within(table).getByText(formatCurrency(200.5, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'ADV-2' })).toHaveAttribute('href', '/expenses/a2');
+  });
+  it('opening an outstanding advance lands on that advance record', async () => {
+    h.aging.data = { rows: [row({})], truncated: false };
+    h.totals.data = { IDR: bucketsOf({ '0-30': 100 }) };
+    const AdvanceRecordProbe: React.FC = () => {
+      const params = useParams();
+      return <div data-testid="advance-record">{params.claimId}</div>;
+    };
+    render(
+      <MemoryRouter initialEntries={['/expenses']}>
+        <Routes>
+          <Route path="/expenses" element={<AdvanceAgingCard />} />
+          <Route path="/expenses/:claimId" element={<AdvanceRecordProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await userEvent.click(screen.getByRole('link', { name: 'ADV-1' }));
+
+    expect(screen.getByTestId('advance-record')).toHaveTextContent('a1');
   });
   it('AC-EXP-063 keeps advance details in cards on phones', () => {
     h.aging.data = { rows: [row({})], truncated: false };
