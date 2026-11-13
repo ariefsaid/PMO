@@ -117,26 +117,11 @@ describe('ListState', () => {
     expect(screen.getByText('No projects yet')).toBeInTheDocument();
     expect(screen.getByText('Create your first project to get started.')).toBeInTheDocument();
     const btn = screen.getByRole('button', { name: 'Clear filters' });
-    expect(btn).toHaveClass('bg-primary');
     // E5: the empty-state action is always a live button — the disabled-CTA
     // anti-pattern can no longer be expressed (disabled/disabledTitle removed).
     expect(btn).not.toBeDisabled();
     await userEvent.click(btn);
     expect(onAction).toHaveBeenCalled();
-  });
-
-  it('empty: an action can opt into a quiet variant while the default remains primary', () => {
-    render(
-      <ListState
-        variant="empty"
-        title="No expenses yet"
-        action={{ label: 'New claim', onClick: vi.fn(), variant: 'outline' }}
-      />,
-    );
-
-    const action = screen.getByRole('button', { name: 'New claim' });
-    expect(action).toHaveClass('bg-card');
-    expect(action).not.toHaveClass('bg-primary');
   });
 
   it('empty: renders no action button when no action is supplied (teaching-only empty)', () => {

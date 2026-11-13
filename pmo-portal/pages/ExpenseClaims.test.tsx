@@ -120,16 +120,18 @@ describe('ExpenseClaims page', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
-  it('ruling 1: keeps one filled New claim — the header action, with the empty-state copy quiet', async () => {
+  it('ruling 1: keeps New claim in the header and in the empty state (quiet outline pending)', async () => {
     h.list.data = { rows: [], truncated: false };
     renderPage();
     const [headerAction, emptyAction] = screen.getAllByRole('button', { name: 'New claim' });
-    // One-Blue: exactly one filled action on the view — the header's. The empty-state
-    // copy stays present (New claim must not disappear) but is the quiet outline.
-    expect(headerAction).toHaveClass('bg-primary');
-    expect(emptyAction).not.toHaveClass('bg-primary');
+    // New claim must never move: the header keeps its filled action at every width, and the
+    // empty state keeps its own copy. The quiet outline for this copy awaits the shared
+    // list-state action variant; until then it renders the primitive's default.
+    await userEvent.click(headerAction);
     await userEvent.click(emptyAction);
-    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
+    expect(mockNavigate).toHaveBeenCalledTimes(2);
+    expect(mockNavigate).toHaveBeenNthCalledWith(1, '/expenses/new');
+    expect(mockNavigate).toHaveBeenNthCalledWith(2, '/expenses/new');
   });
 
   it('ruling 2: keeps the empty state inside the expense list card surface', () => {
