@@ -66,6 +66,21 @@ describe('MonthColumns series labels', () => {
     expect(invoiced.getAttribute('x')).not.toBe(collected.getAttribute('x'));
     expect(invoiced.getAttribute('y')).not.toBe(collected.getAttribute('y'));
   });
+
+  it('keeps chart marks unlabeled when the caller provides a separate visible value row', () => {
+    render(
+      <MonthColumns
+        ariaLabel="Invoiced and collected by month"
+        seriesNames={['Invoiced', 'Collected']}
+        showValueLabels={false}
+        points={[{ key: 'jan', tick: 'Jan', a: 100, labelA: '$100', b: 60, labelB: '$60' }]}
+      />,
+    );
+
+    expect(screen.queryByText('$180K')).not.toBeInTheDocument();
+    expect(screen.queryByText('$100K')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /Jan: Invoiced \$100, Collected \$60/ })).toBeInTheDocument();
+  });
 });
 
 describe('MonthColumns value-axis labels', () => {

@@ -461,6 +461,24 @@ describe('Finance hub', () => {
     expect(within(compact).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('IDR 0');
   });
 
+  it('keeps a secondary currency invoice count visible when its one-bucket breakdown cannot be compacted', () => {
+    const position = positionFixture();
+    state.currency = 'USD';
+    state.role = 'Finance';
+    position.receivablesAgeing = {
+      USD: { notDue: 80_000_000, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 },
+      IDR: { notDue: 0, noDueDate: 40_000_000, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 },
+    };
+    position.receivablesNoDueDateCounts = { IDR: 1 };
+    state.position = position;
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+
+    const receivables = screen.getByRole('region', { name: 'Receivables' });
+    expect(within(receivables).queryByTestId('ageing-compact-IDR')).not.toBeInTheDocument();
+    expect(within(receivables).getByTestId('ageing-bucket-IDR-noDueDate')).toHaveTextContent('1 invoice');
+    expect(within(receivables).getByTestId('ageing-bucket-IDR-noDueDate')).toHaveTextContent('IDR 400,000');
+  });
+
   it('G1c/F7: places an unknown overdue receivable in its due-date bucket without inventing a value', () => {
     const position = positionFixture();
     position.receivablesCount = 2;

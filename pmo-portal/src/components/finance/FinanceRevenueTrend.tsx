@@ -78,8 +78,18 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
         seriesNames={collectionsPrimary
           ? [collectedLabel]
           : [t('home.chartInvoiced', 'Invoiced, excl. tax'), collectedLabel]}
-        minWidth={660}
+        showValueLabels={false}
+        plotRightMargin={16}
       />
+      <ul data-testid="finance-revenue-trend-visible-values" aria-label={title} className="mx-1 mr-4 grid list-none grid-cols-6 gap-0 p-0">
+        {points.map((point) => (
+          <li key={point.key} data-testid={`finance-revenue-trend-values-${point.tick.toLowerCase()}`} className="min-w-0 text-center">
+            <span className="sr-only">{point.tick}</span>
+            {point.a !== 0 && point.labelA && <span data-series-value={collectionsPrimary ? 'collected' : 'invoiced'} title={`${collectionsPrimary ? collectedLabel : invoicedLabel}: ${point.labelA}`} className="block whitespace-nowrap text-control font-medium tabular text-primary-text"><span aria-hidden="true">{point.labelA}</span><span className="sr-only">{collectionsPrimary ? collectedLabel : invoicedLabel} {point.labelA}</span></span>}
+            {point.b !== undefined && point.b !== null && point.b !== 0 && point.labelB && <span data-series-value="collected" title={`${collectedLabel}: ${point.labelB}`} className="block whitespace-nowrap text-control font-medium tabular text-muted-foreground"><span aria-hidden="true">{point.labelB}</span><span className="sr-only">{collectedLabel} {point.labelB}</span></span>}
+          </li>
+        ))}
+      </ul>
       {!hasPair && <SeriesKey items={collectionsPrimary
         ? [{ label: collectedLabel, tone: 'accent' }]
         : [{ label: invoicedLabel, tone: 'accent' }]} />}

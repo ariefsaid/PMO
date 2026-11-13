@@ -166,17 +166,21 @@ export const MonthColumns: React.FC<{
   ariaLabel: string;
   seriesNames?: [string, string?];
   labelAll?: boolean;
+  /** Suppress labels on marks when the caller places an aligned text row beside the chart. */
+  showValueLabels?: boolean;
   height?: number;
   /** Center each paired series value over its own bar when both direct labels need to stay visible. */
   pairedLabelsOnBars?: boolean;
   /** Keep paired value labels legible on narrow screens; the chart can scroll horizontally. */
   minWidth?: number;
+  /** Preserve plot room for short direct-value rows below the chart. */
+  plotRightMargin?: number;
   tickInterval?: number;
   /** Fill the parent's remaining height (a flex column) instead of a fixed height; `height` is then the minimum. */
   fill?: boolean;
   /** Draw a value axis with a few faint horizontal lines (values on the left), and label only the tallest and latest columns. */
   valueAxis?: (value: number) => string;
-}> = ({ points, ariaLabel, seriesNames, labelAll = false, height = 168, pairedLabelsOnBars = false, minWidth, tickInterval = 0, fill = false, valueAxis }) => {
+}> = ({ points, ariaLabel, seriesNames, labelAll = false, showValueLabels = true, height = 168, pairedLabelsOnBars = false, minWidth, plotRightMargin = 40, tickInterval = 0, fill = false, valueAxis }) => {
   const reduced = usePrefersReducedMotion();
   const two = points.some((point) => point.b !== undefined);
   const data = points.map((point) => ({ ...point }));
@@ -192,7 +196,7 @@ export const MonthColumns: React.FC<{
       <div className={[minWidth ? 'overflow-x-auto' : '', fill ? 'flex flex-1 flex-col' : ''].join(' ').trim() || undefined} role={minWidth ? 'region' : undefined} aria-label={minWidth ? ariaLabel : undefined} tabIndex={minWidth ? 0 : undefined}>
         <div role="img" className={fill ? 'flex-1' : undefined} aria-label={`${ariaLabel}. ${points.map((point) => `${point.tick}: ${[point.labelA && `${two && seriesNames?.[0] ? `${seriesNames[0]} ` : ''}${point.labelA}`, point.labelB && `${seriesNames?.[1] ? `${seriesNames[1]} ` : ''}${point.labelB}`].filter(Boolean).join(', ')}`).join('; ')}`} style={fill ? { minHeight: height, minWidth } : { height, minWidth }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 22, right: two && !valueAxis ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
+          <BarChart data={data} margin={{ top: 22, right: two && !valueAxis ? plotRightMargin : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
               {valueAxis && <CartesianGrid vertical={false} stroke={chartTheme.grid} strokeOpacity={0.6} />}
               <XAxis dataKey="tick" tick={<PlainTick anchor="middle" dy={14} />} tickLine={false} stroke={chartTheme.grid} interval={tickInterval} />
               {valueAxis
@@ -200,11 +204,11 @@ export const MonthColumns: React.FC<{
                 : <YAxis hide domain={[0, 'auto']} />}
               <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.labelA : item.payload.labelB) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
               <Bar dataKey="a" fill={toneFill.accent} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
-                <LabelList dataKey="labelA" content={valueAxis ? peakLabel(data, 'a') : columnLabel(data, 'a', !labelAll, two ? 'end' : 'middle', two, pairedLabelsOnBars && two)} />
+                <LabelList dataKey="labelA" content={showValueLabels ? valueAxis ? peakLabel(data, 'a') : columnLabel(data, 'a', !labelAll, two ? 'end' : 'middle', two, pairedLabelsOnBars && two) : () => null} />
               </Bar>
               {two && (
                 <Bar dataKey="b" fill={toneFill.neutral} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
-                  <LabelList dataKey="labelB" content={valueAxis ? peakLabel(data, 'b') : columnLabel(data, 'b', !labelAll || points.length > 6, 'start', true, pairedLabelsOnBars)} />
+                  <LabelList dataKey="labelB" content={showValueLabels ? valueAxis ? peakLabel(data, 'b') : columnLabel(data, 'b', !labelAll || points.length > 6, 'start', true, pairedLabelsOnBars) : () => null} />
                 </Bar>
               )}
             </BarChart>

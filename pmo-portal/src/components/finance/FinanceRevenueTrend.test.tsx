@@ -21,6 +21,9 @@ vi.mock('@/src/components/dashboard/charts', async (importOriginal) => {
       seriesNames?: [string, string?];
       labelAll?: boolean;
       pairedLabelsOnBars?: boolean;
+      showValueLabels?: boolean;
+      minWidth?: number;
+      plotRightMargin?: number;
     }) => {
       const points = props.points.map((point) => {
         const values = [
@@ -35,6 +38,9 @@ vi.mock('@/src/components/dashboard/charts', async (importOriginal) => {
         'data-testid': 'finance-revenue-trend-labels',
         'data-label-all': String(props.labelAll ?? false),
         'data-paired-labels-on-bars': String(props.pairedLabelsOnBars ?? false),
+        'data-show-value-labels': String(props.showValueLabels ?? true),
+        'data-min-width': props.minWidth == null ? '' : String(props.minWidth),
+        'data-plot-right-margin': String(props.plotRightMargin ?? ''),
       });
     },
   };
@@ -90,5 +96,26 @@ describe('FinanceRevenueTrend', () => {
     expect(directLabels).toHaveAttribute('data-paired-labels-on-bars', 'false');
     expect(chart).toHaveAccessibleName(/May:.*\$100.*Collected \$100/);
     expect(chart).toHaveAccessibleName(/Oct:.*\$600.*Collected \$600/);
+  });
+
+  it('shows each non-zero month value in visible text without chart-top labels or a fixed-width scroller', async () => {
+    renderTrend();
+
+    const values = await screen.findByTestId('finance-revenue-trend-visible-values');
+    expect(values.querySelectorAll('[data-series-value]')).toHaveLength(12);
+
+    months.forEach((_, index) => {
+      const tick = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'][index];
+      const month = screen.getByTestId(`finance-revenue-trend-values-${tick?.toLowerCase()}`);
+      const monthValues = month.querySelectorAll('[data-series-value]');
+      expect(monthValues).toHaveLength(2);
+      expect(monthValues[0]).toHaveTextContent(`$${(index + 1) * 100}`);
+      expect(monthValues[1]).toHaveTextContent(`$${(index + 1) * 100}`);
+    });
+
+    const chart = screen.getByTestId('finance-revenue-trend-labels');
+    expect(chart).toHaveAttribute('data-show-value-labels', 'false');
+    expect(chart).toHaveAttribute('data-min-width', '');
+    expect(chart).toHaveAttribute('data-plot-right-margin', '16');
   });
 });

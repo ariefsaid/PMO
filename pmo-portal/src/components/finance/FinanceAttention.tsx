@@ -120,23 +120,23 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
                   key={invoice.id}
                   to={href}
                   aria-label={t('financeHub:hub.fix.overdue.openInvoice', { defaultValue: 'Open {{client}} invoice {{number}}', client, number: invoiceNumber(invoice) ?? '—' })}
-                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                 >
-                  <span className="col-span-2 min-w-0 break-words sm:col-span-1">
+                  <span className="col-span-2 min-w-0 break-words">
                     <span className="font-normal">{client}</span>
                     <span className="shrink-0 whitespace-nowrap font-mono text-muted-foreground"> · {invoiceNumber(invoice) ?? '—'}</span>
                   </span>
-                  <LateText className="col-start-1 row-start-2 whitespace-nowrap text-control text-destructive-text sm:col-start-2 sm:row-start-1" emphasis={isUrgent}>{partlyPaid
+                  <LateText className="col-start-1 row-start-2 whitespace-nowrap text-control text-destructive-text" emphasis={isUrgent}>{partlyPaid
                         ? t('finance:receivables.statusPartlyPaidLate', { count: daysOverdue, n: String(daysOverdue), defaultValue_one: 'Partly paid · {{n}} day overdue', defaultValue_other: 'Partly paid · {{n}} days overdue' })
                         : t('status:age.overdue', { count: daysOverdue, n: String(daysOverdue), defaultValue_one: '{{n}} day overdue', defaultValue_other: '{{n}} days overdue' })}</LateText>
-                  <span className="col-start-2 row-start-2 min-w-0 text-right sm:col-start-3 sm:row-start-1">
+                  <span className="col-start-2 row-start-2 min-w-0 text-right">
                     {/* C4: an unknown balance is left out here; the heading counts it once ("· 1 balance unknown"). */}
                     {outstanding != null && (
                       <span className="whitespace-nowrap text-control font-semibold tabular text-foreground">{formatCurrency(outstanding / 100, invoice.currency)}</span>
                     )}
                   </span>
-                  <span className="col-start-1 row-start-3 min-w-0 break-words text-control text-muted-foreground sm:col-start-1 sm:row-start-2">{project ? projectDisplayName(project) : t('financeHub:hub.fix.overdue.unknownProject', 'Project unavailable')} · {t('financeHub:hub.fix.overdue.due', { defaultValue: 'Due {{date}}', date: dueDate ? formatDay(dueDate) : '—' })}</span>
-                  <span className="col-start-2 row-start-3 min-w-0 text-right sm:col-start-3 sm:row-start-2">
+                  <span className="col-start-1 row-start-3 min-w-0 break-words text-control text-muted-foreground">{project ? projectDisplayName(project) : t('financeHub:hub.fix.overdue.unknownProject', 'Project unavailable')} · {t('financeHub:hub.fix.overdue.due', { defaultValue: 'Due {{date}}', date: dueDate ? formatDay(dueDate) : '—' })}</span>
+                  <span className="col-start-2 row-start-3 min-w-0 text-right">
                     {outstanding != null && gross != null && <span className="block whitespace-nowrap tabular text-control text-muted-foreground">{t('financeHub:hub.fix.overdue.ofGross', { defaultValue: 'of {{amount}}', amount: formatCurrency(gross, invoice.currency) })}</span>}
                   </span>
                 </Link>
