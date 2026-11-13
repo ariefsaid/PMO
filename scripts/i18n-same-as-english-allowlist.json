@@ -54,6 +54,10 @@
     { "value": "Enterprise", "reason": "a plan name" },
     { "value": "folder", "reason": "a term Indonesian uses as written for a directory" },
     { "value": "OK", "reason": "the acknowledgement Indonesian interfaces use as written" },
-    { "value": "ITEM-001", "reason": "an example record code in sample copy, not prose" }
+    { "value": "ITEM-001", "reason": "an example record code in sample copy, not prose" },
+    { "value": "Role", "reason": "this app's Indonesian RBAC noun: the #693 Bahasa pass pins the directory column, the role select label and Simpan role / Ubah role, and the role-confirm copy says role (KBBI has no entry, but the product vocabulary does)" },
+    { "value": "Edit role", "reason": "the row-menu label the #693 Bahasa pass pins; edit is an Indonesian verb (KBBI: edit, mengedit) and role is this app's Indonesian RBAC noun" },
+    { "value": "Edit {{account}}", "reason": "edit is an Indonesian verb (KBBI: edit, mengedit); the #693 Bahasa pass pins this budget-map row action's accessible name (Edit 5100 - Direct Costs)" },
+    { "value": "Action item", "reason": "the ONE Bahasa term for a meeting-minutes action item, pinned by AC-MTG-025: the Indonesian minutes copy keeps the English term and forbids butir tindakan" }
   ]
 }

@@ -272,7 +272,7 @@ const ImprestFloatDetail: React.FC = () => {
         <CardHead>{t('imprest:counts.title', 'Cash counts')}</CardHead>
         <CardPad className="pt-0">
           {counts.isError ? <ListState variant="error" title={t('imprest:counts.error', "Couldn't load counts")} onRetry={() => void counts.refetch()} />
-            : counts.isPending ? <ListState variant="loading" rows={2} loadingRole="status" loadingLabel={t('imprest:counts.loading', 'Loading cash counts…')} />
+            : counts.isPending ? <ListState variant="loading" rows={2} loadingRole="status" loadingLabel={t('imprest:counts.loading', 'Loading cash counts…')} loadingAriaLabel={t('imprest:counts.loading', 'Loading cash counts…')} />
             : (counts.data?.rows ?? []).length === 0 ? <p className="text-sm text-muted-foreground">{t('imprest:counts.none', 'No cash count recorded yet.')}</p>
             : <ul className="divide-y divide-border text-sm">
               {(counts.data?.rows ?? []).map((c) => (

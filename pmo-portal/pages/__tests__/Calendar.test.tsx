@@ -9,22 +9,12 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { formatDay } from '@/src/lib/format';
 import CalendarPage from '../Calendar';
+import type { CalendarTask } from '@/src/lib/db/tasks';
 
 const may = vi.fn(() => true);
 const { moveTask, calendarState } = vi.hoisted(() => {
   /** One calendar task fixture — typed, so a test may vary any field (owner, project, dates). */
-  type TaskFixture = {
-    id: string;
-    name: string;
-    status: string;
-    project_id: string | null;
-    project_name: string | null;
-    start_date: string | null;
-    end_date: string;
-    assignee_id: string | null;
-    assignee_name: string | null;
-    created_by: string | null;
-  };
+  type TaskFixture = Omit<CalendarTask, 'status'> & { status: string };
   const baseTask: TaskFixture = {
     id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
     start_date: null, end_date: '2026-11-12', assignee_id: null, assignee_name: null, created_by: null,

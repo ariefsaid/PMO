@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { MemoryRouter } from 'react-router';
 import ProcurementCreate from '../../ProcurementCreate';
@@ -16,7 +18,10 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurementWithItems: () => ({ mutateAsync: createRequest, isPending: false }),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({
+  useOrgCurrency: () => 'USD',
+  useOrgCurrencyState: () => ({ currency: 'USD', isResolved: true, isError: false }),
+}));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out', sub: 'PRJ-1' }] }),
   useVendorOptions: () => ({ data: [] }),
@@ -24,9 +29,32 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
 
 import { ProcurementHeaderEdit } from '../ProcurementHeaderEdit';
 
+const authValue = {
+  session: null,
+  currentUser: null,
+  role: null,
+  loading: false,
+  profileError: null,
+  profileErrorKind: null,
+  signInWithPassword: async () => ({ error: null }),
+  signInWithMagicLink: async () => ({ error: null }),
+  signInWithMicrosoft: async () => ({ error: null }),
+  requestPasswordReset: async () => ({ error: null }),
+  updatePassword: async () => ({ error: null }),
+  resendEmailConfirmation: async () => ({ error: null }),
+  signOut: async () => {},
+  refreshCurrentUser: async () => ({ error: null }),
+} satisfies AuthContextValue;
+
 function renderNew() {
   createRequest.mockResolvedValue({ id: 'pc-new' });
-  render(<ToastProvider><MemoryRouter initialEntries={['/procurement/new?have=need']}><ProcurementCreate /></MemoryRouter></ToastProvider>);
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <AuthContext.Provider value={authValue}>
+        <ToastProvider><MemoryRouter initialEntries={['/procurement/new?have=need']}><ProcurementCreate /></MemoryRouter></ToastProvider>
+      </AuthContext.Provider>
+    </QueryClientProvider>,
+  );
   return createRequest;
 }
 
