@@ -7,10 +7,10 @@ import { AppError } from '@/src/lib/appError';
 
 vi.mock('@/src/components/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/ui')>();
-  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => React.createElement(actual.Button, {
-    ...props,
-    'data-variant': props.variant ?? 'primary',
-  });
+  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => {
+    const buttonProps = { ...props, 'data-variant': props.variant ?? 'primary' } as React.ComponentProps<typeof actual.Button>;
+    return React.createElement(actual.Button, buttonProps);
+  };
   return { ...actual, Button: ButtonWithVariant };
 });
 

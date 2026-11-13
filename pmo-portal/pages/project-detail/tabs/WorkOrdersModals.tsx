@@ -122,7 +122,7 @@ const WorkOrdersModals: React.FC<{
     currentValueText, onCloseValue, onSaveValue,
     onCloseInvoice, onInvoiceCreated,
     onCloseClaim, onSaveClaim, onClaimError,
-    onCloseEvidence, onAttachEvidence, onEvidenceError,
+    onCloseEvidence, onAttachEvidence, onEvidenceError, documentsPending, documentsError, onRetryDocuments,
     onRaise, onCloseRaise, onWithdrawClaimConfirm, onCloseWithdrawClaim,
     onTransition, onCloseTransition, onAcknowledgedIssue, onCloseOverCommit,
   } = props;

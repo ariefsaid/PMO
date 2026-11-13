@@ -182,19 +182,18 @@ const StockOnHand: React.FC = () => {
           <TextField label={t('onHand.filters.search')} hideLabel value={search} onChange={setSearch} placeholder={t('onHand.filters.search')} type="search" />
         </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          {/* The shared Checkbox, in a row the same height as the fields beside it, so the box and the
-              select share one baseline instead of the box sitting lower. */}
-          <div className="flex min-h-8 items-center gap-2">
-            <Checkbox checked={belowOnly} onChange={setBelowOnly} labelledBy="stock-on-hand-below-reorder" />
-            <span id="stock-on-hand-below-reorder" className="cursor-pointer select-none text-sm font-medium" onClick={() => setBelowOnly(!belowOnly)}>
+          {/* The shared Checkbox carries its own visible words inside the hit target (A2's `children`
+              API), so the words toggle it and a screen reader hears the name once. The 32px box keeps
+              the control's centre on the same line as the fields beside it. */}
+          <div className="flex h-8 items-center">
+            <Checkbox checked={belowOnly} onChange={setBelowOnly} label={t('onHand.filters.belowReorder')} className="font-medium">
               {t('onHand.filters.belowReorder')}
-            </span>
+            </Checkbox>
           </div>
-          <div className="flex min-h-8 items-center gap-2">
-            <Checkbox checked={includeZero} onChange={setIncludeZero} labelledBy="stock-on-hand-include-zero" />
-            <span id="stock-on-hand-include-zero" className="cursor-pointer select-none text-sm" onClick={() => setIncludeZero(!includeZero)}>
+          <div className="flex h-8 items-center">
+            <Checkbox checked={includeZero} onChange={setIncludeZero} label={t('onHand.filters.includeZero')}>
               {t('onHand.filters.includeZero')}
-            </span>
+            </Checkbox>
           </div>
         </div>
       </StockFilters>

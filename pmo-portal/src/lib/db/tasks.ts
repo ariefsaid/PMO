@@ -434,15 +434,18 @@ export interface MyTask {
   end_date: string | null;
   /**
    * C13 (DS my-tasks #4): the priority the record already holds — the queue shows it, so two tasks
-   * due the same day can be ordered by what the record knows. NULL = no priority set (a real state,
-   * never rendered as a made-up "Normal").
+   * due the same day can be ordered by what the record knows. ABSENT/null = no priority set (a real
+   * state, never rendered as a made-up "Normal"); the key is only present when the read carried the
+   * column, so a caller whose query does not select it (an older fixture) still round-trips exactly
+   * the shape it always did (useMyTasks.tombstone.test.tsx pins that).
    */
-  priority: TaskPriority | null;
+  priority?: TaskPriority | null;
   /**
    * C13 (DS my-tasks #1): an archived task stays in the assignee's queue (its project hides it), so
-   * the row must SAY it is archived instead of looking like ordinary open work.
+   * the row must SAY it is archived instead of looking like ordinary open work. Present only when
+   * the read carried the column — see `priority` above.
    */
-  archived_at: string | null;
+  archived_at?: string | null;
 }
 
 /**
@@ -472,8 +475,8 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     meeting_id: string | null;
     start_date: string | null;
     end_date: string | null;
-    priority: TaskPriority | null;
-    archived_at: string | null;
+    priority?: TaskPriority | null;
+    archived_at?: string | null;
     project: { name: string; short_name?: string | null } | null;
   }>).map((t) => ({
     id: t.id,
@@ -489,7 +492,8 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     ...(t.project && projectDisplayName(t.project) !== t.project.name ? { project_contractual_name: t.project.name } : {}),
     start_date: t.start_date,
     end_date: t.end_date,
-    priority: t.priority ?? null,
-    archived_at: t.archived_at ?? null,
+    // C13: only when the read carried the columns — an unknown stays absent, never a fabricated null.
+    ...('priority' in t ? { priority: t.priority ?? null } : {}),
+    ...('archived_at' in t ? { archived_at: t.archived_at ?? null } : {}),
   }));
 }
