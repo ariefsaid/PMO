@@ -365,6 +365,28 @@ describe('DataTable', () => {
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
   });
 
+  it('filtered-empty explains that filters matched no rows and clears them on request', async () => {
+    const onClearFilters = vi.fn();
+    render(
+      <DataTable
+        rows={[]}
+        columns={columns}
+        rowKey={(r) => r.id}
+        state="empty"
+        emptyTitle="No projects yet"
+        filteredEmpty={{
+          message: 'No projects match these filters.',
+          clearFiltersLabel: 'Clear filters',
+          onClearFilters,
+        }}
+      />,
+    );
+
+    expect(screen.getByText('No projects match these filters.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(onClearFilters).toHaveBeenCalledOnce();
+  });
+
   it('state="loading" renders the loading ListState', () => {
     render(<DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="loading" />);
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
