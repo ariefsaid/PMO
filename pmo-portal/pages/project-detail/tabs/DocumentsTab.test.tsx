@@ -1203,7 +1203,7 @@ describe('DocumentsTab — one toolbar row (move 1)', () => {
     expect(link.parentElement).toBe(add.parentElement);
     expect(add.parentElement).toHaveClass('flex-wrap');
     // The filters and the view switch stay on the same row as the actions.
-    expect(within(toolbar).getByLabelText('Filter by category')).toBeInTheDocument();
+    expect(within(toolbar).getByRole('combobox', { name: 'Filter by category' })).toBeInTheDocument();
     expect(within(toolbar).getByRole('button', { name: 'Register' })).toBeInTheDocument();
   });
 });
