@@ -27,7 +27,7 @@ describe('unrecorded deal figures', () => {
     expect(figure('% Go').getByText('—')).toBeInTheDocument();
   });
 
-  it('F14 keeps the probability Save action available', () => {
+  it('F14 keeps both probability Save actions available', () => {
     const d = {
       ...deal(),
       canEditProbability: true,
@@ -38,8 +38,11 @@ describe('unrecorded deal figures', () => {
       saving: null,
     } as DealActions;
     render(<DealFigures d={d} />);
+    const goInput = screen.getByLabelText('Chance the project proceeds (%)');
+    const getInput = screen.getByLabelText('Chance we win if the client proceeds (%)');
     const saveButtons = screen.getAllByRole('button', { name: 'Save' });
-    expect(saveButtons).toHaveLength(1);
-    expect(saveButtons[0]).toBeEnabled();
+    expect(saveButtons).toHaveLength(2);
+    expect(within(goInput.closest('form') as HTMLElement).getByRole('button', { name: 'Save' })).toBeEnabled();
+    expect(within(getInput.closest('form') as HTMLElement).getByRole('button', { name: 'Save' })).toBeEnabled();
   });
 });
