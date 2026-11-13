@@ -87,13 +87,11 @@ beforeEach(() => {
 describe('My tasks — worst first (judging move 2)', () => {
   it('move 2: the project holding the most overdue task leads the queue', () => {
     renderMyTasks();
-    const groups = screen.getAllByRole('region');
-    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual([
-      'Beta Works',
-      'Alpha Works',
-      'Gamma Works',
-      'Delta Works',
-    ]);
+    // The queue's groups, in reading order: the level-2 heading of each project section.
+    // (Not `getAllByRole('region')`: the ToastProvider's Toaster root is itself a labelled
+    // `<section>` — a region — so "every region on the page" is 5 entries, not the 4 groups.)
+    const groupNames = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    expect(groupNames).toEqual(['Beta Works', 'Alpha Works', 'Gamma Works', 'Delta Works']);
   });
 
   it('move 2: the worst row is the first row of the leading group', () => {
