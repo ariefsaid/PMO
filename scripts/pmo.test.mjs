@@ -2282,3 +2282,61 @@ test('AC-ROP-SAFETY-CLI unknown response retains safe retry identity and exits 1
     assert.deepEqual(JSON.parse(result.out).not_saved_request_ids, [group.request_id]);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
+
+test('AC-ROP-012 capture routes preview and reviewed apply through the actual command', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    calls.push(JSON.parse(body));
+    send(200, { complete: true, revision: 'review-1', erp_write: false });
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const project = '22222222-2222-4222-8222-222222222222';
+    const request = '11111111-1111-4111-8111-111111111111';
+    const preview = await runCli(['purchases', 'capture', '--project', project, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(preview.code, 0, preview.err);
+    const apply = await runCli(['purchases', 'capture', '--project', project, '--apply', '--revision', 'review-1', '--request', request, '--url', fake.url], { configDir });
+    assert.equal(apply.code, 0, apply.err);
+    assert.deepEqual(calls, [
+      { action: 'preview', scope: { projectId: project } },
+      { action: 'apply', scope: { projectId: project }, expectedRevision: 'review-1', requestId: request },
+    ]);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-012 report returns incomplete status and retains named remainder', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    assert.deepEqual(JSON.parse(body), { action: 'report', scope: { projectId: '22222222-2222-4222-8222-222222222222' } });
+    send(200, { complete: false, remainder: [{ kind: 'journal', reason: 'not_captured' }], erp_write: false });
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const result = await runCli(['purchases', 'capture-report', '--project', '22222222-2222-4222-8222-222222222222', '--url', fake.url], { configDir });
+    assert.equal(result.code, 2, result.err);
+    assert.equal(result.json?.remainder[0].reason, 'not_captured');
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-012 unknown capture outcome retains request and review identity for retry', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    send(503, { error: 'unavailable' });
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const request = '11111111-1111-4111-8111-111111111111';
+    const result = await runCli(['purchases', 'capture', '--all', '--apply', '--revision', 'review-1', '--request', request, '--url', fake.url], { configDir });
+    assert.notEqual(result.code, 0);
+    assert.equal(result.errJson?.error?.details?.request_id, request);
+    assert.equal(result.errJson?.error?.details?.revision, 'review-1');
+    assert.match(result.errJson?.error?.hint ?? '', /same/i);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});

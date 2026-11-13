@@ -2113,6 +2113,14 @@ export async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: Org
     chartReady && referencesCheckedBefore && referencesResolved &&
     statementErrors.length === 0 && glCaughtUp && pleCaughtUp && !rawError,
   );
+  if (statementReady && org.bindingId) {
+    try {
+      const { error } = await serviceClient.rpc('record_capture_feed_completion', {
+        p_org_id: org.orgId, p_binding_id: org.bindingId, p_kind: 'ledger', p_started_at: attemptAt,
+      });
+      if (error) statementErrors.push('Could not record ledger feed completion');
+    } catch { statementErrors.push('Could not record ledger feed completion'); }
+  }
 
   return {
     gl, ple, glCaughtUp, pleCaughtUp,
@@ -2150,7 +2158,14 @@ export function reportVersionFromOrg(org: Pick<OrgBinding, 'versionMajor'>): str
 export async function feedOrgPurchasesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ fed: number; error?: string }> {
   try {
     const client = await erpClientForOrg(serviceClient, org, cache);
+    const startedAt = new Date().toISOString();
     const r = await feedPurchaseMirror(serviceClient as unknown as PurchaseFeedServiceClient, { client, orgId: org.orgId, company: org.company });
+    if (r.caughtUp && org.bindingId) {
+      const { error } = await serviceClient.rpc('record_capture_feed_completion', {
+        p_org_id: org.orgId, p_binding_id: org.bindingId, p_kind: 'purchases', p_started_at: startedAt,
+      });
+      if (error) throw new Error('Could not record purchase feed completion');
+    }
     // A bounded backfill is progress, not a failure — warn like the ledger feed does.
     if (!r.caughtUp) console.warn(`[erpnext-sweep] org ${org.orgId}: purchase feed backfill continues next tick`);
     return { fed: r.fed };

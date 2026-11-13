@@ -50,6 +50,7 @@ export const EDGE_FUNCTION_NAMES = [
   'imprest-cash-account',
   'm365-token-custody',
   'odoo-sweep',
+  'purchase-capture',
   'telegram-notify',
 ] as const;
 

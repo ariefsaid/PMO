@@ -55,6 +55,7 @@ import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
+import { captureHistory } from './lib/pmo-capture.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly } from './lib/pmo-purchases.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 
@@ -686,8 +687,8 @@ function defaultOpenBrowser(url) {
 
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
-const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason']);
-const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees']);
+const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason', 'revision', 'request']);
+const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees', 'all', 'apply']);
 
 export function parseArgs(argv) {
   const flags = { filter: [], line: [] };
@@ -795,6 +796,9 @@ const USAGE = `usage:
                                                    erp_doctype, erp_name, note; hides overhead documents from orphans)
   pmo purchases link <file.json | file.csv | -> [--csv] [--dry-run]   (Admin, Executive, Project Manager, Finance;
                                                                    link sends ${MAX_BATCH} rows per call)
+  pmo purchases capture (--all | --project <uuid>) --dry-run
+  pmo purchases capture (--all | --project <uuid>) --apply --revision <revision> --request <uuid>
+  pmo purchases capture-report (--all | --project <uuid>)
   pmo purchases record-only <history.json|-> [--dry-run] | undo-record-only <purchase> --reason <text> [--dry-run]
   pmo purchases journals --project <id>   (the project's accounting-system journal cost lines)
   pmo purchases attach-journals <file.json | -> [--dry-run]   (Admin, Executive, Project Manager, Finance; rows of
@@ -1172,6 +1176,35 @@ async function receive(ctx, procurementId, flags) {
 
 async function purchases(ctx, positionals, flags) {
   const [sub, arg] = positionals;
+  if (sub === 'capture-report') {
+    if (arg || Boolean(flags.all) === (flags.project !== undefined)) throw usage('purchases capture-report needs exactly one of --all or --project');
+    if (flags.project !== undefined && !UUID.test(String(flags.project))) throw usage('--project must be a project UUID');
+    const report = await authed(ctx, 'POST', '/functions/v1/purchase-capture', { body: { action: 'report', scope: { projectId: flags.project ?? null } } });
+    return report.complete === false ? new Reported(report, 2) : report;
+  }
+  if (sub === 'capture') {
+    if (arg || Boolean(flags.all) === (flags.project !== undefined) || Boolean(flags['dry-run']) === Boolean(flags.apply)) {
+      throw usage('purchases capture needs exactly one of --all or --project and one of --dry-run or --apply');
+    }
+    if (flags.project !== undefined && !UUID.test(String(flags.project))) throw usage('--project must be a project UUID');
+    if (flags.apply && (typeof flags.revision !== 'string' || !flags.revision.trim() || !UUID.test(String(flags.request ?? '')))) {
+      throw usage('purchases capture --apply needs --revision and --request UUID from the preview');
+    }
+    const api = { capture: (body) => authed(ctx, 'POST', '/functions/v1/purchase-capture', { body }) };
+    try {
+      const report = await captureHistory(api, { projectId: flags.project ?? null, dryRun: Boolean(flags['dry-run']), revision: flags.revision, requestId: flags.request });
+      return report.complete === false ? new Reported(report, 2) : report;
+    } catch (error) {
+      if (flags.apply && error instanceof CliError) {
+        if (error.status && error.status >= 400 && error.status < 500) error.exit = 2;
+        else {
+          error.details = { request_id: flags.request, revision: flags.revision, project_id: flags.project ?? null };
+          error.hint = 'The result is unknown; retry the same command with the same request and revision.';
+        }
+      }
+      throw error;
+    }
+  }
   if (sub === 'orphans') {
     const view = flags['include-set-aside'] ? 'erp_purchase_orphans_all' : 'erp_purchase_orphans';
     const q = new URLSearchParams({ select: PURCHASE_READ_VIEWS[view].join(','), order: 'doc_date.desc,id.asc' });

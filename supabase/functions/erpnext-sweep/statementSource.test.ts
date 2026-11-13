@@ -88,6 +88,8 @@ Deno.test('AC-005: shipped live sweep checks chart before full ledger replay wit
     if (result.error) throw new Error(result.error);
     if (events.join(',') !== 'chart,ledger') throw new Error(`chart must precede ledger; observed ${events.join(',')}`);
     if (result.gl !== 0 || result.glCaughtUp !== true) throw new Error(`full replay did not finish: ${JSON.stringify(result)}`);
+    const witness = rpcCalls.find((call) => call.name === 'record_capture_feed_completion');
+    if (!witness || witness.args.p_kind !== 'ledger' || witness.args.p_binding_id !== binding.id) throw new Error('complete ledger pass must record its binding-scoped witness');
     const finish = rpcCalls.find((call) => call.name === 'finish_erp_gl_replay');
     if (!finish || finish.args.p_company !== 'Synthetic Co' || finish.args.p_watermark !== null) throw new Error(`loaded company/full replay was not passed to completion: ${JSON.stringify(rpcCalls)}`);
     if (result.statementReady !== true) throw new Error('complete raw/chart source diagnostic did not remain ready');
