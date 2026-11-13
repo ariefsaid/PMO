@@ -61,7 +61,7 @@ const SpendApprovers: React.FC = () => {
 
   // Who the standard role rules reach: same predicate that offers the Approve button (ADR-0070).
   // Shares the Add modal's query key, so opening the modal does not refetch.
-  const { data: people, isError: peopleError } = useQuery({
+  const { data: people, isError: peopleError, refetch: peopleRefetch } = useQuery({
     queryKey: ['spend-approver-people', orgId],
     queryFn: () => repositories.profile.listOrgProfiles(),
     enabled: Boolean(orgId),
@@ -208,6 +208,18 @@ const SpendApprovers: React.FC = () => {
         <ListState variant="loading" rows={2} testId="spend-approvers-loading" />
       ) : (
         <div className="mt-3 space-y-4">
+          {/* C1: the people read is a SECOND read — when it fails the approver lists below stay
+              readable, so the failure is said once here, beside them, with a retry of its own
+              instead of sending the reader to reload the page. */}
+          {peopleError && (
+            <ListState
+              variant="error"
+              title={t('uxs32.peopleLoadError', "Couldn't read the people this screen checks")}
+              sub={t('uxs32.peopleLoadErrorSub', 'Who can approve now could not be verified. The approver lists below are unaffected.')}
+              retryLabel={t('admin.retry', 'Retry')}
+              onRetry={() => void peopleRefetch()}
+            />
+          )}
           <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-control font-semibold">
@@ -317,7 +329,8 @@ const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, eligible, sub
     () => eligible.map((p) => ({ value: p.id, label: p.full_name })),
     [eligible],
   );
-  const { data: projectOptions } = useProjectOptions();
+  const projectQuery = useProjectOptions();
+  const projectOptions = projectQuery.data;
   const loadProjects = useCallback(
     async (): Promise<ComboboxOption[]> => projectOptions ?? [],
     [projectOptions],
@@ -363,6 +376,16 @@ const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, eligible, sub
     >
       <FormSection legend={t('admin.spendApprovers.form.legend', 'Approver')}>
         <FormGrid>
+          {mode === 'project' && projectQuery.isError && (
+            // C1: a failed project read must not read as "no projects exist". Its own retry, in the
+            // dialog that needs the list; the picker itself stays available for a second attempt.
+            <ListState
+              variant="error"
+              title={t('admin.spendApprovers.form.projectLoadError', "Couldn't load the projects")}
+              retryLabel={t('admin.retry', 'Retry')}
+              onRetry={() => void projectQuery.refetch()}
+            />
+          )}
           {mode === 'project' && (
             <Combobox
               label={t('admin.spendApprovers.form.project', 'Project')}

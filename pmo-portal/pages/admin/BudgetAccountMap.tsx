@@ -350,7 +350,16 @@ const BudgetAccountMap: React.FC = () => {
         {catalogueQuery.isError && <div className="mt-2"><ListState variant="error" title={t('uxs10.catalogueError', 'The account chart is unavailable.')} retryLabel={t('admin.retry', 'Retry')} onRetry={() => void catalogueQuery.refetch()} /></div>}
         {catalogue?.source === 'erp-fallback' && <p className="mt-2 text-control text-muted-foreground">{t('uxs10.catalogueFallback', 'The saved account chart is empty; choices come from the current ERP chart.')}</p>}
         {catalogue && proposals.length === 0 && <p className="mt-2 text-control text-muted-foreground">{t('uxs10.noProposal', 'No clear direct-cost match. Resolve it with your operator.')}</p>}
-        {proposalError && !confirmProposals && <p className="mt-2 text-control text-destructive-text" role="alert">{proposalError}</p>}
+        {proposalError && !confirmProposals && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <p className="text-control text-destructive-text" role="alert">{proposalError}</p>
+            {/* C1: the sentence naming the failed categories is not a dead end — it retries the same
+                loop in place, instead of leaving the Review control as the only way back. */}
+            <Button variant="outline" size="sm" loading={createMutation.isPending} onClick={() => void onProposalConfirm()}>
+              {t('uxs10.proposalRetry', 'Try again')}
+            </Button>
+          </div>
+        )}
       </div>}
       <div className="mt-3.5">
         <DataTable

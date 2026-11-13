@@ -7,6 +7,7 @@ import type { FxRateRow, FxRatePage } from '@/src/lib/repositories/types';
 const h = vi.hoisted(() => ({
   list: vi.fn<(before?: string) => Promise<FxRatePage>>(),
   orgDay: vi.fn(),
+  users: vi.fn(),
   role: 'Admin',
   effectiveRole: 'Admin',
   context: vi.fn(),
@@ -32,6 +33,8 @@ vi.mock('@/src/lib/repositories', () => ({
   },
 }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => h.orgDay() }));
+// C13: the audit columns resolve a profile id to a name through the users directory.
+vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => h.users() }));
 
 import AdministrationExchangeRates from '../AdministrationExchangeRates';
 import { ToastProvider } from '@/src/components/ui';
@@ -74,6 +77,16 @@ beforeEach(() => {
       : { rows: rows.slice(0, 50), nextCursor: rows[49].rate_date, total: 51 },
   );
   h.context.mockResolvedValue({ currency: 'IDR', timezone: 'Asia/Jakarta' });
+  h.users.mockReset();
+  h.users.mockReturnValue({
+    data: [
+      { id: 'user-1', full_name: 'Ana Admin', role: 'Admin' },
+      { id: 'user-2', full_name: 'Renata Halloway', role: 'Finance' },
+    ],
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(async () => undefined),
+  });
   // `existing`/`upsert` carry `mockResolvedValueOnce` queues: reset them per test, or an unconsumed
   // one-shot from an earlier case answers this case's write and the failure surfaces two tests away.
   h.upsert.mockReset();
@@ -386,5 +399,60 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     const summary = screen.getByLabelText('Import preview summary');
     expect(summary).toHaveTextContent('Dates from 12 Oct to 12 Oct: 1 with rates');
     expect(summary).not.toHaveTextContent('No rate for');
+  });
+});
+
+describe('C13 — who set each rate, and when', () => {
+  it('names the person who last changed each rate and the day it changed', async () => {
+    h.list.mockResolvedValueOnce({
+      rows: [{ ...fxRow(0), updated_by: 'user-2', updated_at: '2026-10-20T08:00:00Z' }],
+      nextCursor: null,
+      total: 1,
+    });
+    renderPage();
+    const table = await screen.findByRole('table');
+
+    // created_by/updated_by/updated_at are on the row the trigger stamps (0291) and were never
+    // rendered, so an auditor asking "who set this rate" had no answer on the screen.
+    expect(within(table).getByRole('columnheader', { name: 'Set by' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Last change' })).toBeInTheDocument();
+    expect(within(table).getByText('Renata Halloway')).toBeInTheDocument();
+    expect(within(table).getByText('20 Oct')).toBeInTheDocument();
+  });
+
+  it('never prints the actor id, and says a rate with no recorded actor is not recorded', async () => {
+    h.list.mockResolvedValueOnce({
+      rows: [
+        { ...fxRow(0), updated_by: 'user-past', created_by: 'user-past', updated_at: '2026-10-20T08:00:00Z' },
+        { ...fxRow(1), updated_by: null, created_by: null, updated_at: '2026-10-19T08:00:00Z' },
+      ],
+      nextCursor: null,
+      total: 2,
+    });
+    renderPage();
+    const table = await screen.findByRole('table');
+    // user-past left the directory: the id is machinery, so the cell says the person is unknown.
+    expect(within(table).getByText('Unknown user')).toBeInTheDocument();
+    expect(within(table).queryByText('user-past')).toBeNull();
+    // A seeded row carries no actor at all: that is "not recorded", not "nobody".
+    expect(within(table).getByText('Not recorded')).toBeInTheDocument();
+  });
+
+  it('a failed people read names no one, says why, and its Retry refetches THAT read', async () => {
+    const refetch = vi.fn(async () => undefined);
+    h.users.mockReturnValue({ data: undefined, isPending: false, isError: true, refetch });
+    h.list.mockResolvedValueOnce({
+      rows: [{ ...fxRow(0), updated_by: 'user-2', updated_at: '2026-10-20T08:00:00Z' }],
+      nextCursor: null,
+      total: 1,
+    });
+    renderPage();
+    const table = await screen.findByRole('table');
+
+    expect(await screen.findByText("Couldn't read the people who changed these rates")).toBeInTheDocument();
+    expect(within(table).getByText('Unknown user')).toBeInTheDocument();
+    expect(screen.queryByText('user-2')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 });
