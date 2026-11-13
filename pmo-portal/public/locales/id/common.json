@@ -198,7 +198,7 @@
     "operatorRecovery": "Buka pengaturan ERP organisasi"
   },
   "uxs02": {
-    "activeBudget": "Anggaran Aktif sebelum pajak",
+    "activeBudget": "Anggaran Aktif",
     "noActiveBudget": "Tidak ada anggaran aktif",
     "zeroActiveBudget": "Anggaran Aktif {{budget}}; pemakaian tidak tersedia",
     "riskUnavailableTitle": "Risiko anggaran proyek tidak dapat diperiksa",

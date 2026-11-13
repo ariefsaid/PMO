@@ -17,7 +17,7 @@ import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { budgetLeftAfterOrders, deriveMargin } from '@/src/lib/projectFinances';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { useProjectCommittedSpend, useProjectProcurements } from '@/src/hooks/useProcurements';
-import { buildBudgetSummaryRows, committedTotal } from '@/src/lib/budget/budgetModel';
+import { buildBudgetSummaryRows, resolveProjectCommitment } from '@/src/lib/budget/budgetModel';
 import MilestoneStrip from './MilestoneStrip';
 import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
 import { summarizeInvoiceSettlement } from './ContractCascade';
@@ -317,12 +317,12 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
     const bUse = b.budget > 0 ? b.actual / b.budget : b.actual > 0 ? Number.POSITIVE_INFINITY : 0;
     return bUse - aUse;
   });
-  const committedFigure = pos.openCommitment !== null ? Number(pos.openCommitment)
-    : canReadProcurements && committed.commitmentSource === 'pmo' && !procurements.isPending && !procurements.isError
-      ? committedTotal(buildBudgetSummaryRows({
-        lines: pos.rows.map((row) => ({ category: row.category, description: null, budgeted_amount: row.budget })),
-        actuals: pos.rows, procurements: procurements.data, canReadProcurements, currency: project.currency,
-      })) : null;
+  const fallbackRows = canReadProcurements && committed.commitmentSource === 'pmo' && !procurements.isPending && !procurements.isError
+    ? buildBudgetSummaryRows({
+      lines: pos.rows.map((row) => ({ category: row.category, description: null, budgeted_amount: row.budget })),
+      actuals: pos.rows, procurements: procurements.data, canReadProcurements, currency: project.currency,
+    }) : null;
+  const committedFigure = resolveProjectCommitment(pos.openCommitment, fallbackRows);
   const maxBudget = Math.max(0, ...pos.rows.map((row) => row.budget));
   const budgetAvailable = pos.budgetAvailable ?? (pos.spent === null || pos.budgetComparisonKnown);
   const remaining = budgetLeftAfterOrders(pos.budgetComparisonKnown ? pos.budget : null, pos.spent, committedFigure);

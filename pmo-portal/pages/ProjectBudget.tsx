@@ -57,7 +57,7 @@ import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { BudgetOdooActuals, BudgetOdooCategoryLines } from './project-detail/budget/BudgetOdooActuals';
 import { useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
-import { buildBudgetSummaryRows, committedTotal, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
+import { buildBudgetSummaryRows, resolveProjectCommitment, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
 import BudgetProjection from './BudgetProjection';
 import { buildBudgetProjectionCsv, type BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
@@ -539,9 +539,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const totalSpent = canSeeActuals ? position.spent : null;
   const projectConsumptionIncludesOrders = position.ledgerBasis === 'pmo';
   const projectBudgetBasisKnown = position.ledgerBasis === 'pmo' || position.ledgerBasis === 'erp';
-  const totalCommitted = canSeeCommitments
-    ? position.openCommitment === null ? committedTotal(enrichedRows) : Number(position.openCommitment)
-    : null;
+  const totalCommitted = canSeeCommitments ? resolveProjectCommitment(position.openCommitment, enrichedRows) : null;
   const totalLeft = budgetLeftAfterOrders(position.budgetComparisonKnown && compatibleBasis ? position.budget : null, totalSpent, totalCommitted);
   const totalLeftLabel = t('projectDetail.budget.leftAfterOrders', 'Left after open orders');
   const totalLeftFormula = t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and open orders, before tax.');

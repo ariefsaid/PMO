@@ -177,5 +177,6 @@ describe('ProjectDetailHeader finance query demand', () => {
     expect(h.getProjectBudgetPositions).not.toHaveBeenCalled();
     expect(h.getProjectFinances).not.toHaveBeenCalled();
     expect(h.getProjectBudget).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-testid="stat-tiles"]')).not.toBeInTheDocument();
   });
 });

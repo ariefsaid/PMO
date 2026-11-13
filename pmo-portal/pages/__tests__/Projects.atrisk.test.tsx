@@ -152,6 +152,7 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     expect(budgetBar).toHaveAttribute('aria-label', '95% of Active budget before tax');
     // PL-A: the "x of y" detail is the bar's title, not a second line of text.
     expect(budgetBar.closest('[title]')).toHaveAttribute('title', expect.stringContaining('Spent as a share of budget, before tax'));
+    expect(budgetBar.closest('[title]')).toHaveAttribute('title', expect.stringContaining('$95,000 of $100,000'));
     expect(within(row).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
   });
 
@@ -183,6 +184,7 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     const card = screen.getByText('At Risk Project').closest('li')!;
     expect(within(card).getAllByText(/^At risk$/i)).toHaveLength(1);
     expect(within(card).getByRole('progressbar', { name: '95% of Active budget before tax' }).closest('[title]')).toHaveAttribute('title', expect.stringContaining('Spent as a share of budget, before tax'));
+    expect(within(card).getByRole('progressbar', { name: '95% of Active budget before tax' }).closest('[title]')).toHaveAttribute('title', expect.stringContaining('$95,000 of $100,000'));
   });
 
   it('AC-W6-IXD-ATRISK: a healthy row still renders Budget used in its own column', () => {
@@ -192,6 +194,7 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     const budgetBar = within(row).getByRole('progressbar', { name: '50% of Active budget before tax' });
     expect(budgetBar).toHaveAttribute('aria-label', '50% of Active budget before tax');
     expect(budgetBar.closest('[title]')).toHaveAttribute('title', expect.stringContaining('Spent as a share of budget, before tax'));
+    expect(budgetBar.closest('[title]')).toHaveAttribute('title', expect.stringContaining('$40,000 of $80,000'));
   });
 
   it('AC-W6-IXD-ATRISK: budget===0 → no caption, no NaN', () => {

@@ -248,6 +248,26 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(view.container.querySelector('section[aria-labelledby="pd-cost"]')).not.toHaveTextContent(/Left after (?:open )?orders \$[\d,]+/u);
   });
 
+  it('uses the canonical PMO commitment on both cards even if order rows differ', async () => {
+    setFigureAgreementBudgetPositionOverride({
+      projectId: 'project-figure-primary', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+      spent: '500.00', openCommitment: '400.00', consumption: '900.00', complete: true,
+      usedRatio: '0.9', usedPercent: '90', consumptionVariance: '-100.00', riskEligible: true, atRisk: true,
+    });
+    setFigureAgreementProcurementOverride([{ id: 'order-1', status: 'Ordered', budget_category: 'Labor', currency: 'USD', open_commitment: 900, approved_total_value: 900, total_value: 900 }]);
+    const overview = renderFigureAgreementRoute(projectOverviewRoute);
+    const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
+    await waitFor(() => expect(card()).toHaveTextContent('Committed $400'));
+    expect(card()).toHaveTextContent('Left after orders $100');
+    overview.unmount();
+    const budget = await renderBudgetAgreementRoute();
+    const tiles = await screen.findByRole('region', { name: 'Budget figures' });
+    await waitFor(() => expect(tiles).toHaveTextContent('Left after open orders'));
+    expect(tiles).toHaveTextContent('$400');
+    expect(tiles).toHaveTextContent('$100');
+    budget.unmount();
+  });
+
   it.each([
     ['with orders', 400, '$400', '$100'],
     ['without orders', 0, '$0', '$500'],

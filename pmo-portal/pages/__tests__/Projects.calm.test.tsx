@@ -156,6 +156,7 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     expect(within(body).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
     const bar = within(screen.getByText('Synthetic project 4').closest('tr')!).getByRole('progressbar', { name: '25% of Active budget before tax' });
     expect(bar.closest('[title]')).toHaveAttribute('title', expect.stringContaining('Spent as a share of budget, before tax'));
+    expect(bar.closest('[title]')).toHaveAttribute('title', expect.stringContaining('$1,000,004 of $4,000,000'));
   });
 
   it('Progress without phases is a dash, not "No phases yet"', () => {

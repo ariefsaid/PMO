@@ -701,7 +701,6 @@
     "awaitingApproval_one": "{{count}} awaiting approval",
     "awaitingApproval_other": "{{count}} awaiting approval",
     "billing": "Billing",
-    "budgetNinety": "budget used before tax at 90% or more",
     "budgetUseChecking": "Checking budget use…",
     "budgetUseError": "Budget use couldn't be checked.",
     "budgetUsedHelp": "Spent as a share of budget, before tax",

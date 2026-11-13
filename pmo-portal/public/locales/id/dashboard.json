@@ -701,10 +701,9 @@
     "awaitingApproval_one": "{{count}} menunggu persetujuan",
     "awaitingApproval_other": "{{count}} menunggu persetujuan",
     "billing": "Penagihan",
-    "budgetNinety": "anggaran terpakai sebelum pajak 90% atau lebih",
     "budgetUseChecking": "Memeriksa penggunaan anggaran…",
     "budgetUseError": "Penggunaan anggaran tidak dapat diperiksa.",
-    "budgetUsedHelp": "Pengeluaran sebagai bagian dari anggaran, sebelum pajak",
+    "budgetUsedHelp": "Pengeluaran sebagai bagian dari anggaran aktif, sebelum pajak",
     "budgetAtRisk": "anggaran berisiko",
     "colBudget": "Anggaran terpakai",
     "colClient": "Klien",
@@ -780,7 +779,7 @@
     "owedByClients": "Piutang klien",
     "pipelineWeighted": "Pipeline terbobot",
     "pm": {
-      "help": "Anggaran terpakai mengikuti pembacaan konsumsi kanonis tiap proyek terhadap anggaran aktif sebelum pajak; disembunyikan bila pembacaan belum lengkap."
+      "help": "Proyek yang ditugaskan kepada Anda. Pengeluaran sebagai bagian dari anggaran aktif, sebelum pajak."
     },
     "projectCount_one": "{{count}} proyek",
     "projectCount_other": "{{count}} proyek",

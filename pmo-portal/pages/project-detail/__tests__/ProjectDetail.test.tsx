@@ -389,7 +389,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     const contractAmount = within(screen.getByRole('region', { name: 'Money position' })).getByTestId('contract-value-amount');
     expect(contractAmount).toBeVisible();
     const budgetActual = screen.getByRole('region', { name: 'Budget' });
-    expect(screen.getByRole('region', { name: 'Money position' })).toHaveTextContent('USD');
+    expect(screen.getByRole('region', { name: 'Money position' })).toHaveTextContent('USD · excl. PPN');
     expect(within(budgetActual).getByText(/Committed \$2,360,000/)).toBeVisible();
     projectsState.data = seed;
   });
