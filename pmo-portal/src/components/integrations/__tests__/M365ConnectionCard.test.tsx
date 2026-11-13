@@ -543,7 +543,7 @@ describe('AC-M365-023 — a failed status fetch renders an honest UNKNOWN state 
     expect(msg).toHaveTextContent(/We couldn't confirm your Microsoft 365 connection status/);
 
     invoke.mockResolvedValueOnce({ data: STATUS_ACTIVE, error: null });
-    await userEvent.click(within(msg).getByRole('button', { name: 'Retry status' }));
+    await userEvent.click(within(msg).getByRole('button', { name: 'Retry' }));
     expect(await screen.findByTestId('m365-connected-msg')).toBeInTheDocument();
     expect(invoke).toHaveBeenCalledTimes(2);
   });
@@ -721,7 +721,17 @@ describe('AC-M365LOC-001 — English states and actions (fixed copy)', () => {
     );
     expect(msg.textContent).not.toContain('Failed to send a request');
     expect(screen.queryByTestId('m365-connected-msg')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Retry status' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('F8: the unknown-state action is one word — the button is named Retry, never "Retry status"', async () => {
+    featureState.value = true;
+    invoke.mockResolvedValueOnce({ data: null, error: networkError('x') });
+    await renderCard();
+    const msg = await screen.findByTestId('m365-unknown-msg');
+    // A 50px button wrapped the two-word label onto two lines; the action is Retry.
+    expect(within(msg).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(within(msg).queryByRole('button', { name: /status/i })).toBeNull();
   });
 
   it('AC-M365LOC-001: connecting keeps the English Connect label while the Button is loading', async () => {
