@@ -24,31 +24,24 @@ beforeEach(() => {
 });
 
 describe('ProjectBudgetFigures', () => {
-  it('AC-S04: shows canonical budget use before tax and labels spending as a separate measure', () => {
+  it('AC-S04 shows spending as one budget-used fact', () => {
     render(<ProjectBudgetFigures project={project} />);
-
-    const figures = screen.getByRole('group', { name: 'Budget figures' });
-    expect(figures).toHaveTextContent('Budget used before tax');
-    expect(figures).toHaveTextContent('90%');
-    expect(figures).toHaveTextContent('Spent (% of budget before tax)');
-    expect(figures).toHaveTextContent('50%');
-    expect(figures).toHaveAccessibleDescription('Spent + open orders, before tax. Spending share of budget, before tax');
+    const figure = screen.getByTestId('project-budget-figures');
+    expect(figure).toHaveTextContent('Budget used 50%');
+    expect(figure).not.toHaveTextContent('90%');
+    expect(figure).toHaveAttribute('title', 'Spent as a share of budget, before tax');
   });
 
   it('keeps missing project budget figures unavailable instead of rendering zero', () => {
     h.position = undefined;
     render(<ProjectBudgetFigures project={project} />);
-
-    expect(screen.queryByTestId('project-budget-figures')).not.toBeInTheDocument();
+    expect(screen.getByTestId('project-budget-figures')).toHaveTextContent('Budget used —');
     expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
   });
 
-  it('names the before-tax ledger basis when commitments are unavailable', () => {
-    h.position = position('erp');
+  it('uses spending when commitments are unavailable', () => {
+    h.position = { ...position('erp'), openCommitment: null, complete: false };
     render(<ProjectBudgetFigures project={project} />);
-
-    expect(screen.getByRole('group', { name: 'Budget figures' })).toHaveAccessibleDescription(
-      'Ledger spending, before tax. Spending share of budget, before tax',
-    );
+    expect(screen.getByTestId('project-budget-figures')).toHaveTextContent('Budget used 50%');
   });
 });

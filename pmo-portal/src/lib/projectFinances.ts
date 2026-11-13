@@ -211,6 +211,18 @@ export function projectBudgetUsedPercent(reading: CanonicalBudgetReading | null 
   return projectBudgetSpentPercent(reading, projectCurrency);
 }
 
+/** Remaining budget after known spending and open orders; missing inputs stay unknown. */
+export function budgetLeftAfterOrders(budget: number | null, spent: number | null, committed: number | null): number | null {
+  if (budget === null || spent === null || committed === null) return null;
+  const b = parseExactCents(String(budget));
+  const s = parseExactCents(String(spent));
+  const c = parseExactCents(String(committed));
+  if (b === null || s === null || c === null) return null;
+  const remaining = b - s - c;
+  if (remaining > BigInt(Number.MAX_SAFE_INTEGER) || remaining < BigInt(Number.MIN_SAFE_INTEGER)) return null;
+  return Number(remaining) / 100;
+}
+
 /** Recorded spending as a share of the same before-tax active budget, using exact minor units. */
 export function projectBudgetSpentPercent(reading: CanonicalBudgetReading | null | undefined, projectCurrency?: string | null): number | null {
   if (!reading || !reading.currency || reading.currency !== reading.budgetCurrency

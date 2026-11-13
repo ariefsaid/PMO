@@ -25,10 +25,11 @@ const projectProcurementsState = { data: [] as unknown[] };
 const oppState = { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() };
 // CW-7: the role drives RBAC-gated affordances; it is mutable so a test can render the page as a
 // different role (e.g. Engineer) and assert the role-INVARIANT default tab.
-const { roleBox, desktopBox, projectMutations, projectTransition, budgetVersionsBox, budgetPositionsBox, committedSpendHook } = vi.hoisted(() => ({
+const { roleBox, desktopBox, projectMutations, projectTransition, budgetVersionsBox, budgetPositionsBox, committedSpendHook, milestoneBox } = vi.hoisted(() => ({
   // Records the arguments so a test can prove which project-wide reads a role triggers.
   committedSpendHook: vi.fn(),
   budgetVersionsBox: { value: [] as unknown[] },
+  milestoneBox: { value: [] as Array<{ weight: number; effective_pct: number }> },
   budgetPositionsBox: { value: {} as Record<string, unknown> },
   roleBox: { value: 'Project Manager' as string },
   desktopBox: { value: true },
@@ -126,7 +127,7 @@ vi.mock('@/src/lib/db/opportunity', () => ({
 }));
 // MilestoneStrip now mounts in the header area — stub its hooks to avoid network.
 vi.mock('@/src/hooks/useMilestones', () => ({
-  useMilestones: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useMilestones: () => ({ data: milestoneBox.value, isPending: false, isError: false, refetch: vi.fn() }),
   useMilestoneMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -228,6 +229,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     setTaskOwnership([]);
     setProjectBindings([]);
     projectsState.data = seed;
+    milestoneBox.value = [];
     projectsState.isPending = false;
     projectsState.isError = false;
     projectsState.refetch.mockReset();
@@ -281,15 +283,16 @@ describe('ProjectDetail shell (decomposition)', () => {
   });
 
   it('S04: puts canonical before-tax budget use and separate spending in the desktop project facts row', async () => {
+    projectsState.data = [{ ...seed[0], last_update: '2026-11-01T00:00:00Z' } as ProjectWithRefs];
+    milestoneBox.value = [{ weight: 1, effective_pct: 50 }];
     await renderAt('/projects/p1');
     const facts = screen.getByRole('region', { name: 'Project facts' });
     const figures = within(facts).getByTestId('project-budget-figures');
 
-    expect(within(figures).getByText('Budget used before tax')).toBeVisible();
-    expect(within(figures).getByText('90%')).toBeVisible();
-    expect(within(figures).getByText('Spent (% of budget before tax)')).toBeVisible();
-    expect(within(figures).getByText('50%')).toBeVisible();
-    expect(figures).toHaveAccessibleDescription(/Spent \+ open orders, before tax/);
+    await waitFor(() => expect(figures).toHaveTextContent('Budget used 50%'));
+    expect(figures).not.toHaveTextContent('90%');
+    expect(figures).toHaveAttribute('title', 'Spent as a share of budget, before tax');
+    expect(facts).toHaveTextContent(/Progress.*Budget used 50%.*Updated/u);
   });
 
   it('2057: Copy link lives in the More actions menu', async () => {
@@ -363,8 +366,8 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Budget' })).toBeInTheDocument();
     expect(screen.getByText(/Spent \$2,350,000 of \$4,700,000/)).toBeInTheDocument();
-    expect(screen.getByText('Budget used before tax: 100%')).toBeInTheDocument();
-    expect(screen.getByText('Open orders: $2,350,000')).toBeInTheDocument();
+    expect(screen.getByText(/Spent \$2,350,000 of \$4,700,000 · 50% used/)).toBeInTheDocument();
+    expect(screen.getByText(/Committed in open orders \$2,350,000/)).toBeInTheDocument();
   });
 
   it.each(['Project Manager', 'Finance'])('UIP-006: %s contract and committed values remain visible', async (role) => {
@@ -387,7 +390,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(contractAmount).toBeVisible();
     const budgetActual = screen.getByRole('region', { name: 'Budget' });
     expect(budgetActual).toHaveTextContent('USD · excl. PPN');
-    expect(within(budgetActual).getByText('Open orders: $2,360,000')).toBeVisible();
+    expect(within(budgetActual).getByText(/Committed in open orders \$2,360,000/)).toBeVisible();
     projectsState.data = seed;
   });
 

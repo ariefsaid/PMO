@@ -245,10 +245,10 @@ describe('Projects persona money visibility — contract figure gated on the sha
     const ws = await exportWorkbook();
     expect(ws.getRow(2).getCell(col(ws, 'Actual')).value).toBe('$104.25 USD');
     expect(ws.getRow(2).getCell(col(ws, 'Progress')).value).toBe(78);
-    expect(ws.getRow(2).getCell(col(ws, 'Budget used before tax')).value).toBe(104);
+    expect(ws.getRow(2).getCell(col(ws, 'Budget used')).value).toBe(104);
     expect(ws.getRow(3).getCell(col(ws, 'Actual')).value).toBe('');
     expect(ws.getRow(3).getCell(col(ws, 'Progress')).value).toBe('');
-    expect(ws.getRow(3).getCell(col(ws, 'Budget used before tax')).value).toBe('');
+    expect(ws.getRow(3).getCell(col(ws, 'Budget used')).value).toBe('');
   });
 
   it('keeps exact large Actual amounts as currency-qualified workbook text', async () => {
@@ -267,16 +267,16 @@ describe('Projects persona money visibility — contract figure gated on the sha
       },
       p2: {
         ledgerBasis: 'erp', actuals: { currency: 'IDR', total: '50.00', asOf: null, excludesRestrictedRows: true, complete: false, categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] }, activeBudgetAmount: '100.00', activeBudgetCurrency: 'IDR', hasActiveBudget: true,
-        budgetPosition: canonicalBudgetPosition({ projectId: 'p2', currency: 'IDR', budgetCurrency: 'IDR', activeBudgetAmount: '100.00', spent: '50.00', usedPercent: null, complete: false, atRisk: null }),
+        budgetPosition: canonicalBudgetPosition({ projectId: 'p2', currency: 'IDR', budgetCurrency: 'IDR', activeBudgetAmount: '100.00', spent: null, usedPercent: null, complete: false, atRisk: null }),
       },
     };
     renderPage('Project Manager');
     const ws = await exportWorkbook();
     expect(ws.getRow(2).getCell(col(ws, 'Actual')).value).toBe('$0.00 USD');
     expect(ws.getRow(2).getCell(col(ws, 'Progress')).value).toBe(0);
-    expect(ws.getRow(2).getCell(col(ws, 'Budget used before tax')).value).toBe(0);
+    expect(ws.getRow(2).getCell(col(ws, 'Budget used')).value).toBe(0);
     expect(ws.getRow(3).getCell(col(ws, 'Actual')).value).toBe('Restricted excluded');
-    expect(ws.getRow(3).getCell(col(ws, 'Budget used before tax')).value).toBe('');
+    expect(ws.getRow(3).getCell(col(ws, 'Budget used')).value).toBe('');
   });
 
   it('exports budget availability reasons as readable text', async () => {
@@ -286,8 +286,8 @@ describe('Projects persona money visibility — contract figure gated on the sha
     };
     renderPage('Project Manager');
     const ws = await exportWorkbook();
-    expect(ws.getRow(2).getCell(col(ws, 'Budget used before tax')).value).toBe('No active budget');
-    expect(ws.getRow(3).getCell(col(ws, 'Budget used before tax')).value).toBe('Budget currency differs from project currency');
+    expect(ws.getRow(2).getCell(col(ws, 'Budget used')).value).toBe('No active budget');
+    expect(ws.getRow(3).getCell(col(ws, 'Budget used')).value).toBe('Budget currency differs from Actual');
   });
 
   it('exports blank unavailable values even when failed reads retain cached data', async () => {
@@ -296,16 +296,16 @@ describe('Projects persona money visibility — contract figure gated on the sha
     projectMoneyState.isError = true;
     renderPage('Project Manager');
     const ws = await exportWorkbook();
-    for (const header of ['Actual', 'Progress', 'Budget used before tax']) expect(ws.getRow(2).getCell(col(ws, header)).value).toBe('');
+    for (const header of ['Actual', 'Progress', 'Budget used']) expect(ws.getRow(2).getCell(col(ws, header)).value).toBe('');
   });
 
   it('exports only columns shown on the table, plus the contract currency', async () => {
     renderPage('Project Manager');
     expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: 'Budget used before tax' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
     const ws = await exportWorkbook();
     expect(headersOf(ws)).not.toContain('Progress');
-    expect(headersOf(ws)).not.toContain('Budget used before tax');
+    expect(headersOf(ws)).not.toContain('Budget used');
   });
 
   it.each([[false, 'error'], [true, 'error'], [false, 'pending'], [true, 'pending']] as const)('blocks stale assignment export and exports fresh rows on mobile=%s during %s', async (mobile, state) => {

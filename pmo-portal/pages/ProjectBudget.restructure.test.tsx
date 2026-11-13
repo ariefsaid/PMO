@@ -194,6 +194,30 @@ describe('ProjectBudget Option A', () => {
     expect(screen.getAllByText('Left after spending').length).toBeGreaterThan(0);
   });
 
+  it('keeps the category order overrun distinct from spending left and used', () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.ledgerBasis = 'pmo';
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 30 }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 80, total_value: 80, currency: 'USD' }];
+    renderPage();
+    const row = screen.getByRole('row', { name: /Labor/u });
+    expect(row).toHaveTextContent('$70');
+    expect(row).toHaveTextContent('30%');
+    expect(row).toHaveTextContent('Over after open orders');
+  });
+
+  it('retains the category risk warning when spending and orders together approach the budget', () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.ledgerBasis = 'pmo';
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 30 }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 60, total_value: 60, currency: 'USD' }];
+    renderPage();
+    const row = screen.getByRole('row', { name: /Labor/u });
+    expect(row).toHaveTextContent('$70');
+    expect(row).toHaveTextContent('30%');
+    expect(row).toHaveTextContent('At risk');
+  });
+
   it('renders the approved summary, category columns, versions card, draft waiting banner, and bulk actions', async () => {
     // This case includes the Finance-only activation affordance; PM read access and SoD stay
     // covered by the PM summary and activation/PM-draft cases below.
@@ -212,9 +236,9 @@ describe('ProjectBudget Option A', () => {
     expect(screen.getByRole('tab', { name: 'Forecast' })).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Budget vs actual by category' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Committed' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: '% used before tax' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '% used' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Budget versions' })).toHaveTextContent('Approved plan');
-    expect(screen.getAllByText('Budget before tax').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Budget').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Spent').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Committed').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Left after spending').length).toBeGreaterThan(0);

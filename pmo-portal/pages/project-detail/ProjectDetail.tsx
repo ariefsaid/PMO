@@ -17,6 +17,7 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useProjectOverviewRead } from '@/src/hooks/useProjectOverviewRead';
+import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
 import { completionPct, formatDay, formatDayRange, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import { ProjectBudgetFigures } from './ProjectBudgetFigures';
@@ -68,15 +69,15 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
         </Tooltip>
       )}
       {phases.isPending && <span>{t('projectDetail.facts.progressLoading', 'Progress loading')}</span>}
+      {showBudgetFigures && canViewBudgetFigures && isDeliveryProject && (
+        <ProjectBudgetFigures project={project} className="max-w-full" />
+      )}
       {updated && (
         <Tooltip content={t('projectDetail.facts.updatedTooltip', 'Last updated on {{date}}.', { date: formatDay(project.last_update) })}>
           <time tabIndex={0} dateTime={project.last_update} className="text-muted-foreground">
             {t('projectDetail.facts.updated', 'Updated {{when}}', { when: updated })}
           </time>
         </Tooltip>
-      )}
-      {showBudgetFigures && canViewBudgetFigures && isDeliveryProject && (
-        <ProjectBudgetFigures project={project} className="max-w-full" />
       )}
     </section>
   );
@@ -129,6 +130,8 @@ const ProjectDetail: React.FC = () => {
   // AC-PERF-007/008: the Overview's summaries arrive in one request, in parallel with the project; leaf hooks mount
   // only after it settles (success or error), so they find seeded data or fall back to their own reads.
   const overview = useProjectOverviewRead(projectId, true);
+  // Start the shared budget read with the project and overview reads, before their responses arrive.
+  useProjectBudgetPositions(projectId ? [projectId] : []);
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
@@ -229,7 +232,6 @@ const ProjectDetail: React.FC = () => {
   const header = (
     <>
       <ProjectDetailHeader project={project} onEditProject={openEditProject} compact
-        budgetFiguresPlacement={isDesktop ? 'facts' : 'header'}
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
         menuContent={<ProjectDetailRail project={project} detailsOnly />} />
       <ProjectHeaderFacts project={project} showBudgetFigures />

@@ -314,7 +314,7 @@ describe('Projects index — IA-3 (real data)', () => {
     renderPage();
     // No NaN leaks anywhere on the rendered index.
     expect(document.body.textContent).not.toMatch(/NaN/);
-    // Zero-budget rows have an explanatory label instead of a dash in the Budget used before tax column.
+    // Zero-budget rows have an explanatory label instead of a dash in the Budget used column.
     expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
   });
 
@@ -471,7 +471,7 @@ describe('Projects table — compact layout (#1)', () => {
       renderPage('Admin');
 
       const table = within(screen.getByTestId('projects-table-container'));
-      for (const column of ['Project', 'PM', 'Status', 'Contract', 'Actual', 'Progress', 'Budget used before tax']) {
+      for (const column of ['Project', 'PM', 'Status', 'Contract', 'Actual', 'Progress', 'Budget used']) {
         expect(table.getByRole('columnheader', { name: column })).toBeInTheDocument();
       }
 
@@ -507,7 +507,7 @@ describe('Projects table — compact layout (#1)', () => {
       projectMoneyState.isError = false;
       renderPage();
       expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('columnheader', { name: 'Budget used before tax' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
     } finally {
       Object.assign(deliverySummaryState, priorDelivery);
@@ -529,7 +529,7 @@ describe('Projects table — compact layout (#1)', () => {
       projectMoneyState.isError = true;
       renderPage();
       expect(screen.getByRole('columnheader', { name: 'Progress' })).toBeInTheDocument();
-      expect(screen.queryByRole('columnheader', { name: 'Budget used before tax' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
       expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden: spending could not be read');
     } finally {
       Object.assign(deliverySummaryState, priorDelivery, { isError: priorDeliveryError });
@@ -710,7 +710,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
       budgetPosition: canonicalPosition({ ledgerBasis: 'pmo', activeBudgetAmount: '1000', spent: '950', consumption: '950', usedRatio: '0.95', usedPercent: '95', consumptionVariance: '-50', atRisk: true }) } };
     renderPage('Project Manager', '/projects?view=cards');
     expect(screen.getByTestId('project-card-actual')).toHaveTextContent('$950');
-    expect(screen.getByLabelText('95% of Active budget before tax')).toBeInTheDocument();
+    expect(screen.getByLabelText('95% of Active budget')).toBeInTheDocument();
     projectsState.data = [{ ...seed[0], currency: 'EUR' }] as unknown as ProjectWithRefs[];
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     expect(within(document.querySelector('tbody')!).queryByText('$950')).not.toBeInTheDocument();
@@ -813,7 +813,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     try {
       renderPage();
       expect(screen.queryByRole('columnheader', { name: 'Actual' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('columnheader', { name: 'Budget used before tax' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
       expect(within(document.querySelector('tbody')!).queryByText('…')).not.toBeInTheDocument();
       expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
     } finally {
@@ -858,7 +858,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     projectMoneyState.data = {
       p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: null, asOf: null, excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: false, amount: null }] }, activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false },
-      // another project has an Active budget, so the Budget used before tax column exists to show p1's missing one
+      // another project has an Active budget, so the Budget used column exists to show p1's missing one
       p2: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '100.00', asOf: null, excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: true, amount: '100.00' }] }, activeBudgetAmount: '1000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
     };
@@ -866,7 +866,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     renderPage();
     const body = document.querySelector('tbody')!;
     const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Actual'));
-    const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used before tax'));
+    const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
     const row = body.querySelector('tr')!;
     // #2060: an unknown Actual is the em dash (with the table note), never a blank cell.
     expect(row.cells[actualHeaderIndex]).toHaveTextContent('—');
@@ -886,7 +886,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     renderPage();
     const body = document.querySelector('tbody')!;
     expect(screen.queryByRole('columnheader', { name: /Actual/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: /Budget used before tax/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Budget used/ })).not.toBeInTheDocument();
     expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('spending could not be read');
     expect(within(body).queryByText('Unavailable')).not.toBeInTheDocument();
@@ -953,7 +953,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     };
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('$0 Active budget before tax; usage unavailable')).toBeInTheDocument();
+    expect(within(body).getByText('$0 Active budget; usage unavailable')).toBeInTheDocument();
     expect(within(body).queryByText('No active budget')).not.toBeInTheDocument();
   });
 
@@ -1165,7 +1165,7 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
     projectsState.data = withEnd.map((project) => ({ ...project, end_client_id: null, end_client: null })) as unknown as ProjectWithRefs[];
     renderPage();
     expect(screen.queryByRole('columnheader', { name: /end customer/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: /^Budget used before tax$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /^Budget used$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
   });
 

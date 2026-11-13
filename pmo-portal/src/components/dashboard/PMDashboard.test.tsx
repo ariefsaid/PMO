@@ -328,9 +328,10 @@ describe('Project Manager home (one question: what needs me, which of my project
     state.procurements.data = [{ id: 'pr1', project_id: 'p1', status: 'Requested', requested_by_id: 'other' }];
     renderDashboard();
     const one = rowFor('Project One');
-    expect(one).toHaveTextContent('2 overdue tasks · 1 purchase to approve · budget used before tax at 90% or more');
+    expect(one).toHaveTextContent('2 overdue tasks · 1 purchase to approve · budget at risk');
+    expect(one).not.toHaveTextContent('after open orders');
     expect(one).toHaveTextContent('45%');
-    expect(one).toHaveTextContent('95%');
+    expect(one).toHaveTextContent('50%');
     expect(one).toHaveTextContent('Ongoing');
     const two = rowFor('Project Two');
     expect(two).toHaveTextContent('70%');
@@ -457,10 +458,10 @@ describe('Project Manager home — layouts', () => {
     expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$500K');
     expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('5.75 h');
     expect(within(screen.getByTestId('kpi-tasks-overdue')).getByRole('link')).toHaveAttribute('href', '/projects?filter=My+Projects');
-    const paired = tableRows('Delivery and budget used before tax by project');
+    const paired = tableRows('Delivery and budget used by project');
     expect(paired[0]).toContain('Project One');
     expect(paired[0]).toContain('45%');
-    expect(paired[0]).toContain('95%');
+    expect(paired[0]).toContain('50%');
     const overdue = tableRows('Overdue tasks by project');
     expect(overdue).toHaveLength(1);
     expect(overdue[0]).toContain('Project One');
@@ -497,7 +498,7 @@ describe('Project Manager home — layouts', () => {
     state.budgetPositions.data = {};
     state.projects.data = projects.map((project) => ({ ...project, spent: null, actual_complete: false }));
     renderDashboard();
-    expect(screen.queryByRole('heading', { name: 'Delivery and budget used before tax by project' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Delivery and budget used by project' })).not.toBeInTheDocument();
     await openHiddenReasons();
     expect(await screen.findByText('delivery and budget are not recorded')).toBeInTheDocument();
   });

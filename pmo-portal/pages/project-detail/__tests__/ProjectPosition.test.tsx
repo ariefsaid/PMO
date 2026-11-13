@@ -803,8 +803,8 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
     ];
     state.budgetPosition = budgetPosition({ activeBudgetAmount: '1000', spent: '100', openCommitment: '362', consumption: '462', usedRatio: '0.462', usedPercent: '46', consumptionVariance: '-538', atRisk: false });
     renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
-    expect(screen.getByText('Open orders: $362')).toBeInTheDocument();
-    expect(screen.getByText(/Budget used before tax: 46%/)).toHaveTextContent('538 remaining');
+    expect(screen.getByText(/Committed in open orders \$362/)).toBeInTheDocument();
+    expect(screen.getByText(/Committed in open orders \$362/)).toHaveTextContent('Left after open orders $538');
   });
 });
 
@@ -845,8 +845,8 @@ describe('project phase and budget feature floor', () => {
 
     renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
 
-    expect(await screen.findByText(/5 remaining/)).toBeInTheDocument();
-    expect(screen.getByText(/Budget used before tax: 95%/)).toBeInTheDocument();
+    expect(await screen.findByText(/Left after open orders \$5/)).toBeInTheDocument();
+    expect(screen.getByText(/95% used/)).toBeInTheDocument();
     expect(screen.getByText('At risk')).toBeInTheDocument();
   });
 });

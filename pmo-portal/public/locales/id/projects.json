@@ -40,6 +40,7 @@
     "selectRow": "Pilih {{row}}",
     "selectAllRows": "Pilih semua baris"
   },
+  "budgetUsedHelp": "Pengeluaran sebagai bagian dari anggaran, sebelum pajak",
   "budgetConsumption": "{{used}} dari anggaran Aktif {{budget}} sebelum pajak",
   "filterBuilder": {
     "addFilter": "Tambah filter",

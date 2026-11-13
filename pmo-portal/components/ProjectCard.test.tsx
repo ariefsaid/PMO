@@ -154,7 +154,7 @@ describe('ProjectCard', () => {
     expect(screen.getByLabelText('Delivery 95%').querySelector('[data-testid="progress-fill"]')).toHaveClass('bg-primary');
   });
 
-  it('I5: when deliverySummary is provided, shows canonical Budget used before tax alongside separate Actual', () => {
+  it('I5: when deliverySummary is provided, shows canonical Budget used alongside separate Actual', () => {
     render(
       <ProjectCard
         project={base}
@@ -175,10 +175,10 @@ describe('ProjectCard', () => {
     // Delivery progress bar
     const deliveryBar = screen.getByLabelText('Delivery 50%');
     expect(deliveryBar).toBeInTheDocument();
-    // Budget used before tax uses canonical project consumption; Actual remains the separate spend amount.
-    const budgetBar = screen.getByLabelText('90% of Active budget before tax');
+    // Budget used uses canonical project consumption; Actual remains the separate spend amount.
+    const budgetBar = screen.getByLabelText('50% of Active budget');
     expect(budgetBar).toBeInTheDocument();
-    expect(screen.getByText('Budget used before tax')).toBeInTheDocument();
+    expect(screen.getByText('Budget used')).toBeInTheDocument();
     expect(screen.getByTestId('project-card-actual')).toHaveTextContent('$500,000');
     expect(screen.getByTestId('project-card-active-budget')).toHaveTextContent('$1,000,000');
     // PL-B: no freshness line and no "x of y" caption on the card.
@@ -191,7 +191,7 @@ describe('ProjectCard', () => {
     const project = { ...base, currency: 'IDR' } as ProjectWithRefs;
     render(<ProjectCard project={project} onOpen={vi.fn()} deliverySummary={{ deliveryPct: 50, committedSpend: 0, budget: 0 }} projectMoney={{ ledgerBasis: 'erp', actuals: { currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
     expect(screen.getByText('$125,000')).toBeInTheDocument();
-    // Not comparable: no Budget used before tax bar (and no repeated explanation on the card).
+    // Not comparable: no Budget used bar (and no repeated explanation on the card).
     expect(screen.queryByRole('progressbar', { name: /Active budget/ })).not.toBeInTheDocument();
     expect(screen.queryByText('Budget currency differs from project currency')).not.toBeInTheDocument();
   });

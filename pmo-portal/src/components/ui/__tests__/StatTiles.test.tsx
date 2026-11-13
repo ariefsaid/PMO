@@ -89,21 +89,6 @@ describe('StatTiles', () => {
     expect(screen.getByText('Review Project')).toBeInTheDocument();
   });
 
-  it('compact figures keep their before-tax basis help visible alongside the label and value', () => {
-    render(<StatTiles density="compact" columns={2} variant="bare" tiles={[
-      { label: 'Budget used before tax', value: '90%', sub: 'Spent + open orders, before tax' },
-      { label: 'Spent (% of budget before tax)', value: '50%', sub: 'Spending share of budget, before tax' },
-    ]} />);
-
-    expect(screen.getByTestId('stat-tiles')).toHaveAttribute('data-density', 'compact');
-    expect(screen.getByText('Budget used before tax')).toBeVisible();
-    expect(screen.getByText('90%')).toBeVisible();
-    expect(screen.getByText('Spent + open orders, before tax')).toBeVisible();
-    expect(screen.getByText('Spent (% of budget before tax)')).toBeVisible();
-    expect(screen.getByText('50%')).toBeVisible();
-    expect(screen.getByText('Spending share of budget, before tax')).toBeVisible();
-  });
-
   // ── AC-METRIC-TILE-CLIP-001: odd-count tile sets ─────────────────────────
   // Given: a StatTiles strip with an odd number of tiles (5 or 3)
   // When: rendered in a 2-col mobile grid

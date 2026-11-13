@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { budgetAgreementRoutes } from '@/src/test/figureAgreementRoutes';
 import { renderFigureAgreementRoute } from '@/src/test/figureAgreementHarness';
-import { setFigureAgreementBudgetPositionOverride } from '@/src/test/figureAgreementRepositoryMock';
+import { setFigureAgreementBudgetPositionOverride, setFigureAgreementProcurementOverride } from '@/src/test/figureAgreementRepositoryMock';
 import type { CanonicalBudgetReading } from '@/src/lib/db/projectMoney';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -47,7 +47,7 @@ const renderBudgetAgreementRoute = async () => {
   return renderFigureAgreementRoute(projectBudgetRoute);
 };
 
-afterEach(() => setFigureAgreementBudgetPositionOverride(undefined));
+afterEach(() => { setFigureAgreementBudgetPositionOverride(undefined); setFigureAgreementProcurementOverride(undefined); });
 
 for (const route of budgetAgreementRoutes) {
   if (route.id === 'budget.projects.table' || route.id === 'budget.projects.cards') continue;
@@ -63,7 +63,9 @@ describe('S01 budget figure agreement on real screens', () => {
     await waitFor(() => expect(screen.getByRole('row', { name: /S01 Primary Project/u })).toHaveTextContent('$500'));
     const primaryRow = screen.getByRole('row', { name: /S01 Primary Project/u });
     expect(primaryRow).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /Budget used/u })).toBeInTheDocument();
+    const header = screen.getByRole('columnheader', { name: /Budget used/u });
+    expect(header).toBeInTheDocument();
+    expect(header.querySelector('[title]')).toHaveAttribute('title', 'Spent as a share of budget, before tax');
     expect(primaryRow).toHaveTextContent('50%');
     // Spent remains a separate $500 reading (50% of the same $1,000 Active budget).
     expect(primaryRow).toHaveTextContent('$500');
@@ -103,13 +105,14 @@ describe('S01 budget figure agreement on real screens', () => {
 
   it('keeps PM home and project header on the canonical 50% while showing spending separately at 50%', async () => {
     const home = renderFigureAgreementRoute(pmHomeRoute);
-    await waitFor(() => expect(home.container.textContent).toContain('50%'));
-    expect(home.container.textContent).toContain('Budget used');
+    await waitFor(() => expect(home.container.textContent).toContain('Budget used'));
+    expect(home.container.textContent).toContain('50%');
+    expect(home.container.querySelector('[title="Spent as a share of budget, before tax"]')).toBeInTheDocument();
     home.unmount();
 
     const overview = renderFigureAgreementRoute(projectOverviewRoute);
     await waitFor(() => expect(overview.container.textContent).toContain('Budget used'));
-    expect(overview.container.textContent).toContain('50%');
+    await waitFor(() => expect(overview.container.querySelector('[data-testid="project-budget-figures"]')).toHaveTextContent('50%'));
     expect(overview.container.textContent).not.toContain('Spent (% of budget before tax)');
     expect(overview.container.textContent).toContain('Committed in open orders');
     expect(overview.container.textContent).toContain('Left after open orders');
@@ -127,6 +130,10 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(container.textContent).toContain('50%');
     expect(container.textContent).toContain('$500');
     expect(container.textContent).toContain('$100');
+    const tiles = screen.getByRole('region', { name: 'Budget figures' });
+    expect(tiles).toHaveTextContent(/Budget.*Budget used.*Spent.*Committed.*Left after open orders/u);
+    expect(screen.getByRole('columnheader', { name: 'Left after spending' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '% used' })).toBeInTheDocument();
     const laborRow = screen.getByRole('row', { name: /Labor/u });
     expect(laborRow).not.toHaveTextContent('$500');
   });
@@ -155,28 +162,111 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(container.textContent).toContain('Budget used');
     expect(container.textContent).toContain('50%');
     expect(container.textContent).toContain('$500');
-    expect(container.textContent).not.toContain('Left after open orders');
+    expect(container.textContent).toContain('Left after open orders');
   });
 
 
-  it.each([
-    ['with orders', '400.00', '900.00', '-100.00', '50%'],
-    ['without orders', '0.00', '500.00', '-500.00', '50%'],
-    ['spending unknown', null, null, null, '—'],
-  ])('shows the same budget used figure across every surface: %s', async (_case, commitment, consumption, variance, expected) => {
-    setFigureAgreementBudgetPositionOverride({
-      projectId: 'project-figure-primary', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
-      spent: consumption === null ? null : '500.00', openCommitment: commitment, consumption, complete: consumption !== null,
-      usedRatio: consumption === null ? null : '0.9', usedPercent: consumption === null ? null : '90',
-      consumptionVariance: variance, riskEligible: false, atRisk: false,
-    });
-    for (const route of [tableRoute, cardRoute, pmHomeRoute, projectOverviewRoute, projectBudgetRoute]) {
+  for (const route of [tableRoute, cardRoute, pmHomeRoute, projectOverviewRoute, projectBudgetRoute]) {
+    it.each([
+      ['with orders', '400.00', '900.00', '-100.00'],
+      ['without orders', '0.00', '500.00', '-500.00'],
+    ])(`shows spending as budget used on ${route.id}: %s`, async (_case, commitment, consumption, variance) => {
+      setFigureAgreementBudgetPositionOverride({
+        projectId: 'project-figure-primary', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+        spent: '500.00', openCommitment: commitment, consumption, complete: true,
+        usedRatio: commitment === '0.00' ? '0.5' : '0.9', usedPercent: commitment === '0.00' ? '50' : '90',
+        consumptionVariance: variance, riskEligible: false, atRisk: false,
+      });
       const view = route === projectBudgetRoute ? await renderBudgetAgreementRoute() : renderFigureAgreementRoute(route);
       await waitFor(() => expect(view.container.textContent).toContain('Budget used'));
-      await waitFor(() => expect(view.container.textContent).toContain(expected));
-      expect(view.container.textContent).not.toContain('90%');
+      await waitFor(() => { if (route === projectBudgetRoute) expect(view.container.querySelector('[aria-label="Budget figures"]')).toBeInTheDocument(); });
+      const surface = route === projectOverviewRoute
+        ? view.container.querySelector('[data-testid="project-budget-figures"]')
+        : route === projectBudgetRoute
+          ? view.container.querySelector('[aria-label="Budget figures"]')
+          : route === tableRoute ? screen.getByRole('row', { name: /S01 Primary Project/u }) : view.container;
+      await waitFor(() => expect(surface).toHaveTextContent('50%'));
+      expect(surface).not.toHaveTextContent('90%');
       view.unmount();
-    }
+    });
+  }
+
+  it('keeps unknown spending unknown on the list, header, overview and budget', async () => {
+    setFigureAgreementBudgetPositionOverride({
+      projectId: 'project-figure-primary', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+      spent: null, openCommitment: null, consumption: null, complete: false,
+      usedRatio: null, usedPercent: null, consumptionVariance: null, riskEligible: false, atRisk: null,
+    });
+    const list = renderFigureAgreementRoute(tableRoute);
+    await screen.findByRole('row', { name: /S01 Primary Project/u });
+    await waitFor(() => expect(screen.queryByRole('columnheader', { name: /Budget used/u })).not.toBeInTheDocument());
+    expect(screen.getByRole('row', { name: /S01 Primary Project/u }).querySelector('[aria-label*="budget"]')).toBeNull();
+    list.unmount();
+    const cards = renderFigureAgreementRoute(cardRoute);
+    await screen.findByText('S01 Primary Project');
+    await waitFor(() => expect(cards.container).toHaveTextContent('Some project financial figures are still being confirmed.'));
+    expect(cards.container).not.toHaveTextContent(/Budget used\s*\d+(?:\.\d+)?%/u);
+    cards.unmount();
+    const home = renderFigureAgreementRoute(pmHomeRoute);
+    await screen.findAllByText('S01 Primary Project');
+    await waitFor(() => expect(home.container).not.toHaveTextContent('Checking budget use…'));
+    expect(home.container).not.toHaveTextContent(/Budget used\s*\d+(?:\.\d+)?%/u);
+    home.unmount();
+    const overview = renderFigureAgreementRoute(projectOverviewRoute);
+    await waitFor(() => expect(overview.container.querySelector('[data-testid="project-budget-figures"]')).toHaveTextContent('Budget used —'));
+    expect(overview.container.querySelector('[data-testid="project-budget-figures"]')).not.toHaveTextContent('0%');
+    overview.unmount();
+    const budget = await renderBudgetAgreementRoute();
+    await waitFor(() => expect(budget.container.textContent).toContain('Budget used is unknown or unavailable.'));
+    expect(budget.container.textContent).not.toMatch(/Budget used\s*0%/u);
+    budget.unmount();
+  });
+
+  it('shows spending and the position after open orders on two budget card lines', async () => {
+    const view = renderFigureAgreementRoute(projectOverviewRoute);
+    const card = await waitFor(() => {
+      const node = view.container.querySelector('section[aria-labelledby="pd-cost"]');
+      expect(node).toHaveTextContent('Committed in open orders');
+      return node!;
+    });
+    expect(card).toHaveTextContent('Spent $500 of $1,000 · 50% used');
+    expect(card).toHaveTextContent('Committed in open orders $400 · Left after open orders $100');
+  });
+
+  it('names unknown open orders without inventing a remainder', async () => {
+    setFigureAgreementProcurementOverride([{ id: 'unknown-order', status: 'Ordered', budget_category: 'Labor', currency: 'USD', open_commitment: null, approved_total_value: null, total_value: null }]);
+    setFigureAgreementBudgetPositionOverride({
+      projectId: 'project-figure-primary', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+      spent: '500.00', openCommitment: null, consumption: null, complete: false,
+      usedRatio: null, usedPercent: null, consumptionVariance: null, riskEligible: false, atRisk: null,
+    });
+    const view = renderFigureAgreementRoute(projectOverviewRoute);
+    await waitFor(() => expect(view.container.querySelector('section[aria-labelledby="pd-cost"]')).toHaveTextContent('Open orders are unknown'));
+    expect(view.container.querySelector('section[aria-labelledby="pd-cost"]')).not.toHaveTextContent(/Left after open orders \$[\d,]+/u);
+  });
+
+  it.each([
+    ['with orders', 400, '$400', '$100'],
+    ['without orders', 0, '$0', '$500'],
+    ['orders unknown', null, 'Open orders are unknown', null],
+  ])('agrees on ERP commitments and remaining on overview and budget: %s', async (_case, amount, committed, left) => {
+    setFigureAgreementBudgetPositionOverride({
+      projectId: 'project-figure-primary', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+      spent: '500.00', openCommitment: null, consumption: '500.00', complete: true,
+      usedRatio: '0.5', usedPercent: '50', consumptionVariance: '-500.00', riskEligible: true, atRisk: false,
+    });
+    setFigureAgreementProcurementOverride([{ id: 'order-1', status: 'Ordered', budget_category: 'Labor', currency: 'USD', open_commitment: amount, approved_total_value: amount, total_value: amount }]);
+    const overview = renderFigureAgreementRoute(projectOverviewRoute);
+    const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
+    await waitFor(() => expect(card()).toHaveTextContent(committed));
+    if (left === null) expect(card()).toHaveTextContent('Left after open orders is unknown');
+    else expect(card()).toHaveTextContent(`Left after open orders ${left}`);
+    overview.unmount();
+    const budget = await renderBudgetAgreementRoute();
+    const tiles = await screen.findByRole('region', { name: 'Budget figures' });
+    if (left === null) await waitFor(() => expect(budget.container).toHaveTextContent('Commitments are unknown or unavailable.'));
+    else { await waitFor(() => expect(tiles).toHaveTextContent('Left after open orders')); expect(tiles).toHaveTextContent(left); expect(tiles).toHaveTextContent(committed); }
+    budget.unmount();
   });
 
   it('names the spending overrun and the overrun after open orders as separate measures', async () => {

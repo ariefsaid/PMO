@@ -1,3 +1,4 @@
+import { budgetLeftAfterOrders } from '@/src/lib/projectFinances';
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -178,7 +179,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const budgetQuery = useProjectBudget(projectId);
   const versionsQuery = useBudgetVersions(projectId);
   const mutations = useBudgetMutations(projectId);
-  const position = useBudgetPosition(project);
+  const position = useBudgetPosition(project, true, { refetchOnMount: false });
   const procurementsQuery = useProjectProcurements(canReadProcurements ? projectId : null);
   const pushStatusQuery = useQuery<BudgetPushStatusRow[]>({
     queryKey: ['budget-push-status', projectId],
@@ -539,47 +540,31 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const projectConsumptionIncludesOrders = position.ledgerBasis === 'pmo';
   const projectBudgetBasisKnown = position.ledgerBasis === 'pmo' || position.ledgerBasis === 'erp';
   const totalCommitted = canSeeCommitments
-    ? position.ledgerBasis === 'pmo'
-      ? position.openCommitment === null ? null : Number(position.openCommitment)
-      : committedTotal(enrichedRows)
+    ? position.openCommitment === null ? committedTotal(enrichedRows) : Number(position.openCommitment)
     : null;
-  const totalLeft = projectBudgetBasisKnown && position.budgetComparisonKnown && compatibleBasis && position.consumptionVariance !== null
-    ? -Number(position.consumptionVariance)
-    : null;
-  const totalLeftLabel = projectConsumptionIncludesOrders
-    ? t('projectDetail.budget.leftAfterOrders', 'Left after open orders')
-    : position.ledgerBasis === 'erp'
-      ? t('projectDetail.budget.leftAfterSpending', 'Left after spending')
-      : t('projectDetail.budget.left', 'Left');
-  const totalLeftFormula = projectConsumptionIncludesOrders
-    ? t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and open orders, before tax.')
-    : position.ledgerBasis === 'erp'
-      ? t('projectDetail.budget.leftAfterSpendingFormula', 'Calculated as active budget minus recorded spending, before tax.')
-      : t('projectDetail.budget.budgetPositionUnknown', 'The canonical project budget position could not be read.');
+  const totalLeft = budgetLeftAfterOrders(position.budgetComparisonKnown && compatibleBasis ? position.budget : null, totalSpent, totalCommitted);
+  const totalLeftLabel = t('projectDetail.budget.leftAfterOrders', 'Left after open orders');
+  const totalLeftFormula = t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and open orders, before tax.');
   const totalLeftUnavailableReason = totalLeft !== null ? undefined : !compatibleBasis
     ? t('projectDetail.budget.currencyBasisSplitNotice', 'Budget: {{budgetCurrency}}. Spending: {{spendCurrency}}. Commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.', { budgetCurrency: selectedCurrency, spendCurrency, projectCurrency: project.currency })
-    : !projectBudgetBasisKnown
-      ? t('projectDetail.budget.budgetPositionUnknown', 'The canonical project budget position could not be read.')
-      : projectConsumptionIncludesOrders
-        ? t('projectDetail.budget.leftUnavailable', 'Left after open orders is unknown while spending or commitments are unavailable.')
-        : t('projectDetail.budget.leftAfterSpendingUnavailable', 'Left after spending is unknown while recorded spending is unavailable.');
+    : totalSpent === null
+      ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.')
+      : totalCommitted === null
+        ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.')
+        : t('projectDetail.budget.budgetPositionUnknown', 'The canonical project budget position could not be read.');
   const canonicalUtilizationFormula = t('projectDetail.budget.canonicalUtilizationFormula', 'Spent as a share of budget, before tax.');
   const categoryUtilizationFormula = projectConsumptionIncludesOrders
     ? t('projectDetail.budget.utilizationFormula', 'Calculated as spending divided by the category budget before tax.')
     : position.ledgerBasis === 'erp'
       ? t('projectDetail.budget.utilizationFormulaLedger', 'Calculated as recorded ledger spending divided by the category budget before tax.')
       : t('projectDetail.budget.budgetPositionUnknown', 'The canonical project budget position could not be read.');
-  const categoryLeftFormula = projectConsumptionIncludesOrders
-    ? t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and open orders, before tax.')
-    : position.ledgerBasis === 'erp'
-      ? t('projectDetail.budget.leftAfterSpendingFormula', 'Calculated as the category budget minus recorded spending, before tax.')
-      : t('projectDetail.budget.budgetPositionUnknown', 'The canonical project budget position could not be read.');
+  const categoryLeftFormula = t('projectDetail.budget.leftAfterSpendingFormula', 'Calculated as the category budget minus recorded spending, before tax.');
   const activeVersionSelected = selectedVersion?.id === activeVersion?.id;
   const canonicalConsumption = projectBudgetBasisKnown && position.budgetComparisonKnown && compatibleBasis && position.spent !== null
     ? position.spent
     : null;
   const historicalLeftKnown = canonicalConsumption !== null && tableBudgetTotal !== null;
-  const historicalLeftFormula = t('projectDetail.budget.historicalLeftFormula', 'Calculated as the selected budget minus canonical project consumption, before tax.');
+  const historicalLeftFormula = t('projectDetail.budget.historicalLeftFormula', 'Calculated as the selected budget minus recorded spending, before tax.');
   const tableLeftFormula = historicalLeftFormula;
   const tableLeftTotal = historicalLeftKnown ? tableBudgetTotal! - canonicalConsumption! : null;
   // C4: an unknown author or date is left out of the line, never printed as "unavailable".
@@ -592,16 +577,21 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   ].filter(Boolean).join(' · ');
   /** A row's budget status, or null when spending or commitments are unknown (the page states that reason once). */
   const getStatus = (row: { budget: number; spent: number | null; committed: number | null; used: number | null; left: number | null }) => {
-    if (row.budget === 0 && row.left !== null && row.left < 0) return { variant: 'warn' as const, label: t('projectDetail.budget.notBudgeted', 'Not budgeted') };
+    if (row.budget === 0 && ((row.spent ?? 0) > 0 || (row.committed ?? 0) > 0)) return { variant: 'warn' as const, label: t('projectDetail.budget.notBudgeted', 'Not budgeted') };
     if (row.used === null || row.left === null) return null;
     if (row.left < 0) return {
       variant: 'lost' as const,
-      label: projectConsumptionIncludesOrders
-        ? t('projectDetail.budget.overAfterOrders', 'Over after open orders')
-        : t('projectDetail.budget.overOnSpending', 'Over on spending'),
+      label: t('projectDetail.budget.overOnSpending', 'Over on spending'),
     };
-    if (row.used >= 90) return { variant: 'warn' as const, label: t('projectDetail.budget.atRisk', 'At risk') };
-    if (row.used >= 70) return { variant: 'warn' as const, label: t('projectDetail.budget.watch', 'Watch') };
+    const leftAfterOrders = budgetLeftAfterOrders(row.budget, row.spent, row.committed);
+    if (projectConsumptionIncludesOrders && leftAfterOrders === null) return null;
+    if (projectConsumptionIncludesOrders && leftAfterOrders !== null && leftAfterOrders < 0) {
+      return { variant: 'lost' as const, label: t('projectDetail.budget.overAfterOrders', 'Over after open orders') };
+    }
+    const orderRiskPercent = projectConsumptionIncludesOrders && leftAfterOrders !== null && row.budget > 0
+      ? (row.budget - leftAfterOrders) / row.budget * 100 : null;
+    if (row.used >= 90 || (orderRiskPercent !== null && orderRiskPercent >= 90)) return { variant: 'warn' as const, label: t('projectDetail.budget.atRisk', 'At risk') };
+    if (row.used >= 70 || (orderRiskPercent !== null && orderRiskPercent >= 70)) return { variant: 'warn' as const, label: t('projectDetail.budget.watch', 'Watch') };
     return { variant: 'neutral' as const, label: t('projectDetail.budget.onTrack', 'On track') };
   };
   const formatAmount = (value: number | null, currency = project.currency) => value === null ? '—' : formatBudgetAmount(value, currency);
@@ -625,20 +615,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     ? t('projectDetail.budget.actualsSourceOdoo', 'Source: the Odoo ledger by budget category. Accounts without a budget category are listed above the table and not counted.')
     : t('projectDetail.budget.actualsSource', 'Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.');
   const exportRows = (rows: BudgetSummaryRow[], filename: string) => {
-    const leftLabel = projectConsumptionIncludesOrders
-      ? t('projectDetail.budget.leftAfterOrders', 'Left after open orders')
-      : position.ledgerBasis === 'erp'
-        ? t('projectDetail.budget.leftAfterSpending', 'Left after spending')
-        : t('projectDetail.budget.left', 'Left');
+    const leftLabel = t('projectDetail.budget.leftAfterSpending', 'Left after spending');
     const header = [t('financeCopy.category', 'Category'), `${t('projectDetail.budget.budgetBeforeTax', 'Budget')} (${selectedCurrency})`, `${t('projectDetail.budget.spent', 'Spent')} (${spendCurrency})`, `${t('projectDetail.budget.committed', 'Committed')} (${project.currency})`, `${leftLabel} (${project.currency})`];
     const csv = [header, ...rows.map((row) => {
       const actualKnown = canSeeActuals && row.spent !== null;
-      const commitmentKnown = canSeeCommitments && row.committed !== null;
-      const categoryBasisKnown = position.ledgerBasis === 'erp' || (position.ledgerBasis === 'pmo' && commitmentKnown);
-      const consumption = (row.spent ?? 0) + (projectConsumptionIncludesOrders ? row.committed ?? 0 : 0);
-      const left = compatibleBasis && actualKnown && categoryBasisKnown
-        ? row.budget - consumption
-        : null;
+      const left = compatibleBasis && actualKnown ? row.budget - row.spent! : null;
       return [budgetCategoryLabel(row.category, t), row.budget, row.spent ?? '', row.committed ?? '', left ?? ''];
     })].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -699,7 +680,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       key: 'used', header: t('projectDetail.budget.percentUsed', '% used'), kind: 'percent', align: 'num', size: 100, minSize: 80,
       cell: (row) => row.used === null
         ? null
-        : <Tooltip content={categoryUtilizationFormula}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} budget used before tax', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
+        : <Tooltip content={categoryUtilizationFormula}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
     },
     {
       key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 125, minSize: 112,
@@ -1137,7 +1118,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               [t('projectDetail.budget.budgetBeforeTax', 'Budget'), formatBudget(selectedCategory.budget), t('projectDetail.budget.budgetSource', 'Source: selected budget version line items before tax, grouped by category.')],
               [t('projectDetail.budget.spent', 'Spent'), canSeeActuals ? formatAmount(selectedCategory.spent) : '—', actualSource],
               [t('projectDetail.budget.committed', 'Committed'), canSeeCommitments ? formatAmount(selectedCategory.committed) : '—', t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')],
-              [projectConsumptionIncludesOrders ? t('projectDetail.budget.leftAfterOrders', 'Left after open orders') : position.ledgerBasis === 'erp' ? t('projectDetail.budget.leftAfterSpending', 'Left after spending') : t('projectDetail.budget.left', 'Left'), formatAmount(selectedCategory.left), categoryLeftFormula],
+              [t('projectDetail.budget.leftAfterSpending', 'Left after spending'), formatAmount(selectedCategory.left), categoryLeftFormula],
             ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-semibold tabular-nums"><Tooltip content={source}><span tabIndex={0}>{value}</span></Tooltip></dd></div>)}
           </dl>
           {/* C4: cost to finish and forecast final are per fiscal year, so they live in Forecast — pointed to, not printed as placeholders. */}
@@ -1145,7 +1126,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             {t('projectDetail.budget.forecastPointer', 'Cost to finish and forecast final are set per fiscal year in Forecast.')}
             {hasActiveErpBinding && activeVersion && <button type="button" className="touch-target rounded-sm font-medium text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => setBudgetView('forecast')}>{t('projectDetail.budget.openForecast', 'Open Forecast')}</button>}
           </p>
-          {selectedCategory.used !== null && <div className="flex flex-col items-start gap-1.5"><Tooltip content={categoryUtilizationFormula}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} budget used before tax', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
+          {selectedCategory.used !== null && <div className="flex flex-col items-start gap-1.5"><Tooltip content={categoryUtilizationFormula}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
           <section aria-labelledby="budget-records-heading" className="space-y-2">
             <h2 id="budget-records-heading" className="text-sm font-semibold">{t('projectDetail.budget.recordsBehindSpending', 'Records behind the spending')}</h2>
             <BudgetOdooCategoryLines projectId={projectId} category={selectedCategory.category} fallback={

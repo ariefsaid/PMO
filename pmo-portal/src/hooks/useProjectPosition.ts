@@ -25,12 +25,12 @@ export interface CategoryPosition { category: string; budget: number; actual: nu
  * Category positions remain category-scoped; project totals and risk come from S03's canonical position even when
  * one or more category allocations are unknown.
  */
-export function useBudgetPosition(project: ProjectWithRefs, enabled = true) {
+export function useBudgetPosition(project: ProjectWithRefs, enabled = true, options?: { refetchOnMount?: boolean }) {
   const may = usePermission();
   const canSeeActual = enabled && may('view', 'salesInvoice');
   const versions = useBudgetVersions(enabled ? project.id : '');
   const finances = useProjectFinances(project.id, { enabled: enabled && canSeeActual });
-  const budgetPositions = useProjectBudgetPositions(enabled && canSeeActual ? [project.id] : []);
+  const budgetPositions = useProjectBudgetPositions(enabled && canSeeActual ? [project.id] : [], options);
   const budgetPosition = budgetPositions.data?.[project.id];
   const budgetPositionsPending = budgetPositions.isPending;
   const budgetPositionsError = budgetPositions.isError;

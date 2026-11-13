@@ -125,7 +125,7 @@ describe('project money position consumer parity (AC-PMP-003)', () => {
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalled());
     // One read serves every consumer (shared query key).
     expect(h.getProjectFinances.mock.calls.every(([id]) => id === project.id)).toBe(true);
-    expect(await within(costBlock()).findByText(/Budget used before tax: 25%/)).toBeInTheDocument();
+    expect(await within(costBlock()).findByText(/25% used/)).toBeInTheDocument();
     await userEvent.click(await screen.findByRole('button', { name: 'Details' }));
     const section = await screen.findByTestId('project-finances');
     // Whole-unit display: the independent ERP reading 10.10 appears as 10; 100 − 10.10 = 89.90 appears as 90.
@@ -209,7 +209,7 @@ describe('budget read states never show a false zero (AC-B-0-4, AC-PMP-003 budge
     h.versions = { data: [activeVersion([['Labor', 100]])], isPending: false, isError: false };
     h.budgetPosition = position({ activeBudgetAmount: '100.00', spent: '95.00', consumption: '95.00', usedRatio: '0.95', usedPercent: '95', consumptionVariance: '-5.00', atRisk: true });
     renderOverviewMoney();
-    expect(await within(costBlock()).findByText(/Budget used before tax: 95%/)).toBeInTheDocument();
+    expect(await within(costBlock()).findByText(/95% used/)).toBeInTheDocument();
     expect(within(costBlock()).getByText('At risk')).toBeInTheDocument();
   });
 
@@ -218,7 +218,7 @@ describe('budget read states never show a false zero (AC-B-0-4, AC-PMP-003 budge
     h.versions = { data: [activeVersion([['Labor', 90]])], isPending: false, isError: false };
     h.budgetPosition = position({ activeBudgetAmount: '90.00', spent: '40.00', consumption: '40.00', usedRatio: '0.4444', usedPercent: '44', consumptionVariance: '-50.00' });
     renderOverviewMoney();
-    expect(await within(costBlock()).findByText(/Budget used before tax: 44%/)).toBeInTheDocument();
+    expect(await within(costBlock()).findByText(/44% used/)).toBeInTheDocument();
     expect(within(costBlock()).queryByText('At risk')).not.toBeInTheDocument();
   });
 
@@ -244,7 +244,7 @@ describe('Budget vs actual block carries the snapshot behaviours', () => {
     renderOverviewMoney();
     const headline = await within(costBlock()).findByText('$170 over on spending');
     expect(headline.closest('p')).toHaveClass('text-destructive-text');
-    expect(within(costBlock()).getByText(/Spent \$320 of \$150 before tax/)).toBeInTheDocument();
+    expect(within(costBlock()).getByText(/Spent \$320 of \$150/)).toBeInTheDocument();
   });
 
   it('UX-027: under-budget money reads as remaining, never as a negative overrun', async () => {
@@ -252,8 +252,8 @@ describe('Budget vs actual block carries the snapshot behaviours', () => {
     h.versions = { data: [activeVersion([['Labor', 150]])], isPending: false, isError: false };
     h.budgetPosition = position({ activeBudgetAmount: '150.00', spent: '50.00', consumption: '50.00', usedRatio: '0.3333', usedPercent: '33', consumptionVariance: '-100.00' });
     renderOverviewMoney();
-    expect(await within(costBlock()).findByText(/100 remaining/)).toBeInTheDocument();
-    expect(within(costBlock()).getByText('Within budget')).toBeInTheDocument();
+    expect(await within(costBlock()).findByText(/Left after open orders \$100/)).toBeInTheDocument();
+    expect(within(costBlock()).getByText(/Committed in open orders \$0/)).toBeInTheDocument();
     expect(within(costBlock()).queryByText(/over budget/i)).not.toBeInTheDocument();
   });
 
@@ -266,8 +266,8 @@ describe('Budget vs actual block carries the snapshot behaviours', () => {
     h.committed = { data: 80, commitmentSource: 'pmo' };
     renderOverviewMoney();
     // The headline states its basis instead of a bare "Within budget" verdict contradicting the line below it.
-    expect(await within(costBlock()).findByText('Within budget on spend')).toBeInTheDocument();
-    expect(within(costBlock()).getByText(/Budget used before tax: 110%/)).toBeInTheDocument();
+    expect(await within(costBlock()).findByText(/Spent \$30 of \$100/)).toBeInTheDocument();
+    expect(within(costBlock()).getByText(/30% used/)).toBeInTheDocument();
     expect(within(costBlock()).getByText(/10 over after open orders/)).toBeInTheDocument();
     expect(within(costBlock()).queryByText('Within budget')).not.toBeInTheDocument();
   });
@@ -277,8 +277,8 @@ describe('Budget vs actual block carries the snapshot behaviours', () => {
     h.versions = { data: [activeVersion([['Labor', 100_000], ['Materials', 50_000]])], isPending: false, isError: false };
     h.budgetPosition = position({ activeBudgetAmount: '150000.00', spent: '10.10', consumption: '10.10', usedRatio: '0.0001', usedPercent: '0', consumptionVariance: '-149989.90' });
     renderOverviewMoney();
-    expect(await within(costBlock()).findByText('$10 of $100,000 before tax')).toBeInTheDocument();
-    expect(within(costBlock()).getByText('$0 of $50,000 before tax')).toBeInTheDocument();
+    expect(await within(costBlock()).findByText('$10 of $100,000')).toBeInTheDocument();
+    expect(within(costBlock()).getByText('$0 of $50,000')).toBeInTheDocument();
     expect(costBlock().textContent).not.toMatch(/\b\d+h\b/);
   });
 

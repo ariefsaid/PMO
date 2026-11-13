@@ -243,8 +243,7 @@ describe('ProjectDetailHeader — content', () => {
     // #1739: Actual is recorded spend (the project-finances read), not the committed purchase-order total.
     expect(disclosure).toHaveTextContent('Actual$1,800,000');
     expect(disclosure).toHaveTextContent('Contract remaining after cost$3,200,000');
-    expect(disclosure).toHaveTextContent('Budget used before tax55%');
-    expect(disclosure).toHaveTextContent('Spent (% of budget before tax)43%');
+    expect(disclosure).toHaveTextContent('Budget used43%');
   });
 
   it('UIP-006: the PM sees the contract value without a lock label; edit remains unavailable', () => {
@@ -737,7 +736,7 @@ describe('ProjectDetailHeader — Spend% uses derived budget (AC-B-0-2)', () => 
 
     // Locate the Spend stat tile
     const tiles = document.querySelectorAll('[data-testid="stat-tile"]');
-    const spendTile = Array.from(tiles).find((el) => el.textContent?.includes('Spend'));
+    const spendTile = Array.from(tiles).find((el) => el.textContent?.includes('Budget used'));
     expect(spendTile).toBeTruthy();
     // Must show 50% (derived basis), NOT "0%" (dead stored projects.budget renders as Spend0%).
     // Use regex word-boundary to avoid false match: "50%" contains "0%" literally, so we
@@ -1073,7 +1072,7 @@ describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
   it('AC-RD-HDR-001: with a budget and complete Actual the strip carries every known figure', () => {
     setBudgetPosition({ budget: 4_200_000, spent: 1_800_000, openCommitment: 500_000, usedPercent: 55 });
     renderHeader('Finance', onHand, 2_100_000, 'pmo', 'pmo');
-    expect(tileLabels()).toEqual(['Contract', 'PMO purchase orders', 'Actual', 'Contract remaining after cost', 'Budget used before tax', 'Spent (% of budget before tax)']);
+    expect(tileLabels()).toEqual(['Contract', 'PMO purchase orders', 'Actual', 'Contract remaining after cost', 'Budget used']);
   });
 
   it('AC-RD-HDR-001: "excl. PPN" lives in the Contract tile; rate/DPP toggle only when DPP is not 1/1 or the rate is missing', () => {

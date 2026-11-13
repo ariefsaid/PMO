@@ -30,7 +30,7 @@ import { useProjectMutations } from '@/src/hooks/useProjects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
 import type { CommitmentSource, CommittedOtherCurrencies } from '@/src/hooks/useProcurements';
-import { attributedSplit, buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney, projectBudgetSpentPercent, projectBudgetUsedPercent } from '@/src/lib/projectFinances';
+import { attributedSplit, buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney, projectBudgetUsedPercent } from '@/src/lib/projectFinances';
 import { useProjectVatEditability } from '@/src/hooks/useProjectVatEditability';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { Checkbox } from '@/src/components/ui/Checkbox';
@@ -112,7 +112,6 @@ export interface ProjectDetailHeaderProps {
   /** Redesign shell: identity only — no money strip (money lives in its own block), quieter actions. */
   compact?: boolean;
   /** Place compact canonical budget figures beside the desktop project facts when the page owns that row. */
-  budgetFiguresPlacement?: 'header' | 'facts';
   /** Increment to open the contract-value editor from elsewhere on the page. */
   editValueRequest?: number;
   /** Extra quiet action beside Edit (the Activity drawer button). */
@@ -190,14 +189,10 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   const contractAfterCostLabel = contractAfterCost === null
     ? null
     : formatSignedExactMoney(contractAfterCost, project.currency, getNumberLocale());
-  const spendPct = projectBudgetSpentPercent(budgetPosition, project.currency);
   const budgetUsedPct = projectBudgetUsedPercent(budgetPosition, project.currency);
-  const budgetUsedBasis = budgetPosition?.ledgerBasis === 'pmo'
-    ? t('projectDetail.cost.budgetUsedBasis', 'Spent + open orders, before tax')
-    : t('projectDetail.cost.budgetUsedBasisLedger', 'Ledger spending, before tax');
+  const budgetUsedBasis = t('projectDetail.cost.spentBasis', 'Spent as a share of budget, before tax');
   const taxDetailsNeeded = project.tax_rate == null
     || (project.tax_base_numerator ?? 1) !== 1 || (project.tax_base_denominator ?? 1) !== 1;
-  const spendTileValue: string | null = budgetPositionsQuery.isPending || budgetPositionsQuery.isError || spendPct === null ? null : `${spendPct}%`;
   const budgetUsedTileValue = budgetUsedPct === null ? null : `${budgetUsedPct}%`;
   const tiles: StatTile[] = [
     {
@@ -263,10 +258,6 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
       label: t('projects:columns.budgetUsed', 'Budget used'),
       value: budgetUsedTileValue,
       sub: budgetUsedBasis,
-    }]),
-    ...(spendTileValue === null ? [] : [{
-      label: t('projectDetail.header.tile.spent', 'Spent (% of budget before tax)'), value: spendTileValue,
-      sub: t('projectDetail.cost.spentBasis', 'Spending share of budget, before tax'),
     }]),
   ];
 

@@ -94,7 +94,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           </dd>
         </div>
         <div className="contents">
-          <dt className="text-muted-foreground">{t('uxs02.activeBudget', 'Active budget before tax')}</dt>
+          <dt className="text-muted-foreground">{t('uxs02.activeBudget', 'Active budget')}</dt>
           <dd data-testid="project-card-active-budget" className="min-w-0 font-semibold tabular text-muted-foreground">{activeBudgetLabel}</dd>
         </div>
         <div className="contents">
@@ -122,7 +122,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
                 value={budgetUsedPct}
                 showValue
                 tone={atRisk ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined}
-                aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget before tax', { percent: budgetUsedPct })}
+                aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: budgetUsedPct })}
               />
             </dd>
           </div>

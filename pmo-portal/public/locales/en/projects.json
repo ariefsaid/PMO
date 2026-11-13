@@ -40,6 +40,7 @@
     "selectRow": "Select {{row}}",
     "selectAllRows": "Select all rows"
   },
+  "budgetUsedHelp": "Spent as a share of budget, before tax",
   "budgetConsumption": "{{used}} of {{budget}} Active budget before tax",
   "filterBuilder": {
     "addFilter": "Add filter",

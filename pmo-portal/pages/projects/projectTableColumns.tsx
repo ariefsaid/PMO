@@ -116,11 +116,11 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       return t('uxs02.noActiveBudget', 'No active budget');
     }
     if (activeBudget === 0) {
-      const reason = t('uxs02.zeroActiveBudget', '{{budget}} Active budget before tax; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) });
+      const reason = t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) });
       return reason;
     }
     if (money.budgetPosition?.budgetCurrency !== p.currency || money.budgetPosition?.currency !== p.currency) {
-      return t('uxs02.currencyMismatch', 'Budget currency differs from project currency');
+      return t('uxs02.currencyMismatch', 'Budget currency differs from Actual');
     }
     const percent = projectBudgetUsedPercent(money.budgetPosition, p.currency);
     return percent ?? '';
@@ -289,7 +289,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     {
       key: 'budget-used',
       exportValue: budgetExport,
-      header: t('projects.columns.budgetUsed', 'Budget used'),
+      header: <span tabIndex={0} title={t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}>{t('projects.columns.budgetUsed', 'Budget used')}</span>,
       kind: 'percent',
       size: 136,
       minSize: 128,
@@ -299,8 +299,14 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         const percent = budgetExport(p);
         if (typeof percent === 'string') return percent ? <span className="text-muted-foreground">{percent}</span> : null;
         const atRisk = isAtRiskActual(p);
+        const reading = projectMoney![p.id]!.budgetPosition!;
+        const amounts = t('projects:budgetConsumption', '{{used}} of {{budget}} Active budget before tax', {
+          used: formatExactMoney(reading.spent, reading.currency ?? p.currency, getNumberLocale(), { wholeUnits: true }),
+          budget: formatExactMoney(reading.activeBudgetAmount, reading.budgetCurrency ?? p.currency, getNumberLocale(), { wholeUnits: true }),
+        });
         return (
-          <div title={t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}>
+          <div title={`${amounts} · ${t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}`}>
+
             <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget before tax', { percent })} />
           </div>
         );
@@ -317,7 +323,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
   // AC-L10N-052: the download carries each row's own ISO code beside contract (export-only).
   // Money-view-gated roles have no `contract` column at all, so this inserts no Currency column
   // either — their export carries neither the contract figure nor its currency qualifier.
-  const exportColumns = withCurrencyColumn(visibleColumns, 'contract', (r) => r.currency);
+  const exportColumns = withCurrencyColumn(visibleColumns.map((column) => column.key === 'budget-used'
+    ? { ...column, header: t('projects.columns.budgetUsed', 'Budget used') }
+    : column), 'contract', (r) => r.currency);
   // On screen, a PM column that only ever names the viewer says nothing. The download keeps it.
   // One manager across every visible project is said once, above the list, and the column goes.
   const pmIsViewer = viewerId != null && filtered.length > 0 && filtered.every((p) => p.project_manager_id === viewerId);

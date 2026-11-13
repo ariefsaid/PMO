@@ -190,7 +190,7 @@ describe('AC-IXD-DASH-W5-C2C — PMDashboard: attention areas are risk-sorted', 
   });
 
   const rowHrefs = () => within(screen.getByTestId('pm-projects')).getAllByRole('link').map((link) => link.getAttribute('href')).filter((href) => href?.startsWith('/projects/'));
-  const atRiskRows = () => within(screen.getByTestId('pm-projects')).getAllByRole('link').filter((link) => /budget used before tax at 90% or more/.test(link.textContent ?? ''));
+  const atRiskRows = () => within(screen.getByTestId('pm-projects')).getAllByRole('link').filter((link) => /budget at risk/.test(link.textContent ?? ''));
 
   it('C2C-PM-1: at-risk projects appear before safe ones', () => {
     renderPMDashboard();
@@ -200,7 +200,7 @@ describe('AC-IXD-DASH-W5-C2C — PMDashboard: attention areas are risk-sorted', 
     expect(hrefs.indexOf('/projects/p3')).toBeLessThan(hrefs.indexOf('/projects/p1'));
   });
 
-  it('C2C-PM-2: each at-risk project is a row that says why (budget used before tax at 90% or more) and links to its page', () => {
+  it('C2C-PM-2: each at-risk project is a row that says why (budget at risk) and links to its page', () => {
     renderPMDashboard();
     const rows = atRiskRows();
     expect(rows.map((row) => row.getAttribute('href'))).toEqual(['/projects/p2', '/projects/p3']);
@@ -327,7 +327,7 @@ describe('AC-IXD-DASH-W5-C2C — I3: at-risk rows convey budget utilization reas
     setProjectMoney(projectListFixtures);
   });
 
-  it('C2C-I3-1: at-risk row shows budget utilization % in the Budget used before tax column', () => {
+  it('C2C-I3-1: at-risk row shows budget utilization % in the Budget used column', () => {
     renderProjectsPage('/projects');
     const rows = screen.getAllByRole('row');
     const atRiskRow = rows.find((r) => r.textContent?.includes('Burning Beta'));
@@ -339,7 +339,7 @@ describe('AC-IXD-DASH-W5-C2C — I3: at-risk rows convey budget utilization reas
       .closest('td,[role="cell"]') as HTMLElement;
     expect(budgetUsedCell).toHaveTextContent('95%');
     expect(budgetUsedCell).not.toHaveTextContent('of $500,000');
-    expect(budgetUsedCell.querySelector('[title]')).toHaveAttribute('title', '$475,000 of $500,000 Active budget before tax');
+    expect(budgetUsedCell.querySelector('[title]')).toHaveAttribute('title', expect.stringContaining('$475,000 of $500,000 Active budget before tax'));
   });
 
   it('C2C-I3-2: the at-risk pill in the project cell is a labelled StatusPill (not color-only) — a11y', () => {

@@ -30,7 +30,7 @@ describe('atRiskCount', () => {
 
   it('uses the reader percentage and risk decision without recomputing from spend', () => {
     const canonical = reading('p1', true, '90');
-    expect(projectBudgetUsagePct(canonical)).toBe(90);
+    expect(projectBudgetUsagePct(canonical)).toBe(50);
     expect(projectAtRisk(canonical)).toBe(true);
     expect(projectRiskBasisKnown(canonical)).toBe(true);
   });

@@ -97,7 +97,7 @@ export const PMDashboard: React.FC = () => {
       const reason = [
         overdue > 0 ? t('home.overdueTasks', { count: overdue, defaultValue_one: '{{count}} task overdue', defaultValue_other: '{{count}} tasks overdue' }) : null,
         purchases > 0 ? t('home.purchasesToApprove', { count: purchases, defaultValue_one: '{{count}} purchase to approve', defaultValue_other: '{{count}} purchases to approve' }) : null,
-        atRisk ? t('home.budgetNinety', 'budget used before tax at 90% or more') : null,
+        atRisk ? t('home.budgetAtRisk', 'budget at risk') : null,
       ].filter(Boolean).join(' · ');
       const delivery = deliveryQuery.data?.[project.id];
       return {
@@ -271,11 +271,11 @@ export const PMDashboard: React.FC = () => {
                     : <PlanVsActualChart projects={projects} currency={orgCurrency} />}
               </CardPad>
             </Card>
-            <ChartCard title={t('home.deliveryVsBudget', 'Delivery and budget used before tax by project')} actions={<CardLink to={projectsHref(userId)}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink>}
+            <ChartCard title={t('home.deliveryVsBudget', 'Delivery and budget used by project')} actions={<CardLink to={projectsHref(userId)}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink>}
               known={pctBars.length > 0} hiddenReason={t('home.reasonDeliveryBudget', 'delivery and budget are not recorded')} pending={projectsPending}
               error={projectsError ? { title: t('home.projectsError', "Couldn't load projects"), retry: refresh } : undefined} testId="chart-delivery-budget">
               <SeriesKey items={[...(pctBars.some((row) => row.value !== null) ? [{ label: deliveryName, tone: 'accent' as const }] : []), ...(pctBars.some((row) => row.value2 != null) ? [{ label: budgetName, tone: 'neutral' as const }] : [])]} />
-              <BarList rows={pctBars} ariaLabel={t('home.deliveryVsBudget', 'Delivery and budget used before tax by project')} seriesNames={[deliveryName, budgetName]} domainMax={100} />
+              <BarList rows={pctBars} ariaLabel={t('home.deliveryVsBudget', 'Delivery and budget used by project')} seriesNames={[deliveryName, budgetName]} domainMax={100} />
             </ChartCard>
             <ChartCard title={overdueTitle} actions={overdueItem ? <CardLink to={overdueItem.href}>{t('hub.pm.openMyProjects', 'Open my projects')}</CardLink> : undefined}
               known={overdueItem !== undefined || needs.isPending} pending={needs.isPending} hiddenReason={t('home.reasonTasksOverdue', 'task dates could not be read')} testId="chart-overdue-tasks">

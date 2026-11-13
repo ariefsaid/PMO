@@ -242,7 +242,7 @@ export const ProjectRows: React.FC<{
                     <span>{t('home.colProject', 'Project')}</span>
                     {showStructuredNeeds ? needColumns.map((column) => <span key={column.key} className="min-w-0 text-right">{column.label}</span>) : showReason && <span>{t('home.colNeeds', 'Needs you')}</span>}
                     {showDelivery && <span className="text-right">{t('home.colDelivery', 'Delivery')}</span>}
-                    {showBudget && <span className="text-right" title={t('home.budgetUsedHelp', 'Spent as a share of budget, before tax')}>{t('home.colBudget', 'Budget used')}</span>}
+                    {showBudget && <span tabIndex={0} className="text-right" title={t('home.budgetUsedHelp', 'Spent as a share of budget, before tax')}>{t('home.colBudget', 'Budget used')}</span>}
                     <span className="text-right">{t('home.colStatus', 'Status')}</span>
                   </div>
                   <ul className="divide-y divide-border">

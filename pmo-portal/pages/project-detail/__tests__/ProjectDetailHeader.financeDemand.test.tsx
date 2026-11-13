@@ -172,19 +172,10 @@ describe('ProjectDetailHeader finance query demand', () => {
     expect(h.getProjectFinances).not.toHaveBeenCalled();
   });
 
-  it('compact detail header reads canonical budget figures without the full finance strip', async () => {
-    const project = projectForStatus('Ongoing Project');
+  it('compact header leaves the budget read to the project facts row', () => {
     renderCompactHeader('Ongoing Project');
-    await waitFor(() => expect(h.getProjectBudgetPositions).toHaveBeenCalledExactlyOnceWith([project.id]));
-    await waitFor(() => expect(document.body).toHaveTextContent('Budget used before tax'));
-    expect(document.body).toHaveTextContent('90%');
-    expect(document.body).toHaveTextContent('Spent (% of budget before tax)');
-    expect(document.body).toHaveTextContent('50%');
+    expect(h.getProjectBudgetPositions).not.toHaveBeenCalled();
     expect(h.getProjectFinances).not.toHaveBeenCalled();
     expect(h.getProjectBudget).not.toHaveBeenCalled();
-    const recordHeader = document.querySelector('[data-testid="record-header"]');
-    const budgetFigures = recordHeader?.querySelector('[data-testid="project-budget-figures"]');
-    expect(budgetFigures).toBeInTheDocument();
-    expect(budgetFigures?.querySelector('[data-testid="stat-tiles"]')).toHaveAttribute('data-density', 'compact');
   });
 });

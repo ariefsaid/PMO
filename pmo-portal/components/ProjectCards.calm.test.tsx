@@ -54,7 +54,7 @@ const money = (over: Partial<ProjectMoneyRead> = {}): ProjectMoneyRead => ({
 }) as ProjectMoneyRead;
 
 describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
-  it('AC-1242: top-aligns the Budget used before tax label and keeps the risk warning outside the bar row once', () => {
+  it('AC-1242: top-aligns the Budget used label and keeps the risk warning outside the bar row once', () => {
     render(<ProjectCard
       project={project}
       onOpen={vi.fn()}
@@ -81,11 +81,11 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
     expect(within(card).getAllByText('At risk')).toHaveLength(1);
   });
 
-  it('a card with no Active budget says "No active budget" once, and has no Budget used before tax row', () => {
+  it('a card with no Active budget says "No active budget" once, and has no Budget used row', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()} deliverySummary={{ deliveryPct: 40, committedSpend: 0, budget: 0 }}
       projectMoney={money({ activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false })} />);
     expect(screen.getAllByText('No active budget')).toHaveLength(1);
-    expect(screen.queryByText('Budget used before tax')).not.toBeInTheDocument();
+    expect(screen.queryByText('Budget used')).not.toBeInTheDocument();
     // Same without a delivery summary: the Delivery row still renders in the shared grid.
     expect(screen.getByLabelText('Delivery 40%')).toBeInTheDocument();
   });
@@ -94,7 +94,7 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()}
       projectMoney={money({ activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false })} />);
     expect(screen.getAllByText('No active budget')).toHaveLength(1);
-    expect(screen.queryByText('Budget used before tax')).not.toBeInTheDocument();
+    expect(screen.queryByText('Budget used')).not.toBeInTheDocument();
   });
 
   it('has no status-change control; the status pill remains', () => {
@@ -110,8 +110,8 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
     expect(within(card).getByText('$125,000')).toBeInTheDocument();
     expect(within(card).queryByText(/Updated|Update time|Incomplete source coverage|Restricted rows excluded/)).not.toBeInTheDocument();
     expect(within(card).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
-    expect(within(card).getByText('Budget used before tax')).toBeInTheDocument();
-    expect(within(card).getAllByLabelText('25% of Active budget before tax')).toHaveLength(1);
+    expect(within(card).getByText('Budget used')).toBeInTheDocument();
+    expect(within(card).getAllByLabelText('25% of Active budget')).toHaveLength(1);
   });
 
   it('a partial Actual stays blank with one plain-language explanation, never a partial total', () => {

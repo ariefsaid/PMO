@@ -25,8 +25,6 @@ export interface StatTilesProps {
   tiles: StatTile[];
   /** Columns once the strip's container fits N tiles (default 4). Narrow containers stay 2-col. */
   columns?: number;
-  /** Compact record-header figures align label and value, with the basis caption underneath. */
-  density?: 'default' | 'compact';
   className?: string;
   /**
    * Visual treatment:
@@ -88,11 +86,9 @@ const CONTAINER_SPAN_RESET: Record<number, string> = {
 export const StatTiles: React.FC<StatTilesProps> = ({
   tiles: allTiles,
   columns = 4,
-  density = 'default',
   className,
   variant = 'framed',
 }) => {
-  const isCompact = density === 'compact';
   const isUnknown = (tile: StatTile) => tile.unavailableReason != null || tile.value == null;
   const unknownTiles = allTiles.filter(isUnknown);
   const inScope = useFigureReport(unknownTiles.map<HiddenFigure>((tile) => ({
@@ -110,7 +106,6 @@ export const StatTiles: React.FC<StatTilesProps> = ({
   return (
     <div
       data-testid="stat-tiles"
-      data-density={isCompact ? density : undefined}
       className={cn(
         // mobile: 2-col grid — all tiles visible at a glance (I6, no carousel).
         // Container query: the N-col layout is driven by the strip's OWN width, so the
@@ -138,15 +133,13 @@ export const StatTiles: React.FC<StatTilesProps> = ({
               isBare
                 ? 'py-1'
                 : 'bg-card px-[var(--space-content-inset)] py-3 first:rounded-l-lg last:rounded-r-lg',
-              isCompact && 'grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2 gap-y-0',
               isLastOdd && cn('col-span-2', spanReset),
             )}
           >
-            <div className={cn('mb-1 text-control font-medium text-foreground', isCompact && 'mb-0 min-w-0')}>{t.label}</div>
+            <div className="mb-1 text-control font-medium text-foreground">{t.label}</div>
             <div
               className={cn(
                 'min-w-0 break-words text-metric font-semibold tabular',
-                isCompact && 'col-start-2 row-start-1 text-right',
                 !t.tone && 'text-foreground',
                 // AC-RAM-004 (#688): raw text-success failed color-contrast in dark theme —
                 // the same class of gap the 'neg' tone below was already fixed for. text-success-text
@@ -159,7 +152,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
             >
               <FigureContent value={t.value} exactValue={t.exactValue} unavailableReason={t.unavailableReason} />
             </div>
-            {t.sub && <div className={cn('mt-0.5 break-words text-control text-muted-foreground', isCompact && 'col-span-2 mt-0 leading-tight')}>{t.sub}</div>}
+            {t.sub && <div className="mt-0.5 break-words text-control text-muted-foreground">{t.sub}</div>}
           </div>
         );
       })}

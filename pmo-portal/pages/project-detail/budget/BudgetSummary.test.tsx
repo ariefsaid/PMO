@@ -27,7 +27,7 @@ describe('BudgetSummary', () => {
             rows: [{ category: 'Labor', budget: 1000, actual: null }],
             ledgerBasis: 'pmo',
             spent: 500,
-            usedPercent: 90,
+            usedPercent: 50,
             consumptionVariance: '-100',
             budgetComparisonKnown: true,
             canSeeActual: true,
@@ -41,8 +41,8 @@ describe('BudgetSummary', () => {
     );
 
     expect(screen.getByText('100 left after open orders')).toBeInTheDocument();
-    expect(screen.getByText('Budget used before tax: 90%')).toBeInTheDocument();
-    expect(screen.getByText('Spent 500 of 1,000 before tax')).toBeInTheDocument();
+    expect(screen.getByText('Budget used: 50%')).toBeInTheDocument();
+    expect(screen.getByText('Spent 500 of 1,000')).toBeInTheDocument();
     expect(screen.getByText('Project spending is known; some category amounts are not mapped.')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Committed' })).toBeInTheDocument();
     expect(screen.getByRole('row', { name: /Labor/u })).not.toHaveTextContent('500');

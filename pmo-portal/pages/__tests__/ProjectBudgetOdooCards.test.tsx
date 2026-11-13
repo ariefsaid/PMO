@@ -19,7 +19,7 @@ const state = vi.hoisted(() => ({
   rows: [] as Array<{ category: string; budget: number; actual: number | null }>,
   spendRows: undefined as Array<{ category: string; actual: number | null }> | undefined,
   position: {
-    ledgerBasis: 'erp' as 'erp' | 'pmo', spent: 1500 as number | null, openCommitment: '0',
+    ledgerBasis: 'erp' as 'erp' | 'pmo', budget: 6000, spent: 1500 as number | null, openCommitment: '0',
     consumption: '1500.00' as string | null, consumptionVariance: '-4500.00' as string | null,
     budgetComparisonKnown: true, usedPercent: 25 as number | null, atRisk: false,
   },
@@ -112,7 +112,7 @@ beforeEach(() => {
   state.rows = ROWS;
   state.spendRows = undefined;
   state.position = {
-    ledgerBasis: 'erp', spent: 1500, openCommitment: '0', consumption: '1500.00', consumptionVariance: '-4500.00',
+    ledgerBasis: 'erp', budget: 6000, spent: 1500, openCommitment: '0', consumption: '1500.00', consumptionVariance: '-4500.00',
     budgetComparisonKnown: true, usedPercent: 25, atRisk: false,
   };
   ACTIVE.currency = 'IDR';
@@ -198,7 +198,7 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
 describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
   beforeEach(() => {
     state.onLedger = false; state.spendCurrency = 'USD'; ACTIVE.currency = 'USD';
-    state.position = { ledgerBasis: 'pmo', spent: null, openCommitment: '0', consumption: null, consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null, atRisk: false };
+    state.position = { ledgerBasis: 'pmo', budget: 6000, spent: null, openCommitment: '0', consumption: null, consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null, atRisk: false };
   });
 
   it('one unknown category still makes Spent and Left unknown, in the project currency', async () => {

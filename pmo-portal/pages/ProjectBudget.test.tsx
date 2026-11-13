@@ -507,7 +507,7 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
     // One line on the page names what is hidden and why, instead of dashes in every row.
     const hidden = screen.getByTestId('figures-hidden');
-    expect(hidden).toHaveTextContent(/3 figures hidden: Budget used before tax is unknown or unavailable\.; spending is not linked/);
+    expect(hidden).toHaveTextContent(/3 figures hidden: Budget used is unknown or unavailable\.; spending is not linked/);
     expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
   });
 

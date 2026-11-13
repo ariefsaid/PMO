@@ -1,6 +1,9 @@
 import { figureAgreementFixture as fixture } from './fixtures/figureAgreement';
 import type { CanonicalBudgetReading } from '@/src/lib/db/projectMoney';
 
+let procurementOverride: Array<Record<string, unknown>> | undefined;
+export function setFigureAgreementProcurementOverride(rows: Array<Record<string, unknown>> | undefined): void { procurementOverride = rows; }
+
 let budgetPositionOverride: CanonicalBudgetReading | undefined;
 
 export function setFigureAgreementBudgetPositionOverride(reading: CanonicalBudgetReading | undefined): void {
@@ -148,9 +151,10 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
       listArchiveLiveTargets: async () => [],
       listLegacyArchiveLiveTargets: async () => [],
     }),
+    externalDomainOwnership: override('externalDomainOwnership', { listOwn: async () => [] }),
     procurement: override('procurement', {
       list: async () => [],
-      listByProject: async () => [],
+      listByProject: async () => procurementOverride ?? [],
       getProjectCommittedSpend: async () => committedSpend,
       getProjectReservedSpend: async () => ({ amount: '50.00', projectCurrency: 'USD', budgetCurrency: 'USD', otherCurrencies: [] }),
     }),
