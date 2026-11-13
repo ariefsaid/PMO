@@ -43,7 +43,13 @@ const renderPage = (r: Role = 'Engineer') => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}><ToastProvider><MemoryRouter initialEntries={['/stock/documents/d1']}>
-      <Routes><Route path="/stock/documents/:documentId" element={<StockDocumentDetail />} /><Route path="/stock/documents" element={<p>list page</p>} /><Route path="/stock/documents/:documentId/edit" element={<p>edit page</p>} /></Routes>
+      <Routes>
+        <Route path="/stock/documents/:documentId" element={<StockDocumentDetail />} />
+        <Route path="/stock/documents" element={<p>list page</p>} />
+        <Route path="/stock/documents/:documentId/edit" element={<p>edit page</p>} />
+        <Route path="/stock/ledger" element={<p>ledger page</p>} />
+        <Route path="/projects/:projectId" element={<p>project page</p>} />
+      </Routes>
     </MemoryRouter></ToastProvider></QueryClientProvider>,
   );
 };
@@ -227,5 +233,58 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     renderPage();
     await screen.findAllByText('ISS-1');
     expect(consumption.report).not.toHaveBeenCalled();
+  });
+});
+
+/** Floor list (all-screens/floor-tests/stock-document-record.md): the items this suite did not yet cover. */
+describe('AC-STK-032 floor: every control on the document record still works', () => {
+  it('the stock section strip opens the ledger from a document record', async () => {
+    renderPage();
+    await screen.findByText('ISS-1');
+    await userEvent.click(screen.getByRole('link', { name: 'Ledger' }));
+    expect(await screen.findByText('ledger page')).toBeInTheDocument();
+  });
+
+  it('the project link opens that project record', async () => {
+    renderPage();
+    await screen.findByText('ISS-1');
+    await userEvent.click(screen.getByRole('link', { name: 'Tower A' }));
+    expect(await screen.findByText('project page')).toBeInTheDocument();
+  });
+
+  it('a failed stock-entries read keeps the record and its Retry refetches only the entries', async () => {
+    reports.ledgerAll.mockRejectedValueOnce(new AppError('boom'));
+    renderPage();
+    await screen.findByText('ISS-1');
+    const section = screen.getByRole('heading', { name: 'Stock entries' }).closest('section') as HTMLElement;
+    expect(await within(section).findByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    await userEvent.click(within(section).getByRole('button', { name: 'Retry' }));
+    expect(await within(section).findByText('SITE-A')).toBeInTheDocument();
+    expect(reports.ledgerAll).toHaveBeenCalledTimes(2);
+    expect(documents.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('Open in the ledger opens the ledger filtered to this document', async () => {
+    renderPage();
+    const link = await screen.findByRole('link', { name: 'Open in the ledger' });
+    expect(link).toHaveAttribute('href', '/stock/ledger?document=d1');
+    await userEvent.click(link);
+    expect(await screen.findByText('ledger page')).toBeInTheDocument();
+  });
+
+  it('a failed document read offers a Retry that shows the record once the read succeeds', async () => {
+    documents.get.mockRejectedValueOnce(new AppError('boom'));
+    renderPage();
+    expect(await screen.findByText("Couldn't load stock")).toBeInTheDocument();
+    documents.get.mockResolvedValue(detail());
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('ISS-1')).toBeInTheDocument();
+  });
+
+  it('a missing document offers the way back to the documents list', async () => {
+    documents.get.mockResolvedValue(null);
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Back to documents' }));
+    expect(await screen.findByText('list page')).toBeInTheDocument();
   });
 });
