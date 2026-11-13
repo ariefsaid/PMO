@@ -97,7 +97,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
             <SelectField label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}
               options={[{ value: currentMonth, label: t('imprest:plan.thisMonth', 'This month ({{month}})', { month: monthLabel(currentMonth) }) },
                 { value: nextMonth(currentMonth), label: t('imprest:plan.nextMonth', 'Next month ({{month}})', { month: monthLabel(nextMonth(currentMonth)) }) }]} />
-            <Button variant="outline" disabled={create.isPending}
+            <Button variant={plans.isPending || plans.isError || !plans.data || plans.data.rows.length === 0 ? 'primary' : 'outline'} disabled={create.isPending}
               onClick={() => void run(() => create.mutateAsync({ floatId, month }), t('imprest:plan.toast.created', 'Draft plan created'))}>
               {t('imprest:plan.new', 'New plan')}
             </Button>
@@ -124,7 +124,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
                     <Button variant="ghost" size="sm" aria-expanded={open === plan.id} onClick={() => setOpen((c) => (c === plan.id ? null : plan.id))}>
                       {open === plan.id ? t('imprest:plan.hideLines', 'Hide lines') : t('imprest:plan.showLines', 'Show lines')}
                     </Button>
-                    {actions.includes('submitPlan') && <Button variant="primary" size="sm" disabled={transition.isPending} onClick={() => void move(plan, 'submitPlan')}>{t('imprest:actions.submitPlan', 'Submit plan')}</Button>}
+                    {actions.includes('submitPlan') && <Button variant={open === plan.id && editable ? 'outline' : 'primary'} size="sm" disabled={transition.isPending} onClick={() => void move(plan, 'submitPlan')}>{t('imprest:actions.submitPlan', 'Submit plan')}</Button>}
                     {actions.includes('reopenPlan') && <Button variant="outline" size="sm" disabled={transition.isPending} onClick={() => void move(plan, 'reopenPlan')}>{t('imprest:actions.reopenPlan', 'Edit and resubmit')}</Button>}
                     {actions.includes('approvePlan') && <Button variant="primary" size="sm" onClick={() => setDialog({ plan, action: 'approvePlan' })}>{t('imprest:actions.approve', 'Approve')}</Button>}
                     {actions.includes('rejectPlan') && <Button variant="outline" size="sm" onClick={() => setDialog({ plan, action: 'rejectPlan' })}>{t('imprest:actions.reject', 'Reject')}</Button>}
