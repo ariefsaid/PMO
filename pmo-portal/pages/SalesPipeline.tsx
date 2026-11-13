@@ -31,10 +31,18 @@ const PipelineFigures: React.FC<{ total: number | null; weighted: number; curren
           </span>
         )}</dd>
       </div>
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-        <dt className="text-control font-medium text-muted-foreground">{t('sales:options.openValue', 'Open value')}</dt>
-        <dd className="text-group font-semibold tabular">{total === null ? value : formatTileMoney(total, currency)}</dd>
-        {total !== null && <dd className="text-control text-muted-foreground">{t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}</dd>}
+      <div data-testid="pipeline-open-value" className="flex min-w-0 flex-col">
+        <div data-testid="pipeline-open-value-row" className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+          <dt className="text-control font-medium text-muted-foreground">{t('sales:options.openValue', 'Open value')}</dt>
+          <dd className="text-group font-semibold tabular">{total === null ? value : formatTileMoney(total, currency)}</dd>
+        </div>
+        {/* The deal count is this figure's caption, on its own line: a count never sits in a row of
+            money figures (screen rule "Numbers"). */}
+        {total !== null && (
+          <dd data-testid="pipeline-open-count" className="text-control text-muted-foreground">
+            {t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}
+          </dd>
+        )}
       </div>
     </dl>
   );

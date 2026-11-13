@@ -32,15 +32,18 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   );
 
   const funnelStages: FunnelStage[] = stageProjections.map((p) => {
+    // An empty stage is a money row too: it reads its zero in the band's own currency, never the
+    // bare count "0" that read like a deal count among the amounts beside it.
+    const empty = p.stage?.count === 0 || !p.stage;
     return {
       name: stageLabel(p.col),
       dotColor: p.col.dotColor,
-      value: p.stage?.count === 0 || !p.stage
-        ? '0'
+      value: empty
+        ? formatCurrency(0, p.stageCurrency)
         : p.mixedStage
           ? unknownTotal
           : formatCurrency(p.totalValue, p.stageCurrency),
-      weighted: p.stage?.count === 0 || !p.stage || p.mixedStage
+      weighted: empty || p.mixedStage
         ? undefined
         : t('sales.funnel.weighted', '{{value}} weighted', {
             value: formatCurrency(p.weightedValue, p.stageCurrency),
@@ -64,6 +67,11 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
           }
         }}
       />
+      {/* One stated measure for the bars: the same open value as the amount above each bar, on one
+          scale (the largest stage is the full bar). Stage order is the pipeline's own. */}
+      <p data-testid="pipeline-funnel-scale" className="mt-2 text-control text-muted-foreground">
+        {t('sales:pipeline.funnelScale', 'Open value, one scale')}
+      </p>
     </section>
   );
 };

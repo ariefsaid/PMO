@@ -986,6 +986,23 @@ describe('SalesPipeline table on the shared contract (T4)', () => {
   });
 });
 
+describe('SalesPipeline stage band: one scale, counts out of the money row', () => {
+  it('states the open-value count as the figure’s caption, never inside the money row', () => {
+    // One currency, so the figure has a value and therefore a population to caption.
+    pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD') };
+    renderPage();
+
+    const moneyRow = screen.getByTestId('pipeline-open-value-row');
+    expect(moneyRow).toHaveTextContent('Open value');
+    expect(moneyRow).toHaveTextContent('$');
+    expect(moneyRow).not.toHaveTextContent('projects');
+
+    const caption = screen.getByTestId('pipeline-open-count');
+    expect(caption).toHaveTextContent('3 projects');
+    expect(screen.getByTestId('pipeline-open-value')).toContainElement(caption);
+  });
+});
+
 // Floor (floor-tests/sales-pipeline.md): the controls a person presses on this page that had no
 // test. Written against the code as it stands, so a later edit that removes the control reddens.
 describe('SalesPipeline floor: phone figures, the attention rows, the won-deal retry', () => {
