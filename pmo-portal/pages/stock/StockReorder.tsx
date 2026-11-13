@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DataTable, ListPage, ListState, SelectField, TextField, UnsavedChangesDialog, useToast, type Column } from '@/src/components/ui';
+import { Button, buttonClasses, ConfirmDialog, DataTable, ListPage, ListState, SelectField, TextField, UnsavedChangesDialog, useToast, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { StockError } from '@/src/components/stock/StockError';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
@@ -29,6 +30,8 @@ const StockReorder: React.FC = () => {
   const errorText = useStockErrorText();
   const loc = getNumberLocale();
   const canEdit = may('edit', 'reorderLevel', { record: { viewOnly: realRole !== effectiveRole } });
+  // The same create gate the procurement list uses (pages/Procurement.tsx:153): anyone may raise a need.
+  const canRequestPurchase = may('create', 'procurement');
 
   const { values: filters, setFilters } = useUrlFilters(['item', 'warehouse']);
   const itemId = filters.item;
@@ -107,24 +110,34 @@ const StockReorder: React.FC = () => {
       { key: 'warehouse', header: t('reorder.worklist.columns.warehouse'), cell: (r) => <span className="font-mono text-sm">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
       { key: 'onHand', header: t('reorder.worklist.columns.onHand'), align: 'num', cell: (r) => <span className="tabular-nums">{q(r.qtyOnHand)} <span className="text-muted-foreground">{r.unitCode}</span></span>, exportValue: (r) => r.qtyOnHand },
       { key: 'level', header: t('reorder.worklist.columns.level'), align: 'num', cell: (r) => <span className="tabular-nums">{q(r.reorderLevel)} <span className="text-muted-foreground">{r.unitCode}</span></span>, exportValue: (r) => r.reorderLevel },
-      { key: 'qty', header: t('reorder.worklist.columns.orderQuantity'), align: 'num', cell: (r) => <span className="tabular-nums">{r.reorderQuantity ? <>{q(r.reorderQuantity)} <span className="text-muted-foreground">{r.unitCode}</span></> : ''}</span>, exportValue: (r) => r.reorderQuantity ?? '' },
+      { key: 'qty', header: t('reorder.worklist.columns.suggestedOrder', 'Suggested order'), align: 'num', cell: (r) => <span className="tabular-nums">{r.reorderQuantity ? <>{q(r.reorderQuantity)} <span className="text-muted-foreground">{r.unitCode}</span></> : ''}</span>, exportValue: (r) => r.reorderQuantity ?? '' },
     ];
-    if (canEdit) {
+    if (canEdit || canRequestPurchase) {
       cols.push({
         key: 'actions', header: t('reorder.worklist.columns.actions'), align: 'num',
         cell: (r) => (
-          <div className="flex justify-end gap-1">
-            <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowEdit', { item: r.itemCode })}
-              onClick={() => pick(r.itemId, r.warehouseId, () => startEdit(r.reorderLevel, r.reorderQuantity))}>{t('reorder.worklist.edit')}</Button>
-            <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowClear', { item: r.itemCode })}
-              onClick={() => setClearTarget({ warehouseId: r.warehouseId, itemId: r.itemId, label: `${r.itemCode} - ${r.itemName}`, warehouseCode: r.warehouseCode })}>{t('reorder.worklist.clear')}</Button>
+          <div className="flex flex-wrap items-center justify-end gap-1">
+            {canEdit && (<>
+              <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowEdit', { item: r.itemCode })}
+                onClick={() => pick(r.itemId, r.warehouseId, () => startEdit(r.reorderLevel, r.reorderQuantity))}>{t('reorder.worklist.edit')}</Button>
+              <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowClear', { item: r.itemCode })}
+                onClick={() => setClearTarget({ warehouseId: r.warehouseId, itemId: r.itemId, label: `${r.itemCode} - ${r.itemName}`, warehouseCode: r.warehouseCode })}>{t('reorder.worklist.clear')}</Button>
+            </>)}
+            {/* C9: the worklist's next step. The need form reads only ?project and ?have (ProcurementCreate.tsx:110,122),
+                so the need type is the one thing a short row can carry today; the item is picked again in the form. */}
+            {canRequestPurchase && (
+              <Link to="/procurement/new?have=need" className={buttonClasses('outline', 'sm', 'whitespace-nowrap')}
+                aria-label={t('reorder.worklist.rowRequestPurchase', 'Request purchase for {{item}}', { item: r.itemCode })}>
+                {t('reorder.worklist.requestPurchase', 'Request purchase')}
+              </Link>
+            )}
           </div>
         ),
       });
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- q follows loc
-  }, [t, loc, canEdit]);
+  }, [t, loc, canEdit, canRequestPurchase]);
 
   const whOption = (w: { id: string; code: string; name: string }) => ({ value: w.id, label: `${w.code} - ${w.name}` });
 
@@ -181,7 +194,7 @@ const StockReorder: React.FC = () => {
           <div className="mt-4 space-y-3">
             <p className="text-sm" data-testid="current-level">
               {s.current
-                ? <>{t('reorder.panel.current', { label: t('reorder.worklist.columns.level'), level: q(s.current.reorderLevel), unit: unitCode }).trim()}{s.current.reorderQuantity ? ` ${t('reorder.panel.currentQuantity', { label: t('reorder.worklist.columns.orderQuantity'), quantity: q(s.current.reorderQuantity), unit: unitCode }).trim()}` : ''}</>
+                ? <>{t('reorder.panel.current', { label: t('reorder.worklist.columns.level'), level: q(s.current.reorderLevel), unit: unitCode }).trim()}{s.current.reorderQuantity ? ` ${t('reorder.panel.currentQuantity', { label: t('reorder.worklist.columns.suggestedOrder', 'Suggested order'), quantity: q(s.current.reorderQuantity), unit: unitCode }).trim()}` : ''}</>
                 : <span className="text-muted-foreground">{t('reorder.panel.noCurrent')}</span>}
             </p>
             {s.status === 'ok' && s.suggestion ? (
@@ -229,7 +242,7 @@ const StockReorder: React.FC = () => {
           <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); submitEdit(); }} noValidate>
             <div className="grid gap-3 sm:grid-cols-2">
               <TextField label={unitCode ? `${t('reorder.panel.level')} (${unitCode})` : t('reorder.panel.level')} value={level} onChange={setLevel} inputMode="decimal" required error={formErrors.level} />
-              <TextField label={unitCode ? `${t('reorder.panel.quantity')} (${unitCode})` : t('reorder.panel.quantity')} value={quantity} onChange={setQuantity} inputMode="decimal" error={formErrors.quantity} />
+              <TextField label={unitCode ? `${t('reorder.panel.suggestedOrder', 'Suggested order (optional)')} (${unitCode})` : t('reorder.panel.suggestedOrder', 'Suggested order (optional)')} value={quantity} onChange={setQuantity} inputMode="decimal" error={formErrors.quantity} />
             </div>
             <StockError error={submitError} />
             <div className="flex gap-2">
