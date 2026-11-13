@@ -86,7 +86,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   // #1457: the org's business day (not the viewer's device day) bounds every overdue figure.
   const orgDay = useFxOrgDay(canViewMoney).day;
   const isCascadePending = boq.isPending || billing.isPending || orders.isPending;
-  const isCascadeError = boq.isError || billing.isError || orders.isError || (!isCascadePending && !billing.data);
+  const isCascadeError = !isCascadePending && (boq.isError || billing.isError || orders.isError || !billing.data);
 
   const items = boq.data ?? [];
   const facts = new Map((billing.data?.contractLines ?? []).map((line) => [line.boqItemId, line]));
@@ -235,7 +235,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
 
   return (
     <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
-      {isCascadePending && !isCascadeError && (
+      {isCascadePending && (
         <section aria-label={t('projectDetail.cascade.title', 'Contract')} className="min-w-0">
           <ListState variant="loading" rows={6} />
         </section>
@@ -374,9 +374,9 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
         </section>
       )}
 
-      {canViewMoney && <ProjectDrawdown key={project.id} projectId={project.id} />}
+      {canViewMoney && !isCascadeError && <ProjectDrawdown key={project.id} projectId={project.id} />}
 
-      {children}
+      {!isCascadeError && children}
 
       {!isCascadeError && hasReadingLayer && unorderedRows.length > 0 && (() => {
         const columns: Column<UnorderedLine>[] = [

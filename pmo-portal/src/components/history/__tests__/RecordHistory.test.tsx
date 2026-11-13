@@ -505,7 +505,10 @@ describe('RecordHistory — enum values use the module label helpers (AC-CHG-015
     expect(screen.getByText('Sendiri → Konsorsium')).toBeInTheDocument();
     expect(screen.getByText('Pesanan pembelian → Penerimaan Barang')).toBeInTheDocument();
     expect(screen.getByText('Faktur pemasok → Lunas')).toBeInTheDocument();
-    expect(screen.getByText('Draft → Diterbitkan')).toBeInTheDocument();
+    // C4 (fan-out round 1): the work-order status now reads ONE name per state in Bahasa — "Draf"
+    // matches status:workOrder.draft and the other three work-order states, where this key alone
+    // still said "Draft". Wording changed on purpose; the assertion itself is unchanged.
+    expect(screen.getByText('Draf → Diterbitkan')).toBeInTheDocument();
     expect(screen.getByText('Draf → Aktif')).toBeInTheDocument();
   });
 });

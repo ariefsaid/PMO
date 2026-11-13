@@ -99,7 +99,7 @@ const renderExec = () => render(
   </QueryClientProvider>,
 );
 
-beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = pack; h.procurementList.mockReset().mockResolvedValue([]); });
+beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = pack; h.procurementList.mockReset().mockResolvedValue([]); localStorage.removeItem('home-layout'); });
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('company dashboard procurement reads (PERF-FIN-1)', () => {

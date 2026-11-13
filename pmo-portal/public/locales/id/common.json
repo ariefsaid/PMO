@@ -515,7 +515,7 @@
       "invite": "Undang pengguna",
       "columns": {
         "user": "Pengguna",
-        "role": "Peran",
+        "role": "Role",
         "status": "Status",
         "manager": "Manajer"
       },
@@ -525,7 +525,7 @@
       },
       "noManager": "Tanpa manajer",
       "menu": {
-        "editRole": "Ubah peran",
+        "editRole": "Edit role",
         "changeManager": "Ubah manajer",
         "reEnable": "Aktifkan kembali",
         "disable": "Nonaktifkan"
@@ -632,7 +632,7 @@
       "noPush": "Tanpa akun pengiriman",
       "pushBadge": "Pengiriman anggaran",
       "addAccount": "Tambah akun ke {{category}}",
-      "editAccount": "Ubah {{account}}",
+      "editAccount": "Edit {{account}}",
       "usePush": "Gunakan {{account}} untuk pengiriman anggaran",
       "removeAccount": "Hapus {{account}}",
       "removePushHint": "Jadikan akun lain sebagai akun pengiriman untuk menghapus akun ini.",
@@ -1642,7 +1642,7 @@
     "actionItems": {
       "empty": "Belum ada action item. Ketik /action di notulen untuk membuatnya.",
       "error": "Gagal memuat action item rapat ini.",
-      "title": "Item tindakan"
+      "title": "Action item"
     },
     "archive": "Arsipkan",
     "attendees": {
@@ -1706,7 +1706,7 @@
       "empty": "Tidak ada notulen yang tercatat untuk rapat ini.",
       "save": "Simpan notulen",
       "slash": {
-        "actionTitle": "Item tindakan",
+        "actionTitle": "Action item",
         "actionSubtext": "Buat tugas dari baris ini",
         "actionGroup": "Tindakan",
         "actionAliases": "action,aksi,tindakan,tugas,todo"
