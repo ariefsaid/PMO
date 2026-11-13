@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, ListPage, ListState, SelectField, StatusPill, useUrlFilters, type Column } from '@/src/components/ui';
+import { DataTable, ListPage, ListState, SelectField, StatusPill, useUrlFilters, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { useStockDocuments } from '@/src/hooks/useStock';
 import { formatDay } from '@/src/lib/format';
@@ -24,6 +24,7 @@ const StockDocuments: React.FC = () => {
   const setStatus = (value: string) => setFilter('status', value);
   const q = useStockDocuments({ ...(kind ? { kind: kind as StockDocumentKind } : {}), ...(status ? { status: status as StockDocumentStatus } : {}) });
   const rows = useMemo(() => (q.data?.pages ?? []).flat(), [q.data]);
+  const total = q.total;
 
   const columns: Column<StockDocumentListRow>[] = useMemo(() => [
     {
@@ -53,7 +54,7 @@ const StockDocuments: React.FC = () => {
   return (
     <ListPage
       title={t('documents.title')}
-      count={q.data ? rows.length : undefined}
+      count={total}
     >
       <StockTabs />
       <StockFilters>
@@ -70,12 +71,12 @@ const StockDocuments: React.FC = () => {
       {state === undefined && (
         <>
           <DataTable<StockDocumentListRow> rows={rows} columns={columns} rowKey={(r) => r.id} tableId="stock-documents" accessibleName={t('documents.title')}
-            onActivate={(r) => navigate(`/stock/documents/${r.id}`)} />
-          {q.hasNextPage && (
-            <div className="mt-3 flex justify-center">
-              <Button variant="outline" loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>{t('documents.loadMore')}</Button>
-            </div>
-          )}
+            onActivate={(r) => navigate(`/stock/documents/${r.id}`)}
+            total={total}
+            hasMore={Boolean(q.hasNextPage)}
+            isLoadingMore={q.isFetchingNextPage}
+            onLoadMore={() => void q.fetchNextPage()}
+            loadMoreLabel={t('documents.loadMore')} />
         </>
       )}
     </ListPage>

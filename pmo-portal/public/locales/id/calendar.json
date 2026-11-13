@@ -11,6 +11,14 @@
     "day": "Hari",
     "agenda": "Agenda"
   },
+  "move": {
+    "confirmTitle": "Pindahkan tenggat tugas?",
+    "confirmBody": "{{task}} akan dipindahkan dari {{from}} ke {{to}}. Tenggat saat ini akan diganti.",
+    "confirmRangeBody": "Tanggal {{task}} akan dipindahkan: mulai {{startFrom}} ke {{startTo}}, tenggat {{dueFrom}} ke {{dueTo}}. Tanggal saat ini akan diganti.",
+    "confirm": "Pindahkan tugas",
+    "savedTitle": "Tenggat tugas diperbarui",
+    "savedBody": "Tenggat {{task}} sekarang {{date}}."
+  },
   "empty": "Tidak ada yang jatuh tempo pada periode ini",
   "error": {
     "title": "Kalender tidak dapat dimuat",

@@ -38,6 +38,8 @@ export interface RecordHeaderProps {
    * Wrapped in a `data-testid="record-header-actions"` slot so the placement contract is testable.
    */
   actions?: React.ReactNode;
+  /** Preserve an existing direct action's position after the primary action during a staged migration. */
+  actionsAfterPrimary?: boolean;
   /**
    * `page` (default) renders the bordered card header used on `/x/:id` pages.
    * `drawer` drops the card chrome so the host Drawer supplies its own border seam, and puts the
@@ -71,6 +73,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   menuItems,
   menuLabel,
   actions,
+  actionsAfterPrimary = false,
   variant = 'page',
   className,
   'data-testid': dataTestId = 'record-header',
@@ -81,8 +84,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   const isDrawer = variant === 'drawer';
   const zone = actions || primaryAction || hasMenu ? (
     <span data-testid="record-header-actions" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-      {actions}
-      {primaryAction}
+      {actionsAfterPrimary ? <>{primaryAction}{actions}</> : <>{actions}{primaryAction}</>}
       {hasMenu && <RecordMenu items={menuItems!} ariaLabel={label} />}
     </span>
   ) : undefined;

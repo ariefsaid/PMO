@@ -1,4 +1,7 @@
 {
+  "listPage": {
+    "loadedMoreAvailable": "{{count}} dimuat, masih ada lagi"
+  },
   "coverage": {
     "hiddenNotLinked": "pengeluaran belum terhubung",
     "hiddenReadError": "pengeluaran tidak dapat dibaca",

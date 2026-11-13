@@ -47,6 +47,7 @@ const StockDocumentDetail: React.FC = () => {
   const keepers = useStockKeepers();
   const m = useStockDocumentMutations();
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmPost, setConfirmPost] = useState(false);
 
   const d = doc.data;
   const isKeeper = (keepers.data ?? []).some((k) => k.warehouse_id === d?.warehouse_id && k.user_id === me);
@@ -133,8 +134,15 @@ const StockDocumentDetail: React.FC = () => {
     return cols;
   }, [t, loc, currency, showCost]);
 
-  const run = async (fn: () => Promise<unknown>, okKey: string) => {
-    try { await fn(); toast(t(okKey), undefined, 'success'); } catch (err) { toast(t('detail.actionFailed'), errorText(err), 'warning'); }
+  const run = async (fn: () => Promise<unknown>, okKey: string): Promise<boolean> => {
+    try {
+      await fn();
+      toast(t(okKey), undefined, 'success');
+      return true;
+    } catch (err) {
+      toast(t('detail.actionFailed'), errorText(err), 'warning');
+      return false;
+    }
   };
 
   return (
@@ -152,7 +160,7 @@ const StockDocumentDetail: React.FC = () => {
             meta={`${t(`kinds.${d.kind}`)} · ${formatDay(d.occurred_on)}`}
             status={<StatusPill record="stockDocument" state={d.status} />}
             primaryAction={canPost
-              ? <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => void run(() => m.post.mutateAsync({ id: d.id, revision: d.revision }), 'detail.posted')}>{t('detail.post')}</Button>
+              ? <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => setConfirmPost(true)}>{t('detail.post')}</Button>
               : canEdit ? <Button variant="primary" size="sm" onClick={() => navigate(`/stock/documents/${d.id}/edit`)}>{t('count.editDraft')}</Button> : undefined}
             menuItems={[
               ...(canPost && canEdit ? [{ key: 'edit', label: t('count.editDraft'), onSelect: () => navigate(`/stock/documents/${d.id}/edit`) }] : []),
@@ -184,13 +192,31 @@ const StockDocumentDetail: React.FC = () => {
         </div>
       )}
       <ConfirmDialog
+        open={confirmPost}
+        tone="destructive"
+        title={t('detail.postConfirm.title', 'Post this stock document?')}
+        description={t('detail.postConfirm.description', '{{number}} will be posted and stock on hand will change using these lines. This document can no longer be edited.', { number: d?.number ?? '' })}
+        confirmLabel={t('detail.post')}
+        loading={m.post.isPending}
+        onConfirm={() => {
+          if (d) void run(() => m.post.mutateAsync({ id: d.id, revision: d.revision }), 'detail.posted').then((succeeded) => {
+            if (succeeded) setConfirmPost(false);
+          });
+        }}
+        onCancel={() => { if (!m.post.isPending) setConfirmPost(false); }}
+      />
+      <ConfirmDialog
         open={confirmCancel}
         tone="destructive"
         title={t('detail.confirm.title')}
         description={t('detail.confirm.description')}
         confirmLabel={t('detail.confirm.confirm')}
         loading={m.cancel.isPending}
-        onConfirm={() => { if (d) void run(() => m.cancel.mutateAsync(d.id), 'detail.cancelled').then(() => setConfirmCancel(false)); }}
+        onConfirm={() => {
+          if (d) void run(() => m.cancel.mutateAsync(d.id), 'detail.cancelled').then((succeeded) => {
+            if (succeeded) setConfirmCancel(false);
+          });
+        }}
         onCancel={() => setConfirmCancel(false)}
       />
     </div>

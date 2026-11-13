@@ -29,6 +29,7 @@ export interface StockMasterRepository {
 /** Stock documents (#1512 S3): the posting RPCs and the document reads. No client write grant exists; every write is an RPC. */
 export interface StockDocumentsRepository {
   list(f?: StockDocumentFilters): Promise<StockDocumentListRow[]>;
+  count(f?: StockDocumentFilters): Promise<number | undefined>;
   get(id: string): Promise<StockDocumentDetail | null>;
   create(input: StockDocumentInput, opts: { post: boolean; clientRequestId: string }): Promise<string>;
   saveDraft(id: string, input: StockDocumentInput): Promise<void>;

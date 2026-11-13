@@ -1,4 +1,7 @@
 {
+  "listPage": {
+    "loadedMoreAvailable": "{{count}} loaded, more available"
+  },
   "coverage": {
     "hiddenNotLinked": "spending is not linked",
     "hiddenReadError": "spending could not be read",

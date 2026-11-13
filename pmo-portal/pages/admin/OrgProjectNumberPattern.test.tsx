@@ -5,6 +5,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import administrationEn from '../../public/locales/en/administration.json';
+import administrationId from '../../public/locales/id/administration.json';
 
 const h = vi.hoisted(() => ({ get: vi.fn(), timezone: vi.fn(), save: vi.fn(), toast: vi.fn(), canManage: true }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: {
@@ -196,5 +200,43 @@ describe('AC-CODE-001 organisation PMO number pattern', () => {
     renderPanel();
     expect(await screen.findByText(/couldn't load the project number pattern/i)).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /project number pattern/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('C4: the pattern error is a translated sentence, not a hardcoded English string', () => {
+  async function renderIndonesianPanel() {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: false,
+      defaultNS: 'administration',
+      ns: ['administration'],
+      resources: {
+        en: { administration: administrationEn },
+        id: { administration: administrationId },
+      },
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={['/settings']}>
+          <QueryClientProvider client={queryClient}>
+            <ToastProvider>
+              <OrgProjectNumberPattern />
+            </ToastProvider>
+          </QueryClientProvider>
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+  }
+
+  it('an Indonesian admin reads the remedy in Indonesian, with the token named as the field writes it', async () => {
+    await renderIndonesianPanel();
+    const input = await screen.findByRole('textbox', { name: /project number pattern/i });
+    fireEvent.change(input, { target: { value: 'PRE-{CLIENT}-{YY}' } });
+    const error = screen.getByText('Sertakan {SEQ4} tepat satu kali.', { selector: '[role="alert"]' });
+    expect(error).toBeInTheDocument();
+    // The English source the panel used to hardcode must not survive beside it.
+    expect(screen.queryByText(/Include \{SEQ4\} exactly once\./)).toBeNull();
   });
 });

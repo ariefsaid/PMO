@@ -10,6 +10,46 @@
   "reloadSavedView": "Muat ulang tampilan tersimpan",
   "continueEditing": "Lanjutkan mengedit",
   "invalidProjectFilter": "Masukkan ID proyek yang valid.",
+  "aggregateFn": {
+    "count": "Jumlah baris",
+    "sum": "Total",
+    "average": "Rata-rata",
+    "lowest": "Terendah",
+    "highest": "Tertinggi"
+  },
+  "validation": {
+    "generic": "Tampilan ini belum valid. Periksa panel lalu simpan lagi.",
+    "unknownEntity": "Ada panel yang meminta sumber data yang tidak ada di aplikasi. Buka panel itu dan pilih sumber data yang ada.",
+    "unknownColumn": "Ada panel yang memakai kolom yang tidak ada di aplikasi. Buka panel itu dan pilih kolom yang ada.",
+    "unknownOp": "Ada filter yang memakai perbandingan yang tidak didukung aplikasi. Buka filter itu dan pilih perbandingan lain.",
+    "nonNumericAggregate": "Ada total yang diminta pada kolom yang bukan angka. Pilih kolom angka untuk total itu.",
+    "invalidLimit": "Batas jumlah baris bukan angka yang sah. Isi batas baris lalu simpan lagi.",
+    "unknownToken": "Ada nilai filter yang memakai token yang tidak dikenal aplikasi. Hapus token itu, atau pakai $current_team atau $current_project.",
+    "missingRequiredFilter": "Tampilan ini memerlukan filter. Tambahkan satu lalu simpan lagi.",
+    "unresolvableToken": "Ada filter yang memakai token yang tidak bisa diisi di sini. Ganti dengan sebuah nilai.",
+    "notGroupableColumn": "Tampilan ini mengelompokkan data menurut kolom yang tidak bisa dikelompokkan. Pilih kolom lain.",
+    "unknownPrimitive": "Ada jenis panel yang tidak tersedia di aplikasi. Hapus panel itu atau pilih jenis lain.",
+    "unsupportedVersion": "Tampilan ini dibuat oleh versi penyusun yang lain. Susun ulang lalu simpan lagi."
+  },
+  "ai": {
+    "errorInvalidView": "Tampilan yang sah tidak bisa dibuat dari deskripsi itu. Coba tulis ulang atau lebih spesifik.",
+    "errorLimit": "Batas penyusunan dengan AI sudah tercapai. Coba lagi nanti.",
+    "errorAuth": "Perlu masuk dulu. Silakan masuk lagi.",
+    "errorUnavailable": "Penyusunan dengan AI sedang tidak tersedia. Coba lagi nanti.",
+    "errorClientValidation": "Tampilan hasil susunan gagal diperiksa di aplikasi ini. Coba tulis ulang permintaannya."
+  },
+  "renderer": {
+    "loadErrorTitle": "Tampilan ini tidak bisa dimuat.",
+    "loadErrorSub": "Terjadi gangguan jaringan atau server. Coba lagi.",
+    "notFoundTitle": "Tampilan ini tidak ditemukan.",
+    "notFoundSub": "Tampilan mungkin sudah dihapus, atau Anda tidak punya akses.",
+    "goToDashboard": "Buka dasbor",
+    "invalidTitle": "Definisi tampilan ini tidak sah.",
+    "invalidSub": "Tampilan tidak bisa dirender karena spesifikasinya tidak sah."
+  },
   "serverVersionChangedHelp": "Muat ulang membuang perubahan yang belum Anda simpan; lanjutkan menyimpannya.",
-  "incompleteFilter": "Lengkapi atau hapus setiap baris filter sebelum menyimpan."
+  "incompleteFilter": "Lengkapi atau hapus setiap baris filter sebelum menyimpan.",
+  "removePanelConfirmTitle": "Hapus panel ini?",
+  "removePanelConfirmDescription": "Panel {{primitive}} untuk {{entity}} akan dihapus dari draf tampilan ini. Panel lain tetap ada.",
+  "removePanelConfirm": "Hapus panel"
 }

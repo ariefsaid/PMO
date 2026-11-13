@@ -30,6 +30,7 @@ import {
   FormGrid,
   FormSection,
   Button,
+  ConfirmDialog,
   useToast,
   type SelectOption,
 } from '@/src/components/ui';
@@ -39,6 +40,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';
 import { ValidationError } from '@/src/lib/viewspec/types';
+import type { ValidationErrorCode } from '@/src/lib/viewspec/types';
 import { MAX_PANELS_PER_VIEW } from '@/src/lib/viewspec/types';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { PanelSpec, CompositionSpec } from '@/src/lib/viewspec/types';
@@ -129,6 +131,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
   });
   const observedServerVersionRef = useRef<{ id: string; updatedAt: string | null } | null>(null);
   const [remoteConflict, setRemoteConflict] = useState<UserViewRow | null>(null);
+  const [panelToRemove, setPanelToRemove] = useState<PanelSpec | null>(null);
 
   // In create mode: any non-empty field or panel counts as dirty.
   // In edit mode: compare against the values loaded from the existing view.
@@ -208,7 +211,14 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
   };
 
   const handleRemovePanel = (idx: number) => {
-    setPanels((prev) => prev.filter((_, i) => i !== idx));
+    const panel = panels[idx];
+    if (panel) setPanelToRemove(panel);
+  };
+
+  const confirmRemovePanel = () => {
+    if (!panelToRemove) return;
+    setPanels((prev) => prev.filter((panel) => panel.id !== panelToRemove.id));
+    setPanelToRemove(null);
   };
 
   const handleMoveUp = (idx: number) => {
@@ -254,6 +264,34 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
 
   const spec: CompositionSpec = useMemo(() => ({ version: 1, panels }), [panels]);
 
+  /** What the author can DO about a refused save, in their language, from the validation code. */
+  const validationRemedy = (code: ValidationErrorCode): string => {
+    switch (code) {
+      case 'UNKNOWN_ENTITY':
+        return t('viewBuilder:validation.unknownEntity', 'A panel asks for a data source the app does not have. Open that panel and choose an existing data source.');
+      case 'UNKNOWN_COLUMN':
+        return t('viewBuilder:validation.unknownColumn', 'A panel uses a column the app does not have. Open that panel and choose an existing column.');
+      case 'UNKNOWN_OP':
+        return t('viewBuilder:validation.unknownOp', 'A filter compares in a way the app does not support. Open that filter and choose another comparison.');
+      case 'NON_NUMERIC_AGGREGATE':
+        return t('viewBuilder:validation.nonNumericAggregate', 'A total is asked for on a column that is not a number. Choose a numeric column for the total.');
+      case 'INVALID_LIMIT':
+        return t('viewBuilder:validation.invalidLimit', 'The row limit is not a valid number. Set a row limit and save again.');
+      case 'UNKNOWN_TOKEN':
+        return t('viewBuilder:validation.unknownToken', 'A filter value uses a token the app does not know. Remove it, or use $current_team or $current_project.');
+      case 'MISSING_REQUIRED_FILTER':
+        return t('viewBuilder:validation.missingRequiredFilter', 'This view needs a filter. Add one and save again.');
+      case 'UNRESOLVABLE_TOKEN':
+        return t('viewBuilder:validation.unresolvableToken', 'A filter uses a token that cannot be filled in here. Replace it with a value.');
+      case 'NOT_GROUPABLE_COLUMN':
+        return t('viewBuilder:validation.notGroupableColumn', 'This view groups by a column that cannot be grouped. Choose another column.');
+      case 'UNKNOWN_PRIMITIVE':
+        return t('viewBuilder:validation.unknownPrimitive', 'A panel type is not available in the app. Remove that panel or choose another type.');
+      case 'UNSUPPORTED_VERSION':
+        return t('viewBuilder:validation.unsupportedVersion', 'This view was built by another version of the builder. Rebuild it and save again.');
+    }
+  };
+
   const handleSave = async () => {
     if (!currentUser || (mode === 'edit' && !canEditView)) return;
     setSaveError(null);
@@ -268,10 +306,13 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
       const ctx = { userId: currentUser.id, orgId: currentUser.org_id };
       compileCompositionSpec(spec, ctx);
     } catch (err) {
+      // C4 (GLM view-builder-new #7): the save error used to be `${code}: ${detail}` — 'UNKNOWN_COLUMN:
+      // status' — which is implementation terms, in English, where the author needs a remedy. The code
+      // chooses a sentence from the catalogue; `detail` (a column or table name) stays out of it.
       if (err instanceof ValidationError) {
-        setSaveError(`${err.code}${err.detail ? ': ' + err.detail : ''}`);
+        setSaveError(validationRemedy(err.code));
       } else {
-        setSaveError('Validation failed. Please review your panels.');
+        setSaveError(t('viewBuilder:validation.generic', 'The view is not valid yet. Review the panels and save again.'));
       }
       return;
     }
@@ -448,7 +489,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
           <p>{t('viewBuilder:serverVersionChanged', 'The saved view changed while you were editing.')}</p>
           <p className="mt-1">{t('viewBuilder:serverVersionChangedHelp', 'Reload drops the edits you have not saved; continue keeps them.')}</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => applyViewToEditor(remoteConflict)}>
+            <Button variant="outline" size="sm" onClick={() => guardLeave(() => applyViewToEditor(remoteConflict))}>
               {t('viewBuilder:reloadSavedView', 'Reload saved view')}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setRemoteConflict(null)}>
@@ -524,6 +565,19 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
           setPanelModalOpen(false);
           setEditingIndex(null);
         }}
+      />
+
+      <ConfirmDialog
+        open={panelToRemove !== null}
+        tone="destructive"
+        title={t('viewBuilder:removePanelConfirmTitle', 'Remove this panel?')}
+        description={t('viewBuilder:removePanelConfirmDescription', 'The {{primitive}} panel for {{entity}} will be removed from this view draft. Other panels stay.', {
+          primitive: panelToRemove?.primitive ?? '',
+          entity: panelToRemove?.querySpec.entity ?? '',
+        })}
+        confirmLabel={t('viewBuilder:removePanelConfirm', 'Remove panel')}
+        onConfirm={confirmRemovePanel}
+        onCancel={() => setPanelToRemove(null)}
       />
 
       {/* AI Composer modal (FR-AS-015, AC-AS-013, AC-AS-017, AC-AS-018) */}
