@@ -71,15 +71,21 @@ describe('FR-IMP-071 plans section', () => {
     renderIt();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
-  it('formC keeps the plan Save line and New plan outlined, as on dev', async () => {
+  it('C21 keeps the plan actions available while an edited line uses the same save path', async () => {
     const user = userEvent.setup();
     renderIt();
     await user.click(screen.getByRole('button', { name: 'Show lines' }));
-    for (const name of ['Save line', 'New plan']) {
-      const button = screen.getByRole('button', { name });
-      expect(button).toHaveClass('bg-card', 'border-border');
-      expect(button).not.toHaveClass('bg-primary');
-    }
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Budget category' }), 'Vehicle');
+    await user.type(screen.getByRole('textbox', { name: 'Planned amount' }), '12500');
+
+    expect(screen.getByRole('button', { name: 'Save line' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New plan' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit plan' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save line' }));
+
+    await waitFor(() => expect(h.m.savePlanLine.mutateAsync).toHaveBeenCalledWith({
+      planId: 'pl1', category: 'Vehicle', amount: 12500,
+    }));
   });
   it('FR-IMP-071 a failed plans read shows an error, not an empty list', () => {
     h.plans = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };

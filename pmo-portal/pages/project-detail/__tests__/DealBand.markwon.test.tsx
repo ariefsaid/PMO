@@ -127,25 +127,22 @@ beforeEach(() => {
 });
 
 describe('DealBand — mark-won shows the booked value (AC-IXD-DASH-005)', () => {
-  it('AC-1796: edits the independent % Get estimate for this opportunity', async () => {
+  it('C21: one Save sends both probability estimates through their existing save paths', async () => {
     const user = userEvent.setup();
     renderLens();
-    const input = screen.getByLabelText('Chance we win if the client proceeds (%)');
-    await user.clear(input);
-    await user.type(input, '40');
-    await user.click(input.closest('form')!.querySelector('button')!);
-    await vi.waitFor(() => expect(repositoryUpdateGetProbability).toHaveBeenCalledWith('d1', 0.4));
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['sales-pipeline', 'org-1'] });
-  });
+    await user.clear(screen.getByLabelText('Chance the project proceeds (%)'));
+    await user.type(screen.getByLabelText('Chance the project proceeds (%)'), '65');
+    await user.clear(screen.getByLabelText('Chance we win if the client proceeds (%)'));
+    await user.type(screen.getByLabelText('Chance we win if the client proceeds (%)'), '40');
 
-  it('AC-1796: edits the per-project % Go override separately from % Get', async () => {
-    const user = userEvent.setup();
-    renderLens();
-    const input = screen.getByLabelText('Chance the project proceeds (%)');
-    await user.clear(input);
-    await user.type(input, '65');
-    await user.click(input.closest('form')!.querySelector('button')!);
-    await vi.waitFor(() => expect(repositoryUpdateGoProbability).toHaveBeenCalledWith('d1', 0.65));
+    expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await vi.waitFor(() => {
+      expect(repositoryUpdateGoProbability).toHaveBeenCalledWith('d1', 0.65);
+      expect(repositoryUpdateGetProbability).toHaveBeenCalledWith('d1', 0.4);
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['sales-pipeline', 'org-1'] });
   });
 
   it('AC-1796: terminal opportunities do not expose editable probability controls', () => {
@@ -198,6 +195,9 @@ describe('DealBand — mark-won shows the booked value (AC-IXD-DASH-005)', () =>
   it('AC-IXD-DASH-005: the won-capture panel states the value being booked to contract value', async () => {
     renderLens();
     await userEvent.click(screen.getByRole('button', { name: /Mark won/i }));
+
+    expect(screen.getByRole('button', { name: 'Mark won' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm won' })).toBeInTheDocument();
 
     // The capture panel restates the figure the user is committing against.
     const refInput = screen.getByLabelText(/Customer contract reference/i);

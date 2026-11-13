@@ -332,6 +332,7 @@ describe('TimeAndMaterials', () => {
     ]);
     const { user } = renderPanel();
 
+    expect(screen.getByRole('button', { name: 'Add rate' })).toBeInTheDocument();
     const accept = await screen.findByRole('button', { name: 'Accept proposed (1)' });
     await user.click(accept);
 
