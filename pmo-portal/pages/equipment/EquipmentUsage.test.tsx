@@ -400,6 +400,13 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(screen.getByText('An Admin or Project Manager adds the machines.')).toBeInTheDocument();
   });
 
+  it('AC-EQU-017 the row total sums the week in the row unit', () => {
+    h.entries = [entry({}), entry({ id: 'e2', work_date: '2026-09-09', quantity: 2 })];
+    renderPage();
+    const row = screen.getByRole('row', { name: /Loader 1/ });
+    expect(within(row).getByText('6 hours')).toBeInTheDocument();
+  });
+
   it('AC-EQU-017 each day column is headed with the weekday and the day number', () => {
     renderPage();
     const heads = screen.getAllByRole('columnheader').map((c) => c.textContent?.trim());
