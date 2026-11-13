@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Button, EntityFormModal, ListState, RecordReference } from '@/src/components/ui';
+import { Button, EntityFormModal, ListState } from '@/src/components/ui';
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { getItem, listVersions, type GraphReadRequest, type GraphVersion } from '@/src/lib/m365/graphClient';
 import { buildVersionHistoryUrl, toReferenceInput, type MicrosoftReference } from '@/src/lib/m365/reference';
@@ -78,14 +78,14 @@ export function LinkedDocumentVersionsModal({ reference, pinned, onClose }: Vers
         )}
         {state.versions.length > 0 && (
           <ul aria-label={t('m365Documents.versions.list', 'Versions')} className="max-h-72 overflow-auto rounded-md border border-border">
-            {state.versions.map((version, index) => (
+            {state.versions.map((version) => (
               <li key={version.id} className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border px-3 py-2 text-control last:border-b-0">
-                <span className="font-medium text-foreground">{t('m365Documents.versions.version', 'Version {{number}}', { number: index + 1 })}</span>
+                {/* F1 (Director sitting 11-13): the version label MICROSOFT gives. Numbering by
+                    position invented a version number — Microsoft lists newest first, so the newest
+                    file read "Version 1", which nobody sees in SharePoint. */}
+                <span className="font-medium text-foreground">{t('m365Documents.versions.version', 'Version {{id}}', { id: version.id })}</span>
                 {version.modified_at && <span className="tabular text-control text-muted-foreground">{formatDay(version.modified_at)}</span>}
                 {pinned && pinned.id === version.id && <span className="text-control font-semibold text-foreground">{pinned.label}</span>}
-                {/* C20-3d: the opaque Graph id is reference material for the admin who must quote it,
-                    never the version's name — same closed Reference disclosure as 3b/3c. */}
-                <RecordReference ids={[version.id]} className="ml-auto" />
               </li>
             ))}
           </ul>
