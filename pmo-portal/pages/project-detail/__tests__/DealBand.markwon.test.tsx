@@ -155,17 +155,19 @@ describe('DealBand — mark-won shows the booked value (AC-IXD-DASH-005)', () =>
     const goSave = within(goForm).getByRole('button', { name: 'Save' });
     const getSave = within(getForm).getByRole('button', { name: 'Save' });
     expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(2);
+    expect(goSave).toBeEnabled();
+    expect(getSave).toBeEnabled();
 
     await user.click(goSave);
     await vi.waitFor(() => expect(repositoryUpdateGoProbability).toHaveBeenCalledWith('d1', 0.65));
+    await vi.waitFor(() => expect(probabilityToast).toHaveBeenCalledTimes(1));
     expect(repositoryUpdateGetProbability).not.toHaveBeenCalled();
-    expect(probabilityToast).toHaveBeenCalledTimes(1);
     expect(probabilityToast).toHaveBeenLastCalledWith('Opportunity estimate updated', '% Go: 65%', 'success');
 
-    await user.click(getSave);
+    await user.click(within(getInput.closest('form') as HTMLElement).getByRole('button', { name: 'Save' }));
     await vi.waitFor(() => expect(repositoryUpdateGetProbability).toHaveBeenCalledWith('d1', 0.4));
+    await vi.waitFor(() => expect(probabilityToast).toHaveBeenCalledTimes(2));
     expect(repositoryUpdateGoProbability).toHaveBeenCalledTimes(1);
-    expect(probabilityToast).toHaveBeenCalledTimes(2);
     expect(probabilityToast).toHaveBeenLastCalledWith('Opportunity estimate updated', '% Get: 40%', 'success');
     expect(invalidateQueries).toHaveBeenCalledTimes(2);
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['sales-pipeline', 'org-1'] });
