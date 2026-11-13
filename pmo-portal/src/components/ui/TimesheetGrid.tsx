@@ -223,9 +223,10 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
           return (
             <div className={tint(d.weekend)} style={{ minHeight: 54 }}>
               <TextField
-                label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: d.label })}
+                label=""
                 hideLabel
                 fullWidth
+                aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: d.label })}
                 value={value}
                 onChange={(next) => onCellChange?.(r.id, i, next)}
                 inputMode="decimal"
@@ -430,9 +431,10 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                       </span>
                       <div className="flex-1">
                         <TextField
-                          label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: day.label })}
+                          label=""
                           hideLabel
                           fullWidth
+                          aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: day.label })}
                           value={value}
                           onChange={(next) => onCellChange?.(r.id, i, next)}
                           inputMode="decimal"
@@ -586,10 +588,11 @@ const NoteCell: React.FC<{
     <TextArea
       ref={noteRef}
       rows={2}
-      label={t('timesheets.noteForProject', '{{project}} note', { project })}
+      label=""
       hideLabel
       wrapperClassName="min-w-0 flex-1"
       unstyled
+      aria-label={t('timesheets.noteForProject', '{{project}} note', { project })}
       placeholder={t('timesheets.addNotePlaceholder', 'Add a note')}
       title={value}
       value={value}
