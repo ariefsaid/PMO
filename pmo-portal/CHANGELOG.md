@@ -10,6 +10,32 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.39.0](https://github.com/ariefsaid/PMO/compare/v0.38.0...v0.39.0) (2026-11-13)
+
+
+### Features
+
+* **finance:** one budget-position read for every project ([25cec6f](https://github.com/ariefsaid/PMO/commit/25cec6f5979d473a94cafdd34c02bf3579af33ec))
+
+
+### Bug Fixes
+
+* **c8b:** page every asset read and stop printing totals a list cannot reach ([aa57691](https://github.com/ariefsaid/PMO/commit/aa57691cca8ed7cdf2063b561d548eff7ae62cb6))
+* **c8:** show truthful counts for paged lists ([92f3323](https://github.com/ariefsaid/PMO/commit/92f332312ecedc0fd70659eca72c4fb234eb94f3))
+* **contract:** billing tools keep what you typed when the contract data finishes loading ([ccc236d](https://github.com/ariefsaid/PMO/commit/ccc236dbf915c29a7cf26f2b183ce252725baf8d))
+* **finance:** invoiced figures agree across the contract tab, Reports, the home and the export ([8746847](https://github.com/ariefsaid/PMO/commit/874684783a322ea0dcb39d40a4604a0cb6f96687))
+* preserve contract tool subtree while loading ([7b0e430](https://github.com/ariefsaid/PMO/commit/7b0e430b887afad818e7ca8e5bd3c3fd0783db37))
+* **profile:** explain a disabled Save and restore the saved wording ([d365163](https://github.com/ariefsaid/PMO/commit/d365163c335f362b2c3ee14a46d4c5d503a82473))
+* **profile:** keep the no-changes line in the profile preferences catalogue ([8854ad9](https://github.com/ariefsaid/PMO/commit/8854ad9bf386b50447203b5610e4bac690fe565f))
+* repair stale state after C10 actions ([1c9ed6a](https://github.com/ariefsaid/PMO/commit/1c9ed6ab4ddf103ea6bd0f9cd24ae556f1e0f9e1))
+* reuse saved timesheet id before refetch ([9f1b2e7](https://github.com/ariefsaid/PMO/commit/9f1b2e7ab1259f2d66109f6f5d58ad4792436f9d))
+* **stock:** bring a refused post into view at 390 ([9e00c7b](https://github.com/ariefsaid/PMO/commit/9e00c7b2adf3c3178d98811c6fea528a6a1c000b))
+* **stock:** name the reorder columns in the level-in-force line ([fa54b6e](https://github.com/ariefsaid/PMO/commit/fa54b6ec137f99041479f0773d65ead87aa8ff24))
+* **timesheets:** Save then Submit on a new week no longer fails with a duplicate ([97f6dbb](https://github.com/ariefsaid/PMO/commit/97f6dbbccc2f958b366ab3c581ae588bd7764d6b))
+* **ui:** lists you can scan, stated meanings, Profile save state (all-screens batch 1) ([1499075](https://github.com/ariefsaid/PMO/commit/149907508f456cb70a6069a740671df35af6e9d2))
+* **ui:** say what nine controls mean where the copy was silent ([d5e6ac9](https://github.com/ariefsaid/PMO/commit/d5e6ac910b08baae182a9f024af73382c05e0c10))
+* **ui:** use default tone for reversible changes ([43b0377](https://github.com/ariefsaid/PMO/commit/43b0377ec94ef2540348bf5b1bfc59d45f674921))
+
 ## [0.38.0](https://github.com/ariefsaid/PMO/compare/v0.37.0...v0.38.0) (2026-11-12)
 
 
