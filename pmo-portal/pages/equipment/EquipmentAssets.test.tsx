@@ -139,6 +139,14 @@ describe('/equipment/assets list (S6.4)', () => {
     expect(screen.getByText('No assets yet')).toBeInTheDocument();
   });
 
+  it('AC-EQU-017 an empty register says what is absent in one line, not who adds machines', () => {
+    h.assetPages = { data: { pages: [{ rows: [], truncated: false }] }, total: 0, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByText('No assets yet')).toBeInTheDocument();
+    expect(screen.getByText('Add the machines crews log their hours against.')).toBeInTheDocument();
+    expect(screen.queryByText(/An Admin or Project Manager adds the machines/)).toBeNull();
+  });
+
   it('AC-EQU-017 activating a row opens that asset record', async () => {
     const user = userEvent.setup();
     renderAtRoutes();

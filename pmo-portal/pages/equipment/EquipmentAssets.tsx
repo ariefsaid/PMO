@@ -132,7 +132,7 @@ const EquipmentAssetsPage: React.FC = () => {
             loadMoreLabel={t('equipment:assets.loadMore', 'Load more')}
             state={rows.length === 0 ? 'empty' : undefined}
             emptyTitle={t('equipment:assets.empty', 'No assets yet')}
-            emptySub={t('equipment:assets.emptySub', 'An Admin or Project Manager adds the machines so crews can log their hours.')} />
+            emptySub={t('equipment:assets.emptySub', 'Add the machines crews log their hours against.')} />
         </>
       )}
       {creating && <NewAssetModal onClose={() => setCreating(false)} />}
