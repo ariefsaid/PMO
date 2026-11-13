@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -16,6 +16,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 const h = vi.hoisted(() => ({
   submitMutate: vi.fn(async () => undefined),
   cancelMutate: vi.fn(async () => undefined),
+  setReceivedDateMutate: vi.fn(async () => undefined),
   setEfakturMutate: vi.fn(async () => undefined),
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   payments: [] as unknown[],
@@ -54,7 +55,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     submitInvoice: { mutateAsync: h.submitMutate, isPending: false },
     cancelInvoice: { mutateAsync: h.cancelMutate, isPending: false },
-    setReceivedDate: { mutateAsync: vi.fn(), isPending: false },
+    setReceivedDate: { mutateAsync: h.setReceivedDateMutate, isPending: false },
     setEfaktur: { mutateAsync: h.setEfakturMutate, isPending: false },
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },
   }),
@@ -116,6 +117,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function mockPhoneViewport() {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches: !query.includes('min-width: 768px'),
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })));
+}
+
 const LocationProbe = () => {
   const location = useLocation();
   return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
@@ -144,6 +158,7 @@ const renderPage = (initialEntry?: string, embedded = false) => render(page(init
 beforeEach(async () => {
   h.submitMutate.mockClear();
   h.cancelMutate.mockReset().mockResolvedValue(undefined);
+  h.setReceivedDateMutate.mockReset().mockResolvedValue(undefined);
   h.setEfakturMutate.mockReset().mockResolvedValue(undefined);
   h.invoices.data = [];
   h.invoices.isError = false;
@@ -254,5 +269,79 @@ describe('Sales invoices — floor (receivables)', () => {
 
     expect(screen.getByRole('checkbox', { name: 'Select INV-A' })).not.toBeChecked();
     expect(screen.queryByRole('button', { name: 'Export selected' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Sales invoices — floor (sales-invoices-list)', () => {
+  it('floor: a failed list read offers Retry and refetches (floor-tests/sales-invoices-list.md 18)', async () => {
+    h.invoices.isError = true;
+    h.invoices.data = undefined;
+    const user = userEvent.setup();
+    renderPage('/sales-invoices');
+
+    const alert = screen.getAllByRole('alert').find((el) => el.textContent?.includes("Couldn't load sales invoices"));
+    expect(alert).toBeDefined();
+    await user.click(within(alert!).getByRole('button', { name: 'Retry' }));
+
+    expect(h.invoices.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("floor: a zero-match search's Clear all restores the rows (floor-tests/sales-invoices-list.md 18)", async () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-A', erp_outstanding_amount: 1_110_000 })];
+    const user = userEvent.setup();
+    renderPage('/sales-invoices?q=zzz-no-match');
+    expect(screen.getByText('No invoices match your filters')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Clear all' }));
+
+    expect(screen.getByRole('table').textContent).toContain('INV-A');
+  });
+
+  it('floor: on a phone Overdue only and Group by drive the URL and the rows (floor-tests/sales-invoices-list.md 21)', async () => {
+    mockPhoneViewport();
+    h.invoices.data = [
+      nativeInvoice({ id: 'si-a', pmo_number: 'INV-A', status: 'Unpaid', invoice_date: '2026-05-31', erp_payment_terms_days: 30, erp_outstanding_amount: 1_110_000 }),
+      nativeInvoice({ id: 'si-b', pmo_number: 'INV-B', status: 'Unpaid', invoice_date: '2026-10-01', erp_payment_terms_days: 19, erp_outstanding_amount: 1_110_000 }),
+    ];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices', true);
+
+    await user.click(screen.getByRole('button', { name: 'Overdue only' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('overdue=true');
+    expect(rowFor('INV-A')).toBeInTheDocument();
+    expect(screen.queryByText(/INV-B/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Client' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('group=client');
+  });
+
+  it("floor: the drawer's Record delivery primary saves this invoice's delivery date (floor-tests/sales-invoices-list.md 22)", async () => {
+    h.invoices.data = [nativeInvoice({ status: 'Submitted', pmo_number: 'INV-2610070001', erp_outstanding_amount: 1_110_000 })];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices&open=si-n1', true);
+    const drawer = await screen.findByRole('dialog');
+
+    await user.click(within(drawer).getByRole('button', { name: 'Record delivery' }));
+    const modal = await screen.findByRole('dialog', { name: 'Record delivery date' });
+    await user.type(within(modal).getByLabelText('Delivered'), '2026-10-11');
+    await user.click(within(modal).getByRole('button', { name: 'Save' }));
+
+    expect(h.setReceivedDateMutate).toHaveBeenCalledWith({ siId: 'si-n1', receivedDate: '2026-10-11' });
+  });
+
+  it('floor: the drawer Invoice actions menu records an e-Faktur for this invoice (floor-tests/sales-invoices-list.md 24)', async () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-2610070001', erp_outstanding_amount: 1_110_000, project_subject_to_vat: true })];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices&open=si-n1', true);
+    const drawer = await screen.findByRole('dialog');
+
+    await user.click(within(drawer).getByRole('button', { name: 'Invoice actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Record e-Faktur' }));
+    const modal = await screen.findByRole('dialog', { name: 'Record e-Faktur details' });
+    await user.type(within(modal).getByLabelText('e-Faktur number'), '010.001-26.12345678');
+    fireEvent.change(within(modal).getByLabelText('e-Faktur date'), { target: { value: '2026-09-28' } });
+    await user.click(within(modal).getByRole('button', { name: 'Save' }));
+
+    expect(h.setEfakturMutate).toHaveBeenCalledWith({ siId: 'si-n1', efakturNumber: '010.001-26.12345678', efakturDate: '2026-09-28' });
   });
 });
