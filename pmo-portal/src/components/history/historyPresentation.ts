@@ -8,7 +8,8 @@ export interface HistoryEventGroup {
   events: HistoryEvent[];
 }
 
-const isSystemEvent = (event: HistoryEvent): boolean => event.actorId === null;
+const isSystemEvent = (event: HistoryEvent): boolean =>
+  event.actorId === null && (event.op === 'insert' || event.op === 'update');
 
 /**
  * Group only adjacent system events whose payloads prove the same kind, op and instant.
@@ -16,7 +17,8 @@ const isSystemEvent = (event: HistoryEvent): boolean => event.actorId === null;
  * One system save writes one row per record it touched (a project's tasks updated together, records
  * created together), all at the same instant. Folding that run into one expandable entry answers
  * "what changed recently" without a page of near-identical lines. Display only: the group carries its
- * count and every member keeps its own row, actor, time, record name and details disclosure.
+ * count and every member keeps its own row, actor, time, record name and details disclosure. An audit
+ * trail row (no op) is never folded: it names one action and belongs on its own line.
  */
 export function groupHistoryEvents(events: readonly HistoryEvent[]): HistoryEventGroup[] {
   const groups: HistoryEventGroup[] = [];
