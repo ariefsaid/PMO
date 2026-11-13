@@ -209,4 +209,17 @@ it('FR-ODC-111 a connection that is not activated is not read either, and says h
   expect(h.records).not.toHaveBeenCalledWith(expect.anything(), true);
 });
 
+it('FR-ODC-111 the not-connected banner carries the Connect Odoo link to the Integrations page', () => {
+  h.conn.data = DISCONNECTED;
+  mount('Admin');
+  const banner = screen.getByTestId('odoo-connection-banner');
+  const link = within(banner.parentElement as HTMLElement).getByRole('link', { name: 'Connect Odoo' });
+  expect(link).toHaveAttribute('href', '/administration/integrations');
+});
+
+it('FR-ODC-111 a connected directory offers no Connect Odoo link', () => {
+  mount('Admin');
+  expect(screen.queryByRole('link', { name: 'Connect Odoo' })).not.toBeInTheDocument();
+});
+
 
