@@ -533,17 +533,17 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         )}
 
         {state === 'error' && (
-          <div className="rounded-b-lg border border-border bg-card">
-            <ListState
-              variant="error"
-              title={t('projectDetail.documents.errorTitle', "Couldn't load documents")}
-              sub={t(
-                'projectDetail.documents.errorSub',
-                'The request failed. Check your connection and try again.',
-              )}
-              onRetry={() => refetch()}
-            />
-          </div>
+          // The error alert brings its own destructive boundary (ListState), so it is not nested in
+          // a second frame; it sits under the assembly header as its own block.
+          <ListState
+            variant="error"
+            title={t('projectDetail.documents.errorTitle', "Couldn't load documents")}
+            sub={t(
+              'projectDetail.documents.errorSub',
+              'The request failed. Check your connection and try again.',
+            )}
+            onRetry={() => refetch()}
+          />
         )}
 
         {state === 'empty' && (
