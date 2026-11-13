@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import { ToastProvider } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
-const h = vi.hoisted(() => ({ create: vi.fn(), addLine: vi.fn(), capture: vi.fn(), cleanup: vi.fn(), may: vi.fn(() => true), navigate: vi.fn(), claims: [] as unknown[], readiness: 'ready' as string, choices: [] as unknown[], choicesArgs: [] as unknown[][], limit: null as number | null, setFloat: vi.fn(), adv: { pending: false, error: false, refetch: vi.fn() }, proj: { pending: false, error: false, refetch: vi.fn() } }));
+const h = vi.hoisted(() => ({ create: vi.fn(), addLine: vi.fn(), capture: vi.fn(), cleanup: vi.fn(), may: vi.fn(() => true), navigate: vi.fn(), claims: [] as unknown[], readiness: 'ready' as string, choices: [] as unknown[], choicesArgs: [] as unknown[][], limit: null as number | null, orgCurrency: { currency: 'IDR', isResolved: true, isError: false }, setFloat: vi.fn(), adv: { pending: false, error: false, refetch: vi.fn() }, proj: { pending: false, error: false, refetch: vi.fn() } }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => h.may }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1' } }) }));
 vi.mock('./expenses/useOwnAdvanceOptions', () => ({ useOwnAdvanceOptions: () => ({ options: [{ value: 'adv-1', label: 'EXP-1 · Rp 1' }], isPending: h.adv.pending, isError: h.adv.error, refetch: h.adv.refetch }) }));
@@ -15,7 +15,7 @@ vi.mock('@/src/hooks/useImprest', () => ({
   useImprestProcurementLimit: () => ({ data: h.limit }),
   useSetClaimFloat: () => ({ mutateAsync: h.setFloat }),
 }));
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrencyState: () => h.orgCurrency }));
 vi.mock('@/src/hooks/useExpensePostingReadiness', () => ({ useExpensePostingReadiness: () => ({ state: h.readiness, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useExpenseCapture', () => ({ useExpenseCapture: () => ({ capture: h.capture, cleanupUnlinkedAttachment: h.cleanup, recovery: null }) }));
 vi.mock('react-router', async (importOriginal) => { const actual = await importOriginal<typeof import('react-router')>(); return { ...actual, useNavigate: () => h.navigate }; });
@@ -28,7 +28,7 @@ afterEach(() => {
 
 const renderPage = () => render(<MemoryRouter initialEntries={['/expenses/new']}><ToastProvider><Routes><Route path="/expenses/new" element={<ExpenseClaimNew />} /></Routes></ToastProvider></MemoryRouter>);
 describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
- beforeEach(() => { vi.clearAllMocks(); h.cleanup.mockResolvedValue(undefined); h.may.mockReturnValue(true); h.claims = []; h.readiness = 'ready'; h.choices = []; h.choicesArgs = []; h.limit = null; h.adv.pending = false; h.adv.error = false; h.proj.pending = false; h.proj.error = false; h.setFloat.mockResolvedValue(undefined); h.create.mockResolvedValue({ id: 'claim-1' }); h.addLine.mockResolvedValue({}); h.capture.mockResolvedValue('claim-1'); });
+ beforeEach(() => { vi.clearAllMocks(); h.cleanup.mockResolvedValue(undefined); h.may.mockReturnValue(true); h.claims = []; h.readiness = 'ready'; h.choices = []; h.choicesArgs = []; h.limit = null; h.orgCurrency = { currency: 'IDR', isResolved: true, isError: false }; h.adv.pending = false; h.adv.error = false; h.proj.pending = false; h.proj.error = false; h.setFloat.mockResolvedValue(undefined); h.create.mockResolvedValue({ id: 'claim-1' }); h.addLine.mockResolvedValue({}); h.capture.mockResolvedValue('claim-1'); });
  it('AC-002 #1325: new expense project options show the short name only', () => { renderPage(); expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('p1'); });
  it('keeps the primary action in ONE place: the sticky form footer, Cancel to its left, no copy at the top', () => { renderPage(); const saves = screen.getAllByRole('button', { name: 'Save' }); expect(saves).toHaveLength(1); expect(saves[0]).toHaveAttribute('type', 'submit'); const footer = screen.getByTestId('form-footer'); expect(footer).toContainElement(saves[0]); expect(footer.className).toContain('sticky'); expect(footer.className).toContain('bottom-[var(--phone-nav-height)]'); const cancel = screen.getByRole('button', { name: 'Cancel' }); expect(cancel.compareDocumentPosition(saves[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); });
  it('AC-EXP1-001 renders editable header, lines and receipts without a separate claim amount', () => { renderPage(); expect(screen.getByLabelText(/Title/)).toBeInTheDocument(); expect(screen.getByLabelText('Project')).toBeInTheDocument(); expect(screen.getByLabelText('Budget category')).toBeInTheDocument(); expect(screen.getByLabelText('Purpose')).toBeInTheDocument(); expect(screen.getByText('Lines')).toBeInTheDocument(); expect(screen.getByLabelText('Receipt (optional)')).toBeInTheDocument(); expect(screen.getAllByLabelText(/^Amount/)).toHaveLength(1); });
@@ -185,7 +185,7 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Diesel' } });
     fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: amount } });
   };
-  beforeEach(() => { vi.clearAllMocks(); h.may.mockReturnValue(true); h.claims = []; h.readiness = 'ready'; h.choices = FLOATS; h.choicesArgs = []; h.limit = null; h.setFloat.mockResolvedValue(undefined); h.capture.mockResolvedValue('claim-1'); h.cleanup.mockResolvedValue(undefined); });
+  beforeEach(() => { vi.clearAllMocks(); h.may.mockReturnValue(true); h.claims = []; h.readiness = 'ready'; h.choices = FLOATS; h.choicesArgs = []; h.limit = null; h.orgCurrency = { currency: 'IDR', isResolved: true, isError: false }; h.setFloat.mockResolvedValue(undefined); h.capture.mockResolvedValue('claim-1'); h.cleanup.mockResolvedValue(undefined); });
 
   it('AC-IMP-084 Charge to site float lists only floats on the chosen project', () => {
     renderPage();
@@ -256,6 +256,23 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     expect(screen.getByText(/procurement limit/i)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '1500000' } });
     expect(screen.queryByText(/procurement limit/i)).toBeNull();
+  });
+
+  it('C5 marks fallback-float and procurement-limit amounts unknown until org currency resolves', () => {
+    h.orgCurrency = { currency: 'USD', isResolved: false, isError: false };
+    h.choices = [{ ...FLOATS[0], currency: null, project_name: 'North Terminal' }];
+    h.limit = 100;
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
+    fireEvent.change(screen.getByLabelText('Budget category'), { target: { value: 'Vehicle' } });
+    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
+    fill('200');
+
+    const note = screen.getByRole('note');
+    expect(note).toHaveTextContent('Remaining this month for this category: Unknown.');
+    expect(note).toHaveTextContent('Above the procurement limit (Unknown)');
+    expect(note).not.toHaveTextContent('$');
+    expect(note).not.toHaveTextContent('IDR');
   });
 
   it('AC-IMP-084 a chosen float is charged to the saved claim', async () => {

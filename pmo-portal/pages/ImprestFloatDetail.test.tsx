@@ -284,7 +284,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     const dialog = await screen.findByRole('alertdialog');
     expect(h.m.transitionReplenishment.mutateAsync).not.toHaveBeenCalled();
-    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await user.click(within(dialog).getAllByRole('button', { name: 'Cancel' })[1]);
     await waitFor(() => expect(h.m.transitionReplenishment.mutateAsync).toHaveBeenCalledWith({ id: 'r1', to: 'Cancelled' }));
   });
 

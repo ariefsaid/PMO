@@ -434,13 +434,13 @@ export interface MyTask {
   end_date: string | null;
   /**
    * C13 (DS my-tasks #4): the priority the record already holds — the queue shows it, so two tasks
-   * due the same day can be ordered by what the record knows. NULL = no priority set (a real state,
+   * due the same day can be ordered by what the record knows. null = no priority set (a real state,
    * never rendered as a made-up "Normal").
    */
   priority: TaskPriority | null;
   /**
    * C13 (DS my-tasks #1): an archived task stays in the assignee's queue (its project hides it), so
-   * the row must SAY it is archived instead of looking like ordinary open work.
+   * the row must SAY it is archived instead of looking like ordinary open work. null = live.
    */
   archived_at: string | null;
 }
