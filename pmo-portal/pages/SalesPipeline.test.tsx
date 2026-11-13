@@ -985,3 +985,54 @@ describe('SalesPipeline table on the shared contract (T4)', () => {
     expect(within(row).getByText(formatCurrency(1200000, 'USD'))).toBeInTheDocument();
   });
 });
+
+// Floor (floor-tests/sales-pipeline.md): the controls a person presses on this page that had no
+// test. Written against the code as it stands, so a later edit that removes the control reddens.
+describe('SalesPipeline floor: phone figures, the attention rows, the won-deal retry', () => {
+  it('floor #26: a phone user opens the Pipeline figures disclosure, sees both figures, and closes it', async () => {
+    const user = userEvent.setup();
+    viewport.isDesktop = false;
+    // One currency, so the figures have a value: the disclosure's job is the tap, not the suppression.
+    pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD') };
+    renderPage('/sales?view=kanban');
+
+    const disclosure = screen.getByTestId('sales-phone-summary-details');
+    const toggle = within(disclosure).getByText('Pipeline figures');
+    expect(disclosure).not.toHaveAttribute('open');
+
+    await user.click(toggle);
+    expect(disclosure).toHaveAttribute('open');
+    expect(within(disclosure).getByText('Weighted forecast')).toBeInTheDocument();
+    expect(within(disclosure).getByText('Open value')).toBeInTheDocument();
+    expect(within(disclosure).getByRole('heading', { name: /Needs you/ })).toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(disclosure).not.toHaveAttribute('open');
+  });
+
+  it('floor #6: a stale deal listed in Needs attention opens that deal’s quick view', async () => {
+    const user = userEvent.setup();
+    const stale = {
+      id: 'stale-1',
+      name: 'Stale Harbour Deal',
+      short_name: null,
+      client_name: 'Harbour Co',
+      status: 'Leads' as const,
+      contract_value: 250000,
+      currency: 'USD',
+      win_probability: 0.1,
+      last_update: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    pipelineState.data = { stages: seedStages, projects: [stale] };
+    renderPage('/sales?view=kanban');
+
+    const attention = screen.getByLabelText('Needs attention');
+    expect(within(attention).getByText('Untouched for 40 days')).toBeInTheDocument();
+
+    await user.click(within(attention).getByRole('button', { name: /Stale Harbour Deal/ }));
+    expect(await screen.findByRole('button', { name: 'Open deal' })).toBeInTheDocument();
+    const drawer = screen.getByRole('dialog');
+    expect(drawer).toHaveTextContent('Stale Harbour Deal');
+    expect(within(drawer).getByRole('status')).toHaveTextContent('Untouched for 40 days');
+  });
+});
