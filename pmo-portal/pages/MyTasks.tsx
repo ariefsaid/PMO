@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { LateText, ListState, PageHeader, SearchMini, StatusPill, SelectField, useToast, ViewToggle, isMostUrgentLateRow } from '@/src/components/ui';
+import { LateText, ListState, PageHeader, SearchMini, StatusPill, SelectField, Icon, useToast, ViewToggle, isMostUrgentLateRow } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
@@ -107,6 +107,16 @@ const useZonedToday = useOrgToday;
 // DB enum values (database.types.ts: "To Do" | "In Progress" | "Done" | "Blocked").
 // Must match the `task_status` Postgres enum — see TasksTab.tsx for the same list.
 const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
+
+/**
+ * Judging my-tasks #3 (Example: ERPNext list — row actions quiet): a row's Comments and Log time
+ * are icon controls, not two outlined word buttons repeating down 17 rows. They keep the row's one
+ * control height (38px, DESIGN.md default; compact 30px is for dense toolbars) and take their 44px
+ * coarse-pointer hit area from `.touch-target`. Not `buttonClasses('ghost', 'icon')`: that size is
+ * the 30px compact square, and this row already holds a 38px status select.
+ */
+const ROW_ACTION_CLASS =
+  'touch-target inline-flex size-[var(--control-height)] shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color] duration-[var(--motion-press)] hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 const MyTasks: React.FC = () => {
   const { t } = useTranslation();
@@ -441,26 +451,31 @@ const MyTasks: React.FC = () => {
                     </div>
                     {/* Action cluster: Log time + status control. */}
                     <div className="flex flex-wrap items-center gap-2 min-[560px]:shrink-0 min-[560px]:justify-end">
-                      {/* #790: comments for ANY task of mine — also the only surface for a project-less task. */}
+                      {/* #790: comments for ANY task of mine — also the only surface for a project-less task.
+                          Judging my-tasks #3: an icon control; its accessible name keeps the row it opens. */}
                       <button
                         type="button"
                         aria-label={`${t('comments.open', 'Comments')} ${task.name}`}
+                        title={t('comments.open', 'Comments')}
                         onClick={() => setCommentsTask({ id: task.id, name: task.name })}
-                        className="inline-flex h-7 items-center max-md:h-11 rounded-lg border border-input bg-background px-2.5 text-control font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className={ROW_ACTION_CLASS}
                       >
-                        {t('comments.open', 'Comments')}
+                        <Icon name="message" className="size-4" />
                       </button>
                       {/* AC-IFW-TASKS-02: Log time → Timesheets pre-filled with this task's project.
                           ⚑ FR-FCT-042: absent entirely on a project-less task. `timesheet_entries`
                           keeps `project_id NOT NULL` (FR-FCT-005), so the destination CANNOT accept
                           this task — offering the control and failing at the far end would be worse
-                          than not offering it. */}
+                          than not offering it. Judging my-tasks #3: an icon link whose name is
+                          unchanged ("Log time"), so nothing has to be relearned. */}
                       {task.project_id ? (
                         <Link
                           to={`/timesheets?project=${task.project_id}`}
-                          className="inline-flex h-7 items-center max-md:h-11 rounded-lg border border-input bg-background px-2.5 text-control font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={t('myTasks.logTime', 'Log time')}
+                          title={t('myTasks.logTime', 'Log time')}
+                          className={ROW_ACTION_CLASS}
                         >
-                          {t('myTasks.logTime', 'Log time')}
+                          <Icon name="clock" className="size-4" />
                         </Link>
                       ) : null}
                       {/* Fix #6 (AC-FIX6-NAV-02/03): use SelectField (app's shared status
