@@ -36,11 +36,11 @@ export default function MasterDataPage() {
   useEffect(() => { setPage(1); setTyped(''); setSearch(''); }, [kind]);
 
   const conn = useOdooConnection().data;
-  // Without an active, activated connection nothing has been read: the banner is the whole state (an unread directory is unknown, never 0).
+  // The mirror read runs whatever the connection state, as on dev: a disconnected org still holds its last-synced rows (see the report's carve-out evidence).
   const readable = !conn || (conn.status === 'active' && conn.activated);
   const blocked = kind && FINANCIAL.includes(kind) && !may.viewFinancialDirectory;
   const reasons = kind && conn?.capabilities ? missingForKind(kind, conn.capabilities.missing ?? []) : [];
-  const enabled = Boolean(kind) && !blocked && reasons.length === 0 && readable;
+  const enabled = Boolean(kind) && !blocked && reasons.length === 0;
   const isWarehouses = kind === 'warehouse';
   const list = useMasterRecords({ kind: kind ?? 'product', search: search || undefined, page, pageSize: PAGE_SIZE, includeInactive }, enabled);
   const rows = useMemo(() => list.data?.rows ?? [], [list.data]);
@@ -53,6 +53,10 @@ export default function MasterDataPage() {
 
   const unitName = useMemo(() => new Map((units.data?.rows ?? []).map((u) => [u.external_id, u.name])), [units.data]);
   const total = list.data?.total ?? 0;
+  // A disconnected page with nothing mirrored is the banner's whole state (an unread directory is never "0"); last-synced rows still show.
+  const showList = readable || rows.length > 0;
+  // The count is an answered total: while the first page is still in flight there is no number yet.
+  const count = showList && list.data ? list.data.total : undefined;
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
 
@@ -93,7 +97,7 @@ export default function MasterDataPage() {
   return (
     <ListPage
       title={t('administration:odoo.master.title', 'Odoo directories')}
-      count={enabled ? total : undefined}
+      count={count}
       banner={conn && (
         <div>
           <OdooConnectionBanner connection={conn.connection} binding={{ status: conn.status, activated: conn.activated }} />
@@ -110,13 +114,16 @@ export default function MasterDataPage() {
     >
       <div className="flex flex-wrap items-center gap-x-3 border-b border-border">
         <Tabs items={tabs} value={kind} onChange={(k) => navigate(`/master-data/${k}`)} ariaLabel={t('administration:odoo.master.tabs', 'Directories')} idBase="odoo-master" className="mb-0 min-w-0 flex-1 border-b-0" />
-        <div className="w-full shrink-0 py-1.5 sm:w-56">
-          <SearchMini aria-label={t('administration:odoo.master.search', 'Search code or name')} placeholder={t('administration:odoo.master.search', 'Search code or name')} value={typed} onChange={(e) => setTyped(e.target.value)} type="search" />
-        </div>
+        {/* The search belongs to a list: with nothing to list (a disconnected page with nothing mirrored) it is not drawn. */}
+        {showList && (
+          <div className="w-full shrink-0 py-1.5 sm:w-56">
+            <SearchMini aria-label={t('administration:odoo.master.search', 'Search code or name')} placeholder={t('administration:odoo.master.search', 'Search code or name')} value={typed} onChange={(e) => setTyped(e.target.value)} type="search" />
+          </div>
+        )}
       </div>
 
       <div role="tabpanel" id={tabPanelId('odoo-master', kind)} aria-labelledby={tabId('odoo-master', kind)}>
-      {!readable ? null : reasons.length > 0 ? (
+      {!showList ? null : reasons.length > 0 ? (
         <div role="status" className="mt-3 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/12 px-3.5 py-3 text-control">
           <Icon name="alert" className="mt-px size-[17px] shrink-0" aria-hidden="true" />
           <div>
