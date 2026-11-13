@@ -85,15 +85,19 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
         const total = amounts.reduce((sum, amount) => sum + Math.max(amount, 0), 0);
         // The shared one-row split bar names the buckets it paints, in words, for a reader who cannot see
         // it; a bucket with no known amount paints nothing and is not named (the legend still lists it).
-        const barParts: SplitBarPart[] = bucketKeys.map((key, index) => ({
-          key,
-          amount: amounts[index] ?? 0,
-          color: bucketColors[key],
-          label: labels[key],
-          amountLabel: formatCurrency((amounts[index] ?? 0) / 100, currency),
-          testId: `ageing-segment-${currency}-${key}`,
-          data: { 'data-bucket': key },
-        }));
+        const barParts: SplitBarPart[] = bucketKeys.map((key, index) => {
+          const amountLabel = formatCurrency((amounts[index] ?? 0) / 100, currency);
+          return {
+            key,
+            amount: amounts[index] ?? 0,
+            color: bucketColors[key],
+            label: labels[key],
+            amountLabel,
+            // The bucket and its amount stay reachable on hover, as the chart's tooltip was.
+            title: `${labels[key]} · ${amountLabel}`,
+            testId: `ageing-segment-${currency}-${key}`,
+          };
+        });
         return (
           <div key={currency} className="mb-4 min-w-0 last:mb-0">
             <div className="mb-1 text-control font-medium text-muted-foreground">{currency}</div>
@@ -102,8 +106,8 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
               parts={barParts}
               className="h-9 rounded-md"
               trackClassName="absolute inset-x-0 top-1/2 h-6 -translate-y-1/2"
+              scaleMax={total}
               testId={`ageing-bar-${currency}`}
-              data={{ 'data-scale-max': total }}
             />
             <div data-testid={`ageing-legend-${currency}`} className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-x-3 gap-y-2">
               {bucketKeys.map((key, index) => {

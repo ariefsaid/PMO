@@ -12,10 +12,10 @@ export interface SplitBarPart {
   label: string;
   /** The same part's amount as the reader sees it ("$100K", "IDR 200"), currency included. */
   amountLabel: string;
+  /** Optional words on hover ("Over 90 days · IDR 200"); omitted, the segment carries no tooltip. */
+  title?: string;
   /** Optional test id for the painted segment, for the caller's own tests. */
   testId?: string;
-  /** Optional `data-*` attributes the segment carries (a caller's tests may read them). */
-  data?: Record<string, string | number | undefined>;
 }
 
 export interface SplitBarProps {
@@ -31,10 +31,10 @@ export interface SplitBarProps {
   gapPx?: number;
   /** Painted instead of nothing when no part has a known amount: a caller's empty track, which names nothing. */
   emptyClassName?: string;
+  /** The known whole the parts are shares of, published as `data-scale-max` for a caller's own checks. */
+  scaleMax?: number;
   /** Test id for the bar's box (a caller's own tests read it). */
   testId?: string;
-  /** Optional `data-*` attributes the bar's box carries (a caller's tests may read them). */
-  data?: Record<string, string | number | undefined>;
 }
 
 /**
@@ -50,15 +50,14 @@ const barPercent = (value: number) => Number(Math.max(value, 0).toFixed(4));
  * known there is no bar to draw. The paint is derived from one contiguous run of edges (not from each
  * part's own rounded share), so the parts tile the column exactly and share every join.
  */
-export const SplitBar: React.FC<SplitBarProps> = ({ label, parts, className, trackClassName = 'absolute inset-0', gapPx = 0, emptyClassName, testId, data }) => {
+export const SplitBar: React.FC<SplitBarProps> = ({ label, parts, className, trackClassName = 'absolute inset-0', gapPx = 0, emptyClassName, scaleMax, testId }) => {
   const painted = parts.filter((part) => part.amount > 0);
   const total = painted.reduce((sum, part) => sum + part.amount, 0);
-  const boxData = { ...(data ?? {}) };
 
   if (painted.length === 0 || total <= 0) {
     // Nothing known to draw: no picture, so no text alternative and no painted part. A caller that keeps
     // an empty track on screen passes `emptyClassName`; that track claims nothing.
-    return emptyClassName ? <div data-testid={testId} {...boxData} className={cn(className, emptyClassName)} /> : null;
+    return emptyClassName ? <div data-testid={testId} className={cn(className, emptyClassName)} /> : null;
   }
 
   // One contiguous run of edges across the bar: part i starts on edge i and ends on edge i+1, so each
@@ -76,24 +75,31 @@ export const SplitBar: React.FC<SplitBarProps> = ({ label, parts, className, tra
   const segments = painted.map((part, index) => {
     const start = index === 0 ? 0 : (edges[index - 1] ?? 0);
     const end = edges[index] ?? 0;
-    // A gap is a deliberate sliver of the surface between parts: each part stops that far short of its
-    // right edge, and the last part closes on the box's own right edge so the bar still spans it exactly.
-    const width = gapPx > 0
-      ? index === lastIndex ? `calc(100% - ${start}%)` : `calc(${barPercent(end - start)}% - ${gapPx}px)`
-      : `${barPercent(end - start)}%`;
+    let width = `${barPercent(end - start)}%`;
+    if (gapPx > 0) {
+      // A gap is a deliberate sliver of the surface between parts: each part stops that far short of its
+      // right edge, and the last part closes on the box's own right edge so the bar still spans it exactly.
+      width = index === lastIndex ? `calc(100% - ${start}%)` : `calc(${barPercent(end - start)}% - ${gapPx}px)`;
+    }
     return { part, start, width };
   });
 
   return (
-    <div role="img" aria-label={`${label}. ${painted.map((part) => `${part.label} ${part.amountLabel}`).join(', ')}`} data-testid={testId} {...boxData} className={cn('relative min-w-0 overflow-hidden', className)}>
+    <div
+      role="img"
+      aria-label={`${label}. ${painted.map((part) => `${part.label} ${part.amountLabel}`).join(', ')}`}
+      data-testid={testId}
+      data-scale-max={scaleMax}
+      className={cn('relative min-w-0 overflow-hidden', className)}
+    >
       <div className={trackClassName}>
         {segments.map(({ part, start, width }) => (
           <span
             key={part.key}
             data-testid={part.testId}
-            {...(part.data ?? {})}
+            data-share={barPercent(part.amount / total)}
             aria-hidden="true"
-            title={`${part.label} · ${part.amountLabel}`}
+            title={part.title}
             className="absolute inset-y-0"
             style={{
               left: `${start}%`,
