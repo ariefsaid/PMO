@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DataTable, ListPage, ListState, SelectField, TextField, UnsavedChangesDialog, useToast, type Column } from '@/src/components/ui';
+import { Button, buttonClasses, ConfirmDialog, DataTable, ListPage, ListState, SelectField, TextField, UnsavedChangesDialog, useToast, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { StockError } from '@/src/components/stock/StockError';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
@@ -29,6 +30,8 @@ const StockReorder: React.FC = () => {
   const errorText = useStockErrorText();
   const loc = getNumberLocale();
   const canEdit = may('edit', 'reorderLevel', { record: { viewOnly: realRole !== effectiveRole } });
+  // The same create gate the procurement list uses (pages/Procurement.tsx:153): anyone may raise a need.
+  const canRequestPurchase = may('create', 'procurement');
 
   const { values: filters, setFilters } = useUrlFilters(['item', 'warehouse']);
   const itemId = filters.item;
@@ -109,22 +112,32 @@ const StockReorder: React.FC = () => {
       { key: 'level', header: t('reorder.worklist.columns.level'), align: 'num', cell: (r) => <span className="tabular-nums">{q(r.reorderLevel)} <span className="text-muted-foreground">{r.unitCode}</span></span>, exportValue: (r) => r.reorderLevel },
       { key: 'qty', header: t('reorder.worklist.columns.orderQuantity'), align: 'num', cell: (r) => <span className="tabular-nums">{r.reorderQuantity ? <>{q(r.reorderQuantity)} <span className="text-muted-foreground">{r.unitCode}</span></> : ''}</span>, exportValue: (r) => r.reorderQuantity ?? '' },
     ];
-    if (canEdit) {
+    if (canEdit || canRequestPurchase) {
       cols.push({
         key: 'actions', header: t('reorder.worklist.columns.actions'), align: 'num',
         cell: (r) => (
-          <div className="flex justify-end gap-1">
-            <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowEdit', { item: r.itemCode })}
-              onClick={() => pick(r.itemId, r.warehouseId, () => startEdit(r.reorderLevel, r.reorderQuantity))}>{t('reorder.worklist.edit')}</Button>
-            <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowClear', { item: r.itemCode })}
-              onClick={() => setClearTarget({ warehouseId: r.warehouseId, itemId: r.itemId, label: `${r.itemCode} - ${r.itemName}`, warehouseCode: r.warehouseCode })}>{t('reorder.worklist.clear')}</Button>
+          <div className="flex flex-wrap items-center justify-end gap-1">
+            {canEdit && (<>
+              <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowEdit', { item: r.itemCode })}
+                onClick={() => pick(r.itemId, r.warehouseId, () => startEdit(r.reorderLevel, r.reorderQuantity))}>{t('reorder.worklist.edit')}</Button>
+              <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowClear', { item: r.itemCode })}
+                onClick={() => setClearTarget({ warehouseId: r.warehouseId, itemId: r.itemId, label: `${r.itemCode} - ${r.itemName}`, warehouseCode: r.warehouseCode })}>{t('reorder.worklist.clear')}</Button>
+            </>)}
+            {/* C9: the worklist's next step. The need form reads only ?project and ?have (ProcurementCreate.tsx:110,122),
+                so the need type is the one thing a short row can carry today; the item is picked again in the form. */}
+            {canRequestPurchase && (
+              <Link to="/procurement/new?have=need" className={buttonClasses('outline', 'sm', 'whitespace-nowrap')}
+                aria-label={t('reorder.worklist.rowRequestPurchase', 'Request purchase for {{item}}', { item: r.itemCode })}>
+                {t('reorder.worklist.requestPurchase', 'Request purchase')}
+              </Link>
+            )}
           </div>
         ),
       });
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- q follows loc
-  }, [t, loc, canEdit]);
+  }, [t, loc, canEdit, canRequestPurchase]);
 
   const whOption = (w: { id: string; code: string; name: string }) => ({ value: w.id, label: `${w.code} - ${w.name}` });
 

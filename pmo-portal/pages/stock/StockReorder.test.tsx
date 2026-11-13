@@ -207,6 +207,22 @@ describe('StockReorder', () => {
     expect(screen.queryByRole('button', { name: /create/i })).not.toBeInTheDocument();
   });
 
+  it('C9 a short row offers one next step that opens the procurement need form', async () => {
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Below reorder level' });
+    const link = within(table).getByRole('link', { name: 'Request purchase for CAB' });
+    expect(link).toHaveTextContent('Request purchase');
+    expect(link).toHaveAttribute('href', '/procurement/new?have=need');
+  });
+
+  it('C9 a role that cannot change levels still gets the next step on a short row', async () => {
+    renderPage('Engineer');
+    const table = await screen.findByRole('table', { name: 'Below reorder level' });
+    expect(within(table).getByRole('link', { name: 'Request purchase for CAB' })).toBeInTheDocument();
+    expect(within(table).queryByRole('button', { name: 'Edit level for CAB' })).not.toBeInTheDocument();
+    expect(within(table).queryByRole('button', { name: 'Clear level for CAB' })).not.toBeInTheDocument();
+  });
+
   it('PQ-6 an Engineer sees the suggestion and the worklist but no Accept, Edit or Clear', async () => {
     renderPage('Engineer');
     await pickPair();
