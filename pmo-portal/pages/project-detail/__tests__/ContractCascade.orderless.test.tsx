@@ -122,7 +122,9 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
 
     const view = render(tree());
     await user.type(screen.getByLabelText('Contract reference'), 'typed contract note');
-    expect(screen.getByText('IDR 500K')).toBeVisible();
+    const contractPanel = screen.getByRole('heading', { name: 'Contract' }).closest('section');
+    expect(contractPanel).not.toBeNull();
+    expect(within(contractPanel!).getByText('IDR 500K')).toBeVisible();
 
     h.boq = { data: undefined, isPending: false, isError: true, refetch: refetchBoq };
     h.billing = { data: undefined, isPending: false, isError: false, refetch: refetchBilling };
