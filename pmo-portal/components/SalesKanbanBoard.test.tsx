@@ -42,7 +42,7 @@ describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
     const card = screen.getByTestId('project-card');
     expect(within(card).queryByTestId('tax-basis')).toBeNull();
     expect(within(card).queryByText(/chance$/)).toBeNull();
-    expect(within(card).getByLabelText(/Chance 10%; % Go 40%, % Get 25%/)).toBeInTheDocument();
+    expect(within(card).getByLabelText(/Chance to win 10%; % Go 40%, % Get 25%/)).toBeInTheDocument();
   });
 
   it('SUB-H keeps full identity, value, basis and Go/Get estimates visible with no details disclosure', async () => {
@@ -333,7 +333,7 @@ describe('the chance badge states the percent once', () => {
   it('reads "2.5%" on a board card, with the same number in its accessible name', () => {
     render(<SalesKanbanBoard projects={[lowChance('chance-card', 'Low chance deal')]} onOpen={vi.fn()} />);
     const badge = within(screen.getByText('Low chance deal').closest('[data-testid="project-card"]') as HTMLElement)
-      .getByLabelText(/^Chance 2\.5%/);
+      .getByLabelText(/^Chance to win 2\.5%/);
     expect(badge.textContent).toBe('2.5%');
   });
 
@@ -342,7 +342,7 @@ describe('the chance badge states the percent once', () => {
       React.ComponentProps<typeof SalesKanbanBoard> & { presentation: 'list' }
     >;
     render(<CompactBoard projects={[lowChance('chance-row', 'Low chance row')]} onOpen={vi.fn()} presentation="list" />);
-    const badge = within(screen.getByTestId('project-card')).getByLabelText(/^Chance 2\.5%/);
+    const badge = within(screen.getByTestId('project-card')).getByLabelText(/^Chance to win 2\.5%/);
     expect(badge.textContent).toBe('2.5%');
   });
 });

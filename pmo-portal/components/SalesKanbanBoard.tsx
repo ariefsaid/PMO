@@ -163,7 +163,7 @@ const DealCard: React.FC<{
               {!(hideExclusiveTaxBasis && project.tax_treatment === 'exclusive') && <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />}
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
-              <Badge aria-label={t('sales:chanceBadgeAria', 'Chance {{chance}}; % Go {{go}}, % Get {{get}}', {
+              <Badge aria-label={t('sales:chanceBadgeAria', 'Chance to win {{chance}}; % Go {{go}}, % Get {{get}}', {
                 chance: formatPercent(dealChance(project)),
                 go: formatPercent(project.go_probability ?? project.win_probability),
                 get: formatPercent(project.get_probability ?? 1),
@@ -228,7 +228,7 @@ const CompactDealCard: React.FC<{
               />}
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
-              <Badge aria-label={t('sales:chanceBadgeAria', 'Chance {{chance}}; % Go {{go}}, % Get {{get}}', {
+              <Badge aria-label={t('sales:chanceBadgeAria', 'Chance to win {{chance}}; % Go {{go}}, % Get {{get}}', {
                 chance: formatPercent(dealChance(project)),
                 go: formatPercent(project.go_probability ?? project.win_probability),
                 get: formatPercent(project.get_probability ?? 1),
