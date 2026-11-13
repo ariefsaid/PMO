@@ -342,6 +342,23 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     await waitFor(() => expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'e1', fuel_litres: 12 })));
   });
 
+  it('AC-EQU-017 keeps the fuel and trips control in the 1440px table and opens its rows', async () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
+      matches: query.includes('768px'), media: query, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    renderPage();
+
+    const table = screen.getByRole('table', { name: 'Equipment usage this week' });
+    expect(Number.parseFloat(table.style.minWidth)).toBeLessThanOrEqual(1168);
+    const toggle = screen.getByRole('button', { name: 'Fuel and trips for Loader 1 · EQU P1' });
+    await userEvent.setup().click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('row', { name: /Fuel \(litres\)/ })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /^Trips/ })).toBeInTheDocument();
+  });
+
   it('AC-EQU-017 Add row needs a machine and a project before the row can be added', async () => {
     h.entries = [];
     const user = userEvent.setup();

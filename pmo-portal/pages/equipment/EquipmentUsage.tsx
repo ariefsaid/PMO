@@ -196,7 +196,9 @@ const EquipmentUsagePage: React.FC = () => {
   const addRowTakesTheFill = !submittable && !noMachines;
 
   const columns: Column<GridRow>[] = [
-    { key: 'asset', header: t('equipment:usage.columns.equipment', 'Equipment'), kind: 'primary', rowHeader: true, stickyLeft: true, size: 170, minSize: 140,
+    // Keep this semantic row header at its declared width; the shared `primary` kind enforces a
+    // 240px minimum that pushes the Fuel and trips control outside the 1440px usage grid.
+    { key: 'asset', header: t('equipment:usage.columns.equipment', 'Equipment'), rowHeader: true, stickyLeft: true, size: 170, minSize: 140,
       cell: (r) => r.field === 'quantity'
         ? <span className="font-medium">{assetName(r.assetId)}{r.kind === 'standby' && <span className="ml-1 text-sm font-normal text-muted-foreground">{t('equipment:usage.standby', 'standby')}</span>}</span>
         : <span className="pl-3 text-sm text-muted-foreground">{r.field === 'fuel_litres' ? t('equipment:usage.fuel', 'Fuel (litres)') : t('equipment:usage.trips', 'Trips')}</span> },
