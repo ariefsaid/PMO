@@ -206,7 +206,7 @@ describe('DealBand — mark-won shows the booked value (AC-IXD-DASH-005)', () =>
   it('AC-IXD-DASH-005: the won-capture panel states the value being booked to contract value', async () => {
     renderLens();
     const markWon = screen.getByRole('button', { name: 'Mark won' });
-    expect(markWon).toHaveAttribute('data-variant', 'primary');
+    expect(markWon).toHaveAttribute('data-variant', 'outline');
     await userEvent.click(markWon);
 
     expect(screen.getByRole('button', { name: 'Mark won' })).toHaveAttribute('data-variant', 'outline');
