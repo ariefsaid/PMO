@@ -1188,3 +1188,26 @@ describe('DocumentsTab — floor (register controls)', () => {
     expect(screen.getByTestId('route-path')).toHaveTextContent('/projects/p1/documents');
   });
 });
+
+/**
+ * Move 1 (judging: "three create/link controls in three places"): the register's create and link
+ * controls belong to ONE toolbar row — the filters on the left, the view switch and the create
+ * actions on the right — instead of a folder strip floating alone above the filters.
+ */
+describe('DocumentsTab — one toolbar row (move 1)', () => {
+  it('move 1: Create folder, Link from Microsoft 365 and Add document share the register toolbar row', () => {
+    renderTab('Project Manager', 'pm-1');
+    const toolbar = screen.getByTestId('documents-register-toolbar');
+    const add = within(toolbar).getByRole('button', { name: 'Add document' });
+    const link = within(toolbar).getByRole('button', { name: 'Link from Microsoft 365' });
+    const folder = within(toolbar).getByRole('button', { name: 'Create folder in SharePoint' });
+
+    // One action group for all three, so they wrap together and never sit in three places.
+    expect(link.parentElement).toBe(add.parentElement);
+    expect(folder.closest('[data-testid="documents-register-toolbar"]')).toBe(toolbar);
+    expect(add.parentElement).toHaveClass('flex-wrap');
+    // The filters stay on the same row as the actions.
+    expect(within(toolbar).getByLabelText('Filter by category')).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: 'Register' })).toBeInTheDocument();
+  });
+});
