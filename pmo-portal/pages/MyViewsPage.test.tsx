@@ -3,7 +3,7 @@
  * AC-AS tests for the My Views list page AI composer entry point.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
@@ -164,5 +164,28 @@ describe('MyViewsPage — "Compose with AI" entry (FR-AS-014)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('builder-page')).toBeInTheDocument();
     });
+  });
+});
+
+// C13 (GLM my-views #3): a shared row must say whose view it is, so a teammate knows whom to ask.
+describe('MyViewsPage — C13 row provenance', () => {
+  it('marks the viewer’s own views and says a shared row belongs to a teammate', () => {
+    mockUseUserViews.mockReturnValue({
+      data: [
+        { id: 'v1', user_id: 'u1', name: 'My pipeline', description: null, scope: 'private', created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-01T00:00:00Z', archived_at: null },
+        { id: 'v2', user_id: 'u9', name: 'Team pipeline', description: null, scope: 'shared_org', created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-01T00:00:00Z', archived_at: null },
+      ],
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    renderMyViews();
+
+    expect(screen.getByRole('columnheader', { name: 'Owner' })).toBeInTheDocument();
+    const mine = screen.getByText('My pipeline').closest('tr')!;
+    const shared = screen.getByText('Team pipeline').closest('tr')!;
+    expect(within(mine).getByText('You')).toBeInTheDocument();
+    expect(within(shared).getByText(/A teammate/)).toBeInTheDocument();
+    expect(within(shared).getByText(/shared with the organisation/i)).toBeInTheDocument();
   });
 });
