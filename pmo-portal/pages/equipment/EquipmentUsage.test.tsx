@@ -406,6 +406,7 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     renderPage('Admin');
     expect(screen.getByText('No machines registered')).toBeInTheDocument();
     expect(screen.queryByText('No hours logged this week')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add row' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'New asset' }));
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/equipment/assets');
   });
@@ -416,6 +417,7 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     renderPage('Engineer');
     expect(screen.getByText('No machines registered')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New asset' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add row' })).toBeNull();
     expect(screen.getByText('An Admin or Project Manager adds the machines.')).toBeInTheDocument();
   });
 

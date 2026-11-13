@@ -190,11 +190,6 @@ const EquipmentUsagePage: React.FC = () => {
     }
   };
   const submittable = canLog && mine.some((e) => e.status === 'Draft' || e.status === 'Rejected');
-  // One filled action per surface (DESIGN.md): Submit week owns the fill when a week can be sent; on a
-  // ready-to-log grid with nothing to send, Add row is that one action; and when no machine exists the
-  // empty state's New asset is the action, so Add row steps back instead of leading into an empty picker.
-  const addRowTakesTheFill = !submittable && !noMachines;
-
   const columns: Column<GridRow>[] = [
     // Keep this semantic row header at its declared width; the shared `primary` kind enforces a
     // 240px minimum that pushes the Fuel and trips control outside the 1440px usage grid.
@@ -351,10 +346,10 @@ const EquipmentUsagePage: React.FC = () => {
       )}
       {!usageQ.isPending && !usageQ.isError && usageQ.data && tab === 'log' && (
         <>
-          <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
+          {!noMachines && <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
             <div className="mb-3">
               {!adding
-                ? <Button variant={addRowTakesTheFill ? 'primary' : 'outline'} onClick={() => setAdding(true)}><Icon name="plus" />{t('equipment:usage.addRow', 'Add row')}</Button>
+                ? <Button variant="outline" onClick={() => setAdding(true)}><Icon name="plus" />{t('equipment:usage.addRow', 'Add row')}</Button>
                 : <div className="flex flex-wrap items-end gap-2 rounded-card border border-border p-3">
                   <div className="w-64"><Combobox label={t('equipment:usage.rowAsset', 'Equipment')} required noun={t('equipment:usage.assetNoun', 'equipment')}
                     value={draftRow.assetId} selectedOption={assetOptions.find((o) => o.value === draftRow.assetId) ?? null}
@@ -368,7 +363,7 @@ const EquipmentUsagePage: React.FC = () => {
                   <Button variant="ghost" onClick={() => setAdding(false)}>{t('equipment:usage.cancel', 'Cancel')}</Button>
                 </div>}
             </div>
-          </CanWrite>
+          </CanWrite>}
           {mine.filter((e) => e.status === 'Rejected' || (e.status === 'Draft' && !!(e.rejected_at || e.rejected_by || e.decision_notes?.trim()))).map((e) => <div key={e.id} className="mb-3">
             <strong>{assetName(e.asset_id)} · {projectName(e.project_id)} · {dayLabel(e.work_date)}</strong>
             <ReturnedBanner record="equipmentUsage" reason={e.decision_notes} person={e.rejecter?.full_name} at={e.rejected_at} />
