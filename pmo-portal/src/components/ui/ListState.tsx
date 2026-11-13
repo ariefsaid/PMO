@@ -161,6 +161,22 @@ const SkeletonBody: React.FC<{ shape: SkeletonShape; rows: number; columns: numb
   );
 };
 
+/** Keep a failed read's body to renderable copy and elements, never raw service objects. */
+function safeErrorBody(content: React.ReactNode): React.ReactNode {
+  if (Array.isArray(content)) return content.map(safeErrorBody);
+  if (
+    content == null ||
+    typeof content === 'string' ||
+    typeof content === 'number' ||
+    typeof content === 'bigint' ||
+    typeof content === 'boolean' ||
+    React.isValidElement(content)
+  ) {
+    return content;
+  }
+  return null;
+}
+
 /**
  * The single source of truth for the three async list states. Consumers render
  * exactly one ListState in place of their content — never hand-roll a spinner
@@ -245,6 +261,7 @@ export const ListState: React.FC<ListStateProps> = ({
   }
 
   if (variant === 'error') {
+    const safeSub = safeErrorBody(sub);
     return (
       <div
         role="alert"
@@ -260,7 +277,7 @@ export const ListState: React.FC<ListStateProps> = ({
           {title && (titleAsPageHeading
             ? <h1 className="text-control font-semibold text-destructive-text">{title}</h1>
             : <div className="text-control font-semibold text-destructive-text">{title}</div>)}
-          {sub && <div className="mt-px text-control text-muted-foreground">{sub}</div>}
+          {safeSub && <div className="mt-px text-control text-muted-foreground">{safeSub}</div>}
         </div>
         <Button variant="outline" size="sm" onClick={onRetry}>
           <Icon name="refresh" />
