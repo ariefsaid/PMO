@@ -73,12 +73,13 @@ const LocationProbe: React.FC = () => {
   return <div data-testid="location-probe" data-search={location.search}>{location.pathname}</div>;
 };
 
-const renderPage = (url = '/calendar?date=2026-11-10') =>
-  render(
-    <MemoryRouter initialEntries={[url]}>
-      <ToastProvider><LocationProbe /><CalendarPage /></ToastProvider>
-    </MemoryRouter>,
-  );
+const renderTree = (url = '/calendar?date=2026-11-10') => (
+  <MemoryRouter initialEntries={[url]}>
+    <ToastProvider><LocationProbe /><CalendarPage /></ToastProvider>
+  </MemoryRouter>
+);
+
+const renderPage = (url = '/calendar?date=2026-11-10') => render(renderTree(url));
 
 /** Per-test reset of the read state + the request log (a stale refetch would hide a new request). */
 const resetReads = () => {
@@ -323,9 +324,16 @@ describe('Calendar — move 1: an empty month says so, a failed read retries', (
   });
 
   it('a failed read offers Retry, which re-runs the same read', () => {
+    // The app's own order: the calendar mounts, reports its visible window (so the read is asked for
+    // once), and only then does that read fail. Mounting straight into the error state would never
+    // report a window — the error replaces the calendar — so the window is reported first.
+    const { rerender } = renderPage();
+    expect(taskWindowKeys().size).toBe(1);
+
     calendarState.tasksError = true;
-    renderPage();
+    rerender(renderTree());
     expect(screen.getByText('Could not load the calendar')).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(calendarState.refetch).toHaveBeenCalledTimes(1);
     // the retry re-runs the one read already asked for; it never opens a second window
