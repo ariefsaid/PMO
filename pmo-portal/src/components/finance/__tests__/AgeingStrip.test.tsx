@@ -73,4 +73,29 @@ describe('Ageing strip bar', () => {
       expect(round(rightOf(painted[index]!))).toBeLessThanOrEqual(round(leftOf(painted[index + 1]!)));
     }
   });
+
+  it('item 3: the segment widths sum to exactly 100 percent for every bucket mix', () => {
+    const mixes = [
+      { name: 'one bucket only', amounts: { d0_30: 0, d31_60: 0, d61_90: 0, over90: 987_654 } },
+      { name: 'three equal buckets that do not divide evenly', amounts: { d0_30: 1, d31_60: 1, d61_90: 1, over90: 0 } },
+      { name: 'amounts with no common divisor', amounts: { d0_30: 3, d31_60: 7, d61_90: 11, over90: 13 } },
+      { name: 'a mix with empty buckets in the middle', amounts: { d0_30: 0, d31_60: 5, d61_90: 0, over90: 5 } },
+      { name: 'large amounts that do not divide evenly', amounts: { d0_30: 1_000_000, d31_60: 1_000_001, d61_90: 1_000_002, over90: 7_000_003 } },
+    ];
+
+    for (const mix of mixes) {
+      const view = render(<AgeingStrip kind="payables" values={payables(mix.amounts)} />);
+
+      const painted = segmentsOf();
+      expect(painted).toHaveLength(4);
+      const widths = painted.map(widthOf);
+      const sum = widths.reduce((running, width) => running + width, 0);
+      // A bucket takes its exact share of the column: the four shares add up to the whole bar, so
+      // every pixel of the bar's width belongs to one bucket (no rounded remainder left unpainted).
+      expect(round(sum)).toBe(100);
+      expect(round(rightOf(painted[painted.length - 1]!))).toBe(100);
+
+      view.unmount();
+    }
+  });
 });
