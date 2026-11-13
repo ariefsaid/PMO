@@ -411,7 +411,7 @@ function apiError(r) {
   const d = r.data && typeof r.data === 'object' ? r.data : {};
   const message = d.message ?? d.msg ?? d.error_description ?? (typeof d.error === 'string' ? d.error : null) ?? (typeof r.data === 'string' && r.data) ?? `HTTP ${r.status}`;
   const code = typeof d.code === 'string' ? d.code : (d.error_code ?? (typeof d.error === 'string' ? d.error : undefined));
-  return new CliError(message, { status: r.status, code, details: d.details ?? undefined, hint: d.hint ?? undefined });
+  return new CliError(message, { status: r.status, code, details: d.details ?? (d.complete === false && Array.isArray(d.missing) ? { missing: d.missing } : undefined), hint: d.hint ?? undefined });
 }
 
 const nowSeconds = (ctx) => Math.floor(ctx.now() / 1000);

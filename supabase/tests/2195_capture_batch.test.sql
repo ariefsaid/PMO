@@ -1,6 +1,6 @@
 -- AC-ROP-017: one order and its invoice are one historical purchase.
 begin;
-select plan(6);
+select plan(7);
 insert into organizations (id,name,default_currency) values ('21950111-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id,email) values ('21950111-0000-0000-0000-000000000002','capture-family@example.test');
 insert into profiles (id,org_id,full_name,email,role,status) values ('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000001','Admin','capture-family@example.test','Admin','active');
@@ -43,6 +43,16 @@ select is(pg_temp.run_batch()->>'resume','false','AC-ROP-008 repeated completed 
 reset role;
 select is((select count(*)::int from procurement_erp_links l join erp_purchase_documents d on d.id=l.erp_purchase_document_id where d.org_id='21950111-0000-0000-0000-000000000001' and d.erp_name like 'BATCH-%'),26,'AC-ROP-017 every family was linked exactly once');
 select is((select count(*)::int from erp_capture_batches where org_id='21950111-0000-0000-0000-000000000001'),1,'AC-ROP-008 retry keeps one batch identity');
+select set_config('capture.undo_purchase',(select p.procurement_id::text from erp_purchase_captures p join procurement_erp_links l on l.procurement_id=p.procurement_id join erp_purchase_documents d on d.id=l.erp_purchase_document_id where d.org_id='21950111-0000-0000-0000-000000000001' and d.erp_name='BATCH-1' limit 1),true);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+select public.undo_captured_purchase(current_setting('capture.undo_purchase')::uuid,'Incorrect selection',false);
+reset role;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(pg_temp.run_batch()->>'reason','batch_contains_undone_capture','AC-ROP-008 an undone capture cannot be reported as a successful batch replay');
+reset role;
+
 select length(set_config('capture.big',(select jsonb_agg(jsonb_build_object('project_id','21950111-0000-0000-0000-000000000003','source_ids',ids) order by n)::text from (select n,jsonb_agg(md5(n::text || ':' || i::text)::uuid::text order by i) ids from generate_series(1,2) n cross join generate_series(1,500) i group by n) groups),true));
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';

@@ -148,3 +148,9 @@ it('AC-ROP-017 still refuses missing critical facts without item evidence', () =
   expect(proposeCapture(docs, null, evidence).map(x => x.reason)).toEqual(['no_project', 'family_unknown', 'amount_or_currency_unknown', 'account_basis_unknown', 'source_scope_mismatch']);
   expect(proposeCapture([source('a', { lines: null })], null, { ...evidence, generation: '' })[0].reason).toBe('evidence_incomplete');
 });
+
+it('AC-ROP-017 names unsupported source kinds even when their face evidence is unavailable', () => {
+  const candidates = [source('payment', { kind: 'supplier_payment', state: 'paid', missing: ['face_currency_or_amount'], familyId: 'payment' }), source('receipt', { kind: 'receipt', state: 'received', missing: ['face_currency_or_amount'], familyId: 'receipt' })];
+  const proposals = proposeCapture(candidates, null, { sourceId: 'binding', generation: 'g', accountScope: 'mapped', complete: true });
+  expect(proposals.map(item => item.reason)).toEqual(['payment_without_invoice', 'receipt_only']);
+});

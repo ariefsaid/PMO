@@ -1,6 +1,6 @@
 -- AC-ROP-017: an authorized census must not truncate purchase history.
 begin;
-select plan(7);
+select plan(10);
 insert into organizations (id, name, default_currency) values
   ('21950110-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id, email) values
@@ -24,11 +24,12 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
 select set_config('capture.revision',public.purchase_capture_source_page(null,null,1)->>'revision',true);
 select is(public.purchase_capture_feed_health()->>'caught_up','false','AC-ROP-018 missing feed completion is incomplete');
-select ok(not has_function_privilege('authenticated','public.record_capture_feed_completion(uuid,uuid,text,timestamptz)','execute'),'AC-ROP-005 a client cannot assert feed completion');
+select ok(not has_function_privilege('authenticated','public.record_capture_feed_completion(uuid,uuid,text,timestamptz,uuid)','execute'),'AC-ROP-005 a client cannot assert feed completion');
 reset role;
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
-select public.record_capture_feed_completion('21950110-0000-0000-0000-000000000001',current_setting('capture.binding')::uuid,'purchases',now());
+select public.record_capture_feed_start('21950110-0000-0000-0000-000000000001',current_setting('capture.binding')::uuid,'purchases',now(),'21950110-0000-0000-0000-000000000010');
+select public.record_capture_feed_completion('21950110-0000-0000-0000-000000000001',current_setting('capture.binding')::uuid,'purchases',now(),'21950110-0000-0000-0000-000000000010');
 reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
@@ -36,7 +37,8 @@ select is(public.purchase_capture_feed_health()->>'caught_up','false','AC-ROP-01
 reset role;
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
-select public.record_capture_feed_completion('21950110-0000-0000-0000-000000000001',current_setting('capture.binding')::uuid,'ledger',now());
+select public.record_capture_feed_start('21950110-0000-0000-0000-000000000001',current_setting('capture.binding')::uuid,'ledger',now(),'21950110-0000-0000-0000-000000000011');
+select public.record_capture_feed_completion('21950110-0000-0000-0000-000000000001',current_setting('capture.binding')::uuid,'ledger',now(),'21950110-0000-0000-0000-000000000011');
 reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
@@ -51,6 +53,31 @@ values ('21950110-0000-0000-0000-000000000001','Example','21950110-0000-0000-000
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
 select is(public.purchase_capture_feed_health()->>'ledger_currency','IDR','AC-ROP-018 the bound company currency comes from trusted publication evidence');
+reset role;
+select set_config('capture.new_start',clock_timestamp()::text,true);
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select public.record_capture_feed_start('21950110-0000-0000-0000-000000000001',current_setting('capture.binding')::uuid,'purchases',current_setting('capture.new_start')::timestamptz,'21950110-0000-0000-0000-000000000012');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(public.purchase_capture_feed_health()->>'caught_up','false','AC-ROP-018 an in-progress feed cannot reuse an earlier completed witness');
+reset role;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select public.record_capture_feed_completion('21950110-0000-0000-0000-000000000001',current_setting('capture.binding')::uuid,'purchases',now(),'21950110-0000-0000-0000-000000000010');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(public.purchase_capture_feed_health()->>'caught_up','false','AC-ROP-018 an older overlapping completion cannot complete the current feed');
+reset role;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select public.record_capture_feed_completion('21950110-0000-0000-0000-000000000001',current_setting('capture.binding')::uuid,'purchases',current_setting('capture.new_start')::timestamptz,'21950110-0000-0000-0000-000000000012');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(public.purchase_capture_feed_health()->>'caught_up','true','AC-ROP-018 only the current run restores the completed witness');
 reset role;
 select * from finish();
 rollback;

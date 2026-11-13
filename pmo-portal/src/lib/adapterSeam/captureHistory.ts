@@ -5,7 +5,7 @@ export interface CaptureLine { id: string; description: string | null; projectSh
 export interface CaptureSource {
   id: string; sourceId: string; version: string; kind: CaptureKind; state: CaptureState; projectIds: string[];
   supplierId: string | null; currency: string | null; faceMinor: string | null; faceScale: number | null; familyId: string | null; purchaseId: string | null; purchaseOrigin?: 'ordinary' | 'captured' | 'erp_link' | null;
-  reference?: string | null; supplierReference?: string | null; supplierName?: string | null; date?: string | null; description?: string | null; lines?: CaptureLine[] | null; missing?: string[];
+  recordedByPmo?: boolean; reference?: string | null; supplierReference?: string | null; supplierName?: string | null; date?: string | null; description?: string | null; lines?: CaptureLine[] | null; missing?: string[];
 }
 export interface CaptureLedgerLine { id: string; sourceId: string; currency: string; projectId: string | null; documentId: string | null; amountMinor: string; kind: CaptureKind; classification: 'mapped' | 'capital_spending' | 'overhead' | 'unmapped' | 'unknown' }
 export interface CaptureScope { sourceId: string; projectId: string; currency: string; scale: number; accountScope: string; generation: string; asOf: string }
@@ -36,12 +36,13 @@ export function proposeCapture(sources: CaptureSource[], projectId: string | nul
     else if (!valid(s.version)) reason = 'revision_unknown';
     else if (s.state === 'cancelled') reason = 'cancelled';
     else if (s.state === 'draft') reason = 'unposted_source';
-    else if (s.missing?.some(x => x !== 'line_evidence')) reason = s.missing.find(x => x !== 'line_evidence');
+    else if (s.recordedByPmo) reason = 'recorded_by_pmo';
     else if (s.kind === 'adjustment' || (s.faceMinor !== null && integer(s.faceMinor) && BigInt(s.faceMinor) < 0n)) reason = 'adjustment_requires_source_link';
     else if (s.kind === 'journal') reason = 'journal';
     else if (s.kind === 'supplier_payment') reason = 'payment_without_invoice';
     else if (s.kind === 'receipt') reason = 'receipt_only';
     else if (s.kind !== 'order' && s.kind !== 'supplier_invoice') reason = 'unsupported_kind';
+    else if (s.missing?.some(x => x !== 'line_evidence')) reason = s.missing.find(x => x !== 'line_evidence');
     else if (s.state === 'unknown') reason = 'state_unknown';
     else if ((s.kind === 'order' && s.state !== 'ordered') || (s.kind === 'supplier_invoice' && !['invoiced', 'part_paid', 'paid'].includes(s.state))) reason = 'state_unsupported';
     else if (!s.projectIds.length) reason = 'no_project';

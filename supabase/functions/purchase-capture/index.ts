@@ -13,7 +13,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' },
 });
 
-interface RawDocument extends MirrorDocument { project_ids: string[]; supplier_id: string | null; procurement_id: string | null; purchase_origin: CaptureSource['purchaseOrigin'] }
+interface RawDocument extends MirrorDocument { project_ids: string[]; supplier_id: string | null; procurement_id: string | null; purchase_origin: CaptureSource['purchaseOrigin']; recorded_by_pmo: boolean }
 interface RawLedger { id: string; erp_modified: string; company: string; project_id: string | null; voucher_type: string | null; voucher_no: string | null; debit: string; credit: string; document_id: string | null; journal_purchase_id: string | null; classification: CaptureLedgerLine['classification'] }
 function trimDecimal(value: string): string { return value.includes('.') ? value.replace(/0+$/, '').replace(/\.$/, '') : value; }
 
@@ -80,14 +80,26 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     if (result.ok) precision[kind] = result.scale;
     else missing.push(result.reason);
   }
+  let ledgerScale = precision.order ?? precision.supplier_invoice;
+  if (precision.order !== undefined && precision.supplier_invoice !== undefined && precision.order !== precision.supplier_invoice) {
+    missing.push('precision_changed');
+    ledgerScale = undefined;
+  }
+  if (kinds.size === 0 && ledger.items.length > 0) {
+    const result = await precisionReader.read(config.company, 'journal');
+    if (result.ok) ledgerScale = result.scale;
+    else missing.push(result.reason);
+  }
   const sources: CaptureSource[] = docs.items.map(row => {
     const kind = row.erp_doctype === 'Purchase Order' ? 'order' : row.erp_doctype === 'Purchase Invoice' ? 'supplier_invoice' : null;
     const family = kind === 'order' ? `order:${row.erp_name}` : kind === 'supplier_invoice' && row.purchase_orders.length === 1 ? `order:${row.purchase_orders[0]}` : kind === 'supplier_invoice' && row.purchase_orders.length === 0 ? `invoice:${row.id}` : `other:${row.id}`;
     const scale = kind ? precision[kind] ?? null : null;
     const normalized = { ...row, net_total: row.net_total === null ? null : trimDecimal(row.net_total) };
-    return normaliseDocument(normalized, { sourceId: binding.id, projectIds: row.project_ids, familyId: family,
+    const source = normaliseDocument(normalized, { sourceId: binding.id, projectIds: row.project_ids, familyId: family,
       purchaseId: row.procurement_id, purchaseOrigin: row.purchase_origin, supplierId: row.supplier_id,
       scale, scaleCurrency: row.currency });
+    if (row.recorded_by_pmo !== true && row.recorded_by_pmo !== false) source.missing?.push('ownership_unknown');
+    return { ...source, recordedByPmo: row.recorded_by_pmo === true };
   });
   const classifications: Record<string, 'mapped' | 'unmapped' | 'capital_spending' | 'unknown'> = {};
   for (const source of sources) {
@@ -124,7 +136,6 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
       request_id: body.requestId, revision: body.expectedRevision, erp_write: false });
   }
   const projectIds = projectId ? [projectId as string] : [...new Set([...sources.flatMap(source => source.projectIds), ...ledger.items.flatMap(line => line.project_id ? [line.project_id] : [])])];
-  const ledgerScale = precision.order ?? precision.supplier_invoice;
   const reports = projectIds.map(id => {
     const mappedLines: CaptureLedgerLine[] = [];
     const journalDocs: CaptureSource[] = [];
@@ -154,8 +165,11 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     return { ...report, remainder: report.remainder.map(describe), excluded: report.excluded.map(describe) };
   });
   const unassigned = ledger.items.filter(line => !line.project_id || line.company !== config.company).map(line => ({ id: line.id, kind: line.voucher_type, source: line.voucher_no, reason: line.company !== config.company ? 'company_scope_mismatch' : 'project_unmapped' }));
+  const unassignedDocuments = sources.filter(source => source.projectIds.length === 0).map(source => ({ id: source.id,
+    kind: source.kind, state: source.state, source: source.reference ?? null,
+    reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped' }));
   return json({ complete: complete && missing.length === 0 && unassigned.length === 0 && reports.every(report => report.complete), revision: docs.generation,
-    ...(body.action === 'preview' ? { proposals } : {}), reports, unassigned, missing: [...new Set(missing)], erp_write: false });
+    ...(body.action === 'preview' ? { proposals } : {}), reports, unassigned, unassigned_documents: unassignedDocuments, missing: [...new Set(missing)], erp_write: false });
 }
 
 if (import.meta.main) serveWithErrorReporting('purchase-capture', handlePurchaseCaptureRequest);

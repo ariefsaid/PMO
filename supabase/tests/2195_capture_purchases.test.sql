@@ -1,6 +1,6 @@
 -- AC-ROP-017: one order and its invoice are one historical purchase.
 begin;
-select plan(16);
+select plan(17);
 insert into organizations (id,name,default_currency) values ('21950111-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id,email) values ('21950111-0000-0000-0000-000000000002','capture-family@example.test');
 insert into profiles (id,org_id,full_name,email,role,status) values ('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000001','Admin','capture-family@example.test','Admin','active');
@@ -40,6 +40,16 @@ create function pg_temp.capture_family(dry boolean) returns jsonb language sql a
    current_setting('capture.revision'), current_setting('capture.ids')::jsonb,
    jsonb_build_object('order',2,'supplier_invoice',2), dry)
 $$;
+select is(pg_temp.capture_family(true)->>'reason','account_classification_unknown','AC-ROP-017 a mapped account without chart evidence cannot authorize capture');
+reset role;
+insert into erp_account_mirror(org_id,company,erp_name,account_name,root_type,report_type,is_group,account_currency,lft,rgt,refresh_id)
+values ('21950111-0000-0000-0000-000000000001','Example','Cost','Cost','Expense','Profit and Loss',false,'USD',1,2,'21950111-0000-0000-0000-000000000012');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+select set_config('capture.revision',public.purchase_capture_source_page(null,null,500)->>'revision',true);
+reset role;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
 select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000008',current_setting('capture.revision'),current_setting('capture.single')::jsonb,'{"supplier_invoice":2}'::jsonb,false)->>'reason','family_incomplete','AC-ROP-017 a known order cannot be omitted from its invoice family');
 select is(pg_temp.capture_family(true)->>'outcome','create','AC-ROP-017 preview proposes the supported family');
 select is((select count(*)::int from erp_gl_entry_mirror where org_id='21950111-0000-0000-0000-000000000001' and voucher_no='INVOICE-1' and not is_cancelled and debit-credit=100 and remarks like 'On cancellation of%'),1,'AC-ROP-011 a clean same-voucher repost remains capturable');

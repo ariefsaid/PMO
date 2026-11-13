@@ -37,11 +37,17 @@ begin
     coalesce((select string_agg(to_jsonb(p)::text, E'\n' order by p.id) from public.projects p where p.org_id = v_org), ''),
     coalesce((select string_agg(to_jsonb(c)::text, E'\n' order by c.id) from public.companies c where c.org_id = v_org), ''),
     coalesce((select string_agg(to_jsonb(p)::text, E'\n' order by p.id) from public.procurements p where p.org_id = v_org), ''),
+    coalesce((select string_agg(to_jsonb(t)::text, E'\n' order by t.id) from public.purchase_requests t where t.org_id = v_org), ''),
+    coalesce((select string_agg(to_jsonb(t)::text, E'\n' order by t.id) from public.purchase_orders t where t.org_id = v_org), ''),
+    coalesce((select string_agg(to_jsonb(t)::text, E'\n' order by t.id) from public.procurement_receipts t where t.org_id = v_org), ''),
+    coalesce((select string_agg(to_jsonb(t)::text, E'\n' order by t.id) from public.procurement_invoices t where t.org_id = v_org), ''),
+    coalesce((select string_agg(to_jsonb(t)::text, E'\n' order by t.id) from public.payments t where t.org_id = v_org), ''),
+    coalesce((select string_agg(to_jsonb(c)::text, E'\n' order by c.procurement_id) from public.erp_purchase_captures c where c.org_id = v_org), ''),
     coalesce((select string_agg(to_jsonb(o)::text, E'\n' order by o.domain) from public.external_domain_ownership o where o.org_id = v_org), ''),
     coalesce((select to_jsonb(o)::text from public.organizations o where o.id = v_org), '')
   ), 'UTF8'), 'sha256'), 'hex') into v_generation;
   with candidates as (
-    select d.*, l.procurement_id,
+    select d.*, l.procurement_id, public.erp_document_recorded_by_pmo(d.org_id,d.erp_doctype,d.erp_name) as recorded_by_pmo,
       (select case when count(distinct c.id) = 1 then (array_agg(distinct c.id))[1] end
          from public.external_refs x join public.companies c on c.id::text=x.pmo_record_id and c.org_id=x.org_id
         where x.org_id=d.org_id and x.domain='companies' and x.external_tier='erpnext'
@@ -169,8 +175,17 @@ begin
       v_order := v_doc.erp_name;
     else
       v_has_invoice := true; v_stage := case when v_doc.erp_status = 'Paid' then 'paid' when v_doc.erp_status = 'Partly Paid' then 'part_paid' else 'invoiced' end;
+      if exists (select 1 from public.erp_gl_entry_mirror g left join public.erp_account_mirror a
+          on a.org_id=g.org_id and a.company=g.company and a.erp_name=g.account and not a.is_group
+         where g.org_id=v_org and g.company=v_company and g.project=v_erp_project
+           and g.voucher_type=v_doc.erp_doctype and g.voucher_no=v_doc.erp_name and not g.is_cancelled
+           and (a.id is null or a.root_type is null)) then
+        v_reason := 'account_classification_unknown'; exit;
+      end if;
       if not exists (select 1 from public.erp_gl_entry_mirror g join public.budget_category_account_map m
           on m.org_id = g.org_id and m.erp_account = g.account
+          join public.erp_account_mirror a on a.org_id=g.org_id and a.company=g.company
+            and a.erp_name=g.account and not a.is_group and a.root_type='Expense'
          where g.org_id = v_org and g.company = v_company and g.project = v_erp_project
            and g.voucher_type = v_doc.erp_doctype and g.voucher_no = v_doc.erp_name and not g.is_cancelled) then
         v_reason := 'invoice_has_no_mapped_cost'; exit;
@@ -270,9 +285,10 @@ begin
   with candidates as (
     select g.*, d.id as document_id, l.procurement_id as document_purchase_id,
       project.project_id, journal.procurement_id as journal_purchase_id,
-      case when exists(select 1 from public.budget_category_account_map m where m.org_id=g.org_id and m.erp_account=g.account) then 'mapped'
+      case when a.id is null then 'unknown'
         when a.root_type='Asset' then 'capital_spending'
-        when a.id is not null then 'unmapped' else 'unknown' end as classification
+        when a.root_type='Expense' and exists(select 1 from public.budget_category_account_map m where m.org_id=g.org_id and m.erp_account=g.account) then 'mapped'
+        else 'unmapped' end as classification
     from public.erp_gl_entry_mirror g
     left join public.erp_purchase_documents d on d.org_id=g.org_id and d.erp_doctype=g.voucher_type and d.erp_name=g.voucher_no
     left join public.procurement_erp_links l on l.erp_purchase_document_id=d.id
@@ -302,28 +318,42 @@ create table public.erp_capture_feed_witnesses (
   org_id uuid not null references public.organizations(id) on delete cascade,
   feed_kind text not null check (feed_kind in ('purchases','ledger')),
   started_at timestamptz not null,
+  run_id uuid not null default gen_random_uuid(),
+  completed boolean not null default true,
   primary key (binding_id,feed_kind)
 );
 alter table public.erp_capture_feed_witnesses enable row level security;
 alter table public.erp_capture_feed_witnesses force row level security;
 revoke all on public.erp_capture_feed_witnesses from public, anon, authenticated, service_role;
 
-create function public.record_capture_feed_completion(p_org_id uuid,p_binding_id uuid,p_kind text,p_started_at timestamptz)
+create function public.record_capture_feed_start(p_org_id uuid,p_binding_id uuid,p_kind text,p_started_at timestamptz,p_run_id uuid)
 returns void language plpgsql security definer set search_path = public, pg_catalog as $$
 begin
   if coalesce(auth.jwt()->>'role','') <> 'service_role' then raise exception 'not authorized' using errcode='42501'; end if;
-  if p_kind not in ('purchases','ledger') or p_started_at is null or p_started_at > clock_timestamp()
+  if p_kind not in ('purchases','ledger') or p_run_id is null or p_started_at is null or p_started_at > clock_timestamp()
     or not exists (select 1 from public.external_org_bindings b where b.id=p_binding_id and b.org_id=p_org_id
       and b.status='active' and b.activated_at is not null and p_started_at >= b.activated_at) then
-    raise exception 'invalid feed completion' using errcode='22023';
+    raise exception 'invalid feed start' using errcode='22023';
   end if;
-  insert into public.erp_capture_feed_witnesses(org_id,binding_id,feed_kind,started_at)
-    values(p_org_id,p_binding_id,p_kind,p_started_at)
-  on conflict (binding_id,feed_kind) do update set started_at=greatest(erp_capture_feed_witnesses.started_at,excluded.started_at)
-    where erp_capture_feed_witnesses.org_id=excluded.org_id;
+  insert into public.erp_capture_feed_witnesses(org_id,binding_id,feed_kind,started_at,run_id,completed)
+    values(p_org_id,p_binding_id,p_kind,p_started_at,p_run_id,false)
+  on conflict (binding_id,feed_kind) do update set started_at=excluded.started_at,run_id=excluded.run_id,completed=false
+    where erp_capture_feed_witnesses.org_id=excluded.org_id and erp_capture_feed_witnesses.started_at <= excluded.started_at;
 end $$;
-revoke all on function public.record_capture_feed_completion(uuid,uuid,text,timestamptz) from public,anon,authenticated;
-grant execute on function public.record_capture_feed_completion(uuid,uuid,text,timestamptz) to service_role;
+revoke all on function public.record_capture_feed_start(uuid,uuid,text,timestamptz,uuid) from public,anon,authenticated;
+grant execute on function public.record_capture_feed_start(uuid,uuid,text,timestamptz,uuid) to service_role;
+
+create function public.record_capture_feed_completion(p_org_id uuid,p_binding_id uuid,p_kind text,p_started_at timestamptz,p_run_id uuid)
+returns void language plpgsql security definer set search_path = public, pg_catalog as $$
+begin
+  if coalesce(auth.jwt()->>'role','') <> 'service_role' then raise exception 'not authorized' using errcode='42501'; end if;
+  update public.erp_capture_feed_witnesses set completed=true
+    where org_id=p_org_id and binding_id=p_binding_id and feed_kind=p_kind and started_at=p_started_at and run_id=p_run_id
+      and exists (select 1 from public.external_org_bindings b where b.id=p_binding_id and b.org_id=p_org_id
+        and b.status='active' and b.activated_at is not null and p_started_at >= b.activated_at);
+end $$;
+revoke all on function public.record_capture_feed_completion(uuid,uuid,text,timestamptz,uuid) from public,anon,authenticated;
+grant execute on function public.record_capture_feed_completion(uuid,uuid,text,timestamptz,uuid) to service_role;
 
 create or replace function public.purchase_capture_feed_health()
 returns jsonb language plpgsql stable security definer set search_path = public, pg_catalog as $$
@@ -336,7 +366,7 @@ begin
     from public.external_org_bindings where org_id=v_org and status='active' and activated_at is not null;
   if v_count <> 1 then return jsonb_build_object('caught_up',false,'reason','binding_unavailable'); end if;
   select max(started_at) filter (where feed_kind='purchases'), max(started_at) filter (where feed_kind='ledger')
-    into v_purchase,v_ledger from public.erp_capture_feed_witnesses where org_id=v_org and binding_id=v_binding;
+    into v_purchase,v_ledger from public.erp_capture_feed_witnesses where org_id=v_org and binding_id=v_binding and completed;
   v_caught := coalesce(v_purchase >= greatest(v_since,now()-interval '30 minutes') and v_ledger >= greatest(v_since,now()-interval '30 minutes'),false);
   select count(distinct s.currency),min(s.currency) into v_currency_count,v_currency
     from public.erp_financial_statement_snapshot s
@@ -437,7 +467,8 @@ begin
     'erp_gl_entry_mirror','erp_journal_line_links','budget_category_account_map','erp_account_mirror',
     'erp_actuals_snapshot','erp_financial_statement_snapshot','erp_financial_statement_published_context',
     'external_org_bindings','external_refs','projects','companies','procurements','external_domain_ownership',
-    'organizations','erp_capture_feed_witnesses','erp_purchase_captures'] loop
+    'organizations','erp_capture_feed_witnesses','erp_purchase_captures','purchase_requests','purchase_orders',
+    'procurement_receipts','procurement_invoices','payments'] loop
     execute format('create trigger capture_census_fence before insert or update or delete on public.%I for each row execute function public.fence_capture_source_change()',v_table);
   end loop;
 end $$;

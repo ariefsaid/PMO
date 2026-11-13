@@ -15,6 +15,7 @@ it('AC-ROP-017 uses one settings GET as the field-precision witness', async () =
   expect(init?.method).toBe('GET');
 });
 it('AC-ROP-017 refuses missing, denied and higher precision without guessing', async () => {
+  await expect(readCapturePrecision(client('{"data":{"currency_precision":0,"number_format":"#,###.##"}}'))).resolves.toMatchObject({ ok: false, reason: 'source_precision_unknown' });
   await expect(readCapturePrecision(client('{"data":{}}'))).resolves.toMatchObject({ ok: false, reason: 'source_precision_unknown' });
   await expect(readCapturePrecision(client('{"error":"denied"}', 403))).resolves.toMatchObject({ ok: false, reason: 'source_precision_unknown' });
   await expect(readCapturePrecision(client('{"data":{"currency_precision":"3","number_format":"#,###.###"}}'))).resolves.toMatchObject({ ok: false, reason: 'source_precision_exceeds_mirror' });

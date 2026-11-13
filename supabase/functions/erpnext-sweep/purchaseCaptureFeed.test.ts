@@ -29,7 +29,8 @@ function routes(partial: boolean, writes: unknown[]): MockRoute[] {
       return jsonResponse(null, { headers: { 'content-range': '0-0/1' } });
     } },
     supabaseRpc('upsert_erp_purchase_documents', () => jsonResponse(0)),
-    supabaseRpc('record_capture_feed_completion', (call) => { writes.push(call.bodyJson); return jsonResponse(null); }),
+    supabaseRpc('record_capture_feed_start', (call) => { writes.push({ event: 'start', ...call.bodyJson as object }); return jsonResponse(null); }),
+    supabaseRpc('record_capture_feed_completion', (call) => { writes.push({ event: 'complete', ...call.bodyJson as object }); return jsonResponse(null); }),
     erp('erp.example.test', /^\/api\/resource\//, (call) => {
       const path = decodeURIComponent(call.url.pathname);
       return jsonResponse({ data: partial && path.endsWith('/Purchase Order') ? fullPage : [] });
@@ -53,12 +54,12 @@ describe('AC-ROP-018 purchase feed completion witness', () => {
   it('records the pass start when all source pages are caught up', async () => {
     const { result, writes } = await run(false);
     assertEquals(result.error, undefined);
-    assertEquals(writes.length, 1);
+    assertEquals(writes.map((write) => (write as { event: string }).event), ['start', 'complete']);
     assertEquals((writes[0] as { p_kind: string }).p_kind, 'purchases');
   });
   it('does not mark a bounded partial pass complete', async () => {
     const { result, writes } = await run(true);
     assertEquals(result.error, undefined);
-    assertEquals(writes.length, 0);
+    assertEquals(writes.map((write) => (write as { event: string }).event), ['start']);
   });
 });

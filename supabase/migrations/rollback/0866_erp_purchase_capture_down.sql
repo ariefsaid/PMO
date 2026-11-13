@@ -16,7 +16,8 @@ drop function if exists public.capture_history_apply(uuid,uuid,uuid,text,jsonb,j
 drop function if exists public.capture_history_apply_internal(uuid,uuid,uuid,text,jsonb,jsonb,boolean,boolean);
 drop function if exists public.purchase_capture_ledger_page(uuid,integer);
 drop function if exists public.purchase_capture_feed_health();
-drop function if exists public.record_capture_feed_completion(uuid,uuid,text,timestamptz);
+drop function if exists public.record_capture_feed_completion(uuid,uuid,text,timestamptz,uuid);
+drop function if exists public.record_capture_feed_start(uuid,uuid,text,timestamptz,uuid);
 drop table if exists public.erp_capture_feed_witnesses;
 do $$
 declare v_table text;
@@ -25,7 +26,8 @@ begin
     'erp_gl_entry_mirror','erp_journal_line_links','budget_category_account_map','erp_account_mirror',
     'erp_actuals_snapshot','erp_financial_statement_snapshot','erp_financial_statement_published_context',
     'external_org_bindings','external_refs','projects','companies','procurements','external_domain_ownership',
-    'organizations','erp_purchase_captures'] loop
+    'organizations','erp_purchase_captures','purchase_requests','purchase_orders','procurement_receipts',
+    'procurement_invoices','payments'] loop
     execute format('drop trigger if exists capture_census_fence on public.%I',v_table);
   end loop;
 end $$;

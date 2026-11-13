@@ -2340,3 +2340,18 @@ test('AC-ROP-012 unknown capture outcome retains request and review identity for
     assert.match(result.errJson?.error?.hint ?? '', /same/i);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
+
+test('AC-ROP-021 capture reports the unsupported adapter reason from a conflict response', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    send(409, { complete: false, missing: ['odoo_purchase_capture'], erp_write: false });
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const result = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+    assert.notEqual(result.code, 0);
+    assert.deepEqual(result.errJson?.error?.details?.missing, ['odoo_purchase_capture']);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
