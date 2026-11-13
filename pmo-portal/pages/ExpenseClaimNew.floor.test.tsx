@@ -74,7 +74,7 @@ describe('Expense claim floor', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[1]);
 
     expect(screen.getAllByLabelText(/^Amount/)).toHaveLength(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(h.capture).toHaveBeenCalled());
     expect(h.capture.mock.calls[0][0].firstLine).toMatchObject({ description: 'Train fare', amount: 42.5 });
     expect(h.capture.mock.calls[0][0].additionalLines).toEqual([]);

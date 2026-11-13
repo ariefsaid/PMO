@@ -63,7 +63,12 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   expect(screen.getByLabelText(/^Amount/)).toBeInTheDocument();
   expect(screen.getByText('USD')).toBeInTheDocument();
  });
- it('keeps the primary action in ONE place: the sticky form footer, Cancel to its left, no copy at the top', () => { renderPage(); const saves = screen.getAllByRole('button', { name: 'Save' }); expect(saves).toHaveLength(1); expect(saves[0]).toHaveAttribute('type', 'submit'); const footer = screen.getByTestId('form-footer'); expect(footer).toContainElement(saves[0]); expect(footer.className).toContain('sticky'); expect(footer.className).toContain('bottom-[var(--phone-nav-height)]'); const cancel = screen.getByRole('button', { name: 'Cancel' }); expect(cancel.compareDocumentPosition(saves[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); });
+ it('explains the category decision briefly and names the draft action', () => {
+  renderPage();
+  expect(screen.getByText('Decides who approves')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Save draft' })).toBeInTheDocument();
+ });
+ it('keeps the primary action in ONE place: the sticky form footer, Cancel to its left, no copy at the top', () => { renderPage(); const saves = screen.getAllByRole('button', { name: 'Save draft' }); expect(saves).toHaveLength(1); expect(saves[0]).toHaveAttribute('type', 'submit'); const footer = screen.getByTestId('form-footer'); expect(footer).toContainElement(saves[0]); expect(footer.className).toContain('sticky'); expect(footer.className).toContain('bottom-[var(--phone-nav-height)]'); const cancel = screen.getByRole('button', { name: 'Cancel' }); expect(cancel.compareDocumentPosition(saves[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); });
  it('AC-EXP1-001 renders editable header, lines and receipts without a separate claim amount', () => { renderPage(); expect(screen.getByLabelText(/Title/)).toBeInTheDocument(); expect(screen.getByLabelText('Project')).toBeInTheDocument(); expect(screen.getByLabelText('Budget category')).toBeInTheDocument(); expect(screen.getByLabelText('Purpose')).toBeInTheDocument(); expect(screen.getByText('Lines')).toBeInTheDocument(); expect(screen.getByLabelText('Receipt (optional)')).toBeInTheDocument(); expect(screen.getAllByLabelText(/^Amount/)).toHaveLength(1); });
  it.each(['0', 'not-an-amount'])('C1: a populated invalid amount (%s) is reported as invalid, not missing', (amount) => {
   renderPage();
@@ -72,13 +77,13 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } });
   fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Train fare' } });
   fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: amount } });
-  fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form')!);
+  fireEvent.submit(screen.getByRole('button', { name: 'Save draft' }).closest('form')!);
 
   expect(screen.getByText(/Enter an amount greater than zero/)).toBeInTheDocument();
   expect(screen.queryByText('Required')).not.toBeInTheDocument();
  });
- it('allows saving the claim header as a Draft before adding an expense line or receipt', async () => { renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Late receipt' } }); fireEvent.click(screen.getByRole('button', { name: 'Save' })); await waitFor(() => expect(h.capture).toHaveBeenCalled()); expect(h.capture.mock.calls[0][0]).toMatchObject({ header: { title: 'Late receipt' }, firstLine: null, additionalLines: [], receiptFile: null }); expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }); });
- it('AC-EXP1-002 creates a Draft with every captured line, then replaces to detail', async () => { renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } }); fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-10-20' } }); fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } }); fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Train fare' } }); fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '42.50' } }); fireEvent.click(screen.getByRole('button', { name: 'Add line' })); const dates = screen.getAllByLabelText(/^Date/); fireEvent.change(dates[1], { target: { value: '2026-10-21' } }); fireEvent.change(screen.getAllByLabelText(/^Type/)[1], { target: { value: 'Meals' } }); fireEvent.change(screen.getAllByLabelText(/^Description/)[1], { target: { value: 'Lunch' } }); fireEvent.change(screen.getAllByLabelText(/^Amount/)[1], { target: { value: '18.25' } }); fireEvent.click(screen.getByRole('button', { name: 'Save' })); await waitFor(() => expect(h.capture).toHaveBeenCalled()); expect(h.capture.mock.calls[0][0].header).toMatchObject({ kind: 'claim', title: 'Travel expenses' }); expect(h.capture.mock.calls[0][0].firstLine).toMatchObject({ description: 'Train fare', amount: 42.5 }); expect(h.capture.mock.calls[0][0].additionalLines).toEqual([expect.objectContaining({ description: 'Lunch', amount: 18.25 })]); expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }); });
+ it('allows saving the claim header as a Draft before adding an expense line or receipt', async () => { renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Late receipt' } }); fireEvent.click(screen.getByRole('button', { name: 'Save draft' })); await waitFor(() => expect(h.capture).toHaveBeenCalled()); expect(h.capture.mock.calls[0][0]).toMatchObject({ header: { title: 'Late receipt' }, firstLine: null, additionalLines: [], receiptFile: null }); expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }); });
+ it('AC-EXP1-002 creates a Draft with every captured line, then replaces to detail', async () => { renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } }); fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-10-20' } }); fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } }); fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Train fare' } }); fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '42.50' } }); fireEvent.click(screen.getByRole('button', { name: 'Add line' })); const dates = screen.getAllByLabelText(/^Date/); fireEvent.change(dates[1], { target: { value: '2026-10-21' } }); fireEvent.change(screen.getAllByLabelText(/^Type/)[1], { target: { value: 'Meals' } }); fireEvent.change(screen.getAllByLabelText(/^Description/)[1], { target: { value: 'Lunch' } }); fireEvent.change(screen.getAllByLabelText(/^Amount/)[1], { target: { value: '18.25' } }); fireEvent.click(screen.getByRole('button', { name: 'Save draft' })); await waitFor(() => expect(h.capture).toHaveBeenCalled()); expect(h.capture.mock.calls[0][0].header).toMatchObject({ kind: 'claim', title: 'Travel expenses' }); expect(h.capture.mock.calls[0][0].firstLine).toMatchObject({ description: 'Train fare', amount: 42.5 }); expect(h.capture.mock.calls[0][0].additionalLines).toEqual([expect.objectContaining({ description: 'Lunch', amount: 18.25 })]); expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }); });
  it('AC-EXP1-002 removes only the selected second line before saving', async () => {
   renderPage();
   fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } });
@@ -93,7 +98,7 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   fireEvent.change(screen.getAllByLabelText(/^Amount/)[1], { target: { value: '18.25' } });
   fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[1]);
   expect(screen.getAllByLabelText(/^Amount/)).toHaveLength(1);
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
   await waitFor(() => expect(h.capture).toHaveBeenCalled());
   expect(h.capture.mock.calls[0][0].firstLine).toMatchObject({ description: 'Train fare', amount: 42.5 });
   expect(h.capture.mock.calls[0][0].additionalLines).toEqual([]);
@@ -102,7 +107,7 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   h.adv.error = true; renderPage();
   fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Late receipt' } });
   expect(screen.getByText(/Couldn't load your advances/).closest('[role="alert"]')).not.toBeNull();
-  const save = screen.getByRole('button', { name: 'Save' });
+  const save = screen.getByRole('button', { name: 'Save draft' });
   expect(save).toBeDisabled();
   fireEvent.submit(save.closest('form')!);
   expect(h.capture).not.toHaveBeenCalled();
@@ -113,7 +118,7 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   h.proj.error = true; renderPage();
   fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Site trip' } });
   expect(screen.getByText(/Couldn't load projects/).closest('[role="alert"]')).not.toBeNull();
-  const save = screen.getByRole('button', { name: 'Save' });
+  const save = screen.getByRole('button', { name: 'Save draft' });
   expect(save).toBeDisabled();
   fireEvent.submit(save.closest('form')!);
   expect(h.capture).not.toHaveBeenCalled();
@@ -123,27 +128,27 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
  it('Save waits while projects are still loading', () => {
   h.proj.pending = true; renderPage();
   fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Site trip' } });
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save draft' })).toBeDisabled();
   expect(screen.getByText('Loading projects…')).toBeInTheDocument();
  });
  it('AC-EXP-062 Save waits while the advances are still loading, then works', async () => {
   h.adv.pending = true; const { unmount } = renderPage();
   fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Late receipt' } });
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save draft' })).toBeDisabled();
   expect(screen.getByText('Loading your advances…')).toBeInTheDocument();
-  fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form')!);
+  fireEvent.submit(screen.getByRole('button', { name: 'Save draft' }).closest('form')!);
   expect(h.capture).not.toHaveBeenCalled();
   unmount(); h.adv.pending = false; renderPage();
   fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Late receipt' } });
-  expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Save draft' })).toBeEnabled();
  });
  it('AC-EXP1-005 keeps the create permission gate unchanged', () => { h.may.mockReturnValue(false); renderPage(); expect(screen.getByText(/do not have permission/i)).toBeInTheDocument(); expect(h.create).not.toHaveBeenCalled(); expect(h.capture).not.toHaveBeenCalled(); });
  it('AC-EXP1-003 leaving an untouched page creates no claim or lines', () => { renderPage(); fireEvent.click(screen.getByRole('button', { name: 'Cancel' })); expect(h.navigate).toHaveBeenCalledWith('/expenses'); expect(h.create).not.toHaveBeenCalled(); expect(h.capture).not.toHaveBeenCalled(); expect(h.addLine).not.toHaveBeenCalled(); });
  it('holds navigation after entry until the user confirms discarding unsaved values', () => { renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Unsaved trip' } }); fireEvent.click(screen.getByRole('button', { name: 'Cancel' })); expect(screen.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument(); expect(h.navigate).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole('button', { name: 'Keep editing' })); expect(h.navigate).not.toHaveBeenCalled(); expect(screen.getByLabelText(/Title/)).toHaveValue('Unsaved trip'); expect(h.create).not.toHaveBeenCalled(); expect(h.capture).not.toHaveBeenCalled(); });
  it('treats a float selection by itself as unsaved and keeps it after Keep editing', () => { h.choices = [{ float_id: 'f1', project_name: 'Project One', custodian_name: 'Custodian', currency: 'IDR' }]; renderPage(); fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } }); fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } }); expect(screen.getByLabelText(/Title/)).toHaveValue(''); fireEvent.click(screen.getByRole('button', { name: 'Cancel' })); expect(screen.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument(); expect(h.navigate).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole('button', { name: 'Keep editing' })); expect(screen.getByLabelText('Charge to site float')).toHaveValue('f1'); expect(h.navigate).not.toHaveBeenCalled(); expect(h.capture).not.toHaveBeenCalled(); });
  it('suggests a title from the selected receipt until the claimant edits it', () => { renderPage(); fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'site-visit.pdf', { type: 'application/pdf' })] } }); expect(screen.getByLabelText(/Title/)).toHaveValue('site-visit'); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Reviewed visit' } }); fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'another.pdf', { type: 'application/pdf' })] } }); expect(screen.getByLabelText(/Title/)).toHaveValue('Reviewed visit'); });
- it('AC-EXP1-004 lands on the saved draft and cleans up an unconfirmed receipt when capture fails', async () => { h.capture.mockRejectedValueOnce(Object.assign(new Error('receipt upload failed'), { claimId: 'claim-1', draftSaved: true })); renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } }); fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' })] } }); fireEvent.click(screen.getByRole('button', { name: 'Save' })); await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true })); expect(h.cleanup).toHaveBeenCalledTimes(1); expect(h.cleanup).toHaveBeenCalledWith({ beforeConfirmationOnly: true }); await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).toHaveTextContent(/receipt upload failed/i)); });
- it('AC-EXP1-004 prevents overlapping submissions until the capture request settles', async () => { let resolveCapture!: (claimId: string) => void; h.capture.mockImplementationOnce(() => new Promise((resolve) => { resolveCapture = resolve; })); renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Trip' } }); const saveButton = screen.getByRole('button', { name: 'Save' }); fireEvent.click(saveButton); fireEvent.click(saveButton); expect(h.capture).toHaveBeenCalledTimes(1); expect(saveButton).toBeDisabled(); resolveCapture('claim-1'); await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true })); });
+ it('AC-EXP1-004 lands on the saved draft and cleans up an unconfirmed receipt when capture fails', async () => { h.capture.mockRejectedValueOnce(Object.assign(new Error('receipt upload failed'), { claimId: 'claim-1', draftSaved: true })); renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } }); fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' })] } }); fireEvent.click(screen.getByRole('button', { name: 'Save draft' })); await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true })); expect(h.cleanup).toHaveBeenCalledTimes(1); expect(h.cleanup).toHaveBeenCalledWith({ beforeConfirmationOnly: true }); await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).toHaveTextContent(/receipt upload failed/i)); });
+ it('AC-EXP1-004 prevents overlapping submissions until the capture request settles', async () => { let resolveCapture!: (claimId: string) => void; h.capture.mockImplementationOnce(() => new Promise((resolve) => { resolveCapture = resolve; })); renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Trip' } }); const saveButton = screen.getByRole('button', { name: 'Save draft' }); fireEvent.click(saveButton); fireEvent.click(saveButton); expect(h.capture).toHaveBeenCalledTimes(1); expect(saveButton).toBeDisabled(); resolveCapture('claim-1'); await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true })); });
  it.each(['success', 'partial'] as const)('AC-EXP1-004 locks capture after %s navigation starts, even before unmount', async (outcome) => {
   if (outcome === 'partial') h.capture.mockRejectedValueOnce(Object.assign(new Error('line save failed'), { claimId: 'claim-1', draftSaved: true }));
   renderPage();
@@ -157,7 +162,7 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   fireEvent.change(screen.getAllByLabelText(/^Type/)[1], { target: { value: 'Meals' } });
   fireEvent.change(screen.getAllByLabelText(/^Description/)[1], { target: { value: 'Lunch' } });
   fireEvent.change(screen.getAllByLabelText(/^Amount/)[1], { target: { value: '18.25' } });
-  const saveButton = screen.getByRole('button', { name: 'Save' });
+  const saveButton = screen.getByRole('button', { name: 'Save draft' });
   fireEvent.click(saveButton);
   await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }));
   expect(saveButton).toBeDisabled();
@@ -169,10 +174,10 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   h.capture.mockRejectedValueOnce(new Error('draft save failed'));
   renderPage();
   fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Save draft' })).toBeEnabled());
   expect(h.navigate).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
   await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }));
   expect(h.capture).toHaveBeenCalledTimes(2);
  });
@@ -183,7 +188,7 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   renderPage();
   fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } });
   fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' })] } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
   await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }));
   expect(h.cleanup).toHaveBeenCalledWith({ beforeConfirmationOnly: true });
  });
@@ -194,19 +199,19 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   renderPage();
   fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } });
   fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' })] } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
   await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }));
   expect(h.cleanup).toHaveBeenCalledTimes(1);
  });
 
- it('lands on the saved claim and reports a later line failure instead of abandoning the draft', async () => { h.capture.mockRejectedValueOnce(Object.assign(new Error('line save failed'), { claimId: 'claim-1', draftSaved: true })); renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } }); fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-10-20' } }); fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } }); fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Train fare' } }); fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '42.50' } }); fireEvent.click(screen.getByRole('button', { name: 'Add line' })); fireEvent.change(screen.getAllByLabelText(/^Date/)[1], { target: { value: '2026-10-21' } }); fireEvent.change(screen.getAllByLabelText(/^Type/)[1], { target: { value: 'Meals' } }); fireEvent.change(screen.getAllByLabelText(/^Description/)[1], { target: { value: 'Lunch' } }); fireEvent.change(screen.getAllByLabelText(/^Amount/)[1], { target: { value: '18.25' } }); fireEvent.click(screen.getByRole('button', { name: 'Save' })); await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true })); expect(h.cleanup).not.toHaveBeenCalled(); await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).toHaveTextContent(/line save failed/i)); });
+ it('lands on the saved claim and reports a later line failure instead of abandoning the draft', async () => { h.capture.mockRejectedValueOnce(Object.assign(new Error('line save failed'), { claimId: 'claim-1', draftSaved: true })); renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } }); fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-10-20' } }); fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } }); fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Train fare' } }); fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '42.50' } }); fireEvent.click(screen.getByRole('button', { name: 'Add line' })); fireEvent.change(screen.getAllByLabelText(/^Date/)[1], { target: { value: '2026-10-21' } }); fireEvent.change(screen.getAllByLabelText(/^Type/)[1], { target: { value: 'Meals' } }); fireEvent.change(screen.getAllByLabelText(/^Description/)[1], { target: { value: 'Lunch' } }); fireEvent.change(screen.getAllByLabelText(/^Amount/)[1], { target: { value: '18.25' } }); fireEvent.click(screen.getByRole('button', { name: 'Save draft' })); await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true })); expect(h.cleanup).not.toHaveBeenCalled(); await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).toHaveTextContent(/line save failed/i)); });
  it('suggests only the current claimant’s newest saved category for the selected project', () => { h.claims = [{ id: 'own-old', kind: 'claim', claimant_id: 'user-1', project_id: 'p1', budget_category: 'Labor', title: 'Latest same-project claim', created_at: '2026-10-12T00:00:00Z' }, { id: 'other-user', kind: 'claim', claimant_id: 'user-2', project_id: 'p1', budget_category: 'Materials', title: 'Another claimant visit', created_at: '2026-10-13T00:00:00Z' }, { id: 'own-new', kind: 'claim', claimant_id: 'user-1', project_id: 'p1', budget_category: 'Special expenses', title: 'Newest same-project claim', created_at: '2026-10-14T00:00:00Z' }]; renderPage(); fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } }); expect(screen.getByLabelText('Budget category')).toHaveValue('Special expenses'); expect(screen.getByText(/Newest same-project claim/)).toBeInTheDocument(); expect(screen.queryByText(/Another claimant visit/)).toBeNull(); });
  it.each([
   ['inactive', /Expense posting is off\. This saves in PMO only/],
   ['notConnected', /Expense posting is off\. This saves in PMO only/],
   ['unavailable', /Couldn't check expense posting/],
- ] as const)('keeps the %s posting-readiness caveat visible without blocking PMO-only draft capture', async (state, message) => { h.readiness = state; renderPage(); expect(screen.getByText(message)).toBeInTheDocument(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Trip' } }); fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-10-20' } }); fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } }); fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Fare' } }); fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '5' } }); fireEvent.click(screen.getByRole('button', { name: 'Save' })); await waitFor(() => expect(h.capture).toHaveBeenCalled()); });
- it('sends the chosen advance with the header', async () => { renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Trip' } }); fireEvent.change(screen.getByLabelText('Settle against advance'), { target: { value: 'adv-1' } }); fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-10-20' } }); fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } }); fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Fare' } }); fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '5' } }); fireEvent.click(screen.getByRole('button', { name: 'Save' })); await waitFor(() => expect(h.capture).toHaveBeenCalled()); expect(h.capture.mock.calls[0][0].header).toMatchObject({ advanceId: 'adv-1' }); });
+ ] as const)('keeps the %s posting-readiness caveat visible without blocking PMO-only draft capture', async (state, message) => { h.readiness = state; renderPage(); expect(screen.getByText(message)).toBeInTheDocument(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Trip' } }); fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-10-20' } }); fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } }); fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Fare' } }); fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '5' } }); fireEvent.click(screen.getByRole('button', { name: 'Save draft' })); await waitFor(() => expect(h.capture).toHaveBeenCalled()); });
+ it('sends the chosen advance with the header', async () => { renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Trip' } }); fireEvent.change(screen.getByLabelText('Settle against advance'), { target: { value: 'adv-1' } }); fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-10-20' } }); fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } }); fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Fare' } }); fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '5' } }); fireEvent.click(screen.getByRole('button', { name: 'Save draft' })); await waitFor(() => expect(h.capture).toHaveBeenCalled()); expect(h.capture.mock.calls[0][0].header).toMatchObject({ advanceId: 'adv-1' }); });
 });
 
 describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
@@ -313,7 +318,7 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
     fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
     fill('100000');
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(h.setFloat).toHaveBeenCalledWith({ claimId: 'claim-1', floatId: 'f1' }));
     await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }));
   });
@@ -322,7 +327,7 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     renderPage();
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
     fill('100000');
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(h.navigate).toHaveBeenCalled());
     expect(h.setFloat).not.toHaveBeenCalled();
   });
@@ -334,7 +339,7 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p2' } });
     expect(screen.getByLabelText('Charge to site float')).toHaveValue('');
     fill('100000');
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(h.navigate).toHaveBeenCalled());
     expect(h.setFloat).not.toHaveBeenCalled();
   });
@@ -345,7 +350,7 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
     fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
     fill('100000');
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }));
     await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).toHaveTextContent(/float/i));
   });
