@@ -557,7 +557,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
             }
           >
             <Button
-              variant='primary'
+              variant={reviewListKind ? 'outline' : 'primary'}
               size='sm'
               disabled={nothingToAccept || isWaitingSend || isAllClear}
               onClick={() => { setAcceptingSelected(false); setAcceptingTarget('all'); }}
