@@ -12,10 +12,10 @@ import { ToastProvider } from '@/src/components/ui';
 
 vi.mock('@/src/components/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/ui')>();
-  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => React.createElement(actual.Button, {
-    ...props,
-    'data-variant': props.variant ?? 'primary',
-  });
+  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => {
+    const buttonProps = { ...props, 'data-variant': props.variant ?? 'primary' } as React.ComponentProps<typeof actual.Button>;
+    return React.createElement(actual.Button, buttonProps);
+  };
   return { ...actual, Button: ButtonWithVariant };
 });
 
@@ -341,8 +341,8 @@ describe('TimeAndMaterials', () => {
     ]);
     const { user } = renderPanel();
 
-    expect(screen.getByRole('button', { name: 'Add rate' })).toHaveAttribute('data-variant', 'outline');
     const accept = await screen.findByRole('button', { name: 'Accept proposed (1)' });
+    expect(screen.getByRole('button', { name: 'Add rate' })).toHaveAttribute('data-variant', 'outline');
     expect(accept).toHaveAttribute('data-variant', 'primary');
     await user.click(accept);
 

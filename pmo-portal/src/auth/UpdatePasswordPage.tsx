@@ -133,7 +133,7 @@ const UpdatePasswordPage: React.FC = () => {
     e.preventDefault();
     setError(null);
     if (!password) {
-      setConfirmError('Enter a password to continue.');
+      setConfirmError(t('update.empty', 'Enter a password to continue.'));
       return;
     }
     if (password !== confirm) {

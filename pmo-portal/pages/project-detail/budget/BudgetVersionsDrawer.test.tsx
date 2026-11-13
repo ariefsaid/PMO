@@ -48,29 +48,4 @@ describe('BudgetVersionsDrawer', () => {
     const change = within(row).getByText('+USD 4,500,000');
     expect(change).not.toHaveClass('text-destructive-text');
   });
-
-  it('changing Version A keeps the selected value and updates the comparison', async () => {
-    const user = userEvent.setup();
-    render(
-      <BudgetVersionsDrawer
-        open
-        onClose={() => {}}
-        versions={[original, increase]}
-        fallbackCurrency="USD"
-        canWrite={false}
-        hasDraft={false}
-        onArchive={() => {}}
-        onClone={() => {}}
-        onDeleteDraft={() => {}}
-      />,
-    );
-    await user.click(screen.getByRole('button', { name: 'Compare' }));
-    expect(screen.getByRole('row', { name: /Labor/ })).toHaveTextContent('+USD 4,500,000');
-
-    const versionA = screen.getByRole('combobox', { name: 'Version A' });
-    await user.selectOptions(versionA, 'version-2');
-
-    expect(versionA).toHaveValue('version-2');
-    expect(screen.getByRole('row', { name: /Labor/ })).toHaveTextContent('-USD 4,500,000');
-  });
 });

@@ -99,7 +99,8 @@ describe('TasksToolbar — form B shared controls', () => {
 
   it('the view toggle still switches the list to board', async () => {
     const props = renderToolbar();
-    await userEvent.click(screen.getByRole('button', { name: 'Board' }));
+    // ViewToggle defaults to tabs semantics (role=tab inside the "Task view" tablist).
+    await userEvent.click(screen.getByRole('tab', { name: 'Board' }));
     expect(props.setTaskView).toHaveBeenCalledWith('board');
   });
 });

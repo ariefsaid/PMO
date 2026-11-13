@@ -7,6 +7,7 @@ import { Button, Combobox, FormFooter, FormGrid, Icon, ListState, SelectField, T
 import type { IconName } from '@/src/components/ui/icons';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { usePermission } from '@/src/auth/usePermission';
+import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { useOrgFxContext } from '@/src/hooks/useOrgFxContext';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useCreateProcurementWithItems } from '@/src/hooks/useProcurementCrud';
@@ -102,8 +103,9 @@ export default function ProcurementCreate() {
   const { toast } = useToast();
   const create = useCreateProcurementWithItems();
   const orgFxContext = useOrgFxContext();
-  const currencyKnown = orgFxContext.data !== undefined && !orgFxContext.isPlaceholderData && !orgFxContext.isError;
-  const orgCurrency = orgFxContext.data?.currency ?? 'USD';
+  const orgCurrencyState = useOrgCurrencyState();
+  const currencyKnown = orgCurrencyState.isResolved;
+  const orgCurrency = orgCurrencyState.currency;
   const params = new URLSearchParams(location.search);
   const [projectId] = useState(() => params.get('project'));
   const projectQuery = useProjectOptions();

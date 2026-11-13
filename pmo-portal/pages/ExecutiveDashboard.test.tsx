@@ -470,6 +470,19 @@ describe('company home — executive (one question: is the company OK, what wait
 describe('company home — finance (one question: what must I collect, pay and invoice today?)', () => {
   beforeEach(() => { state.role = 'Finance'; });
 
+  it('C13: Finance can open Plan vs actual from Analysis on the focused home', async () => {
+    localStorage.setItem('home-layout', 'focused');
+    const top = { id: 'finance-default', name: 'Finance delivery', client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent: 1_000, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' };
+    (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top];
+    renderPage();
+
+    expect(document.querySelector('[data-home-layout="focused"]')).not.toBeNull();
+    await openAnalysis();
+
+    expect(screen.getByRole('heading', { name: 'Plan vs actual' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /^Plan vs actual by project\. Finance delivery:/ })).toBeInTheDocument();
+  });
+
   it('Refresh dashboard reloads the finance-position and supplier purchase reads', async () => {
     renderPage();
 
@@ -705,6 +718,19 @@ describe('company home — Overview layout (the default: one page, charts carry 
     localStorage.setItem('home-layout', 'sideways');
     renderPage();
     expect(document.querySelector('[data-home-layout="overview"]')).not.toBeNull();
+  });
+
+  it('C13: the focused company home exposes Plan vs actual in Analysis', async () => {
+    localStorage.setItem('home-layout', 'focused');
+    const top = { id: 'default', name: 'Default delivery', client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent: 1_000, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' };
+    (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top];
+    renderPage();
+
+    expect(document.querySelector('[data-home-layout="focused"]')).not.toBeNull();
+    await openAnalysis();
+
+    expect(screen.getByRole('heading', { name: 'Plan vs actual' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /^Plan vs actual by project\. Default delivery:/ })).toBeInTheDocument();
   });
 
   it('Refresh dashboard reloads the overview delivery, trend, and loss reads', async () => {
