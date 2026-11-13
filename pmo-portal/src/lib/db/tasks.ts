@@ -153,6 +153,12 @@ export interface CalendarTask {
   start_date: string | null;
   end_date: string;
   assignee_id: string | null;
+  /**
+   * C13 (DS calendar #4): the assignee's name, so a chip can say whose task it is. Absent/null is a
+   * real state (unassigned, or a caller that did not join the profile) and is never rendered as an
+   * empty separator.
+   */
+  assignee_name?: string | null;
   created_by: string | null;
 }
 
@@ -167,17 +173,21 @@ export async function listCalendarTasks(
   const rows = await fetchAllPages((from, to) => {
     let q = supabase
       .from('tasks')
-      .select('id, name, status, project_id, start_date, end_date, assignee_id, created_by, project:projects!tasks_project_id_fkey(name, short_name)')
+      .select('id, name, status, project_id, start_date, end_date, assignee_id, created_by, assignee:profiles!tasks_assignee_id_fkey(full_name), project:projects!tasks_project_id_fkey(name, short_name)')
       .gte('end_date', opts.from)
       .lt('end_date', opts.to)
       .is('tombstoned_at', null)
       .is('archived_at', null);
     if (opts.projectId) q = q.eq('project_id', opts.projectId);
     return q.order('end_date', { ascending: true }).order('id', { ascending: true }).range(from, to);
-  }) as unknown as Array<Omit<CalendarTask, 'project_name'> & { project: { name: string; short_name?: string | null } | null }>;
-  return rows.map(({ project, ...t }) => ({
+  }) as unknown as Array<Omit<CalendarTask, 'project_name' | 'assignee_name'> & {
+    assignee: { full_name: string } | null;
+    project: { name: string; short_name?: string | null } | null;
+  }>;
+  return rows.map(({ project, assignee, ...t }) => ({
     ...t,
     project_name: project ? projectDisplayName(project) : null,
+    assignee_name: assignee?.full_name ?? null,
   }));
 }
 
